@@ -173,28 +173,77 @@ def select_parser_for_file(
 
 def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) -> tuple[str, str]:
     """Detect parser for Excel files by scanning top rows/headers."""
-    wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
-    try:
-        ws = wb.active
-        header_row = detect_header_row(ws)
-        headers = extract_headers(ws, header_row)
-        headers_str = " ".join([str(h or "").lower() for h in headers])
+    headers: list[str] = []
+    haystack = ""
 
-        rows = list(ws.iter_rows(values_only=True, max_row=30))
-        scan_str = " ".join(
-            str(cell or "").lower() for row in rows for cell in row if cell not in (None, "")
-        )
-        haystack = f"{headers_str} {scan_str}".strip()
-    finally:
+    is_legacy_xls = file_path.lower().endswith(".xls") and not file_path.lower().endswith(".xlsx")
+
+    if not is_legacy_xls:
+        wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
         try:
-            wb.close()
+            ws = wb.active
+            header_row = detect_header_row(ws)
+            headers = extract_headers(ws, header_row)
+            headers_str = " ".join([str(h or "").lower() for h in headers])
+
+            rows = list(ws.iter_rows(values_only=True, max_row=30))
+            scan_str = " ".join(
+                str(cell or "").lower() for row in rows for cell in row if cell not in (None, "")
+            )
+            haystack = f"{headers_str} {scan_str}".strip()
+        finally:
+            try:
+                wb.close()
+            except Exception:
+                pass
+    else:
+        # Fallback for legacy .xls files using pandas + xlrd
+        try:
+            import pandas as pd  # type: ignore
+
+            df = pd.read_excel(file_path, engine="xlrd", header=None, nrows=40)
+            df = df.fillna("")
+            if not df.empty:
+                # Detect header row with keyword scoring
+                keywords = [
+                    "fecha", "factura", "cliente", "producto", "cantidad",
+                    "precio", "subtotal", "iva", "total", "tipo", "codigo",
+                    "descripcion", "vendedor", "stock", "categoria", "sku",
+                    "nombre", "banco", "cuenta", "saldo",
+                ]
+                best_idx, best_score = 0, -1
+                max_scan = min(len(df.index), 30)
+                for idx in range(max_scan):
+                    values = [str(v).strip() for v in df.iloc[idx].tolist()]
+                    non_empty = [v for v in values if v and v.lower() != "nan"]
+                    if len(non_empty) < 2:
+                        continue
+                    lowered = " ".join(v.lower() for v in non_empty)
+                    kw_hits = sum(1 for kw in keywords if kw in lowered)
+                    score = len(non_empty) + (kw_hits * 4)
+                    if score > best_score:
+                        best_score = score
+                        best_idx = idx
+                raw_headers = df.iloc[best_idx].tolist()
+                headers = [str(h).strip() for h in raw_headers if str(h).strip() and str(h).lower() != "nan"]
+                headers_str = " ".join(h.lower() for h in headers)
+                scan_rows = []
+                for row_idx in range(best_idx + 1, min(len(df.index), best_idx + 30)):
+                    vals = df.iloc[row_idx].tolist()
+                    scan_rows.extend(str(v).lower() for v in vals if v not in (None, "") and str(v).lower() != "nan")
+                scan_str = " ".join(scan_rows)
+                haystack = f"{headers_str} {scan_str}".strip()
         except Exception:
             pass
 
+    if not haystack:
+        raise ValueError("Could not read file headers")
+
     bank_kw = ("iban", "saldo", "cuenta", "concepto", "valor", "importe", "transaction", "bank")
-    invoice_kw = ("factura", "invoice", "iva", "proveedor", "cliente", "ruc", "tax")
-    expenses_kw = ("gasto", "expense", "receipt", "recibo", "categoria")
-    product_kw = ("producto", "sku", "precio", "stock", "categoria")
+    invoice_kw = ("factura", "invoice", "iva", "proveedor", "cliente", "ruc", "tax",
+                  "vendedor", "num. factura", "num factura", "forma de pago", "retencion")
+    expenses_kw = ("gasto", "expense", "receipt", "recibo")
+    product_kw = ("sku", "stock", "existencias", "inventario", "barcode", "ean")
     recipe_kw = (
         "ingredientes",
         "costo total ingredientes",

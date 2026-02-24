@@ -38,3 +38,17 @@ export async function saveImportFieldAliases(
     },
   )
 }
+
+export async function getAliasesStatus(authToken?: string) {
+  return apiFetch<{ total: number; by_type: Record<string, number> }>(
+    '/api/v1/tenant/imports/field-aliases/status',
+    { authToken },
+  )
+}
+
+export async function seedDefaultAliases(authToken?: string) {
+  return apiFetch<{ ok: boolean; seeded: Record<string, any> }>(
+    '/api/v1/tenant/imports/field-aliases/seed-defaults',
+    { method: 'POST', authToken },
+  )
+}

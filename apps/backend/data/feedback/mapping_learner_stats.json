@@ -67,6 +67,58 @@
           "total": 1
         }
       }
+    },
+    "generic": {
+      "producto": {
+        "name": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "cantidad": {
+        "stock": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "precio unitario venta": {
+        "price": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "venta diaria": {
+        "price": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    },
+    "products": {
+      "cod. producto": {
+        "name": {
+          "correct": 4,
+          "total": 4
+        }
+      },
+      "producto": {
+        "name": {
+          "correct": 4,
+          "total": 4
+        }
+      },
+      "precio unitario": {
+        "price": {
+          "correct": 4,
+          "total": 4
+        }
+      },
+      "cantidad": {
+        "stock": {
+          "correct": 4,
+          "total": 4
+        }
+      }
     }
   }
 }

@@ -141,12 +141,12 @@
   },
   "wizard": {
     "page": {
-      "title": "Asistente de Importaci?n",
+      "title": "Asistente de importación",
       "description": "Sube un archivo, mapea campos, valida datos e importa con un flujo guiado."
     },
     "actions": {
-      "hideAiTelemetry": "Ocultar telemetr?a IA",
-      "showAiTelemetry": "Mostrar telemetr?a IA",
+      "hideAiTelemetry": "Ocultar telemetría IA",
+      "showAiTelemetry": "Mostrar telemetría IA",
       "back": "Atr?s",
       "continue": "Continuar",
       "validate": "Validar",
@@ -183,12 +183,12 @@
       "ocrDocument": "Documento OCR"
     },
     "errors": {
-      "ocrNoDocuments": "OCR no devolvi? documentos",
+      "ocrNoDocuments": "OCR no devolvió documentos",
       "ocrProcessFailed": "Error procesando PDF/imagen",
       "unknownError": "Error desconocido",
       "oldXlsReadFailed": "No se pudo leer {{file}}. Los .xls antiguos pueden requerir conversi?n a .xlsx o .csv. Detalle: {{detail}}",
       "fileReadFailed": "No se pudo leer el archivo {{file}}. Detalle: {{detail}}",
-      "importError": "Error de importaci?n"
+      "importError": "Error de importación"
     },
     "upload": {
       "selectFilePrompt": "Selecciona un archivo a importar (CSV, Excel, PDF o imagen).",
@@ -207,7 +207,7 @@
       "override": "OVERRIDE",
       "selected": "Seleccionado",
       "type": "Tipo",
-      "description": "Descripci?n",
+      "description": "Descripción",
       "confidence": "Confianza",
       "provider": "Proveedor",
       "aiProviderFallback": "IA",
@@ -216,14 +216,14 @@
     "validation": {
       "missingMappingFor": "Falta mapeo para: {{field}}",
       "fileHasNoRows": "El archivo no tiene filas",
-      "maxRowsPerImport": "M?ximo {{max}} filas por importaci?n",
+      "maxRowsPerImport": "Máximo {{max}} filas por importación",
       "fixIssuesBeforeContinue": "Corrige estos problemas antes de continuar:",
-      "passed": "Validaci?n superada."
+      "passed": "Validación superada."
     },
     "summary": {
-      "autoModeRecommended": "Modo autom?tico (recomendado)",
+      "autoModeRecommended": "Modo automático (recomendado)",
       "autoModeHelp": "Activa productos, crea ALM-1 si falta y aplica stock inicial.",
-      "targetWarehouse": "Almac?n destino",
+      "targetWarehouse": "Almacén destino",
       "promotedWithErrors": "Promovidos: {{promoted}} | Errores: {{errors}}",
       "goToProducts": "Ir a Productos",
       "goToInventory": "Ir a Inventario"
@@ -247,7 +247,7 @@
     "confirm": {
       "deleteProducts": "?Eliminar {{count}} productos? Esta acci?n no se puede deshacer.",
       "zeroStockPromoteAnyway": "Hay {{count}} productos con stock cero. ?Promover igual?",
-      "promoteProducts": "?Promover {{count}} productos al cat?logo?"
+      "promoteProducts": "?Promover {{count}} productos al catálogo?"
     },
     "actions": {
       "backToImporter": "Volver al importador",
@@ -273,7 +273,7 @@
       "showingAllBatches": "Mostrando productos de todos los lotes"
     },
     "autoMode": {
-      "recommended": "Modo autom?tico (recomendado)",
+      "recommended": "Modo automático (recomendado)",
       "help": "Activa productos, crea ALM-1 si falta y aplica stock inicial.",
       "targetWarehouse": "Almac?n destino"
     },
@@ -281,11 +281,11 @@
       "notice": "Hay {{count}} productos con stock cero."
     },
     "table": {
-      "code": "C?digo",
+      "code": "Código",
       "name": "Nombre",
       "price": "Precio",
       "cost": "Costo",
-      "category": "Categor?a",
+      "category": "Categoría",
       "stock": "Stock",
       "unit": "Unidad",
       "tax": "Impuesto",
@@ -339,7 +339,7 @@
       "deleteTemplate": "?Eliminar esta plantilla?"
     },
     "empty": {
-      "noTemplates": "No hay plantillas disponibles para este tipo de importaci?n.",
+      "noTemplates": "No hay plantillas disponibles para este tipo de importación.",
       "createFromMapping": "Crea una desde el mapeo de campos."
     },
     "badges": {
@@ -365,7 +365,7 @@
     "saveNamePlaceholder": "Ej: Proveedor L?cteos - Mensual",
     "readyToContinue": "Listo para continuar",
     "mustMapProductNameFooter": "Debes mapear \"Nombre Producto\"",
-    "continueImport": "Continuar con importaci?n",
+    "continueImport": "Continuar con importación",
     "alerts": {
       "mustMapProductName": "Debes mapear al menos el campo \"Nombre Producto\""
     },
@@ -373,8 +373,8 @@
       "productName": "Nombre Producto",
       "salePrice": "Precio Venta",
       "stockQuantity": "Stock/Cantidad",
-      "category": "Categor?a",
-      "codeSku": "C?digo/SKU",
+      "category": "Categoría",
+      "codeSku": "Código/SKU",
       "purchaseCost": "Costo Compra",
       "supplier": "Proveedor",
       "unit": "Unidad",

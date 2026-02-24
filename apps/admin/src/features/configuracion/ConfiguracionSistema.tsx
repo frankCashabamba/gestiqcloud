@@ -30,6 +30,7 @@ import CategoriaGastoList from './categorias-gasto/CategoriaGastoList'
 import CategoriaGastoForm from './categorias-gasto/CategoriaGastoForm'
 import MetodoPagoList from './metodos-pago/MetodoPagoList'
 import MetodoPagoForm from './metodos-pago/MetodoPagoForm'
+import FieldConfigManager from './FieldConfigManager'
 import { AdminCard } from '../../components/AdminCard'
 import '../../pages/admin-panel.css'
 import RolesRouter from './roles/RolesRouter'
@@ -238,6 +239,7 @@ export default function ConfiguracionSistema() {
       <Route path="metodos-pago" element={<MetodoPagoList />} />
       <Route path="metodos-pago/nuevo" element={<MetodoPagoForm />} />
       <Route path="metodos-pago/:id/editar" element={<MetodoPagoForm />} />
+      <Route path="fields" element={<FieldConfigManager />} />
       <Route path="*" element={<Navigate to="." replace />} />
     </Routes>
   )

@@ -7,6 +7,8 @@ import { AIProviderSettings } from '../components/AIProviderSettings'
 import {
   getImportFieldAliases,
   saveImportFieldAliases,
+  getAliasesStatus,
+  seedDefaultAliases,
   type ImportAliasDocType,
   type ImportAliasField,
 } from '../services/importSettingsApi'
@@ -188,13 +190,7 @@ export default function ImportadorSettings() {
       )}
 
       {activeTab === 'importacion' && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-4">
-          <h2 className="text-xl font-bold">Comportamiento de importacion</h2>
-          <p className="text-sm text-gray-700">
-            Esta seccion mantiene opciones de UI. La logica de normalizacion ahora usa aliases de
-            base de datos.
-          </p>
-        </div>
+        <ImportBehaviorTab token={token} />
       )}
 
       {activeTab === 'aliases' && (
@@ -299,6 +295,131 @@ export default function ImportadorSettings() {
           {message && <div className="text-sm text-slate-700">{message}</div>}
         </div>
       )}
+    </div>
+  )
+}
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  invoices: 'Facturas / Ventas',
+  products: 'Productos',
+  bank_transactions: 'Transacciones Bancarias',
+  expenses: 'Gastos',
+  generic: 'Genérico',
+}
+
+function ImportBehaviorTab({ token }: { token: string | null }) {
+  const [status, setStatus] = useState<{ total: number; by_type: Record<string, number> } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [seeding, setSeeding] = useState(false)
+  const [seedResult, setSeedResult] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const res = await getAliasesStatus(token || undefined)
+        if (!cancelled) setStatus(res)
+      } catch {
+        if (!cancelled) setStatus({ total: 0, by_type: {} })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [token, seedResult])
+
+  const handleSeed = async () => {
+    setSeeding(true)
+    setSeedResult(null)
+    try {
+      const res = await seedDefaultAliases(token || undefined)
+      const parts: string[] = []
+      for (const [mod, info] of Object.entries(res.seeded || {})) {
+        const label = DOC_TYPE_LABELS[mod.replace('imports_', '')] || mod
+        if ((info as any).skipped) {
+          parts.push(`${label}: ya existían ${(info as any).existing} aliases`)
+        } else {
+          parts.push(`${label}: ${(info as any).created} aliases creados`)
+        }
+      }
+      setSeedResult(parts.join(' | '))
+    } catch (err: any) {
+      setSeedResult(err?.message || 'Error al inicializar aliases')
+    } finally {
+      setSeeding(false)
+    }
+  }
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-6">
+      <h2 className="text-xl font-bold">Comportamiento de importación</h2>
+
+      <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+        <h3 className="font-semibold text-slate-800">Estado de Aliases en Base de Datos</h3>
+        <p className="text-xs text-slate-500">
+          Los aliases permiten que el importador reconozca automáticamente las columnas de tus archivos
+          (ej: &quot;Num. Factura&quot; → invoice_number). Sin aliases, el sistema usa solo heurísticas básicas.
+        </p>
+        {loading ? (
+          <div className="text-sm text-slate-500">Cargando...</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {['invoices', 'products', 'bank_transactions', 'expenses'].map((dt) => {
+                const count = status?.by_type[dt] || 0
+                return (
+                  <div key={dt} className={`rounded-lg border p-3 ${count > 0 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                    <div className="text-xs font-semibold text-slate-600">{DOC_TYPE_LABELS[dt] || dt}</div>
+                    <div className={`text-lg font-bold ${count > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {count} campos
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {count > 0 ? 'Configurado' : 'Sin configurar'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {(status?.total || 0) === 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-800 font-medium">
+                  ⚠ No hay aliases configurados. El importador no puede mapear columnas automáticamente.
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Haz clic en &quot;Inicializar aliases por defecto&quot; para cargar la configuración base
+                  (facturas, productos, banco, gastos) con aliases en español e inglés.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSeed}
+            disabled={seeding}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-slate-300"
+          >
+            {seeding ? 'Inicializando...' : 'Inicializar aliases por defecto'}
+          </button>
+          <span className="text-xs text-slate-500">No sobreescribe aliases existentes</span>
+        </div>
+        {seedResult && (
+          <div className="text-sm text-slate-700 bg-slate-50 rounded p-2">{seedResult}</div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2">
+        <h3 className="font-semibold text-slate-800">Cómo funciona</h3>
+        <ol className="text-sm text-slate-600 list-decimal list-inside space-y-1">
+          <li><strong>Subida:</strong> El archivo se analiza para detectar cabeceras (Excel, CSV, PDF, imagen).</li>
+          <li><strong>Clasificación:</strong> Se detecta el tipo de documento (facturas, productos, banco, gastos) usando heurísticas + IA si está activada.</li>
+          <li><strong>Mapeo:</strong> Los aliases de la BD mapean las columnas del archivo a campos canónicos (ej: &quot;Precio Unitario&quot; → precio_unitario).</li>
+          <li><strong>Preview:</strong> Los datos se muestran en la tabla de preview con las columnas correctas del tipo detectado.</li>
+          <li><strong>Promoción:</strong> Solo al promover se guardan los datos reales en las tablas de negocio.</li>
+        </ol>
+      </div>
     </div>
   )
 }

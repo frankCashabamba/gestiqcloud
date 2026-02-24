@@ -47,6 +47,10 @@ class TenantFieldConfig(Base):
     transform_expression: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="parseFloat(v.replace(...)) como string"
     )
+    options: Mapped[dict | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True,
+        comment="Array de opciones para select: ['Opción 1', 'Opción 2']",
+    )
 
 
 class SectorFieldDefault(Base):
@@ -61,3 +65,11 @@ class SectorFieldDefault(Base):
     ord: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     label: Mapped[str | None] = mapped_column(Text, nullable=True)
     help: Mapped[str | None] = mapped_column(Text, nullable=True)
+    field_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    options: Mapped[dict | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True,
+        comment="Array de opciones para select: ['Opción 1', 'Opción 2']",
+    )
+    validation_pattern: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="Regex para validación"
+    )

@@ -34,7 +34,7 @@ def detect_header_row(ws: Worksheet, max_rows: int = 10) -> int:
         "instruccion",
     ]
 
-    for row_idx in range(1, min(max_rows + 1, ws.max_row + 1)):
+    for row_idx in range(1, min(max_rows + 1, (ws.max_row or 0) + 1)):
         row_values = [cell.value for cell in ws[row_idx]]
 
         # Filtrar None y vacíos

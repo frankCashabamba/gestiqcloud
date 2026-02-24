@@ -5,6 +5,25 @@ import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../shared/toast'
 import ImportadorLayout from './components/ImportadorLayout'
 import ConfirmActionModal from './components/ConfirmActionModal'
+
+/** Normaliza claves de un objeto a lowercase+underscore (como _norm_key del backend) */
+function normKeys(obj: Record<string, any> | null | undefined): Record<string, any> {
+    if (!obj || typeof obj !== 'object') return {}
+    const out: Record<string, any> = {}
+    for (const [k, v] of Object.entries(obj)) {
+        const nk = k
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_|_$/g, '')
+        out[nk] = v
+        // Keep original key too so exact matches still work
+        if (nk !== k) out[k] = v
+    }
+    return out
+}
 import {
     listBatchesByCompany,
     listCategories,
@@ -1448,7 +1467,7 @@ export default function PreviewPage() {
                                         {visibleProductos.map((p, i) => {
                                             const isInvoiceBatch = inferredBatchType === 'invoices'
                                             const isRecipesTable = inferredBatchType === 'recipes'
-                                            const merged: Record<string, any> = { ...(p.raw?.datos || {}), ...(p.raw || {}), ...(p.normalized || {}) }
+                                            const merged: Record<string, any> = { ...normKeys(p.raw?.datos), ...normKeys(p.raw as any), ...normKeys(p.normalized as any) }
                                             const mergedTotals = (merged.totals || {}) as Record<string, any>
                                             const firstLine =
                                                 Array.isArray(merged.lines) && merged.lines.length > 0 ? merged.lines[0] : null
@@ -1518,6 +1537,7 @@ export default function PreviewPage() {
                                                 merged.invoice_number ||
                                                 merged.invoice ||
                                                 merged.numero_factura ||
+                                                merged.num_factura ||
                                                 merged.number ||
                                                 '-'
                                             const isAutoInvoiceNumber =
@@ -1525,10 +1545,11 @@ export default function PreviewPage() {
                                                 invoiceNumber.toUpperCase().startsWith('AUTO-')
                                             const tipo = String(getAny('tipo', 'type', 'documentoTipo') || 'Factura')
                                             const tipoIdentificacion =
-                                                getAny('tipo_identificacion', 'tipoIdentificacion', 'id_type', 'identification_type') || '-'
+                                                getAny('tipo_identificacion', 'tipo_de_identificacion', 'tipoIdentificacion', 'id_type', 'identification_type') || '-'
                                             const numeroIdentificacion =
                                                 getAny(
                                                     'numero_identificacion',
+                                                    'numero_de_identificacion',
                                                     'numeroIdentificacion',
                                                     'identification_number',
                                                     'tax_id',

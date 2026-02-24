@@ -25,6 +25,7 @@ def _normalize(items: list[dict]) -> list[dict]:
                 # Campos opcionales para importador dinámico
                 "aliases": (it or {}).get("aliases"),
                 "field_type": (it or {}).get("field_type"),
+                "options": (it or {}).get("options"),
                 "validation_pattern": (it or {}).get("validation_pattern"),
                 "validation_rules": (it or {}).get("validation_rules"),
                 "transform_expression": (it or {}).get("transform_expression"),
@@ -130,6 +131,7 @@ def resolve_fields(
                 "help": getattr(r, "help", None),
                 "aliases": getattr(r, "aliases", None),
                 "field_type": getattr(r, "field_type", None),
+                "options": getattr(r, "options", None),
                 "validation_pattern": getattr(r, "validation_pattern", None),
                 "validation_rules": getattr(r, "validation_rules", None),
                 "transform_expression": getattr(r, "transform_expression", None),
@@ -162,6 +164,7 @@ def resolve_fields(
                     "help": getattr(r, "help", None),
                     "aliases": getattr(r, "aliases", None),
                     "field_type": getattr(r, "field_type", None),
+                    "options": getattr(r, "options", None),
                     "validation_pattern": getattr(r, "validation_pattern", None),
                     "validation_rules": getattr(r, "validation_rules", None),
                     "transform_expression": getattr(r, "transform_expression", None),

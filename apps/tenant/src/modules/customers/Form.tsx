@@ -1,10 +1,9 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createCliente, getCliente, updateCliente, type Cliente as C } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
-
-type FieldCfg = { field: string; visible?: boolean; required?: boolean; ord?: number | null; label?: string | null; help?: string | null }
+import { type FieldCfg, mergeFieldConfig, getFieldType, renderDynamicField } from '../../hooks/useFieldConfig'
 
 const FIELD_ALIASES: Record<string, string> = {
   nombre: 'name',
@@ -25,7 +24,7 @@ export default function ClienteForm() {
 
   useEffect(() => {
     if (!id) return
-    getCliente(id).then((x)=> setForm({ ...x }))
+    getCliente(id).then((x) => setForm({ ...x }))
   }, [id])
 
   useEffect(() => {
@@ -54,30 +53,22 @@ export default function ClienteForm() {
 
   const fieldList = useMemo(() => {
     const base: FieldCfg[] = [
-      { field: 'name', visible: true, required: true, ord: 10, label: 'Nombre' },
-      { field: 'email', visible: true, required: false, ord: 20, label: 'Email' },
-      { field: 'phone', visible: true, required: false, ord: 21, label: 'Phone' },
-      { field: 'is_wholesale', visible: true, required: false, ord: 40, label: 'Mayorista' },
+      { field: 'name', visible: true, required: true, ord: 10, label: 'Nombre', field_type: 'text' },
+      { field: 'email', visible: true, required: false, ord: 20, label: 'Email', field_type: 'email' },
+      { field: 'phone', visible: true, required: false, ord: 21, label: 'Teléfono', field_type: 'text' },
+      { field: 'is_wholesale', visible: true, required: false, ord: 40, label: 'Mayorista', field_type: 'boolean' },
     ]
-
-    // Merge base configuration with remote overrides (if any) so required fields never disappear.
-    const baseMap = new Map(base.map((cfg) => [cfg.field, cfg]))
-    normalizedFields.forEach((cfg) => {
-      if (cfg.visible === false) {
-        baseMap.delete(cfg.field)
-        return
-      }
-      const prev = baseMap.get(cfg.field) || {}
-      baseMap.set(cfg.field, { ...prev, ...cfg })
-    })
-
-    return Array.from(baseMap.values()).sort((a, b) => (a.ord || 999) - (b.ord || 999))
+    return mergeFieldConfig(base, normalizedFields)
   }, [normalizedFields])
+
+  const handleFieldChange = (field: string, value: unknown) => {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      for (const f of (fieldList || [])) {
+      for (const f of fieldList) {
         if (f.required && f.visible !== false) {
           const val = (form as any)[f.field]
           if (val === undefined || val === null || String(val).trim() === '') {
@@ -97,56 +88,37 @@ export default function ClienteForm() {
 
   return (
     <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar cliente' : 'New Customer'}</h3>
+      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar cliente' : 'Nuevo cliente'}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         {loadingCfg && <div className="text-sm text-gray-500">Cargando campos…</div>}
         {fieldList.map((f) => {
           const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
-          const type = f.field.toLowerCase().includes('email') ? 'email' : 'text'
           const value = (form as any)[f.field] ?? ''
           const isRequired = !!f.required && f.visible !== false
-          if (f.field === 'is_wholesale') {
-            return (
-              <div key={f.field}>
-                <label className="block mb-1">{label}</label>
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={!!value}
-                    onChange={(e)=> setForm({ ...form, [f.field]: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  Cliente mayorista
-                </label>
-              </div>
-            )
-          }
+          const fieldType = getFieldType(f)
+
           return (
             <div key={f.field}>
-              <label className="block mb-1">
-                {label}
-                {isRequired ? (
-                  <span className="text-red-600 ml-1" aria-label="Obligatorio">
-                    *
-                  </span>
-                ) : (
-                  <span className="text-gray-500 ml-1 text-xs">(opcional)</span>
-                )}
-              </label>
-              <input
-                type={type}
-                value={value}
-                onChange={(e)=> setForm({ ...form, [f.field]: e.target.value })}
-                className={`border px-2 py-1 w-full rounded ${isRequired ? 'border-gray-400' : 'border-gray-300'}`}
-                required={isRequired}
-                placeholder={f.help || ''}
-              />
+              {fieldType !== 'boolean' && (
+                <label className="block mb-1">
+                  {label}
+                  {isRequired ? (
+                    <span className="text-red-600 ml-1" aria-label="Obligatorio">*</span>
+                  ) : (
+                    <span className="text-gray-500 ml-1 text-xs">(opcional)</span>
+                  )}
+                </label>
+              )}
+              {fieldType === 'boolean' && (
+                <label className="block mb-1">{label}</label>
+              )}
+              {renderDynamicField(f, value, handleFieldChange)}
             </div>
           )
         })}
         <div className="pt-2">
           <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>Cancelar</button>
+          <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>Cancelar</button>
         </div>
       </form>
     </div>

@@ -306,6 +306,9 @@ def get_sector_fields(
             "ord": r.ord,
             "label": r.label,
             "help": r.help,
+            "field_type": getattr(r, "field_type", None),
+            "options": getattr(r, "options", None),
+            "validation_pattern": getattr(r, "validation_pattern", None),
         }
         for r in rows
     ]
@@ -337,6 +340,9 @@ def put_sector_fields(payload: dict, db: Session = Depends(get_db)):
             ord=it.get("ord"),
             label=it.get("label"),
             help=it.get("help"),
+            field_type=it.get("field_type"),
+            options=it.get("options"),
+            validation_pattern=it.get("validation_pattern"),
         )
         db.add(row)
     db.commit()
@@ -371,6 +377,9 @@ def put_tenant_fields(payload: dict, db: Session = Depends(get_db)):
             ord=it.get("ord"),
             label=it.get("label"),
             help=it.get("help"),
+            field_type=it.get("field_type"),
+            options=it.get("options"),
+            validation_pattern=it.get("validation_pattern"),
         )
         db.add(row)
     db.commit()

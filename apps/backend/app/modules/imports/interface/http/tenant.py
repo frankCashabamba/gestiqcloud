@@ -2578,6 +2578,120 @@ def put_import_field_aliases(
     return {"ok": True, "doc_type": payload.doc_type, "module": module}
 
 
+@router.post("/field-aliases/seed-defaults")
+def seed_default_aliases(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Seed default aliases for all doc types from hardcoded config."""
+    claims = _get_claims(request)
+    if not _is_company_admin(claims):
+        raise HTTPException(status_code=403, detail="admin_company_required")
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    from app.modules.imports.config.aliases import FIELD_ALIASES
+
+    defaults_by_module: dict[str, dict[str, list[str]]] = {
+        "imports_invoices": {
+            "invoice_number": ["numero", "factura", "num_factura", "nro_factura", "invoice_no", "folio", "comprobante"],
+            "invoice_date": ["fecha", "fecha_factura", "fecha_emision", "issue_date", "date"],
+            "customer_name": ["cliente", "customer", "destinatario", "comprador"],
+            "vendor_name": ["proveedor", "supplier", "vendor", "empresa", "emisor"],
+            "amount_subtotal": ["subtotal", "sub_total", "neto", "base_imponible"],
+            "amount_tax": ["iva", "impuesto", "tax", "igv", "tributacion"],
+            "amount_total": ["total", "total_pagar", "importe", "monto", "valor_total"],
+            "tipo": ["tipo", "type", "tipo_documento"],
+            "tipo_identificacion": ["tipo_identificacion", "tipo_de_identificacion", "id_type"],
+            "numero_identificacion": ["numero_identificacion", "numero_de_identificacion", "ruc", "nif", "cif", "tax_id"],
+            "cod_producto": ["cod_producto", "codigo_producto", "product_code", "sku"],
+            "producto": ["producto", "product", "descripcion", "concepto", "detalle"],
+            "precio_unitario": ["precio_unitario", "unit_price", "precio", "price"],
+            "cantidad": ["cantidad", "qty", "quantity", "unidades"],
+            "sector": ["sector", "category", "area"],
+            "observacion": ["observacion", "observation", "notes", "notas"],
+            "promocion": ["promocion", "promotion", "descuento"],
+            "vendedor": ["vendedor", "seller", "cashier", "cajero"],
+        },
+        "imports_products": {
+            "name": ["nombre", "producto", "descripcion", "articulo", "detalle", "item"],
+            "sku": ["sku", "codigo", "code", "cod", "barcode", "ean", "upc", "referencia"],
+            "price": ["precio", "pvp", "precio_venta", "precio_unitario", "price", "importe"],
+            "cost_price": ["costo", "coste", "precio_costo", "costo_unitario", "cost"],
+            "stock": ["stock", "existencias", "cantidad", "inventario", "disponible", "unidades"],
+            "category": ["categoria", "familia", "rubro", "grupo", "seccion", "linea"],
+            "unit": ["unidad", "uom", "medida", "unidad_medida"],
+        },
+        "imports_bank_transactions": {
+            "transaction_date": ["fecha", "fecha_valor", "fecha_operacion", "value_date", "date"],
+            "amount": ["importe", "monto", "amount", "valor", "total"],
+            "description": ["concepto", "descripcion", "description", "detalle", "narrativa"],
+            "account_number": ["cuenta", "account", "iban", "numero_cuenta"],
+            "reference": ["referencia", "reference", "ref", "id_operacion"],
+        },
+        "imports_expenses": {
+            "expense_date": ["fecha", "date", "fecha_gasto"],
+            "amount": ["importe", "monto", "amount", "total", "valor"],
+            "description": ["concepto", "descripcion", "description", "detalle"],
+            "category": ["categoria", "category", "tipo"],
+            "vendor_name": ["proveedor", "vendor", "supplier", "comercio"],
+        },
+    }
+
+    seeded = {}
+    for module, fields in defaults_by_module.items():
+        existing = (
+            db.query(TenantFieldConfig)
+            .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module == module)
+            .count()
+        )
+        if existing > 0:
+            seeded[module] = {"skipped": True, "existing": existing}
+            continue
+        for idx, (field, aliases) in enumerate(fields.items()):
+            row = TenantFieldConfig(
+                tenant_id=tenant_id,
+                module=module,
+                field=field,
+                visible=True,
+                required=False,
+                ord=idx + 1,
+                aliases=aliases,
+            )
+            db.add(row)
+        seeded[module] = {"created": len(fields)}
+    db.commit()
+    return {"ok": True, "seeded": seeded}
+
+
+@router.get("/field-aliases/status")
+def get_aliases_status(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Get count of configured aliases per doc type."""
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    from sqlalchemy import func
+
+    counts = (
+        db.query(TenantFieldConfig.module, func.count(TenantFieldConfig.id))
+        .filter(
+            TenantFieldConfig.tenant_id == tenant_id,
+            TenantFieldConfig.module.like("imports_%"),
+        )
+        .group_by(TenantFieldConfig.module)
+        .all()
+    )
+    status = {module.replace("imports_", ""): count for module, count in counts}
+    total = sum(status.values())
+    return {"total": total, "by_type": status}
+
+
 @router.post("/column-mappings")
 def create_column_mapping_endpoint(
     dto: CreateColumnMappingDTO,

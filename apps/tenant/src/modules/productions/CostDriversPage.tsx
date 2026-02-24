@@ -9,11 +9,10 @@ import {
   createCostDriver,
   updateCostDriver,
   deleteCostDriver,
-  listCostDriverUnitTypes,
   type CostDriver,
-  type CostDriverUnitType,
 } from '../../services/api/productionCosts';
 import { useI18n } from '../../i18n/I18nProvider';
+import { useUnits } from '../../hooks/useGlobalCatalogs';
 
 interface EditForm {
   code: string;
@@ -22,7 +21,7 @@ interface EditForm {
   default_rate: string;
 }
 
-const emptyForm: EditForm = { code: '', name: '', unit: 'hour', default_rate: '' };
+const emptyForm: EditForm = { code: '', name: '', unit: 'HORA', default_rate: '' };
 
 export default function CostDriversPage() {
   const { lang } = useI18n();
@@ -33,7 +32,7 @@ export default function CostDriversPage() {
   const basePath = `${empresa ? `/${empresa}` : ''}/produccion`;
 
   const [drivers, setDrivers] = useState<CostDriver[]>([]);
-  const [unitTypes, setUnitTypes] = useState<CostDriverUnitType[]>([]);
+  const { items: unitTypes } = useUnits();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -44,7 +43,6 @@ export default function CostDriversPage() {
 
   useEffect(() => {
     loadDrivers();
-    loadUnitTypes();
   }, []);
 
   const loadDrivers = async () => {
@@ -60,19 +58,10 @@ export default function CostDriversPage() {
     }
   };
 
-  const loadUnitTypes = async () => {
-    try {
-      const data = await listCostDriverUnitTypes();
-      setUnitTypes(Array.isArray(data) ? data : []);
-    } catch {
-      // unit types are non-critical; silently ignore
-    }
-  };
-
   const getUnitLabel = (code: string) => {
     const ut = unitTypes.find((u) => u.code === code);
     if (!ut) return code;
-    return isEs ? (ut.name_es || ut.name_en) : ut.name_en;
+    return ut.name;
   };
 
   const handleSave = async () => {
@@ -214,9 +203,10 @@ export default function CostDriversPage() {
               >
                 {unitTypes.map((o) => (
                   <option key={o.code} value={o.code}>
-                    {isEs ? (o.name_es || o.name_en) : o.name_en}
+                    {o.name} ({o.abbreviation})
                   </option>
                 ))}
+                {unitTypes.length === 0 && <option value={form.unit}>{form.unit}</option>}
               </select>
             </div>
             <div>

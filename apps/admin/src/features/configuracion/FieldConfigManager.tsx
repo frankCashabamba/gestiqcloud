@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import api from '../../services/api'
 import { useSearchParams } from 'react-router-dom'
 
-type FieldItem = { field: string; visible: boolean; required: boolean; ord?: number | null; label?: string | null; help?: string | null }
+type FieldItem = { field: string; visible: boolean; required: boolean; ord?: number | null; label?: string | null; help?: string | null; field_type?: string | null; options?: string[] | null; validation_pattern?: string | null }
 
 export default function FieldConfigManager() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -76,12 +76,23 @@ export default function FieldConfigManager() {
             <option value="retail">Retail/Bazar</option>
             <option value="panaderia">Panadería</option>
             <option value="taller">Taller</option>
+            <option value="restaurante">Restaurante</option>
+            <option value="farmacia">Farmacia</option>
           </select>
         </div>
         <div>
           <label>Módulo</label>
           <select id="module-select" name="module" aria-label="Module" value={moduleKey} onChange={(e) => setModuleKey(e.target.value)} className="input">
             <option value="clientes">Clientes</option>
+            <option value="products">Productos</option>
+            <option value="inventory">Inventario</option>
+            <option value="ventas">Ventas</option>
+            <option value="suppliers">Proveedores</option>
+            <option value="expenses">Gastos</option>
+            <option value="billing">Facturación</option>
+            <option value="purchases">Compras</option>
+            <option value="crm_leads">CRM Leads</option>
+            <option value="crm_opportunities">CRM Oportunidades</option>
           </select>
         </div>
         <div>
@@ -114,6 +125,10 @@ export default function FieldConfigManager() {
               <th>Orden</th>
               <th>Etiqueta</th>
               <th>Ayuda</th>
+              <th>Tipo</th>
+              <th>Opciones</th>
+              <th>Patrón</th>
+              <th>✕</th>
             </tr>
           </thead>
           <tbody>
@@ -130,6 +145,55 @@ export default function FieldConfigManager() {
                 }} className="input" style={{ width: 80 }} /></td>
                 <td><input aria-label={`Etiqueta fila ${i+1}`} name={`label-${i}`} value={it.label || ''} onChange={(e)=> setItems(prev => prev.map((x,idx)=> idx===i? {...x, label: e.target.value}: x))} className="input" /></td>
                 <td><input aria-label={`Ayuda fila ${i+1}`} name={`help-${i}`} value={it.help || ''} onChange={(e)=> setItems(prev => prev.map((x,idx)=> idx===i? {...x, help: e.target.value}: x))} className="input" /></td>
+                <td>
+                  <select
+                    aria-label={`Tipo fila ${i+1}`}
+                    value={it.field_type || 'text'}
+                    onChange={(e) => setItems(prev => prev.map((x, idx) => idx === i ? { ...x, field_type: e.target.value } : x))}
+                    className="input"
+                  >
+                    <option value="text">Texto</option>
+                    <option value="number">Número</option>
+                    <option value="date">Fecha</option>
+                    <option value="boolean">Sí/No</option>
+                    <option value="select">Desplegable</option>
+                    <option value="textarea">Texto largo</option>
+                    <option value="email">Email</option>
+                  </select>
+                </td>
+                <td>
+                  <input
+                    aria-label={`Opciones fila ${i+1}`}
+                    value={(it.options || []).join(', ')}
+                    onChange={(e) => {
+                      const opts = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                      setItems(prev => prev.map((x, idx) => idx === i ? { ...x, options: opts } : x))
+                    }}
+                    className="input"
+                    placeholder="op1, op2, op3"
+                    disabled={it.field_type !== 'select'}
+                    style={{ width: 160 }}
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label={`Patrón fila ${i+1}`}
+                    value={it.validation_pattern || ''}
+                    onChange={(e) => setItems(prev => prev.map((x, idx) => idx === i ? { ...x, validation_pattern: e.target.value } : x))}
+                    className="input"
+                    placeholder="^[0-9]+$"
+                    style={{ width: 140 }}
+                  />
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    aria-label={`Eliminar fila ${i+1}`}
+                    onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
+                    style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}
+                    title="Eliminar campo"
+                  >✕</button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -137,7 +201,7 @@ export default function FieldConfigManager() {
       )}
 
       <div style={{ marginTop: 12 }}>
-        <button className="gc-button" onClick={()=> setItems(prev => [...prev, { field: '', visible: true, required: false }])}>Añadir campo</button>
+        <button className="gc-button" onClick={()=> setItems(prev => [...prev, { field: '', visible: true, required: false, field_type: 'text' }])}>Añadir campo</button>
       </div>
     </div>
   )
