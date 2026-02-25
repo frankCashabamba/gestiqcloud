@@ -36,6 +36,9 @@ CREATE INDEX IF NOT EXISTS ix_cost_driver_unit_types_active ON cost_driver_unit_
 -- ============================================================================
 -- Get all tenant IDs (for seeding across all tenants)
 -- ============================================================================
+-- Allow reruns: drop leftover temp table from previous attempt
+DROP TABLE IF EXISTS tenant_list;
+
 CREATE TEMP TABLE tenant_list AS
 SELECT DISTINCT id
 FROM tenants
