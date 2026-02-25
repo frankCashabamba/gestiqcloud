@@ -13,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 from app.models.core.clients import Client
 from app.models.core.invoiceLine import LineaFactura
-from app.models.tenant import Tenant
+from app.models.tenant import TENANT_UUID, Tenant
 
 # JSONB with SQLite fallback
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
@@ -45,17 +45,21 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
     number: Mapped[str] = mapped_column("number", String, nullable=False)
     supplier: Mapped[str] = mapped_column("supplier", String, nullable=True)
     issue_date: Mapped[date | str] = mapped_column("issue_date", String, nullable=True)
     amount: Mapped[float] = mapped_column("amount", default=0)
     status: Mapped[str] = mapped_column("status", String, default="pending", index=True)
-    created_at: Mapped[str] = mapped_column("created_at", String, server_default=text("now()"))
-    tenant_id: Mapped[uuid.UUID] = mapped_column("tenant_id", ForeignKey("tenants.id"), index=True)
+    created_at: Mapped[str] = mapped_column(
+        "created_at", String, default=lambda: __import__("datetime").datetime.utcnow().isoformat()
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        "tenant_id", TENANT_UUID, ForeignKey("tenants.id"), index=True
+    )
     customer_id: Mapped[uuid.UUID] = mapped_column(
-        "customer_id", UUID(as_uuid=True), ForeignKey("clients.id")
+        "customer_id", TENANT_UUID, ForeignKey("clients.id")
     )
     subtotal: Mapped[float] = mapped_column("subtotal")
     vat: Mapped[float] = mapped_column("vat")

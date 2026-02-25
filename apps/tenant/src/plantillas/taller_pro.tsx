@@ -91,8 +91,8 @@ const TallerDashboard: React.FC = () => {
                 <span className="kpi__label">Target</span>
                 <span className="kpi__value">${ingresos.objetivo?.toFixed(2) || '0.00'}</span>
               </div>
-            </div>
-            <div className="progress-stat">
+              </div>
+              <div className="progress-stat">
               <div className="progress-stat__header">
                 <span>Monthly progress</span>
                 <span>{ingresos.progreso?.toFixed(0) || 0}%</span>
@@ -128,8 +128,8 @@ const TallerDashboard: React.FC = () => {
               <div className="kpi">
                 <span className="kpi__label">Today</span>
                 <span className="kpi__value">{trabajos.hoy || 0}</span>
-              </div>
-              <div className="kpi">
+                </div>
+                <div className="kpi">
                 <span className="kpi__label">This month</span>
                 <span className="kpi__value">{trabajos.mes || 0}</span>
               </div>

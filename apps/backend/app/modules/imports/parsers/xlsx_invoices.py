@@ -41,7 +41,11 @@ def parse_xlsx_invoices(file_path: str, sheet_name: str | None = None) -> dict[s
                             continue
                         if col_idx < len(row):
                             val = row[col_idx]
-                            if val is not None and str(val).strip() and str(val).strip().lower() != "nan":
+                            if (
+                                val is not None
+                                and str(val).strip()
+                                and str(val).strip().lower() != "nan"
+                            ):
                                 inv[hdr] = val
                     invoices.append(inv)
             except Exception as e:  # pragma: no cover - defensivo
@@ -77,7 +81,14 @@ _FIELD_TO_COLUMN: dict[str, str] = {
 
 # Additional direct header matches not covered by FIELD_ALIASES
 _EXTRA_HEADER_MATCHES: dict[str, list[str]] = {
-    "issue_date": ["fecha", "issue_date", "invoice_date", "emision", "fecha emision", "fecha emisión"],
+    "issue_date": [
+        "fecha",
+        "issue_date",
+        "invoice_date",
+        "emision",
+        "fecha emision",
+        "fecha emisión",
+    ],
     "due_date": ["vencimiento", "due_date"],
     "subtotal": ["subtotal", "sub total", "base imponible"],
     "total": ["total", "importe_total", "amount", "total pagar", "total_pagar", "total a pagar"],
@@ -86,15 +97,50 @@ _EXTRA_HEADER_MATCHES: dict[str, list[str]] = {
     "payment_reference": ["referencia", "reference", "ref"],
     "total_payable": ["total pagar", "total_pagar", "neto", "total a pagar"],
     "retention": ["retencion", "retención", "retention"],
-    "invoice_number": ["numero", "factura", "invoice_number", "número", "num. factura", "num factura", "nro", "folio", "comprobante"],
+    "invoice_number": [
+        "numero",
+        "factura",
+        "invoice_number",
+        "número",
+        "num. factura",
+        "num factura",
+        "nro",
+        "folio",
+        "comprobante",
+    ],
     "vendor": ["proveedor", "vendor", "supplier", "emisor"],
     "buyer": ["cliente", "buyer", "customer", "destinatario", "comprador"],
     "tax_id": ["ruc", "tax_id", "rfc", "nif", "cif", "nit", "numero_identificacion"],
     "currency": ["moneda", "currency", "divisa"],
-    "line_description": ["producto", "product", "articulo", "item", "descripcion", "description", "detalle", "concepto"],
+    "line_description": [
+        "producto",
+        "product",
+        "articulo",
+        "item",
+        "descripcion",
+        "description",
+        "detalle",
+        "concepto",
+    ],
     "line_quantity": ["cantidad", "quantity", "qty", "unidades"],
-    "line_unit_price": ["precio unitario", "precio", "unit_price", "precio_unitario", "p.u.", "p.v.p", "precio venta"],
-    "line_code": ["cod. producto", "codigo", "code", "sku", "barcode", "codigo_producto", "product_code"],
+    "line_unit_price": [
+        "precio unitario",
+        "precio",
+        "unit_price",
+        "precio_unitario",
+        "p.u.",
+        "p.v.p",
+        "precio venta",
+    ],
+    "line_code": [
+        "cod. producto",
+        "codigo",
+        "code",
+        "sku",
+        "barcode",
+        "codigo_producto",
+        "product_code",
+    ],
 }
 
 
@@ -102,6 +148,7 @@ def _map_columns(header: tuple) -> dict[str, int]:
     """Map Excel column headers to canonical field names using config aliases."""
     try:
         from app.modules.imports.config.aliases import FIELD_ALIASES
+
         db_aliases = FIELD_ALIASES.get("es", {})
     except Exception:
         db_aliases = {}
@@ -139,9 +186,7 @@ def _map_columns(header: tuple) -> dict[str, int]:
     return col_map
 
 
-_JUNK_PATTERNS = re.compile(
-    r"(p[aá]gina|pagina|page|listado|reporte)", re.IGNORECASE
-)
+_JUNK_PATTERNS = re.compile(r"(p[aá]gina|pagina|page|listado|reporte)", re.IGNORECASE)
 
 
 def _parse_row(row: tuple, row_idx: int, col_map: dict[str, int]) -> dict[str, Any] | None:
@@ -199,13 +244,15 @@ def _parse_row(row: tuple, row_idx: int, col_map: dict[str, int]) -> dict[str, A
     line_up = _to_float(pick("line_unit_price"))
     line_code = _clean_str(pick("line_code"))
     if line_desc or line_qty is not None or line_up is not None or line_code:
-        inv["_line"] = _clean_dict({
-            "description": line_desc,
-            "quantity": line_qty,
-            "unit_price": line_up,
-            "code": line_code,
-            "total": total,
-        })
+        inv["_line"] = _clean_dict(
+            {
+                "description": line_desc,
+                "quantity": line_qty,
+                "unit_price": line_up,
+                "code": line_code,
+                "total": total,
+            }
+        )
 
     total_payable = _to_float(pick("total_payable"))
     if total_payable is not None:
@@ -266,11 +313,13 @@ def _group_invoices_by_number(invoices: list[dict[str, Any]]) -> list[dict[str, 
                 total_payable = tp
 
         final_total = total_payable if total_payable is not None else sum_total
-        merged["totals"] = _clean_dict({
-            "subtotal": sum_subtotal or None,
-            "tax": sum_tax or None,
-            "total": final_total,
-        })
+        merged["totals"] = _clean_dict(
+            {
+                "subtotal": sum_subtotal or None,
+                "tax": sum_tax or None,
+                "total": final_total,
+            }
+        )
 
         retention = next(
             (r.get("_retention") for r in rows if r.get("_retention") is not None),

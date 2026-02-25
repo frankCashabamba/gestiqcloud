@@ -13,7 +13,7 @@ El formulario de producto muestra sección "Precio Sugerido desde Receta" pero:
 
 ```sql
 -- Ejecutar en tu PostgreSQL
-SELECT 
+SELECT
     column_name,
     data_type,
     is_nullable
@@ -170,8 +170,8 @@ VERIFICACIÓN DE UI
 ### P: ¿Cómo sé que la migración se ejecutó?
 
 ```sql
-SELECT version, installed_on 
-FROM schema_migrations 
+SELECT version, installed_on
+FROM schema_migrations
 WHERE description LIKE '%suggested_price%';
 
 -- O simplemente verificar columnas

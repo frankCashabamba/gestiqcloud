@@ -4,31 +4,11 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import TIMESTAMP, Date
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Numeric, String
+from sqlalchemy import TIMESTAMP, Date, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
-
-# Enums
-statement_source = SQLEnum(
-    "MANUAL",  # Manual entry
-    "IMPORT",  # Imported from bank
-    "SYNC",  # Synced from payment gateway
-    name="statement_source",
-    create_type=False,
-)
-
-statement_status = SQLEnum(
-    "DRAFT",
-    "POSTED",
-    "RECONCILED",
-    "CANCELLED",
-    name="statement_status",
-    create_type=False,
-)
 
 
 class CashPosition(Base):
@@ -103,21 +83,10 @@ class CashPosition(Base):
 
 
 class BankStatement(Base):
-    """
-    Extracto bancario importado o sincronizado.
-
-    Attributes:
-        bank_account_id: Cuenta bancaria
-        statement_date: Fecha del extracto
-        period_start, period_end: Período del extracto
-        opening_balance: Saldo de apertura según banco
-        closing_balance: Saldo de cierre según banco
-        source: MANUAL, IMPORT, SYNC
-        status: DRAFT, POSTED, RECONCILED, CANCELLED
-    """
+    """Extracto bancario importado — coincide con migración 014_reconciliation_tables."""
 
     __tablename__ = "bank_statements"
-    __table_args__ = schema_table_args()
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -128,53 +97,15 @@ class BankStatement(Base):
         nullable=False,
         index=True,
     )
-
-    # Account reference
-    bank_account_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(schema_column("chart_of_accounts"), ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
-
-    # Dates
-    statement_date: Mapped[date] = mapped_column(
-        Date, nullable=False, index=True, comment="Fecha del extracto"
-    )
-    period_start: Mapped[date] = mapped_column(Date, nullable=False, comment="Fecha inicio período")
-    period_end: Mapped[date] = mapped_column(Date, nullable=False, comment="Fecha fin período")
-
-    # Balances
-    opening_balance: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Saldo de apertura según banco"
-    )
-    closing_balance: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Saldo de cierre según banco"
-    )
-
-    # Source and status
-    source: Mapped[str] = mapped_column(
-        statement_source, nullable=False, default="IMPORT", comment="MANUAL, IMPORT, SYNC"
-    )
-    status: Mapped[str] = mapped_column(
-        statement_status,
-        nullable=False,
-        default="DRAFT",
-        comment="DRAFT, POSTED, RECONCILED, CANCELLED",
-    )
-
-    # Currency
-    currency: Mapped[str] = mapped_column(
-        String(3), nullable=False, default="EUR", comment="ISO 4217 currency code"
-    )
-
-    # Bank reference
-    bank_ref: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="Reference from bank (statement ID)"
-    )
-
-    # Audit
-    imported_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    bank_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    account_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    statement_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    import_format: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="imported")
+    total_transactions: Mapped[int] = mapped_column(nullable=False, default=0)
+    matched_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    unmatched_count: Mapped[int] = mapped_column(nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
@@ -192,50 +123,37 @@ class BankStatement(Base):
 
 
 class BankStatementLine(Base):
-    """
-    Línea individual de extracto bancario.
+    """Línea de extracto bancario — coincide con migración 014 (statement_lines)."""
 
-    Attributes:
-        statement_id: Extracto padre
-        transaction_date: Fecha de la transacción
-        amount: Monto (positivo=entrada, negativo=salida)
-        description: Descripción del movimiento
-        reference: Referencia del banco (número de operación)
-    """
-
-    __tablename__ = "bank_statement_lines"
-    __table_args__ = schema_table_args()
+    __tablename__ = "statement_lines"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-
-    # Reference
     statement_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey(schema_column("bank_statements"), ondelete="CASCADE"),
+        ForeignKey("bank_statements.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-
-    # Data
-    transaction_date: Mapped[date] = mapped_column(
-        Date, nullable=False, index=True, comment="Fecha de la transacción"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    amount: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, comment="Monto (+ entrada, - salida)"
+    transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    balance: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
+    transaction_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    matched_invoice_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
     )
-    description: Mapped[str] = mapped_column(
-        String(255), nullable=False, comment="Descripción del movimiento"
-    )
-    reference: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="Referencia del banco (número de operación)"
-    )
-
-    # Line number for ordering
-    line_number: Mapped[int] = mapped_column(nullable=False, default=0)
-
-    # Audit
+    match_status: Mapped[str] = mapped_column(String(20), nullable=False, default="unmatched")
+    match_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )

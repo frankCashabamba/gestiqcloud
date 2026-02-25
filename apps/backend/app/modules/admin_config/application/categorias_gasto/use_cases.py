@@ -6,9 +6,7 @@ from app.modules.admin_config.application.categorias_gasto.dto import (
     CategoriaGastoIn,
     CategoriaGastoOut,
 )
-from app.modules.admin_config.application.categorias_gasto.ports import (
-    CategoriaGastoRepo,
-)
+from app.modules.admin_config.application.categorias_gasto.ports import CategoriaGastoRepo
 from app.modules.shared.application.base import BaseUseCase
 
 

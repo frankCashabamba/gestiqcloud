@@ -122,7 +122,7 @@ La migración está en: `ops/migrations/2026-02-21_000_add_suggested_price_to_pr
 **Cambios en BD:**
 ```sql
 -- Agregar columnas
-ALTER TABLE products 
+ALTER TABLE products
 ADD COLUMN suggested_price NUMERIC(12, 2) NULL,
 ADD COLUMN use_suggested_price BOOLEAN DEFAULT FALSE;
 ```

@@ -3,11 +3,10 @@ from fastapi.testclient import TestClient
 
 def _ensure_product_table() -> None:
     """Ensure the products table exists in SQLite tests."""
-    # Import the core Product model and create all tables
-    from app.config.database import Base, engine
-    from app.models.core.products import Product  # noqa: F401
+    from app.config.database import engine
+    from app.models.core.products import Product
 
-    Base.metadata.create_all(bind=engine)
+    Product.__table__.create(bind=engine, checkfirst=True)
 
 
 def test_list_routes_has_products(client: TestClient):

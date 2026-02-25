@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.modules.admin_config.application.tipos_impuesto.dto import (
-    TipoImpuestoIn,
-    TipoImpuestoOut,
-)
+from app.modules.admin_config.application.tipos_impuesto.dto import TipoImpuestoIn, TipoImpuestoOut
 from app.modules.admin_config.application.tipos_impuesto.ports import TipoImpuestoRepo
 from app.modules.shared.application.base import BaseUseCase
 

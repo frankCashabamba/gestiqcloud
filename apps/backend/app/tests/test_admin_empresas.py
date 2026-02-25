@@ -19,15 +19,13 @@ def test_admin_empresas_list_empty(client: TestClient, db, superuser_factory):
     # Clean any existing tenants first (commit so the API session can see it)
     try:
         if db.get_bind().dialect.name == "postgresql":
-            db.execute(text("TRUNCATE chart_of_accounts CASCADE"))
-            db.execute(text("TRUNCATE import_batches CASCADE"))
+            db.execute(text("TRUNCATE tenants CASCADE"))
         else:
             db.execute(text("DELETE FROM chart_of_accounts"))
             db.execute(text("DELETE FROM import_batches"))
+            db.query(Tenant).delete()
     except Exception:
         pass
-
-    db.query(Tenant).delete()
     db.commit()
 
     tok = _admin_token(client, superuser_factory)

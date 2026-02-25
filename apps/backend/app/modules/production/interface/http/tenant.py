@@ -33,11 +33,22 @@ from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
-from app.models.production._cost_drivers import CostDriverUnitType, ProductionCostDriver, RecipeCostLine, ProductionOrderCost
+from app.models.production._cost_drivers import (
+    CostDriverUnitType,
+    ProductionCostDriver,
+    RecipeCostLine,
+)
 from app.models.production._cost_periods import CostPeriod
 from app.models.production._recipe_steps import RecipeStep
 from app.models.production.production_order import ProductionOrder, ProductionOrderLine
 from app.models.recipes import Recipe, RecipeIngredient
+from app.schemas.cost_periods import (
+    CostPeriodCreate,
+    CostPeriodResponse,
+    CostPeriodSummary,
+    CostPeriodUpdate,
+    CostPeriodValidationResult,
+)
 from app.schemas.production import (
     IngredientRequirement,
     ProductionCalculatorRequest,
@@ -49,6 +60,15 @@ from app.schemas.production import (
     ProductionOrderStartRequest,
     ProductionOrderStats,
     ProductionOrderUpdate,
+)
+from app.schemas.production_costs import (
+    CostDriverCreate,
+    CostDriverResponse,
+    CostDriverUpdate,
+    RecipeCostLineCreate,
+    RecipeCostLineResponse,
+    RecipeCostLineUpdate,
+    RecipeFullCostSummary,
 )
 from app.schemas.recipes import (
     ProductionCalculationRequest,
@@ -69,22 +89,6 @@ from app.schemas.recipes import (
     RecipeStepResponse,
     RecipeStepUpdate,
     RecipeUpdate,
-)
-from app.schemas.cost_periods import (
-    CostPeriodCreate,
-    CostPeriodResponse,
-    CostPeriodSummary,
-    CostPeriodUpdate,
-    CostPeriodValidationResult,
-)
-from app.schemas.production_costs import (
-    CostDriverCreate,
-    CostDriverResponse,
-    CostDriverUpdate,
-    RecipeCostLineCreate,
-    RecipeCostLineResponse,
-    RecipeCostLineUpdate,
-    RecipeFullCostSummary,
 )
 from app.services.cost_periods_service import CostPeriodsService
 from app.services.recipe_calculator import (
@@ -463,7 +467,9 @@ async def create_production_order(
             if ing_qty > 0 and ingredient_cost > 0:
                 unit_cost = ingredient_cost / ing_qty
             else:
-                unit_cost = (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
+                unit_cost = (
+                    (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
+                )
             line = ProductionOrderLine(
                 order_id=order.id,
                 ingredient_product_id=ing.product_id,
@@ -1121,7 +1127,7 @@ def sync_recipe_product_price(
             "recipe_id": str(recipe_id),
             "suggested_price": result["suggested_price"],
             "unit_cost": result["unit_cost"],
-            "message": "Precio sugerido sincronizado con el producto"
+            "message": "Precio sugerido sincronizado con el producto",
         }
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
@@ -1252,7 +1258,7 @@ def list_cost_driver_unit_types(
         db.query(CostDriverUnitType)
         .filter(
             CostDriverUnitType.tenant_id == tenant_id,
-            CostDriverUnitType.is_active == True,
+            CostDriverUnitType.is_active,
         )
         .order_by(CostDriverUnitType.sort_order)
         .all()
@@ -1278,7 +1284,9 @@ def list_cost_drivers(
     )
 
 
-@router.post("/cost-drivers", response_model=CostDriverResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/cost-drivers", response_model=CostDriverResponse, status_code=status.HTTP_201_CREATED
+)
 def create_cost_driver(
     data: CostDriverCreate,
     db: Session = Depends(get_db),
@@ -1359,25 +1367,29 @@ def list_recipe_cost_lines(
     result = []
     for line in lines:
         d = line.driver
-        effective_rate = float(line.rate_override if line.rate_override is not None else (d.default_rate if d else 0))
+        effective_rate = float(
+            line.rate_override if line.rate_override is not None else (d.default_rate if d else 0)
+        )
         line_cost = float(line.qty_standard) * effective_rate * line.headcount
-        result.append(RecipeCostLineResponse(
-            id=line.id,
-            recipe_id=line.recipe_id,
-            driver_id=line.driver_id,
-            qty_standard=line.qty_standard,
-            headcount=line.headcount,
-            rate_override=line.rate_override,
-            notes=line.notes,
-            line_order=line.line_order,
-            created_at=line.created_at,
-            driver_code=d.code if d else None,
-            driver_name=d.name if d else None,
-            driver_unit=d.unit if d else None,
-            driver_default_rate=d.default_rate if d else None,
-            effective_rate=effective_rate,
-            line_cost=round(line_cost, 4),
-        ))
+        result.append(
+            RecipeCostLineResponse(
+                id=line.id,
+                recipe_id=line.recipe_id,
+                driver_id=line.driver_id,
+                qty_standard=line.qty_standard,
+                headcount=line.headcount,
+                rate_override=line.rate_override,
+                notes=line.notes,
+                line_order=line.line_order,
+                created_at=line.created_at,
+                driver_code=d.code if d else None,
+                driver_name=d.name if d else None,
+                driver_unit=d.unit if d else None,
+                driver_default_rate=d.default_rate if d else None,
+                effective_rate=effective_rate,
+                line_cost=round(line_cost, 4),
+            )
+        )
     return result
 
 
@@ -1401,7 +1413,9 @@ def add_recipe_cost_line(
     db.commit()
     db.refresh(line)
     d = line.driver
-    effective_rate = float(line.rate_override if line.rate_override is not None else (d.default_rate if d else 0))
+    effective_rate = float(
+        line.rate_override if line.rate_override is not None else (d.default_rate if d else 0)
+    )
     line_cost = float(line.qty_standard) * effective_rate * line.headcount
     return RecipeCostLineResponse(
         id=line.id,
@@ -1442,7 +1456,9 @@ def update_recipe_cost_line(
     db.commit()
     db.refresh(line)
     d = line.driver
-    effective_rate = float(line.rate_override if line.rate_override is not None else (d.default_rate if d else 0))
+    effective_rate = float(
+        line.rate_override if line.rate_override is not None else (d.default_rate if d else 0)
+    )
     line_cost = float(line.qty_standard) * effective_rate * line.headcount
     return RecipeCostLineResponse(
         id=line.id,
@@ -1517,11 +1533,13 @@ def list_cost_periods(
     tenant_id = UUID(claims["tenant_id"])
     query = db.query(CostPeriod).filter(CostPeriod.tenant_id == tenant_id)
     if active_only:
-        query = query.filter(CostPeriod.is_active == True)
+        query = query.filter(CostPeriod.is_active)
     return query.order_by(CostPeriod.month.desc()).all()
 
 
-@router.post("/cost-periods", response_model=CostPeriodResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/cost-periods", response_model=CostPeriodResponse, status_code=status.HTTP_201_CREATED
+)
 def create_cost_period(
     data: CostPeriodCreate,
     db: Session = Depends(get_db),
@@ -1552,9 +1570,11 @@ def get_cost_period(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
-    period = db.query(CostPeriod).filter(
-        CostPeriod.id == period_id, CostPeriod.tenant_id == tenant_id
-    ).first()
+    period = (
+        db.query(CostPeriod)
+        .filter(CostPeriod.id == period_id, CostPeriod.tenant_id == tenant_id)
+        .first()
+    )
     if not period:
         raise HTTPException(status_code=404, detail="Período no encontrado")
     return period
@@ -1649,13 +1669,17 @@ def list_recipe_steps(
         raise HTTPException(status_code=404, detail="Receta no encontrada")
     return (
         db.query(RecipeStep)
-        .filter(RecipeStep.recipe_id == recipe_id, RecipeStep.is_active == True)
+        .filter(RecipeStep.recipe_id == recipe_id, RecipeStep.is_active)
         .order_by(RecipeStep.step_order)
         .all()
     )
 
 
-@router.post("/recipes/{recipe_id}/steps", response_model=RecipeStepResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/recipes/{recipe_id}/steps",
+    response_model=RecipeStepResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_recipe_step(
     recipe_id: UUID,
     data: RecipeStepCreate,

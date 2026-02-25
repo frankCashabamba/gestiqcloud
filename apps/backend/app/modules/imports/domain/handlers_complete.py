@@ -134,17 +134,16 @@ class InvoiceHandler:
             # Search or create client/vendor
             cliente = (
                 db.query(Cliente)
-                .filter(Cliente.tenant_id == tenant_id, Cliente.nombre == vendor_name)
+                .filter(Cliente.tenant_id == tenant_id, Cliente.name == vendor_name)
                 .first()
             )
             if not cliente:
                 # Create basic client
                 cliente = Cliente(
                     tenant_id=tenant_id,
-                    nombre=vendor_name,
-                    tipo="vendor",
+                    name=vendor_name,
                     email=None,
-                    telefono=None,
+                    phone=None,
                 )
                 db.add(cliente)
                 db.flush()
@@ -153,15 +152,15 @@ class InvoiceHandler:
             invoice = Invoice(
                 id=uuid4(),
                 tenant_id=tenant_id,
-                cliente_id=cliente.id,
-                numero=invoice_number,
-                vendor=vendor_name,
-                tx_date_emision=tx_date_emision,
+                customer_id=cliente.id,
+                number=invoice_number,
+                supplier=vendor_name,
+                issue_date=tx_date_emision,
                 subtotal=subtotal,
-                iva=iva,
+                vat=iva,
                 total=total,
-                monto=int(total),  # Campo legacy
-                estado="pendiente",
+                amount=int(total),
+                status="pendiente",
             )
             db.add(invoice)
             db.flush()
@@ -199,12 +198,12 @@ class InvoiceHandler:
 
                 linea = LineaFactura(
                     id=uuid4(),
-                    factura_id=invoice.id,
+                    invoice_id=invoice.id,
                     sector="base",
-                    descripcion=descripcion,
-                    cantidad=cantidad,
-                    precio_unitario=precio_unitario,
-                    iva=iva_linea,
+                    description=descripcion,
+                    quantity=cantidad,
+                    unit_price=precio_unitario,
+                    vat=iva_linea,
                 )
                 db.add(linea)
 

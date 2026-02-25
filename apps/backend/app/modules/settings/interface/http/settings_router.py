@@ -216,7 +216,7 @@ def list_modules(
         assigned_names = (
             db.query(Module.name)
             .join(CompanyModule, CompanyModule.module_id == Module.id)
-            .filter(CompanyModule.tenant_id == UUID(tenant_id), CompanyModule.active == True)  # noqa: E712
+            .filter(CompanyModule.tenant_id == UUID(tenant_id), CompanyModule.active)
             .all()
         )
         for (name,) in assigned_names:
@@ -242,6 +242,8 @@ def list_modules(
         }
 
     # Solo devolver módulos contratados/habilitados para el tenant
-    modules = [map_module(m) for m in modules_catalog if (m.get("id") or m.get("code")) in enabled_modules]
+    modules = [
+        map_module(m) for m in modules_catalog if (m.get("id") or m.get("code")) in enabled_modules
+    ]
 
     return {"modules": modules, "total": len(modules)}

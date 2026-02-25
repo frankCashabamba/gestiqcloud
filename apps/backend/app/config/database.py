@@ -245,6 +245,8 @@ def set_search_path(db: Session, tenant_schema: str) -> None:
     Incluye siempre 'public' como fallback.
     Llamar tras abrir la sesión (en una dependencia que resuelva el tenant).
     """
+    if str(db.get_bind().url).startswith("sqlite"):
+        return
     if not _VALID_SCHEMA_RE.fullmatch(tenant_schema):
         raise ValueError(f"Invalid schema name: {tenant_schema!r}")
     db.execute(

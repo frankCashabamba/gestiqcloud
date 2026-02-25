@@ -12,8 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.modules.imports.config.aliases import DOC_TYPE_ALIASES, FIELD_ALIASES
-
+from app.modules.imports.config.aliases import FIELD_ALIASES
 
 # --- Classification keywords for doc type detection ---
 # These map doc_type categories to keywords used for scoring file headers/content.
@@ -21,33 +20,87 @@ from app.modules.imports.config.aliases import DOC_TYPE_ALIASES, FIELD_ALIASES
 
 _CLASSIFICATION_KEYWORDS: dict[str, tuple[str, ...]] = {
     "invoices": (
-        "factura", "invoice", "iva", "proveedor", "cliente", "ruc", "tax",
-        "vendedor", "num. factura", "num factura", "forma de pago", "retencion",
-        "retención", "nota de venta", "comprobante", "nif", "cif", "nit",
-        "subtotal", "total pagar", "folio", "emisor",
+        "factura",
+        "invoice",
+        "iva",
+        "proveedor",
+        "cliente",
+        "ruc",
+        "tax",
+        "vendedor",
+        "num. factura",
+        "num factura",
+        "forma de pago",
+        "retencion",
+        "retención",
+        "nota de venta",
+        "comprobante",
+        "nif",
+        "cif",
+        "nit",
+        "subtotal",
+        "total pagar",
+        "folio",
+        "emisor",
     ),
     "bank_transactions": (
-        "iban", "saldo", "cuenta", "concepto", "valor", "importe",
-        "transaction", "bank", "banco", "extracto", "movimiento",
-        "transferencia", "debit", "credit", "monto",
+        "iban",
+        "saldo",
+        "cuenta",
+        "concepto",
+        "valor",
+        "importe",
+        "transaction",
+        "bank",
+        "banco",
+        "extracto",
+        "movimiento",
+        "transferencia",
+        "debit",
+        "credit",
+        "monto",
     ),
     "expenses": (
-        "gasto", "expense", "receipt", "recibo", "voucher",
-        "compra", "egreso", "desembolso",
+        "gasto",
+        "expense",
+        "receipt",
+        "recibo",
+        "voucher",
+        "compra",
+        "egreso",
+        "desembolso",
     ),
     "products": (
-        "sku", "stock", "existencias", "inventario", "barcode", "ean",
-        "producto", "articulo", "catalogo", "lista_precios",
+        "sku",
+        "stock",
+        "existencias",
+        "inventario",
+        "barcode",
+        "ean",
+        "producto",
+        "articulo",
+        "catalogo",
+        "lista_precios",
     ),
     "recipes": (
-        "ingredientes", "costo total ingredientes", "formato de costeo",
-        "receta", "porciones", "temperatura de servicio", "recipe",
+        "ingredientes",
+        "costo total ingredientes",
+        "formato de costeo",
+        "receta",
+        "porciones",
+        "temperatura de servicio",
+        "recipe",
         "preparacion",
     ),
     "ticket_pos": (
-        "ticket de venta", "ticket venta", "nota de venta",
-        "comprobante de venta", "boleta de venta",
-        "nº r-", "n° r-", "nã° r-",
+        "ticket de venta",
+        "ticket venta",
+        "nota de venta",
+        "comprobante de venta",
+        "boleta de venta",
+        "nº r-",
+        "n° r-",
+        "nã° r-",
     ),
 }
 
@@ -84,9 +137,7 @@ def get_column_aliases(language: str = "es") -> dict[str, list[str]]:
     return dict(FIELD_ALIASES.get(language, FIELD_ALIASES.get("es", {})))
 
 
-def load_tenant_classification_keywords(
-    db: Any, tenant_id: str
-) -> dict[str, tuple[str, ...]]:
+def load_tenant_classification_keywords(db: Any, tenant_id: str) -> dict[str, tuple[str, ...]]:
     """Load classification keywords enhanced with tenant DB aliases.
 
     Merges global defaults with tenant-specific aliases from TenantFieldConfig.
@@ -135,9 +186,7 @@ def load_tenant_classification_keywords(
     return {k: tuple(v) for k, v in result.items()}
 
 
-def load_tenant_column_aliases(
-    db: Any, tenant_id: str, doc_type: str
-) -> dict[str, list[str]]:
+def load_tenant_column_aliases(db: Any, tenant_id: str, doc_type: str) -> dict[str, list[str]]:
     """Load column mapping aliases from TenantFieldConfig for a specific doc_type.
 
     Returns dict mapping canonical field names to their aliases.

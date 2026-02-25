@@ -153,35 +153,29 @@ def test_bank_statement_creation(db: Session, tenant_id, bank_account):
     """Test: crea extracto bancario."""
     statement = BankStatement(
         tenant_id=tenant_id,
-        bank_account_id=bank_account.id,
+        bank_name="Banco Prueba",
+        account_number="ES12345678",
         statement_date=date(2026, 2, 28),
-        period_start=date(2026, 2, 1),
-        period_end=date(2026, 2, 28),
-        opening_balance=Decimal("10000.00"),
-        closing_balance=Decimal("12500.00"),
-        source="IMPORT",
-        status="DRAFT",
-        currency="EUR",
-        bank_ref="STATEMENT-2026-02",
+        import_format="manual",
+        status="imported",
+        total_transactions=0,
     )
     db.add(statement)
     db.flush()
 
     assert statement.id is not None
-    assert statement.opening_balance == Decimal("10000.00")
-    assert statement.closing_balance == Decimal("12500.00")
+    assert statement.bank_name == "Banco Prueba"
+    assert statement.status == "imported"
 
 
 def test_bank_statement_lines(db: Session, tenant_id, bank_account):
     """Test: crea líneas de extracto bancario."""
     statement = BankStatement(
         tenant_id=tenant_id,
-        bank_account_id=bank_account.id,
+        bank_name="Banco Prueba",
+        account_number="ES12345678",
         statement_date=date(2026, 2, 28),
-        period_start=date(2026, 2, 1),
-        period_end=date(2026, 2, 28),
-        opening_balance=Decimal("10000.00"),
-        closing_balance=Decimal("12500.00"),
+        total_transactions=2,
     )
     db.add(statement)
     db.flush()
@@ -189,19 +183,21 @@ def test_bank_statement_lines(db: Session, tenant_id, bank_account):
     # Agregar líneas
     line1 = BankStatementLine(
         statement_id=statement.id,
+        tenant_id=tenant_id,
         transaction_date=date(2026, 2, 5),
         amount=Decimal("1500.00"),
         description="Ingreso cliente",
         reference="REF-001",
-        line_number=1,
+        transaction_type="credit",
     )
     line2 = BankStatementLine(
         statement_id=statement.id,
+        tenant_id=tenant_id,
         transaction_date=date(2026, 2, 10),
         amount=Decimal("-500.00"),
         description="Pago proveedor",
         reference="REF-002",
-        line_number=2,
+        transaction_type="debit",
     )
     db.add(line1)
     db.add(line2)

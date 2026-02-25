@@ -119,6 +119,8 @@ def _load_all_models():
         # Tenancy model so SQLite create_all creates the tenants table used by admin flows
         "app.models.tenant",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
+        "app.models.core.clients",
+        "app.models.core.facturacion",
         "app.models.core.modelsimport",
         "app.models.core.product_category",
         "app.models.core.products",
@@ -157,8 +159,6 @@ def _prune_pg_only_tables(metadata):
         "core_auditoria_importacion",
         "auditoria_importacion",
         "core_rolempresa",  # Uses tenant_id UUID
-        "production_orders",  # Migrated separately, no SQLite support in tests
-        "production_order_lines",  # Migrated separately, no SQLite support in tests
     }
     # Copy keys to list to avoid runtime dict-change issues
     for name in list(metadata.tables.keys()):
@@ -205,7 +205,11 @@ def _create_tables_in_order(engine, metadata):
             conn.commit()
 
     try:
-        tables = list(metadata.sorted_tables)
+        try:
+            tables = list(metadata.sorted_tables)
+        except Exception:
+            # Fall back to unsorted if FK resolution fails (pruned tables)
+            tables = list(metadata.tables.values())
         created = set()
         max_attempts = len(tables) + 1
 
@@ -297,13 +301,12 @@ def db():
     # For PostgreSQL: tables already exist from migrate_all_migrations.py
     # For SQLite: create tables from metadata
     if engine.dialect.name != "postgresql":
-        from sqlalchemy.exc import OperationalError
 
         try:
             Base.metadata.drop_all(bind=engine)
-        except OperationalError:
-            # SQLite can fail drop order when metadata includes partially-created graphs.
-            # Ignore and continue with clean create phase.
+        except Exception:
+            # SQLite can fail drop order when metadata includes partially-created graphs
+            # or NoReferencedTableError from pruned FK targets. Ignore and continue.
             pass
         # Create tables in dependency order to avoid FK violations
         _create_tables_in_order(engine, Base.metadata)

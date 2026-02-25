@@ -13,8 +13,6 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import ensure_rls, tenant_id_from_request
-from app.services.ai.base import AITask
-from app.services.ai.service import AIService
 from app.modules.copilot.services import (
     create_invoice_draft,
     create_order_draft,
@@ -24,6 +22,8 @@ from app.modules.copilot.services import (
     query_readonly_enhanced,
     suggest_overlay_fields,
 )
+from app.services.ai.base import AITask
+from app.services.ai.service import AIService
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,9 @@ async def ai_suggestions(db: Session = Depends(get_db)):
 
 class ChatIn(BaseModel):
     message: str = Field(description="User message / question")
-    history: list[dict[str, str]] = Field(default_factory=list, description="Previous messages [{role,content}]")
+    history: list[dict[str, str]] = Field(
+        default_factory=list, description="Previous messages [{role,content}]"
+    )
 
 
 class ChatOut(BaseModel):
@@ -203,7 +205,9 @@ async def ai_chat(payload: ChatIn, request: Request, db: Session = Depends(get_d
         except Exception:
             pass
 
-        biz_context = "\n".join(context_parts) if context_parts else "No hay datos de contexto disponibles."
+        biz_context = (
+            "\n".join(context_parts) if context_parts else "No hay datos de contexto disponibles."
+        )
 
         # Build conversation history for prompt
         history_text = ""
@@ -232,7 +236,10 @@ Responde SOLO con JSON: {{"reply": "tu respuesta", "suggestions": ["pregunta sug
         )
 
         if response.is_error:
-            return {"reply": "Lo siento, no pude procesar tu consulta en este momento. Intenta de nuevo.", "suggestions": []}
+            return {
+                "reply": "Lo siento, no pude procesar tu consulta en este momento. Intenta de nuevo.",
+                "suggestions": [],
+            }
 
         try:
             data = json.loads(response.content)
@@ -245,4 +252,7 @@ Responde SOLO con JSON: {{"reply": "tu respuesta", "suggestions": ["pregunta sug
 
     except Exception as e:
         logger.error(f"Error in /chat endpoint: {e}", exc_info=True)
-        return {"reply": "Ocurrió un error procesando tu mensaje. Intenta de nuevo.", "suggestions": []}
+        return {
+            "reply": "Ocurrió un error procesando tu mensaje. Intenta de nuevo.",
+            "suggestions": [],
+        }

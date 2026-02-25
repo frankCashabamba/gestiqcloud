@@ -3,13 +3,12 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-from difflib import SequenceMatcher
 from decimal import ROUND_HALF_UP, Decimal
+from difflib import SequenceMatcher
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models.core.product_category import ProductCategory
@@ -118,16 +117,15 @@ class InvoiceHandler:
             # Search or create client/supplier
             cliente = (
                 db.query(Cliente)
-                .filter(Cliente.tenant_id == tenant_id, Cliente.nombre == vendor_name)
+                .filter(Cliente.tenant_id == tenant_id, Cliente.name == vendor_name)
                 .first()
             )
             if not cliente:
                 cliente = Cliente(
                     tenant_id=tenant_id,
-                    nombre=vendor_name,
-                    tipo="supplier",
+                    name=vendor_name,
                     email=None,
-                    telefono=None,
+                    phone=None,
                 )
                 db.add(cliente)
                 db.flush()
@@ -162,15 +160,15 @@ class InvoiceHandler:
             invoice = Invoice(
                 id=uuid4(),
                 tenant_id=tenant_id,
-                cliente_id=cliente.id,
-                numero=invoice_number,
+                customer_id=cliente.id,
+                number=invoice_number,
                 supplier=vendor_name,
-                tx_date_emision=tx_date_emision,
+                issue_date=tx_date_emision,
                 subtotal=subtotal,
-                iva=iva,
+                vat=iva,
                 total=total,
-                monto=int(total),
-                estado="pendiente",
+                amount=int(total),
+                status="pendiente",
             )
             db.add(invoice)
             db.flush()
@@ -207,12 +205,12 @@ class InvoiceHandler:
 
                 linea = LineaFactura(
                     id=uuid4(),
-                    factura_id=invoice.id,
+                    invoice_id=invoice.id,
                     sector="base",
-                    descripcion=descripcion,
-                    cantidad=cantidad,
-                    precio_unitario=precio_unitario,
-                    iva=iva_linea,
+                    description=descripcion,
+                    quantity=cantidad,
+                    unit_price=precio_unitario,
+                    vat=iva_linea,
                 )
                 db.add(linea)
 
@@ -462,9 +460,7 @@ class ExpenseHandler:
                 normalized.get("description") or normalized.get("concept") or "Expense"
             ).strip()
 
-            category = (
-                str(normalized.get("category") or "otros").strip().lower()
-            )
+            category = str(normalized.get("category") or "otros").strip().lower()
 
             iva = float(
                 normalized.get("tax")
@@ -503,9 +499,7 @@ class ExpenseHandler:
 
             supplier_id = None
             supplier_name = str(
-                normalized.get("vendor")
-                or normalized.get("proveedor")
-                or ""
+                normalized.get("vendor") or normalized.get("proveedor") or ""
             ).strip()
             if supplier_name:
                 try:

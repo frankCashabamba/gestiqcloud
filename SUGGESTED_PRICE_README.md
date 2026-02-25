@@ -351,8 +351,8 @@ systemctl restart gestiqcloud-backend gestiqcloud-frontend
 
 ---
 
-**Última actualización**: 2026-02-21  
-**Responsable**: Frank Cashabamba  
+**Última actualización**: 2026-02-21
+**Responsable**: Frank Cashabamba
 **Estado**: ✅ Completado y listo para deploy
 
 ---

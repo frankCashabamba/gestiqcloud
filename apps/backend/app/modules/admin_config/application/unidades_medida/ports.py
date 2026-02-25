@@ -3,10 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from app.modules.admin_config.application.unidades_medida.dto import (
-    UnidadMedidaIn,
-    UnidadMedidaOut,
-)
+from app.modules.admin_config.application.unidades_medida.dto import UnidadMedidaIn, UnidadMedidaOut
 
 
 class UnidadMedidaRepo(Protocol):

@@ -16,9 +16,9 @@
   ```
 - [ ] Verificar en BD:
   ```sql
-  SELECT column_name, data_type 
-  FROM information_schema.columns 
-  WHERE table_name = 'products' 
+  SELECT column_name, data_type
+  FROM information_schema.columns
+  WHERE table_name = 'products'
   AND column_name IN ('suggested_price', 'use_suggested_price');
   ```
 - [ ] Resultado esperado:
@@ -128,7 +128,7 @@ POST /api/v1/tenant/recipes
 # 3. Obtener producto actualizado
 GET /api/v1/tenant/products/PRODUCT_ID
 
-# Verificar: 
+# Verificar:
 # - suggested_price > 0
 # - use_suggested_price = false
 
@@ -187,7 +187,7 @@ Debería mostrar:
 
 - [ ] Query de productos sigue siendo rápido
   ```sql
-  EXPLAIN ANALYZE 
+  EXPLAIN ANALYZE
   SELECT * FROM products WHERE tenant_id = 'XXX' LIMIT 100;
   ```
 - [ ] Sin cambios significativos en tiempo de ejecución
@@ -309,8 +309,8 @@ ROLLBACK (Si es necesario)
 
 ---
 
-**Fecha de Deploy**: [Completar]  
-**Responsable**: [Completar]  
+**Fecha de Deploy**: [Completar]
+**Responsable**: [Completar]
 **Resultado**: [ ] Éxito [ ] Rollback [ ] Parcial
 
 **Notas Post-Deploy**:

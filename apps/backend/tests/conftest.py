@@ -22,7 +22,7 @@ def _guard_sprint2_schema(request, db):
 
     if "tests/test_sprint2_finance.py" in nodeid:
         missing = _missing_columns(bind, "payments", {"amount", "bank_account_id"})
-        missing |= _missing_columns(bind, "bank_statements", {"bank_account_id"})
+        missing |= _missing_columns(bind, "bank_statements", {"bank_name"})
         if missing:
             pytest.skip(f"sprint2_finance_schema_missing_columns: {sorted(missing)}")
 

@@ -137,6 +137,7 @@ def auto_setup_tenant(
         #    El usuario puede re-ejecutar desde el botón "Inicializar aliases por defecto"
         try:
             from app.modules.imports.interface.http.tenant import _seed_field_defaults
+
             seed_result = _seed_field_defaults(db, tenant_id)
             result["import_classification_seeded"] = True
             result["seeded_modules"] = seed_result
@@ -233,7 +234,6 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error verificando tenant ready: {e}")
         return False
-
 
 
 # _seed_import_classification removed — logic unified in

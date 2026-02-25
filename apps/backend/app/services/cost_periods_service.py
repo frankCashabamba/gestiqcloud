@@ -16,12 +16,9 @@ from uuid import UUID
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.models.production._cost_periods import CostPeriod, CostPeriodValidation
+from app.models.production._cost_periods import CostPeriod
 from app.models.recipes import Recipe
-from app.schemas.cost_periods import (
-    CostPeriodDetailResponse,
-    CostPeriodValidationResult,
-)
+from app.schemas.cost_periods import CostPeriodValidationResult
 
 
 class CostPeriodsService:
@@ -45,7 +42,7 @@ class CostPeriodsService:
     ) -> CostPeriod:
         """
         Crea un nuevo período de costeo.
-        
+
         Los campos computed (burden_factor, rates) se calculan automáticamente en DB.
         """
         period = CostPeriod(
@@ -57,7 +54,9 @@ class CostPeriodsService:
             electricity_cost=Decimal(str(electricity_cost)),
             diesel_cost_month=Decimal(str(diesel_cost_month)),
             oven_hours_total=Decimal(str(oven_hours_total)),
-            production_share_pct=Decimal(str(production_share_pct)) if production_share_pct else None,
+            production_share_pct=(
+                Decimal(str(production_share_pct)) if production_share_pct else None
+            ),
             notes=notes,
             is_active=True,
         )
@@ -104,7 +103,7 @@ class CostPeriodsService:
             self.db.query(CostPeriod)
             .filter(
                 CostPeriod.tenant_id == self.tenant_id,
-                CostPeriod.is_active == True,
+                CostPeriod.is_active,
             )
             .order_by(desc(CostPeriod.month))
             .first()
@@ -124,7 +123,7 @@ class CostPeriodsService:
     def validate_period(self, period_id: UUID) -> CostPeriodValidationResult:
         """
         Valida un período y retorna warnings/errors.
-        
+
         Checks:
         - labor_burden_factor está entre 0.8 y 1.6 (eficiencia razonable)
         - oven_hours_total > 10 (no subutilizado)
@@ -143,18 +142,22 @@ class CostPeriodsService:
             bf = float(period.labor_burden_factor)
             if bf > 1.6:
                 burden_ok = False
-                warnings.append({
-                    "code": "burden_too_high",
-                    "message": f"Burden factor muy alto: {bf:.2f}. Indica mucho tiempo muerto.",
-                    "suggestion": "Revisar si hay ineficiencias no capturadas o tareas adicionales",
-                })
+                warnings.append(
+                    {
+                        "code": "burden_too_high",
+                        "message": f"Burden factor muy alto: {bf:.2f}. Indica mucho tiempo muerto.",
+                        "suggestion": "Revisar si hay ineficiencias no capturadas o tareas adicionales",
+                    }
+                )
             elif bf < 0.8:
                 burden_ok = False
-                warnings.append({
-                    "code": "burden_too_low",
-                    "message": f"Burden factor bajo: {bf:.2f}. Posible medición incompleta.",
-                    "suggestion": "Verificar que se registren todos los touch_hours",
-                })
+                warnings.append(
+                    {
+                        "code": "burden_too_low",
+                        "message": f"Burden factor bajo: {bf:.2f}. Posible medición incompleta.",
+                        "suggestion": "Verificar que se registren todos los touch_hours",
+                    }
+                )
 
         # Check 2: Oven utilization
         oven_ok = True
@@ -162,11 +165,13 @@ class CostPeriodsService:
             oh = float(period.oven_hours_total)
             if oh < 10:
                 oven_ok = False
-                warnings.append({
-                    "code": "oven_underutilized",
-                    "message": f"Horno muy poco utilizado: {oh:.1f}h. Datos incompletos?",
-                    "suggestion": "Verificar que se registren todas las horas de horno",
-                })
+                warnings.append(
+                    {
+                        "code": "oven_underutilized",
+                        "message": f"Horno muy poco utilizado: {oh:.1f}h. Datos incompletos?",
+                        "suggestion": "Verificar que se registren todas las horas de horno",
+                    }
+                )
 
         # Check 3: Touch hours vs paid hours (eficiencia general)
         touch_ok = True
@@ -176,11 +181,13 @@ class CostPeriodsService:
             ratio = touch / paid if paid > 0 else 0
             if ratio < 0.5:
                 touch_ok = False
-                warnings.append({
-                    "code": "low_touch_ratio",
-                    "message": f"Ratio touch/paid muy bajo: {ratio:.1%}. Muchos tiempos muertos.",
-                    "suggestion": "Normal si hay descansos, mantenimiento, etc. O falta registrar horas.",
-                })
+                warnings.append(
+                    {
+                        "code": "low_touch_ratio",
+                        "message": f"Ratio touch/paid muy bajo: {ratio:.1%}. Muchos tiempos muertos.",
+                        "suggestion": "Normal si hay descansos, mantenimiento, etc. O falta registrar horas.",
+                    }
+                )
 
         return CostPeriodValidationResult(
             period_id=period_id,
@@ -196,7 +203,7 @@ class CostPeriodsService:
     def close_period(self, period_id: UUID) -> CostPeriod:
         """
         Cierra formalmente un período.
-        
+
         Esto marca que no se pueden hacer más cambios al período
         y se pueden hacer recálculos históricos si necesario.
         """
@@ -212,7 +219,7 @@ class CostPeriodsService:
     def get_period_impact_on_recipes(self, period_id: UUID) -> dict:
         """
         Calcula el impacto de aplicar un período a todas las recetas del tenant.
-        
+
         Retorna:
         - Recipes afectadas
         - Cost changes
@@ -223,9 +230,7 @@ class CostPeriodsService:
             raise ValueError(f"Period not found: {period_id}")
 
         recipes = (
-            self.db.query(Recipe)
-            .filter(Recipe.tenant_id == self.tenant_id, Recipe.is_active == True)
-            .all()
+            self.db.query(Recipe).filter(Recipe.tenant_id == self.tenant_id, Recipe.is_active).all()
         )
 
         # Usar calculate_recipe_full_cost con el period_month
@@ -238,7 +243,9 @@ class CostPeriodsService:
         for recipe in recipes:
             try:
                 # Cost con período
-                cost_with = calculate_recipe_full_cost(self.db, recipe.id, period_month=period.month)
+                cost_with = calculate_recipe_full_cost(
+                    self.db, recipe.id, period_month=period.month
+                )
                 # Cost sin período (default)
                 cost_without = calculate_recipe_full_cost(self.db, recipe.id, period_month=None)
 
@@ -249,21 +256,27 @@ class CostPeriodsService:
 
                 total_cost_change += change
 
-                impacted_recipes.append({
-                    "recipe_id": str(recipe.id),
-                    "recipe_name": recipe.name,
-                    "cost_before": float(cost_before),
-                    "cost_after": float(cost_after),
-                    "cost_change": float(change),
-                    "cost_change_pct": float(change_pct),
-                })
+                impacted_recipes.append(
+                    {
+                        "recipe_id": str(recipe.id),
+                        "recipe_name": recipe.name,
+                        "cost_before": float(cost_before),
+                        "cost_after": float(cost_after),
+                        "cost_change": float(change),
+                        "cost_change_pct": float(change_pct),
+                    }
+                )
 
             except Exception:
                 # Skip si falla el cálculo
                 pass
 
         avg_change_pct = (
-            float(total_cost_change / sum(Decimal(str(r["cost_before"])) for r in impacted_recipes) * 100)
+            float(
+                total_cost_change
+                / sum(Decimal(str(r["cost_before"])) for r in impacted_recipes)
+                * 100
+            )
             if impacted_recipes and any(r["cost_before"] > 0 for r in impacted_recipes)
             else 0
         )

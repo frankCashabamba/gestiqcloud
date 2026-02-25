@@ -5,7 +5,10 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.models.core.global_catalogs import DocumentType as TipoDocumentoORM
-from app.modules.admin_config.application.tipos_documento.dto import TipoDocumentoIn, TipoDocumentoOut
+from app.modules.admin_config.application.tipos_documento.dto import (
+    TipoDocumentoIn,
+    TipoDocumentoOut,
+)
 from app.modules.admin_config.application.tipos_documento.ports import TipoDocumentoRepo
 
 

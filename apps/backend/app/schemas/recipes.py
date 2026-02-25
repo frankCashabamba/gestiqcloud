@@ -109,25 +109,25 @@ class RecipeBase(BaseModel):
     prep_time_minutes: int | None = Field(None, ge=0, description="Minutes")
     baking_time_minutes: int | None = Field(None, ge=0, description="Baking time in minutes")
     oven_temp_celsius: int | None = Field(None, ge=0, description="Oven temperature °C")
-    rest_time_minutes: int | None = Field(None, ge=0, description="Rest/fermentation time in minutes")
-    
+    rest_time_minutes: int | None = Field(
+        None, ge=0, description="Rest/fermentation time in minutes"
+    )
+
     # ========== COSTEO AVANZADO: TOUCH vs PROCESO ==========
     touch_minutes_standard: int | None = Field(
         None,
         ge=0,
-        description="Minutos de trabajo activo (cuando operario está ocupado): pesar, amasar, bolear, cargar, descargar"
+        description="Minutos de trabajo activo (cuando operario está ocupado): pesar, amasar, bolear, cargar, descargar",
     )
     oven_minutes_standard: int | None = Field(
-        None,
-        ge=0,
-        description="Minutos de horneado (consume recurso HORNO para diésel/energía)"
+        None, ge=0, description="Minutos de horneado (consume recurso HORNO para diésel/energía)"
     )
     process_minutes: int | None = Field(
         None,
         ge=0,
-        description="Minutos de proceso pasivo (fermentación/reposo): solo para planificación, no cuesta MO"
+        description="Minutos de proceso pasivo (fermentación/reposo): solo para planificación, no cuesta MO",
     )
-    
+
     waste_pct: float | None = Field(None, ge=0, le=100, description="Waste percentage 0-100")
     trays_per_batch: int | None = Field(None, ge=1, description="Trays per oven batch")
     units_per_tray: int | None = Field(None, ge=1, description="Units per tray")
@@ -203,11 +203,10 @@ class RecipeStepBase(BaseModel):
     duration_minutes: int = Field(..., ge=0, description="Duración en minutos")
     is_touch: bool = Field(
         True,
-        description="TRUE: operario ocupado (cuesta MO). FALSE: proceso pasivo (fermentación, reposo)"
+        description="TRUE: operario ocupado (cuesta MO). FALSE: proceso pasivo (fermentación, reposo)",
     )
     resource_type: str = Field(
-        "labor",
-        description="Tipo de recurso: labor, oven, mixer, prover, other"
+        "labor", description="Tipo de recurso: labor, oven, mixer, prover, other"
     )
     actual_minutes: int | None = Field(None, ge=0, description="Duración real medida")
     step_order: int = Field(0, ge=0, description="Orden en la receta")

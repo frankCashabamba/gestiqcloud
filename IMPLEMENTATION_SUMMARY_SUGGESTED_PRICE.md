@@ -1,7 +1,7 @@
 # Resumen de Implementación: Precio Sugerido desde Receta
 
-**Fecha**: 2026-02-21  
-**Feature**: Precio Sugerido desde Receta para Productos  
+**Fecha**: 2026-02-21
+**Feature**: Precio Sugerido desde Receta para Productos
 **Estado**: ✅ Completado
 
 ---
@@ -295,12 +295,12 @@ Precio Sugerido: 0.13 $ ✓ [readonly]
 
 ## Características
 
-✅ **Automático**: Se calcula al crear/modificar receta  
-✅ **No Forzado**: Usuario decide aplicar o mantener precio propio  
-✅ **Flexible**: Puede cambiar entre precio sugerido y manual  
-✅ **Sincronizable**: API endpoint para sincronizar manualmente  
-✅ **Configurable**: Markup ajustable en `recipe_calculator.py` línea 94  
-✅ **Auditable**: Campos comentados en base de datos  
+✅ **Automático**: Se calcula al crear/modificar receta
+✅ **No Forzado**: Usuario decide aplicar o mantener precio propio
+✅ **Flexible**: Puede cambiar entre precio sugerido y manual
+✅ **Sincronizable**: API endpoint para sincronizar manualmente
+✅ **Configurable**: Markup ajustable en `recipe_calculator.py` línea 94
+✅ **Auditable**: Campos comentados en base de datos
 
 ---
 
@@ -363,7 +363,7 @@ python test_suggested_price.py
 
 ---
 
-**Implementación completada**: ✅  
-**Migración pendiente**: Ejecutar `ops/migrations/2026-02-21_000_add_suggested_price_to_products/`  
-**Documentación**: Completa  
+**Implementación completada**: ✅
+**Migración pendiente**: Ejecutar `ops/migrations/2026-02-21_000_add_suggested_price_to_products/`
+**Documentación**: Completa
 **Testing**: Script disponible en `test_suggested_price.py`

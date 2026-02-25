@@ -28,7 +28,7 @@ class AIModel(str, Enum):
     GPT_35_TURBO = "gpt-3.5-turbo"
 
 
-def model_name(model: "AIModel | str | None") -> str:
+def model_name(model: AIModel | str | None) -> str:
     """Normalize model identifiers across Enum/string inputs."""
     if model is None:
         return ""

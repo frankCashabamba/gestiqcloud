@@ -1080,9 +1080,13 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             failed += 1
 
     # Batch-level status after promotion attempt.
-    promotable_total = sum(1 for it in items if it.status in (ImportItemStatus.OK, ImportItemStatus.PROMOTED))
+    promotable_total = sum(
+        1 for it in items if it.status in (ImportItemStatus.OK, ImportItemStatus.PROMOTED)
+    )
     if failed > 0:
-        batch.status = ImportBatchStatus.PARTIAL if (created + skipped) > 0 else ImportBatchStatus.ERROR
+        batch.status = (
+            ImportBatchStatus.PARTIAL if (created + skipped) > 0 else ImportBatchStatus.ERROR
+        )
     else:
         if promotable_total > 0 and (created + skipped) > 0:
             batch.status = ImportBatchStatus.PROMOTED

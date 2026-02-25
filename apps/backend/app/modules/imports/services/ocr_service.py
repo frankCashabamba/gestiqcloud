@@ -272,9 +272,7 @@ class OCRService:
             "boleta de venta",
         ]
         ticket_pos_score = sum(1 for kw in ticket_pos_keywords if kw in text_lower)
-        has_pos_line_format = bool(
-            re.search(r"\d+[.,]?\d*\s*x\s+.+", text_lower)
-        )
+        has_pos_line_format = bool(re.search(r"\d+[.,]?\d*\s*x\s+.+", text_lower))
         is_short_doc = len(text_lower) < 1500
         has_gracias = "gracias" in text_lower or "thank" in text_lower
 
@@ -287,7 +285,17 @@ class OCRService:
 
         invoice_keywords = list(get_classification_keywords("invoices"))
         if not invoice_keywords:
-            invoice_keywords = ["factura", "invoice", "ruc", "nif", "iva", "tax", "subtotal", "cif", "nit"]
+            invoice_keywords = [
+                "factura",
+                "invoice",
+                "ruc",
+                "nif",
+                "iva",
+                "tax",
+                "subtotal",
+                "cif",
+                "nit",
+            ]
         receipt_keywords = list(get_classification_keywords("expenses"))
         if not receipt_keywords:
             receipt_keywords = ["recibo", "receipt", "ticket", "total", "efectivo", "cash", "paid"]
@@ -297,7 +305,16 @@ class OCRService:
                 receipt_keywords.append(kw)
         bank_keywords = list(get_classification_keywords("bank_transactions"))
         if not bank_keywords:
-            bank_keywords = ["extracto", "statement", "saldo", "balance", "iban", "cuenta", "account", "movimientos"]
+            bank_keywords = [
+                "extracto",
+                "statement",
+                "saldo",
+                "balance",
+                "iban",
+                "cuenta",
+                "account",
+                "movimientos",
+            ]
         # Add bank-specific keywords
         for kw in ["extracto", "statement", "balance", "movimientos"]:
             if kw not in bank_keywords:

@@ -1862,10 +1862,15 @@ def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = De
                 db.commit()
             except Exception:
                 db.rollback()
-        if total == 0 and is_recipe_batch and str(batch.status) in (
-            ImportBatchStatus.READY,
-            ImportBatchStatus.PARTIAL,
-            ImportBatchStatus.PROMOTED,
+        if (
+            total == 0
+            and is_recipe_batch
+            and str(batch.status)
+            in (
+                ImportBatchStatus.READY,
+                ImportBatchStatus.PARTIAL,
+                ImportBatchStatus.PROMOTED,
+            )
         ):
             progress_pct = 100.0
 
@@ -2583,16 +2588,50 @@ def _seed_field_defaults(db: Session, tenant_id: str) -> dict:
     # (aliases, field_type)
     defaults_by_module: dict[str, dict[str, tuple[list[str], str]]] = {
         "imports_invoices": {
-            "invoice_number": (["numero", "factura", "num_factura", "nro_factura", "invoice_no", "folio", "comprobante", "num. factura", "nota de venta"], "string"),
-            "invoice_date": (["fecha", "fecha_factura", "fecha_emision", "issue_date", "date"], "date"),
-            "customer_name": (["cliente", "customer", "destinatario", "comprador", "buyer"], "string"),
+            "invoice_number": (
+                [
+                    "numero",
+                    "factura",
+                    "num_factura",
+                    "nro_factura",
+                    "invoice_no",
+                    "folio",
+                    "comprobante",
+                    "num. factura",
+                    "nota de venta",
+                ],
+                "string",
+            ),
+            "invoice_date": (
+                ["fecha", "fecha_factura", "fecha_emision", "issue_date", "date"],
+                "date",
+            ),
+            "customer_name": (
+                ["cliente", "customer", "destinatario", "comprador", "buyer"],
+                "string",
+            ),
             "vendor_name": (["proveedor", "supplier", "vendor", "empresa", "emisor"], "string"),
             "amount_subtotal": (["subtotal", "sub_total", "neto", "base_imponible"], "number"),
             "amount_tax": (["iva", "impuesto", "tax", "igv", "tributacion"], "number"),
             "amount_total": (["total", "total_pagar", "importe", "monto", "valor_total"], "number"),
             "tipo": (["tipo", "type", "tipo_documento"], "string"),
-            "tipo_identificacion": (["tipo_identificacion", "tipo_de_identificacion", "id_type", "identification_type"], "string"),
-            "numero_identificacion": (["numero_identificacion", "numero_de_identificacion", "ruc", "nif", "cif", "nit", "tax_id", "cedula"], "string"),
+            "tipo_identificacion": (
+                ["tipo_identificacion", "tipo_de_identificacion", "id_type", "identification_type"],
+                "string",
+            ),
+            "numero_identificacion": (
+                [
+                    "numero_identificacion",
+                    "numero_de_identificacion",
+                    "ruc",
+                    "nif",
+                    "cif",
+                    "nit",
+                    "tax_id",
+                    "cedula",
+                ],
+                "string",
+            ),
             "cod_producto": (["cod_producto", "codigo_producto", "product_code", "sku"], "string"),
             "producto": (["producto", "product", "descripcion", "concepto", "detalle"], "string"),
             "precio_unitario": (["precio_unitario", "unit_price", "precio", "price"], "number"),
@@ -2600,21 +2639,66 @@ def _seed_field_defaults(db: Session, tenant_id: str) -> dict:
             "sector": (["sector", "category", "area"], "string"),
             "observacion": (["observacion", "observation", "notes", "notas"], "string"),
             "promocion": (["promocion", "promotion", "descuento"], "string"),
-            "vendedor": (["vendedor", "seller", "cashier", "cajero", "forma de pago", "retencion"], "string"),
+            "vendedor": (
+                ["vendedor", "seller", "cashier", "cajero", "forma de pago", "retencion"],
+                "string",
+            ),
         },
         "imports_products": {
-            "name": (["nombre", "producto", "descripcion", "articulo", "detalle", "item"], "string"),
-            "sku": (["sku", "codigo", "code", "cod", "barcode", "ean", "upc", "referencia", "cod. producto"], "string"),
-            "price": (["precio", "pvp", "precio_venta", "precio_unitario", "price", "importe"], "number"),
+            "name": (
+                ["nombre", "producto", "descripcion", "articulo", "detalle", "item"],
+                "string",
+            ),
+            "sku": (
+                [
+                    "sku",
+                    "codigo",
+                    "code",
+                    "cod",
+                    "barcode",
+                    "ean",
+                    "upc",
+                    "referencia",
+                    "cod. producto",
+                ],
+                "string",
+            ),
+            "price": (
+                ["precio", "pvp", "precio_venta", "precio_unitario", "price", "importe"],
+                "number",
+            ),
             "cost_price": (["costo", "coste", "precio_costo", "costo_unitario", "cost"], "number"),
-            "stock": (["stock", "existencias", "cantidad", "inventario", "disponible", "unidades"], "number"),
-            "category": (["categoria", "familia", "rubro", "grupo", "seccion", "linea", "catalogo"], "string"),
+            "stock": (
+                ["stock", "existencias", "cantidad", "inventario", "disponible", "unidades"],
+                "number",
+            ),
+            "category": (
+                ["categoria", "familia", "rubro", "grupo", "seccion", "linea", "catalogo"],
+                "string",
+            ),
             "unit": (["unidad", "uom", "medida", "unidad_medida"], "string"),
         },
         "imports_bank_transactions": {
-            "transaction_date": (["fecha", "fecha_valor", "fecha_operacion", "value_date", "date"], "date"),
-            "amount": (["importe", "monto", "amount", "valor", "total", "saldo", "debit", "credit"], "number"),
-            "description": (["concepto", "descripcion", "description", "detalle", "narrativa", "movimiento", "extracto"], "string"),
+            "transaction_date": (
+                ["fecha", "fecha_valor", "fecha_operacion", "value_date", "date"],
+                "date",
+            ),
+            "amount": (
+                ["importe", "monto", "amount", "valor", "total", "saldo", "debit", "credit"],
+                "number",
+            ),
+            "description": (
+                [
+                    "concepto",
+                    "descripcion",
+                    "description",
+                    "detalle",
+                    "narrativa",
+                    "movimiento",
+                    "extracto",
+                ],
+                "string",
+            ),
             "account_number": (["cuenta", "account", "iban", "numero_cuenta"], "string"),
             "reference": (["referencia", "reference", "ref", "id_operacion"], "string"),
             "bank": (["banco", "bank", "entidad", "transferencia"], "string"),
@@ -2633,10 +2717,25 @@ def _seed_field_defaults(db: Session, tenant_id: str) -> dict:
             "costing": (["formato de costeo", "costing", "costeo", "preparacion"], "string"),
         },
         "imports_ticket_pos": {
-            "invoice_number": (["ticket", "ticket de venta", "ticket venta", "boleta", "comprobante de venta", "boleta de venta", "nº r-", "n° r-"], "string"),
+            "invoice_number": (
+                [
+                    "ticket",
+                    "ticket de venta",
+                    "ticket venta",
+                    "boleta",
+                    "comprobante de venta",
+                    "boleta de venta",
+                    "nº r-",
+                    "n° r-",
+                ],
+                "string",
+            ),
             "invoice_date": (["fecha", "date", "fecha_emision"], "date"),
             "amount_total": (["total", "total pagar", "importe", "monto"], "number"),
-            "vendor_name": (["comercio", "tienda", "establecimiento", "emisor", "empresa"], "string"),
+            "vendor_name": (
+                ["comercio", "tienda", "establecimiento", "emisor", "empresa"],
+                "string",
+            ),
             "vendedor": (["vendedor", "cajero", "cashier", "seller"], "string"),
             "producto": (["producto", "item", "articulo", "detalle", "descripcion"], "string"),
             "cantidad": (["cantidad", "qty", "quantity", "unidades"], "number"),

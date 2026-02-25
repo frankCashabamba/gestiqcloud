@@ -299,10 +299,26 @@ def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) 
             if not df.empty:
                 # Detect header row with keyword scoring
                 keywords = [
-                    "fecha", "factura", "cliente", "producto", "cantidad",
-                    "precio", "subtotal", "iva", "total", "tipo", "codigo",
-                    "descripcion", "vendedor", "stock", "categoria", "sku",
-                    "nombre", "banco", "cuenta", "saldo",
+                    "fecha",
+                    "factura",
+                    "cliente",
+                    "producto",
+                    "cantidad",
+                    "precio",
+                    "subtotal",
+                    "iva",
+                    "total",
+                    "tipo",
+                    "codigo",
+                    "descripcion",
+                    "vendedor",
+                    "stock",
+                    "categoria",
+                    "sku",
+                    "nombre",
+                    "banco",
+                    "cuenta",
+                    "saldo",
                 ]
                 best_idx, best_score = 0, -1
                 max_scan = min(len(df.index), 30)
@@ -318,12 +334,20 @@ def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) 
                         best_score = score
                         best_idx = idx
                 raw_headers = df.iloc[best_idx].tolist()
-                headers = [str(h).strip() for h in raw_headers if str(h).strip() and str(h).lower() != "nan"]
+                headers = [
+                    str(h).strip()
+                    for h in raw_headers
+                    if str(h).strip() and str(h).lower() != "nan"
+                ]
                 headers_str = " ".join(h.lower() for h in headers)
                 scan_rows = []
                 for row_idx in range(best_idx + 1, min(len(df.index), best_idx + 30)):
                     vals = df.iloc[row_idx].tolist()
-                    scan_rows.extend(str(v).lower() for v in vals if v not in (None, "") and str(v).lower() != "nan")
+                    scan_rows.extend(
+                        str(v).lower()
+                        for v in vals
+                        if v not in (None, "") and str(v).lower() != "nan"
+                    )
                 scan_str = " ".join(scan_rows)
                 haystack = f"{headers_str} {scan_str}".strip()
         except Exception:
@@ -356,15 +380,14 @@ def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) 
         # Only use costing-as-products when the caller explicitly hints products/inventory.
         if hint in ("products", "product", "productos", "inventario"):
             if registry.get_parser("xlsx_costing_products"):
-                return "xlsx_costing_products", registry.get_parser("xlsx_costing_products")[
-                    "doc_type"
-                ]
+                return (
+                    "xlsx_costing_products",
+                    registry.get_parser("xlsx_costing_products")["doc_type"],
+                )
         if registry.get_parser("xlsx_recipes"):
             return "xlsx_recipes", registry.get_parser("xlsx_recipes")["doc_type"]
         if registry.get_parser("xlsx_costing_products"):
-            return "xlsx_costing_products", registry.get_parser("xlsx_costing_products")[
-                "doc_type"
-            ]
+            return "xlsx_costing_products", registry.get_parser("xlsx_costing_products")["doc_type"]
     if (
         registry.get_parser("xlsx_bank")
         and bank_score >= 2

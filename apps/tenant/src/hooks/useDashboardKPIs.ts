@@ -58,15 +58,70 @@ export interface DashboardKPIs {
 }
 
 export interface TallerKPIs {
-  ordenes_trabajo_activas: number
-  servicios_completados_hoy: number
-  repuestos_pendientes: number
+  pending_repairs?: {
+    total?: number
+    urgent?: number
+    average_wait_time?: number
+    time_unit?: string
+  }
+  monthly_revenue?: {
+    current?: number
+    target?: number
+    progress?: number
+    currency?: string
+  }
+  low_stock_spare_parts?: {
+    items?: number
+    names?: string[]
+    urgency?: string
+  }
+  completed_jobs?: {
+    today?: number
+    week?: number
+    month?: number
+  }
+  // Legacy keys for backward compatibility
+  ordenes_trabajo_activas?: number
+  servicios_completados_hoy?: number
+  repuestos_pendientes?: number
 }
 
 export interface PanaderiaKPIs {
-  ventas_mostrador: number
-  stock_critico: number
-  mermas_registradas: number
+  counter_sales?: {
+    today?: number
+    yesterday?: number
+    variation?: number
+    currency?: string
+  }
+  critical_stock?: {
+    items?: number
+    names?: string[]
+    urgency?: string
+  }
+  waste?: {
+    today?: number
+    unit?: string
+    estimated_value?: number
+    currency?: string
+  }
+  production?: {
+    batches_completed?: number
+    batches_scheduled?: number
+    progress?: number
+  }
+  ingredients_expiring?: {
+    next_7_days?: number
+    items?: string[]
+  }
+  top_products?: Array<{
+    name: string
+    units: number
+    revenue: number
+  }>
+  // Legacy keys for backward compatibility
+  ventas_mostrador?: any
+  stock_critico?: any
+  mermas_registradas?: any
 }
 
 interface UseDashboardKPIsOptions {
@@ -111,6 +166,89 @@ const normalizeKPIs = (payload: any) => {
       variacion,
       currency: payload.weekly_comparison.currency,
     }
+  }
+
+  // Taller backend payload -> UI expected keys
+  if (payload.pending_repairs && !payload.reparaciones_pendientes) {
+    normalized.reparaciones_pendientes = {
+      total: payload.pending_repairs.total ?? 0,
+      urgentes: payload.pending_repairs.urgent ?? 0,
+      tiempo_medio_espera: payload.pending_repairs.average_wait_time ?? 0,
+    }
+  }
+
+  if (payload.monthly_revenue && !payload.ingresos_mes) {
+    normalized.ingresos_mes = {
+      actual: payload.monthly_revenue.current ?? 0,
+      objetivo: payload.monthly_revenue.target ?? 0,
+      progreso: payload.monthly_revenue.progress ?? 0,
+    }
+  }
+
+  if (payload.low_stock_spare_parts && !payload.repuestos_bajo_stock) {
+    normalized.repuestos_bajo_stock = {
+      items: payload.low_stock_spare_parts.items ?? 0,
+      nombres: payload.low_stock_spare_parts.names ?? [],
+      urgencia: payload.low_stock_spare_parts.urgency ?? 'medium',
+    }
+  }
+
+  if (payload.completed_jobs && !payload.trabajos_completados) {
+    normalized.trabajos_completados = {
+      hoy: payload.completed_jobs.today ?? 0,
+      semana: payload.completed_jobs.week ?? 0,
+      mes: payload.completed_jobs.month ?? 0,
+    }
+  }
+
+  // Panaderia backend payload -> UI expected keys
+  if (payload.counter_sales && !payload.ventas_mostrador) {
+    normalized.ventas_mostrador = {
+      hoy: payload.counter_sales.today ?? 0,
+      ayer: payload.counter_sales.yesterday ?? 0,
+      variacion: payload.counter_sales.variation ?? 0,
+      moneda: payload.counter_sales.currency,
+    }
+  }
+
+  if (payload.critical_stock && !payload.stock_critico) {
+    normalized.stock_critico = {
+      items: payload.critical_stock.items ?? 0,
+      nombres: payload.critical_stock.names ?? [],
+      urgencia: payload.critical_stock.urgency ?? 'medium',
+    }
+  }
+
+  if (payload.waste && !payload.mermas) {
+    normalized.mermas = {
+      hoy: payload.waste.today ?? 0,
+      unidad: payload.waste.unit ?? 'kg',
+      valor_estimado: payload.waste.estimated_value ?? 0.0,
+      moneda: payload.waste.currency,
+    }
+  }
+
+  if (payload.production && !payload.produccion) {
+    normalized.produccion = {
+      hornadas_completadas: payload.production.batches_completed ?? 0,
+      hornadas_programadas: payload.production.batches_scheduled ?? 0,
+      progreso: payload.production.progress ?? 0,
+    }
+  }
+
+  if (payload.ingredients_expiring && !payload.ingredientes_caducar) {
+    normalized.ingredientes_caducar = {
+      proximos_7_dias: payload.ingredients_expiring.next_7_days ?? 0,
+      items: payload.ingredients_expiring.items ?? [],
+    }
+  }
+
+  if (payload.top_products && !payload.top_productos) {
+    normalized.top_productos = (payload.top_products || []).map((p: any) => ({
+      name: p.name,
+      unidades: p.units ?? 0,
+      ingresos: p.revenue ?? 0,
+    }))
   }
 
   return normalized
@@ -186,7 +324,7 @@ export function useTallerKPIs(options: { enabled?: boolean } = {}) {
         const result = await apiFetch<TallerKPIs>('/api/v1/dashboard/kpis?sector=taller', {
           authToken: token,
         })
-        setData(result)
+        setData(normalizeKPIs(result))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar KPIs de taller')
       } finally {
@@ -221,7 +359,7 @@ export function usePanaderiaKPIs(options: { enabled?: boolean } = {}) {
         const result = await apiFetch<PanaderiaKPIs>('/api/v1/dashboard/kpis?sector=panaderia', {
           authToken: token,
         })
-        setData(result)
+        setData(normalizeKPIs(result))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar KPIs de panadería')
       } finally {

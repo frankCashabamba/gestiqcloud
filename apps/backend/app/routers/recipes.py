@@ -38,7 +38,7 @@ def list_recipes(
     """Lista recetas del tenant."""
     query = db.query(Recipe).filter(Recipe.tenant_id == UUID(tenant_id))
     if active_only:
-        query = query.filter(Recipe.is_active == True)
+        query = query.filter(Recipe.is_active)
     return query.all()
 
 
@@ -180,10 +180,10 @@ def get_recipe_full_cost(
 ):
     """
     Obtiene costo completo: materiales + mano de obra + indirectos.
-    
+
     Si period_month se proporciona (ej: 2025-02), usa datos reales de ese mes.
     Si no, usa fórmulas simplificadas.
-    
+
     Respuesta incluye desglose por categoría y labor_burden_factor.
     """
     try:
@@ -209,7 +209,7 @@ def list_recipe_steps(recipe_id: UUID, db: Session = Depends(get_db)):
 
     steps = (
         db.query(RecipeStep)
-        .filter(RecipeStep.recipe_id == recipe_id, RecipeStep.is_active == True)
+        .filter(RecipeStep.recipe_id == recipe_id, RecipeStep.is_active)
         .order_by(RecipeStep.step_order)
         .all()
     )

@@ -5,21 +5,7 @@ Permite separar una receta en etapas estándar reutilizables,
 cada una con su tipo de recurso (labor, oven, mixer, etc).
 """
 
-from datetime import datetime
-from decimal import Decimal
-
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-    text,
-)
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -30,12 +16,12 @@ from app.config.database import Base as BaseModel
 class RecipeStep(BaseModel):
     """
     Etapa dentro de una receta.
-    
+
     Permite desglosar una receta en pasos estándar, cada uno con:
     - Duración
     - Si requiere atención del operario (is_touch)
     - Tipo de recurso que consume (labor, oven, mixer, etc)
-    
+
     Ejemplo:
         Receta "Pan Integral" → 8 pasos:
         1. Pesar/mise en place (10 min, TOUCH, LABOR)
@@ -57,53 +43,45 @@ class RecipeStep(BaseModel):
         nullable=False,
         index=True,
     )
-    
+
     # Contenido de la etapa
     step_name = Column(
         String(100),
         nullable=False,
-        comment="Nombre: 'Pesar/mise en place', 'Amasado', 'Fermentación', etc"
+        comment="Nombre: 'Pesar/mise en place', 'Amasado', 'Fermentación', etc",
     )
     description = Column(Text, nullable=True)
     duration_minutes = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Duración estándar en minutos"
+        Integer, nullable=False, default=0, comment="Duración estándar en minutos"
     )
-    
+
     # Clasificación de trabajo
     is_touch = Column(
         Boolean,
         nullable=False,
         default=True,
-        comment="TRUE: operario está activamente ocupado (cuesta mano de obra). FALSE: proceso pasivo"
+        comment="TRUE: operario está activamente ocupado (cuesta mano de obra). FALSE: proceso pasivo",
     )
-    
+
     # Tipo de recurso consumido
     resource_type = Column(
         String(20),
         nullable=False,
         default="labor",
-        comment="Tipo de recurso: labor, oven, mixer, prover, other"
+        comment="Tipo de recurso: labor, oven, mixer, prover, other",
     )
-    
+
     # Datos opcionales para costos reales
     actual_minutes = Column(
-        Integer,
-        nullable=True,
-        comment="Duración real medida (si se registra en producción)"
+        Integer, nullable=True, comment="Duración real medida (si se registra en producción)"
     )
-    
+
     # Ordenamiento y control
     step_order = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Orden de ejecución en la receta (0-based)"
+        Integer, nullable=False, default=0, comment="Orden de ejecución en la receta (0-based)"
     )
     is_active = Column(Boolean, default=True)
-    
+
     # Auditoría
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -3,10 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from app.modules.admin_config.application.tipos_impuesto.dto import (
-    TipoImpuestoIn,
-    TipoImpuestoOut,
-)
+from app.modules.admin_config.application.tipos_impuesto.dto import TipoImpuestoIn, TipoImpuestoOut
 
 
 class TipoImpuestoRepo(Protocol):

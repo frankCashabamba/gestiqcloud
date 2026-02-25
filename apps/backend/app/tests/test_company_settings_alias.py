@@ -12,16 +12,14 @@ def test_company_settings_endpoint_creates_row(client: TestClient, db):
     # Ensure clean slate for this test
     try:
         if db.get_bind().dialect.name == "postgresql":
-            db.execute(text("TRUNCATE chart_of_accounts CASCADE"))
-            db.execute(text("TRUNCATE import_batches CASCADE"))
+            db.execute(text("TRUNCATE tenants CASCADE"))
         else:
             db.execute(text("DELETE FROM chart_of_accounts"))
             db.execute(text("DELETE FROM import_batches"))
+            db.query(CompanySettings).delete()
+            db.query(Tenant).delete()
     except Exception:
         pass
-
-    db.query(CompanySettings).delete()
-    db.query(Tenant).delete()
     db.commit()
 
     tenant = Tenant(id=uuid4(), name="Acme", slug="acme")

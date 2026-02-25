@@ -6,9 +6,7 @@ from app.modules.admin_config.application.tipos_documento.dto import (
     TipoDocumentoIn,
     TipoDocumentoOut,
 )
-from app.modules.admin_config.application.tipos_documento.ports import (
-    TipoDocumentoRepo,
-)
+from app.modules.admin_config.application.tipos_documento.ports import TipoDocumentoRepo
 from app.modules.shared.application.base import BaseUseCase
 
 

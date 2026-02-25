@@ -174,7 +174,7 @@ class ReconciliationMatch(Base):
     # Bank statement line
     bank_statement_line_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey(schema_column("bank_statement_lines"), ondelete="CASCADE"),
+        ForeignKey("statement_lines.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

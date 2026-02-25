@@ -87,7 +87,7 @@ const loadData = async () => {
 
 {/* Grid de datos con botón para ver insights */}
 {salesMonth && (
-  <Card 
+  <Card
     title={salesMonth.cards[0]?.title}
     insights={salesMonth.ai_insights}  {/* NUEVO */}
   >

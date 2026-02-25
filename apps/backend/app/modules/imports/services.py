@@ -13,11 +13,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.config.settings import settings
+from app.modules.imports.config.classification import get_classification_keywords
 from app.modules.imports.extractores.extractor_desconocido import extract_by_combined_types
 from app.modules.imports.extractores.extractor_factura import extract_invoice
 from app.modules.imports.extractores.extractor_recibo import extract_receipt
 from app.modules.imports.extractores.extractor_transferencia import extract_transfers
-from app.modules.imports.config.classification import get_classification_keywords
 from app.modules.imports.extractores.utilidades import detect_document_type
 from app.modules.imports.schemas import DocumentoProcesado
 

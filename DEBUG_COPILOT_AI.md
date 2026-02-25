@@ -29,7 +29,7 @@ npm run dev
 ```bash
 cd apps/backend
 python -m uvicorn app.main:app --reload
-# Debería mostrar: 
+# Debería mostrar:
 # INFO:     Application startup complete
 # INFO:     Uvicorn running on http://0.0.0.0:8000
 ```
@@ -92,7 +92,7 @@ ollama serve
 ## 📋 Errores Comunes
 
 ### Error: "Module not found: app.modules.copilot.services"
-**Causa:** Python no encuentra el módulo  
+**Causa:** Python no encuentra el módulo
 **Solución:**
 ```bash
 cd apps/backend
@@ -101,14 +101,14 @@ python -c "from app.modules.copilot.services import query_readonly_enhanced; pri
 ```
 
 ### Error: "CORS policy: No 'Access-Control-Allow-Origin'"
-**Causa:** Frontend en 8082 pero backend en 8000  
+**Causa:** Frontend en 8082 pero backend en 8000
 **Solución:** Verifica CORS_ORIGINS en .env
 ```env
 CORS_ORIGINS=http://localhost:5173,http://localhost:5174,http://localhost:8081,http://localhost:8082
 ```
 
 ### Error: "ai_insights is undefined"
-**Causa:** Frontend antiguo que no sabe de ai_insights  
+**Causa:** Frontend antiguo que no sabe de ai_insights
 **Solución:**
 ```bash
 cd apps/tenant
@@ -120,7 +120,7 @@ npm run dev
 ```
 
 ### Error: "No hay proveedores IA disponibles"
-**Causa:** Ollama no está corriendo  
+**Causa:** Ollama no está corriendo
 **Solución:**
 ```bash
 # Terminal 1: Inicia Ollama
@@ -131,7 +131,7 @@ curl http://localhost:11434/api/status
 ```
 
 ### Error: "Request body error: ai_insights is not valid"
-**Causa:** El modelo de respuesta no espera ai_insights  
+**Causa:** El modelo de respuesta no espera ai_insights
 **Solución:** Limpia caché y regenera tipos:
 ```bash
 cd apps/backend
@@ -213,7 +213,7 @@ SELECT COUNT(*) FROM products;
 SELECT COUNT(*) FROM stock_items;
 
 -- Si retorna 0, inserta datos de prueba
-INSERT INTO sales_orders (customer_id, status, created_at) 
+INSERT INTO sales_orders (customer_id, status, created_at)
 VALUES (1, 'draft', now());
 ```
 

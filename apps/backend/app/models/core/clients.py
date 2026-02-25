@@ -2,13 +2,13 @@
 
 Auto-generated module docstring."""
 
-from uuid import UUID
+import uuid as _uuid
 
 from sqlalchemy import Boolean, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from app.models.tenant import TENANT_UUID
 
 
 class Client(Base):
@@ -17,10 +17,10 @@ class Client(Base):
     __tablename__ = "clients"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+    id: Mapped[_uuid.UUID] = mapped_column(
+        TENANT_UUID,
         primary_key=True,
-        default=lambda: __import__("uuid").uuid4(),
+        default=_uuid.uuid4,
         index=True,
     )
     name: Mapped[str] = mapped_column("name", String, nullable=False)
@@ -34,8 +34,8 @@ class Client(Base):
     postal_code: Mapped[str] = mapped_column("postal_code", String, nullable=True)
     is_wholesale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True
+    tenant_id: Mapped[_uuid.UUID | None] = mapped_column(
+        TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=True
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

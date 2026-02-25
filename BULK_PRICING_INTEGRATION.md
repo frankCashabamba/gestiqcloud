@@ -79,15 +79,15 @@ async def create_sale(
     sale_data: SaleCreateSchema,
 ):
     """Create a sale with bulk pricing calculation."""
-    
+
     # Obtener configuración de la empresa
     company_settings = await get_company_settings(tenant_id)
     pos_config = company_settings.get('pos_config', {})
     bulk_config = pos_config.get('bulk_pricing')
-    
+
     # Procesar cada item de la venta
     total_amount = 0
-    
+
     for item in sale_data.items:
         # Calcular precio con bulk pricing si aplica
         pricing = BulkPricingService.calculate_bulk_price(
@@ -95,25 +95,25 @@ async def create_sale(
             bulk_config=bulk_config,
             unit_price=item.product.price
         )
-        
+
         # Usar el precio calculado
         item_total = pricing['total_price']
         total_amount += item_total
-        
+
         # Guardar información de pricing en el item
         sale_item.bulk_pricing_applied = pricing['uses_bulk_pricing']
         sale_item.unit_price_effective = pricing['unit_price_effective']
-    
+
     # Crear la venta
     sale = Sale(
         tenant_id=tenant_id,
         total_amount=total_amount,
         items=sale_items
     )
-    
+
     db.add(sale)
     db.commit()
-    
+
     return {"status": "success", "sale_id": sale.id, "total": total_amount}
 ```
 
@@ -123,25 +123,25 @@ async def create_sale(
 @router.get("/config/bulk-pricing")
 async def get_bulk_pricing(tenant_id: UUID):
     """Get bulk pricing configuration for the store."""
-    
+
     company_settings = await get_company_settings(tenant_id)
     pos_config = company_settings.get('pos_config', {})
     bulk_config = pos_config.get('bulk_pricing')
-    
+
     if not bulk_config:
         return {
             "enabled": False,
             "config": None
         }
-    
+
     is_valid, error = BulkPricingService.validate_bulk_config(bulk_config)
-    
+
     if not is_valid:
         return {
             "enabled": False,
             "error": error
         }
-    
+
     return {
         "enabled": True,
         "quantity": bulk_config['quantity'],
@@ -160,29 +160,29 @@ async def estimate_sale(
     items: list[SaleItemEstimate]
 ):
     """Estimate total sale with bulk pricing."""
-    
+
     company_settings = await get_company_settings(tenant_id)
     pos_config = company_settings.get('pos_config', {})
     bulk_config = pos_config.get('bulk_pricing')
-    
+
     breakdown = []
     total = 0
-    
+
     for item in items:
         pricing = BulkPricingService.calculate_bulk_price(
             quantity=item.quantity,
             bulk_config=bulk_config,
             unit_price=item.unit_price
         )
-        
+
         breakdown.append({
             "product_id": item.product_id,
             "quantity": item.quantity,
             "pricing": pricing
         })
-        
+
         total += pricing['total_price']
-    
+
     return {
         "items": breakdown,
         "total": round(total, 2),

@@ -5,10 +5,9 @@ import unicodedata
 from difflib import SequenceMatcher
 from uuid import UUID
 
-from sqlalchemy import select, text
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -206,7 +205,9 @@ def _to_product_out_row(row: Product) -> ProductOut:
         active=bool(row.active) if row.active is not None else True,
         activo=bool(row.active) if row.active is not None else True,
         suggested_price=float(row.suggested_price) if row.suggested_price is not None else None,
-        use_suggested_price=bool(row.use_suggested_price) if row.use_suggested_price is not None else False,
+        use_suggested_price=(
+            bool(row.use_suggested_price) if row.use_suggested_price is not None else False
+        ),
         product_metadata=row.product_metadata,
     )
 
@@ -449,23 +450,31 @@ def _find_product_fk_tables(db: Session) -> list[tuple[str, bool]]:
     return out
 
 
-def _count_product_refs(db: Session, tenant_id: str, product_id: UUID, tables: list[tuple[str, bool]]) -> int:
+def _count_product_refs(
+    db: Session, tenant_id: str, product_id: UUID, tables: list[tuple[str, bool]]
+) -> int:
     total = 0
     for table, has_tenant in tables:
         qtable = _quote_ident(table)
         if has_tenant:
-            count = db.execute(
-                text(
-                    f"SELECT COUNT(*) FROM public.{qtable} "
-                    "WHERE tenant_id=:tid AND product_id=:pid"
-                ),
-                {"tid": tenant_id, "pid": str(product_id)},
-            ).scalar() or 0
+            count = (
+                db.execute(
+                    text(
+                        f"SELECT COUNT(*) FROM public.{qtable} "
+                        "WHERE tenant_id=:tid AND product_id=:pid"
+                    ),
+                    {"tid": tenant_id, "pid": str(product_id)},
+                ).scalar()
+                or 0
+            )
         else:
-            count = db.execute(
-                text(f"SELECT COUNT(*) FROM public.{qtable} WHERE product_id=:pid"),
-                {"pid": str(product_id)},
-            ).scalar() or 0
+            count = (
+                db.execute(
+                    text(f"SELECT COUNT(*) FROM public.{qtable} WHERE product_id=:pid"),
+                    {"pid": str(product_id)},
+                ).scalar()
+                or 0
+            )
         total += int(count)
     return total
 
@@ -482,10 +491,7 @@ def list_similar_products(
         raise HTTPException(status_code=400, detail="missing_tenant")
 
     products = (
-        db.query(Product)
-        .filter(Product.tenant_id == tenant_id)
-        .order_by(Product.name.asc())
-        .all()
+        db.query(Product).filter(Product.tenant_id == tenant_id).order_by(Product.name.asc()).all()
     )
     if not products:
         return SimilarProductsResponse(groups=[], total_groups=0)
@@ -575,9 +581,7 @@ def merge_similar_products(
         raise HTTPException(status_code=404, detail="winner_not_found")
 
     losers = (
-        db.query(Product)
-        .filter(Product.tenant_id == tenant_id, Product.id.in_(loser_ids))
-        .all()
+        db.query(Product).filter(Product.tenant_id == tenant_id, Product.id.in_(loser_ids)).all()
     )
     if not losers:
         raise HTTPException(status_code=404, detail="losers_not_found")

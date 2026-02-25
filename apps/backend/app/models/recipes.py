@@ -51,24 +51,24 @@ class Recipe(BaseModel):
     baking_time_minutes = Column(Integer)  # baking time
     oven_temp_celsius = Column(Integer)  # oven temperature °C
     rest_time_minutes = Column(Integer)  # rest / fermentation time
-    
+
     # ========== COSTEO AVANZADO: TOUCH vs PROCESO ==========
     touch_minutes_standard = Column(
         Integer,
         default=0,
-        comment="Minutos de trabajo activo (cuando operario está ocupado): pesar, amasar, bolear, cargar, descargar, empaque"
+        comment="Minutos de trabajo activo (cuando operario está ocupado): pesar, amasar, bolear, cargar, descargar, empaque",
     )
     oven_minutes_standard = Column(
         Integer,
         default=0,
-        comment="Minutos de horneado (consume recurso HORNO para diésel/energía)"
+        comment="Minutos de horneado (consume recurso HORNO para diésel/energía)",
     )
     process_minutes = Column(
         Integer,
         nullable=True,
-        comment="Minutos de proceso pasivo (fermentación/reposo): solo para planificación, no cuesta MO"
+        comment="Minutos de proceso pasivo (fermentación/reposo): solo para planificación, no cuesta MO",
     )
-    
+
     waste_pct = Column(Numeric(5, 2), default=0)  # waste percentage 0-100
     trays_per_batch = Column(Integer)  # trays per oven load
     units_per_tray = Column(Integer)  # units per tray (varies by product)
@@ -143,7 +143,9 @@ class RecipeIngredient(BaseModel):
     # Relationships
     recipe = relationship("Recipe", back_populates="ingredients")
     product = relationship(
-        "Product", foreign_keys=[product_id], back_populates="used_in_ingredients",
+        "Product",
+        foreign_keys=[product_id],
+        back_populates="used_in_ingredients",
         lazy="selectin",
     )
 

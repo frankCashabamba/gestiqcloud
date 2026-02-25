@@ -49,7 +49,6 @@ from app.modules.imports.domain.canonical_schema import validate_canonical
 from app.modules.imports.domain.mapping_feedback import MappingFeedback, mapping_learner
 from app.modules.imports.parsers import registry as parsers_registry
 
-
 # =============================================================================
 # Logging Configuration
 # =============================================================================
@@ -61,8 +60,10 @@ logger = logging.getLogger(__name__)
 # Type Definitions
 # =============================================================================
 
+
 class ImportStats(NamedTuple):
     """Statistics for import operations."""
+
     processed: int
     created: int
     validated: int
@@ -71,6 +72,7 @@ class ImportStats(NamedTuple):
 
 class MappingConfig(NamedTuple):
     """Configuration for column mapping."""
+
     cfg: dict[str, str]
     transforms: dict[str, Any]
     defaults: dict[str, Any]
@@ -79,6 +81,7 @@ class MappingConfig(NamedTuple):
 
 class DocumentTypeResult(NamedTuple):
     """Result of document type detection."""
+
     doc_type: str
     parser_id: str
     parsed_result: dict[str, Any]
@@ -89,18 +92,46 @@ class DocumentTypeResult(NamedTuple):
 # =============================================================================
 
 _MONTHS_MAP = {
-    "january": 1, "jan": 1, "enero": 1, "ene": 1,
-    "february": 2, "feb": 2, "febrero": 2,
-    "march": 3, "mar": 3, "marzo": 3,
-    "april": 4, "apr": 4, "abril": 4,
-    "may": 5, "mayo": 5,
-    "june": 6, "jun": 6, "junio": 6,
-    "july": 7, "jul": 7, "julio": 7,
-    "august": 8, "aug": 8, "agosto": 8, "ago": 8,
-    "september": 9, "sep": 9, "sept": 9, "septiembre": 9, "setiembre": 9,
-    "october": 10, "oct": 10, "octubre": 10,
-    "november": 11, "nov": 11, "noviembre": 11,
-    "december": 12, "dec": 12, "diciembre": 12, "dic": 12,
+    "january": 1,
+    "jan": 1,
+    "enero": 1,
+    "ene": 1,
+    "february": 2,
+    "feb": 2,
+    "febrero": 2,
+    "march": 3,
+    "mar": 3,
+    "marzo": 3,
+    "april": 4,
+    "apr": 4,
+    "abril": 4,
+    "may": 5,
+    "mayo": 5,
+    "june": 6,
+    "jun": 6,
+    "junio": 6,
+    "july": 7,
+    "jul": 7,
+    "julio": 7,
+    "august": 8,
+    "aug": 8,
+    "agosto": 8,
+    "ago": 8,
+    "september": 9,
+    "sep": 9,
+    "sept": 9,
+    "septiembre": 9,
+    "setiembre": 9,
+    "october": 10,
+    "oct": 10,
+    "octubre": 10,
+    "november": 11,
+    "nov": 11,
+    "noviembre": 11,
+    "december": 12,
+    "dec": 12,
+    "diciembre": 12,
+    "dic": 12,
 }
 
 DOC_TYPE_ALIASES = {
@@ -127,29 +158,57 @@ PRODUCT_NAME_MIN_LENGTH = 4
 
 # Keys for detecting document types
 INVOICE_KEYS = [
-    "invoice_number", "num_factura", "numero_factura", "nro_factura",
-    "folio", "comprobante", "total_pagar", "amount_total",
-    "amount_subtotal", "totals",
+    "invoice_number",
+    "num_factura",
+    "numero_factura",
+    "nro_factura",
+    "folio",
+    "comprobante",
+    "total_pagar",
+    "amount_total",
+    "amount_subtotal",
+    "totals",
 ]
 
 BANK_TRANSACTION_KEYS = [
-    "transaction_date", "fecha_operacion", "fecha_de_la_operacion",
-    "fecha_valor", "fecha_de_envio", "fecha_envio",
+    "transaction_date",
+    "fecha_operacion",
+    "fecha_de_la_operacion",
+    "fecha_valor",
+    "fecha_de_envio",
+    "fecha_envio",
 ]
 
 BANK_AMOUNT_KEYS = [
-    "amount", "importe", "importe_ordenado", "monto", "valor", "bank_tx",
+    "amount",
+    "importe",
+    "importe_ordenado",
+    "monto",
+    "valor",
+    "bank_tx",
 ]
 
 PRODUCT_KEYS = [
-    "sku", "codigo", "code", "name", "nombre", "articulo", "producto",
-    "stock", "existencia", "existencias", "price", "precio",
-    "cost_price", "costo_promedio",
+    "sku",
+    "codigo",
+    "code",
+    "name",
+    "nombre",
+    "articulo",
+    "producto",
+    "stock",
+    "existencia",
+    "existencias",
+    "price",
+    "precio",
+    "cost_price",
+    "costo_promedio",
 ]
 
 # =============================================================================
 # Date Parsing Utilities
 # =============================================================================
+
 
 def _parse_month_name_date(s: str) -> date | None:
     """Parse dates with month names (e.g., 'August 3 2025', 'Agosto 3 2025')."""
@@ -197,10 +256,21 @@ def _to_iso_date(val: Any) -> str | None:
 
     s_clean = s.replace(",", "").strip()
     date_formats = (
-        "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d",
-        "%d.%m.%Y", "%Y.%m.%d",
-        "%Y-%m-%d %H:%M:%S", "%d-%m-%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S",
-        "%d %B %Y", "%d %b %Y", "%B %d %Y", "%b %d %Y", "%B %Y", "%b %Y",
+        "%Y-%m-%d",
+        "%d-%m-%Y",
+        "%d/%m/%Y",
+        "%Y/%m/%d",
+        "%d.%m.%Y",
+        "%Y.%m.%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%d-%m-%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+        "%d %B %Y",
+        "%d %b %Y",
+        "%B %d %Y",
+        "%b %d %Y",
+        "%B %Y",
+        "%b %Y",
     )
 
     for candidate in (s_clean, re.split(r"\s+", s_clean)[0]):
@@ -228,9 +298,7 @@ def _to_iso_date(val: Any) -> str | None:
 
 
 def _extract_and_normalize_date(
-    raw: dict[str, Any],
-    alias_map: dict[str, list[str]] | None,
-    keys: list[str]
+    raw: dict[str, Any], alias_map: dict[str, list[str]] | None, keys: list[str]
 ) -> str | None:
     """Extract and normalize a date from multiple possible keys."""
     value = _first_from_raw_with_aliases(raw, keys, alias_map)
@@ -253,6 +321,7 @@ def _first_date_from_text(raw: dict[str, Any]) -> str | None:
 # =============================================================================
 # Data Conversion Utilities
 # =============================================================================
+
 
 def _to_number(val) -> float | None:
     """Convert value to number, handling common international formats."""
@@ -299,7 +368,11 @@ def _to_serializable(val: Any) -> Any:
         if isinstance(val, dict):
             return {str(k): _to_serializable(v) for k, v in val.items()}
         if isinstance(val, (list, tuple, set)):
-            return [_to_serializable(v) for v in value] if isinstance(val, (list, set)) else [_to_serializable(v) for v in val]
+            return (
+                [_to_serializable(v) for v in val]
+                if isinstance(val, (list, set))
+                else [_to_serializable(v) for v in val]
+            )
         if isinstance(val, datetime | date | time):
             return val.isoformat()
         if isinstance(val, Decimal):
@@ -307,6 +380,7 @@ def _to_serializable(val: Any) -> Any:
         # Numpy scalar types -> Python scalars
         try:
             import numpy as np  # type: ignore
+
             if isinstance(val, np.integer):
                 return int(val)
             if isinstance(val, np.floating):
@@ -327,6 +401,7 @@ def _to_serializable(val: Any) -> Any:
 # =============================================================================
 # Hash and Key Utilities
 # =============================================================================
+
 
 def _dedupe_hash(obj: dict[str, Any]) -> str:
     """Generate SHA256 hash for deduplication."""
@@ -349,6 +424,7 @@ def _file_path_from_key(file_key: str) -> str:
 # =============================================================================
 # Key Normalization and Lookup
 # =============================================================================
+
 
 def _norm_key(s: str) -> str:
     """Normalize key to lowercase, remove accents, replace special chars with underscores."""
@@ -386,10 +462,7 @@ def _first_from_raw(raw: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
-def _expand_keys_with_aliases(
-    keys: list[str],
-    alias_map: dict[str, list[str]] | None
-) -> list[str]:
+def _expand_keys_with_aliases(keys: list[str], alias_map: dict[str, list[str]] | None) -> list[str]:
     """Expand keys with their aliases from the map."""
     if not alias_map:
         return keys
@@ -410,9 +483,7 @@ def _expand_keys_with_aliases(
 
 
 def _first_from_raw_with_aliases(
-    raw: dict[str, Any],
-    keys: list[str],
-    alias_map: dict[str, list[str]] | None
+    raw: dict[str, Any], keys: list[str], alias_map: dict[str, list[str]] | None
 ) -> Any:
     """Get first non-empty value from raw dict using keys and their aliases."""
     return _first_from_raw(raw, _expand_keys_with_aliases(keys, alias_map))
@@ -421,6 +492,7 @@ def _first_from_raw_with_aliases(
 # =============================================================================
 # Document Type Classification
 # =============================================================================
+
 
 def _normalize_doc_type(doc_type: str | None) -> str:
     """Normalize document type alias to canonical type."""
@@ -444,10 +516,7 @@ def _infer_doc_type_from_record(
     nmap = {_norm_key(k): v for k, v in data.items() if isinstance(k, str)}
 
     def has_any(*keys: str) -> bool:
-        return any(
-            key in nmap and nmap[key] not in (None, "", [])
-            for key in keys
-        )
+        return any(key in nmap and nmap[key] not in (None, "", []) for key in keys)
 
     if has_any(*INVOICE_KEYS):
         return "invoices"
@@ -502,6 +571,7 @@ def _determine_document_type(
     # 3. Try database classification keywords
     if tenant_classification_kw and (headers := parsed_result.get("headers")):
         from app.modules.imports.parsers.generic_excel import _detect_document_type
+
         db_detected = _detect_document_type(headers, tenant_classification_kw)
         if db_detected != "generic":
             logger.debug(f"Using DB keyword detected type: {db_detected}")
@@ -532,9 +602,8 @@ def _try_generic_parser_fallback(
 
     Returns (doc_type, parsed_result, effective_parser_id) or None.
     """
-    if (
-        effective_parser_id == "generic_excel"
-        or not str(file_path).lower().endswith((".xlsx", ".xls", ".xlsm", ".xlsb"))
+    if effective_parser_id == "generic_excel" or not str(file_path).lower().endswith(
+        (".xlsx", ".xls", ".xlsm", ".xlsb")
     ):
         return None
 
@@ -554,6 +623,7 @@ def _try_generic_parser_fallback(
         if generic_doc_type == "generic" and tenant_classification_kw:
             if headers := generic_result.get("headers"):
                 from app.modules.imports.parsers.generic_excel import _detect_document_type
+
                 generic_doc_type = _detect_document_type(headers, tenant_classification_kw)
 
         # Re-infer if still generic
@@ -573,6 +643,7 @@ def _try_generic_parser_fallback(
 # =============================================================================
 # Alias Management
 # =============================================================================
+
 
 @lru_cache(maxsize=32)
 def _load_dynamic_alias_map_cached(tenant_id: str, doc_type: str) -> str:
@@ -618,10 +689,7 @@ def _load_dynamic_alias_map(db, tenant_id: str, doc_type: str) -> dict[str, list
 
 
 def _get_alias_map(
-    db,
-    tenant_id: str,
-    doc_type: str,
-    alias_cache: dict[str, dict[str, list[str]]]
+    db, tenant_id: str, doc_type: str, alias_cache: dict[str, dict[str, list[str]]]
 ) -> dict[str, list[str]]:
     """Get alias map from cache or load it."""
     cache_key = doc_type
@@ -633,6 +701,7 @@ def _get_alias_map(
 # =============================================================================
 # Column Mapping
 # =============================================================================
+
 
 def _apply_column_mapping(
     raw: dict[str, Any],
@@ -691,9 +760,7 @@ def _load_mapping_config(db, batch: ImportBatch) -> MappingConfig:
         from app.models.imports import ImportColumnMapping  # type: ignore
 
         cm = (
-            db.query(ImportColumnMapping)
-            .filter(ImportColumnMapping.id == batch.mapping_id)
-            .first()
+            db.query(ImportColumnMapping).filter(ImportColumnMapping.id == batch.mapping_id).first()
         )
         if not cm:
             return MappingConfig(cfg={}, transforms={}, defaults={}, row=None)
@@ -713,9 +780,9 @@ def _load_mapping_config(db, batch: ImportBatch) -> MappingConfig:
 # Item Extraction and Validation
 # =============================================================================
 
+
 def _extract_items_from_parsed_result(
-    parsed_result: dict[str, Any],
-    doc_type: str
+    parsed_result: dict[str, Any], doc_type: str
 ) -> list[dict[str, Any]]:
     """Extract items list from parser result based on doc_type."""
     extractors = {
@@ -763,32 +830,51 @@ def _is_meaningful_row(raw: dict[str, Any], item_doc_type: str) -> bool:
         return False
 
     if item_doc_type in ("products", "product"):
-        return bool(_first_from_raw(
-            raw, ["name", "nombre", "producto", "articulo", "sku", "codigo", "code"]
-        )) or any(
-            _to_number(_first_from_raw(
-                raw, ["price", "precio", "cost", "costo", "stock", "cantidad", "existencia"]
-            )) not in (None, 0.0)
+        return bool(
+            _first_from_raw(
+                raw, ["name", "nombre", "producto", "articulo", "sku", "codigo", "code"]
+            )
+        ) or any(
+            _to_number(
+                _first_from_raw(
+                    raw, ["price", "precio", "cost", "costo", "stock", "cantidad", "existencia"]
+                )
+            )
+            not in (None, 0.0)
         )
 
     if item_doc_type == "bank_transactions":
-        has_date = bool(_first_from_raw(
-            raw,
-            ["transaction_date", "issue_date", "value_date", "date", "fecha",
-             "fecha_valor", "fecha_operacion", "fecha de la operacion", "fecha de envio", "fecha_envio"],
-        ))
+        has_date = bool(
+            _first_from_raw(
+                raw,
+                [
+                    "transaction_date",
+                    "issue_date",
+                    "value_date",
+                    "date",
+                    "fecha",
+                    "fecha_valor",
+                    "fecha_operacion",
+                    "fecha de la operacion",
+                    "fecha de envio",
+                    "fecha_envio",
+                ],
+            )
+        )
         has_amount = _to_number(
             _first_from_raw(raw, ["amount", "importe", "monto", "valor", "debit", "credit"])
         )
         return has_date or has_amount not in (None, 0.0)
 
     if item_doc_type == "invoices":
-        has_date = bool(_first_from_raw(
-            raw, ["invoice_date", "issue_date", "date", "fecha", "fecha_emision"]
-        ))
-        has_number = bool(_first_from_raw(
-            raw, ["invoice_number", "num_factura", "numero_factura", "comprobante", "folio"]
-        ))
+        has_date = bool(
+            _first_from_raw(raw, ["invoice_date", "issue_date", "date", "fecha", "fecha_emision"])
+        )
+        has_number = bool(
+            _first_from_raw(
+                raw, ["invoice_number", "num_factura", "numero_factura", "comprobante", "folio"]
+            )
+        )
         has_total = _to_number(
             _first_from_raw(raw, ["total", "amount_total", "importe", "monto", "valor_total"])
         )
@@ -800,6 +886,7 @@ def _is_meaningful_row(raw: dict[str, Any], item_doc_type: str) -> bool:
 # =============================================================================
 # Canonical Document Builder
 # =============================================================================
+
 
 def _extract_invoice_number_from_text(raw: dict[str, Any]) -> str | None:
     """Recover invoice number from noisy OCR text."""
@@ -829,20 +916,37 @@ def _build_invoice_canonical(
     alias_map: dict[str, list[str]] | None,
 ) -> dict[str, Any]:
     """Build canonical document for invoices."""
+
     def pick(keys: list[str]) -> Any:
         return _first_from_raw_with_aliases(raw, keys, alias_map)
 
     invoice_number = (
-        raw.get("invoice_number") or raw.get("invoice") or raw.get("number")
-        or raw.get("numero_factura") or raw.get("numero")
-        or pick(["invoice_number", "invoice", "number", "num_factura",
-                "numero_factura", "numero", "nro", "folio", "comprobante"])
+        raw.get("invoice_number")
+        or raw.get("invoice")
+        or raw.get("number")
+        or raw.get("numero_factura")
+        or raw.get("numero")
+        or pick(
+            [
+                "invoice_number",
+                "invoice",
+                "number",
+                "num_factura",
+                "numero_factura",
+                "numero",
+                "nro",
+                "folio",
+                "comprobante",
+            ]
+        )
     )
     if not invoice_number:
         invoice_number = _extract_invoice_number_from_text(raw)
 
     issue_date_raw = (
-        raw.get("issue_date") or raw.get("invoice_date") or raw.get("date")
+        raw.get("issue_date")
+        or raw.get("invoice_date")
+        or raw.get("date")
         or pick(["issue_date", "invoice_date", "date", "fecha", "fecha_emision"])
     )
     issue_date = _to_iso_date(issue_date_raw) or _first_date_from_text(raw)
@@ -857,7 +961,9 @@ def _build_invoice_canonical(
     if tax is None:
         tax = _to_number(pick(["tax", "iva", "impuesto", "amount_tax"]))
     if total is None:
-        total = _to_number(pick(["total", "total_pagar", "amount_total", "importe", "monto", "valor_total"]))
+        total = _to_number(
+            pick(["total", "total_pagar", "amount_total", "importe", "monto", "valor_total"])
+        )
 
     if subtotal is None and total is not None:
         subtotal = total
@@ -870,7 +976,8 @@ def _build_invoice_canonical(
             invoice_number = f"AUTO-{hashlib.sha256(base.encode('utf-8')).hexdigest()[:10].upper()}"
 
     return (
-        raw if raw.get("doc_type") == "invoice"
+        raw
+        if raw.get("doc_type") == "invoice"
         else {
             "doc_type": "invoice",
             "invoice_number": invoice_number,
@@ -894,19 +1001,36 @@ def _build_bank_transaction_canonical(
     alias_map: dict[str, list[str]] | None,
 ) -> dict[str, Any]:
     """Build canonical document for bank transactions."""
+
     def pick(keys: list[str]) -> Any:
         return _first_from_raw_with_aliases(raw, keys, alias_map)
 
     tx_date_raw = (
-        raw.get("transaction_date") or raw.get("issue_date") or raw.get("value_date")
-        or pick(["transaction_date", "issue_date", "value_date", "date", "fecha",
-                "fecha_valor", "fecha_operacion", "fecha de la operacion",
-                "fecha de operacion", "fecha de envio", "fecha de envío", "fecha_envio"])
+        raw.get("transaction_date")
+        or raw.get("issue_date")
+        or raw.get("value_date")
+        or pick(
+            [
+                "transaction_date",
+                "issue_date",
+                "value_date",
+                "date",
+                "fecha",
+                "fecha_valor",
+                "fecha_operacion",
+                "fecha de la operacion",
+                "fecha de operacion",
+                "fecha de envio",
+                "fecha de envío",
+                "fecha_envio",
+            ]
+        )
     )
     tx_date = _to_iso_date(tx_date_raw) or _first_date_from_text(raw)
 
     tx_amount = _to_number(
-        raw.get("amount") or raw.get("importe")
+        raw.get("amount")
+        or raw.get("importe")
         or pick(["amount", "importe", "monto", "valor", "debit", "credit"])
     )
     if tx_amount is None:
@@ -916,7 +1040,8 @@ def _build_bank_transaction_canonical(
     iban_val = raw.get("iban") or pick(["iban", "cuenta", "account"])
 
     return (
-        raw if raw.get("doc_type") == "bank_tx"
+        raw
+        if raw.get("doc_type") == "bank_tx"
         else {
             "doc_type": "bank_tx",
             "transaction_date": tx_date,
@@ -928,11 +1053,13 @@ def _build_bank_transaction_canonical(
                     "amount": abs(float(tx_amount)) if tx_amount is not None else None,
                     "direction": direction,
                     "value_date": raw.get("value_date") or tx_date,
-                    "narrative": raw.get("narrative") or raw.get("concepto")
+                    "narrative": raw.get("narrative")
+                    or raw.get("concepto")
                     or pick(["description", "descripcion", "detalle", "concepto"]),
                     "counterparty": raw.get("counterparty")
                     or pick(["beneficiario", "ordenante", "counterparty"]),
-                    "external_ref": raw.get("external_ref") or pick(["reference", "referencia", "ref", "id"]),
+                    "external_ref": raw.get("external_ref")
+                    or pick(["reference", "referencia", "ref", "id"]),
                 },
             ),
             "payment": {"iban": iban_val} if iban_val else {},
@@ -949,37 +1076,62 @@ def _build_product_canonical(
     alias_map: dict[str, list[str]] | None,
 ) -> dict[str, Any]:
     """Build canonical document for products."""
+
     def pick(keys: list[str]) -> Any:
         return _first_from_raw_with_aliases(raw, keys, alias_map)
 
     name = (
-        normalized.get("name") or normalized.get("nombre")
-        or pick(["name", "nombre", "producto", "articulo"]) or ""
+        normalized.get("name")
+        or normalized.get("nombre")
+        or pick(["name", "nombre", "producto", "articulo"])
+        or ""
     )
     price = (
         _to_number(
-            normalized.get("price") or normalized.get("precio")
-            or pick(["price", "precio", "venta", "valor", "importe",
-                    "precio_unitario", "precio_unitario_venta"])
-        ) or 0.0
+            normalized.get("price")
+            or normalized.get("precio")
+            or pick(
+                [
+                    "price",
+                    "precio",
+                    "venta",
+                    "valor",
+                    "importe",
+                    "precio_unitario",
+                    "precio_unitario_venta",
+                ]
+            )
+        )
+        or 0.0
     )
     cost = _to_number(
-        normalized.get("cost_price") or normalized.get("cost")
-        or normalized.get("costo") or normalized.get("unit_cost")
-        or pick(["cost_price", "cost", "costo", "unit_cost", "costo_promedio",
-                "costo promedio", "costo_unitario", "costo unitario"])
+        normalized.get("cost_price")
+        or normalized.get("cost")
+        or normalized.get("costo")
+        or normalized.get("unit_cost")
+        or pick(
+            [
+                "cost_price",
+                "cost",
+                "costo",
+                "unit_cost",
+                "costo_promedio",
+                "costo promedio",
+                "costo_unitario",
+                "costo unitario",
+            ]
+        )
     )
     stock = _to_number(
-        normalized.get("stock") or normalized.get("cantidad")
+        normalized.get("stock")
+        or normalized.get("cantidad")
         or pick(["stock", "cantidad", "existencia", "existencias", "unidades"])
     )
     category = (
-        normalized.get("category") or normalized.get("categoria")
-        or pick(["category", "categoria"])
+        normalized.get("category") or normalized.get("categoria") or pick(["category", "categoria"])
     )
     sku = (
-        normalized.get("sku") or normalized.get("codigo")
-        or pick(["sku", "codigo", "code", "cod"])
+        normalized.get("sku") or normalized.get("codigo") or pick(["sku", "codigo", "code", "cod"])
     )
     unit = normalized.get("unit") or normalized.get("unidad") or pick(["unit", "unidad", "uom"])
 
@@ -1059,6 +1211,7 @@ def _build_canonical_from_item(
 # =============================================================================
 # Product Search and Management
 # =============================================================================
+
 
 def _normalize_product_name(value: str | None) -> str:
     """Normalize product name for comparison."""
@@ -1331,9 +1484,7 @@ def _persist_recipes(
     return stats
 
 
-def _build_recipe_preview_items(
-    parsed_result: dict[str, Any]
-) -> list[dict[str, Any]]:
+def _build_recipe_preview_items(parsed_result: dict[str, Any]) -> list[dict[str, Any]]:
     """Build recipe preview rows without persisting into production tables."""
     recipes_data = parsed_result.get("recipes", []) or []
     ingredients_rows = parsed_result.get("rows", []) or []
@@ -1348,30 +1499,33 @@ def _build_recipe_preview_items(
         recipe_ingredients = [r for r in ingredients_rows if r.get("recipe_name") == name]
         recipe_materials = [r for r in materials_rows if r.get("recipe_name") == name]
 
-        preview_items.append({
-            "raw": {
-                "recipe": recipe,
-                "ingredients": recipe_ingredients,
-                "materials": recipe_materials,
-            },
-            "normalized": {
-                "name": name,
-                "nombre": name,
-                "recipe_type": recipe.get("recipe_type"),
-                "classification": recipe.get("classification"),
-                "portions": recipe.get("portions") or 1,
-                "total_ingredients_cost": recipe.get("total_ingredients_cost") or 0,
-                "ingredients_count": len(recipe_ingredients),
-                "materials_count": len(recipe_materials),
-                "doc_type": "recipes",
-            },
-        })
+        preview_items.append(
+            {
+                "raw": {
+                    "recipe": recipe,
+                    "ingredients": recipe_ingredients,
+                    "materials": recipe_materials,
+                },
+                "normalized": {
+                    "name": name,
+                    "nombre": name,
+                    "recipe_type": recipe.get("recipe_type"),
+                    "classification": recipe.get("classification"),
+                    "portions": recipe.get("portions") or 1,
+                    "total_ingredients_cost": recipe.get("total_ingredients_cost") or 0,
+                    "ingredients_count": len(recipe_ingredients),
+                    "materials_count": len(recipe_materials),
+                    "doc_type": "recipes",
+                },
+            }
+        )
     return preview_items
 
 
 # =============================================================================
 # Single Item Processing
 # =============================================================================
+
 
 def _process_single_item(
     item_data: Any,
@@ -1439,7 +1593,9 @@ def _process_single_item(
     is_valid, errors = validate_canonical(canonical_doc)
 
     # Calculate dedupe hash only if valid
-    dedupe = _dedupe_hash({"normalized": normalized, "doc_type": item_doc_type}) if is_valid else None
+    dedupe = (
+        _dedupe_hash({"normalized": normalized, "doc_type": item_doc_type}) if is_valid else None
+    )
     idem = _idempotency_key(str(tenant_id), file_key, idx)
 
     import_item = ImportItem(
@@ -1461,6 +1617,7 @@ def _process_single_item(
 # Progress Reporting
 # =============================================================================
 
+
 def _report_progress(task_self, stats: ImportStats) -> None:
     """Report progress to Celery task."""
     try:
@@ -1480,6 +1637,7 @@ def _report_progress(task_self, stats: ImportStats) -> None:
 # =============================================================================
 # Mapping Feedback
 # =============================================================================
+
 
 def _record_mapping_feedback(
     db,
@@ -1534,6 +1692,7 @@ def _update_mapping_stats(
 # Classification Keywords Loading
 # =============================================================================
 
+
 def _load_classification_keywords(
     db,
     tenant_id: str,
@@ -1541,6 +1700,7 @@ def _load_classification_keywords(
     """Load classification keywords from database."""
     try:
         from app.modules.imports.config.classification import load_tenant_classification_keywords
+
         return load_tenant_classification_keywords(db, str(tenant_id))
     except Exception as e:
         logger.debug(f"Failed to load classification keywords: {e}")
@@ -1550,6 +1710,7 @@ def _load_classification_keywords(
 # =============================================================================
 # Main Import Task
 # =============================================================================
+
 
 @celery_app.task(name="imports.import_file", bind=True)
 def import_file(
@@ -1575,7 +1736,9 @@ def import_file(
     Returns:
         Dictionary with import statistics
     """
-    logger.info(f"Starting import file task: batch_id={batch_id}, parser_id={parser_id}, file_key={file_key}")
+    logger.info(
+        f"Starting import file task: batch_id={batch_id}, parser_id={parser_id}, file_key={file_key}"
+    )
 
     file_path = _file_path_from_key(file_key)
 

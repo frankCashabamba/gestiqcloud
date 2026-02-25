@@ -11,7 +11,17 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import TIMESTAMP, Boolean, Computed, ForeignKey, Integer, Numeric, String, Text, text
+from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
+    Computed,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,9 +37,7 @@ class CostDriverUnitType(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     code: Mapped[str] = mapped_column(String(20), nullable=False)
     name_en: Mapped[str] = mapped_column(String(100), nullable=False)
     name_es: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -55,15 +63,9 @@ class ProductionCostDriver(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
-    code: Mapped[str] = mapped_column(
-        String(30), nullable=False, comment="Unique code per tenant"
-    )
-    name: Mapped[str] = mapped_column(
-        String(100), nullable=False, comment="Display name"
-    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(30), nullable=False, comment="Unique code per tenant")
+    name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
     unit: Mapped[str] = mapped_column(
         String(20), nullable=False, default="hour", comment="hour, kwh, unit, flat"
     )
@@ -119,9 +121,7 @@ class RecipeCostLine(Base):
     )
 
     # Relationships
-    driver: Mapped["ProductionCostDriver"] = relationship(
-        "ProductionCostDriver", lazy="selectin"
-    )
+    driver: Mapped["ProductionCostDriver"] = relationship("ProductionCostDriver", lazy="selectin")
 
     def __repr__(self):
         return f"<RecipeCostLine recipe={self.recipe_id} driver={self.driver_id}>"
@@ -148,15 +148,9 @@ class ProductionOrderCost(Base):
         nullable=False,
         index=True,
     )
-    qty_actual: Mapped[Decimal] = mapped_column(
-        Numeric(12, 4), nullable=False, default=0
-    )
-    headcount_actual: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1
-    )
-    rate_applied: Mapped[Decimal] = mapped_column(
-        Numeric(12, 4), nullable=False, default=0
-    )
+    qty_actual: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=0)
+    headcount_actual: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    rate_applied: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=0)
     cost_total: Mapped[Decimal] = mapped_column(
         Numeric(12, 4),
         Computed(
@@ -170,9 +164,7 @@ class ProductionOrderCost(Base):
     )
 
     # Relationships
-    driver: Mapped["ProductionCostDriver"] = relationship(
-        "ProductionCostDriver", lazy="selectin"
-    )
+    driver: Mapped["ProductionCostDriver"] = relationship("ProductionCostDriver", lazy="selectin")
 
     def __repr__(self):
         return f"<ProductionOrderCost order={self.order_id} cost={self.cost_total}>"

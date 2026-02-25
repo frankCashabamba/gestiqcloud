@@ -6,6 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.modules.admin_config.application.categorias_gasto.dto import CategoriaGastoIn
+from app.modules.admin_config.application.categorias_gasto.use_cases import (
+    CreateExpenseCategory,
+    DeleteExpenseCategory,
+    GetExpenseCategory,
+    ListExpenseCategories,
+    UpdateExpenseCategory,
+)
 from app.modules.admin_config.application.dias_semana.dto import DiaSemanaIn
 from app.modules.admin_config.application.dias_semana.use_cases import (
     CreateWeekDay,
@@ -37,6 +45,14 @@ from app.modules.admin_config.application.locales.use_cases import (
     GetLocale,
     ListLocales,
     UpdateLocale,
+)
+from app.modules.admin_config.application.metodos_pago_plantilla.dto import MetodoPagoPlantillaIn
+from app.modules.admin_config.application.metodos_pago_plantilla.use_cases import (
+    CreatePaymentTemplate,
+    DeletePaymentTemplate,
+    GetPaymentTemplate,
+    ListPaymentTemplates,
+    UpdatePaymentTemplate,
 )
 from app.modules.admin_config.application.monedas.dto import MonedaIn
 from app.modules.admin_config.application.monedas.use_cases import (
@@ -70,6 +86,14 @@ from app.modules.admin_config.application.timezones.use_cases import (
     ListTimezones,
     UpdateTimezone,
 )
+from app.modules.admin_config.application.tipos_documento.dto import TipoDocumentoIn
+from app.modules.admin_config.application.tipos_documento.use_cases import (
+    CreateDocType,
+    DeleteDocType,
+    GetDocType,
+    ListDocTypes,
+    UpdateDocType,
+)
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn
 from app.modules.admin_config.application.tipos_empresa.use_cases import (
     CreateCompanyType,
@@ -77,14 +101,6 @@ from app.modules.admin_config.application.tipos_empresa.use_cases import (
     GetCompanyType,
     ListCompanyTypes,
     UpdateCompanyType,
-)
-from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn
-from app.modules.admin_config.application.tipos_negocio.use_cases import (
-    CreateBusinessType,
-    DeleteBusinessType,
-    GetBusinessType,
-    ListBusinessTypes,
-    UpdateBusinessType,
 )
 from app.modules.admin_config.application.tipos_impuesto.dto import TipoImpuestoIn
 from app.modules.admin_config.application.tipos_impuesto.use_cases import (
@@ -94,6 +110,14 @@ from app.modules.admin_config.application.tipos_impuesto.use_cases import (
     ListTaxTypes,
     UpdateTaxType,
 )
+from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn
+from app.modules.admin_config.application.tipos_negocio.use_cases import (
+    CreateBusinessType,
+    DeleteBusinessType,
+    GetBusinessType,
+    ListBusinessTypes,
+    UpdateBusinessType,
+)
 from app.modules.admin_config.application.unidades_medida.dto import UnidadMedidaIn
 from app.modules.admin_config.application.unidades_medida.use_cases import (
     CreateUnit,
@@ -102,29 +126,8 @@ from app.modules.admin_config.application.unidades_medida.use_cases import (
     ListUnits,
     UpdateUnit,
 )
-from app.modules.admin_config.application.tipos_documento.dto import TipoDocumentoIn
-from app.modules.admin_config.application.tipos_documento.use_cases import (
-    CreateDocType,
-    DeleteDocType,
-    GetDocType,
-    ListDocTypes,
-    UpdateDocType,
-)
-from app.modules.admin_config.application.categorias_gasto.dto import CategoriaGastoIn
-from app.modules.admin_config.application.categorias_gasto.use_cases import (
-    CreateExpenseCategory,
-    DeleteExpenseCategory,
-    GetExpenseCategory,
-    ListExpenseCategories,
-    UpdateExpenseCategory,
-)
-from app.modules.admin_config.application.metodos_pago_plantilla.dto import MetodoPagoPlantillaIn
-from app.modules.admin_config.application.metodos_pago_plantilla.use_cases import (
-    CreatePaymentTemplate,
-    DeletePaymentTemplate,
-    GetPaymentTemplate,
-    ListPaymentTemplates,
-    UpdatePaymentTemplate,
+from app.modules.admin_config.infrastructure.categorias_gasto.repository import (
+    SqlAlchemyCategoriaGastoRepo,
 )
 from app.modules.admin_config.infrastructure.dias_semana.repository import SqlAlchemyDiaSemanaRepo
 from app.modules.admin_config.infrastructure.horarios_atencion.repository import (
@@ -132,36 +135,36 @@ from app.modules.admin_config.infrastructure.horarios_atencion.repository import
 )
 from app.modules.admin_config.infrastructure.idiomas.repository import SqlAlchemyIdiomaRepo
 from app.modules.admin_config.infrastructure.locales.repository import SqlAlchemyLocaleRepo
+from app.modules.admin_config.infrastructure.metodos_pago_plantilla.repository import (
+    SqlAlchemyMetodoPagoPlantillaRepo,
+)
 from app.modules.admin_config.infrastructure.monedas.repository import SqlAlchemyMonedaRepo
 from app.modules.admin_config.infrastructure.paises.repository import SqlAlchemyPaisRepo
 from app.modules.admin_config.infrastructure.sectores_plantilla.repository import (
     SqlAlchemySectorPlantillaRepo,
 )
 from app.modules.admin_config.infrastructure.timezones.repository import SqlAlchemyTimezoneRepo
+from app.modules.admin_config.infrastructure.tipos_documento.repository import (
+    SqlAlchemyTipoDocumentoRepo,
+)
 from app.modules.admin_config.infrastructure.tipos_empresa.repository import (
     SqlAlchemyTipoCompanyRepo,
-)
-from app.modules.admin_config.infrastructure.tipos_negocio.repository import (
-    SqlAlchemyTipoNegocioRepo,
 )
 from app.modules.admin_config.infrastructure.tipos_impuesto.repository import (
     SqlAlchemyTipoImpuestoRepo,
 )
+from app.modules.admin_config.infrastructure.tipos_negocio.repository import (
+    SqlAlchemyTipoNegocioRepo,
+)
 from app.modules.admin_config.infrastructure.unidades_medida.repository import (
     SqlAlchemyUnidadMedidaRepo,
-)
-from app.modules.admin_config.infrastructure.tipos_documento.repository import (
-    SqlAlchemyTipoDocumentoRepo,
-)
-from app.modules.admin_config.infrastructure.categorias_gasto.repository import (
-    SqlAlchemyCategoriaGastoRepo,
-)
-from app.modules.admin_config.infrastructure.metodos_pago_plantilla.repository import (
-    SqlAlchemyMetodoPagoPlantillaRepo,
 )
 
 # Use modern use cases (all legacy CRUD migrated)
 from app.modules.admin_config.schemas import (  # Reusar MonedaRead para listas simples (name/code) no aplica; endpoints devolverán objetos completos
+    CategoriaGastoCreate,
+    CategoriaGastoRead,
+    CategoriaGastoUpdate,
     DiaSemanaCreate,
     DiaSemanaRead,
     DiaSemanaUpdate,
@@ -171,6 +174,9 @@ from app.modules.admin_config.schemas import (  # Reusar MonedaRead para listas 
     IdiomaCreate,
     IdiomaRead,
     IdiomaUpdate,
+    MetodoPagoPlantillaCreate,
+    MetodoPagoPlantillaRead,
+    MetodoPagoPlantillaUpdate,
     MonedaCreate,
     MonedaRead,
     MonedaUpdate,
@@ -180,27 +186,21 @@ from app.modules.admin_config.schemas import (  # Reusar MonedaRead para listas 
     SectorPlantillaCreate,
     SectorPlantillaRead,
     SectorPlantillaUpdate,
-    TipoEmpresaCreate,
-    TipoEmpresaRead,
-    TipoEmpresaUpdate,
-    TipoNegocioCreate,
-    TipoNegocioRead,
-    TipoNegocioUpdate,
-    TipoImpuestoCreate,
-    TipoImpuestoRead,
-    TipoImpuestoUpdate,
-    UnidadMedidaCreate,
-    UnidadMedidaRead,
-    UnidadMedidaUpdate,
     TipoDocumentoCreate,
     TipoDocumentoRead,
     TipoDocumentoUpdate,
-    CategoriaGastoCreate,
-    CategoriaGastoRead,
-    CategoriaGastoUpdate,
-    MetodoPagoPlantillaCreate,
-    MetodoPagoPlantillaRead,
-    MetodoPagoPlantillaUpdate,
+    TipoEmpresaCreate,
+    TipoEmpresaRead,
+    TipoEmpresaUpdate,
+    TipoImpuestoCreate,
+    TipoImpuestoRead,
+    TipoImpuestoUpdate,
+    TipoNegocioCreate,
+    TipoNegocioRead,
+    TipoNegocioUpdate,
+    UnidadMedidaCreate,
+    UnidadMedidaRead,
+    UnidadMedidaUpdate,
 )
 
 router = APIRouter(prefix="/config", tags=["admin:config"])

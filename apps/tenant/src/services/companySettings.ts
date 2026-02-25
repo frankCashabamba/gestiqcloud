@@ -93,32 +93,51 @@ export async function savePosTheme(theme: PosTheme, currentSettings?: CompanySet
 
 // Helper para formatear moneda
 export function formatCurrency(amount: number, settings?: CompanySettings): string {
-  const currency = (settings?.currency || '').trim().toUpperCase()
-  const locale = (settings?.locale || '').trim()
+  const rawCurrency = (settings?.currency || '').trim().toUpperCase()
+  const isValidCurrency = /^[A-Z]{3}$/.test(rawCurrency)
+  const rawLocale = (settings?.locale || '').trim()
+  // Normaliza locale: convierte es_EC -> es-EC
+  const locale = rawLocale ? rawLocale.replace(/_/g, '-') : undefined
 
-  // Nunca asumir una moneda distinta a la configurada en BBDD.
-  // Si no hay moneda, mostramos número plano.
-  if (!currency || currency.length !== 3) {
-    return new Intl.NumberFormat(locale || undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount)
+  const plainOptions: Intl.NumberFormatOptions = {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }
+
+  if (!isValidCurrency) {
+    // Sin moneda válida, formatea como número plano con locale normalizado
+    try {
+      return new Intl.NumberFormat(locale, plainOptions).format(amount)
+    } catch {
+      try {
+        return new Intl.NumberFormat('es-EC', plainOptions).format(amount)
+      } catch {
+        return new Intl.NumberFormat(undefined, plainOptions).format(amount)
+      }
+    }
+  }
+
+  const currencyOptions: Intl.NumberFormatOptions = {
+    style: 'currency',
+    currency: rawCurrency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }
 
   try {
-    return new Intl.NumberFormat(locale || undefined, {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount)
+    return new Intl.NumberFormat(locale, currencyOptions).format(amount)
   } catch (error) {
-    // If invalid currency code, format as plain number
-    console.warn(`Invalid currency code: ${currency}`, error)
-    return new Intl.NumberFormat(locale || undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount)
+    // Fallbacks en cascada si el locale es inválido o la combinación locale/moneda falla
+    console.warn(`Error formateando moneda con locale "${rawLocale}" y currency "${rawCurrency}"`, error)
+    try {
+      return new Intl.NumberFormat('es-EC', currencyOptions).format(amount)
+    } catch {
+      try {
+        return new Intl.NumberFormat(undefined, currencyOptions).format(amount)
+      } catch {
+        return new Intl.NumberFormat(locale, plainOptions).format(amount)
+      }
+    }
   }
 }
 

@@ -43,7 +43,7 @@ def list_cost_periods(
     """
     query = db.query(CostPeriod).filter(CostPeriod.tenant_id == UUID(tenant_id))
     if active_only:
-        query = query.filter(CostPeriod.is_active == True)
+        query = query.filter(CostPeriod.is_active)
     return query.order_by(CostPeriod.month.desc()).all()
 
 
@@ -55,10 +55,10 @@ def create_cost_period(
 ):
     """
     Crea un nuevo período de costeo.
-    
+
     Los campos computed (labor_burden_factor, diesel_per_oven_hour, electricity_per_hour)
     se calculan automáticamente en la base de datos.
-    
+
     Ejemplo:
     ```
     {
@@ -77,10 +77,7 @@ def create_cost_period(
     # Validar que no exista período para ese mes
     existing = service.get_period(period_data.month)
     if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Period {period_data.month} already exists"
-        )
+        raise HTTPException(status_code=400, detail=f"Period {period_data.month} already exists")
 
     period = service.create_period(
         month=period_data.month,
@@ -127,10 +124,7 @@ def update_cost_period(
     service = CostPeriodsService(db, UUID(tenant_id))
 
     try:
-        period = service.update_period(
-            period_id,
-            **period_data.model_dump(exclude_unset=True)
-        )
+        period = service.update_period(period_id, **period_data.model_dump(exclude_unset=True))
         return period
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -167,7 +161,7 @@ def validate_cost_period(
 ):
     """
     Valida un período y retorna warnings/errors.
-    
+
     Checks realizados:
     - labor_burden_factor entre 0.8 y 1.6 (eficiencia)
     - oven_hours_total > 10 (no subutilizado)
@@ -190,7 +184,7 @@ def get_period_impact(
 ):
     """
     Calcula el impacto de aplicar este período a todas las recetas del tenant.
-    
+
     Retorna:
     - Recetas afectadas y cambios de costo
     - Estadísticas agregadas
@@ -213,7 +207,7 @@ def close_cost_period(
 ):
     """
     Cierra formalmente un período.
-    
+
     Esto marca el período como finalizado y permite hacer recálculos históricos
     si es necesario.
     """

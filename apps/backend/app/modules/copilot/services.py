@@ -8,8 +8,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.services.ai.service import AIService
 from app.services.ai.base import AITask
+from app.services.ai.service import AIService
 
 logger = logging.getLogger(__name__)
 
@@ -144,12 +144,8 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         return {"cards": [{"title": "Stock bajo", "data": rows}], "sql": sql}
 
     if topic == "pendientes_sri_sii":
-        sql_sri = (
-            f"SELECT count(*) AS pendientes FROM sri_submissions WHERE {_tenant_where()} AND status NOT IN ('AUTHORIZED')"
-        )
-        sql_sii = (
-            f"SELECT count(*) AS pendientes FROM sii_batches WHERE {_tenant_where()} AND status NOT IN ('ACCEPTED')"
-        )
+        sql_sri = f"SELECT count(*) AS pendientes FROM sri_submissions WHERE {_tenant_where()} AND status NOT IN ('AUTHORIZED')"
+        sql_sii = f"SELECT count(*) AS pendientes FROM sii_batches WHERE {_tenant_where()} AND status NOT IN ('ACCEPTED')"
         sri = _fetch_all(db, sql_sri, {})
         sii = _fetch_all(db, sql_sii, {})
         return {
@@ -389,7 +385,9 @@ async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
         payments = query_readonly(db, "cobros_pagos", {})
         if payments["cards"][0]["data"]:
             payment_data = payments["cards"][0]["data"]
-            context = f"Transacciones bancarias: {len(payment_data)} registros con datos de tipo y estado"
+            context = (
+                f"Transacciones bancarias: {len(payment_data)} registros con datos de tipo y estado"
+            )
 
             suggestion_text = await AIService.generate_suggestion(
                 context=context, suggestion_type="cash_flow"

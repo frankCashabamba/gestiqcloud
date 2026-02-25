@@ -178,4 +178,3 @@ export const DeleteAllCompaniesModal: React.FC<Props> = ({ companyCount, onClose
     </div>
   )
 }
-

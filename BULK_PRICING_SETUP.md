@@ -133,20 +133,20 @@ async def apply_bulk_pricing(product_id: str, quantity: int, tenant_id: UUID, un
     settings = await get_company_settings(tenant_id)
     pos_config = settings.get('pos_config', {})
     bulk_pricing_items = pos_config.get('bulk_pricing_items', [])
-    
+
     # Buscar configuración para este producto
     bulk_config = BulkPricingService.get_bulk_config_for_product(product_id, bulk_pricing_items)
-    
+
     if not bulk_config:
         return None  # No bulk pricing configured for this product
-    
+
     # Calcular precio con bulk pricing
     result = BulkPricingService.calculate_bulk_price(
         quantity=quantity,
         bulk_config=bulk_config,
         unit_price=unit_price
     )
-    
+
     return result
     # Returns:
     # {

@@ -10,7 +10,7 @@ Se ha integrado exitosamente **IA unificada** al módulo Copilot. Ahora el módu
 
 ### 1. **Backend - Nuevas funciones en services.py**
 
-#### `query_readonly_enhanced()` 
+#### `query_readonly_enhanced()`
 ```python
 async def query_readonly_enhanced(
     db: Session,
@@ -345,9 +345,9 @@ suggestions.forEach(s => {
 
 3. **Integrar en Frontend** - Actualizar `Dashboard.tsx`:
    ```tsx
-   const { ai_insights } = await askCopilot({ 
+   const { ai_insights } = await askCopilot({
      topic: 'ventas_mes',
-     with_ai_insights: true 
+     with_ai_insights: true
    })
    // Renderizar insights
    ```

@@ -141,8 +141,20 @@ def _detect_document_type(
         _defaults: dict[str, list[str]] = {
             "products": ["PRODUCTO", "NOMBRE", "PRECIO", "STOCK", "SKU", "CODIGO"],
             "bank_transactions": ["IMPORTE", "SALDO", "BANCO", "IBAN", "CUENTA"],
-            "invoices": ["FACTURA", "INVOICE", "VENDOR", "SUPPLIER", "CLIENTE", "IVA", "TAX",
-                         "SUBTOTAL", "TOTAL", "VENDEDOR", "NUM. FACTURA", "CUSTOMER"],
+            "invoices": [
+                "FACTURA",
+                "INVOICE",
+                "VENDOR",
+                "SUPPLIER",
+                "CLIENTE",
+                "IVA",
+                "TAX",
+                "SUBTOTAL",
+                "TOTAL",
+                "VENDEDOR",
+                "NUM. FACTURA",
+                "CUSTOMER",
+            ],
             "expenses": ["GASTO", "EXPENSE", "RECEIPT", "RECIBO", "VOUCHER"],
         }
         scores = {}

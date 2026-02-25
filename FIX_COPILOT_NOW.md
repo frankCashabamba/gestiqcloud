@@ -217,4 +217,3 @@ Ventas por Mes [💡 Insights]
 - DevTools Console (F12)
 - Backend logs (Terminal 2)
 - Response de Network tab
-

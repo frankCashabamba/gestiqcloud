@@ -1,12 +1,12 @@
 """Module: invoiceLine.py - Invoice line item models."""
 
-from uuid import UUID
+import uuid as _uuid
 
 from sqlalchemy import ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
+from app.models.tenant import TENANT_UUID
 
 
 class InvoiceLine(Base):
@@ -15,13 +15,13 @@ class InvoiceLine(Base):
     __tablename__ = "invoice_lines"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+    id: Mapped[_uuid.UUID] = mapped_column(
+        TENANT_UUID,
         primary_key=True,
-        default=lambda: __import__("uuid").uuid4(),
+        default=_uuid.uuid4,
     )
-    invoice_id: Mapped[UUID] = mapped_column(
-        "invoice_id", PGUUID(as_uuid=True), ForeignKey("invoices.id")
+    invoice_id: Mapped[_uuid.UUID] = mapped_column(
+        "invoice_id", TENANT_UUID, ForeignKey("invoices.id")
     )
     sector: Mapped[str] = mapped_column("sector", String(50))
     description: Mapped[str] = mapped_column("description", String)
@@ -41,8 +41,8 @@ class BakeryLine(InvoiceLine):
 
     __tablename__ = "bakery_lines"
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
+    id: Mapped[_uuid.UUID] = mapped_column(
+        TENANT_UUID, ForeignKey("invoice_lines.id"), primary_key=True
     )
     bread_type: Mapped[str] = mapped_column("bread_type", String)
     grams: Mapped[float] = mapped_column("grams")
@@ -55,8 +55,8 @@ class WorkshopLine(InvoiceLine):
 
     __tablename__ = "workshop_lines"
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
+    id: Mapped[_uuid.UUID] = mapped_column(
+        TENANT_UUID, ForeignKey("invoice_lines.id"), primary_key=True
     )
     spare_part: Mapped[str] = mapped_column("spare_part", String)
     labor_hours: Mapped[float] = mapped_column("labor_hours")
@@ -70,11 +70,11 @@ class POSLine(InvoiceLine):
 
     __tablename__ = "pos_invoice_lines"
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
+    id: Mapped[_uuid.UUID] = mapped_column(
+        TENANT_UUID, ForeignKey("invoice_lines.id"), primary_key=True
     )
-    pos_receipt_line_id: Mapped[UUID | None] = mapped_column(
-        "pos_receipt_line_id", PGUUID(as_uuid=True), nullable=True
+    pos_receipt_line_id: Mapped[_uuid.UUID | None] = mapped_column(
+        "pos_receipt_line_id", TENANT_UUID, nullable=True
     )
 
     __mapper_args__ = {"polymorphic_identity": "pos"}

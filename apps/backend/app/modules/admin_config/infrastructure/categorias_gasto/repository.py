@@ -5,7 +5,10 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.models.core.global_catalogs import ExpenseCategoryGlobal as CategoriaGastoORM
-from app.modules.admin_config.application.categorias_gasto.dto import CategoriaGastoIn, CategoriaGastoOut
+from app.modules.admin_config.application.categorias_gasto.dto import (
+    CategoriaGastoIn,
+    CategoriaGastoOut,
+)
 from app.modules.admin_config.application.categorias_gasto.ports import CategoriaGastoRepo
 
 

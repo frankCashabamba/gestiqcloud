@@ -25,8 +25,8 @@ Hacer clic en **Save configuration** al final
 
 ## ¿Qué acaba de pasar?
 
-✅ Se configuró "6 tapapados por $1.00"  
-✅ Se configuró "12 roscas por $1.80"  
+✅ Se configuró "6 tapapados por $1.00"
+✅ Se configuró "12 roscas por $1.80"
 ✅ Se configuró "24 biscochos por $2.40"
 
 Ahora en el POS, cuando un cliente compre:
@@ -120,19 +120,19 @@ if bulk_config:
 
 ## Preguntas Frecuentes
 
-**P: ¿Puedo cambiar de 6 a 5 unidades?**  
+**P: ¿Puedo cambiar de 6 a 5 unidades?**
 R: Sí, elimina y re-agrega el producto con la nueva cantidad.
 
-**P: ¿Qué pasa si no configuro bulk pricing?**  
+**P: ¿Qué pasa si no configuro bulk pricing?**
 R: El sistema usa los precios unitarios normales de los productos.
 
-**P: ¿Puedo tener el mismo producto dos veces?**  
+**P: ¿Puedo tener el mismo producto dos veces?**
 R: No, la aplicación lo previene. Debes eliminar y re-agregar si quieres cambiar.
 
-**P: ¿Se guarda automáticamente?**  
+**P: ¿Se guarda automáticamente?**
 R: No, debes hacer clic en "Save configuration" al final.
 
-**P: ¿Dónde se almacena?**  
+**P: ¿Dónde se almacena?**
 R: En la base de datos, en el campo `company_settings.pos_config` como JSON.
 
 ## Archivos Técnicos

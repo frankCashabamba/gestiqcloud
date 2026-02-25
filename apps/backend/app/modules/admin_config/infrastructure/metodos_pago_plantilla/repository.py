@@ -5,8 +5,13 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.models.core.global_catalogs import PaymentMethodTemplate as MetodoPagoPlantillaORM
-from app.modules.admin_config.application.metodos_pago_plantilla.dto import MetodoPagoPlantillaIn, MetodoPagoPlantillaOut
-from app.modules.admin_config.application.metodos_pago_plantilla.ports import MetodoPagoPlantillaRepo
+from app.modules.admin_config.application.metodos_pago_plantilla.dto import (
+    MetodoPagoPlantillaIn,
+    MetodoPagoPlantillaOut,
+)
+from app.modules.admin_config.application.metodos_pago_plantilla.ports import (
+    MetodoPagoPlantillaRepo,
+)
 
 
 class SqlAlchemyMetodoPagoPlantillaRepo(MetodoPagoPlantillaRepo):
@@ -23,7 +28,9 @@ class SqlAlchemyMetodoPagoPlantillaRepo(MetodoPagoPlantillaRepo):
         )
 
     def list(self) -> Sequence[MetodoPagoPlantillaOut]:
-        rows = self.db.query(MetodoPagoPlantillaORM).order_by(MetodoPagoPlantillaORM.code.asc()).all()
+        rows = (
+            self.db.query(MetodoPagoPlantillaORM).order_by(MetodoPagoPlantillaORM.code.asc()).all()
+        )
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: MetodoPagoPlantillaIn) -> MetodoPagoPlantillaOut:

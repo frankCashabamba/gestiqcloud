@@ -55,7 +55,9 @@ def get_expense_production_detail(
         raise HTTPException(404, "Expense not found")
 
     is_prod = _is_locked_production_expense(expense)
-    print(f"[PROD-DETAIL] category='{expense.category}' invoice='{expense.invoice_number}' is_prod={is_prod}")
+    print(
+        f"[PROD-DETAIL] category='{expense.category}' invoice='{expense.invoice_number}' is_prod={is_prod}"
+    )
     if not is_prod:
         raise HTTPException(400, "Not a production expense")
 
@@ -65,8 +67,8 @@ def get_expense_production_detail(
     if not order_number:
         raise HTTPException(404, f"No order ref in invoice_number='{invoice}'")
 
-    from app.models.production.production_order import ProductionOrder
     from app.models.core.products import Product
+    from app.models.production.production_order import ProductionOrder
 
     order = db.execute(
         select(ProductionOrder).where(
@@ -81,7 +83,9 @@ def get_expense_production_detail(
         ).scalar_one_or_none()
         print(f"[PROD-DETAIL] order NOT found. Without tenant filter: {any_order is not None}")
         if any_order:
-            print(f"[PROD-DETAIL] tenant mismatch: order={any_order.tenant_id} vs claim={tenant_id}")
+            print(
+                f"[PROD-DETAIL] tenant mismatch: order={any_order.tenant_id} vs claim={tenant_id}"
+            )
         raise HTTPException(404, f"Production order '{order_number}' not found")
 
     lines = []
@@ -89,18 +93,26 @@ def get_expense_production_detail(
         product = db.execute(
             select(Product).where(Product.id == line.ingredient_product_id)
         ).scalar_one_or_none()
-        lines.append({
-            "ingredient_name": product.name if product else "Unknown",
-            "qty_consumed": float(line.qty_consumed or line.qty_required or 0),
-            "unit": line.unit or "unit",
-            "cost_unit": float(line.cost_unit or 0),
-            "cost_total": float((line.qty_consumed or line.qty_required or 0) * (line.cost_unit or 0)),
-        })
+        lines.append(
+            {
+                "ingredient_name": product.name if product else "Unknown",
+                "qty_consumed": float(line.qty_consumed or line.qty_required or 0),
+                "unit": line.unit or "unit",
+                "cost_unit": float(line.cost_unit or 0),
+                "cost_total": float(
+                    (line.qty_consumed or line.qty_required or 0) * (line.cost_unit or 0)
+                ),
+            }
+        )
 
     return {
         "expense_id": str(expense_id),
         "order_number": order_number,
-        "recipe_name": expense.concept.replace("Production cost - ", "").rsplit(" (", 1)[0] if expense.concept else "",
+        "recipe_name": (
+            expense.concept.replace("Production cost - ", "").rsplit(" (", 1)[0]
+            if expense.concept
+            else ""
+        ),
         "qty_produced": float(order.qty_produced or 0),
         "total_cost": float(expense.amount or 0),
         "lines": lines,

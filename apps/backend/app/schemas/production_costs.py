@@ -8,7 +8,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ============================================================================
 # COST DRIVERS (catalog)
 # ============================================================================
@@ -53,7 +52,9 @@ class RecipeCostLineBase(BaseModel):
     driver_id: UUID = Field(..., description="Cost driver ID")
     qty_standard: Decimal = Field(default=Decimal("0"), ge=0, description="Standard quantity")
     headcount: int = Field(default=1, ge=1, description="Number of people (for labor)")
-    rate_override: Decimal | None = Field(None, ge=0, description="Override rate (null = use driver default)")
+    rate_override: Decimal | None = Field(
+        None, ge=0, description="Override rate (null = use driver default)"
+    )
     notes: str | None = None
     line_order: int = Field(default=0, ge=0)
 
