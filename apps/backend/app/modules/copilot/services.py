@@ -8,15 +8,16 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.db.rls import tenant_id_sql_expr_text
 from app.services.ai.base import AITask
 from app.services.ai.service import AIService
 
 logger = logging.getLogger(__name__)
 
 
-def _tenant_where(alias: str | None = None) -> str:
+def _tenant_where(alias: str | None = None) -> tuple[str, dict[str, Any]]:
     col = f"{alias}.tenant_id" if alias else "tenant_id"
-    return f"CAST({col}::text AS uuid) = NULLIF(current_setting('app.tenant_id', true), '')::uuid"
+    return f"{col} = {tenant_id_sql_expr_text('tid')}", {"tid": None}
 
 
 def _mask_email(val: str | None) -> str | None:
@@ -98,21 +99,23 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
     p = params or {}
     # Only allow curated read-only queries (RLS enforced by DB)
     if topic == "ventas_mes":
+        where_clause, tenant_params = _tenant_where("so")
         sql = (
             "SELECT date_trunc('month', so.created_at)::date AS mes, count(*) AS pedidos "
-            f"FROM sales_orders so WHERE {_tenant_where('so')} "
+            f"FROM sales_orders so WHERE {where_clause} "
             "GROUP BY 1 ORDER BY 1 DESC LIMIT 12"
         )
-        rows = _fetch_all(db, sql, {})
+        rows = _fetch_all(db, sql, tenant_params)
         return {"cards": [{"title": "Pedidos por mes", "series": rows}], "sql": sql}
 
     if topic == "ventas_por_almacen":
+        where_clause, tenant_params = _tenant_where("sm")
         sql = (
             "SELECT w.code AS almacen, sum(sm.qty) AS unidades "
             "FROM stock_moves sm JOIN warehouses w ON w.id=sm.warehouse_id "
-            f"WHERE {_tenant_where('sm')} AND sm.kind='issue' GROUP BY 1 ORDER BY 2 DESC"
+            f"WHERE {where_clause} AND sm.kind='issue' GROUP BY 1 ORDER BY 2 DESC"
         )
-        rows = _fetch_all(db, sql, {})
+        rows = _fetch_all(db, sql, tenant_params)
         return {"cards": [{"title": "Salidas por almacén", "data": rows}], "sql": sql}
 
     if topic == "top_productos":
@@ -125,29 +128,33 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
                 "sql": None,
                 "note": "topic_unavailable:sales_order_items_columns",
             }
+        where_clause, tenant_params = _tenant_where("soi")
         sql = (
             f"SELECT p.id, p.name, sum(soi.{qty_col}) AS uds, "
             f"sum(soi.{qty_col}*soi.{price_col}) AS importe "
             "FROM sales_order_items soi JOIN products p ON p.id=soi.product_id "
-            f"WHERE {_tenant_where('soi')} "
+            f"WHERE {where_clause} "
             "GROUP BY 1,2 ORDER BY importe DESC NULLS LAST LIMIT 10"
         )
-        return _safe_topic(db, "Top productos", sql, lambda: _fetch_all(db, sql, {}))
+        return _safe_topic(db, "Top productos", sql, lambda: _fetch_all(db, sql, tenant_params))
 
     if topic == "stock_bajo":
         threshold = float(p.get("threshold", 5))
+        where_clause, tenant_params = _tenant_where("si")
         sql = (
             "SELECT w.code AS almacen, si.product_id, si.qty FROM stock_items si "
-            f"JOIN warehouses w ON w.id=si.warehouse_id WHERE {_tenant_where('si')} AND si.qty < :th ORDER BY si.qty ASC LIMIT 50"
+            f"JOIN warehouses w ON w.id=si.warehouse_id WHERE {where_clause} AND si.qty < :th ORDER BY si.qty ASC LIMIT 50"
         )
-        rows = _fetch_all(db, sql, {"th": threshold})
+        params = {**tenant_params, "th": threshold}
+        rows = _fetch_all(db, sql, params)
         return {"cards": [{"title": "Stock bajo", "data": rows}], "sql": sql}
 
     if topic == "pendientes_sri_sii":
-        sql_sri = f"SELECT count(*) AS pendientes FROM sri_submissions WHERE {_tenant_where()} AND status NOT IN ('AUTHORIZED')"
-        sql_sii = f"SELECT count(*) AS pendientes FROM sii_batches WHERE {_tenant_where()} AND status NOT IN ('ACCEPTED')"
-        sri = _fetch_all(db, sql_sri, {})
-        sii = _fetch_all(db, sql_sii, {})
+        where_clause, tenant_params = _tenant_where()
+        sql_sri = f"SELECT count(*) AS pendientes FROM sri_submissions WHERE {where_clause} AND status NOT IN ('AUTHORIZED')"
+        sql_sii = f"SELECT count(*) AS pendientes FROM sii_batches WHERE {where_clause} AND status NOT IN ('ACCEPTED')"
+        sri = _fetch_all(db, sql_sri, tenant_params.copy())
+        sii = _fetch_all(db, sql_sii, tenant_params.copy())
         return {
             "cards": [
                 {"title": "SRI pendientes", "data": sri},
@@ -167,12 +174,13 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
                 "sql": None,
                 "note": "topic_unavailable:bank_transactions_columns",
             }
+        where_clause, tenant_params = _tenant_where()
         sql = (
             f"SELECT {type_col}::text AS tipo, {status_col}::text AS estado, "
             f"count(*) AS n, sum({amount_col}) AS importe "
-            f"FROM bank_transactions WHERE {_tenant_where()} GROUP BY 1,2 ORDER BY 4 DESC NULLS LAST"
+            f"FROM bank_transactions WHERE {where_clause} GROUP BY 1,2 ORDER BY 4 DESC NULLS LAST"
         )
-        return _safe_topic(db, "Cobros/Pagos", sql, lambda: _fetch_all(db, sql, {}))
+        return _safe_topic(db, "Cobros/Pagos", sql, lambda: _fetch_all(db, sql, tenant_params))
 
     # Default: unsupported
     return {"cards": [], "sql": None, "note": "topic_unsupported"}

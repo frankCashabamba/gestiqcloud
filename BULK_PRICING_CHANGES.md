@@ -197,7 +197,7 @@ pytest app/tests/test_bulk_pricing_service.py -v
 
 3. **Seguridad**: Es específica por tenant, no afecta a otras empresas.
 
-4. **Precisión**: 
+4. **Precisión**:
    - Precios redondeados a 2 decimales
    - Precio por unidad con 4 decimales
 

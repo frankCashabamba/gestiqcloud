@@ -72,12 +72,29 @@ export interface FullCostSummary {
   materials_total: number;
   materials_unit: number;
   labor_total: number;
+  labor_with_burden_factor: number;
   energy_total: number;
   other_indirect_total: number;
   indirect_total: number;
+  labor_burden_factor: number;
+  diesel_total: number;
+  electricity_total: number;
   full_cost_total: number;
   full_cost_unit: number;
   cost_lines: RecipeCostLine[];
+  period_month?: string | null;
+  period_id?: string | null;
+  touch_minutes?: number;
+  oven_minutes?: number;
+  trays_per_batch?: number | null;
+  units_per_tray?: number | null;
+  breakdown?: {
+    materials: number;
+    labor: number;
+    diesel: number;
+    electricity: number;
+    other: number;
+  };
 }
 
 // ============================================================================

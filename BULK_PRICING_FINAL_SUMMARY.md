@@ -2,13 +2,13 @@
 
 ## 🎯 Objetivo Cumplido
 
-✅ Agregar configuración de "venta por cantidad" en la sección Operativo  
-✅ Permitir seleccionar productos desde tabla de productos  
-✅ Soportar múltiples productos con diferentes configuraciones  
-✅ Interfaz intuitiva con tabla de configurados  
-✅ Cálculos automáticos de precio por unidad  
-✅ Validaciones robustas  
-✅ Backend escalable y reutilizable  
+✅ Agregar configuración de "venta por cantidad" en la sección Operativo
+✅ Permitir seleccionar productos desde tabla de productos
+✅ Soportar múltiples productos con diferentes configuraciones
+✅ Interfaz intuitiva con tabla de configurados
+✅ Cálculos automáticos de precio por unidad
+✅ Validaciones robustas
+✅ Backend escalable y reutilizable
 
 ## 📁 Archivos Creados/Modificados
 
@@ -149,8 +149,8 @@ Ejemplo: $1.00 / 6 = $0.1667
 Para una venta de N unidades:
   sets_completos = N // cantidad
   unidades_restantes = N % cantidad
-  
-  total = (sets_completos × precio_total) + 
+
+  total = (sets_completos × precio_total) +
           (unidades_restantes × precio_unitario)
 ```
 
@@ -207,19 +207,19 @@ async def create_sale_item(product_id, quantity, tenant_id):
     # Obtener settings
     settings = await get_company_settings(tenant_id)
     bulk_items = settings['pos_config'].get('bulk_pricing_items', [])
-    
+
     # Buscar config
     bulk_config = BulkPricingService.get_bulk_config_for_product(
         product_id, bulk_items
     )
-    
+
     # Calcular precio
     result = BulkPricingService.calculate_bulk_price(
         quantity,
         bulk_config,
         unit_price=product.price
     )
-    
+
     # Usar resultado
     total_price = result['total_price']
     return {
