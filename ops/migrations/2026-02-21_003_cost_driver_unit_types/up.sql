@@ -13,6 +13,9 @@ BEGIN;
 -- ============================================================================
 -- Cost Driver Unit Types
 -- ============================================================================
+-- Ensure UUID generator is available (needed for gen_random_uuid())
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE TABLE IF NOT EXISTS cost_driver_unit_types (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
