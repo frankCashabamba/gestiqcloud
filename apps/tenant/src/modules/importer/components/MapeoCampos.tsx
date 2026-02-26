@@ -24,6 +24,7 @@ type Props = {
   sourceType?: string
   previewData?: Record<string, any>[]
   fieldConfig?: EntityTypeConfig
+  onCancel?: () => void
 }
 
 export default function MapeoCampos({

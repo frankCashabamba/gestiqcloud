@@ -73,8 +73,8 @@ export default function ModuloSelector({ selected, onChange, showTitle = false }
   }
 
   const styles = {
-    section: { display: 'flex', flexDirection: 'column', gap: '16px' },
-    header: { display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' },
+    section: { display: 'flex', flexDirection: 'column' as const, gap: '16px' },
+    header: { display: 'flex', flexWrap: 'wrap' as const, gap: '12px', alignItems: 'center', justifyContent: 'space-between' as const },
     title: { fontSize: '18px', fontWeight: 600, color: '#0f172a' },
     pill: { fontSize: '12px', fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '4px 8px', borderRadius: '999px' },
     searchWrap: { position: 'relative' as const },
@@ -121,11 +121,11 @@ export default function ModuloSelector({ selected, onChange, showTitle = false }
     <section style={styles.section}>
       {(showTitle || hasItems) && (
         <div style={styles.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' as const }}>
             {showTitle && <h2 style={styles.title}>Módulos a contratar</h2>}
             {hasItems && <span style={styles.pill}>{filtered.length} módulos</span>}
           </div>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' as const, alignItems: 'center' }}>
             <div style={styles.searchWrap}>
               <input
                 type="search"

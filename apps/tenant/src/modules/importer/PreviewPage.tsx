@@ -29,6 +29,7 @@ import {
     listCategories,
     listItems,
     listProductItems,
+    listMappings,
     startExcelImport,
     promoteBatch,
     validateBatch,
