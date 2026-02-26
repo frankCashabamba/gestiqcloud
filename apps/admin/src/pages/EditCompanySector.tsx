@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
+
 import { useParams, useNavigate } from 'react-router-dom'
-import api from '../utils/axios'
+
 import SectorPlantillaSelector from '../components/SectorPlantillaSelector'
+import api from '../utils/axios'
 
 interface Empresa {
   id: string

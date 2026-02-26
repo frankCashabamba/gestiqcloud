@@ -1,8 +1,9 @@
 // src/services/empresa.ts
 
-import api from '../shared/api/client'
-import { ADMIN_COMPANIES } from '@shared/endpoints'
 import { createEmpresaService } from '@shared/domain/empresa'
+import { ADMIN_COMPANIES } from '@shared/endpoints'
+
+import api from '../shared/api/client'
 
 const svc = createEmpresaService(api, { base: ADMIN_COMPANIES.base })
 

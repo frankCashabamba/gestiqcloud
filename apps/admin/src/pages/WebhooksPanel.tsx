@@ -4,9 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { WebhooksList } from '../features/webhooks/WebhooksList';
-import { WebhookLogs } from '../features/webhooks/WebhookLogs';
+
 import { WebhookForm } from '../features/webhooks/WebhookForm';
+import { WebhookLogs } from '../features/webhooks/WebhookLogs';
+import { WebhooksList } from '../features/webhooks/WebhooksList';
 import { Webhook } from '../services/webhooks';
 import '../features/webhooks/styles.css';
 import '../features/webhooks/webhooks-page.css';

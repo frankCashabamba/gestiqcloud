@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+
 import { getWebhookLogs, WebhookLog } from '../../services/webhooks';
 import './styles.css';
 

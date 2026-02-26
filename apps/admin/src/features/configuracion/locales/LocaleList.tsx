@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { Link } from 'react-router-dom'
+
 import { listLocales, removeLocale, type Locale } from '../../../services/configuracion/locales'
 
 export default function LocaleList() {

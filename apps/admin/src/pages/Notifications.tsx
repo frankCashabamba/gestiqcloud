@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+
 import { NotificationCenter } from '../features/notifications/NotificationCenter';
 import '../features/notifications/styles.css';
 

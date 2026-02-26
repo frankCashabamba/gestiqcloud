@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { Link, useNavigate } from 'react-router-dom'
+
 import { listTipoNegocio, removeTipoNegocio, type TipoNegocio } from '../../../services/configuracion/tipo-negocio'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 

@@ -5,6 +5,8 @@
  */
 
 import React, { useState, useEffect } from 'react'
+
+import IncidentDetailModal from '../components/IncidentDetailModal'
 import { useAuthGuard } from '../hooks/useAuthGuard'
 import {
   listIncidents,
@@ -16,7 +18,7 @@ import {
   notifyStockAlert,
   resolveStockAlert
 } from '../services/incidents'
-import IncidentDetailModal from '../components/IncidentDetailModal'
+
 import type { Incident, StockAlert } from '../types/incidents'
 
 type Tab = 'activas' | 'resueltas' | 'stock_alerts'

@@ -3,8 +3,9 @@
  * Servicios API para logs del sistema
  */
 
-import type { LogEntry, LogFilters, LogStats } from '../types/logs'
 import { API_ENDPOINTS, API_BASE } from '../constants/api'
+
+import type { LogEntry, LogFilters, LogStats } from '../types/logs'
 
 const AUTH_HEADER = () => ({
   'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

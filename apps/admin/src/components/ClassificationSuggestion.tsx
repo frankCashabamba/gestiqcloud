@@ -2,6 +2,7 @@
 // Componente para mostrar sugerencia de clasificación de archivo
 
 import React from 'react'
+
 import { ClassifyResponse } from '../services/classify'
 
 interface ClassificationSuggestionProps {

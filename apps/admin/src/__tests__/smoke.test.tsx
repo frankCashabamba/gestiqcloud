@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import React from 'react'
+
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import React from 'react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
 
 vi.mock('@pwa', () => ({
   setupPWA: vi.fn(),

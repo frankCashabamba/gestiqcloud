@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { Link, useNavigate } from 'react-router-dom'
+
 import { listTiposImpuesto, removeTipoImpuesto, type TipoImpuesto } from '../../../services/configuracion/tipos-impuesto'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 

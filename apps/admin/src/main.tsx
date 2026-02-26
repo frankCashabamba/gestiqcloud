@@ -1,18 +1,22 @@
 import './i18n'
 import React from 'react'
+
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import App from './app/App'
-import { AuthProvider } from './auth/AuthContext'
-import { ToastProvider } from './shared/toast'
+
 import './index.css'
 import './style/admin-theme.css'
 import { setupPWA } from '@pwa'
 import { sendTelemetry } from '@shared'
 import { IdleLogout } from '@ui'
-import { useAuth } from './auth/AuthContext'
+import { BrowserRouter } from 'react-router-dom'
+
+
 import { EnvProvider } from '@ui/env'
+
+import App from './app/App'
+import { useAuth , AuthProvider } from './auth/AuthContext'
 import { env } from './env'
+import { ToastProvider } from './shared/toast'
 
 function IdleBridge() {
   const { logout } = useAuth()
@@ -23,7 +27,7 @@ function IdleBridge() {
 try {
   if (typeof window !== 'undefined') {
     // Activa trazas del cliente HTTP si quieres: window.__GC_DEBUG = true en consola
-    // eslint-disable-next-line no-console
+
     console.info('[admin] build', {
       mode: import.meta.env.MODE,
       apiUrl: import.meta.env.VITE_API_URL,

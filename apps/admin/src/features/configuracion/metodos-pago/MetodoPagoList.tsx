@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { Link, useNavigate } from 'react-router-dom'
+
 import { listMetodosPago, removeMetodoPago, type MetodoPagoPlantilla } from '../../../services/configuracion/metodos-pago'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 

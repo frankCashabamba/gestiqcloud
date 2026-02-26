@@ -1,11 +1,12 @@
 // src/pages/AdminPanel.tsx
 import React from 'react'
-import { useAuthGuard } from '../hooks/useAuthGuard'
+
 import { AdminCard } from '../components/AdminCard'
+import { GenericDashboard } from '../components/GenericDashboard'
 import { MetricCard } from '../components/MetricCard'
 import { SimpleLineChart } from '../components/SimpleLineChart'
-import { GenericDashboard } from '../components/GenericDashboard'
 import { useAdminStats } from '../hooks/useAdminStats'
+import { useAuthGuard } from '../hooks/useAuthGuard'
 import './admin-panel.css'
 
 type Card = {

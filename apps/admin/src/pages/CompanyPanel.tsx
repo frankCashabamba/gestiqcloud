@@ -1,11 +1,13 @@
 // src/pages/admin/empresas/EmpresaPanel.tsx <img src="/icons/empresas.png" alt="Empresas" className="w-7 h-7" />
 import React, { useState } from 'react';
+
 import { Link } from "react-router-dom";
+
 import { Container } from './Container';
+import { DeleteAllCompaniesModal } from '../components/DeleteAllCompaniesModal';
+import { DeleteEmpresaModal } from '../components/DeleteCompanyModal';
 import { useEmpresas } from '../hooks/useEmpresas';
 import { deleteAllEmpresas, deleteEmpresa, purgeOrphanCompanyData } from '../services/empresa';
-import { DeleteEmpresaModal } from '../components/DeleteCompanyModal';
-import { DeleteAllCompaniesModal } from '../components/DeleteAllCompaniesModal';
 
 export const EmpresaPanel: React.FC = () => {
   const { empresas, loading, error } = useEmpresas();

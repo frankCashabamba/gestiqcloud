@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react"
+
 import { sectorAdminConfigService, type SectorConfig, type UpdateSectorConfigRequest } from "../services/sectorAdminConfig"
 
 export function SectorConfigAdmin() {

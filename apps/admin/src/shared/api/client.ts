@@ -1,5 +1,6 @@
-import { createClient } from '@shared/http'
 import { ADMIN_AUTH } from '@shared/endpoints'
+import { createClient } from '@shared/http'
+
 import { env } from '../../env'
 
 // Base profesional: usamos el gateway con rutas '/v1/*' sin añadir '/api'

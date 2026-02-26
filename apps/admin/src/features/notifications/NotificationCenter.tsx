@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+
 import { useNotifications } from '../../hooks/useNotifications';
 import './styles.css';
 

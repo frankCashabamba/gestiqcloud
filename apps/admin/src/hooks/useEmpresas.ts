@@ -1,7 +1,9 @@
 // src/hooks/useEmpresas.ts
 import { useEffect, useState } from "react";
-import type { Empresa } from "../typesall/empresa";
+
 import { getEmpresas } from "../services/empresa";
+
+import type { Empresa } from "../typesall/empresa";
 
 export const useEmpresas = () => {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);

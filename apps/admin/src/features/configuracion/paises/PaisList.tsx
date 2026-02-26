@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { listPaises, removePais, type Pais } from '../../../services/configuracion/paises'
+
 import { Link } from 'react-router-dom'
+
+import { listPaises, removePais, type Pais } from '../../../services/configuracion/paises'
 
 export default function PaisList() {
   const [items, setItems] = useState<Pais[]>([])

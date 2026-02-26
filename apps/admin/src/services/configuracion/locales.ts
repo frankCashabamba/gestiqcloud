@@ -1,5 +1,6 @@
-import api from '../../shared/api/client'
 import { ADMIN_CONFIG } from '@shared/endpoints'
+
+import api from '../../shared/api/client'
 
 export type Locale = { code: string; name: string; active?: boolean }
 

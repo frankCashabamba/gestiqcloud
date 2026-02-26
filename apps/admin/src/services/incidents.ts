@@ -3,8 +3,9 @@
  * Servicios API para incidencias y alertas de stock
  */
 
-import type { Incident, StockAlert } from '../types/incidents'
 import { API_BASE, API_ENDPOINTS } from '../constants/api'
+
+import type { Incident, StockAlert } from '../types/incidents'
 
 const getAuthHeaders = () => ({
   'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

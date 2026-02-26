@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { useNavigate, useParams } from 'react-router-dom'
+
 import { createCategoriaGasto, getCategoriaGasto, updateCategoriaGasto, type CategoriaGasto as CategoriaGastoT } from '../../../services/configuracion/categorias-gasto'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 

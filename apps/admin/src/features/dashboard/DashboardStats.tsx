@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+
 import { StatCard } from './StatCard';
 import { DashboardKPIs } from '../../services/dashboard';
 import './styles.css';

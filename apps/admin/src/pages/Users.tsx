@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
+
 import { useAuthGuard } from '../hooks/useAuthGuard'
-import { useToast, getErrorMessage } from '../shared/toast'
 import {
   listUsuarios,
   reenviarReset,
@@ -10,6 +10,7 @@ import {
   setPasswordDirect,
   type AdminUsuario,
 } from '../services/usuarios'
+import { useToast, getErrorMessage } from '../shared/toast'
 
 export default function Usuarios() {
   // Solo superadmin puede ver/editar usuarios principales

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { Link } from 'react-router-dom'
+
 import { listTimezones, removeTimezone, type Timezone } from '../../../services/configuracion/timezones'
 
 export default function TimezoneList() {

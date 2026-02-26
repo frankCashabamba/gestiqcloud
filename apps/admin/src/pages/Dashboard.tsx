@@ -4,9 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { useDashboard } from '../hooks/useDashboard';
+
 import { DashboardStats } from '../features/dashboard/DashboardStats';
 import { KpiBoard } from '../features/dashboard/KpiBoard';
+import { useDashboard } from '../hooks/useDashboard';
 import '../features/dashboard/styles.css';
 import '../features/dashboard/dashboard-page.css';
 

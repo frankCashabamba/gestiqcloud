@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
+
 import 'react-toastify/dist/ReactToastify.css';
-import type { RoleData } from './types/roles';
 import { permisosToArray } from '@shared/utils/permissions';
-import type { GlobalPermission } from '../../../services/configuracion/permisos';
+
 import { apiPost, apiPut } from '../../../lib/api';
+
+import type { RoleData } from './types/roles';
+import type { GlobalPermission } from '../../../services/configuracion/permisos';
+
 // Layout no es necesario: ya hay LayoutAdmin en App
 
 interface RoleFormProps {

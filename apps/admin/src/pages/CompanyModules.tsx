@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
+
 import { Link, useParams } from 'react-router-dom'
+
 import { Container } from './Container'
-import type { CompanyModule, Module } from '../modulos/types'
 import { getEmpresa } from '../services/empresa'
 import { listEmpresaModulos, listModulosPublicos, removeEmpresaModulo, upsertEmpresaModulo } from '../services/modulos'
 import { getErrorMessage, useToast } from '../shared/toast'
+
+import type { CompanyModule, Module } from '../modulos/types'
 
 function fmtDate(value?: string | null) {
   if (!value) return '—'

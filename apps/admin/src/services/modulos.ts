@@ -1,7 +1,7 @@
-import api from '../shared/api/client'
 import { ADMIN_MODULES, ADMIN_COMPANY_MODULES } from '@shared/endpoints'
 
 import { Module, CompanyModule } from '../modulos/types'
+import api from '../shared/api/client'
 
 export type { Module, CompanyModule }
 

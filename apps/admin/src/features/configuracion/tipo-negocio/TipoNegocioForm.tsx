@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { useNavigate, useParams } from 'react-router-dom'
+
 import { createTipoNegocio, getTipoNegocio, updateTipoNegocio, type TipoNegocio as T } from '../../../services/configuracion/tipo-negocio'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 

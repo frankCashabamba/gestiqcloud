@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+
 import { DashboardKPIs } from '../../services/dashboard';
 import './styles.css';
 

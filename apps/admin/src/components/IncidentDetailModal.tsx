@@ -4,6 +4,7 @@
  */
 
 import React from 'react'
+
 import type { Incident } from '../types/incidents'
 
 interface Props {

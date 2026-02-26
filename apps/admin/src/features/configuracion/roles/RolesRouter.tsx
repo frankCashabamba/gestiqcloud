@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
+
 import { Routes, Route, Navigate } from 'react-router-dom';
-import RoleList from './RolesList';
-import RoleForm from './RoleForm';
+
 import ConfirmDelete from './ConfirmDelete';
 import EditWrapper from './EditWrapper';
-import type { Role, RoleData, RoleFromBackend } from './types/roles';
+import RoleForm from './RoleForm';
+import RoleList from './RolesList';
 import { apiGet, apiPost, apiPut, apiDelete } from '../../../lib/api';
 import { listPermisos, type GlobalPermission } from '../../../services/configuracion/permisos';
+
+import type { Role, RoleData, RoleFromBackend } from './types/roles';
 
 const RolesRouter: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);

@@ -1,5 +1,7 @@
 import React from 'react'
+
 import { Routes, Route, Navigate } from 'react-router-dom'
+
 import ModuleManagement from './ModuleManagement'
 import ModuloForm from './ModuloForm'
 

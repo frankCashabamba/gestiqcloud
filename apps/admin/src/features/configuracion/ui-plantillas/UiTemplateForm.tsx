@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+
 import { useNavigate, useParams } from 'react-router-dom'
+
 import { createUiTemplate, updateUiTemplate, listUiTemplates, type UiTemplateItem } from '../../../services/configuracion/uiTemplates'
 import { useToast } from '../../../shared/toast'
 

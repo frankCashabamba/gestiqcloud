@@ -1,13 +1,13 @@
 import React from 'react'
+
 import { Routes, Route, Outlet, Navigate } from 'react-router-dom'
+
+import SessionKeepAlive, { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast, OutboxIndicator } from '@shared/ui'
+
 import ProtectedRoute from './ProtectedRoute'
-import Login from '../pages/Login'
-import AdminPanel from '../pages/AdminPanel'
-import { LayoutAdmin } from '../style/LayoutAdmin'
-import { CrearEmpresa } from '../pages/CreateCompany'
-import { EmpresaPanel } from '../pages/CompanyPanel'
-import ImportarEmpresas from '../pages/ImportCompanies'
+import { useAuth } from '../auth/AuthContext'
 import ConfiguracionSistema from '../features/configuracion/ConfiguracionSistema'
+import ImportarEmpresas from '../pages/ImportCompanies'
 import ModuleRoutes from '../features/modulos/ModuleRoutes'
 import Usuarios from '../pages/Users'
 import AsignarNuevoAdmin from '../pages/AssignNewAdmin'
@@ -21,13 +21,15 @@ import LogsViewer from '../pages/LogsViewer'
 import IncidenciasPanel from '../pages/IncidentsPanel'
 import { SectorConfigAdmin } from '../pages/SectorConfigAdmin'
 import CountryPacksRoutes from '../modules/country-packs/Routes'
+import AdminPanel from '../pages/AdminPanel'
+import { EmpresaPanel } from '../pages/CompanyPanel'
+import { CrearEmpresa } from '../pages/CreateCompany'
 import { Dashboard } from '../pages/Dashboard'
+import Login from '../pages/Login'
 import { Notifications } from '../pages/Notifications'
 import { WebhooksPanel } from '../pages/WebhooksPanel'
+import { LayoutAdmin } from '../style/LayoutAdmin'
 
-import SessionKeepAlive from '@shared/ui'
-import { useAuth } from '../auth/AuthContext'
-import { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast, OutboxIndicator } from '@shared/ui'
 
 const SESSION_WARN_AFTER_MS = 9 * 60_000;
 const SESSION_RESPONSE_WINDOW_MS = 60_000;

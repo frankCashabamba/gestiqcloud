@@ -4,8 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react'
+
 import { useAuthGuard } from '../hooks/useAuthGuard'
 import { listLogs, exportLogs, getLogStats } from '../services/logs'
+
 import type { LogEntry, LogFilters, LogStats } from '../types/logs'
 
 export default function LogsViewer() {

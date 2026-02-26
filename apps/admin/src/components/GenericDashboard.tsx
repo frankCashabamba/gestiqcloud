@@ -5,8 +5,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { apiClient } from "../services/api";
+
 import { GenericWidget } from "./GenericWidget";
+import { apiClient } from "../services/api";
 import "./generic-components.css";
 
 interface UiSection {

@@ -1,5 +1,6 @@
-import api from '../shared/api/client'
 import { ADMIN_USERS } from '@shared/endpoints'
+
+import api from '../shared/api/client'
 
 export type AdminUsuario = {
   id: string | number

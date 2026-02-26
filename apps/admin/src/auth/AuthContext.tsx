@@ -1,8 +1,10 @@
 // AuthContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+
 import { createSharedClient } from '@shared'
-import { registerAuthHandlers } from '../lib/http'
+
 import { env } from '../env'
+import { registerAuthHandlers } from '../lib/http'
 
 const api = createSharedClient({
     baseURL: env.apiUrl,

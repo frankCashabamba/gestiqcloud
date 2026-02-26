@@ -1,5 +1,6 @@
-import api from '../../shared/api/client'
 import { ADMIN_CONFIG } from '@shared/endpoints'
+
+import api from '../../shared/api/client'
 
 export type Pais = {
   id: number

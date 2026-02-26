@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react'
-import ModuloSelector from '../modulos/ModuloSelector'
-import { useCrearEmpresa } from '../hooks/useCrearEmpresa'
-import type { FormularioEmpresa } from '../typesall/empresa'
+
 import SectorPlantillaSelector, { type SectorTemplate } from '../components/SectorPlantillaSelector'
-import { listPaises, type Pais } from '../services/configuracion/paises'
-import { listMonedas, type Moneda } from '../services/configuracion/monedas'
+import { useCrearEmpresa } from '../hooks/useCrearEmpresa'
+import ModuloSelector from '../modulos/ModuloSelector'
 import { listLocales, type Locale } from '../services/configuracion/locales'
+import { listMonedas, type Moneda } from '../services/configuracion/monedas'
+import { listPaises, type Pais } from '../services/configuracion/paises'
 import { listTimezones, type Timezone } from '../services/configuracion/timezones'
+
+import type { FormularioEmpresa } from '../typesall/empresa'
 
 const INITIAL_STATE: FormularioEmpresa = {
   nombre_empresa: '',
@@ -188,7 +190,7 @@ export const CrearEmpresa: React.FC = () => {
       if (!v) return true
       try {
         // Permite sin protocolo
-        // eslint-disable-next-line no-new
+
         new URL(v.startsWith('http') ? v : `http://${v}`)
         return true
       } catch {
