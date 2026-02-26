@@ -9,10 +9,16 @@ interface ModuleCardProps {
     description?: string
     category?: string
     required?: boolean
+    dependencies?: string[]
   }
   onToggle: (moduleId: string, enabled: boolean) => void
   onClick: (moduleId: string) => void
   disabled?: boolean
+}
+
+const badgeColors = {
+  on: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  off: 'bg-gray-100 text-gray-600 border-gray-200'
 }
 
 export default function ModuleCard({ module, onToggle, onClick, disabled = false }: ModuleCardProps) {
@@ -26,66 +32,70 @@ export default function ModuleCard({ module, onToggle, onClick, disabled = false
     <div
       onClick={() => onClick(module.id)}
       className={`
-        relative p-5 rounded-lg border-2 transition-all cursor-pointer
-        hover:shadow-lg hover:-translate-y-1
-        ${module.enabled
-          ? 'border-green-500 bg-green-50'
-          : 'border-gray-300 bg-gray-50 opacity-75'
-        }
+        relative p-5 rounded-xl border transition-all cursor-pointer bg-white
+        shadow-sm hover:shadow-md hover:-translate-y-0.5
+        ${module.enabled ? 'border-emerald-200' : 'border-gray-200'}
+        ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
       `}
     >
-      {/* Badge Estado */}
-      <div className="absolute top-3 right-3">
+      {/* Estado */}
+      <div className="absolute top-3 right-3 flex items-center gap-2">
+        {module.required && (
+          <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+            Requerido
+          </span>
+        )}
         <span
-          className={`
-            px-2 py-1 text-xs font-semibold rounded-full
-            ${module.enabled
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-400 text-white'
-            }
-          `}
+          className={`text-[11px] font-semibold px-2 py-1 rounded-full border ${
+            module.enabled ? badgeColors.on : badgeColors.off
+          }`}
         >
-          {module.enabled ? '✓ ACTIVE' : '⊗ INACTIVE'}
+          {module.enabled ? 'Activo' : 'Inactivo'}
         </span>
       </div>
 
-      {/* Icono */}
-      <div className="flex items-center mb-3">
-        <div className="text-4xl mr-3">{module.icon}</div>
+      {/* Icono + título */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center text-2xl">
+          {module.icon || '📦'}
+        </div>
         <div>
-          <h3 className="font-semibold text-lg text-gray-800">
-            {module.name}
-          </h3>
+          <h3 className="font-semibold text-lg text-gray-900 leading-tight">{module.name}</h3>
           {module.category && (
-            <p className="text-xs text-gray-500 uppercase">
-              {module.category}
-            </p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide">{module.category}</p>
           )}
         </div>
       </div>
 
       {/* Descripción */}
       {module.description && (
-        <p className="text-sm text-gray-600 mb-4 min-h-[40px]">
-          {module.description}
-        </p>
+        <p className="text-sm text-gray-600 mb-4 line-clamp-3">{module.description}</p>
       )}
 
-      {/* Toggle Switch */}
-      <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-        <span className="text-sm font-medium text-gray-700">
-          {module.enabled ? 'Deactivate' : 'Activate'}
-        </span>
+      {/* Dependencias */}
+      {module.dependencies && module.dependencies.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {module.dependencies.map(dep => (
+            <span
+              key={dep}
+              className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full border border-gray-200"
+            >
+              Depende de: {dep}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Toggle */}
+      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+        <div className="text-sm text-gray-700">
+          {module.enabled ? 'Desactivar' : 'Activar'}
+        </div>
         <button
           onClick={handleToggle}
           className={`
-            relative inline-flex h-6 w-11 items-center rounded-full
-            transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
-            ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-            ${module.enabled
-              ? 'bg-green-600 focus:ring-green-500'
-              : 'bg-gray-300 focus:ring-gray-400'
-            }
+            relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none
+            ${module.enabled ? 'bg-emerald-500' : 'bg-gray-300'}
           `}
           aria-label={`Toggle ${module.name}`}
           disabled={disabled || module.required}
@@ -93,14 +103,14 @@ export default function ModuleCard({ module, onToggle, onClick, disabled = false
           <span
             className={`
               inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-              ${module.enabled ? 'translate-x-6' : 'translate-x-1'}
+              ${module.enabled ? 'translate-x-5' : 'translate-x-1'}
             `}
           />
         </button>
       </div>
 
-      {/* Click overlay */}
-      <div className="absolute inset-0 rounded-lg hover:bg-black hover:bg-opacity-5 pointer-events-none" />
+      {/* Hover overlay */}
+      <div className="absolute inset-0 rounded-xl pointer-events-none border border-transparent hover:border-blue-100" />
     </div>
   )
 }

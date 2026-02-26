@@ -6,6 +6,7 @@ import os
 import re
 from collections.abc import Iterator
 from contextlib import asynccontextmanager, contextmanager
+from pathlib import Path
 
 from fastapi import Request
 from sqlalchemy import create_engine, event, text
@@ -25,6 +26,23 @@ def make_db_url() -> str:
     o deja esta lógica activa en prod. Ajusta a tu política.
     """
     url = settings.database_url
+
+    # Extra safety: when running under pytest, force SQLite unless explicitly allowed.
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        allow_pg = os.getenv("ALLOW_TEST_NON_SQLITE_DB", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if not allow_pg and not str(url).startswith("sqlite"):
+            default_sqlite = Path(__file__).resolve().parents[2] / "test.db"
+            url = f"sqlite:///{default_sqlite.as_posix()}"
+            logger.warning(
+                "[database] Forzando SQLite para tests: %s -> %s (set ALLOW_TEST_NON_SQLITE_DB=1 para permitir Postgres)",
+                _mask(str(settings.database_url)),
+                url,
+            )
+
     if settings.ENVIRONMENT == "production" and "sslmode" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslmode=require"

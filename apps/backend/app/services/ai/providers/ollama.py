@@ -28,8 +28,17 @@ class OllamaProvider(BaseAIProvider):
 
     def __init__(self, config: dict[str, Any]):
         super().__init__("ollama", config)
-        self.base_url = config.get("url", "http://localhost:11434")
-        self.default_model = config.get("model", "llama3.1:8b")
+        self.base_url = (config.get("url") or "http://127.0.0.1:11434").rstrip("/")
+        self.endpoint = (config.get("endpoint") or "/api/chat").strip()
+        # Allow passing full endpoint URL (e.g., http://127.0.0.1:11434/api/chat)
+        if self.endpoint.startswith("http"):
+            self._endpoint_url = self.endpoint.rstrip("/")
+        else:
+            normalized_endpoint = self.endpoint if self.endpoint.startswith("/") else f"/{self.endpoint}"
+            self._endpoint_url = f"{self.base_url}{normalized_endpoint}"
+
+        self.use_chat_api = "chat" in self.endpoint
+        self.default_model = config.get("model", "qwen2.5:3b")
         self.request_timeout = config.get("timeout", 120.0)
 
     async def call(self, request: AIRequest) -> AIResponse:
@@ -48,32 +57,57 @@ class OllamaProvider(BaseAIProvider):
                 )
 
             prompt = self._prepare_prompt(request)
-            payload = {
-                "model": selected_model,
-                "prompt": prompt,
-                "stream": False,
-                "temperature": request.temperature,
-            }
+            if self.use_chat_api:
+                options: dict[str, Any] = {"temperature": request.temperature}
+                if request.max_tokens:
+                    options["num_predict"] = request.max_tokens
 
-            if request.max_tokens:
-                payload["num_predict"] = request.max_tokens
+                payload = {
+                    "model": selected_model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "options": options,
+                }
+            else:
+                payload = {
+                    "model": selected_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "temperature": request.temperature,
+                }
+                if request.max_tokens:
+                    payload["num_predict"] = request.max_tokens
 
             async with _ollama_semaphore:
                 async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-                    response = await client.post(f"{self.base_url}/api/generate", json=payload)
+                    response = await client.post(self._endpoint_url, json=payload)
                     response.raise_for_status()
                     data = response.json()
 
+            if self.use_chat_api:
+                content = (
+                    (data.get("message") or {}).get("content")
+                    or data.get("response")
+                    or ""
+                ).strip()
+                tokens_used = data.get("eval_count") or data.get("total_tokens")
+                eval_duration = data.get("eval_duration") or data.get("total_duration")
+            else:
+                content = data.get("response", "").strip()
+                tokens_used = data.get("eval_count", 0)
+                eval_duration = data.get("eval_duration")
+
             return AIResponse(
                 task=request.task,
-                content=data.get("response", "").strip(),
+                content=content,
                 model=selected_model,
-                tokens_used=data.get("eval_count", 0),
+                tokens_used=tokens_used or 0,
                 processing_time_ms=int((time.time() - start_time) * 1000),
                 metadata={
                     "provider": "ollama",
                     "temperature": request.temperature,
-                    "eval_duration_ns": data.get("eval_duration"),
+                    "endpoint": self.endpoint,
+                    "eval_duration_ns": eval_duration,
                 },
             )
 
@@ -98,7 +132,7 @@ class OllamaProvider(BaseAIProvider):
                 "Ollama returned HTTP %s for model '%s' at %s. details=%s",
                 status,
                 selected_model,
-                f"{self.base_url}/api/generate",
+                self._endpoint_url,
                 details[:300],
             )
             error_msg = f"Ollama HTTP {status}"
@@ -139,11 +173,12 @@ class OllamaProvider(BaseAIProvider):
         configured = model_name(self.default_model)
         if configured:
             return configured
-        return AIModel.LLAMA3_1_8B.value
+        return AIModel.QWEN2_5_3B.value
 
     def get_supported_models(self) -> list[AIModel]:
         """Modelos soportados historicamente por esta app para Ollama."""
         return [
+            AIModel.QWEN2_5_3B,
             AIModel.LLAMA3_1_8B,
             AIModel.LLAMA3_1_70B,
             AIModel.MISTRAL_7B,

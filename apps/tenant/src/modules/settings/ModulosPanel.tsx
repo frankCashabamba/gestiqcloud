@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ModuleCard from './components/ModuleCard'
 import ModuleConfigForm from './components/ModuleConfigForm'
@@ -35,15 +35,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function ModulosPanel() {
   const { t } = useTranslation()
+  const { success, error, warning } = useToast()
+
   const [modules, setModules] = useState<Module[]>([])
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [activeTab, setActiveTab] = useState<string>('Todos')
+  const [searchTerm, setSearchTerm] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [savingModuleId, setSavingModuleId] = useState<string | null>(null)
-  const { success, error, warning } = useToast()
+  const [bulkLoading, setBulkLoading] = useState<boolean>(false)
 
-  // Cargar módulos desde la BBDD para reflejar el estado real del cliente
   const loadModules = useCallback(async () => {
     setLoading(true)
     setFetchError(null)
@@ -67,8 +69,7 @@ export default function ModulosPanel() {
         config: m.config || {}
       }))
 
-      // Respeta la configuración guardada en la base: no mostrar módulos marcados como inactivos
-      setModules(normalized.filter(m => m.enabled || normalized.length === 0))
+      setModules(normalized)
     } catch (e: any) {
       const message = getErrorMessage(e)
       setFetchError(message)
@@ -76,22 +77,30 @@ export default function ModulosPanel() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [error])
 
   useEffect(() => {
     loadModules()
+  }, [loadModules])
 
-  }, [])
+  const categories = useMemo(
+    () => ['Todos', ...Array.from(new Set(modules.map(m => m.category)))],
+    [modules]
+  )
 
-  // Categorías únicas
-  const categories = ['Todos', ...Array.from(new Set(modules.map(m => m.category)))]
+  const filteredModules = useMemo(() => {
+    const byCategory = activeTab === 'Todos'
+      ? modules
+      : modules.filter(m => m.category === activeTab)
+    if (!searchTerm.trim()) return byCategory
+    const q = searchTerm.toLowerCase()
+    return byCategory.filter(m =>
+      m.name.toLowerCase().includes(q) ||
+      (m.description || '').toLowerCase().includes(q) ||
+      (m.category || '').toLowerCase().includes(q)
+    )
+  }, [modules, activeTab, searchTerm])
 
-  // Filtrar módulos por categoría
-  const filteredModules = activeTab === 'Todos'
-    ? modules
-    : modules.filter(m => m.category === activeTab)
-
-  // Toggle módulo con persistencia en BBDD
   const handleToggle = async (moduleId: string, enabled: boolean) => {
     const module = modules.find(m => m.id === moduleId)
     if (!module) return
@@ -121,7 +130,25 @@ export default function ModulosPanel() {
     }
   }
 
-  // Abrir configuración: se lee del backend en tiempo real
+  const handleToggleAll = async (enable: boolean) => {
+    const targets = filteredModules.filter(m => m.enabled !== enable && !m.required)
+    if (targets.length === 0) return
+    setBulkLoading(true)
+    try {
+      await Promise.all(
+        targets.map(m => enable ? enableModule(m.id) : disableModule(m.id))
+      )
+      setModules(prev => prev.map(m =>
+        targets.some(t => t.id === m.id) ? { ...m, enabled: enable } : m
+      ))
+      success(enable ? 'Módulos activados' : 'Módulos desactivados')
+    } catch (e: any) {
+      error(getErrorMessage(e))
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const handleClickModule = async (moduleId: string) => {
     const module = modules.find(m => m.id === moduleId)
     if (!module) return
@@ -136,7 +163,6 @@ export default function ModulosPanel() {
     }
   }
 
-  // Guardar configuración de módulo
   const handleSaveConfig = async (moduleId: string, config: any) => {
     try {
       await updateModuleSettings(moduleId, config)
@@ -167,15 +193,46 @@ export default function ModulosPanel() {
       )}
 
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Módulos del Sistema
-        </h1>
-        <p className="text-gray-600">
-          Activa o desactiva módulos según las necesidades de tu negocio
-        </p>
-        <div className="mt-4 inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold">
-          {t('settings.modulesActive', { active: activeCount, total: totalCount })}
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">
+            Módulos del Sistema
+          </h1>
+          <p className="text-gray-600">
+            Activa o desactiva módulos según las necesidades de tu negocio
+          </p>
+          <div className="mt-2 inline-flex items-center gap-2 bg-blue-50 text-blue-800 px-3 py-1.5 rounded-full text-sm font-semibold">
+            <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+            {t('settings.modulesActive', { active: activeCount, total: totalCount })}
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          <div className="relative w-full sm:w-72">
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nombre, categoría o descripción"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            />
+            <span className="absolute right-3 top-2.5 text-gray-400">🔍</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleToggleAll(true)}
+              disabled={bulkLoading}
+              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-60"
+            >
+              Activar visibles
+            </button>
+            <button
+              onClick={() => handleToggleAll(false)}
+              disabled={bulkLoading}
+              className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-300 disabled:opacity-60"
+            >
+              Desactivar visibles
+            </button>
+          </div>
         </div>
       </div>
 
@@ -187,11 +244,10 @@ export default function ModulosPanel() {
               key={cat}
               onClick={() => setActiveTab(cat)}
               className={`
-                px-4 py-2 font-medium transition-colors whitespace-nowrap
+                px-4 py-2 font-medium transition-colors whitespace-nowrap rounded-t-md
                 ${activeTab === cat
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-                }
+                  ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-800'}
               `}
             >
               {cat}
@@ -212,7 +268,7 @@ export default function ModulosPanel() {
           <ModuleCard
             key={module.id}
             module={module}
-            disabled={savingModuleId === module.id}
+            disabled={savingModuleId === module.id || bulkLoading}
             onToggle={handleToggle}
             onClick={handleClickModule}
           />

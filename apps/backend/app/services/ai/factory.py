@@ -77,9 +77,10 @@ class AIProviderFactory:
                 "url": (
                     os.getenv("OLLAMA_BASE_URL")
                     or os.getenv("OLLAMA_URL")
-                    or "http://localhost:11434"
+                    or "http://127.0.0.1:11434"
                 ),
-                "model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"),
+                "endpoint": os.getenv("OLLAMA_ENDPOINT", "/api/chat"),
+                "model": os.getenv("OLLAMA_MODEL", "qwen2.5:3b"),
                 "timeout": float(os.getenv("OLLAMA_TIMEOUT", "120")),
                 "health_check_timeout": float(os.getenv("OLLAMA_HEALTH_TIMEOUT", "5")),
                 "max_prompt_length": int(os.getenv("AI_MAX_PROMPT_LENGTH", "10000")),

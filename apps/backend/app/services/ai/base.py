@@ -21,6 +21,7 @@ class AIModel(str, Enum):
     LLAMA3_1_70B = "llama3.1:70b"
     MISTRAL_7B = "mistral:7b"
     NEURAL_CHAT = "neural-chat:7b"
+    QWEN2_5_3B = "qwen2.5:3b"
 
     # OVHCloud / OpenAI
     GPT_4O = "gpt-4o"

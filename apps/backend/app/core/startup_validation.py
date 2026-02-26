@@ -13,8 +13,19 @@ logger = logging.getLogger("app.startup_validation")
 
 class ConfigValidationError(Exception):
     """Excepción cuando falta configuración crítica."""
-
     pass
+
+
+def _is_local_url(value: str) -> bool:
+    value = (value or "").lower()
+    return "localhost" in value or "127.0.0.1" in value
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
 
 
 def validate_critical_config() -> None:
@@ -25,6 +36,9 @@ def validate_critical_config() -> None:
     """
     environment = os.getenv("ENVIRONMENT", "development").lower()
     validation_errors: list[str] = []
+
+    allow_local_redis = _env_flag("ALLOW_LOCAL_REDIS_IN_PROD", default=False)
+    allow_local_db = _env_flag("ALLOW_LOCAL_DB_IN_PROD", default=False)
 
     # En producción, validaciones más estrictas
     if environment == "production":
@@ -40,19 +54,32 @@ def validate_critical_config() -> None:
 
         # 2. Redis configuration
         redis_url = os.getenv("REDIS_URL", "").strip()
-        if not redis_url or "localhost" in redis_url or "127.0.0.1" in redis_url:
+        if not redis_url:
             validation_errors.append(
-                "❌ REDIS_URL not configured or points to localhost. "
-                "Production must use external Redis. "
+                "❌ REDIS_URL not configured. "
                 "Example: REDIS_URL=redis://cache.internal:6379/1"
+            )
+        elif _is_local_url(redis_url) and not allow_local_redis:
+            validation_errors.append(
+                "❌ REDIS_URL points to localhost in production. "
+                "If this is a single-host self-hosted deployment, set "
+                "ALLOW_LOCAL_REDIS_IN_PROD=true. "
+                "Example: REDIS_URL=redis://127.0.0.1:6379/1"
             )
 
         # 3. Database configuration
         db_url = os.getenv("DATABASE_URL", "").strip()
-        if not db_url or "localhost" in db_url or "127.0.0.1" in db_url:
+        if not db_url:
             validation_errors.append(
-                "❌ DATABASE_URL not configured or points to localhost. "
+                "❌ DATABASE_URL not configured. "
                 "Example: DATABASE_URL=postgresql://user:pass@db.internal/gestiqcloud"
+            )
+        elif _is_local_url(db_url) and not allow_local_db:
+            validation_errors.append(
+                "❌ DATABASE_URL points to localhost in production. "
+                "If this is a single-host self-hosted deployment, set "
+                "ALLOW_LOCAL_DB_IN_PROD=true. "
+                "Example: DATABASE_URL=postgresql://user:pass@127.0.0.1:5432/gestiqcloud"
             )
 
         # 4. CORS configuration
@@ -63,7 +90,6 @@ def validate_critical_config() -> None:
                 "   Example: CORS_ORIGINS=https://www.gestiqcloud.com,https://admin.gestiqcloud.com"
             )
         else:
-            # Validate no localhost in production
             origins_lower = cors_origins.lower()
             if "localhost" in origins_lower or "127.0.0.1" in origins_lower:
                 validation_errors.append(
@@ -78,6 +104,7 @@ def validate_critical_config() -> None:
             "secret",
             "changeme",
         }
+
         secret_key = os.getenv("SECRET_KEY", "").strip()
         if not secret_key or secret_key.lower() in _PLACEHOLDER_SECRETS:
             validation_errors.append(
@@ -96,7 +123,6 @@ def validate_critical_config() -> None:
         # Development: validaciones menos estrictas pero aún recomendaciones
         logger.info("🔓 Validating DEVELOPMENT configuration...")
 
-        # Avisos (no fatales)
         if not os.getenv("DEFAULT_FROM_EMAIL"):
             logger.warning(
                 "⚠️  DEFAULT_FROM_EMAIL not configured. "
@@ -111,7 +137,6 @@ def validate_critical_config() -> None:
                 "Set it: REDIS_URL=redis://localhost:6379/0"
             )
 
-    # Si hay errores críticos, levantamos excepción
     if validation_errors:
         error_message = "\n".join(validation_errors)
         logger.error(
@@ -148,15 +173,9 @@ def validate_feature_config(feature: str) -> bool:
         return True
 
     elif feature == "einvoicing":
-        # Check environment variables for certificate passwords
-        # Format: CERT_PASSWORD_{TENANT_ID}_{COUNTRY}
-        # Example: CERT_PASSWORD_tenant-123_ECU=password123
-        #          CERT_PASSWORD_tenant-123_ESP=password456
-        # For production, validate at least one is configured
         from app.config.settings import settings
 
         if settings.is_prod:
-            # In production, require specific configuration
             logger.warning(
                 "E-invoicing in production requires CERT_PASSWORD_{TENANT_ID}_{COUNTRY} "
                 "configured in environment or AWS Secrets Manager. "
@@ -178,17 +197,26 @@ def get_critical_config(key: str) -> str | None:
         Valor de la variable o None si no está configurada
 
     Raises:
-        ConfigValidationError: Si la variable tiene un valor peligroso (localhost)
+        ConfigValidationError: Si la variable tiene un valor peligroso
     """
     value = os.getenv(key, "").strip()
 
     if not value:
         return None
 
-    # Validar que no es localhost
-    if key in ["REDIS_URL", "DATABASE_URL", "VITE_ELECTRIC_URL"]:
-        environment = os.getenv("ENVIRONMENT", "development").lower()
-        if environment == "production" and ("localhost" in value or "127.0.0.1" in value):
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+
+    if environment == "production":
+        allow_local_redis = _env_flag("ALLOW_LOCAL_REDIS_IN_PROD", default=False)
+        allow_local_db = _env_flag("ALLOW_LOCAL_DB_IN_PROD", default=False)
+
+        if key == "REDIS_URL" and _is_local_url(value) and not allow_local_redis:
+            raise ConfigValidationError(f"{key} contains localhost in production: {value}")
+
+        if key == "DATABASE_URL" and _is_local_url(value) and not allow_local_db:
+            raise ConfigValidationError(f"{key} contains localhost in production: {value}")
+
+        if key == "VITE_ELECTRIC_URL" and _is_local_url(value):
             raise ConfigValidationError(f"{key} contains localhost in production: {value}")
 
     return value

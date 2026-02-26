@@ -95,6 +95,9 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, An
         elif any(
             kw in col_lower for kw in ["precio", "price", "pvp", "venta", "unitario", "valor"]
         ):
+            # Evitar columnas operativas como "venta diaria" que no son precio unitario
+            if "venta diaria" in col_lower or "venta_diaria" in col_lower:
+                continue
             if "precio" not in col_map:
                 col_map["precio"] = idx
 

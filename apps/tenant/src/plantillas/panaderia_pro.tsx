@@ -60,6 +60,10 @@ const PanaderiaDashboard: React.FC = () => {
   const stock = kpis.stock_critico || {}
   const mermas = kpis.mermas || {}
   const produccion = kpis.produccion || {}
+  const hornadasPendientes = Math.max(
+    (produccion.hornadas_programadas || 0) - (produccion.hornadas_completadas || 0),
+    0
+  )
   const ingredientes = kpis.ingredientes_caducar || {}
   const topProductos = kpis.top_productos || []
   const [quickOpen, setQuickOpen] = useState(false)
@@ -368,7 +372,7 @@ const PanaderiaDashboard: React.FC = () => {
             </div>
             <div className="pills">
               <span className="pill pill--ok">En curso</span>
-              <span className="pill">2 pendientes</span>
+              <span className="pill">{hornadasPendientes} pendientes</span>
             </div>
           </section>
         )}

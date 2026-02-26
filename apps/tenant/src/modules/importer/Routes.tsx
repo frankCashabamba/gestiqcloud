@@ -4,7 +4,6 @@ import ProtectedRoute from '../../auth/ProtectedRoute'
 import { useAuth } from '../../auth/AuthContext'
 import PermissionDenied from '../../components/PermissionDenied'
 import ImportadorExcelWithQueue from './ImportadorExcelWithQueue'
-import ImportadorWizard from './Wizard'
 import BatchesList from './imports/BatchesList'
 import BatchDetail from './imports/BatchDetail'
 import ProductosImportados from './ImportedProducts'
@@ -25,14 +24,7 @@ export default function ImportadorRoutes() {
       <ImportQueueProvider>
         <Routes>
           <Route index element={<ImportadorExcelWithQueue />} />
-          <Route
-            path="wizard"
-            element={
-              <ProtectedRoute permission="importer:create">
-                <ImportadorWizard />
-              </ProtectedRoute>
-            }
-          />
+          {/* Wizard eliminado */}
           <Route path="preview" element={<PreviewPage />} />
           <Route path="products" element={<ProductosImportados />} />
           <Route

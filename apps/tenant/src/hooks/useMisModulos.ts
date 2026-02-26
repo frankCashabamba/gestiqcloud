@@ -141,7 +141,25 @@ export function useMisModulos() {
           : (mods && Array.isArray((mods as any).items))
           ? (mods as any).items
           : []
-        if (!cancelled) setModules(dedupeModules(list).map(localizeModule))
+        // Fallback: asegúrate de que el importador exista al menos como entrada UI
+        const withImporter = (() => {
+          const hasImporter = list.some((m) => toSlug(m) === 'importer' || toSlug(m) === 'imports')
+          if (hasImporter) return list
+          return [
+            ...list,
+            {
+              id: 'importer',
+              name: 'Importador',
+              slug: 'importer',
+              url: '/imports',
+              icon: '📤',
+              active: true,
+              description: 'Importa archivos y mapea columnas.',
+            } as Modulo,
+          ]
+        })()
+
+        if (!cancelled) setModules(dedupeModules(withImporter).map(localizeModule))
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Error')
       } finally {
