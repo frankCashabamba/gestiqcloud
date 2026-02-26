@@ -806,7 +806,8 @@
       "reassignAndReprocess": "Reasignar mapeo + Reprocesar",
       "selectMapping": "Selecciona un mapeo...",
       "applying": "Aplicando...",
-      "applyAndReprocess": "Aplicar y reprocesar"
+      "applyAndReprocess": "Aplicar y reprocesar",
+      "deleteAllProcesses": "Eliminar todos los procesos"
     },
     "processing": {
       "message": "Procesando lote, esto puede tardar unos minutos...",
@@ -865,7 +866,8 @@
       "promoteGeneric": "¿Promover este lote?",
       "forceDeleteBatch": "¿Eliminar lote forzado?",
       "deleteBatchWithItems": "¿Eliminar este lote y todos sus items? Esta accion no se puede deshacer.",
-      "forceDeleteProcessingBatch": "¿Eliminar forzado este lote en procesamiento?"
+      "forceDeleteProcessingBatch": "¿Eliminar forzado este lote en procesamiento?",
+      "deleteAllProcesses": "¿Estás seguro de que deseas eliminar TODOS los procesos? Esta acción no se puede deshacer."
     },
     "errors": {
       "tenantNotFound": "tenant_id no encontrado",

@@ -40,9 +40,9 @@ import {
     deleteBatch,
     cancelBatch,
     setBatchMapping,
-    listMappings,
     deleteAllBatches,
 } from './services/importsApi'
+import { createColumnMapping } from './services/columnMappingApi'
 
 interface Batch {
     id: string
@@ -164,6 +164,29 @@ export default function PreviewPage() {
   const [confirmMessage, setConfirmMessage] = useState('')
   const confirmResolverRef = useRef<((ok: boolean) => void) | null>(null)
 
+  // Vista previa de columnas leÃ­das (primera fila del lote) para ayudar a mapear
+  const columnPreview = useMemo(() => {
+    if (!productos.length) return []
+    const first = productos[0]
+    const acc = new Map<string, string>()
+    const addEntries = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return
+      for (const [k, v] of Object.entries(obj)) {
+        const key = String(k)
+        if (acc.has(key)) continue
+        const val = v === null || v === undefined ? '' : String(v)
+        acc.set(key, val)
+      }
+    }
+    addEntries((first as any)?.raw?.datos)
+    addEntries((first as any)?.raw)
+    addEntries((first as any)?.normalized)
+    return Array.from(acc.entries()).map(([name, value]) => ({
+      name,
+      value: value.length > 120 ? `${value.slice(0, 117)}...` : value,
+    }))
+  }, [productos])
+
   const askConfirm = useCallback((message: string) => {
     setConfirmMessage(message)
     setConfirmOpen(true)
@@ -223,7 +246,10 @@ export default function PreviewPage() {
             setLoading(true)
             const data = await listBatchesByCompany(profile.tenant_id, token || undefined)
             const itemsRaw = Array.isArray(data) ? data : (data as any).items || []
-            const items = (itemsRaw as any[]).filter((b) => String(b?.status || '') !== 'PROMOTED')
+            const items = (itemsRaw as any[])
+                .filter((b) => String(b?.status || '') !== 'PROMOTED')
+                // Ocultar lotes READY sin filas
+                .filter((b) => !(String(b?.status || '') === 'READY' && Number(b?.item_count || 0) === 0))
 
             // If coming from a deep-link (?batch_id=...), ensure that batch exists in the list
             // so source_type-based UI works (products vs other) even if list endpoint is truncated.
@@ -1006,7 +1032,11 @@ export default function PreviewPage() {
                             </button>
                         )}
                         {selectedBatch && (
-                            <ReassignMappingInline batchId={selectedBatch} onAfter={() => { fetchBatches(); fetchProductos() }} />
+                            <ReassignMappingInline
+                              batchId={selectedBatch}
+                              productos={productos}
+                              onAfter={() => { fetchBatches(); fetchProductos() }}
+                            />
                         )}
                         <button
                             className="rounded-md border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
@@ -1048,7 +1078,7 @@ export default function PreviewPage() {
                             }}
                             disabled={deletingAllProcesses || batches.length === 0}
                         >
-                            {deletingAllProcesses ? 'Deleting...' : t('importerPreviewPage.actions.deleteAllProcesses')}
+                            {deletingAllProcesses ? t('importerPreviewPage.actions.deleting', 'Deleting...') : t('importerPreviewPage.actions.deleteAllProcesses')}
                         </button>
                         {batch && batch.status !== 'READY' && batch.status !== 'ERROR' && (
                             <>
@@ -1173,11 +1203,36 @@ export default function PreviewPage() {
                                 </div>
                             )}
                         </div>
-                    </div>
+                </div>
 
-                    {/* Tabla de productos */}
-                    {productos.length > 0 && isProductsBatch && (
-                        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                {/* Vista rápida de columnas detectadas para ayudar al mapeo */}
+                {columnPreview.length > 0 && isProductsBatch && (
+                  <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {t('importerPreviewPage.columnPreview.title', { defaultValue: 'Columnas detectadas en el lote' })}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {t('importerPreviewPage.columnPreview.help', { defaultValue: 'Muestra la primera fila procesada; úsala para validar que el mapeo corresponda a tus campos.' })}
+                        </p>
+                      </div>
+                      <span className="text-xs text-slate-500">{t('importerPreviewPage.columnPreview.count', { defaultValue: `${columnPreview.length} columnas`, count: columnPreview.length })}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                      {columnPreview.slice(0, 24).map((col) => (
+                        <div key={col.name} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div className="text-xs font-semibold text-slate-700 break-all">{col.name}</div>
+                          <div className="text-xs text-slate-600 break-words">{col.value || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabla de productos */}
+                {productos.length > 0 && isProductsBatch && (
+                    <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                             {selectedBatchObj && !isProductsBatch && (
                                 <div className="bg-amber-50 px-4 py-2 text-xs text-amber-700 border-b border-amber-200">
                                     {t('importerPreviewPage.productTable.batchTypeNotice', { type: inferredBatchType || selectedBatchObj.source_type })}
@@ -1786,12 +1841,21 @@ export default function PreviewPage() {
     )
 }
 
-function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?: () => void }) {
+function ReassignMappingInline({
+    batchId,
+    onAfter,
+    productos = [],
+}: {
+    batchId: string
+    onAfter?: () => void
+    productos?: any[]
+}) {
     const { token } = useAuth() as any
     const { t } = useTranslation()
     const toast = useToast()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [autoLoading, setAutoLoading] = useState(false)
     const [mappings, setMappings] = useState<{ id: string; name: string }[]>([])
     const [selected, setSelected] = useState<string>('')
     useEffect(() => {
@@ -1821,6 +1885,56 @@ function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?
             setLoading(false)
         }
     }
+
+    const applyFromAliases = async () => {
+        if (!batchId || productos.length === 0) {
+            toast.error(t('importerPreviewPage.errors.noBatchSelected'))
+            return
+        }
+        setAutoLoading(true)
+        try {
+            const p = productos[0] as any
+            const raw = (p?.raw?.datos) || p?.raw || p?.normalized || {}
+            const headers = Object.keys(raw || {})
+            const findHeader = (aliases: string[]) => {
+                const H = headers.map((h) => h.toLowerCase())
+                const al = aliases.map((a) => a.toLowerCase())
+                const idx = H.findIndex((h) => al.some((a) => h.includes(a)))
+                return idx >= 0 ? headers[idx] : null
+            }
+            const priceHeader = findHeader(['precio unitario venta', 'precio_unitario', 'unit price', 'p unit', 'pvp', 'precio'])
+            if (!priceHeader) {
+                toast.error(t('importerPreviewPage.errors.reassignMappingFailed'))
+                setAutoLoading(false)
+                return
+            }
+            const nameHeader = findHeader(['producto', 'nombre', 'descripcion', 'articulo', 'item', 'detalle'])
+            const stockHeader = findHeader(['cantidad', 'stock', 'existencias', 'qty'])
+            const mapping: Record<string, string> = {}
+            if (nameHeader) mapping['nombre'] = nameHeader
+            mapping['precio'] = priceHeader
+            mapping['precio_venta'] = priceHeader
+            if (stockHeader) mapping['stock'] = stockHeader
+
+            const created = await createColumnMapping({
+                name: `auto-alias-${batchId}`,
+                mapping,
+                description: 'Generado desde aliases dinámicos',
+                file_pattern: null,
+            })
+
+            await setBatchMapping(batchId, created.id, token || undefined)
+            await resetBatch(batchId, { clearItems: true, newStatus: 'PENDING' }, token || undefined)
+            await startExcelImport(batchId, token || undefined)
+            setOpen(false)
+            if (onAfter) onAfter()
+        } catch (err: any) {
+            console.error('Auto mapping alias falló', err)
+            toast.error(err?.message || t('importerPreviewPage.errors.reassignMappingFailed'))
+        } finally {
+            setAutoLoading(false)
+        }
+    }
     return (
         <>
             {!open ? (
@@ -1835,6 +1949,11 @@ function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?
                         {mappings.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
                     </select>
                     <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50" onClick={apply} disabled={!selected || loading}>{loading ? t('importerPreviewPage.actions.applying') : t('importerPreviewPage.actions.applyAndReprocess')}</button>
+                    <button className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50" onClick={applyFromAliases} disabled={autoLoading}>
+                      {autoLoading
+                        ? t('importerPreviewPage.actions.applying')
+                        : t('importerPreviewPage.actions.applyAliasesAndReprocess', { defaultValue: 'Usar aliases y reprocesar' })}
+                    </button>
                     <button className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100" onClick={() => setOpen(false)}>{t('common.cancel')}</button>
                 </div>
             )}

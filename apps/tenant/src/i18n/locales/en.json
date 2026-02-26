@@ -791,7 +791,8 @@
       "reassignAndReprocess": "Reassign mapping + Reprocess",
       "selectMapping": "Select a mapping...",
       "applying": "Applying...",
-      "applyAndReprocess": "Apply and reprocess"
+      "applyAndReprocess": "Apply and reprocess",
+      "deleteAllProcesses": "Delete all processes"
     },
     "processing": {
       "message": "Processing batch, this may take a few minutes...",
@@ -850,7 +851,8 @@
       "promoteGeneric": "Promote this batch?",
       "forceDeleteBatch": "Force delete batch?",
       "deleteBatchWithItems": "Delete this batch and all its items? This action cannot be undone.",
-      "forceDeleteProcessingBatch": "Force delete this processing batch?"
+      "forceDeleteProcessingBatch": "Force delete this processing batch?",
+      "deleteAllProcesses": "Are you sure you want to delete ALL processes? This cannot be undone."
     },
     "errors": {
       "tenantNotFound": "tenant_id not found",

@@ -13,6 +13,7 @@ logger = logging.getLogger("app.startup_validation")
 
 class ConfigValidationError(Exception):
     """Excepción cuando falta configuración crítica."""
+
     pass
 
 
@@ -56,8 +57,7 @@ def validate_critical_config() -> None:
         redis_url = os.getenv("REDIS_URL", "").strip()
         if not redis_url:
             validation_errors.append(
-                "❌ REDIS_URL not configured. "
-                "Example: REDIS_URL=redis://cache.internal:6379/1"
+                "❌ REDIS_URL not configured. " "Example: REDIS_URL=redis://cache.internal:6379/1"
             )
         elif _is_local_url(redis_url) and not allow_local_redis:
             validation_errors.append(

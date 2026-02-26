@@ -11,6 +11,7 @@ import {
     deleteImportTemplate,
     type ImportTemplate
 } from '../services/templates'
+import { useAuth } from '../../../auth/AuthContext'
 
 interface Props {
     isOpen: boolean
@@ -22,6 +23,7 @@ interface Props {
 export default function TemplateManager({ isOpen, onClose, onSelect, sourceType }: Props) {
     const { t } = useTranslation('importer')
     const toast = useToast()
+    const { token } = useAuth() as { token: string | null }
     const [templates, setTemplates] = useState<ImportTemplate[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
         setLoading(true)
         setError(null)
         try {
-            const data = await listImportTemplates(sourceType)
+            const data = await listImportTemplates(sourceType, token || undefined)
             setTemplates(data)
         } catch (err: any) {
             setError(err?.message || t('templateManager.errors.loadFailed'))
@@ -61,7 +63,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
 
         setDeletingId(confirmDeleteId)
         try {
-            await deleteImportTemplate(confirmDeleteId)
+            await deleteImportTemplate(confirmDeleteId, token || undefined)
             await loadTemplates() // Recargar lista
         } catch (err: any) {
             toast.error(err?.message || t('templateManager.errors.deleteFailed'))

@@ -40,13 +40,16 @@ export default function ImportadorLayout({
   const { profile, token } = useAuth()
   const canManageImporterSettings = isCompanyAdmin(profile, token)
 
-  const navItems = React.useMemo(() => ([
-    { to: '.', label: t('importerNav.import') },
-    { to: 'preview', label: t('importerNav.preview') },
-    { to: 'batches', label: t('importerNav.batches') },
-    { to: 'products', label: t('importerNav.products') },
-    ...(canManageImporterSettings ? [{ to: 'settings', label: t('importerNav.settings') }] : []),
-  ]), [t, canManageImporterSettings])
+  const navItems = React.useMemo(
+    () => [
+      { to: '.', label: t('importerNav.import') },
+      { to: 'preview', label: t('importerNav.preview') },
+      { to: 'batches', label: t('importerNav.batches') },
+      { to: 'products', label: t('importerNav.products') },
+      ...(canManageImporterSettings ? [{ to: 'settings', label: t('importerNav.settings') }] : []),
+    ],
+    [t, canManageImporterSettings]
+  )
 
   return (
     <div className="gc-container gc-stack pb-12">

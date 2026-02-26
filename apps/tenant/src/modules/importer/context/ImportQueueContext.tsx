@@ -17,6 +17,7 @@ const OCR_RECHECK_DELAY_MS = Number(env.VITE_IMPORTS_JOB_RECHECK_INTERVAL ?? 200
 const OCR_MAX_POLL_ATTEMPTS = Number(env.VITE_IMPORTS_JOB_POLL_ATTEMPTS ?? 120)
 const OCR_MAX_WAIT_MS = Number(env.VITE_IMPORTS_JOB_MAX_WAIT_MS ?? 10 * 60 * 1000)
 const STORE_UPLOAD_FILES = String(env.VITE_IMPORTS_STORE_UPLOAD_FILES ?? '1').toLowerCase() !== '0'
+const FORCE_PARSE_LOCAL = String(env.VITE_IMPORTS_FORCE_PARSE_LOCAL ?? '0') === '1'
 
 type Row = Record<string, string>
 type ItemStatus = 'pending' | 'processing' | 'ready' | 'saving' | 'saved' | 'duplicate' | 'error'
@@ -77,13 +78,20 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        // Solo restaurar items que:
-        // - NO estén en 'saved' o 'duplicate' (completados)
-        // - NO estén en 'processing' (pueden estar atascados en localStorage)
-        // - NO estén en 'saving' (pueden estar atascados)
-        const toRestore = parsed.filter((item: QueueItem) =>
-          !['saved', 'duplicate', 'processing', 'saving'].includes(item.status)
-        )
+        // Restaurar items útiles para la UI (mapeo / preview) evitando loops con estados atascados.
+        // - Se descartan sólo los duplicados.
+        // - Estados intermedios ('processing', 'saving') solo se restauran si ya traen datos parseados.
+        // - Los 'saved' ahora se conservan si tienen headers/rows o batchId para que aparezcan en "Mapeo".
+        const toRestore = parsed.filter((item: QueueItem) => {
+          if (item.status === 'duplicate') return false
+          if (['processing', 'saving'].includes(item.status)) {
+            return Boolean(item.headers?.length || item.rows?.length)
+          }
+          if (item.status === 'saved') {
+            return Boolean(item.headers?.length || item.rows?.length || item.batchId)
+          }
+          return true
+        })
         if (toRestore.length > 0) {
           setQueue(toRestore)
         }
@@ -215,9 +223,23 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
               docType = detectarTipoDocumento([item.name])
             }
 
-            // Recetas requieren archivo en servidor para el fast-path del backend
+            // Recetas o archivos grandes suben por chunks, pero intentamos obtener headers/rows para "Mapeo".
             const thresholdMb = Number(env.VITE_IMPORTS_CHUNK_THRESHOLD_MB ?? 8)
-            if (STORE_UPLOAD_FILES && (docType === 'recipes' || item.size > thresholdMb * 1024 * 1024)) {
+            const shouldChunk = STORE_UPLOAD_FILES && (docType === 'recipes' || item.size > thresholdMb * 1024 * 1024)
+            if (shouldChunk) {
+              // Intento ligero de parseo para poblar headers/rows en UI (sin bloquear si falla).
+              try {
+                const { headers, rows } = await parseExcelFile(item.file, token || undefined)
+                updateQueue(item.id, {
+                  headers,
+                  rows,
+                  docType,
+                  info: 'Archivo listo para mapeo (cargando al servidor)...',
+                })
+              } catch {
+                // Continuar si no se puede parsear rápido (p.ej. archivo muy grande)
+              }
+
               updateQueue(item.id, { info: 'Subiendo archivo por partes...' })
               const res = await uploadExcelViaChunks(item.file, {
                 sourceType: docType || 'products',
@@ -237,12 +259,27 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
             const { headers, rows } = await parseExcelFile(item.file, token || undefined)
             // Intentar análisis con IA para obtener doc_type y mapping sugerido
-            let docTypeLocal: ImportDocType = docType || detectarTipoDocumento(headers)
+            // Recalcular docType usando headers reales; si AI discrepó, damos prioridad a los headers
+            const docTypeFromHeaders = detectarTipoDocumento(headers)
+            let docTypeLocal: ImportDocType = docTypeFromHeaders
+            if (docType && docType !== docTypeFromHeaders) {
+              // Solo respetar sugerencia externa en casos especiales (recetas) donde headers son pobres
+              docTypeLocal = docType === 'recipes' ? 'recipes' : docTypeFromHeaders
+            }
             let mappedRows = rows
             try {
               const analysis = await analyzeFile(item.file, token || undefined)
               if (analysis?.suggested_doc_type) {
-                docTypeLocal = normalizeDocType(analysis.suggested_doc_type)
+                const aiDoc = normalizeDocType(analysis.suggested_doc_type)
+                // Si AI dice productos y headers dicen productos, perfecto. Si AI dice invoices pero headers muestran catálogo,
+                // mantenemos catálogo para que aparezca en mapeo de productos.
+                if (aiDoc === 'recipes') {
+                  docTypeLocal = 'recipes'
+                } else if (docTypeFromHeaders === 'products' && aiDoc !== 'products') {
+                  docTypeLocal = 'products'
+                } else {
+                  docTypeLocal = aiDoc
+                }
               }
               if (analysis?.mapping_suggestion) {
                 mappedRows = applyMappingSuggestion(rows, analysis.mapping_suggestion)
@@ -253,14 +290,30 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
               // Si falla el análisis, seguir con heurística
             }
 
-            // Recalcular headers tras el mapping sugerido (si aplica)
+            // Recalcular headers tras el mapping sugerido (si aplica).
+            // Limitar filas a evitar uso excesivo de memoria en UI.
+            const effectiveRows = mappedRows.slice(0, 5000)
             const effectiveHeaders =
-              mappedRows.length > 0 ? Object.keys(mappedRows[0]) : headers
+              effectiveRows.length > 0 ? Object.keys(effectiveRows[0]) : headers
 
             // Propagar docType final al estado y al guardado
             docType = docTypeLocal
-            updateQueue(item.id, { status: 'ready', headers: effectiveHeaders, rows: mappedRows, docType, error: null, info: null })
-            await saveItem(item, effectiveHeaders, mappedRows, docType)
+            updateQueue(item.id, { status: 'ready', headers: effectiveHeaders, rows: effectiveRows, docType, error: null, info: null })
+
+            // Ajuste defensivo: si es productos y existe columna "precio unitario venta", copiarla como precio antes de guardar.
+            const rowsForSave = (() => {
+              if (docType !== 'products') return effectiveRows
+              const priceKey = effectiveHeaders.find(h => /precio\s*unitario\s*venta/i.test(h))
+              if (!priceKey) return effectiveRows
+              return effectiveRows.map(r => ({
+                ...r,
+                precio: r.precio ?? r[priceKey],
+                price: r.price ?? r[priceKey],
+                pvp: r.pvp ?? r[priceKey],
+              }))
+            })()
+
+            await saveItem(item, effectiveHeaders, rowsForSave, docType)
             return
           }
 
@@ -389,7 +442,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
       const isCsv = nameLower.endsWith('.csv')
       const isExcelOrCsv = isExcel || isCsv
 
-      if (isExcel && STORE_UPLOAD_FILES) {
+      if (isExcel && STORE_UPLOAD_FILES && !FORCE_PARSE_LOCAL) {
         const res = await uploadExcelViaChunks(item.file, {
           sourceType: docType || 'products',
           mappingId: item.mappingId || undefined,

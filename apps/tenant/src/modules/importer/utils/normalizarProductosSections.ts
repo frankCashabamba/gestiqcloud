@@ -11,6 +11,12 @@ const norm = (s: string) =>
 
 function findCol(headers: string[], keywords: string[]): string | undefined {
   const H = headers.map(norm)
+  // 1) Coincidencia exacta de palabras clave completas
+  for (const k of keywords.map(norm)) {
+    const idx = H.findIndex((h) => h === k)
+    if (idx !== -1) return headers[idx]
+  }
+  // 2) Coincidencia por inclusión
   for (const k of keywords.map(norm)) {
     const idx = H.findIndex((h) => h.includes(k))
     if (idx !== -1) return headers[idx]
@@ -35,7 +41,18 @@ export function normalizarProductos(rows: Row[]): Record<string, unknown>[] {
 
   const colCodigo = findCol(headers, ['sku', 'codigo', 'cod', 'referencia', 'ref', 'barcode', 'ean', 'upc', 'codigo barras', 'cod barras'])
   const colNombre = findCol(headers, ['producto', 'prodcuto', 'nombre', 'descripcion', 'articulo', 'item', 'detalle'])
-  const colPrecio = findCol(headers, ['precio unitario venta', 'precio', 'pvp', 'precio venta', 'importe', 'valor'])
+  // Orden de prioridad: precio unitario venta > precio/pvp > venta diaria/total
+  const colPrecio = findCol(headers, [
+    'precio unitario venta',
+    'precio unitario',
+    'unit price',
+    'p unit',
+    'pvp',
+    'precio',
+    'precio venta',
+    'importe',
+    'valor',
+  ])
   const colStock  = findCol(headers, ['cantidad', 'stock', 'existencia', 'existencias', 'qty', 'unidades', 'inventario'])
   const colCosto = findCol(headers, ['costo promedio', 'costo', 'cost', 'coste', 'precio costo', 'costo unitario', 'cost price', 'unit cost'])
   const colCategoria = findCol(headers, ['categoria', 'familia', 'rubro', 'grupo', 'subcategoria'])
@@ -86,6 +103,8 @@ export function normalizarProductos(rows: Row[]): Record<string, unknown>[] {
     // saltar filas vacías
     if (!nombreVal && !precioVal && !stockVal && !codigoVal) continue
 
+    // Si existe columna de venta diaria / total, NO la uses como precio si ya hay precio unitario
+    // (colPrecio ya prioriza unitario; este guardrail evita sobreescritura posterior).
     out.push({
       codigo: codigoVal || undefined,
       nombre: nombreVal,

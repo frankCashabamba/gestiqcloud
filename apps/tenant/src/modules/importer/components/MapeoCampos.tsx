@@ -14,6 +14,7 @@ import { getAliasSugeridos } from '../utils/aliasCampos'
 import type { EntityTypeConfig } from '../config/entityTypes'
 import TemplateManager from './TemplateManager'
 import { saveImportTemplate, type ImportTemplate } from '../services/templates'
+import { useAuth } from '../../../auth/AuthContext'
 
 type Props = {
   headers: string[]
@@ -33,9 +34,11 @@ export default function MapeoCampos({
   sourceType = 'generic',
   previewData = [],
   fieldConfig,
+  onCancel,
 }: Props) {
   const { t } = useTranslation('importer')
   const toast = useToast()
+  const { token } = useAuth() as { token: string | null }
   const [suggestions, setSuggestions] = useState<Record<string, ColumnSuggestion[]>>({})
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
   const [showTemplateManager, setShowTemplateManager] = useState(false)
@@ -99,7 +102,7 @@ export default function MapeoCampos({
         name: templateName,
         source_type: sourceType,
         mappings: mapa as Record<string, string>,
-      })
+      }, token || undefined)
       toast.success(t('mapeoCampos.alerts.templateSaved', { name: templateName }))
       setShowSaveTemplate(false)
       setTemplateName('')
@@ -137,6 +140,14 @@ export default function MapeoCampos({
           >
             {t('mapeoCampos.actions.saveTemplate')}
           </button>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1.5 rounded text-sm hover:bg-rose-200"
+            >
+              {t('common.cancel', { defaultValue: 'Cancelar' })}
+            </button>
+          )}
         </div>
       </div>
 

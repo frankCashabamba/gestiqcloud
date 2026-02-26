@@ -146,5 +146,63 @@
         }
       }
     }
+  },
+  "c4a441b7-cdad-4ba3-80f0-8e9afa3da16d": {
+    "products": {
+      "producto": {
+        "name": {
+          "correct": 3,
+          "total": 3
+        }
+      },
+      "cantidad": {
+        "stock": {
+          "correct": 3,
+          "total": 3
+        }
+      },
+      "precio unitario venta": {
+        "price": {
+          "correct": 3,
+          "total": 3
+        }
+      },
+      "venta diaria": {
+        "price": {
+          "correct": 3,
+          "total": 3
+        }
+      },
+      "total": {
+        "amount_total": {
+          "correct": 3,
+          "total": 3
+        }
+      },
+      "nombre": {
+        "PRODUCTO": {
+          "correct": 2,
+          "total": 2
+        }
+      },
+      "precio": {
+        "PRECIO UNITARIO VENTA": {
+          "correct": 2,
+          "total": 2
+        }
+      },
+      "precio_venta": {
+        "PRECIO UNITARIO VENTA": {
+          "correct": 2,
+          "total": 2
+        }
+      },
+      "stock": {
+        "CANTIDAD": {
+          "correct": 2,
+          "total": 2
+        }
+      }
+    }
   }
 }

@@ -34,7 +34,9 @@ class OllamaProvider(BaseAIProvider):
         if self.endpoint.startswith("http"):
             self._endpoint_url = self.endpoint.rstrip("/")
         else:
-            normalized_endpoint = self.endpoint if self.endpoint.startswith("/") else f"/{self.endpoint}"
+            normalized_endpoint = (
+                self.endpoint if self.endpoint.startswith("/") else f"/{self.endpoint}"
+            )
             self._endpoint_url = f"{self.base_url}{normalized_endpoint}"
 
         self.use_chat_api = "chat" in self.endpoint
@@ -86,9 +88,7 @@ class OllamaProvider(BaseAIProvider):
 
             if self.use_chat_api:
                 content = (
-                    (data.get("message") or {}).get("content")
-                    or data.get("response")
-                    or ""
+                    (data.get("message") or {}).get("content") or data.get("response") or ""
                 ).strip()
                 tokens_used = data.get("eval_count") or data.get("total_tokens")
                 eval_duration = data.get("eval_duration") or data.get("total_duration")

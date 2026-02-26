@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { Link, useParams, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useParams, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ImportadorLayout from './components/ImportadorLayout'
 import { useImportQueue } from './context/ImportQueueContext'
@@ -44,14 +44,13 @@ export default function ImportadorExcelWithQueue() {
   const { t } = useTranslation(['importer', 'common'])
   const can = usePermission()
   const [cleaning, setCleaning] = useState(false)
-  const [autoWizard, setAutoWizard] = useState(true)
+  const [autoWizard, setAutoWizard] = useState(false)
   const empresaFromUrl = React.useMemo(() => {
     if (empresa) return empresa
     const match = location.pathname.match(/^\/([^/]+)\//)
     return match ? match[1] : ''
   }, [empresa, location.pathname])
-  const wizardHref = empresaFromUrl ? `/${empresaFromUrl}/imports/wizard` : '/imports/wizard'
-  const navigate = useNavigate()
+  // wizard eliminado; se mantiene href base por compatibilidad, pero no se usa
 
   // Extraer empresa de la URL
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,7 +74,7 @@ export default function ImportadorExcelWithQueue() {
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
-      if (autoWizard) navigate(wizardHref, { state: { autoStart: true } })
+      // autoWizard deshabilitado: no redirigir a ningún asistente
     }
   }
 
@@ -98,7 +97,7 @@ export default function ImportadorExcelWithQueue() {
         }
       }
     }
-    if (autoWizard) navigate(wizardHref, { state: { autoStart: true } })
+    // autoWizard deshabilitado: no redirigir
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -132,29 +131,7 @@ export default function ImportadorExcelWithQueue() {
       title={t('importer:title')}
       description={t('importer:description')}
     >
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="px-3 py-2 rounded-lg bg-indigo-50 text-indigo-800 text-sm font-semibold">
-          1) Sube archivos · 2) Ajusta columnas con el asistente de mapeo
-        </div>
-        <Link
-          to={wizardHref}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
-        >
-          🧭 Ir al asistente de mapeo
-        </Link>
-        <span className="text-xs text-slate-500">
-          El asistente te deja mapear cada columna y guardar el mapeo para este tenant.
-        </span>
-        <label className="flex items-center gap-2 text-xs text-slate-600">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-indigo-600"
-            checked={autoWizard}
-            onChange={(e) => setAutoWizard(e.target.checked)}
-          />
-          Abrir asistente automáticamente después de subir
-        </label>
-      </div>
+      <div className="mb-4" />
       <div className="space-y-6">
         {/* Zona de carga */}
         <div
