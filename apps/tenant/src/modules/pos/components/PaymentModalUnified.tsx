@@ -38,6 +38,7 @@ export function PaymentModalUnified({
   const [voucherCode, setVoucherCode] = useState<string>('')
   const [linkReference, setLinkReference] = useState<string>('')
   const [processing, setProcessing] = useState(false)
+  const { items: catalogMethods } = usePaymentMethodsCatalog()
 
   // Reset form when modal opens
   useEffect(() => {
@@ -106,8 +107,6 @@ export function PaymentModalUnified({
       onCancel()
     }
   }
-
-  const { items: catalogMethods } = usePaymentMethodsCatalog()
 
   const fallbackMethods: PaymentMethod[] = [
     { type: 'cash', label: t('pos:payment.cash') },
