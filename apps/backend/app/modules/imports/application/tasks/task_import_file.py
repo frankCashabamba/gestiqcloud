@@ -45,6 +45,13 @@ from app.models.recipes import Recipe, RecipeIngredient
 from app.modules.imports.application.sku_utils import sanitize_sku
 from app.modules.imports.application.transform_dsl import _to_number as dsl_to_number
 from app.modules.imports.application.transform_dsl import eval_expr
+from app.modules.imports.application.template_engine import (
+    TemplateInterpreter,
+    TemplateMatcher,
+    TemplateV2,
+    validate_template,
+)
+from app.modules.imports.application.template_engine.header_norm import normalize_headers
 from app.modules.imports.domain.canonical_schema import validate_canonical
 from app.modules.imports.domain.mapping_feedback import MappingFeedback, mapping_learner
 from app.modules.imports.parsers import registry as parsers_registry
@@ -77,6 +84,7 @@ class MappingConfig(NamedTuple):
     transforms: dict[str, Any]
     defaults: dict[str, Any]
     row: Any | None
+    tpl_v2: TemplateV2 | None = None
 
 
 class DocumentTypeResult(NamedTuple):
@@ -754,26 +762,70 @@ def _apply_column_mapping(
 def _load_mapping_config(db, batch: ImportBatch) -> MappingConfig:
     """Load column mapping configuration from database."""
     try:
-        if not getattr(batch, "mapping_id", None):
-            return MappingConfig(cfg={}, transforms={}, defaults={}, row=None)
-
         from app.models.imports import ImportColumnMapping  # type: ignore
+        from app.models.core.modelsimport import ImportMapping
 
-        cm = (
-            db.query(ImportColumnMapping).filter(ImportColumnMapping.id == batch.mapping_id).first()
-        )
-        if not cm:
-            return MappingConfig(cfg={}, transforms={}, defaults={}, row=None)
+        mapping_id = getattr(batch, "mapping_id", None)
 
-        return MappingConfig(
-            cfg=cm.mapping or cm.mappings or {},
-            transforms=getattr(cm, "transforms", None) or {},
-            defaults=getattr(cm, "defaults", None) or {},
-            row=cm,
-        )
+        tpl_candidate: TemplateV2 | None = None
+        tpl_row = None
+
+        # 1) Column mapping (legacy)
+        if mapping_id:
+            cm = (
+                db.query(ImportColumnMapping).filter(ImportColumnMapping.id == mapping_id).first()
+            )
+            if cm:
+                cfg = cm.mapping or cm.mappings or {}
+                transforms = getattr(cm, "transforms", None) or {}
+                defaults = getattr(cm, "defaults", None) or {}
+                if cfg:
+                    # seguimos pero aún permitimos tpl_v2 si está disponible
+                    base_cfg = cfg
+                else:
+                    base_cfg = {}
+            else:
+                base_cfg = {}
+        else:
+            base_cfg = {}
+
+        # 2) ImportMapping (Template V2 support)
+        q_tpl = db.query(ImportMapping).filter(ImportMapping.tenant_id == batch.tenant_id)
+        if getattr(batch, "source_type", None) not in ("generic", "unknown", "", None):
+            q_tpl = q_tpl.filter(ImportMapping.source_type == batch.source_type)
+        templates = q_tpl.order_by(ImportMapping.created_at.desc()).all()
+        tpl_v2_list: list[TemplateV2] = []
+        for tpl in templates:
+            if isinstance(tpl.mappings, dict) and tpl.mappings.get("template_version") == 2:
+                try:
+                    tv2 = TemplateV2(**tpl.mappings)
+                    tpl_v2_list.append(tv2)
+                    if mapping_id and str(tpl.id) == str(mapping_id):
+                        tpl_candidate = tv2
+                        tpl_row = tpl
+                        break
+                except Exception:
+                    continue
+        if tpl_candidate is None and tpl_v2_list:
+            filename = getattr(batch, "original_filename", None) or getattr(batch, "origin", "") or ""
+            matcher = TemplateMatcher(tpl_v2_list)
+            tpl_candidate = matcher.match(filename, "es")
+            if tpl_candidate:
+                tpl_row = next((t for t in templates if t.mappings == tpl_candidate.model_dump(mode="json")), None)
+
+        if tpl_candidate:
+            return MappingConfig(
+                cfg=base_cfg,
+                transforms=tpl_candidate.transforms or {},
+                defaults=tpl_candidate.defaults or {},
+                row=tpl_row,
+                tpl_v2=tpl_candidate,
+            )
+
+        return MappingConfig(cfg=base_cfg, transforms={}, defaults={}, row=None, tpl_v2=None)
     except Exception as e:
         logger.warning(f"Failed to load mapping config: {e}")
-        return MappingConfig(cfg={}, transforms={}, defaults={}, row=None)
+        return MappingConfig(cfg={}, transforms={}, defaults={}, row=None, tpl_v2=None)
 
 
 # =============================================================================
@@ -1549,7 +1601,25 @@ def _process_single_item(
 
     # Apply mapping if configured
     mapped = None
-    if mapping_config.cfg:
+    if mapping_config.tpl_v2:
+        try:
+            tpl = mapping_config.tpl_v2
+            lang = raw.get("language", "es") if isinstance(raw, dict) else "es"
+            headers_raw = list(raw.keys()) if isinstance(raw, dict) else []
+            headers_norm = (
+                normalize_headers(headers_raw, tpl.header_normalization, lang)
+                if headers_raw
+                else []
+            )
+            normalized_row = {h_norm: raw.get(h_raw) for h_norm, h_raw in zip(headers_norm, headers_raw)} if isinstance(raw, dict) else {}
+            interpreter = TemplateInterpreter(tpl)
+            processed = interpreter.process_rows([normalized_row])
+            if processed:
+                mapped = processed[0] if len(processed) == 1 else processed
+        except Exception as e:
+            logger.debug(f"TemplateV2 mapping failed: {e}")
+            mapped = None
+    elif mapping_config.cfg:
         mapped = _apply_column_mapping(
             raw,
             mapping=mapping_config.cfg,

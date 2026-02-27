@@ -231,6 +231,26 @@
           "total": 2
         }
       }
+    },
+    "bank_transactions": {
+      "transaction date": {
+        "invoice_date": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "value date": {
+        "invoice_date": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "description": {
+        "name": {
+          "correct": 1,
+          "total": 1
+        }
+      }
     }
   }
 }

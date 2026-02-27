@@ -42,11 +42,12 @@ class ImportBatch(Base):
     file_key = mapped_column(String)  # S3/MinIO path
     original_filename = mapped_column(String, nullable=True)
     mapping_id = mapped_column(UUID, nullable=True)
+    file_sha256 = mapped_column(String, nullable=True)
     parser_id = mapped_column(
         String, nullable=True
     )  # Parser elegido (products_excel, csv_invoices, etc)
     parser_choice_confidence = mapped_column(
-        String, nullable=True
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True
     )  # Confianza de clasificación (JSON score)
     # Fase A - Clasificación persistida
     suggested_parser = mapped_column(String, nullable=True)  # Parser sugerido por IA/heurística
@@ -141,6 +142,7 @@ class ImportAttachment(Base):
     kind = mapped_column(String, nullable=False)  # 'photo'|'file'
     file_key = mapped_column(String, nullable=False)  # path in S3/MinIO or local path
     sha256 = mapped_column(String, nullable=True)
+    page_no = mapped_column(Integer, nullable=True)
     ocr_text = mapped_column(Text, nullable=True)
     created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

@@ -647,3 +647,21 @@ export async function deleteAllBatches(tenantId: string, authToken?: string) {
   const deleted = results.filter(r => r.status === 'fulfilled').length
   return { deleted }
 }
+
+export async function analyzeBatch(batchId: string, authToken?: string) {
+  return apiFetch<import('@api-types/imports').AnalyzeBatchResult>(
+    IMPORTS.batches.analyze(batchId),
+    { method: 'POST', authToken }
+  )
+}
+
+export async function applyTemplateToBatch(
+  batchId: string,
+  payload: import('@api-types/imports').ApplyTemplateRequest,
+  authToken?: string,
+) {
+  return apiFetch<import('@api-types/imports').ApplyTemplateResult>(
+    IMPORTS.batches.applyTemplate(batchId),
+    { method: 'POST', body: JSON.stringify(payload), authToken }
+  )
+}

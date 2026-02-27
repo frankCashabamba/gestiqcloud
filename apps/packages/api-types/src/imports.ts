@@ -115,3 +115,89 @@ export type ConfirmationStatus = {
   classification_confidence: number | null
   user_override: boolean
 }
+
+export type TemplateV2MatchRule = {
+  filename_regex?: string | null
+  language?: string[]
+  priority?: number
+}
+
+export type SheetRule = {
+  sheet_name_regex?: string
+  merged_cells?: { fill?: boolean }
+}
+
+export type TemplateV2ExtractRule = {
+  mode?: 'excel_grid' | 'pdf_ocr' | 'csv'
+  all_sheets?: boolean
+  sheet_rules?: SheetRule[]
+}
+
+export type TemplateV2HeaderNorm = {
+  strip_accents?: boolean
+  synonyms?: Record<string, Record<string, string[]>>
+}
+
+export type TemplateV2Transform = {
+  type?: 'number' | 'date' | 'string'
+  expr?: string
+  fallback?: unknown
+  round?: number
+}
+
+export type TemplateV2Output = {
+  doc_type?: string
+}
+
+export type TemplateV2 = {
+  template_version: 2
+  match?: TemplateV2MatchRule
+  extract?: TemplateV2ExtractRule
+  header_normalization?: TemplateV2HeaderNorm
+  map?: Record<string, string[]>
+  transforms?: Record<string, TemplateV2Transform | string>
+  defaults?: Record<string, unknown>
+  dedupe_keys?: string[]
+  output?: TemplateV2Output
+}
+
+export type ImportTemplateV2 = {
+  id: string
+  tenant_id?: string
+  name: string
+  source_type: string
+  version: number
+  mappings: TemplateV2
+  transforms?: Record<string, unknown> | null
+  defaults?: Record<string, unknown> | null
+  dedupe_keys?: string[] | null
+  created_at: string
+}
+
+export type AnalyzeBatchResult = {
+  batch_id: string
+  headers: string[]
+  detected_language: string
+  suggested_template?: { id: string; name: string; score: number } | null
+  sample_rows?: Record<string, unknown>[]
+}
+
+export type ApplyTemplateRequest = {
+  template_id?: string
+  template?: TemplateV2
+}
+
+export type ApplyTemplateResult = {
+  applied: number
+  errors: number
+  preview?: Record<string, unknown>[]
+}
+
+export type SimulateTemplateRequest = {
+  sample_rows: Record<string, unknown>[]
+}
+
+export type SimulateTemplateResult = {
+  results: Record<string, unknown>[]
+  errors: string[]
+}

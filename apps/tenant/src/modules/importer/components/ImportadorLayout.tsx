@@ -46,7 +46,10 @@ export default function ImportadorLayout({
       { to: 'preview', label: t('importerNav.preview') },
       { to: 'batches', label: t('importerNav.batches') },
       { to: 'products', label: t('importerNav.products') },
-      ...(canManageImporterSettings ? [{ to: 'settings', label: t('importerNav.settings') }] : []),
+      ...(canManageImporterSettings ? [
+        { to: 'settings', label: t('importerNav.settings') },
+        { to: 'templates', label: 'Templates V2' },
+      ] : []),
     ],
     [t, canManageImporterSettings]
   )

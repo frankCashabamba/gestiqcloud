@@ -695,9 +695,56 @@ def parse_texto_banco(text: str) -> dict[str, Any]:
 
 
 def parse_texto_recibo(text: str) -> dict[str, Any]:
-    """Parse receipt text to normalized dict."""
+    """Parse receipt/ticket text to normalized dict with best-effort totals."""
+
+    def _find_labeled_amount(label_patterns: list[str]) -> float | None:
+        for pat in label_patterns:
+            m = re.search(rf"{pat}\s*[:\-]?\s*\$?\s*(-?\d[\d.,]*)", text, re.IGNORECASE)
+            if m:
+                try:
+                    return float(m.group(1).replace(".", "").replace(",", "."))
+                except Exception:
+                    continue
+        return None
+
+    # Main fields
+    expense_date = _find_date(text)
+    total = _find_labeled_amount(["total"]) or _find_amount(text)
+    subtotal = _find_labeled_amount(["subtotal", "sub total"])
+    tax = _find_labeled_amount(["iva", "igv", "impuesto"])
+
+    # Invoice/receipt number (ticket)
+    invoice_number = None
+    m_num = re.search(r"\bR[-\s]?0*\d{3,}\b", text, re.IGNORECASE)
+    if not m_num:
+        m_num = re.search(r"\b(?:ticket|factura|nota)\s*[#:–-]?\s*([A-Z0-9\-]{4,})", text, re.IGNORECASE)
+    if m_num:
+        invoice_number = m_num.group(0) if len(m_num.groups()) == 0 else m_num.group(1)
+
+    # Payment method
+    payment_method = None
+    if re.search(r"\bcash\b|\bcontado\b", text, re.IGNORECASE):
+        payment_method = "cash"
+    elif re.search(r"\btarjeta\b|\bcard\b|\bvisa\b|\bmastercard\b", text, re.IGNORECASE):
+        payment_method = "card"
+
+    # Description: first meaningful line mentioning product/thanks
+    desc = None
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    for ln in lines:
+        if len(ln) > 6 and not re.match(r"^-{3,}$", ln):
+            desc = ln
+            break
+    if not desc and text:
+        desc = text[:120]
+
     return {
-        "expense_date": _find_date(text),
-        "amount": _find_amount(text),
-        "description": (text[:120] if text else None),
+        "expense_date": expense_date,
+        "amount": total,
+        "total_amount": total,
+        "net_amount": subtotal,
+        "tax_amount": tax,
+        "payment_method": payment_method,
+        "invoice_number": invoice_number,
+        "description": desc,
     }

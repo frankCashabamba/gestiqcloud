@@ -20,6 +20,14 @@ export const IMPORTS = {
   excel: {
     parse: `${BASE}/excel/parse`,
   },
+  templates: {
+    list: `${BASE}/templates`,
+    byId: (id: string) => `${BASE}/templates/${id}`,
+    create: `${BASE}/templates`,
+    update: (id: string) => `${BASE}/templates/${id}`,
+    delete: (id: string) => `${BASE}/templates/${id}`,
+    simulate: (id: string) => `${BASE}/templates/${id}/simulate`,
+  },
   batches: {
     base: `${BASE}/batches`,
     byId: (id: string) => `${BASE}/batches/${id}`,
@@ -40,6 +48,8 @@ export const IMPORTS = {
     status: (batchId: string) => `${BASE}/batches/${batchId}/status`,
     retry: (batchId: string) => `${BASE}/batches/${batchId}/retry`,
     reprocess: (batchId: string) => `${BASE}/batches/${batchId}/reprocess`,
+    analyze: (batchId: string) => `${BASE}/batches/${batchId}/analyze`,
+    applyTemplate: (batchId: string) => `${BASE}/batches/${batchId}/apply-template`,
     classifyAndPersist: (batchId: string) => `${BASE}/batches/${batchId}/classify-and-persist`,
     updateClassification: (batchId: string) => `${BASE}/batches/${batchId}/classification`,
     bulkPatchItems: (batchId: string) => `${BASE}/batches/${batchId}/items/bulk-patch`,

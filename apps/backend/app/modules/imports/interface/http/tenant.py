@@ -102,6 +102,16 @@ router = APIRouter(
     ],
 )
 
+# Mount template engine v2 routes
+try:
+    from app.modules.imports.routes.templates import router as _templates_v2_router
+    from app.modules.imports.routes.reprocess import router as _reprocess_v2_router
+
+    router.include_router(_templates_v2_router)
+    router.include_router(_reprocess_v2_router)
+except Exception:
+    pass
+
 # --- simple in-memory throttling (per-tenant) --------------------------------
 _INGEST_WINDOW_SEC = 60
 _DEFAULT_INGEST_LIMIT = int(os.getenv("IMPORTS_MAX_INGESTS_PER_MIN", "500"))

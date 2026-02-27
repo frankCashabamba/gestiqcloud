@@ -10,6 +10,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { autoMapeoColumnas } from './services/autoMapeoColumnas'
 
 import { createBatch, ingestBatch, listMappings, type ImportMapping, uploadExcelViaChunks, processDocument, pollOcrJob } from './services/importsApi'
+import { listTemplatesV2, type ImportTemplateV2 } from './services/templates'
 import MappingSuggestModal from './components/MappingSuggestModal'
 
 import { getAliasSugeridos } from './utils/aliasCampos'
@@ -229,6 +230,7 @@ export default function ImportadorPage() {
     const [expandedId, setExpandedId] = useState<string | null>(null)
 
     const [mappings, setMappings] = useState<ImportMapping[]>([])
+    const [templatesV2, setTemplatesV2] = useState<ImportTemplateV2[]>([])
 
     const [defaultMappingId, setDefaultMappingId] = useState<string>('')
 
@@ -275,6 +277,7 @@ export default function ImportadorPage() {
         if (!token) {
 
             setMappings([])
+            setTemplatesV2([])
 
             setDefaultMappingId('')
 
@@ -296,11 +299,15 @@ export default function ImportadorPage() {
 
             try {
 
-                const data = await listMappings(token)
+                const [legacy, v2] = await Promise.all([
+                    listMappings(token),
+                    listTemplatesV2(undefined, token).catch(() => []),
+                ])
 
                 if (!cancelled) {
 
-                    setMappings(data)
+                    setMappings(legacy)
+                    setTemplatesV2(v2)
 
                 }
 
@@ -372,6 +379,40 @@ export default function ImportadorPage() {
         enqueueFiles(files)
         e.target.value = ''
     }
+
+    const findBestTemplate = useCallback(
+        (filename: string, docType?: string) => {
+            if (!templatesV2.length) return undefined
+            const name = filename || ''
+            let best: ImportTemplateV2 | null = null
+            let bestScore = -1
+            for (const tpl of templatesV2) {
+                // source_type filter (if defined)
+                if (tpl.source_type && docType && tpl.source_type !== docType) {
+                    // allow generic catch-all
+                    if (tpl.source_type !== 'generic') continue
+                }
+                // filename regex
+                const rx = tpl.mappings?.match?.filename_regex
+                let matched = true
+                if (rx) {
+                    try {
+                        matched = new RegExp(rx, 'i').test(name)
+                    } catch {
+                        matched = false
+                    }
+                }
+                if (!matched) continue
+                const score = tpl.mappings?.match?.priority ?? 50
+                if (score > bestScore) {
+                    best = tpl
+                    bestScore = score
+                }
+            }
+            return best?.id
+        },
+        [templatesV2],
+    )
 
     const onCameraCapture: React.ChangeEventHandler<HTMLInputElement> = (e) => {
         const files = Array.from(e.target.files || [])
@@ -493,10 +534,11 @@ export default function ImportadorPage() {
                     const textContent = await item.file.text()
                     const { headers, rows } = parseCSV(textContent)
                     const docType = detectarTipoDocumento(headers)
-                    updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: undefined })
+                    const tplId = findBestTemplate(item.name, docType)
+                    updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: undefined, mappingId: tplId || item.mappingId })
                     // Guardar y navegar siempre a vista previa si hay batch_id, sin importar docType
                     {
-                        const ok = await saveItem({ ...item, headers, rows, docType })
+                        const ok = await saveItem({ ...item, headers, rows, docType, mappingId: tplId || item.mappingId })
                         if (ok && item.batchId) {
                             navigate(`preview?batch_id=${item.batchId}`)
                         }
@@ -539,10 +581,11 @@ export default function ImportadorPage() {
                     }
                     const { headers, rows } = await parseExcelFile(item.file, token || undefined)
                     const docType = detectarTipoDocumento(headers)
-                    updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: undefined })
+                    const tplId = findBestTemplate(item.name, docType)
+                    updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: undefined, mappingId: tplId || item.mappingId })
                     // Guardar y navegar siempre a vista previa si hay batch_id, sin importar docType
                     {
-                        const ok = await saveItem({ ...item, headers, rows, docType })
+                        const ok = await saveItem({ ...item, headers, rows, docType, mappingId: tplId || item.mappingId })
                         if (ok && item.batchId) {
                             navigate(`preview?batch_id=${item.batchId}`)
                         }
@@ -583,6 +626,7 @@ export default function ImportadorPage() {
                     })
 
                     const docType = (documentos[0]?.documentoTipo as string) || 'generico'
+                    const tplId = findBestTemplate(item.name, docType)
 
                     updateQueue(item.id, {
                         status: 'ready',
@@ -592,9 +636,10 @@ export default function ImportadorPage() {
                         error: null,
                         info: null,
                         jobId: response.jobId,
+                        mappingId: tplId || item.mappingId,
                     })
                     {
-                        const ok = await saveItem({ ...item, headers, rows, docType })
+                        const ok = await saveItem({ ...item, headers, rows, docType, mappingId: tplId || item.mappingId })
                         if (ok && item.batchId) {
                             navigate(`preview?batch_id=${item.batchId}`)
                         }
@@ -644,11 +689,14 @@ export default function ImportadorPage() {
             const isExcel = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls')
             const isXml = nameLower.endsWith('.xml')
 
+            const tplId = findBestTemplate(item.name, item.docType)
+            const effectiveMappingId = tplId || item.mappingId || (defaultMappingId || undefined)
+
             if (isExcel || isXml) {
                 try {
                     const res = await uploadExcelViaChunks(item.file, {
                         sourceType: item.docType || 'products',
-                        mappingId: item.mappingId || (defaultMappingId || undefined),
+                        mappingId: effectiveMappingId || undefined,
                         authToken: token || undefined,
                         onProgress: (pct) => updateQueue(item.id, { info: t('messages.uploadingPercent', { pct }) }),
                     })
@@ -700,7 +748,7 @@ export default function ImportadorPage() {
 
                     origin: item.name || 'importador-tenant',
 
-                    mapping_id: item.mappingId || (defaultMappingId || undefined),
+                    mapping_id: effectiveMappingId || undefined,
 
                     metadata,
 

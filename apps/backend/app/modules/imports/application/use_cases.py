@@ -20,6 +20,7 @@ from app.models.core.modelsimport import (
     ImportItem,
     ImportItemCorrection,
     ImportLineage,
+    ImportMapping,
 )
 from app.modules.imports.application.photo_utils import (
     exif_auto_orienta,
@@ -29,6 +30,14 @@ from app.modules.imports.application.photo_utils import (
     parse_texto_factura,
     parse_texto_recibo,
 )
+from app.modules.imports.application.ir_builder import IRBuilder
+from app.modules.imports.application.template_engine import (
+    TemplateInterpreter,
+    TemplateMatcher,
+    TemplateV2,
+    validate_template,
+)
+from app.modules.imports.application.template_engine.header_norm import normalize_headers
 from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
 from app.modules.imports.application.use_utils import apply_mapping
 from app.modules.imports.domain.handlers import (
@@ -642,6 +651,10 @@ def ingest_file(
     batch = db.query(ImportBatch).filter(ImportBatch.id == batch_uuid).first()
     if not batch:
         raise ValueError("Batch no encontrado")
+    if not batch.file_sha256:
+        batch.file_sha256 = file_sha256
+        db.add(batch)
+        db.flush()
 
     existing_count = (
         db.query(func.count(ImportItem.id)).filter(ImportItem.batch_id == batch_uuid).scalar() or 0
@@ -719,7 +732,7 @@ def ingest_rows(
     tenant_id: int,
     batch: ImportBatch,
     rows: Iterable[dict[str, Any]],
-    mappings: dict[str, str] | None = None,
+    mappings: dict[str, Any] | None = None,
     transforms: dict[str, Any] | None = None,
     defaults: dict[str, Any] | None = None,
     dedupe_keys: list[str] | None = None,
@@ -733,6 +746,50 @@ def ingest_rows(
 
     repo = ImportsRepository()
     created: list[dict[str, Any]] = []
+    ir_builder = IRBuilder()
+
+    tpl_v2: TemplateV2 | None = None
+    # Si mappings es {} o None, considerar auto-match
+    if isinstance(mappings, dict) and not mappings:
+        mappings = None
+
+    # Siempre intentar auto-selección de TemplateV2, aun si hay mapping legacy
+    try:
+        q = db.query(ImportMapping).filter(ImportMapping.tenant_id == batch.tenant_id)
+        if batch.source_type not in ("generic", "unknown", "", None):
+            q = q.filter(ImportMapping.source_type == batch.source_type)
+        candidates = q.order_by(ImportMapping.created_at.desc()).all()
+        tpl_pairs: list[TemplateV2] = []
+        for tpl in candidates:
+            if isinstance(tpl.mappings, dict) and tpl.mappings.get("template_version") == 2:
+                try:
+                    tv2 = TemplateV2(**tpl.mappings)
+                    tpl_pairs.append(tv2)
+                    if tpl.id == batch.mapping_id:
+                        tpl_v2 = tv2
+                except Exception:
+                    continue
+        if tpl_v2 is None and tpl_pairs:
+            filename = getattr(batch, "original_filename", None) or getattr(batch, "origin", "") or ""
+            matcher = TemplateMatcher(tpl_pairs)
+            matched = matcher.match(filename, "es")
+            if matched:
+                tpl_v2 = matched
+    except Exception:
+        tpl_v2 = None
+
+    if mappings and isinstance(mappings, dict) and mappings.get("template_version") == 2:
+        errs = validate_template(mappings)
+        if errs:
+            raise ValueError(f"TemplateV2 inválido: {errs}")
+        tpl_v2 = TemplateV2(**mappings)
+        dedupe_keys = tpl_v2.dedupe_keys or dedupe_keys
+        transforms = transforms or tpl_v2.transforms
+        defaults = defaults or tpl_v2.defaults
+    elif tpl_v2:
+        dedupe_keys = tpl_v2.dedupe_keys or dedupe_keys
+        transforms = transforms or tpl_v2.transforms
+        defaults = defaults or tpl_v2.defaults
     for idx, raw in enumerate(rows_list):
         # Desempaquetar payloads que traen los datos en la clave "datos" manteniendo meta como fallback
         raw_effective = raw
@@ -744,16 +801,35 @@ def ingest_rows(
                     base[k] = v
             raw_effective = base
 
-        normalized = (
-            apply_mapping(raw_effective, mappings, transforms, defaults) if mappings else None
-        )
-        # Fallback normalization for products when no mapping present
-        if not normalized and (batch.source_type in ("products", "productos")):
-            normalized = _normalize_product_row(raw_effective)
-        if not normalized:
-            auto_norm = _auto_normalize_row(batch.source_type, raw_effective)
-            if auto_norm:
-                normalized = auto_norm
+        normalized = None
+
+        ir_rows = ir_builder.build_from_rows([raw_effective], origin="api")
+        raw_ir = ir_rows[0] if ir_rows else raw_effective
+
+        if tpl_v2:
+            interpreter = TemplateInterpreter(tpl_v2)
+            language = raw_ir.get("language", "es") if isinstance(raw_ir, dict) else "es"
+            headers_raw = list(raw_effective.keys())
+            try:
+                headers_norm = normalize_headers(headers_raw, tpl_v2.header_normalization, language)
+            except Exception:
+                headers_norm = [str(h).strip().lower() for h in headers_raw]
+            normalized_row = {h_norm: raw_effective.get(h_raw) for h_norm, h_raw in zip(headers_norm, headers_raw)}
+            processed = interpreter.process_rows([normalized_row])
+            if processed:
+                normalized = processed[0] if len(processed) == 1 else processed
+        else:
+            normalized = (
+                apply_mapping(raw_effective, mappings, transforms, defaults) if mappings else None
+            )
+            # Fallback normalization for products when no mapping present
+            if not normalized and (batch.source_type in ("products", "productos")):
+                normalized = _normalize_product_row(raw_effective)
+            if not normalized:
+                auto_norm = _auto_normalize_row(batch.source_type, raw_effective)
+                if auto_norm:
+                    normalized = auto_norm
+
         src = _merge_src(raw_effective, normalized)
         errors = _validate_by_type(batch.source_type, src)
         status = ImportItemStatus.OK if not errors else ImportItemStatus.ERROR_VALIDATION
@@ -762,7 +838,7 @@ def ingest_rows(
         created.append(
             {
                 "idx": idx,
-                "raw": raw,
+                "raw": raw_ir,
                 "normalized": normalized,
                 "status": status,
                 "errors": errors,
@@ -1185,17 +1261,74 @@ def ingest_photo(
     else:
         raw = parse_texto_recibo(texto)
 
-    # 5) mapping (si el batch tiene mapping asociado) → normalized
-    normalized = apply_mapping(
-        raw, mappings={}, transforms={}, defaults={}
-    )  # si usas ImportMapping, pásalo aquí
+    # 5) mapping/template
+    normalized = None
+    tpl_v2: TemplateV2 | None = None
+    legacy_map: dict[str, Any] | None = None
+    legacy_transforms: dict[str, Any] | None = None
+    legacy_defaults: dict[str, Any] | None = None
+    try:
+        if batch.mapping_id:
+            mp = db.query(ImportMapping).filter(ImportMapping.id == batch.mapping_id).first()
+            if mp:
+                if isinstance(mp.mappings, dict) and mp.mappings.get("template_version") == 2:
+                    errs = validate_template(mp.mappings)
+                    if not errs:
+                        tpl_v2 = TemplateV2(**mp.mappings)
+                else:
+                    legacy_map = mp.mappings or {}
+                    legacy_transforms = mp.transforms or {}
+                    legacy_defaults = mp.defaults or {}
+        if tpl_v2 is None:
+            qtpl = db.query(ImportMapping).filter(ImportMapping.tenant_id == batch.tenant_id)
+            if getattr(batch, "source_type", None) not in ("generic", "unknown", "", None):
+                qtpl = qtpl.filter(ImportMapping.source_type == batch.source_type)
+            tpls = qtpl.order_by(ImportMapping.created_at.desc()).all()
+            tv2_list: list[TemplateV2] = []
+            for t in tpls:
+                if isinstance(t.mappings, dict) and t.mappings.get("template_version") == 2:
+                    try:
+                        tv2 = TemplateV2(**t.mappings)
+                        tv2_list.append(tv2)
+                    except Exception:
+                        continue
+            if tv2_list:
+                matcher = TemplateMatcher(tv2_list)
+                filename = getattr(batch, "original_filename", None) or getattr(batch, "origin", "") or ""
+                matched = matcher.match(filename, "es")
+                if matched:
+                    tpl_v2 = matched
+    except Exception:
+        tpl_v2 = None
+
+    if tpl_v2:
+        interpreter = TemplateInterpreter(tpl_v2)
+        headers_raw = list(raw.keys()) if isinstance(raw, dict) else []
+        lang = "es"
+        try:
+            headers_norm = normalize_headers(headers_raw, tpl_v2.header_normalization, lang)
+        except Exception:
+            headers_norm = headers_raw
+        normalized_row = {h_norm: raw.get(h_raw) for h_norm, h_raw in zip(headers_norm, headers_raw)}
+        processed = interpreter.process_rows([normalized_row])
+        if processed:
+            normalized = processed[0] if len(processed) == 1 else processed
+    else:
+        normalized = apply_mapping(
+            raw,
+            mappings=legacy_map or {},
+            transforms=legacy_transforms or {},
+            defaults=legacy_defaults or {},
+        )
+
+    ir = IRBuilder().build_from_ocr(texto, sha256, ocr_job_id="", page_no=1, attachment_ids=[])
 
     # 6) crear item + adjunto
     idx = (db.query(ImportItem).filter(ImportItem.batch_id == batch.id).count() or 0) + 1
     item = ImportItem(
         batch_id=batch.id,
         idx=idx,
-        raw=raw,
+        raw=ir,
         normalized=normalized,
         idempotency_key=_idempotency_key(tenant_id, batch.file_key or file_key, idx),
     )
@@ -1207,9 +1340,19 @@ def ingest_photo(
     db.flush()
 
     att = ImportAttachment(
-        item_id=item.id, file_key=file_key, kind="photo", sha256=sha256, ocr_text=texto
+        item_id=item.id,
+        file_key=file_key,
+        kind="photo",
+        sha256=sha256,
+        ocr_text=texto,
+        page_no=1,
     )
     db.add(att)
+    try:
+        ir["artifacts_ref"]["attachment_ids"] = [str(att.id)]
+        item.raw = ir
+    except Exception:
+        pass
     db.commit()
     db.refresh(item)
     return item
@@ -1265,9 +1408,25 @@ def attach_photo_and_reocr(
     item.status = "OK" if not errors else "ERROR_VALIDATION"
 
     att = ImportAttachment(
-        item_id=item.id, file_key=file_key, kind="photo", sha256=sha256, ocr_text=texto
+        item_id=item.id,
+        file_key=file_key,
+        kind="photo",
+        sha256=sha256,
+        ocr_text=texto,
+        page_no=1,
     )
     db.add(att)
+    try:
+        raw_ir = item.raw or {}
+        if isinstance(raw_ir, dict):
+            artifacts = raw_ir.get("artifacts_ref") or {}
+            attachment_ids = artifacts.get("attachment_ids") or []
+            attachment_ids.append(str(att.id))
+            artifacts["attachment_ids"] = attachment_ids
+            raw_ir["artifacts_ref"] = artifacts
+            item.raw = raw_ir
+    except Exception:
+        pass
     db.commit()
     db.refresh(item)
     return item

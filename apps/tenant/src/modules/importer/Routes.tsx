@@ -9,6 +9,7 @@ import BatchDetail from './imports/BatchDetail'
 import ProductosImportados from './ImportedProducts'
 import PreviewPage from './PreviewPage'
 import ImportadorSettings from './pages/ImportadorSettings'
+import TemplatesPage from './pages/TemplatesPage'
 import { ImportQueueProvider } from './context/ImportQueueContext'
 import { isCompanyAdmin } from './utils/companyAdmin'
 
@@ -27,6 +28,7 @@ export default function ImportadorRoutes() {
           {/* Wizard eliminado */}
           <Route path="preview" element={<PreviewPage />} />
           <Route path="products" element={<ProductosImportados />} />
+          <Route path="templates" element={<TemplatesPage />} />
           <Route
             path="settings"
             element={
