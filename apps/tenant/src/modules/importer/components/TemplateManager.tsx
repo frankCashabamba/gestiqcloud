@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../../shared/toast'
 import ConfirmActionModal from './ConfirmActionModal'
@@ -81,9 +82,12 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
     const [editingId, setEditingId] = useState<string | null>(null)
     const [wiz, setWiz] = useState<WizardState>(emptyWizard(sourceType))
     const [canonicalFields, setCanonicalFields] = useState<string[]>([])
+    const [fieldsSeeded, setFieldsSeeded] = useState<boolean>(false)
     const [fieldsError, setFieldsError] = useState<string | null>(null)
+    const [availableSourceTypes, setAvailableSourceTypes] = useState<string[]>([])
     const [saving, setSaving] = useState(false)
     const [simulating, setSimulating] = useState(false)
+    const prevSourceType = useRef<string>(sourceType)
 
     const loadTemplates = useCallback(async () => {
         setLoading(true)
@@ -106,14 +110,48 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
         if (isOpen) loadTemplates()
     }, [isOpen, loadTemplates])
 
-    // load canonical fields by source type
+    // Load available source types (only those with fields configured)
+    useEffect(() => {
+        let cancelled = false
+        async function probeTypes() {
+            try {
+                const res = await listTemplateFields('*', token || undefined)
+                const types = Array.isArray((res as any).source_types) ? (res as any).source_types : []
+                if (!cancelled) {
+                    setAvailableSourceTypes(types)
+                    if (types.length > 0 && !types.includes(wiz.source_type)) {
+                        setWiz(p => ({ ...p, source_type: types[0] }))
+                    }
+                }
+            } catch (e:any) {
+                if (!cancelled) {
+                    setAvailableSourceTypes([])
+                }
+            }
+        }
+        if (isOpen) probeTypes()
+        return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, token])
+
+    // Reset map when user cambia el tipo de fuente en el wizard
+    useEffect(() => {
+        if (wiz.source_type !== prevSourceType.current) {
+            prevSourceType.current = wiz.source_type
+            setWiz(p => ({ ...p, map: {} }))
+        }
+    }, [wiz.source_type])
+
+    // load canonical fields by wizard source type
     useEffect(() => {
         let cancelled = false
         async function loadFields() {
             try {
-                const fields = await listTemplateFields(sourceType, token || undefined)
-                if (!cancelled && Array.isArray(fields) && fields.length > 0) {
-                    setCanonicalFields(fields)
+                if (!wiz.source_type) return
+                const res = await listTemplateFields(wiz.source_type, token || undefined)
+                if (!cancelled && Array.isArray(res.fields)) {
+                    setCanonicalFields(res.fields)
+                    setFieldsSeeded(!!res.seeded)
                     setFieldsError(null)
                     return
                 }
@@ -124,12 +162,13 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
             }
             if (!cancelled) {
                 setCanonicalFields([])
+                setFieldsSeeded(false)
                 setFieldsError(prev => prev || 'No hay campos configurados para este tipo')
             }
         }
-        loadFields()
+        if (isOpen) loadFields()
         return () => { cancelled = true }
-    }, [sourceType, token])
+    }, [wiz.source_type, token, isOpen])
 
     const handleDelete = (id: string, isSystem: boolean) => {
         if (isSystem) {
@@ -165,12 +204,14 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
 
     const openCreateWizard = () => {
         setEditingId(null)
+        prevSourceType.current = sourceType
         setWiz(emptyWizard(sourceType))
         setWizardOpen(true)
     }
 
     const openEditWizard = (tpl: ImportTemplateV2) => {
         setEditingId(tpl.id)
+        prevSourceType.current = tpl.source_type
         const m = tpl.mappings || {} as TemplateV2
         setWiz({
             step: 0,
@@ -329,11 +370,9 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                                         onChange={e => setWiz(p => ({ ...p, source_type: e.target.value }))}
                                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                                     >
-                                        <option value="products">Products</option>
-                                        <option value="invoices">Invoices</option>
-                                        <option value="expenses">Expenses</option>
-                                        <option value="bank">Bank</option>
-                                        <option value="recipes">Recipes</option>
+                                        {availableSourceTypes.map(st => (
+                                            <option key={st} value={st}>{st.charAt(0).toUpperCase() + st.slice(1)}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div>
@@ -406,12 +445,17 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                                         {fieldsError}
                                     </div>
                                 )}
+                                {!fieldsError && fieldsSeeded && canonicalFields.length > 0 && (
+                                    <div className="bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2 rounded text-sm">
+                                        Campos base cargados automáticamente para este tipo. Ajusta aliases y guarda la plantilla.
+                                    </div>
+                                )}
                                 <p className="text-sm text-gray-600">
                                     Map each target field to one or more source column aliases (multilingual).
                                 </p>
                                 {canonicalFields.length === 0 && (
                                     <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                                        No hay campos para este tipo. Configura los campos en la BD (tenant_field_configs) y vuelve a abrir.
+                                        No se encontraron campos para este tipo. Intenta recargar o contacta a un admin para agregar el catálogo global.
                                     </div>
                                 )}
                                 <div className="border border-gray-200 rounded overflow-hidden">

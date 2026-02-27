@@ -5,6 +5,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import CategoriaGastoForm from './categorias-gasto/CategoriaGastoForm'
 import CategoriaGastoList from './categorias-gasto/CategoriaGastoList'
 import FieldConfigManager from './FieldConfigManager'
+import ImportCatalog from './ImportCatalog'
 import HorarioForm from './horarios/HorarioForm'
 import HorarioList from './horarios/HorarioList'
 import IdiomaForm from './idiomas/IdiomaForm'
@@ -185,6 +186,20 @@ function Index() {
             description="Alta, edición y configuración de módulos del sistema."
             iconSize="sm"
           />
+          <AdminCard
+            href="fields"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Campos (global/tenant)"
+            description="Catálogo de campos por módulo (incluye imports_*)."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="imports-catalog"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Importar catálogos"
+            description="Trae campos desde tablas permitidas para imports."
+            iconSize="sm"
+          />
         </div>
       </section>
     </div>
@@ -242,6 +257,7 @@ export default function ConfiguracionSistema() {
       <Route path="metodos-pago/nuevo" element={<MetodoPagoForm />} />
       <Route path="metodos-pago/:id/editar" element={<MetodoPagoForm />} />
       <Route path="fields" element={<FieldConfigManager />} />
+      <Route path="imports-catalog" element={<ImportCatalog />} />
       <Route path="*" element={<Navigate to="." replace />} />
     </Routes>
   )

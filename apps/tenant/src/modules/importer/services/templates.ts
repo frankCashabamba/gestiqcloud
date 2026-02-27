@@ -169,11 +169,18 @@ export async function simulateTemplate(
     })
 }
 
-export async function listTemplateFields(sourceType?: string, token?: string): Promise<string[]> {
+export type TemplateFieldsResponse = { source_type: string; fields: string[]; seeded?: boolean }
+
+export async function listTemplateFields(sourceType?: string, token?: string): Promise<TemplateFieldsResponse> {
     const qs = sourceType ? `?source_type=${encodeURIComponent(sourceType)}` : ''
     const base = IMPORTS.templates.list.replace(/\/$/, '')
-    const res = await apiFetch<{ source_type: string; fields: string[] }>(`${base}/fields${qs}`, {
+    const res = await apiFetch<TemplateFieldsResponse>(`${base}/fields2${qs}`, {
         authToken: token,
     })
-    return res.fields || []
+    return {
+        source_type: res.source_type,
+        fields: res.fields || [],
+        seeded: res.seeded,
+        source_types: (res as any).source_types,
+    }
 }

@@ -390,7 +390,7 @@ def build_api_router() -> APIRouter:
         prefix="/company/settings",
     )
     # Settings admin: field-config + ui-plantillas
-    include_router_safe(r, ("app.modules.settings.interface.http.tenant", "admin_router"))
+    include_router_safe(r, ("app.modules.settings.interface.http.tenant", "admin_router"), prefix="/api/v1")
 
     # Dashboard KPIs
     include_router_safe(r, ("app.routers.dashboard_stats", "router"))

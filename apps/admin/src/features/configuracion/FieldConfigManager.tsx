@@ -8,7 +8,7 @@ type FieldItem = { field: string; visible: boolean; required: boolean; ord?: num
 
 export default function FieldConfigManager() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [sector, setSector] = useState(searchParams.get('sector') || 'retail')
+  const [sector, setSector] = useState(searchParams.get('sector') || 'global')
   const [moduleKey, setModuleKey] = useState(searchParams.get('module') || 'clientes')
   const [empresa, setEmpresa] = useState(searchParams.get('empresa') || '')
   const [formMode, setFormMode] = useState<'mixed'|'tenant'|'sector'|'basic'>((searchParams.get('mode') as any) || 'mixed')
@@ -75,6 +75,7 @@ export default function FieldConfigManager() {
         <div>
           <label htmlFor="sector-select">Sector</label>
           <select id="sector-select" name="sector" value={sector} onChange={(e) => setSector(e.target.value)} className="input">
+            <option value="global">Global (plantillas base)</option>
             <option value="retail">Retail/Bazar</option>
             <option value="panaderia">Panadería</option>
             <option value="taller">Taller</option>

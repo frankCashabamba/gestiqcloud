@@ -5,12 +5,16 @@ import unicodedata
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+import os
+from sqlalchemy import text as sa_text
 
 from app.config.database import get_db
 from app.models.company.company_settings import CompanySettings
 from app.models.company.settings import ConfiguracionEmpresa
 from app.models.core.ui_field_config import TenantFieldConfig
 from app.models.core.ui_template import UiTemplate
+from app.models.core.ui_field_config import SectorFieldDefault
 from app.models.tenant import Tenant as Empresa
 from app.services.field_config import resolve_fields
 
@@ -384,6 +388,139 @@ def put_tenant_fields(payload: dict, db: Session = Depends(get_db)):
         db.add(row)
     db.commit()
     return {"ok": True}
+
+
+def _allowed_import_tables() -> dict[str, str]:
+    """
+    Fuente de verdad configurable por env:
+      IMPORTS_TABLE_WHITELIST=""
+    Si no se define, se permite cualquier tabla y se usa imports_<tabla> como módulo por defecto.
+    """
+    env_val = os.getenv("IMPORTS_TABLE_WHITELIST", "").strip()
+    if not env_val:
+        return {}
+    mapping: dict[str, str] = {}
+    for item in env_val.split(","):
+        if not item:
+            continue
+        parts = item.split(":")
+        table = parts[0].strip().lower()
+        module = parts[1].strip() if len(parts) > 1 and parts[1].strip() else f"imports_{table}"
+        if table:
+            mapping[table] = module
+    return mapping
+
+@admin_router.get("/import-tables")
+def list_import_tables(db: Session = Depends(get_db)):
+    """
+    Lista tablas importables.
+
+    - Si IMPORTS_TABLE_WHITELIST está seteado, devuelve ese listado (tabla -> módulo).
+    - Si no, devuelve todas las tablas visibles del esquema actual (excluye pg_catalog, information_schema).
+    """
+    wl = _allowed_import_tables()
+    if wl:
+        items = [{"table": t, "module": m} for t, m in wl.items()]
+        return {"items": items}
+
+    rows = db.execute(
+        sa_text(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema NOT IN ('pg_catalog','information_schema')
+              AND table_type = 'BASE TABLE'
+            ORDER BY table_name
+            """
+        )
+    ).fetchall()
+    items = [{"table": r[0], "module": f"imports_{r[0]}"} for r in rows]
+    # Fallback si no hay tablas visibles (p.ej. permisos restrictivos): usa lista mínima estándar
+    if not items:
+        defaults = ["products", "invoices", "expenses", "bank_transactions", "generic"]
+        items = [{"table": t, "module": f"imports_{t}"} for t in defaults]
+    return {"items": items}
+
+
+def _guess_field_type(data_type: str | None) -> str | None:
+    if not data_type:
+        return None
+    dt = data_type.lower()
+    if any(x in dt for x in ("int", "numeric", "decimal", "double", "real", "money")):
+        return "number"
+    if "bool" in dt:
+        return "boolean"
+    if "date" in dt or "time" in dt:
+        return "date"
+    return "string"
+
+
+@admin_router.post("/import-table")
+def import_fields_from_table(payload: dict, db: Session = Depends(get_db)):
+    """
+    Importa columnas de una tabla whitelisted y las graba como SectorFieldDefault.
+
+    payload: { table: 'products', module?: 'imports_products', sector?: 'global' }
+    """
+    table = (payload.get("table") or "").strip().lower()
+    module = (payload.get("module") or "").strip()
+    sector = (payload.get("sector") or "global").strip() or "global"
+    if not table:
+        return {"ok": False, "error": "table is required"}
+    whitelist = _allowed_import_tables()
+    if whitelist:
+        if table not in whitelist:
+            return {"ok": False, "error": "table not allowed"}
+        if not module:
+            module = whitelist.get(table)
+    # Forzar módulo canónico imports_<tabla> si no viene o no es imports_*
+    if not module or not module.startswith("imports_"):
+        module = f"imports_{table}"
+    # Leer columnas de information_schema (solo nombres/tipos)
+    rows = db.execute(
+        text(
+            """
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_name = :tbl
+              AND table_schema NOT IN ('information_schema','pg_catalog')
+            ORDER BY ordinal_position
+            """
+        ),
+        {"tbl": table},
+    ).fetchall()
+    if not rows:
+        return {"ok": False, "error": "table has no columns or not found"}
+    # Limpiar existentes y grabar nuevos
+    db.query(SectorFieldDefault).filter(
+        SectorFieldDefault.sector == sector, SectorFieldDefault.module == module
+    ).delete()
+    items = []
+    for idx, r in enumerate(rows):
+        fname = str(r[0])
+        ftype = _guess_field_type(r[1])
+        required = str(r[2]).lower() == "no"
+        row = SectorFieldDefault(
+            sector=sector,
+            module=module,
+            field=fname,
+            visible=True,
+            required=required,
+            ord=idx,
+            field_type=ftype,
+        )
+        db.add(row)
+        items.append(
+            {
+                "field": fname,
+                "visible": True,
+                "required": required,
+                "ord": idx,
+                "field_type": ftype,
+            }
+        )
+    db.commit()
+    return {"ok": True, "items": items, "module": module, "sector": sector}
 
 
 @admin_router.get("/ui-plantillas")

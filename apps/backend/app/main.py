@@ -621,6 +621,15 @@ try:
 except Exception as e:
     _router_logger.error(f"Error mounting Admin Stats router: {e}")
 
+# Admin Field Config (imports/templates catalog)
+try:
+    from app.modules.settings.interface.http.tenant import admin_router as field_admin_router
+
+    app.include_router(field_admin_router, prefix="/api/v1")
+    _router_logger.info("Field-config admin router mounted at /api/v1/admin/field-config")
+except Exception as e:
+    _router_logger.error(f"Error mounting Field-config admin router: {e}")
+
 # Settings
 try:
     from app.routers.settings_router import router as settings_router

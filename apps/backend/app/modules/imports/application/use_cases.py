@@ -39,7 +39,6 @@ from app.modules.imports.application.template_engine import (
 )
 from app.modules.imports.application.template_engine.header_norm import normalize_headers
 from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
-from app.modules.imports.application.use_utils import apply_mapping
 from app.modules.imports.domain.handlers import (
     BankHandler,
     ExpenseHandler,
@@ -819,11 +818,8 @@ def ingest_rows(
             if processed:
                 normalized = processed[0] if len(processed) == 1 else processed
         else:
-            normalized = (
-                apply_mapping(raw_effective, mappings, transforms, defaults) if mappings else None
-            )
-            # Fallback normalization for products when no mapping present
-            if not normalized and (batch.source_type in ("products", "productos")):
+            # Legacy mappings eliminados: usamos solo heurÃ­sticas automÃ¡ticas
+            if batch.source_type in ("products", "productos"):
                 normalized = _normalize_product_row(raw_effective)
             if not normalized:
                 auto_norm = _auto_normalize_row(batch.source_type, raw_effective)
@@ -1264,9 +1260,6 @@ def ingest_photo(
     # 5) mapping/template
     normalized = None
     tpl_v2: TemplateV2 | None = None
-    legacy_map: dict[str, Any] | None = None
-    legacy_transforms: dict[str, Any] | None = None
-    legacy_defaults: dict[str, Any] | None = None
     try:
         if batch.mapping_id:
             mp = db.query(ImportMapping).filter(ImportMapping.id == batch.mapping_id).first()
@@ -1275,10 +1268,6 @@ def ingest_photo(
                     errs = validate_template(mp.mappings)
                     if not errs:
                         tpl_v2 = TemplateV2(**mp.mappings)
-                else:
-                    legacy_map = mp.mappings or {}
-                    legacy_transforms = mp.transforms or {}
-                    legacy_defaults = mp.defaults or {}
         if tpl_v2 is None:
             qtpl = db.query(ImportMapping).filter(ImportMapping.tenant_id == batch.tenant_id)
             if getattr(batch, "source_type", None) not in ("generic", "unknown", "", None):
@@ -1314,12 +1303,8 @@ def ingest_photo(
         if processed:
             normalized = processed[0] if len(processed) == 1 else processed
     else:
-        normalized = apply_mapping(
-            raw,
-            mappings=legacy_map or {},
-            transforms=legacy_transforms or {},
-            defaults=legacy_defaults or {},
-        )
+        # Legacy mappings eliminados: usar solo auto-normalizaciÃ³n heurÃ­stica por tipo
+        normalized = _auto_normalize_row(batch.source_type or tipo, raw)
 
     ir = IRBuilder().build_from_ocr(texto, sha256, ocr_job_id="", page_no=1, attachment_ids=[])
 

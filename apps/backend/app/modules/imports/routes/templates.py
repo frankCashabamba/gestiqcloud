@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from uuid import uuid4
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -18,7 +19,7 @@ from app.modules.imports.application.template_engine import (
     TemplateV2,
     validate_template,
 )
-from app.models.core.ui_field_config import TenantFieldConfig
+from app.models.core.ui_field_config import TenantFieldConfig, SectorFieldDefault
 
 logger = logging.getLogger("imports")
 
@@ -92,6 +93,179 @@ def list_templates(
     return q.order_by(ImportMapping.created_at.desc()).all()
 
 
+@router.get("/fields2")
+def list_template_fields_v2(
+    request: Request,
+    source_type: str | None = Query(
+        None,
+        description="products|expenses|invoices|bank_transactions|recipes|generic or * to list available",
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Version 2: devuelve campos sólo desde BD (sin seeds ni listas fijas).
+      - tenant_field_configs (module=imports_<source_type>)
+      - sector_field_defaults (module=imports_<source_type>, sector global/default)
+    Si source_type es '*' o vacío: lista los tipos disponibles a partir de modules imports_% existentes.
+    """
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    # Listar tipos disponibles (solo los habilitados en el catálogo global;
+    # si no hay, cae a los que existan por tenant)
+    if source_type in (None, "", "*", "all"):
+        global_modules = {
+            m
+            for (m,) in db.query(SectorFieldDefault.module)
+            .filter(
+                SectorFieldDefault.module.like("imports_%"),
+                SectorFieldDefault.sector.in_(["global", "default"]),
+            )
+            .all()
+            if m
+        }
+        tenant_modules = {
+            m
+            for (m,) in db.query(TenantFieldConfig.module)
+            .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module.like("imports_%"))
+            .all()
+            if m
+        }
+        # Priorizar los definidos en el catálogo global; si está vacío, usa los del tenant.
+        mods = global_modules or tenant_modules
+        types = sorted({m.replace("imports_", "") for m in mods})
+        return {"source_types": types}
+
+    modules_to_try = [f"imports_{source_type}", source_type]
+    fields: list[str] = []
+
+    allowed_global = {
+        m
+        for (m,) in db.query(SectorFieldDefault.module)
+        .filter(
+            SectorFieldDefault.module.like("imports_%"),
+            SectorFieldDefault.sector.in_(["global", "default"]),
+        )
+        .all()
+        if m
+    }
+    if allowed_global and not any(mod in allowed_global for mod in modules_to_try):
+        # Si el módulo no está habilitado en el catálogo global, devolvemos vacío
+        return {"source_type": source_type, "fields": [], "seeded": False}
+
+    # tenant overrides
+    for mod in modules_to_try:
+        rows = (
+            db.query(TenantFieldConfig)
+            .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module == mod)
+            .order_by(TenantFieldConfig.field.asc())
+            .all()
+        )
+        if rows:
+            fields = [str(r.field) for r in rows if getattr(r, "field", None)]
+            if fields:
+                break
+
+    # global defaults
+    if not fields:
+        for mod in modules_to_try:
+            q = db.query(SectorFieldDefault).filter(
+                SectorFieldDefault.module == mod, SectorFieldDefault.sector.in_(["global", "default"])
+            )
+            if hasattr(SectorFieldDefault, "ord"):
+                q = q.order_by(SectorFieldDefault.ord.asc().nullsfirst())
+            rows = q.all()
+            if rows:
+                fields = [str(r.field) for r in rows if getattr(r, "field", None)]
+                if fields:
+                    break
+
+    return {"source_type": source_type, "fields": fields, "seeded": False}
+
+@router.get("/fields_dynamic")
+def list_template_fields_dynamic(
+    request: Request,
+    source_type: str | None = Query(
+        None,
+        description="products|expenses|invoices|bank_transactions|recipes|generic or * to list available",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Dynamic fields: only DB (tenant_field_configs or sector_field_defaults), no seeds."""
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    if source_type in (None, "", "*", "all"):
+        global_modules = {
+            m
+            for (m,) in db.query(SectorFieldDefault.module)
+            .filter(
+                SectorFieldDefault.module.like("imports_%"),
+                SectorFieldDefault.sector.in_(["global", "default"]),
+            )
+            .all()
+            if m
+        }
+        tenant_modules = {
+            m
+            for (m,) in db.query(TenantFieldConfig.module)
+            .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module.like("imports_%"))
+            .all()
+            if m
+        }
+        mods = global_modules or tenant_modules
+        types = sorted({m.replace("imports_", "") for m in mods})
+        return {"source_types": types}
+
+    modules_to_try = [f"imports_{source_type}", source_type]
+    fields: list[str] = []
+
+    allowed_global = {
+        m
+        for (m,) in db.query(SectorFieldDefault.module)
+        .filter(
+            SectorFieldDefault.module.like("imports_%"),
+            SectorFieldDefault.sector.in_(["global", "default"]),
+        )
+        .all()
+        if m
+    }
+    if allowed_global and not any(mod in allowed_global for mod in modules_to_try):
+        return {"source_type": source_type, "fields": [], "seeded": False}
+
+    # tenant overrides
+    for mod in modules_to_try:
+        rows = (
+            db.query(TenantFieldConfig)
+            .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module == mod)
+            .order_by(TenantFieldConfig.field.asc())
+            .all()
+        )
+        if rows:
+            fields = [str(r.field) for r in rows if getattr(r, "field", None)]
+            if fields:
+                break
+
+    # global defaults
+    if not fields:
+        for mod in modules_to_try:
+            q = db.query(SectorFieldDefault).filter(
+                SectorFieldDefault.module == mod, SectorFieldDefault.sector.in_(["global", "default"])
+            )
+            if hasattr(SectorFieldDefault, "ord"):
+                q = q.order_by(SectorFieldDefault.ord.asc().nullsfirst())
+            rows = q.all()
+            if rows:
+                fields = [str(r.field) for r in rows if getattr(r, "field", None)]
+                if fields:
+                    break
+
+    return {"source_type": source_type, "fields": fields, "seeded": False}
+
 @router.get("/{template_id}")
 def get_template(
     template_id: UUID,
@@ -128,7 +302,47 @@ def list_template_fields(
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
+    # Campos base por tipo (semilla global, no por tenant)
+    SEEDS: dict[str, list[dict[str, Any]]] = {
+        "expenses": [
+            {"field": "expense_date", "field_type": "date", "required": True},
+            {"field": "amount", "field_type": "number", "required": True},
+            {"field": "description", "field_type": "string", "required": False},
+            {"field": "category", "field_type": "string", "required": False},
+            {"field": "counterparty", "field_type": "string", "required": False},
+        ],
+        "invoices": [
+            {"field": "invoice_number", "field_type": "string", "required": True},
+            {"field": "invoice_date", "field_type": "date", "required": True},
+            {"field": "customer_name", "field_type": "string", "required": False},
+            {"field": "total_amount", "field_type": "number", "required": True},
+            {"field": "net_amount", "field_type": "number", "required": False},
+            {"field": "tax_amount", "field_type": "number", "required": False},
+        ],
+        "products": [
+            {"field": "name", "field_type": "string", "required": True},
+            {"field": "sku", "field_type": "string", "required": False},
+            {"field": "price", "field_type": "number", "required": False},
+            {"field": "stock", "field_type": "number", "required": False},
+            {"field": "category", "field_type": "string", "required": False},
+            {"field": "unit", "field_type": "string", "required": False},
+        ],
+        "bank_transactions": [
+            {"field": "transaction_date", "field_type": "date", "required": True},
+            {"field": "amount", "field_type": "number", "required": True},
+            {"field": "description", "field_type": "string", "required": False},
+            {"field": "account", "field_type": "string", "required": False},
+            {"field": "entry_ref", "field_type": "string", "required": False},
+        ],
+        "generic": [
+            {"field": "date", "field_type": "date", "required": False},
+            {"field": "amount", "field_type": "number", "required": False},
+            {"field": "description", "field_type": "string", "required": False},
+        ],
+    }
+
     fields: list[str] = []
+    seeded = False
     modules_to_try: list[str] = []
     if source_type:
         modules_to_try.extend(
@@ -138,12 +352,12 @@ def list_template_fields(
             ]
         )
 
-    # 1) Exact matches by module
+    # 1) Exact matches by module (tenant overrides)
     for mod in modules_to_try:
         rows = (
             db.query(TenantFieldConfig)
             .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module == mod)
-            .order_by(TenantFieldConfig.created_at.asc())
+            .order_by(TenantFieldConfig.field.asc())
             .all()
         )
         if rows:
@@ -151,7 +365,7 @@ def list_template_fields(
             if fields:
                 break
 
-    # 2) Fallback: any module containing the source_type
+    # 2) Fallback tenant: any module containing the source_type
     if not fields and source_type:
         rows = (
             db.query(TenantFieldConfig)
@@ -159,27 +373,63 @@ def list_template_fields(
                 TenantFieldConfig.tenant_id == tenant_id,
                 TenantFieldConfig.module.ilike(f"%{source_type}%"),
             )
-            .order_by(TenantFieldConfig.created_at.asc())
+            .order_by(TenantFieldConfig.field.asc())
             .all()
         )
         if rows:
             fields = [str(r.field) for r in rows if getattr(r, "field", None)]
 
-    # 3) Last resort: all fields for tenant (generic catch-all)
+    # 3) Global catalog (sector_field_defaults) Ã³ auto-semilla global
     if not fields:
-        rows = (
-            db.query(TenantFieldConfig)
-            .filter(TenantFieldConfig.tenant_id == tenant_id)
-            .order_by(TenantFieldConfig.created_at.asc())
-            .all()
-        )
-        if rows:
-            fields = [str(r.field) for r in rows if getattr(r, "field", None)]
+        # exact module in sector defaults (sector='global' o 'default')
+        for mod in modules_to_try or []:
+            rows = (
+                db.query(SectorFieldDefault)
+                .filter(SectorFieldDefault.module == mod, SectorFieldDefault.sector.in_(["global", "default"]))
+                .order_by(SectorFieldDefault.ord.asc().nullsfirst() if hasattr(SectorFieldDefault, "ord") else None)
+                .all()
+            )
+            if rows:
+                fields = [str(r.field) for r in rows if getattr(r, "field", None)]
+                if fields:
+                    break
 
+    # 4) Auto-semilla GLOBAL si sigue vacÃ­o
     if not fields:
-        raise HTTPException(status_code=404, detail="fields_not_configured")
+        seed_def = None
+        if source_type:
+            seed_def = SEEDS.get(source_type) or SEEDS.get(source_type.rstrip("s"), None)
+            if not seed_def and source_type == "bank":
+                seed_def = SEEDS.get("bank_transactions")
+        if not seed_def:
+            seed_def = SEEDS.get("generic")
+        if seed_def:
+            module_name = modules_to_try[0] if modules_to_try else f"imports_{source_type or 'generic'}"
+            try:
+                objs = []
+                for idx, cfg in enumerate(seed_def):
+                    objs.append(
+                        SectorFieldDefault(
+                            id=uuid4(),
+                            sector="global",
+                            module=module_name,
+                            field=cfg["field"],
+                            required=bool(cfg.get("required")),
+                            visible=True,
+                            field_type=cfg.get("field_type"),
+                            ord=idx,
+                        )
+                    )
+                db.add_all(objs)
+                db.commit()
+            except Exception:
+                db.rollback()
+            finally:
+                fields = [c["field"] for c in seed_def]
+                seeded = True
 
-    return {"source_type": source_type or "generic", "fields": fields}
+    # 5) Como Ãºltimo recurso, devuelve array vacÃ­o (no 404) para no romper UX
+    return {"source_type": source_type or "generic", "fields": fields, "seeded": seeded}
 
 
 @router.post("/", status_code=201)
