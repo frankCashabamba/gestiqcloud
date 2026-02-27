@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { apiFetch } from '../lib/http'
 import { useAuth } from '../auth/AuthContext'
 import { fetchCompanyTheme } from '../services/theme'
@@ -8,6 +9,7 @@ type MeResp = { empresa_slug?: string }
 type ThemeResponse = { sector?: string }
 
 export default function SectorStart() {
+  const { t: tr } = useTranslation()
   const [target, setTarget] = useState<string | null>(null)
   const { token } = useAuth() as { token: string | null }
 
@@ -37,6 +39,6 @@ export default function SectorStart() {
     return () => { cancelled = true }
   }, [token])
 
-  if (!target) return <div style={{ padding: 16 }}>Cargando plantilla…</div>
+  if (!target) return <div style={{ padding: 16 }}>{tr('pages.sectorStart.loadingTemplate')}</div>
   return <Navigate to={`/${target}`} replace />
 }

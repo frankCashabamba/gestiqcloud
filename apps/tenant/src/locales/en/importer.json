@@ -364,10 +364,10 @@
     "saveConfiguration": "Save this configuration to reuse",
     "saveNamePlaceholder": "e.g. Dairy Supplier - Monthly",
     "readyToContinue": "Ready to continue",
-    "mustMapProductNameFooter": "You must map \"Product Name\"",
+    "mustMapProductNameFooter": "You must map \\\"Product Name\\\"",
     "continueImport": "Continue Import",
     "alerts": {
-      "mustMapProductName": "You must map at least the \"Product Name\" field"
+      "mustMapProductName": "You must map at least the \\\"Product Name\\\" field"
     },
     "fields": {
       "productName": "Product Name",
@@ -379,14 +379,30 @@
       "supplier": "Supplier",
       "unit": "Unit",
       "ignoreColumn": "Ignore column"
-      }
-      },
-      "importerPreviewPage": {
-      "actions": {
+    }
+  },
+  "importerPreviewPage": {
+    "actions": {
       "deleteAllProcesses": "Delete all processes"
-      },
-      "confirm": {
+    },
+    "confirm": {
       "deleteAllProcesses": "Are you sure you want to delete ALL processes? This cannot be undone."
-      }
-      }
-      }
+    }
+  },
+  "feedback": {
+    "question": "Was the automatic classification correct?",
+    "close": "Close",
+    "confidence": "Confidence:",
+    "yesCorrect": "Yes, correct",
+    "noWrong": "No, it was another",
+    "thankYou": "Thanks for your feedback",
+    "whichParser": "Which was the correct parser?",
+    "selectParser": "-- Select --",
+    "selectCorrectParser": "Please select the correct parser",
+    "cancel": "Cancel",
+    "sending": "Sending...",
+    "send": "Send",
+    "submitError": "Error submitting feedback",
+    "unknownError": "Unknown error"
+  }
+}

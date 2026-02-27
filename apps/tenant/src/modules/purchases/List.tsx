@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listCompras, removeCompra, type Compra } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
@@ -9,6 +10,7 @@ import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
 
 export default function ComprasList() {
+  const { t } = useTranslation(['purchases', 'common'])
   const can = usePermission()
   const [items, setItems] = useState<Compra[]>([])
   const [loading, setLoading] = useState(false)
@@ -100,7 +102,7 @@ export default function ComprasList() {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-3">
-        <h2 className="font-semibold text-lg">Purchases</h2>
+        <h2 className="font-semibold text-lg">{t('purchases:title')}</h2>
         <div className="flex gap-2">
           {can('purchases:read') && (
             <ProtectedButton
@@ -108,7 +110,7 @@ export default function ComprasList() {
               variant="secondary"
               onClick={() => exportCSV(view)}
             >
-              Export CSV
+              {t('purchases:exportCsv')}
             </ProtectedButton>
           )}
           {can('purchases:create') && (
@@ -117,7 +119,7 @@ export default function ComprasList() {
               variant="primary"
               onClick={() => nav('new')}
             >
-              New Purchase
+              {t('purchases:new')}
             </ProtectedButton>
           )}
         </div>
@@ -125,21 +127,21 @@ export default function ComprasList() {
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div>
-          <label className="text-sm mr-2">Status</label>
+          <label className="text-sm mr-2">{t('purchases:status')}</label>
           <select
             value={estado}
             onChange={(e) => setEstado(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
           >
-            <option value="">All</option>
-            <option value="draft">Draft</option>
-            <option value="sent">Sent</option>
-            <option value="received">Received</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="">{t('purchases:all')}</option>
+            <option value="draft">{t('purchases:draft')}</option>
+            <option value="sent">{t('purchases:sent')}</option>
+            <option value="received">{t('purchases:received')}</option>
+            <option value="cancelled">{t('purchases:cancelled')}</option>
           </select>
         </div>
         <div>
-          <label className="text-sm mr-2">From</label>
+          <label className="text-sm mr-2">{t('purchases:from')}</label>
           <input
             type="date"
             value={desde}
@@ -148,7 +150,7 @@ export default function ComprasList() {
           />
         </div>
         <div>
-          <label className="text-sm mr-2">To</label>
+          <label className="text-sm mr-2">{t('purchases:to')}</label>
           <input
             type="date"
             value={hasta}
@@ -157,9 +159,9 @@ export default function ComprasList() {
           />
         </div>
         <div>
-          <label className="text-sm mr-2">Search</label>
+          <label className="text-sm mr-2">{t('purchases:search')}</label>
           <input
-            placeholder="ID, number, supplier..."
+            placeholder={t('purchases:searchPlaceholder')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
@@ -167,11 +169,11 @@ export default function ComprasList() {
         </div>
       </div>
 
-      {loading && <div className="text-sm text-gray-500">Loading…</div>}
+      {loading && <div className="text-sm text-gray-500">{t('purchases:loading')}</div>}
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
 
       <div className="flex items-center gap-3 mb-2 text-sm">
-        <label>Per page</label>
+        <label>{t('purchases:perPage')}</label>
         <select
           value={per}
           onChange={(e) => setPer(Number(e.target.value))}
@@ -189,26 +191,26 @@ export default function ComprasList() {
             <tr className="text-left border-b">
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('fecha')}>
-                  Date {sortKey === 'fecha' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  {t('purchases:date')} {sortKey === 'fecha' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">Number</th>
+              <th className="py-2 px-2">{t('purchases:number')}</th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('proveedor_nombre')}>
-                  Supplier {sortKey === 'proveedor_nombre' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  {t('purchases:supplier')} {sortKey === 'proveedor_nombre' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('total')}>
-                  Total {sortKey === 'total' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  {t('purchases:total')} {sortKey === 'total' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('estado')}>
-                  Status {sortKey === 'estado' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  {t('purchases:status')} {sortKey === 'estado' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">Actions</th>
+              <th className="py-2 px-2">{t('purchases:actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -224,12 +226,12 @@ export default function ComprasList() {
                 <td className="py-2 px-2">
                   {can('purchases:read') && (
                     <Link to={`${v.id}`} className="text-blue-600 hover:underline mr-3">
-                      View
+                      {t('purchases:view')}
                     </Link>
                   )}
                   {v.estado === 'draft' && can('purchases:update') && (
                     <Link to={`${v.id}/edit`} className="text-blue-600 hover:underline mr-3">
-                      Edit
+                      {t('purchases:edit')}
                     </Link>
                   )}
                   {v.estado === 'draft' && can('purchases:delete') && (
@@ -237,17 +239,17 @@ export default function ComprasList() {
                       permission="purchases:delete"
                       variant="ghost"
                       onClick={async () => {
-                        if (!confirm('Delete purchase?')) return
+                        if (!confirm(t('purchases:deleteConfirm'))) return
                         try {
                           await removeCompra(v.id)
                           setItems((p) => p.filter(x => x.id !== v.id))
-                          success('Purchase deleted')
+                          success(t('purchases:deleted'))
                         } catch (e: any) {
                           toastError(getErrorMessage(e))
                         }
                       }}
                     >
-                      Delete
+                      {t('purchases:delete')}
                     </ProtectedButton>
                   )}
                 </td>
@@ -256,7 +258,7 @@ export default function ComprasList() {
             {!loading && view.length === 0 && (
               <tr>
                 <td className="py-3 px-3 text-center text-gray-500" colSpan={6}>
-                  No records
+                  {t('purchases:empty')}
                 </td>
               </tr>
             )}

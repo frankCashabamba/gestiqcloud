@@ -6,6 +6,7 @@ import os
 import tempfile
 from io import BytesIO
 from typing import Any
+from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
@@ -101,16 +102,22 @@ async def analyze_excel_for_preview(
         # Parser especializado para productos
         preview_items = []
         categories = []
+        stats: dict[str, Any] = {}
 
         if file.filename:
-            # Guardar temporalmente para parser openpyxl
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+            ext = Path(file.filename or "").suffix.lower() or ".xlsx"
+
+            # Guardar temporalmente respetando la extensión original
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
                 tmp.write(contents)
                 tmp_path = tmp.name
 
             try:
                 # Parse con detección de categorías
-                result = parse_products_excel(tmp_path)
+                try:
+                    result = parse_products_excel(tmp_path)
+                except ValueError as exc:  # Errores controlados (ej. xls sin soporte)
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
 
                 # Tomar primeras 10 filas para preview
                 preview_items = result["products"][:10]

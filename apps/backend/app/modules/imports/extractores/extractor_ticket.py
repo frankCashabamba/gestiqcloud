@@ -63,7 +63,7 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
             r"Ticket\s*(?:N[ºo°]?)?\s*[:\-]?\s*(\w+)",
             r"R[-\s]*(\d{4,})",
         ],
-        texto,
+        texto_limpio,
     )
 
     fecha_hora = search_multiple(
@@ -74,7 +74,7 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
             r"(\d{2}/\d{2}/\d{4})",
             r"(\d{2}-\d{2}-\d{4})",
         ],
-        texto,
+        texto_limpio,
     )
 
     fecha_iso = None
@@ -84,7 +84,7 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
             dia, mes, anio = fecha_match.groups()
             fecha_iso = f"{anio}-{mes}-{dia}"
 
-    lineas_productos = _extraer_lineas_productos(texto)
+    lineas_productos = _extraer_lineas_productos(texto_limpio)
 
     total_str = search_multiple(
         [
@@ -92,7 +92,7 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
             r"TOTAL[:\s]*\$?\s*([\d.,]+)",
             r"Total\s*[:\-]?\s*([\d]{1,6}[.,]\d{2})",
         ],
-        texto,
+        texto_limpio,
     )
     total = _parsear_importe(total_str) if total_str else 0.0
 

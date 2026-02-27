@@ -204,5 +204,33 @@
         }
       }
     }
+  },
+  "273365e5-33eb-45d0-acde-e3b988e254e0": {
+    "products": {
+      "nombre": {
+        "PRODUCTO": {
+          "correct": 2,
+          "total": 2
+        }
+      },
+      "precio": {
+        "PRECIO UNITARIO VENTA": {
+          "correct": 2,
+          "total": 2
+        }
+      },
+      "precio_venta": {
+        "PRECIO UNITARIO VENTA": {
+          "correct": 2,
+          "total": 2
+        }
+      },
+      "stock": {
+        "CANTIDAD": {
+          "correct": 2,
+          "total": 2
+        }
+      }
+    }
   }
 }

@@ -1,19 +1,18 @@
 /**
  * BusinessCategorySelector
  *
- * Componente que muestra un selector de categorías de negocio
- * cargadas dinámicamente desde BD.
- *
- * Reemplaza valores hardcodeados previos.
+ * Displays a business category selector loaded dynamically from DB.
+ * Replaces previously hardcoded values.
  *
  * Props:
- * - value: Código de categoría seleccionada
- * - onChange: Callback cuando selecciona una categoría
- * - disabled: Desabilitar selector
- * - label: Label del select
+ * - value: Selected category code
+ * - onChange: Callback when a category is selected
+ * - disabled: Disable selector
+ * - label: Select label
  */
 
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useBusinessCategories } from '../hooks/useBusinessCategories'
 
 interface BusinessCategorySelectorProps {
@@ -29,15 +28,19 @@ export function BusinessCategorySelector({
   value,
   onChange,
   disabled = false,
-  label = 'Categoría de Negocio',
-  placeholder = 'Seleccionar categoría...',
+  label,
+  placeholder,
   className = '',
 }: BusinessCategorySelectorProps) {
+  const { t } = useTranslation()
   const { categories, loading, error } = useBusinessCategories()
+
+  const resolvedLabel = label ?? t('components.categorySelector.label')
+  const resolvedPlaceholder = placeholder ?? t('components.categorySelector.placeholder')
 
   return (
     <div className={`business-category-selector ${className}`}>
-      {label && <label htmlFor="category-select">{label}</label>}
+      {resolvedLabel && <label htmlFor="category-select">{resolvedLabel}</label>}
 
       <select
         id="category-select"
@@ -46,7 +49,7 @@ export function BusinessCategorySelector({
         disabled={disabled || loading}
         className={`select ${error ? 'error' : ''}`}
       >
-        <option value="">{placeholder}</option>
+        <option value="">{resolvedPlaceholder}</option>
         {categories.map(category => (
           <option key={category.code} value={category.code}>
             {category.name}
@@ -55,7 +58,7 @@ export function BusinessCategorySelector({
         ))}
       </select>
 
-      {loading && <small className="text-muted">Cargando categorías...</small>}
+      {loading && <small className="text-muted">{t('components.categorySelector.loading')}</small>}
       {error && <small className="text-danger">Error: {error}</small>}
 
       <style>{`

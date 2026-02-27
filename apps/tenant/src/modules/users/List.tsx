@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   listUsuarios,
   removeUsuario,
@@ -22,6 +23,7 @@ function formatNombre(usuario: Usuario): string {
 }
 
 export default function UsuariosList() {
+  const { t } = useTranslation(['users', 'common'])
   const [items, setItems] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -88,11 +90,11 @@ export default function UsuariosList() {
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
 
   const handleRemove = async (id: string) => {
-    if (!confirm('Deactivate this user?')) return
+    if (!confirm(t('users:deactivateConfirm'))) return
     try {
       await removeUsuario(id)
       setItems((prev) => prev.filter((u) => u.id !== id))
-      success('User deactivated')
+      success(t('users:deactivated'))
     } catch (e: any) {
       toastError(getErrorMessage(e))
     }
@@ -112,11 +114,11 @@ export default function UsuariosList() {
   }
 
   const handleDeleteRol = async (id: string) => {
-    if (!confirm('Delete this role?')) return
+    if (!confirm(t('users:roleManagement.deleteConfirm'))) return
     try {
       await deleteRol(id)
       setRolesCompletos(prev => prev.filter(r => r.id !== id))
-      success('Role deleted')
+      success(t('users:roleManagement.deleted'))
     } catch (e: any) {
       toastError(getErrorMessage(e))
     }
@@ -126,8 +128,8 @@ export default function UsuariosList() {
     <div className="p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Company Users</h2>
-          <p className="text-sm text-slate-500">Manage access, modules, and assigned roles.</p>
+          <h2 className="text-lg font-semibold text-slate-900">{t('users:title')}</h2>
+          <p className="text-sm text-slate-500">{t('users:subtitle')}</p>
         </div>
         {isAdminEmpresa && (
           <div className="flex gap-2">
@@ -138,10 +140,10 @@ export default function UsuariosList() {
                 setShowRolesModal(true)
               }}
             >
-              Manage Roles
+              {t('users:manageRoles')}
             </button>
             <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
-              New user
+              {t('users:newUser')}
             </button>
           </div>
         )}
@@ -151,23 +153,23 @@ export default function UsuariosList() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by name, email or username"
+          placeholder={t('users:searchPlaceholder')}
           className="w-full max-w-md rounded-xl border border-slate-200 px-4 py-2 text-sm"
         />
       </div>
 
-      {loading && <div className="text-sm text-slate-500">Loading users...</div>}
+      {loading && <div className="text-sm text-slate-500">{t('users:loading')}</div>}
       {errMsg && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{errMsg}</div>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Email / Username</th>
-              <th className="px-4 py-3">Roles</th>
-              <th className="px-4 py-3">Modules</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">{t('users:name')}</th>
+              <th className="px-4 py-3">{t('users:emailUsername')}</th>
+              <th className="px-4 py-3">{t('users:roles')}</th>
+              <th className="px-4 py-3">{t('users:modules')}</th>
+              <th className="px-4 py-3">{t('users:status')}</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -188,10 +190,10 @@ export default function UsuariosList() {
                     {u.username && <div className="text-xs text-slate-400">{u.username}</div>}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{rolesLabels.length ? rolesLabels.join(', ') : '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{u.is_company_admin ? 'All modules' : modLabels.join(', ') || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{u.is_company_admin ? t('users:allModules') : modLabels.join(', ') || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                      {u.active ? 'Active' : 'Inactive'}
+                      {u.active ? t('users:active') : t('users:inactive')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -199,19 +201,19 @@ export default function UsuariosList() {
                       {isAdminEmpresa && (
                         <>
                           <Link to={`${u.id}/editar`} className="text-sm font-medium text-blue-600 hover:text-blue-500">
-                            Edit
+                            {t('users:edit')}
                           </Link>
                           <button
                             className="text-sm font-medium text-slate-600 hover:text-slate-900"
                             onClick={() => { setSetPwdUserId(u.id); setNewPwd('') }}
                           >
-                            Set password
+                            {t('users:setPassword')}
                           </button>
                           <button
                             className="text-sm font-medium text-rose-600 hover:text-rose-500"
                             onClick={() => handleRemove(u.id)}
                           >
-                            Deactivate
+                            {t('users:deactivate')}
                           </button>
                         </>
                       )}
@@ -223,7 +225,7 @@ export default function UsuariosList() {
             {!loading && view.length === 0 && (
               <tr>
                 <td className="px-4 py-6 text-center text-sm text-slate-500" colSpan={6}>
-                  No users found matching that filter.
+                  {t('users:empty')}
                 </td>
               </tr>
             )}
@@ -236,25 +238,25 @@ export default function UsuariosList() {
       {setPwdUserId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 shadow-lg">
-            <h3 className="text-lg font-semibold text-slate-900">Set password</h3>
-            <p className="text-sm text-slate-600">Define a temporary password for this user.</p>
+            <h3 className="text-lg font-semibold text-slate-900">{t('users:passwordModal.title')}</h3>
+            <p className="text-sm text-slate-600">{t('users:passwordModal.description')}</p>
             <input
               type="password"
               value={newPwd}
               onChange={(e) => setNewPwd(e.target.value)}
-              placeholder="New password (min 8 chars)"
+              placeholder={t('users:passwordModal.placeholder')}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => { setSetPwdUserId(null); setNewPwd('') }} className="text-sm text-slate-600 hover:text-slate-900">
-                Cancel
+                {t('users:passwordModal.cancel')}
               </button>
               <button
                 onClick={async () => {
-                  if ((newPwd || '').length < 8) { toastError('Password must be at least 8 characters'); return }
+                  if ((newPwd || '').length < 8) { toastError(t('users:passwordModal.minLength')); return }
                   try {
                     await setUsuarioPassword(setPwdUserId!, newPwd)
-                    success('Password updated')
+                    success(t('users:passwordModal.updated'))
                     setSetPwdUserId(null)
                     setNewPwd('')
                   } catch (e: any) {
@@ -263,7 +265,7 @@ export default function UsuariosList() {
                 }}
                 className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
               >
-                Save
+                {t('users:passwordModal.save')}
               </button>
             </div>
           </div>
@@ -278,19 +280,19 @@ export default function UsuariosList() {
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-slate-900">Role Management</h2>
+              <h2 className="text-xl font-semibold text-slate-900">{t('users:roleManagement.title')}</h2>
               <button
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
                 onClick={() => setSelectedRol({} as Rol)}
               >
-                + Create Role
+                {t('users:roleManagement.createRole')}
               </button>
             </div>
 
             <div className="space-y-3">
               {rolesCompletos.length === 0 && (
                 <p className="text-center text-sm text-slate-500 py-8">
-                  No roles created. Create the first role for your company.
+                  {t('users:roleManagement.empty')}
                 </p>
               )}
               {rolesCompletos.map(rol => (
@@ -320,13 +322,13 @@ export default function UsuariosList() {
                         className="text-sm text-blue-600 hover:text-blue-500"
                         onClick={() => setSelectedRol(rol)}
                       >
-                        Edit
+                        {t('users:roleManagement.edit')}
                       </button>
                       <button
                         className="text-sm text-rose-600 hover:text-rose-500"
                         onClick={() => handleDeleteRol(rol.id)}
                       >
-                        Delete
+                        {t('users:roleManagement.delete')}
                       </button>
                     </div>
                   </div>
@@ -339,7 +341,7 @@ export default function UsuariosList() {
                 className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
                 onClick={() => setShowRolesModal(false)}
               >
-                Close
+                {t('users:roleManagement.close')}
               </button>
             </div>
           </div>

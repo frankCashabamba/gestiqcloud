@@ -915,5 +915,139 @@
     "priceVisible": "Precio visible",
     "categoryVisible": "Categoria visible",
     "sku": "SKU"
+  },
+  "pages": {
+    "setPassword": {
+      "title": "Establecer contraseña",
+      "newPassword": "Nueva contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "saving": "Guardando…",
+      "save": "Guardar",
+      "errors": {
+        "invalidToken": "Token inválido",
+        "minLength": "La contraseña debe tener al menos 8 caracteres",
+        "mismatch": "Las contraseñas no coinciden",
+        "loginFailed": "No se pudo iniciar sesión con la nueva contraseña"
+      },
+      "success": "Contraseña actualizada"
+    },
+    "onboarding": {
+      "subtitle": "Configura tu empresa en 4 pasos",
+      "stepOf": "Paso {{current}} de {{total}}",
+      "requiredFields": "Por favor completa los campos requeridos",
+      "savedSuccess": "Configuración guardada exitosamente",
+      "steps": {
+        "info": {
+          "title": "Información de la Empresa",
+          "subtitle": "Cuéntanos sobre tu negocio",
+          "companyName": "Nombre de Empresa *",
+          "companyNamePlaceholder": "Ej: Mi Empresa S.A.",
+          "country": "País *",
+          "selectCountry": "Selecciona un país",
+          "taxId": "RUC/NIF/CIF",
+          "taxIdPlaceholder": "Ej: 12345678-1",
+          "phone": "Teléfono",
+          "phonePlaceholder": "Ej: +593 98765432",
+          "address": "Dirección",
+          "addressPlaceholder": "Ej: Calle Principal 123",
+          "city": "Ciudad",
+          "cityPlaceholder": "Ej: Quito",
+          "stateProvince": "Provincia/Estado",
+          "statePlaceholder": "Ej: Pichincha",
+          "postalCode": "Código Postal",
+          "postalCodePlaceholder": "Ej: 170105",
+          "website": "Sitio Web",
+          "websitePlaceholder": "Ej: www.miempresa.com"
+        },
+        "regional": {
+          "title": "Configuración Regional",
+          "subtitle": "Establece tu idioma, zona horaria y moneda",
+          "language": "Idioma *",
+          "timezone": "Zona Horaria *",
+          "timezonePlaceholder": "Ej: America/Guayaquil",
+          "currency": "Moneda *",
+          "tip": "Puedes cambiar estas configuraciones más tarde desde Ajustes"
+        },
+        "branding": {
+          "title": "Branding & Diseño",
+          "subtitle": "Personaliza la apariencia de tu empresa",
+          "logoOptional": "Logo (opcional)",
+          "changeLogo": "Cambiar logo",
+          "uploadPrompt": "Clic para seleccionar o arrastra una imagen",
+          "uploadHint": "PNG, JPG, GIF hasta 5MB",
+          "primaryColor": "Color Primario *",
+          "secondaryColor": "Color Secundario *",
+          "colorPreview": "Vista previa de colores"
+        },
+        "review": {
+          "title": "Revisa tu Configuración",
+          "subtitle": "Verifica que todo esté correcto antes de guardar",
+          "companyInfo": "Información de Empresa",
+          "company": "Empresa:",
+          "countryLabel": "País:",
+          "taxIdLabel": "RUC/NIF:",
+          "regionalConfig": "Configuración Regional",
+          "languageLabel": "Idioma:",
+          "timezoneLabel": "Zona Horaria:",
+          "currencyLabel": "Moneda:",
+          "brandingSection": "Branding",
+          "logoLoaded": "Logo cargado",
+          "primaryColorLabel": "Color Primario:",
+          "secondaryColorLabel": "Color Secundario:",
+          "allReady": "Todo listo: Una vez guardes, serás redirigido a la pantalla principal"
+        }
+      },
+      "back": "Atrás",
+      "next": "Siguiente",
+      "saving": "Guardando...",
+      "saveConfig": "Guardar Configuración"
+    },
+    "dashboard": {
+      "companyLabel": "Empresa:",
+      "userLabel": "Usuario:",
+      "contractedModules": "Módulos contratados",
+      "loadingModules": "Cargando módulos…",
+      "noModules": "No hay módulos contratados para esta empresa."
+    },
+    "unauthorized": {
+      "loading": "Cargando…"
+    },
+    "sectorStart": {
+      "loadingTemplate": "Cargando plantilla…"
+    },
+    "error": {
+      "goBack": "Volver"
+    }
+  },
+  "components": {
+    "unitSelector": {
+      "label": "Unidad de Medida",
+      "placeholder": "Seleccionar unidad...",
+      "loading": "Cargando unidades..."
+    },
+    "categorySelector": {
+      "label": "Categoría de Negocio",
+      "placeholder": "Seleccionar categoría...",
+      "loading": "Cargando categorías..."
+    },
+    "copilot": {
+      "greeting": "¡Hola! Soy tu asistente IA",
+      "helpText": "Pregúntame sobre ventas, inventario, facturación o cualquier problema de tu negocio.",
+      "suggestions": {
+        "sales": "¿Cómo van las ventas este mes?",
+        "lowStock": "¿Qué productos tienen stock bajo?",
+        "topSelling": "¿Cuáles son mis productos más vendidos?"
+      },
+      "inputPlaceholder": "Escribe tu pregunta...",
+      "buttonTitle": "Copilot IA"
+    },
+    "offlineSync": {
+      "pendingChanges": "{{count}} cambios pendientes",
+      "statuses": "Estados:",
+      "lastSync": "Última sincronización:",
+      "syncing": "Sincronizando...",
+      "syncNow": "Sincronizar ahora",
+      "offlineWarning": "Los cambios se guardan localmente y se enviarán automáticamente cuando recuperes conexión."
+    }
   }
 }

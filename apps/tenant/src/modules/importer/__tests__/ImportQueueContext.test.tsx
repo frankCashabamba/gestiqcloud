@@ -5,7 +5,7 @@ import { render, waitFor, act } from '@testing-library/react'
 const originalEnv = (globalThis as any).__IMPORTS_ENV__
 
 jest.mock('../../../auth/AuthContext', () => ({
-  useAuth: () => ({ token: 'token-123' }),
+  useAuth: () => ({ token: 'token-123', profile: { tenant_id: 'tenant-1', user_id: 'user-1' }, loading: false }),
 }))
 
 jest.mock('../services/parseExcelFile', () => ({

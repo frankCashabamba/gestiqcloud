@@ -1,20 +1,19 @@
 /**
  * UnitSelector Component
  *
- * Componente que muestra selector de unidades de medida
- * cargadas dinámicamente desde BD.
- *
- * Reemplaza hardcoding de getSectorUnits() en sectorHelpers.ts
+ * Displays a unit-of-measurement selector loaded dynamically from DB.
+ * Replaces hardcoded getSectorUnits() from sectorHelpers.ts.
  *
  * Props:
- * - value: Código de unidad seleccionada
- * - onChange: Callback cuando selecciona una unidad
- * - disabled: Deshabilitar selector
- * - label: Label del select
- * - sectorCode: Código del sector (opcional, usa company config si no se pasa)
+ * - value: Selected unit code
+ * - onChange: Callback when a unit is selected
+ * - disabled: Disable selector
+ * - label: Select label
+ * - sectorCode: Sector code (optional, uses company config if not provided)
  */
 
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useUnitsBySector } from '../hooks/useUnits'
 
 interface UnitSelectorProps {
@@ -31,16 +30,20 @@ export function UnitSelector({
   value,
   onChange,
   disabled = false,
-  label = 'Unidad de Medida',
-  placeholder = 'Seleccionar unidad...',
+  label,
+  placeholder,
   className = '',
   sectorCode,
 }: UnitSelectorProps) {
+  const { t } = useTranslation()
   const { units, loading, error } = useUnitsBySector(sectorCode)
+
+  const resolvedLabel = label ?? t('components.unitSelector.label')
+  const resolvedPlaceholder = placeholder ?? t('components.unitSelector.placeholder')
 
   return (
     <div className={`unit-selector ${className}`}>
-      {label && <label htmlFor="unit-select">{label}</label>}
+      {resolvedLabel && <label htmlFor="unit-select">{resolvedLabel}</label>}
 
       <select
         id="unit-select"
@@ -49,7 +52,7 @@ export function UnitSelector({
         disabled={disabled || loading}
         className={`select ${error ? 'error' : ''}`}
       >
-        <option value="">{placeholder}</option>
+        <option value="">{resolvedPlaceholder}</option>
         {units.map(unit => (
           <option key={unit.code} value={unit.code}>
             {unit.label}
@@ -57,7 +60,7 @@ export function UnitSelector({
         ))}
       </select>
 
-      {loading && <small className="text-muted">Cargando unidades...</small>}
+      {loading && <small className="text-muted">{t('components.unitSelector.loading')}</small>}
       {error && <small className="text-danger">Error: {error}</small>}
 
       <style>{`

@@ -32,6 +32,24 @@ import suppliersEn from '../locales/en/suppliers.json'
 import suppliersEs from '../locales/es/suppliers.json'
 import costingEn from '../locales/en/costing.json'
 import costingEs from '../locales/es/costing.json'
+import hrEn from '../locales/en/hr.json'
+import hrEs from '../locales/es/hr.json'
+import copilotEn from '../locales/en/copilot.json'
+import copilotEs from '../locales/es/copilot.json'
+import einvoicingEn from '../locales/en/einvoicing.json'
+import einvoicingEs from '../locales/es/einvoicing.json'
+import notificationsEn from '../locales/en/notifications.json'
+import notificationsEs from '../locales/es/notifications.json'
+import reconciliationEn from '../locales/en/reconciliation.json'
+import reconciliationEs from '../locales/es/reconciliation.json'
+import purchasesEn from '../locales/en/purchases.json'
+import purchasesEs from '../locales/es/purchases.json'
+import usersEn from '../locales/en/users.json'
+import usersEs from '../locales/es/users.json'
+import templatesEn from '../locales/en/templates.json'
+import templatesEs from '../locales/es/templates.json'
+import productionsEn from '../locales/en/productions.json'
+import productionsEs from '../locales/es/productions.json'
 
 type BuiltInLang = 'en' | 'es'
 const BUILTIN_LANGS: BuiltInLang[] = ['en', 'es']
@@ -72,6 +90,15 @@ const resources = {
     settings: settingsEn,
     suppliers: suppliersEn,
     costing: costingEn,
+    hr: hrEn,
+    copilot: copilotEn,
+    einvoicing: einvoicingEn,
+    notifications: notificationsEn,
+    reconciliation: reconciliationEn,
+    purchases: purchasesEn,
+    users: usersEn,
+    templates: templatesEn,
+    productions: productionsEn,
   },
   es: {
     translation: es,
@@ -89,6 +116,15 @@ const resources = {
     settings: settingsEs,
     suppliers: suppliersEs,
     costing: costingEs,
+    hr: hrEs,
+    copilot: copilotEs,
+    einvoicing: einvoicingEs,
+    notifications: notificationsEs,
+    reconciliation: reconciliationEs,
+    purchases: purchasesEs,
+    users: usersEs,
+    templates: templatesEs,
+    productions: productionsEs,
   },
 }
 
@@ -113,6 +149,15 @@ i18n
       'settings',
       'suppliers',
       'costing',
+      'hr',
+      'copilot',
+      'einvoicing',
+      'notifications',
+      'reconciliation',
+      'purchases',
+      'users',
+      'templates',
+      'productions',
     ],
     defaultNS: 'translation',
     fallbackNS: ['common'],

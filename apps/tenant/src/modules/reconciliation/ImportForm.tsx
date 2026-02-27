@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import { importStatement } from './services'
 
@@ -24,6 +25,7 @@ interface ImportFormProps {
 }
 
 export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
+  const { t } = useTranslation(['reconciliation', 'common'])
   const { success, error: showError } = useToast()
   const [bankName, setBankName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -46,11 +48,11 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!bankName || !accountNumber || !statementDate) {
-      showError('Completa todos los campos del extracto')
+      showError(t('reconciliation:import.requiredFields'))
       return
     }
     if (transactions.length === 0) {
-      showError('Agrega al menos una transacción')
+      showError(t('reconciliation:import.addTransaction'))
       return
     }
 
@@ -60,18 +62,18 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
         bank_name: bankName,
         account_number: accountNumber,
         statement_date: statementDate,
-        transactions: transactions.map(t => ({
-          transaction_date: t.transaction_date,
-          description: t.description,
-          reference: t.reference,
-          amount: parseFloat(t.amount) || 0,
-          transaction_type: t.transaction_type,
+        transactions: transactions.map(tx => ({
+          transaction_date: tx.transaction_date,
+          description: tx.description,
+          reference: tx.reference,
+          amount: parseFloat(tx.amount) || 0,
+          transaction_type: tx.transaction_type,
         })),
       })
-      success('Extracto importado correctamente')
+      success(t('reconciliation:import.success'))
       onSuccess()
     } catch {
-      showError('Error al importar el extracto')
+      showError(t('reconciliation:import.error'))
     } finally {
       setLoading(false)
     }
@@ -80,37 +82,37 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">Importar Extracto Bancario</h2>
+        <h2 className="text-lg font-semibold">{t('reconciliation:import.title')}</h2>
         <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700">
-          Cancelar
+          {t('reconciliation:cancel')}
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium">Banco</label>
+          <label className="block text-sm font-medium">{t('reconciliation:bank')}</label>
           <input
             type="text"
             value={bankName}
             onChange={e => setBankName(e.target.value)}
-            placeholder="ej: BCP, BBVA"
+            placeholder={t('reconciliation:import.bankPlaceholder')}
             className="mt-1 w-full border rounded px-3 py-2"
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Nº Cuenta</label>
+          <label className="block text-sm font-medium">{t('reconciliation:import.accountNumber')}</label>
           <input
             type="text"
             value={accountNumber}
             onChange={e => setAccountNumber(e.target.value)}
-            placeholder="ej: 123-456-789"
+            placeholder={t('reconciliation:import.accountPlaceholder')}
             className="mt-1 w-full border rounded px-3 py-2"
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Fecha del Extracto</label>
+          <label className="block text-sm font-medium">{t('reconciliation:import.statementDate')}</label>
           <input
             type="date"
             value={statementDate}
@@ -123,24 +125,24 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium">Transacciones</label>
+          <label className="block text-sm font-medium">{t('reconciliation:import.transactions')}</label>
           <button
             type="button"
             onClick={addRow}
             className="text-sm px-3 py-1 text-blue-600 hover:bg-blue-50 rounded"
           >
-            + Agregar fila
+            {t('reconciliation:import.addRow')}
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold">Fecha</th>
-                <th className="px-3 py-2 text-left font-semibold">Descripción</th>
-                <th className="px-3 py-2 text-left font-semibold">Referencia</th>
-                <th className="px-3 py-2 text-left font-semibold">Monto</th>
-                <th className="px-3 py-2 text-left font-semibold">Tipo</th>
+                <th className="px-3 py-2 text-left font-semibold">{t('reconciliation:date')}</th>
+                <th className="px-3 py-2 text-left font-semibold">{t('reconciliation:detail.description')}</th>
+                <th className="px-3 py-2 text-left font-semibold">{t('reconciliation:detail.reference')}</th>
+                <th className="px-3 py-2 text-left font-semibold">{t('reconciliation:detail.amount')}</th>
+                <th className="px-3 py-2 text-left font-semibold">{t('reconciliation:detail.type')}</th>
                 <th className="px-3 py-2 text-right font-semibold"></th>
               </tr>
             </thead>
@@ -161,7 +163,7 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
                       type="text"
                       value={row.description}
                       onChange={e => updateRow(idx, 'description', e.target.value)}
-                      placeholder="Descripción"
+                      placeholder={t('reconciliation:detail.description')}
                       className="w-full border rounded px-2 py-1"
                       required
                     />
@@ -171,7 +173,7 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
                       type="text"
                       value={row.reference}
                       onChange={e => updateRow(idx, 'reference', e.target.value)}
-                      placeholder="Ref."
+                      placeholder={t('reconciliation:import.refPlaceholder')}
                       className="w-full border rounded px-2 py-1"
                     />
                   </td>
@@ -192,8 +194,8 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
                       onChange={e => updateRow(idx, 'transaction_type', e.target.value)}
                       className="w-full border rounded px-2 py-1"
                     >
-                      <option value="credit">Crédito</option>
-                      <option value="debit">Débito</option>
+                      <option value="credit">{t('reconciliation:detail.credit')}</option>
+                      <option value="debit">{t('reconciliation:detail.debit')}</option>
                     </select>
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -219,7 +221,7 @@ export default function ImportForm({ onSuccess, onCancel }: ImportFormProps) {
         disabled={loading}
         className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
       >
-        {loading ? 'Importando...' : 'Importar Extracto'}
+        {loading ? t('reconciliation:import.importing') : t('reconciliation:importStatement')}
       </button>
     </form>
   )

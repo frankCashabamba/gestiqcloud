@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import tenantApi from '../shared/api/client'
 import { TENANT_ONBOARDING } from '@shared/endpoints'
 import { useToast, getErrorMessage } from '../shared/toast'
@@ -8,7 +9,7 @@ import { resolveTenantPath } from '../lib/tenantNavigation'
 type Step = 'info' | 'regional' | 'branding' | 'review'
 
 interface FormData {
-  // Tenant info (paso 1)
+  // Tenant info (step 1)
   company_name: string
   tax_id: string
   country_code: string
@@ -19,12 +20,12 @@ interface FormData {
   postal_code: string
   website: string
 
-  // Regional (paso 2)
+  // Regional (step 2)
   default_language: string
   timezone: string
   currency: string
 
-  // Branding (paso 3)
+  // Branding (step 3)
   logo: string | null
   primary_color: string
   secondary_color: string
@@ -73,6 +74,7 @@ const normalizeLanguage = (value?: string | null) => {
 }
 
 export default function Onboarding() {
+  const { t } = useTranslation()
   const [step, setStep] = useState<Step>('info')
   const [formData, setFormData] = useState<FormData>(INITIAL_STATE)
   const [saving, setSaving] = useState(false)
@@ -176,7 +178,7 @@ export default function Onboarding() {
 
   const nextStep = () => {
     if (!validateStep(step)) {
-      error('Por favor completa los campos requeridos')
+      error(t('pages.onboarding.requiredFields'))
       return
     }
     const steps: Step[] = ['info', 'regional', 'branding', 'review']
@@ -217,9 +219,9 @@ export default function Onboarding() {
         primary_color: formData.primary_color,
         secondary_color: formData.secondary_color,
       })
-      success('Configuración guardada exitosamente')
+      success(t('pages.onboarding.savedSuccess'))
 
-      // Redireccionar a set-password si tiene token
+      // Redirect to set-password if token present
       const token = searchParams.get('token')
       if (token) {
         navigate(`/set-password?token=${token}`)
@@ -253,7 +255,7 @@ export default function Onboarding() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">GestiqCloud</h1>
-          <p className="text-gray-600 mt-2">Configura tu empresa en 4 pasos</p>
+          <p className="text-gray-600 mt-2">{t('pages.onboarding.subtitle')}</p>
         </div>
 
         {/* Progress Bar */}
@@ -277,7 +279,7 @@ export default function Onboarding() {
             ))}
           </div>
           <div className="text-sm text-gray-600 text-center">
-            Paso {getStepNumber(step)} de 4
+            {t('pages.onboarding.stepOf', { current: getStepNumber(step), total: 4 })}
           </div>
         </div>
 
@@ -287,34 +289,34 @@ export default function Onboarding() {
           {step === 'info' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Información de la Empresa</h2>
-                <p className="text-gray-600">Cuéntanos sobre tu negocio</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.info.title')}</h2>
+                <p className="text-gray-600">{t('pages.onboarding.steps.info.subtitle')}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre de Empresa *
+                    {t('pages.onboarding.steps.info.companyName')}
                   </label>
                   <input
                     type="text"
                     value={formData.company_name}
                     onChange={(e) => handleInputChange('company_name', e.target.value)}
-                    placeholder="Ej: Mi Empresa S.A."
+                    placeholder={t('pages.onboarding.steps.info.companyNamePlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">País *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.country')}</label>
                   <select
                     value={formData.country_code}
                     onChange={(e) => handleInputChange('country_code', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
                   >
-                    <option value="">Selecciona un país</option>
+                    <option value="">{t('pages.onboarding.steps.info.selectCountry')}</option>
                     {COUNTRIES.map(c => (
                       <option key={c.code} value={c.code}>{c.name}</option>
                     ))}
@@ -322,78 +324,78 @@ export default function Onboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">RUC/NIF/CIF</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.taxId')}</label>
                   <input
                     type="text"
                     value={formData.tax_id}
                     onChange={(e) => handleInputChange('tax_id', e.target.value)}
-                    placeholder="Ej: 12345678-1"
+                    placeholder={t('pages.onboarding.steps.info.taxIdPlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.phone')}</label>
                   <input
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
-                    placeholder="Ej: +593 98765432"
+                    placeholder={t('pages.onboarding.steps.info.phonePlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.address')}</label>
                   <input
                     type="text"
                     value={formData.address}
                     onChange={(e) => handleInputChange('address', e.target.value)}
-                    placeholder="Ej: Calle Principal 123"
+                    placeholder={t('pages.onboarding.steps.info.addressPlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.city')}</label>
                   <input
                     type="text"
                     value={formData.city}
                     onChange={(e) => handleInputChange('city', e.target.value)}
-                    placeholder="Ej: Quito"
+                    placeholder={t('pages.onboarding.steps.info.cityPlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Provincia/Estado</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.stateProvince')}</label>
                   <input
                     type="text"
                     value={formData.state}
                     onChange={(e) => handleInputChange('state', e.target.value)}
-                    placeholder="Ej: Pichincha"
+                    placeholder={t('pages.onboarding.steps.info.statePlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Código Postal</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.postalCode')}</label>
                   <input
                     type="text"
                     value={formData.postal_code}
                     onChange={(e) => handleInputChange('postal_code', e.target.value)}
-                    placeholder="Ej: 170105"
+                    placeholder={t('pages.onboarding.steps.info.postalCodePlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sitio Web</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.website')}</label>
                   <input
                     type="url"
                     value={formData.website}
                     onChange={(e) => handleInputChange('website', e.target.value)}
-                    placeholder="Ej: www.miempresa.com"
+                    placeholder={t('pages.onboarding.steps.info.websitePlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
@@ -405,13 +407,13 @@ export default function Onboarding() {
           {step === 'regional' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Configuración Regional</h2>
-                <p className="text-gray-600">Establece tu idioma, zona horaria y moneda</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.regional.title')}</h2>
+                <p className="text-gray-600">{t('pages.onboarding.steps.regional.subtitle')}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Idioma *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.regional.language')}</label>
                   <select
                     value={formData.default_language}
                     onChange={(e) => handleInputChange('default_language', e.target.value)}
@@ -425,19 +427,19 @@ export default function Onboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Zona Horaria *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.regional.timezone')}</label>
                   <input
                     type="text"
                     value={formData.timezone}
                     onChange={(e) => handleInputChange('timezone', e.target.value)}
-                    placeholder="Ej: America/Guayaquil"
+                    placeholder={t('pages.onboarding.steps.regional.timezonePlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Moneda *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.regional.currency')}</label>
                   <select
                     value={formData.currency}
                     onChange={(e) => handleInputChange('currency', e.target.value)}
@@ -453,7 +455,7 @@ export default function Onboarding() {
 
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>💡 Tip:</strong> Puedes cambiar estas configuraciones más tarde desde Ajustes
+                  <strong>💡 Tip:</strong> {t('pages.onboarding.steps.regional.tip')}
                 </p>
               </div>
             </div>
@@ -463,13 +465,13 @@ export default function Onboarding() {
           {step === 'branding' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Branding & Diseño</h2>
-                <p className="text-gray-600">Personaliza la apariencia de tu empresa</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.branding.title')}</h2>
+                <p className="text-gray-600">{t('pages.onboarding.steps.branding.subtitle')}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Logo (opcional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('pages.onboarding.steps.branding.logoOptional')}</label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     {logoPreview ? (
                       <div className="space-y-4">
@@ -482,15 +484,15 @@ export default function Onboarding() {
                           }}
                           className="text-sm text-red-600 hover:text-red-700"
                         >
-                          Cambiar logo
+                          {t('pages.onboarding.steps.branding.changeLogo')}
                         </button>
                       </div>
                     ) : (
                       <label className="cursor-pointer">
                         <div className="space-y-2">
                           <p className="text-2xl">📤</p>
-                          <p className="text-sm font-medium text-gray-700">Clic para seleccionar o arrastra una imagen</p>
-                          <p className="text-xs text-gray-500">PNG, JPG, GIF hasta 5MB</p>
+                          <p className="text-sm font-medium text-gray-700">{t('pages.onboarding.steps.branding.uploadPrompt')}</p>
+                          <p className="text-xs text-gray-500">{t('pages.onboarding.steps.branding.uploadHint')}</p>
                         </div>
                         <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                       </label>
@@ -500,7 +502,7 @@ export default function Onboarding() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Color Primario *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('pages.onboarding.steps.branding.primaryColor')}</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
@@ -518,7 +520,7 @@ export default function Onboarding() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Color Secundario *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('pages.onboarding.steps.branding.secondaryColor')}</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
@@ -537,7 +539,7 @@ export default function Onboarding() {
                 </div>
 
                 <div className="p-4 rounded-lg" style={{ backgroundColor: formData.primary_color }}>
-                  <p className="text-white text-center font-medium">Vista previa de colores</p>
+                  <p className="text-white text-center font-medium">{t('pages.onboarding.steps.branding.colorPreview')}</p>
                 </div>
               </div>
             </div>
@@ -547,21 +549,21 @@ export default function Onboarding() {
           {step === 'review' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Revisa tu Configuración</h2>
-                <p className="text-gray-600">Verifica que todo esté correcto antes de guardar</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.review.title')}</h2>
+                <p className="text-gray-600">{t('pages.onboarding.steps.review.subtitle')}</p>
               </div>
 
               <div className="space-y-4">
                 <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">📋 Información de Empresa</h3>
+                  <h3 className="font-semibold text-gray-900 mb-3">📋 {t('pages.onboarding.steps.review.companyInfo')}</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <p className="text-gray-600">Empresa:</p>
+                    <p className="text-gray-600">{t('pages.onboarding.steps.review.company')}</p>
                     <p className="font-medium">{formData.company_name}</p>
-                    <p className="text-gray-600">País:</p>
+                    <p className="text-gray-600">{t('pages.onboarding.steps.review.countryLabel')}</p>
                     <p className="font-medium">{formData.country_code}</p>
                     {formData.tax_id && (
                       <>
-                        <p className="text-gray-600">RUC/NIF:</p>
+                        <p className="text-gray-600">{t('pages.onboarding.steps.review.taxIdLabel')}</p>
                         <p className="font-medium">{formData.tax_id}</p>
                       </>
                     )}
@@ -569,41 +571,41 @@ export default function Onboarding() {
                 </div>
 
                 <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">🌍 Configuración Regional</h3>
+                  <h3 className="font-semibold text-gray-900 mb-3">🌍 {t('pages.onboarding.steps.review.regionalConfig')}</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <p className="text-gray-600">Idioma:</p>
+                    <p className="text-gray-600">{t('pages.onboarding.steps.review.languageLabel')}</p>
                     <p className="font-medium">{languageLabel}</p>
-                    <p className="text-gray-600">Zona Horaria:</p>
+                    <p className="text-gray-600">{t('pages.onboarding.steps.review.timezoneLabel')}</p>
                     <p className="font-medium">{formData.timezone}</p>
-                    <p className="text-gray-600">Moneda:</p>
+                    <p className="text-gray-600">{t('pages.onboarding.steps.review.currencyLabel')}</p>
                     <p className="font-medium">{formData.currency}</p>
                   </div>
                 </div>
 
                 <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">🎨 Branding</h3>
+                  <h3 className="font-semibold text-gray-900 mb-3">🎨 {t('pages.onboarding.steps.review.brandingSection')}</h3>
                   <div className="space-y-2 text-sm">
-                    {logoPreview && <p>✓ Logo cargado</p>}
+                    {logoPreview && <p>✓ {t('pages.onboarding.steps.review.logoLoaded')}</p>}
                     <div className="flex items-center gap-2">
                       <div
                         className="w-6 h-6 rounded"
                         style={{ backgroundColor: formData.primary_color }}
                       ></div>
-                      <p>Color Primario: {formData.primary_color}</p>
+                      <p>{t('pages.onboarding.steps.review.primaryColorLabel')} {formData.primary_color}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div
                         className="w-6 h-6 rounded border border-gray-300"
                         style={{ backgroundColor: formData.secondary_color }}
                       ></div>
-                      <p>Color Secundario: {formData.secondary_color}</p>
+                      <p>{t('pages.onboarding.steps.review.secondaryColorLabel')} {formData.secondary_color}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-800">
-                    <strong>✓ Todo listo:</strong> Una vez guardes, serás redirigido a la pantalla principal
+                    <strong>✓</strong> {t('pages.onboarding.steps.review.allReady')}
                   </p>
                 </div>
               </div>
@@ -617,7 +619,7 @@ export default function Onboarding() {
               disabled={step === 'info' || saving}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Atrás
+              {t('pages.onboarding.back')}
             </button>
 
             {step !== 'review' ? (
@@ -626,7 +628,7 @@ export default function Onboarding() {
                 disabled={saving}
                 className="ml-auto px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Siguiente
+                {t('pages.onboarding.next')}
               </button>
             ) : (
               <button
@@ -634,7 +636,7 @@ export default function Onboarding() {
                 disabled={saving}
                 className="ml-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? 'Guardando...' : 'Guardar Configuración'}
+                {saving ? t('pages.onboarding.saving') : t('pages.onboarding.saveConfig')}
               </button>
             )}
           </div>

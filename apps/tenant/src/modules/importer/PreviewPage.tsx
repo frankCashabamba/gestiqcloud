@@ -249,8 +249,6 @@ export default function PreviewPage() {
             const itemsRaw = Array.isArray(data) ? data : (data as any).items || []
             const items = (itemsRaw as any[])
                 .filter((b) => String(b?.status || '') !== 'PROMOTED')
-                // Ocultar lotes READY sin filas
-                .filter((b) => !(String(b?.status || '') === 'READY' && Number(b?.item_count || 0) === 0))
 
             // If coming from a deep-link (?batch_id=...), ensure that batch exists in the list
             // so source_type-based UI works (products vs other) even if list endpoint is truncated.

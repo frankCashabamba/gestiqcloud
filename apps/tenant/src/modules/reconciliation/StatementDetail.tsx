@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import {
   getStatementDetail,
@@ -10,17 +11,17 @@ import {
   StatementLine,
 } from './services'
 
-const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
-  imported: { label: 'Importado', bg: 'bg-blue-100', text: 'text-blue-800' },
-  processing: { label: 'Procesando', bg: 'bg-yellow-100', text: 'text-yellow-800' },
-  reconciled: { label: 'Conciliado', bg: 'bg-green-100', text: 'text-green-800' },
-  partial: { label: 'Parcial', bg: 'bg-orange-100', text: 'text-orange-800' },
+const statusStyles: Record<string, { bg: string; text: string }> = {
+  imported: { bg: 'bg-blue-100', text: 'text-blue-800' },
+  processing: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
+  reconciled: { bg: 'bg-green-100', text: 'text-green-800' },
+  partial: { bg: 'bg-orange-100', text: 'text-orange-800' },
 }
 
-const matchStatusConfig: Record<string, { label: string; bg: string; text: string }> = {
-  matched: { label: 'Conciliado', bg: 'bg-green-100', text: 'text-green-800' },
-  unmatched: { label: 'Pendiente', bg: 'bg-red-100', text: 'text-red-800' },
-  partial: { label: 'Parcial', bg: 'bg-yellow-100', text: 'text-yellow-800' },
+const matchStatusStyles: Record<string, { bg: string; text: string }> = {
+  matched: { bg: 'bg-green-100', text: 'text-green-800' },
+  unmatched: { bg: 'bg-red-100', text: 'text-red-800' },
+  partial: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
 }
 
 function formatAmount(value: number): string {
@@ -30,6 +31,7 @@ function formatAmount(value: number): string {
 export default function StatementDetail() {
   const { statementId } = useParams<{ statementId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation(['reconciliation', 'common'])
   const { success, error: showError } = useToast()
 
   const [loading, setLoading] = useState(true)
@@ -53,7 +55,7 @@ export default function StatementDetail() {
       setStatement(stmt)
       setLines(lns)
     } catch {
-      showError('Error al cargar el extracto')
+      showError(t('reconciliation:detail.errorLoading'))
     } finally {
       setLoading(false)
     }
@@ -66,9 +68,9 @@ export default function StatementDetail() {
       setStatement(updated)
       const lns = await getStatementLines(statementId!)
       setLines(lns)
-      success(`Auto-match completado: ${updated.matched_count} conciliadas`)
+      success(t('reconciliation:detail.autoMatchComplete', { count: updated.matched_count }))
     } catch {
-      showError('Error en auto-match')
+      showError(t('reconciliation:detail.autoMatchError'))
     } finally {
       setAutoMatching(false)
     }
@@ -76,7 +78,7 @@ export default function StatementDetail() {
 
   const handleManualMatch = async (lineId: string) => {
     if (!invoiceId.trim()) {
-      showError('Ingresa un ID de factura')
+      showError(t('reconciliation:detail.enterInvoiceId'))
       return
     }
     try {
@@ -84,16 +86,16 @@ export default function StatementDetail() {
       setLines(prev => prev.map(l => (l.id === lineId ? updatedLine : l)))
       setMatchingLineId(null)
       setInvoiceId('')
-      success('Línea conciliada manualmente')
+      success(t('reconciliation:detail.manualMatchSuccess'))
     } catch {
-      showError('Error al conciliar la línea')
+      showError(t('reconciliation:detail.manualMatchError'))
     }
   }
 
-  if (loading) return <div className="p-6">Cargando...</div>
-  if (!statement) return <div className="p-6 text-red-500">Extracto no encontrado</div>
+  if (loading) return <div className="p-6">{t('reconciliation:loading')}</div>
+  if (!statement) return <div className="p-6 text-red-500">{t('reconciliation:detail.notFound')}</div>
 
-  const cfg = statusConfig[statement.status] ?? statusConfig.imported
+  const cfg = statusStyles[statement.status] ?? statusStyles.imported
 
   return (
     <div className="p-6 space-y-6">
@@ -102,7 +104,7 @@ export default function StatementDetail() {
           onClick={() => navigate('..')}
           className="text-sm px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
         >
-          ← Volver
+          ← {t('reconciliation:detail.back')}
         </button>
         <h1 className="text-3xl font-bold">
           {statement.bank_name} — {statement.account_number}
@@ -113,19 +115,19 @@ export default function StatementDetail() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-6">
             <div>
-              <p className="text-sm text-gray-500">Fecha</p>
+              <p className="text-sm text-gray-500">{t('reconciliation:date')}</p>
               <p className="font-medium">
                 {new Date(statement.statement_date).toLocaleDateString('es-PE')}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Estado</p>
+              <p className="text-sm text-gray-500">{t('reconciliation:status')}</p>
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}>
-                {cfg.label}
+                {t(`reconciliation:statuses.${statement.status}`)}
               </span>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Conciliadas</p>
+              <p className="text-sm text-gray-500">{t('reconciliation:reconciledCol')}</p>
               <p className="font-medium">
                 {statement.matched_count} / {statement.total_transactions}
               </p>
@@ -136,7 +138,7 @@ export default function StatementDetail() {
             disabled={autoMatching}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
           >
-            {autoMatching ? 'Procesando...' : 'Auto-Match'}
+            {autoMatching ? t('reconciliation:detail.processing') : t('reconciliation:detail.autoMatch')}
           </button>
         </div>
       </div>
@@ -145,27 +147,27 @@ export default function StatementDetail() {
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Fecha</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Descripción</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Referencia</th>
-              <th className="px-6 py-3 text-right text-sm font-semibold">Monto</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Tipo</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Estado</th>
-              <th className="px-6 py-3 text-right text-sm font-semibold">Confianza</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Factura</th>
-              <th className="px-6 py-3 text-right text-sm font-semibold">Acciones</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold">{t('reconciliation:date')}</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold">{t('reconciliation:detail.description')}</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold">{t('reconciliation:detail.reference')}</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold">{t('reconciliation:detail.amount')}</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold">{t('reconciliation:detail.type')}</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold">{t('reconciliation:status')}</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold">{t('reconciliation:detail.confidence')}</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold">{t('reconciliation:detail.invoice')}</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold">{t('reconciliation:actions')}</th>
             </tr>
           </thead>
           <tbody>
             {lines.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                  No hay líneas en este extracto.
+                  {t('reconciliation:detail.noLines')}
                 </td>
               </tr>
             ) : (
               lines.map(line => {
-                const mCfg = matchStatusConfig[line.match_status] ?? matchStatusConfig.unmatched
+                const mCfg = matchStatusStyles[line.match_status] ?? matchStatusStyles.unmatched
                 return (
                   <tr key={line.id} className="border-b hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-600">
@@ -184,12 +186,12 @@ export default function StatementDetail() {
                           ? 'bg-green-50 text-green-700'
                           : 'bg-red-50 text-red-700'
                       }`}>
-                        {line.transaction_type === 'credit' ? 'Crédito' : 'Débito'}
+                        {line.transaction_type === 'credit' ? t('reconciliation:detail.credit') : t('reconciliation:detail.debit')}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${mCfg.bg} ${mCfg.text}`}>
-                        {mCfg.label}
+                        {t(`reconciliation:detail.matchStatuses.${line.match_status}`)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-right text-gray-600">
@@ -207,7 +209,7 @@ export default function StatementDetail() {
                                 type="text"
                                 value={invoiceId}
                                 onChange={e => setInvoiceId(e.target.value)}
-                                placeholder="ID Factura"
+                                placeholder={t('reconciliation:detail.invoiceIdPlaceholder')}
                                 className="border rounded px-2 py-1 text-sm w-32"
                                 autoFocus
                               />
@@ -229,7 +231,7 @@ export default function StatementDetail() {
                               onClick={() => setMatchingLineId(line.id)}
                               className="text-sm px-3 py-1 text-blue-600 hover:bg-blue-50 rounded"
                             >
-                              Conciliar
+                              {t('reconciliation:detail.reconcile')}
                             </button>
                           )}
                         </>

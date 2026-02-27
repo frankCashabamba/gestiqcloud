@@ -1,0 +1,16 @@
+{
+  "title": "Notifications",
+  "loading": "Loading...",
+  "markAllRead": "Mark all as read",
+  "noNotifications": "No notifications",
+  "archive": "Archive",
+  "errorLoading": "Error loading notifications",
+  "markedAsRead": "{{count}} notifications marked as read",
+  "errorMarkingRead": "Error marking as read",
+  "archived": "Notification archived",
+  "errorArchiving": "Error archiving",
+  "now": "now",
+  "minutesAgo": "{{count}}m ago",
+  "hoursAgo": "{{count}}h ago",
+  "daysAgo": "{{count}}d ago"
+}

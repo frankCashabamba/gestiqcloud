@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../services/api/client'
 
 interface ChatMessage {
@@ -16,14 +17,15 @@ async function sendChatMessage(
 }
 
 export default function CopilotChatWidget() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([
-    '¿Cómo van las ventas este mes?',
-    '¿Qué productos tienen stock bajo?',
-    '¿Cuáles son mis productos más vendidos?',
+    t('components.copilot.suggestions.sales'),
+    t('components.copilot.suggestions.lowStock'),
+    t('components.copilot.suggestions.topSelling'),
   ])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -171,8 +173,8 @@ export default function CopilotChatWidget() {
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 12px', fontSize: '13px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
-                <p style={{ fontWeight: 500, marginBottom: '4px' }}>¡Hola! Soy tu asistente IA</p>
-                <p>Pregúntame sobre ventas, inventario, facturación o cualquier problema de tu negocio.</p>
+                <p style={{ fontWeight: 500, marginBottom: '4px' }}>{t('components.copilot.greeting')}</p>
+                <p>{t('components.copilot.helpText')}</p>
               </div>
             )}
 
@@ -279,7 +281,7 @@ export default function CopilotChatWidget() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Escribe tu pregunta..."
+              placeholder={t('components.copilot.inputPlaceholder')}
               disabled={loading}
               style={{
                 flex: 1,
@@ -340,7 +342,7 @@ export default function CopilotChatWidget() {
           e.currentTarget.style.transform = 'scale(1)'
           e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.4)'
         }}
-        title="Copilot IA"
+        title={t('components.copilot.buttonTitle')}
       >
         {open ? '✕' : '🤖'}
         {hasUnread && !open && (

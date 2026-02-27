@@ -62,5 +62,17 @@
       "label": "Avanzado",
       "desc": "JSON e integraciones"
     }
+  },
+  "branding": {
+    "title": "Branding",
+    "primaryColor": "Color primario",
+    "logo": "Logo",
+    "formats": "Formatos: PNG, JPG, WEBP",
+    "preview": "Vista previa",
+    "removeLogo": "Quitar logo",
+    "logoUploaded": "Logo subido correctamente",
+    "saved": "Branding guardado",
+    "save": "Guardar",
+    "saving": "Guardando..."
   }
 }

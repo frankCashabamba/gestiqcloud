@@ -5,6 +5,7 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import type { VacacionCreate, Empleado } from '../../types/hr'
 import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
 import { useCompany } from '../../contexts/CompanyContext'
+import { useTranslation } from 'react-i18next'
 
 const INITIAL_FORM: VacacionCreate = {
   empleado_id: '',
@@ -16,6 +17,7 @@ const INITIAL_FORM: VacacionCreate = {
 }
 
 export default function VacacionForm() {
+  const { t } = useTranslation(['hr', 'common'])
   const nav = useNavigate()
   const location = useLocation()
   const { success, error } = useToast()
@@ -62,10 +64,10 @@ export default function VacacionForm() {
     e.preventDefault()
 
     try {
-      if (!form.empleado_id) throw new Error('Select an employee')
-      if (!form.fecha_inicio) throw new Error('Start date is required')
-      if (!form.fecha_fin) throw new Error('End date is required')
-      if (dias <= 0) throw new Error('Invalid dates')
+      if (!form.empleado_id) throw new Error(t('hr:vacations.selectEmployee'))
+      if (!form.fecha_inicio) throw new Error(t('hr:vacations.startDateRequired'))
+      if (!form.fecha_fin) throw new Error(t('hr:vacations.endDateRequired'))
+      if (dias <= 0) throw new Error(t('hr:vacations.invalidDates'))
 
       setLoading(true)
 
@@ -76,7 +78,7 @@ export default function VacacionForm() {
 
       await createVacacion(payload)
 
-      success('Vacation registered')
+      success(t('hr:vacations.registered'))
       nav('/hr/vacations')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -87,11 +89,11 @@ export default function VacacionForm() {
 
   return (
     <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">New Vacation/Leave Request</h3>
+      <h3 className="text-xl font-semibold mb-3">{t('hr:vacations.newRequest')}</h3>
 
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 700 }}>
         <div>
-          <label className="block mb-1 font-medium">Employee *</label>
+          <label className="block mb-1 font-medium">{t('hr:vacations.employee')} *</label>
           <select
             value={form.empleado_id}
             onChange={(e) => setForm({ ...form, empleado_id: e.target.value })}
@@ -99,7 +101,7 @@ export default function VacacionForm() {
             required
             disabled={loading}
           >
-            <option value="">Select...</option>
+            <option value="">{t('hr:vacations.select')}</option>
             {empleados
               .filter((e) => e.estado === 'activo')
               .map((e) => (
@@ -111,7 +113,7 @@ export default function VacacionForm() {
         </div>
 
         <div>
-          <label className="block mb-1 font-medium">Type *</label>
+          <label className="block mb-1 font-medium">{t('hr:vacations.type')} *</label>
           <select
             value={form.tipo}
             onChange={(e) => setForm({ ...form, tipo: e.target.value as any })}
@@ -119,16 +121,16 @@ export default function VacacionForm() {
             required
             disabled={loading}
           >
-            <option value="vacaciones">Vacation</option>
-            <option value="baja_medica">Medical Leave</option>
-            <option value="permiso">Leave</option>
-            <option value="otros">Other</option>
+            <option value="vacaciones">{t('hr:vacations.vacation')}</option>
+            <option value="baja_medica">{t('hr:vacations.medicalLeave')}</option>
+            <option value="permiso">{t('hr:vacations.leave')}</option>
+            <option value="otros">{t('hr:vacations.other')}</option>
           </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 font-medium">Start Date *</label>
+            <label className="block mb-1 font-medium">{t('hr:vacations.from')} *</label>
             <input
               type="date"
               value={form.fecha_inicio}
@@ -139,7 +141,7 @@ export default function VacacionForm() {
             />
           </div>
           <div>
-            <label className="block mb-1 font-medium">End Date *</label>
+            <label className="block mb-1 font-medium">{t('hr:vacations.to')} *</label>
             <input
               type="date"
               value={form.fecha_fin}
@@ -155,25 +157,25 @@ export default function VacacionForm() {
         {dias > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
             <p className="text-blue-800">
-              <strong>Calculated days:</strong> {dias} day{dias !== 1 ? 's' : ''}
+              <strong>{t('hr:vacations.calculatedDays')}</strong> {dias} {dias !== 1 ? t('hr:vacations.daysUnit') : t('hr:vacations.dayUnit')}
             </p>
           </div>
         )}
 
         <div>
-          <label className="block mb-1 font-medium">Reason</label>
+          <label className="block mb-1 font-medium">{t('hr:vacations.reason')}</label>
           <input
             type="text"
             value={form.motivo}
             onChange={(e) => setForm({ ...form, motivo: e.target.value })}
             className="border px-2 py-1 w-full rounded"
-            placeholder={motivoPlaceholder || 'E.g.: Annual vacation, personal matter, etc.'}
+            placeholder={motivoPlaceholder || t('hr:vacations.reasonPlaceholder')}
             disabled={loading}
           />
         </div>
 
         <div>
-          <label className="block mb-1 font-medium">Notes</label>
+          <label className="block mb-1 font-medium">{t('hr:form.notes')}</label>
           <textarea
             value={form.notas}
             onChange={(e) => setForm({ ...form, notas: e.target.value })}
@@ -189,7 +191,7 @@ export default function VacacionForm() {
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             disabled={loading}
           >
-            {loading ? 'Saving...' : 'Save'}
+            {loading ? t('hr:form.saving') : t('hr:form.save')}
           </button>
           <button
             type="button"
@@ -197,7 +199,7 @@ export default function VacacionForm() {
             onClick={() => nav('/hr/vacations')}
             disabled={loading}
           >
-            Cancel
+            {t('hr:form.cancel')}
           </button>
         </div>
       </form>

@@ -4,8 +4,10 @@ import { listVacaciones, aprobarVacacion, rechazarVacacion } from '../../service
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import type { Vacacion } from '../../types/hr'
+import { useTranslation } from 'react-i18next'
 
 export default function VacacionesList() {
+  const { t } = useTranslation(['hr', 'common'])
   const [items, setItems] = useState<Vacacion[]>([])
   const [loading, setLoading] = useState(false)
   const nav = useNavigate()
@@ -46,7 +48,7 @@ export default function VacacionesList() {
   const handleAprobar = async (id: string) => {
     try {
       await aprobarVacacion(id)
-      success('Vacation approved')
+      success(t('hr:vacations.approved'))
       await loadData()
     } catch (e: any) {
       toastError(getErrorMessage(e))
@@ -54,10 +56,10 @@ export default function VacacionesList() {
   }
 
   const handleRechazar = async (id: string) => {
-    const motivo = prompt('Reason for rejection (optional):')
+    const motivo = prompt(t('hr:vacations.rejectionReason'))
     try {
       await rechazarVacacion(id, { motivo })
-      success('Vacation rejected')
+      success(t('hr:vacations.rejected'))
       await loadData()
     } catch (e: any) {
       toastError(getErrorMessage(e))
@@ -67,43 +69,43 @@ export default function VacacionesList() {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="font-semibold text-lg">Vacations and Leaves</h2>
+        <h2 className="font-semibold text-lg">{t('hr:vacations.title')}</h2>
         <button
           className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
           onClick={() => nav('nueva')}
         >
-          New Request
+          {t('hr:vacations.newRequest')}
         </button>
       </div>
 
       {/* Filters */}
       <div className="bg-white border rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
-          <label className="block text-sm font-medium mb-1">Status</label>
+          <label className="block text-sm font-medium mb-1">{t('hr:vacations.status')}</label>
           <select
             value={estadoFilter}
             onChange={(e) => setEstadoFilter(e.target.value)}
             className="border px-2 py-1 rounded w-full text-sm"
           >
-            <option value="">All</option>
-            <option value="pendiente">Pending</option>
-            <option value="aprobada">Approved</option>
-            <option value="rechazada">Rejected</option>
-            <option value="cancelada">Cancelled</option>
+            <option value="">{t('hr:employees.all')}</option>
+            <option value="pendiente">{t('hr:vacations.pending')}</option>
+            <option value="aprobada">{t('hr:vacations.approvedStatus')}</option>
+            <option value="rechazada">{t('hr:vacations.rejectedStatus')}</option>
+            <option value="cancelada">{t('hr:vacations.cancelled')}</option>
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Search employee</label>
+          <label className="block text-sm font-medium mb-1">{t('hr:vacations.searchEmployee')}</label>
           <input
             type="text"
-            placeholder="Employee ID..."
+            placeholder={t('hr:vacations.searchPlaceholder')}
             value={empleadoSearch}
             onChange={(e) => setEmpleadoSearch(e.target.value)}
             className="border px-2 py-1 rounded w-full text-sm"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Per page</label>
+          <label className="block text-sm font-medium mb-1">{t('hr:vacations.perPage')}</label>
           <select
             value={per}
             onChange={(e) => setPer(Number(e.target.value))}
@@ -122,27 +124,27 @@ export default function VacacionesList() {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="px-3 py-2 text-left">Employee</th>
-              <th className="px-3 py-2 text-left">Type</th>
-              <th className="px-3 py-2 text-left">From</th>
-              <th className="px-3 py-2 text-left">To</th>
-              <th className="px-3 py-2 text-center">Days</th>
-              <th className="px-3 py-2 text-center">Status</th>
-              <th className="px-3 py-2 text-center">Actions</th>
+              <th className="px-3 py-2 text-left">{t('hr:vacations.employee')}</th>
+              <th className="px-3 py-2 text-left">{t('hr:vacations.type')}</th>
+              <th className="px-3 py-2 text-left">{t('hr:vacations.from')}</th>
+              <th className="px-3 py-2 text-left">{t('hr:vacations.to')}</th>
+              <th className="px-3 py-2 text-center">{t('hr:vacations.days')}</th>
+              <th className="px-3 py-2 text-center">{t('hr:vacations.status')}</th>
+              <th className="px-3 py-2 text-center">{t('hr:vacations.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
                 <td colSpan={7} className="text-center py-4 text-gray-500">
-                  Loading...
+                  {t('hr:vacations.loading')}
                 </td>
               </tr>
             )}
             {!loading && view.length === 0 && (
               <tr>
                 <td colSpan={7} className="text-center py-4 text-gray-500">
-                  No vacations recorded
+                  {t('hr:vacations.empty')}
                 </td>
               </tr>
             )}
@@ -179,13 +181,13 @@ export default function VacacionesList() {
                         onClick={() => handleAprobar(v.id)}
                         className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
                       >
-                        Approve
+                        {t('hr:vacations.approve')}
                       </button>
                       <button
                         onClick={() => handleRechazar(v.id)}
                         className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
                       >
-                        Reject
+                        {t('hr:vacations.reject')}
                       </button>
                     </div>
                   )}
@@ -207,7 +209,7 @@ export default function VacacionesList() {
       />
 
       <p className="text-xs text-gray-500 mt-2">
-        Showing {view.length} of {filtered.length} vacations
+        {t('hr:vacations.showing', { current: view.length, total: filtered.length })}
       </p>
     </div>
   )

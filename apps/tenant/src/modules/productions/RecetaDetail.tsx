@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   Typography, Box, Table, TableBody, TableCell, TableContainer,
@@ -33,7 +34,6 @@ import {
   type RecipeCostLine,
   type FullCostSummary,
 } from '../../services/api/productionCosts';
-import { useI18n } from '../../i18n/I18nProvider';
 import tenantApi from '../../shared/api/client';
 
 interface RecetaDetailProps {
@@ -45,9 +45,7 @@ interface RecetaDetailProps {
 }
 
 export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, onEdit }: RecetaDetailProps) {
-  const { lang } = useI18n();
-  const isEs = String(lang || 'en').toLowerCase().startsWith('es');
-  const L = (en: string, es: string) => (isEs ? es : en);
+  const { t } = useTranslation(['productions', 'common']);
 
   const [loading, setLoading] = useState(true);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -170,7 +168,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
       setDeletedCostLineIds([]);
       setFullCost(fullCostData);
     } catch (err: any) {
-      setError(err.message || L('Error loading data', 'Error al cargar datos'));
+      setError(err.message || t('productions:recipe.errorLoading'));
     } finally {
       setLoading(false);
     }
@@ -189,9 +187,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         cost_price: Number(unitCost.toFixed(4))
       });
 
-      alert(`${L('Price updated to', 'Precio actualizado a')} $${newPrice.toFixed(2)} (${L('margin', 'margen')} ${((multiplier - 1) * 100).toFixed(0)}%)`);
+      alert(`${t('productions:recipe.priceUpdated')} $${newPrice.toFixed(2)} (${t('productions:recipe.margin')} ${((multiplier - 1) * 100).toFixed(0)}%)`);
     } catch (err: any) {
-      alert(`${L('Error updating price', 'Error al actualizar precio')}: ` + (err.message || 'Unknown error'));
+      alert(`${t('productions:recipe.errorUpdatingPrice')}: ` + (err.message || 'Unknown error'));
     } finally {
       setUpdating(false);
     }
@@ -311,7 +309,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
       const detail = err?.response?.data?.detail;
       const msg = typeof detail === 'string' ? detail
         : Array.isArray(detail) ? detail.map((d: any) => `${(d.loc || []).join('.')}: ${d.msg}`).join('; ')
-        : err?.message || L('Error saving ingredients', 'Error guardando ingredientes');
+        : err?.message || t('productions:recipe.errorSavingIngredients');
       setError(msg);
     } finally {
       setUpdating(false);
@@ -379,14 +377,14 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           <Grid container spacing={2}>
             <Grid item xs={6} sm={3}>
               <Typography variant="caption" color="text.secondary">
-                {L('Yield', 'Rendimiento')}
+                {t('productions:recipe.yield')}
               </Typography>
               <Typography variant="h6">{recipe.yield_qty} uds</Typography>
             </Grid>
 
             <Grid item xs={6} sm={3}>
               <Typography variant="caption" color="text.secondary">
-                {L('Materials Cost', 'Costo Materiales')}
+                {t('productions:recipe.materialsCost')}
               </Typography>
               <Typography variant="h6">${totalCost.toFixed(2)}</Typography>
               <Typography variant="caption" color="text.secondary">
@@ -398,7 +396,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               <>
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">
-                    {L('Indirect Costs', 'Costos Indirectos')}
+                    {t('productions:recipe.indirectCosts')}
                   </Typography>
                   <Typography variant="h6" color="warning.main">
                     ${Number(fc.indirect_total).toFixed(2)}
@@ -411,7 +409,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                 </Grid>
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">
-                    {L('Full Cost/Unit', 'Costo Completo/U')}
+                    {t('productions:recipe.fullCostUnit')}
                   </Typography>
                   <Typography variant="h6" color="error.main">
                     ${Number(fc.full_cost_unit).toFixed(4)}
@@ -425,13 +423,13 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               <>
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">
-                    {L('Cost/Unit', 'Costo/Unidad')}
+                    {t('productions:recipe.costUnit')}
                   </Typography>
                   <Typography variant="h6">${unitCost.toFixed(4)}</Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">
-                    {L('Ingredients', 'Ingredientes')}
+                    {t('productions:recipe.ingredients')}
                   </Typography>
                   <Typography variant="h6">{ingredientsCount}</Typography>
                 </Grid>
@@ -444,12 +442,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         {isEditing ? (
           <Box mb={2}>
             <Typography variant="subtitle2" gutterBottom>
-              {L('Production Parameters', 'Parámetros de Producción')}
+              {t('productions:recipe.productionParameters')}
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={6} sm={3}>
                 <TextField
-                  label={L('Prep time (min)', 'T. preparación (min)')}
+                  label={t('productions:recipe.prepTime')}
                   type="number"
                   size="small"
                   fullWidth
@@ -460,7 +458,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField
-                  label={L('Baking time (min)', 'T. horneado (min)')}
+                  label={t('productions:recipe.bakingTime')}
                   type="number"
                   size="small"
                   fullWidth
@@ -471,7 +469,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField
-                  label={L('Oven temp (°C)', 'Temp. horno (°C)')}
+                  label={t('productions:recipe.ovenTemp')}
                   type="number"
                   size="small"
                   fullWidth
@@ -482,7 +480,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField
-                  label={L('Rest time (min)', 'T. reposo (min)')}
+                  label={t('productions:recipe.restTime')}
                   type="number"
                   size="small"
                   fullWidth
@@ -494,36 +492,36 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               {/* TOUCH vs PROCESO */}
               <Grid item xs={12}>
                 <Alert severity="info" sx={{ py: 0.5 }}>
-                  🟢 Touch = {L('active work (costs labor)', 'trabajo activo (cuesta MO)')} | ⚫ {L('Process = passive (fermentation/rest)', 'Proceso = pasivo (fermentación/reposo)')}
+                  🟢 Touch = {t('productions:recipe.touchDescription')} | ⚫ {t('productions:recipe.processDescription')}
                 </Alert>
               </Grid>
               <Grid item xs={6} sm={6}>
                 <TextField
-                  label={L('Active work min (TOUCH)', 'Trabajo activo min (TOUCH)')}
+                  label={t('productions:recipe.activeWorkMin')}
                   type="number"
                   size="small"
                   fullWidth
                   value={prodParams.touch_minutes_standard ?? ''}
                   onChange={(e) => setProdParams((p) => ({ ...p, touch_minutes_standard: e.target.value ? Number(e.target.value) : null }))}
                   inputProps={{ min: 0 }}
-                  helperText={L('Weigh, knead, shape, load/unload', 'Pesar, amasar, bolear, cargar/descargar')}
+                  helperText={t('productions:recipe.activeWorkHelper')}
                 />
               </Grid>
               <Grid item xs={6} sm={6}>
                 <TextField
-                  label={L('Passive process (min)', 'Proceso pasivo (min)')}
+                  label={t('productions:recipe.passiveProcess')}
                   type="number"
                   size="small"
                   fullWidth
                   value={Math.max((prodParams.prep_time_minutes || 0) - (prodParams.touch_minutes_standard || 0), 0) || ''}
                   InputProps={{ readOnly: true }}
                   inputProps={{ min: 0 }}
-                  helperText={L('Auto: total prep − touch time', 'Auto: tiempo total − trabajo activo')}
+                  helperText={t('productions:recipe.passiveProcessHelper')}
                 />
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField
-                  label={L('Waste %', 'Merma %')}
+                  label={t('productions:recipe.wastePct')}
                   type="number"
                   size="small"
                   fullWidth
@@ -534,7 +532,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField
-                  label={L('Trays/batch', 'Bandejas/lote')}
+                  label={t('productions:recipe.traysPerBatch')}
                   type="number"
                   size="small"
                   fullWidth
@@ -545,7 +543,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField
-                  label={L('Units/tray', 'Uds/bandeja')}
+                  label={t('productions:recipe.unitsPerTray')}
                   type="number"
                   size="small"
                   fullWidth
@@ -556,7 +554,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  label={L('Instructions', 'Instrucciones')}
+                  label={t('productions:recipe.instructions')}
                   size="small"
                   fullWidth
                   multiline
@@ -570,31 +568,31 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         ) : (
           <Box mb={2} display="flex" flexWrap="wrap" gap={1}>
             {recipe.prep_time_minutes != null && (
-              <Chip label={`⏱️ ${L('Prep', 'Prep.')}: ${recipe.prep_time_minutes} min`} color="primary" size="small" />
+              <Chip label={`⏱️ ${t('productions:recipe.prepLabel')}: ${recipe.prep_time_minutes} min`} color="primary" size="small" />
             )}
             {recipe.baking_time_minutes != null && (
-              <Chip label={`🔥 ${L('Baking', 'Horneado')}: ${recipe.baking_time_minutes} min`} color="warning" size="small" />
+              <Chip label={`🔥 ${t('productions:recipe.bakingLabel')}: ${recipe.baking_time_minutes} min`} color="warning" size="small" />
             )}
             {recipe.oven_temp_celsius != null && (
               <Chip label={`🌡️ ${recipe.oven_temp_celsius} °C`} color="default" size="small" />
             )}
             {recipe.rest_time_minutes != null && (
-              <Chip label={`⏸️ ${L('Rest', 'Reposo')}: ${recipe.rest_time_minutes} min`} color="info" size="small" />
+              <Chip label={`⏸️ ${t('productions:recipe.restLabel')}: ${recipe.rest_time_minutes} min`} color="info" size="small" />
             )}
             {(recipe as any).touch_minutes_standard != null && (recipe as any).touch_minutes_standard > 0 && (
               <Chip label={`🟢 Touch: ${(recipe as any).touch_minutes_standard} min`} color="success" size="small" />
             )}
             {(recipe as any).process_minutes != null && (recipe as any).process_minutes > 0 && (
-              <Chip label={`⚫ ${L('Process', 'Proceso')}: ${(recipe as any).process_minutes} min`} color="default" size="small" />
+              <Chip label={`⚫ ${t('productions:recipe.processLabel')}: ${(recipe as any).process_minutes} min`} color="default" size="small" />
             )}
             {recipe.waste_pct != null && recipe.waste_pct > 0 && (
-              <Chip label={`📉 ${L('Waste', 'Merma')}: ${recipe.waste_pct}%`} color="error" size="small" />
+              <Chip label={`📉 ${t('productions:recipe.wasteLabel')}: ${recipe.waste_pct}%`} color="error" size="small" />
             )}
             {recipe.trays_per_batch != null && (
-              <Chip label={`🍞 ${recipe.trays_per_batch} ${L('trays', 'bandejas')}`} color="default" size="small" />
+              <Chip label={`🍞 ${recipe.trays_per_batch} ${t('productions:recipe.traysLabel')}`} color="default" size="small" />
             )}
             {recipe.units_per_tray != null && (
-              <Chip label={`${recipe.units_per_tray} ${L('units/tray', 'uds/bandeja')}`} color="default" size="small" />
+              <Chip label={`${recipe.units_per_tray} ${t('productions:recipe.unitsPerTrayLabel')}`} color="default" size="small" />
             )}
           </Box>
         )}
@@ -603,7 +601,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
 
         {/* Desglose de ingredientes */}
         <Typography variant="h6" gutterBottom>
-          {L('Ingredients Breakdown', 'Desglose de Ingredientes')}
+          {t('productions:recipe.ingredientsBreakdown')}
         </Typography>
 
         <TableContainer component={Paper} variant="outlined">
@@ -611,12 +609,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             <TableHead>
               <TableRow>
                 <TableCell>Ingrediente</TableCell>
-                <TableCell align="right">{L('Quantity', 'Cantidad')}</TableCell>
+                <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
                 <TableCell align="right">Kg / Lb</TableCell>
-                <TableCell>{L('Packaging', 'Presentación')}</TableCell>
-                <TableCell align="right">{L('Cost', 'Costo')}</TableCell>
-                <TableCell align="right">% {L('Cost', 'Costo')}</TableCell>
-                {isEditing && <TableCell align="right">{L('Actions', 'Acciones')}</TableCell>}
+                <TableCell>{t('productions:recipe.packaging')}</TableCell>
+                <TableCell align="right">{t('productions:recipe.cost')}</TableCell>
+                <TableCell align="right">% {t('productions:recipe.cost')}</TableCell>
+                {isEditing && <TableCell align="right">{t('productions:recipe.actionsColumn')}</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -624,7 +622,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                 <TableRow>
                   <TableCell colSpan={isEditing ? 7 : 6} align="center">
                     <Typography variant="body2" color="text.secondary">
-                      {L('This recipe has no ingredients yet.', 'Esta receta no tiene ingredientes registrados.')}
+                      {t('productions:recipe.noIngredients')}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -648,7 +646,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         size="small"
                         fullWidth
                       >
-                        <option value="">{L('Select product', 'Seleccionar producto')}</option>
+                        <option value="">{t('productions:recipe.selectProduct')}</option>
                         {products.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name}
@@ -753,15 +751,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         {/* Costos indirectos */}
         <Divider sx={{ my: 2 }} />
         <Typography variant="h6" gutterBottom>
-          {L('Indirect Costs', 'Costos Indirectos')}
+          {t('productions:recipe.indirectCosts')}
         </Typography>
 
         {costDrivers.length === 0 && !isEditing && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            {L(
-              'No cost drivers configured. Go to production settings to add labor, energy, and other cost types.',
-              'No hay drivers de costo configurados. Agrega tipos como Mano de Obra, Energía, etc. desde los ajustes de producción.'
-            )}
+            {t('productions:recipe.noCostDriversInfo')}
           </Alert>
         )}
 
@@ -770,12 +765,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>{L('Cost Type', 'Tipo de Costo')}</TableCell>
-                  <TableCell align="right">{L('Qty', 'Cantidad')}</TableCell>
-                  <TableCell align="right">{L('Headcount', 'Personas')}</TableCell>
-                  <TableCell align="right">{L('Rate', 'Tarifa')}</TableCell>
-                  <TableCell align="right">{L('Subtotal', 'Subtotal')}</TableCell>
-                  {isEditing && <TableCell align="right">{L('Actions', 'Acciones')}</TableCell>}
+                  <TableCell>{t('productions:recipe.costType')}</TableCell>
+                  <TableCell align="right">{t('productions:recipe.qty')}</TableCell>
+                  <TableCell align="right">{t('productions:recipe.headcount')}</TableCell>
+                  <TableCell align="right">{t('productions:recipe.rate')}</TableCell>
+                  <TableCell align="right">{t('productions:recipe.subtotal')}</TableCell>
+                  {isEditing && <TableCell align="right">{t('productions:recipe.actionsColumn')}</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -810,7 +805,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                             size="small"
                             fullWidth
                           >
-                            <option value="">{L('Select type', 'Seleccionar tipo')}</option>
+                            <option value="">{t('productions:recipe.selectType')}</option>
                             {costDrivers.filter((d) => d.is_active).map((d) => (
                               <option key={d.id} value={d.id}>
                                 {d.name} ({d.unit} @ ${Number(d.default_rate).toFixed(2)})
@@ -922,14 +917,11 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               }}
               sx={{ mb: 2 }}
             >
-              {L('Add indirect cost', 'Añadir costo indirecto')}
+              {t('productions:recipe.addIndirectCost')}
             </Button>
           ) : (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              {L(
-                'No cost types configured yet. Go to Production → Indirect Costs to create them first.',
-                'No hay tipos de costo configurados. Ve a Producción → Costos indirectos para crearlos primero.'
-              )}
+              {t('productions:recipe.noCostDrivers')}
             </Alert>
           )
         )}
@@ -939,7 +931,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           <>
             <Divider sx={{ my: 2 }} />
             <Typography variant="h6" gutterBottom>
-              {L('Instructions', 'Instrucciones')}
+              {t('productions:recipe.instructions')}
             </Typography>
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
               {recipe.instructions}
@@ -956,7 +948,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             onClick={handleSaveIngredients}
             disabled={updating}
           >
-            {L('Save', 'Guardar')}
+            {t('productions:recipe.save')}
           </Button>
         ) : (
           <Button
@@ -964,7 +956,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             onClick={() => setIsEditing(true)}
             disabled={updating}
           >
-            {L('Edit', 'Editar')}
+            {t('productions:recipe.edit')}
           </Button>
         )}
         <Button
@@ -973,7 +965,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           onClick={addNewIngredientRow}
           disabled={updating}
         >
-          {L('Add new ingredient', 'Añadir nuevo ingrediente')}
+          {t('productions:recipe.addIngredient')}
         </Button>
         {onEdit && recipe && !isEditing && (
           <Button
@@ -981,7 +973,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             onClick={() => onEdit(recipe)}
             disabled={updating}
           >
-            {L('Open full editor', 'Abrir editor completo')}
+            {t('productions:recipe.openEditor')}
           </Button>
         )}
         {onCreateOrder && recipe && (
@@ -991,23 +983,23 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             onClick={openOrderPrompt}
             disabled={updating}
           >
-            {L('New Order', 'Nueva Orden')}
+            {t('productions:recipe.newOrder')}
           </Button>
         )}
-        <Button onClick={onClose}>{L('Close', 'Cerrar')}</Button>
+        <Button onClick={onClose}>{t('productions:recipe.close')}</Button>
       </DialogActions>
 
       <Dialog open={orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{L('Create Production Order', 'Crear orden de produccion')}</DialogTitle>
+        <DialogTitle>{t('productions:recipe.createOrder')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {L('Use the same recipe quantity?', '¿Usar la misma cantidad de la receta?')}
+            {t('productions:recipe.useRecipeQty')}
           </Typography>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            {L('Recipe yield', 'Rendimiento receta')}: <strong>{recipe?.yield_qty || 0}</strong>
+            {t('productions:recipe.recipeYield')}: <strong>{recipe?.yield_qty || 0}</strong>
           </Typography>
           <TextField
-            label={L('Other quantity', 'Otra cantidad')}
+            label={t('productions:recipe.otherQty')}
             type="number"
             fullWidth
             value={customOrderQty}
@@ -1016,7 +1008,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             sx={{ mb: 2 }}
           />
           <Typography variant="body2" color="text.secondary">
-            {L('Estimated total cost', 'Costo total estimado')}:{' '}
+            {t('productions:recipe.estimatedCost')}:{' '}
             <strong>
               $
               {(
@@ -1027,19 +1019,19 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOrderPromptOpen(false)}>{L('Cancel', 'Cancelar')}</Button>
+          <Button onClick={() => setOrderPromptOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="outlined"
             onClick={() => submitOrderWithQty(Number(recipe?.yield_qty || 1))}
           >
-            {L('Same quantity', 'Misma cantidad')}
+            {t('productions:recipe.sameQty')}
           </Button>
           <Button
             variant="contained"
             onClick={() => submitOrderWithQty(Number(customOrderQty))}
             disabled={!Number(customOrderQty) || Number(customOrderQty) <= 0}
           >
-            {L('Use this quantity', 'Usar esta cantidad')}
+            {t('productions:recipe.useThisQty')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,0 +1,23 @@
+{
+  "title": "Facturación Electrónica",
+  "sendToSii": "Enviar factura al SII",
+  "invoiceIdPlaceholder": "ID de factura",
+  "send": "Enviar",
+  "sending": "Enviando...",
+  "retry": "Reintentar",
+  "errorSending": "Error al enviar",
+  "errorRetrying": "Error al reintentar",
+  "invoice": "Factura",
+  "country": "País",
+  "status": "Estado",
+  "date": "Fecha",
+  "actions": "Acciones",
+  "noSubmissions": "No hay envíos recientes. Introduce el ID de una factura para enviarla al SII.",
+  "statuses": {
+    "pending": "Pendiente",
+    "sent": "Enviada",
+    "accepted": "Aceptada",
+    "rejected": "Rechazada",
+    "error": "Error"
+  }
+}

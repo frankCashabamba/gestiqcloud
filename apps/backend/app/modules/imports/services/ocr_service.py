@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from app.modules.imports.config.classification import get_classification_keywords
+from app.modules.imports.application.ocr_config import get_ocr_config
 
 logger = logging.getLogger("imports.ocr")
 
@@ -52,6 +53,46 @@ class OCRService:
         self._fitz_available = False
         self._tesseract_available = False
         self._deps_checked = False
+        self._config = None
+
+    def _get_config(self):
+        """Load OCR config from environment (cached per process)."""
+        if self._config is None:
+            self._config = get_ocr_config()
+        return self._config
+
+    @staticmethod
+    def _parse_langs(lang_str: str) -> list[str]:
+        """Split tesseract lang string like 'spa+eng' into list."""
+        return [lang for lang in re.split(r"[+,\s]+", lang_str) if lang]
+
+    @staticmethod
+    def _build_text_from_tesseract_data(data: dict[str, Any]) -> str:
+        """Reconstruct ordered text from pytesseract.image_to_data output."""
+        if not data:
+            return ""
+
+        lines: dict[tuple[int, int], list[tuple[int, str]]] = {}
+        texts = data.get("text", [])
+        confs = data.get("conf", [])
+        blocks = data.get("block_num", [])
+        line_nums = data.get("line_num", [])
+        lefts = data.get("left", [])
+
+        for idx, word in enumerate(texts):
+            if not word or str(confs[idx]).strip() in ("", "-1"):
+                continue
+            block = blocks[idx] if idx < len(blocks) else 0
+            line = line_nums[idx] if idx < len(line_nums) else 0
+            left = lefts[idx] if idx < len(lefts) else idx
+            lines.setdefault((block, line), []).append((left, word))
+
+        ordered_lines = []
+        for (block, line), words in sorted(lines.items(), key=lambda x: (x[0][0], x[0][1])):
+            ordered_words = [w for _, w in sorted(words, key=lambda p: p[0])]
+            ordered_lines.append(" ".join(ordered_words))
+
+        return "\n".join(ordered_lines)
 
     def _check_dependencies(self) -> None:
         """Verifica que las dependencias estén instaladas."""
@@ -171,20 +212,26 @@ class OCRService:
         import pytesseract
         from PIL import Image
 
+        cfg = self._get_config()
         doc = fitz.open(file_path)
         text_parts: list[str] = []
         confidences: list[float] = []
+        dpi = max(cfg.ocr_dpi, 300)
+        ocr_config = f"--psm {cfg.ocr_psm} --oem 1 -c preserve_interword_spaces=1"
 
         try:
             for page in doc:
-                pix = page.get_pixmap(dpi=200)
+                pix = page.get_pixmap(dpi=dpi)
                 img = Image.open(io.BytesIO(pix.tobytes("png")))
 
                 page_data = pytesseract.image_to_data(
-                    img, lang="spa+eng", output_type=pytesseract.Output.DICT
+                    img,
+                    lang=cfg.ocr_lang,
+                    config=ocr_config,
+                    output_type=pytesseract.Output.DICT,
                 )
 
-                page_text = pytesseract.image_to_string(img, lang="spa+eng")
+                page_text = self._build_text_from_tesseract_data(page_data)
                 text_parts.append(page_text)
 
                 page_confs = [
@@ -211,7 +258,9 @@ class OCRService:
             metadata={
                 "source": "ocr",
                 "engine": "tesseract",
-                "languages": ["spa", "eng"],
+                "languages": self._parse_langs(cfg.ocr_lang),
+                "psm": cfg.ocr_psm,
+                "dpi": dpi,
             },
         )
 
@@ -224,15 +273,21 @@ class OCRService:
         import pytesseract
         from PIL import Image
 
+        cfg = self._get_config()
         img = Image.open(file_path)
 
         if img.mode != "RGB":
             img = img.convert("RGB")
 
+        ocr_config = f"--psm {cfg.ocr_psm} --oem 1 -c preserve_interword_spaces=1"
+
         page_data = pytesseract.image_to_data(
-            img, lang="spa+eng", output_type=pytesseract.Output.DICT
+            img,
+            lang=cfg.ocr_lang,
+            config=ocr_config,
+            output_type=pytesseract.Output.DICT,
         )
-        text = pytesseract.image_to_string(img, lang="spa+eng")
+        text = self._build_text_from_tesseract_data(page_data)
 
         confs = [int(c) for c in page_data.get("conf", []) if str(c).isdigit() and int(c) > 0]
         avg_confidence = sum(confs) / len(confs) / 100 if confs else 0.7
@@ -250,7 +305,8 @@ class OCRService:
             metadata={
                 "source": "ocr",
                 "engine": "tesseract",
-                "languages": ["spa", "eng"],
+                "languages": self._parse_langs(cfg.ocr_lang),
+                "psm": cfg.ocr_psm,
                 "image_size": img.size,
             },
         )

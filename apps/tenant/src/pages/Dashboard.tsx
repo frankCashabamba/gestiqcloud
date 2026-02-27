@@ -1,11 +1,13 @@
-﻿import React from 'react'
+import React from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/AuthContext'
 import { useMisModulos } from '../hooks/useMisModulos'
 import { useEffect, useState } from 'react'
 import { getMiEmpresa, type Empresa } from '../services/empresa'
 
 export default function Dashboard() {
+  const { t } = useTranslation()
   const { logout, brand, profile } = useAuth()
   const { modules, loading, error } = useMisModulos()
   const { empresa } = useParams()
@@ -14,16 +16,16 @@ export default function Dashboard() {
   useEffect(() => { getMiEmpresa().then(arr => setEmpresaInfo(arr[0] || null)).catch(()=>{}) }, [])
   return (
     <div>
-      {/* Header general con Inicio/Cerrar sesión está en CompanyShell */}
+      {/* General header with Home/Logout is in CompanyShell */}
       <div style={{ maxWidth: 960, margin: '0 auto 1rem', color: 'var(--color-muted)', fontSize: 14, display: 'flex', gap: 16 }}>
-        <span>Empresa: <strong>{empresaInfo?.name || empresa || '—'}</strong></span>
-        <span>Usuario: <strong>{profile?.username || profile?.user_id || '—'}</strong></span>
+        <span>{t('pages.dashboard.companyLabel')} <strong>{empresaInfo?.name || empresa || '—'}</strong></span>
+        <span>{t('pages.dashboard.userLabel')} <strong>{profile?.username || profile?.user_id || '—'}</strong></span>
       </div>
       <div style={{ maxWidth: 960, margin: '1rem auto' }}>
-        <h3 style={{ marginTop: 0 }}>Módulos contratados {(!loading && modules.length > 0) ? `(${modules.length})` : ''}</h3>
-        {loading && <div style={{ color: 'var(--color-muted)' }}>Cargando módulos…</div>}
+        <h3 style={{ marginTop: 0 }}>{t('pages.dashboard.contractedModules')} {(!loading && modules.length > 0) ? `(${modules.length})` : ''}</h3>
+        {loading && <div style={{ color: 'var(--color-muted)' }}>{t('pages.dashboard.loadingModules')}</div>}
         {!loading && modules.length === 0 && (
-          <div style={{ color: 'var(--color-muted)' }}>No hay módulos contratados para esta empresa.</div>
+          <div style={{ color: 'var(--color-muted)' }}>{t('pages.dashboard.noModules')}</div>
         )}
         {!loading && modules.length > 0 && (
           <div style={{

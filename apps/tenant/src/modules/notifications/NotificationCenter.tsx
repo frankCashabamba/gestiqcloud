@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import {
@@ -30,18 +31,19 @@ const STATUS_STYLES: Record<string, string> = {
   archived: 'bg-gray-100 text-gray-800',
 }
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: (key: string, opts?: any) => string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'ahora'
-  if (mins < 60) return `hace ${mins}m`
+  if (mins < 1) return t('notifications:now')
+  if (mins < 60) return t('notifications:minutesAgo', { count: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `hace ${hours}h`
+  if (hours < 24) return t('notifications:hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  return `hace ${days}d`
+  return t('notifications:daysAgo', { count: days })
 }
 
 export default function NotificationCenter() {
+  const { t } = useTranslation(['notifications', 'common'])
   const { success, error: showError } = useToast()
   const [loading, setLoading] = useState(true)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -64,7 +66,7 @@ export default function NotificationCenter() {
       setNotifications(listRes.items)
       setUnreadCount(countRes.count)
     } catch {
-      showError('Error al cargar notificaciones')
+      showError(t('notifications:errorLoading'))
     } finally {
       setLoading(false)
     }
@@ -77,30 +79,30 @@ export default function NotificationCenter() {
     if (unreadIds.length === 0) return
     try {
       const result = await markAsRead(unreadIds)
-      success(`${result.updated} notificaciones marcadas como leídas`)
+      success(t('notifications:markedAsRead', { count: result.updated }))
       loadData()
     } catch {
-      showError('Error al marcar como leídas')
+      showError(t('notifications:errorMarkingRead'))
     }
   }
 
   const handleArchive = async (id: string) => {
     try {
       await archiveNotification(id)
-      success('Notificación archivada')
+      success(t('notifications:archived'))
       loadData()
     } catch {
-      showError('Error al archivar')
+      showError(t('notifications:errorArchiving'))
     }
   }
 
-  if (loading) return <div className="p-6">Cargando...</div>
+  if (loading) return <div className="p-6">{t('notifications:loading')}</div>
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">Notificaciones</h1>
+          <h1 className="text-3xl font-bold">{t('notifications:title')}</h1>
           {unreadCount > 0 && (
             <span className="px-3 py-1 bg-red-500 text-white text-sm font-semibold rounded-full">
               {unreadCount}
@@ -112,14 +114,14 @@ export default function NotificationCenter() {
           disabled={unreadCount === 0}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          Marcar todo como leído
+          {t('notifications:markAllRead')}
         </button>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {notifications.length === 0 ? (
           <div className="px-6 py-12 text-center text-gray-500">
-            No hay notificaciones
+            {t('notifications:noNotifications')}
           </div>
         ) : (
           <div className="divide-y">
@@ -164,7 +166,7 @@ export default function NotificationCenter() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs text-gray-400 whitespace-nowrap">
-                      {timeAgo(n.created_at)}
+                      {timeAgo(n.created_at, t)}
                     </span>
                     {n.status !== 'archived' && (
                       <button
@@ -174,7 +176,7 @@ export default function NotificationCenter() {
                         }}
                         className="text-sm px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
                       >
-                        Archivar
+                        {t('notifications:archive')}
                       </button>
                     )}
                   </div>

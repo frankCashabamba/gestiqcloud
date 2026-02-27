@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   listCostDrivers,
@@ -11,7 +12,6 @@ import {
   deleteCostDriver,
   type CostDriver,
 } from '../../services/api/productionCosts';
-import { useI18n } from '../../i18n/I18nProvider';
 import { useUnits } from '../../hooks/useGlobalCatalogs';
 
 interface EditForm {
@@ -24,9 +24,7 @@ interface EditForm {
 const emptyForm: EditForm = { code: '', name: '', unit: 'HORA', default_rate: '' };
 
 export default function CostDriversPage() {
-  const { lang } = useI18n();
-  const isEs = String(lang || 'en').toLowerCase().startsWith('es');
-  const L = (en: string, es: string) => (isEs ? es : en);
+  const { t } = useTranslation(['productions', 'common']);
   const navigate = useNavigate();
   const { empresa } = useParams();
   const basePath = `${empresa ? `/${empresa}` : ''}/produccion`;
@@ -52,7 +50,7 @@ export default function CostDriversPage() {
       setDrivers(Array.isArray(data) ? data : []);
       setError(null);
     } catch (err: any) {
-      setError(err?.message || L('Error loading cost drivers', 'Error al cargar tipos de costo'));
+      setError(err?.message || t('productions:costDrivers.errorLoading'));
     } finally {
       setLoading(false);
     }
@@ -85,7 +83,7 @@ export default function CostDriversPage() {
       setForm(emptyForm);
       await loadDrivers();
     } catch (err: any) {
-      setError(err?.message || L('Error saving', 'Error al guardar'));
+      setError(err?.message || t('productions:costDrivers.errorSaving'));
     } finally {
       setSaving(false);
     }
@@ -103,12 +101,12 @@ export default function CostDriversPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(L('Delete this cost driver?', '¿Eliminar este tipo de costo?'))) return;
+    if (!confirm(t('productions:costDrivers.deleteConfirm'))) return;
     try {
       await deleteCostDriver(id);
       await loadDrivers();
     } catch (err: any) {
-      alert(err?.message || L('Error deleting', 'Error al eliminar'));
+      alert(err?.message || t('productions:costDrivers.errorDeleting'));
     }
   };
 
@@ -123,13 +121,10 @@ export default function CostDriversPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {L('Production Cost Types', 'Tipos de Costo de Producción')}
+            {t('productions:costDrivers.title')}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {L(
-              'Define labor roles, energy, packaging, and other indirect cost categories.',
-              'Define roles de mano de obra, energía, empaque y otros costos indirectos.'
-            )}
+            {t('productions:costDrivers.description')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -137,7 +132,7 @@ export default function CostDriversPage() {
             className="px-3 py-2 text-sm border rounded hover:bg-gray-50"
             onClick={() => navigate(basePath)}
           >
-            {L('← Back', '← Volver')}
+            {t('productions:costDrivers.back')}
           </button>
           <button
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -147,7 +142,7 @@ export default function CostDriversPage() {
               setShowForm(true);
             }}
           >
-            + {L('New cost type', 'Nuevo tipo de costo')}
+            + {t('productions:costDrivers.new')}
           </button>
         </div>
       </div>
@@ -163,13 +158,13 @@ export default function CostDriversPage() {
         <div className="mb-6 p-4 border rounded-lg bg-gray-50">
           <h2 className="text-lg font-semibold mb-3">
             {editingId
-              ? L('Edit cost type', 'Editar tipo de costo')
-              : L('New cost type', 'Nuevo tipo de costo')}
+              ? t('productions:costDrivers.edit')
+              : t('productions:costDrivers.new')}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                {L('Code', 'Código')}
+                {t('productions:costDrivers.code')}
               </label>
               <input
                 type="text"
@@ -182,19 +177,19 @@ export default function CostDriversPage() {
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                {L('Name', 'Nombre')}
+                {t('productions:costDrivers.name')}
               </label>
               <input
                 type="text"
                 className="w-full px-3 py-2 border rounded text-sm"
-                placeholder={L('e.g. Baker', 'ej. Panadero')}
+                placeholder={t('productions:costDrivers.namePlaceholder')}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                {L('Unit', 'Unidad')}
+                {t('productions:costDrivers.unit')}
               </label>
               <select
                 className="w-full px-3 py-2 border rounded text-sm"
@@ -211,7 +206,7 @@ export default function CostDriversPage() {
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                {L('Default rate', 'Tarifa por defecto')}
+                {t('productions:costDrivers.defaultRate')}
               </label>
               <input
                 type="number"
@@ -230,13 +225,13 @@ export default function CostDriversPage() {
               onClick={handleSave}
               disabled={saving || !form.code.trim() || !form.name.trim()}
             >
-              {saving ? L('Saving...', 'Guardando...') : L('Save', 'Guardar')}
+              {saving ? t('productions:costDrivers.saving') : t('productions:costDrivers.save')}
             </button>
             <button
               className="px-4 py-2 text-sm border rounded hover:bg-gray-100"
               onClick={handleCancel}
             >
-              {L('Cancel', 'Cancelar')}
+              {t('productions:costDrivers.cancel')}
             </button>
           </div>
         </div>
@@ -244,17 +239,14 @@ export default function CostDriversPage() {
 
       {/* Table */}
       {loading ? (
-        <p className="text-gray-500 text-center py-10">{L('Loading...', 'Cargando...')}</p>
+        <p className="text-gray-500 text-center py-10">{t('productions:costDrivers.loading')}</p>
       ) : drivers.length === 0 ? (
         <div className="text-center py-16 border rounded-lg bg-white">
           <p className="text-gray-500 text-lg mb-2">
-            {L('No cost types defined yet', 'No hay tipos de costo definidos')}
+            {t('productions:costDrivers.empty')}
           </p>
           <p className="text-gray-400 text-sm mb-4">
-            {L(
-              'Create cost types like labor roles, energy, packaging to track indirect production costs.',
-              'Crea tipos como roles de mano de obra, energía, empaque para rastrear costos indirectos.'
-            )}
+            {t('productions:costDrivers.emptyDescription')}
           </p>
           <button
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -264,7 +256,7 @@ export default function CostDriversPage() {
               setShowForm(true);
             }}
           >
-            + {L('Create first cost type', 'Crear primer tipo de costo')}
+            + {t('productions:costDrivers.createFirst')}
           </button>
         </div>
       ) : (
@@ -273,22 +265,22 @@ export default function CostDriversPage() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  {L('Code', 'Código')}
+                  {t('productions:costDrivers.code')}
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  {L('Name', 'Nombre')}
+                  {t('productions:costDrivers.name')}
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  {L('Unit', 'Unidad')}
+                  {t('productions:costDrivers.unit')}
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">
-                  {L('Default rate', 'Tarifa')}
+                  {t('productions:costDrivers.defaultRate')}
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">
-                  {L('Status', 'Estado')}
+                  {t('productions:costDrivers.status')}
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">
-                  {L('Actions', 'Acciones')}
+                  {t('productions:costDrivers.actions')}
                 </th>
               </tr>
             </thead>
@@ -311,7 +303,7 @@ export default function CostDriversPage() {
                           : 'bg-gray-100 text-gray-500'
                       }`}
                     >
-                      {d.is_active ? L('Active', 'Activo') : L('Inactive', 'Inactivo')}
+                      {d.is_active ? t('productions:costDrivers.active') : t('productions:costDrivers.inactive')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -319,13 +311,13 @@ export default function CostDriversPage() {
                       className="text-blue-600 hover:underline text-sm mr-3"
                       onClick={() => handleEdit(d)}
                     >
-                      {L('Edit', 'Editar')}
+                      {t('productions:edit')}
                     </button>
                     <button
                       className="text-red-600 hover:underline text-sm"
                       onClick={() => handleDelete(d.id)}
                     >
-                      {L('Delete', 'Eliminar')}
+                      {t('productions:delete')}
                     </button>
                   </td>
                 </tr>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { IMPORTS } from '@endpoints/imports'
 
 interface FeedbackPromptProps {
@@ -38,6 +39,7 @@ export function FeedbackPrompt({
   onSubmit,
   onDismiss,
 }: FeedbackPromptProps) {
+  const { t } = useTranslation('importer')
   const [showForm, setShowForm] = useState(true)
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -81,7 +83,7 @@ export function FeedbackPrompt({
 
   const handleCorrectionSubmit = async () => {
     if (!selectedCorrectParser) {
-      setError('Por favor selecciona el parser correcto')
+      setError(t('feedback.selectCorrectParser'))
       return
     }
 
@@ -113,14 +115,14 @@ export function FeedbackPrompt({
       })
 
       if (!response.ok) {
-        throw new Error('Error al enviar feedback')
+        throw new Error(t('feedback.submitError'))
       }
 
       setSubmitted(true)
       setShowForm(false)
       onSubmit()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setError(e instanceof Error ? e.message : t('feedback.unknownError'))
     } finally {
       setSubmitting(false)
     }
@@ -136,7 +138,7 @@ export function FeedbackPrompt({
       return (
         <div className="feedback-prompt feedback-prompt--success">
           <span className="feedback-prompt__icon">✓</span>
-          <span>Gracias por tu feedback</span>
+          <span>{t('feedback.thankYou')}</span>
         </div>
       )
     }
@@ -148,7 +150,7 @@ export function FeedbackPrompt({
       <div className="feedback-prompt feedback-prompt--correction">
         <div className="feedback-prompt__header">
           <span className="feedback-prompt__icon">🔧</span>
-          <span>¿Cuál era el parser correcto?</span>
+          <span>{t('feedback.whichParser')}</span>
         </div>
 
         <select
@@ -157,7 +159,7 @@ export function FeedbackPrompt({
           onChange={(e) => setSelectedCorrectParser(e.target.value)}
           disabled={submitting}
         >
-          <option value="">-- Selecciona --</option>
+          <option value="">{t('feedback.selectParser')}</option>
           {availableParsers
             .filter((p) => p.id !== originalParser)
             .map((parser) => (
@@ -175,14 +177,14 @@ export function FeedbackPrompt({
             onClick={() => setShowCorrectionForm(false)}
             disabled={submitting}
           >
-            Cancelar
+            {t('feedback.cancel')}
           </button>
           <button
             className="feedback-prompt__btn feedback-prompt__btn--primary"
             onClick={handleCorrectionSubmit}
             disabled={submitting || !selectedCorrectParser}
           >
-            {submitting ? 'Enviando...' : 'Enviar'}
+            {submitting ? t('feedback.sending') : t('feedback.send')}
           </button>
         </div>
 
@@ -195,11 +197,11 @@ export function FeedbackPrompt({
     <div className="feedback-prompt">
       <div className="feedback-prompt__header">
         <span className="feedback-prompt__icon">💡</span>
-        <span>¿La clasificación automática fue correcta?</span>
+        <span>{t('feedback.question')}</span>
         <button
           className="feedback-prompt__dismiss"
           onClick={handleDismiss}
-          title="Cerrar"
+          title={t('feedback.close')}
         >
           ×
         </button>
@@ -210,7 +212,7 @@ export function FeedbackPrompt({
           Parser: <strong>{originalParser}</strong>
         </span>
         <span className="feedback-prompt__confidence">
-          Confianza: {Math.round(originalConfidence * 100)}%
+          {t('feedback.confidence')} {Math.round(originalConfidence * 100)}%
         </span>
       </div>
 
@@ -222,14 +224,14 @@ export function FeedbackPrompt({
           onClick={handleCorrectClick}
           disabled={submitting}
         >
-          👍 Sí, correcto
+          👍 {t('feedback.yesCorrect')}
         </button>
         <button
           className="feedback-prompt__btn feedback-prompt__btn--warning"
           onClick={handleIncorrectClick}
           disabled={submitting}
         >
-          👎 No, era otro
+          👎 {t('feedback.noWrong')}
         </button>
       </div>
 

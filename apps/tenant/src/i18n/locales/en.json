@@ -900,5 +900,139 @@
     "priceVisible": "Price visible",
     "categoryVisible": "Category visible",
     "sku": "SKU"
+  },
+  "pages": {
+    "setPassword": {
+      "title": "Set password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "saving": "Saving…",
+      "save": "Save",
+      "errors": {
+        "invalidToken": "Invalid token",
+        "minLength": "Password must be at least 8 characters",
+        "mismatch": "Passwords do not match",
+        "loginFailed": "Could not sign in with the new password"
+      },
+      "success": "Password updated"
+    },
+    "onboarding": {
+      "subtitle": "Set up your company in 4 steps",
+      "stepOf": "Step {{current}} of {{total}}",
+      "requiredFields": "Please fill in the required fields",
+      "savedSuccess": "Configuration saved successfully",
+      "steps": {
+        "info": {
+          "title": "Company Information",
+          "subtitle": "Tell us about your business",
+          "companyName": "Company Name *",
+          "companyNamePlaceholder": "E.g.: My Company Ltd.",
+          "country": "Country *",
+          "selectCountry": "Select a country",
+          "taxId": "Tax ID",
+          "taxIdPlaceholder": "E.g.: 12345678-1",
+          "phone": "Phone",
+          "phonePlaceholder": "E.g.: +1 555 1234567",
+          "address": "Address",
+          "addressPlaceholder": "E.g.: 123 Main Street",
+          "city": "City",
+          "cityPlaceholder": "E.g.: New York",
+          "stateProvince": "State/Province",
+          "statePlaceholder": "E.g.: NY",
+          "postalCode": "Postal Code",
+          "postalCodePlaceholder": "E.g.: 10001",
+          "website": "Website",
+          "websitePlaceholder": "E.g.: www.mycompany.com"
+        },
+        "regional": {
+          "title": "Regional Configuration",
+          "subtitle": "Set your language, timezone and currency",
+          "language": "Language *",
+          "timezone": "Timezone *",
+          "timezonePlaceholder": "E.g.: America/New_York",
+          "currency": "Currency *",
+          "tip": "You can change these settings later from Settings"
+        },
+        "branding": {
+          "title": "Branding & Design",
+          "subtitle": "Customize your company's appearance",
+          "logoOptional": "Logo (optional)",
+          "changeLogo": "Change logo",
+          "uploadPrompt": "Click to select or drag an image",
+          "uploadHint": "PNG, JPG, GIF up to 5MB",
+          "primaryColor": "Primary Color *",
+          "secondaryColor": "Secondary Color *",
+          "colorPreview": "Color preview"
+        },
+        "review": {
+          "title": "Review your Configuration",
+          "subtitle": "Verify everything is correct before saving",
+          "companyInfo": "Company Information",
+          "company": "Company:",
+          "countryLabel": "Country:",
+          "taxIdLabel": "Tax ID:",
+          "regionalConfig": "Regional Configuration",
+          "languageLabel": "Language:",
+          "timezoneLabel": "Timezone:",
+          "currencyLabel": "Currency:",
+          "brandingSection": "Branding",
+          "logoLoaded": "Logo loaded",
+          "primaryColorLabel": "Primary Color:",
+          "secondaryColorLabel": "Secondary Color:",
+          "allReady": "All set: Once you save, you will be redirected to the main screen"
+        }
+      },
+      "back": "Back",
+      "next": "Next",
+      "saving": "Saving...",
+      "saveConfig": "Save Configuration"
+    },
+    "dashboard": {
+      "companyLabel": "Company:",
+      "userLabel": "User:",
+      "contractedModules": "Contracted modules",
+      "loadingModules": "Loading modules…",
+      "noModules": "No contracted modules for this company."
+    },
+    "unauthorized": {
+      "loading": "Loading…"
+    },
+    "sectorStart": {
+      "loadingTemplate": "Loading template…"
+    },
+    "error": {
+      "goBack": "Go back"
+    }
+  },
+  "components": {
+    "unitSelector": {
+      "label": "Unit of Measurement",
+      "placeholder": "Select unit...",
+      "loading": "Loading units..."
+    },
+    "categorySelector": {
+      "label": "Business Category",
+      "placeholder": "Select category...",
+      "loading": "Loading categories..."
+    },
+    "copilot": {
+      "greeting": "Hi! I'm your AI assistant",
+      "helpText": "Ask me about sales, inventory, billing or any business issue.",
+      "suggestions": {
+        "sales": "How are sales this month?",
+        "lowStock": "Which products have low stock?",
+        "topSelling": "What are my best-selling products?"
+      },
+      "inputPlaceholder": "Type your question...",
+      "buttonTitle": "Copilot AI"
+    },
+    "offlineSync": {
+      "pendingChanges": "{{count}} pending changes",
+      "statuses": "Statuses:",
+      "lastSync": "Last sync:",
+      "syncing": "Syncing...",
+      "syncNow": "Sync now",
+      "offlineWarning": "Changes are saved locally and will be sent automatically when you reconnect."
+    }
   }
 }

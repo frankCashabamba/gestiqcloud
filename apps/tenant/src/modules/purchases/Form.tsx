@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createCompra, getCompra, updateCompra, type Compra, type CompraLinea } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import CompraLineasEditor from './components/CompraLineasEditor'
@@ -14,6 +15,7 @@ type FormT = Omit<Compra, 'id' | 'created_at' | 'updated_at'>
 export default function CompraForm() {
     const { id } = useParams()
     const nav = useNavigate()
+    const { t } = useTranslation(['purchases', 'common'])
     const { success, error } = useToast()
     const can = usePermission()
     const requiredPerm = id ? 'purchases:update' : 'purchases:create'
@@ -94,11 +96,11 @@ export default function CompraForm() {
         e.preventDefault()
 
         try {
-            if (!form.fecha) throw new Error('Date is required')
+            if (!form.fecha) throw new Error(t('purchases:form.dateRequired'))
             if (!form.lineas || form.lineas.length === 0) {
-                throw new Error('Must add at least one line')
+                throw new Error(t('purchases:form.linesRequired'))
             }
-            if (form.total < 0) throw new Error('Total must be >= 0')
+            if (form.total < 0) throw new Error(t('purchases:form.totalPositive'))
 
             setLoading(true)
 
@@ -108,7 +110,7 @@ export default function CompraForm() {
                 await createCompra(form as Omit<Compra, 'id'>)
             }
 
-            success('Purchase saved')
+            success(t('purchases:saved'))
             nav('..')
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -124,13 +126,13 @@ export default function CompraForm() {
     return (
         <div className="p-4">
             <h3 className="text-xl font-semibold mb-3">
-                {id ? 'Edit Purchase' : 'New Purchase'}
+                {id ? t('purchases:edit') : t('purchases:new')}
             </h3>
 
             <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 900 }}>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block mb-1 font-medium">Date *</label>
+                        <label className="block mb-1 font-medium">{t('purchases:date')} *</label>
                         <input
                             type="date"
                             value={form.fecha}
@@ -142,7 +144,7 @@ export default function CompraForm() {
                     </div>
 
                     <div>
-                        <label className="block mb-1 font-medium">Delivery Date</label>
+                        <label className="block mb-1 font-medium">{t('purchases:form.deliveryDate')}</label>
                         <input
                             type="date"
                             value={form.fecha_entrega || ''}
@@ -155,10 +157,10 @@ export default function CompraForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block mb-1 font-medium">Supplier ID</label>
+                        <label className="block mb-1 font-medium">{t('purchases:form.supplierId')}</label>
                         <input
                             type="text"
-                            placeholder="Supplier ID"
+                            placeholder={t('purchases:form.supplierId')}
                             value={form.proveedor_id || ''}
                             onChange={(e) => setForm({ ...form, proveedor_id: e.target.value })}
                             className="border px-2 py-1 w-full rounded"
@@ -167,10 +169,10 @@ export default function CompraForm() {
                     </div>
 
                     <div>
-                        <label className="block mb-1 font-medium">Supplier Name</label>
+                        <label className="block mb-1 font-medium">{t('purchases:form.supplierName')}</label>
                         <input
                             type="text"
-                            placeholder="Supplier name"
+                            placeholder={t('purchases:form.supplierName')}
                             value={form.proveedor_nombre || ''}
                             onChange={(e) => setForm({ ...form, proveedor_nombre: e.target.value })}
                             className="border px-2 py-1 w-full rounded"
@@ -180,17 +182,17 @@ export default function CompraForm() {
                 </div>
 
                 <div>
-                    <label className="block mb-1 font-medium">Status</label>
+                    <label className="block mb-1 font-medium">{t('purchases:status')}</label>
                     <select
                         value={form.estado}
                         onChange={(e) => setForm({ ...form, estado: e.target.value as any })}
                         className="border px-2 py-1 w-full rounded"
                         disabled={loading}
                     >
-                        <option value="draft">Draft</option>
-                        <option value="sent">Sent</option>
-                        <option value="received">Received</option>
-                        <option value="cancelled">Cancelled</option>
+                        <option value="draft">{t('purchases:draft')}</option>
+                        <option value="sent">{t('purchases:sent')}</option>
+                        <option value="received">{t('purchases:received')}</option>
+                        <option value="cancelled">{t('purchases:cancelled')}</option>
                     </select>
                 </div>
 
@@ -201,7 +203,7 @@ export default function CompraForm() {
 
                 <div className="bg-gray-50 p-4 rounded space-y-2">
                     <div className="flex justify-between text-sm">
-                        <span>Subtotal:</span>
+                        <span>{t('purchases:detail.subtotal')}:</span>
                         <span className="font-medium">${form.subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -209,19 +211,19 @@ export default function CompraForm() {
                         <span className="font-medium">${form.impuesto.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold border-t pt-2">
-                        <span>Total:</span>
+                        <span>{t('purchases:total')}:</span>
                         <span>${form.total.toFixed(2)}</span>
                     </div>
                 </div>
 
                 <div>
-                    <label className="block mb-1 font-medium">Notes</label>
+                    <label className="block mb-1 font-medium">{t('purchases:form.notes')}</label>
                     <textarea
                         value={form.notas || ''}
                         onChange={(e) => setForm({ ...form, notas: e.target.value })}
                         className="border px-2 py-1 w-full rounded"
                         rows={3}
-                        placeholder="Additional notes..."
+                        placeholder={t('purchases:form.notesPlaceholder')}
                         disabled={loading}
                     />
                 </div>
@@ -234,7 +236,7 @@ export default function CompraForm() {
                         className="px-4 py-2 font-medium"
                         disabled={loading}
                     >
-                        {loading ? 'Saving...' : 'Save'}
+                        {loading ? t('purchases:form.saving') : t('purchases:form.save')}
                     </ProtectedButton>
                     <button
                         type="button"
@@ -242,7 +244,7 @@ export default function CompraForm() {
                         onClick={() => nav('..')}
                         disabled={loading}
                     >
-                        Cancel
+                        {t('purchases:form.cancel')}
                     </button>
                 </div>
             </form>

@@ -1,0 +1,23 @@
+{
+  "title": "Electronic Invoicing",
+  "sendToSii": "Send invoice to SII",
+  "invoiceIdPlaceholder": "Invoice ID",
+  "send": "Send",
+  "sending": "Sending...",
+  "retry": "Retry",
+  "errorSending": "Error sending",
+  "errorRetrying": "Error retrying",
+  "invoice": "Invoice",
+  "country": "Country",
+  "status": "Status",
+  "date": "Date",
+  "actions": "Actions",
+  "noSubmissions": "No recent submissions. Enter an invoice ID to send it to the SII.",
+  "statuses": {
+    "pending": "Pending",
+    "sent": "Sent",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "error": "Error"
+  }
+}

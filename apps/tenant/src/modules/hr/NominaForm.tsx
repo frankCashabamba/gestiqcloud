@@ -3,10 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { createNomina, getNomina, updateNomina, type Nomina } from './services/nomina'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
+import { useTranslation } from 'react-i18next'
 
 type FieldCfg = { field: string; visible?: boolean; required?: boolean; ord?: number | null; label?: string | null; help?: string | null }
 
 export default function NominaForm() {
+    const { t } = useTranslation(['hr', 'common'])
     const { id, empresa } = useParams()
     const nav = useNavigate()
     const [form, setForm] = useState<Partial<Omit<Nomina, 'id'>>>({
@@ -47,20 +49,20 @@ export default function NominaForm() {
 
     const fieldList = useMemo(() => {
         const base: FieldCfg[] = [
-            { field: 'numero', visible: true, required: false, ord: 10, label: 'Number' },
-            { field: 'empleado_id', visible: true, required: true, ord: 20, label: 'Employee ID' },
-            { field: 'periodo_mes', visible: true, required: true, ord: 30, label: 'Month' },
-            { field: 'periodo_ano', visible: true, required: true, ord: 40, label: 'Year' },
-            { field: 'tipo', visible: true, required: false, ord: 50, label: 'Type' },
-            { field: 'salario_base', visible: true, required: true, ord: 60, label: 'Base Salary' },
-            { field: 'complementos', visible: true, required: false, ord: 70, label: 'Supplements' },
-            { field: 'horas_extra', visible: true, required: false, ord: 80, label: 'Overtime' },
-            { field: 'otros_devengos', visible: true, required: false, ord: 90, label: 'Other Earnings' },
-            { field: 'seg_social', visible: true, required: false, ord: 100, label: 'Social Security' },
-            { field: 'irpf', visible: true, required: false, ord: 110, label: 'IRPF' },
-            { field: 'otras_deducciones', visible: true, required: false, ord: 120, label: 'Other Deductions' },
-            { field: 'metodo_pago', visible: true, required: false, ord: 130, label: 'Payment Method' },
-            { field: 'fecha_pago', visible: true, required: false, ord: 140, label: 'Payment Date' }
+            { field: 'numero', visible: true, required: false, ord: 10, label: t('hr:payroll.number') },
+            { field: 'empleado_id', visible: true, required: true, ord: 20, label: t('hr:payroll.employeeId') },
+            { field: 'periodo_mes', visible: true, required: true, ord: 30, label: t('hr:payroll.month') },
+            { field: 'periodo_ano', visible: true, required: true, ord: 40, label: t('hr:payroll.year') },
+            { field: 'tipo', visible: true, required: false, ord: 50, label: t('hr:payroll.type') },
+            { field: 'salario_base', visible: true, required: true, ord: 60, label: t('hr:payroll.baseSalary') },
+            { field: 'complementos', visible: true, required: false, ord: 70, label: t('hr:payroll.supplements') },
+            { field: 'horas_extra', visible: true, required: false, ord: 80, label: t('hr:payroll.overtime') },
+            { field: 'otros_devengos', visible: true, required: false, ord: 90, label: t('hr:payroll.otherEarnings') },
+            { field: 'seg_social', visible: true, required: false, ord: 100, label: t('hr:payroll.socialSecurity') },
+            { field: 'irpf', visible: true, required: false, ord: 110, label: t('hr:payroll.irpf') },
+            { field: 'otras_deducciones', visible: true, required: false, ord: 120, label: t('hr:payroll.otherDeductions') },
+            { field: 'metodo_pago', visible: true, required: false, ord: 130, label: t('hr:payroll.paymentMethod') },
+            { field: 'fecha_pago', visible: true, required: false, ord: 140, label: t('hr:payroll.paymentDate') }
         ]
 
         const map = new Map(base.map((cfg) => [cfg.field, cfg]))
@@ -74,7 +76,7 @@ export default function NominaForm() {
         })
 
         return Array.from(map.values()).sort((a, b) => (a.ord || 999) - (b.ord || 999))
-    }, [fields])
+    }, [fields, t])
 
     const onSubmit: React.FormEventHandler = async (e) => {
         e.preventDefault()
@@ -89,7 +91,7 @@ export default function NominaForm() {
             }
             if (id) await updateNomina(id, form as any)
             else await createNomina(form as any)
-            success('Payroll saved')
+            success(t('hr:payroll.saved'))
             nav('..')
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -105,9 +107,9 @@ export default function NominaForm() {
 
     return (
         <div className="p-4">
-            <h3 className="text-xl font-semibold mb-3">{id ? 'Edit Payroll' : 'New Payroll'}</h3>
+            <h3 className="text-xl font-semibold mb-3">{id ? t('hr:payroll.edit') : t('hr:payroll.newPayroll')}</h3>
             <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
-                {loadingCfg && <div className="text-sm text-gray-500">Loading fields...</div>}
+                {loadingCfg && <div className="text-sm text-gray-500">{t('hr:payroll.loadingFields')}</div>}
                 {fieldList.map((f) => {
                     const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
                     const type = getInputType(f.field)
@@ -129,8 +131,8 @@ export default function NominaForm() {
                     )
                 })}
                 <div className="pt-2">
-                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Save</button>
-                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>Cancel</button>
+                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('hr:payroll.save')}</button>
+                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>{t('hr:payroll.cancel')}</button>
                 </div>
             </form>
         </div>

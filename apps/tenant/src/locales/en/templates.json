@@ -1,0 +1,11 @@
+{
+  "title": "Template Configuration",
+  "refresh": "Refresh",
+  "currentConfig": "Current UI Config",
+  "noConfig": "No configuration",
+  "errorLoading": "Error loading template configuration",
+  "loading": "Loading...",
+  "size": "Size",
+  "bytes": "bytes",
+  "fields": "Fields"
+}

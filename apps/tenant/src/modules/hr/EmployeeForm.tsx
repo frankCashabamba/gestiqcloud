@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createEmpleado, getEmpleado, updateEmpleado } from '../../services/api/hr'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import type { EmpleadoCreate } from '../../types/hr'
@@ -27,6 +28,7 @@ const INITIAL_FORM: EmpleadoCreate = {
 }
 
 export default function EmpleadoForm() {
+  const { t } = useTranslation(['hr', 'common'])
   const { id } = useParams()
   const nav = useNavigate()
   const { success, error } = useToast()
@@ -70,11 +72,11 @@ export default function EmpleadoForm() {
     e.preventDefault()
 
     try {
-      if (!form.name.trim()) throw new Error('Name is required')
-      if (!form.apellidos.trim()) throw new Error('Last names is required')
-      if (!form.numero_documento.trim()) throw new Error('Document number is required')
-      if (!form.fecha_ingreso) throw new Error('Start date is required')
-      if (form.salario_base <= 0) throw new Error('Base salary must be greater than 0')
+      if (!form.name.trim()) throw new Error(t('hr:form.nameRequired'))
+      if (!form.apellidos.trim()) throw new Error(t('hr:form.lastNameRequired'))
+      if (!form.numero_documento.trim()) throw new Error(t('hr:form.docNumberRequired'))
+      if (!form.fecha_ingreso) throw new Error(t('hr:form.startDateRequired'))
+      if (form.salario_base <= 0) throw new Error(t('hr:form.salaryRequired'))
 
       setLoading(true)
 
@@ -84,7 +86,7 @@ export default function EmpleadoForm() {
         await createEmpleado(form)
       }
 
-      success('Employee saved')
+      success(t('hr:employees.saved'))
       nav('..')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -96,17 +98,17 @@ export default function EmpleadoForm() {
   return (
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-3">
-        {id ? 'Edit Employee' : 'New Employee'}
+        {id ? t('hr:employees.edit') : t('hr:employees.new')}
       </h3>
 
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 900 }}>
         {/* Personal Data */}
         <fieldset className="border rounded p-4">
-          <legend className="font-semibold text-gray-700 px-2">Personal Data</legend>
+          <legend className="font-semibold text-gray-700 px-2">{t('hr:form.personalData')}</legend>
 
           <div className="grid grid-cols-2 gap-4 mt-2">
             <div>
-              <label className="block mb-1 font-medium text-sm">Code</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:employees.code')}</label>
               <input
                 type="text"
                 value={form.sku}
@@ -121,7 +123,7 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-2 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">Name *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:employees.name')} *</label>
               <input
                 type="text"
                 value={form.name}
@@ -132,7 +134,7 @@ export default function EmpleadoForm() {
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Last Name *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.lastName')} *</label>
               <input
                 type="text"
                 value={form.apellidos}
@@ -146,7 +148,7 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-3 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">Doc. Type *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.docType')} *</label>
               <select
                 value={form.tipo_documento}
                 onChange={(e) => setForm({ ...form, tipo_documento: e.target.value as any })}
@@ -155,13 +157,13 @@ export default function EmpleadoForm() {
                 disabled={loading}
               >
                 <option value="ID">ID</option>
-                <option value="Foreigner ID">Foreigner ID</option>
-                <option value="PASAPORTE">Passport</option>
-                <option value="CEDULA">Cedula</option>
+                <option value="Foreigner ID">{t('hr:form.foreigner')}</option>
+                <option value="PASAPORTE">{t('hr:form.passport')}</option>
+                <option value="CEDULA">{t('hr:form.cedula')}</option>
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Doc. Number *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.docNumber')} *</label>
               <input
                 type="text"
                 value={form.numero_documento}
@@ -172,7 +174,7 @@ export default function EmpleadoForm() {
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Birth Date</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.birthDate')}</label>
               <input
                 type="date"
                 value={form.fecha_nacimiento}
@@ -185,7 +187,7 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-2 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">Email</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.email')}</label>
               <input
                 type="email"
                 value={form.email}
@@ -195,7 +197,7 @@ export default function EmpleadoForm() {
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Phone</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.phone')}</label>
               <input
                 type="tel"
                 value={form.phone}
@@ -209,11 +211,11 @@ export default function EmpleadoForm() {
 
         {/* Employment Data */}
         <fieldset className="border rounded p-4">
-          <legend className="font-semibold text-gray-700 px-2">Employment Data</legend>
+          <legend className="font-semibold text-gray-700 px-2">{t('hr:form.employmentData')}</legend>
 
           <div className="grid grid-cols-3 gap-4 mt-2">
             <div>
-              <label className="block mb-1 font-medium text-sm">Start Date *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:employees.startDate')} *</label>
               <input
                 type="date"
                 value={form.fecha_ingreso}
@@ -224,24 +226,24 @@ export default function EmpleadoForm() {
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Department</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.department')}</label>
               <input
                 type="text"
                 value={form.departamento_id}
                 onChange={(e) => setForm({ ...form, departamento_id: e.target.value })}
                 className="border px-2 py-1 w-full rounded"
-                placeholder="Sales, HR, etc."
+                placeholder={t('hr:form.departmentPlaceholder')}
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Position</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.position')}</label>
               <input
                 type="text"
                 value={form.puesto}
                 onChange={(e) => setForm({ ...form, puesto: e.target.value })}
                 className="border px-2 py-1 w-full rounded"
-                placeholder="Cashier, Manager, etc."
+                placeholder={t('hr:form.positionPlaceholder')}
                 disabled={loading}
               />
             </div>
@@ -249,7 +251,7 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-3 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">Contract Type *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.contractType')} *</label>
               <select
                 value={form.tipo_contrato}
                 onChange={(e) => setForm({ ...form, tipo_contrato: e.target.value as any })}
@@ -257,15 +259,15 @@ export default function EmpleadoForm() {
                 required
                 disabled={loading}
               >
-                <option value="indefinido">Permanent</option>
-                <option value="temporal">Temporary</option>
-                <option value="practicas">Internship</option>
-                <option value="formacion">Training</option>
-                <option value="autonomo">Freelance</option>
+                <option value="indefinido">{t('hr:form.permanent')}</option>
+                <option value="temporal">{t('hr:form.temporary')}</option>
+                <option value="practicas">{t('hr:form.internship')}</option>
+                <option value="formacion">{t('hr:form.training')}</option>
+                <option value="autonomo">{t('hr:form.freelance')}</option>
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Work Schedule *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.workSchedule')} *</label>
               <select
                 value={form.jornada}
                 onChange={(e) => setForm({ ...form, jornada: e.target.value as any })}
@@ -273,13 +275,13 @@ export default function EmpleadoForm() {
                 required
                 disabled={loading}
               >
-                <option value="completa">Full-time</option>
-                <option value="parcial">Part-time</option>
-                <option value="por_horas">Hourly</option>
+                <option value="completa">{t('hr:form.fullTime')}</option>
+                <option value="parcial">{t('hr:form.partTime')}</option>
+                <option value="por_horas">{t('hr:form.hourly')}</option>
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Base Salary *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.baseSalary')} *</label>
               <input
                 type="number"
                 step="0.01"
@@ -295,7 +297,7 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-2 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">Bank</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.bank')}</label>
               <input
                 type="text"
                 value={form.banco}
@@ -305,7 +307,7 @@ export default function EmpleadoForm() {
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Account Number (IBAN)</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.accountNumber')}</label>
               <input
                 type="text"
                 value={form.numero_cuenta}
@@ -319,7 +321,7 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-3 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">Social Security</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:form.socialSecurity')}</label>
               <input
                 type="text"
                 value={form.seguridad_social}
@@ -329,7 +331,7 @@ export default function EmpleadoForm() {
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Status *</label>
+              <label className="block mb-1 font-medium text-sm">{t('hr:employees.status')} *</label>
               <select
                 value={form.estado}
                 onChange={(e) => setForm({ ...form, estado: e.target.value as any })}
@@ -337,9 +339,9 @@ export default function EmpleadoForm() {
                 required
                 disabled={loading}
               >
-                <option value="activo">Active</option>
-                <option value="baja">Terminated</option>
-                <option value="suspendido">Suspended</option>
+                <option value="activo">{t('hr:employees.active')}</option>
+                <option value="baja">{t('hr:employees.terminatedStatus')}</option>
+                <option value="suspendido">{t('hr:employees.suspended')}</option>
               </select>
             </div>
           </div>
@@ -347,7 +349,7 @@ export default function EmpleadoForm() {
 
         {/* Notes */}
         <div>
-          <label className="block mb-1 font-medium text-sm">Notes</label>
+          <label className="block mb-1 font-medium text-sm">{t('hr:form.notes')}</label>
           <textarea
             value={form.notas}
             onChange={(e) => setForm({ ...form, notas: e.target.value })}
@@ -364,7 +366,7 @@ export default function EmpleadoForm() {
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             disabled={loading}
           >
-            {loading ? 'Saving...' : 'Save'}
+            {loading ? t('hr:form.saving') : t('hr:form.save')}
           </button>
           <button
             type="button"
@@ -372,7 +374,7 @@ export default function EmpleadoForm() {
             onClick={() => nav('..')}
             disabled={loading}
           >
-            Cancel
+            {t('hr:form.cancel')}
           </button>
         </div>
       </form>

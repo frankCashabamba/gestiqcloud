@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   createRol,
   updateRol,
@@ -18,6 +19,7 @@ type Props = {
 }
 
 export default function RolModal({ rol, onClose, onSuccess }: Props) {
+  const { t } = useTranslation(['users', 'common'])
   const [nombre, setNombre] = useState('')
   const [description, setDescription] = useState('')
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
@@ -59,7 +61,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
     e.preventDefault()
 
     if (!nombre.trim()) {
-      toastError('Role name is required')
+      toastError(t('users:roleModal.nameRequired'))
       return
     }
 
@@ -73,10 +75,10 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
 
       if (rol) {
         await updateRol(rol.id, payload)
-        success('Role updated successfully')
+        success(t('users:roleModal.updated'))
       } else {
         await createRol(payload)
-        success('Role created successfully')
+        success(t('users:roleModal.created'))
       }
 
       onSuccess()
@@ -127,13 +129,13 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
         onClick={e => e.stopPropagation()}
       >
         <h2 className="text-xl font-semibold text-slate-900 mb-4">
-          {rol ? 'Edit Role' : 'New Role'}
+          {rol ? t('users:roleModal.editRole') : t('users:roleModal.newRole')}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Role Name <span className="text-rose-500">*</span>
+              {t('users:roleModal.roleName')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -147,12 +149,12 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Description
+              {t('users:roleModal.description')}
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the responsibilities of this role"
+              placeholder={t('users:roleModal.descriptionPlaceholder')}
               rows={3}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
@@ -160,16 +162,16 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-3">
-              Permissions
+              {t('users:roleModal.permissions')}
             </label>
             <div className="flex items-center gap-3 mb-3">
-              <label className="text-sm text-slate-600">Module</label>
+              <label className="text-sm text-slate-600">{t('users:roleModal.module')}</label>
               <select
                 value={moduleFilter}
                 onChange={(e) => setModuleFilter(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1 text-sm"
               >
-                <option value="all">All</option>
+                <option value="all">{t('users:roleModal.all')}</option>
                 {modules.map((m) => (
                   <option key={m.name} value={m.name}>{m.name} ({m.count})</option>
                 ))}
@@ -197,14 +199,14 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
               className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
               disabled={loading}
             >
-              Cancel
+              {t('users:roleModal.cancel')}
             </button>
             <button
               type="submit"
               disabled={loading}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Saving...' : (rol ? 'Update' : 'Create Role')}
+              {loading ? t('users:roleModal.saving') : (rol ? t('users:roleModal.update') : t('users:roleModal.createRole'))}
             </button>
           </div>
         </form>

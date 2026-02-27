@@ -6,7 +6,7 @@ import { apiFetch } from '../../lib/http'
 import { getRecipe as getRecipeDetail, getCostBreakdown, listRecipes, type Recipe as ApiRecipe } from '../../services/api/recetas'
 import { listProducts } from '../../services/api/products'
 import { listWarehouses, type Warehouse } from '../inventory/services'
-import { useI18n } from '../../i18n/I18nProvider'
+import { useTranslation } from 'react-i18next'
 
 type FieldCfg = {
     field: string
@@ -21,9 +21,7 @@ export default function OrderForm() {
     const { id, empresa } = useParams()
     const [search] = useSearchParams()
     const nav = useNavigate()
-    const { lang } = useI18n()
-    const isEs = String(lang || 'en').toLowerCase().startsWith('es')
-    const L = (en: string, es: string) => (isEs ? es : en)
+    const { t } = useTranslation(['productions', 'common'])
 
     const [form, setForm] = useState<Partial<Omit<ProductionOrder, 'id'>>>({
         qty_planned: 1,
@@ -187,14 +185,14 @@ export default function OrderForm() {
 
     const fieldList = useMemo(() => {
         const base: FieldCfg[] = [
-            { field: 'numero', visible: true, required: false, ord: 10, label: L('Number', 'Numero') },
-            { field: 'recipe_id', visible: true, required: false, ord: 20, label: L('Recipe ID', 'Receta ID') },
-            { field: 'product_id', visible: true, required: true, ord: 30, label: L('Product ID', 'Producto ID') },
-            { field: 'warehouse_id', visible: true, required: false, ord: 40, label: L('Warehouse ID', 'Almacen ID') },
-            { field: 'qty_planned', visible: true, required: true, ord: 50, label: L('Planned Qty', 'Cantidad Planificada') },
-            { field: 'scheduled_date', visible: true, required: false, ord: 60, label: L('Scheduled Date', 'Fecha Programada') },
-            { field: 'batch_number', visible: true, required: false, ord: 70, label: L('Batch Number', 'Numero de Lote') },
-            { field: 'notes', visible: true, required: false, ord: 80, label: L('Notes', 'Notas') },
+            { field: 'numero', visible: true, required: false, ord: 10, label: t('productions:orderForm.number') },
+            { field: 'recipe_id', visible: true, required: false, ord: 20, label: t('productions:orderForm.recipeId') },
+            { field: 'product_id', visible: true, required: true, ord: 30, label: t('productions:orderForm.productId') },
+            { field: 'warehouse_id', visible: true, required: false, ord: 40, label: t('productions:orderForm.warehouseId') },
+            { field: 'qty_planned', visible: true, required: true, ord: 50, label: t('productions:orderForm.plannedQty') },
+            { field: 'scheduled_date', visible: true, required: false, ord: 60, label: t('productions:orderForm.scheduledDate') },
+            { field: 'batch_number', visible: true, required: false, ord: 70, label: t('productions:orderForm.batchNumber') },
+            { field: 'notes', visible: true, required: false, ord: 80, label: t('productions:orderForm.notes') },
         ]
 
         const map = new Map(base.map((cfg) => [cfg.field, cfg]))
@@ -215,7 +213,7 @@ export default function OrderForm() {
             list = list.filter((cfg) => !autoCreateFields.has(cfg.field))
         }
         return list.sort((a, b) => (a.ord || 999) - (b.ord || 999))
-    }, [fields, isEs])
+    }, [fields, t])
 
     useEffect(() => {
         if (id) return
@@ -233,14 +231,14 @@ export default function OrderForm() {
                 delete payload.numero
                 delete payload.batch_number
                 await createProductionOrder(payload)
-                success(L('Production order saved', 'Orden de produccion guardada'))
+                success(t('productions:orderForm.saved'))
                 nav('..')
             } catch (e: any) {
                 autoCreateDoneRef.current = false
                 error(getErrorMessage(e))
             }
         })()
-    }, [id, search, form, nav, success, error, isEs])
+    }, [id, search, form, nav, success, error, t])
 
     const onSubmit: React.FormEventHandler = async (e) => {
         e.preventDefault()
@@ -254,7 +252,7 @@ export default function OrderForm() {
                 }
             }
             if (!Number(form.qty_planned || 0) || Number(form.qty_planned || 0) <= 0) {
-                throw new Error(L('Planned quantity must be greater than 0', 'La cantidad planificada debe ser mayor que 0'))
+                throw new Error(t('productions:orderForm.qtyError'))
             }
             const payload: any = { ...form }
             if (!id) {
@@ -264,7 +262,7 @@ export default function OrderForm() {
             }
             if (id) await updateProductionOrder(id, payload)
             else await createProductionOrder(payload)
-            success(L('Production order saved', 'Orden de produccion guardada'))
+            success(t('productions:orderForm.saved'))
             nav('..')
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -280,7 +278,7 @@ export default function OrderForm() {
 
     return (
         <div className="p-4">
-            <h3 className="text-xl font-semibold mb-3">{id ? 'Edit production order' : 'New production order'}</h3>
+            <h3 className="text-xl font-semibold mb-3">{id ? t('productions:orderForm.editTitle') : t('productions:orderForm.newTitle')}</h3>
             <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 620 }}>
                 {!id && recipeSummary && (
                     <div className="rounded border border-gray-200 bg-gray-50 p-3 text-sm space-y-2">
@@ -288,25 +286,25 @@ export default function OrderForm() {
                         <div className="text-gray-600">{recipeSummary.productName || '-'}</div>
                         <div className="grid grid-cols-2 gap-2">
                             <div>
-                                <div className="text-gray-500">{L('Total cost', 'Costo total')}</div>
+                                <div className="text-gray-500">{t('productions:orderForm.totalCost')}</div>
                                 <div>${recipeSummary.totalCost.toFixed(2)}</div>
                             </div>
                             <div>
-                                <div className="text-gray-500">{L('Yield', 'Rendimiento')}</div>
+                                <div className="text-gray-500">{t('productions:orderForm.yield')}</div>
                                 <div>{recipeSummary.yieldQty}</div>
                             </div>
                             <div>
-                                <div className="text-gray-500">{L('Cost / unit', 'Costo / unidad')}</div>
+                                <div className="text-gray-500">{t('productions:orderForm.costPerUnit')}</div>
                                 <div>${recipeSummary.unitCost.toFixed(4)}</div>
                             </div>
                             <div>
-                                <div className="text-gray-500">{L('Suggested price (no VAT)', 'Precio sugerido (sin IVA)')}</div>
+                                <div className="text-gray-500">{t('productions:orderForm.suggestedPrice')}</div>
                                 <div>${recipeSummary.suggestedPrice.toFixed(2)}</div>
                             </div>
                         </div>
                         {selectedWarehouse && (
                             <div className="text-gray-700">
-                                {L('Warehouse', 'Almacen')}: {selectedWarehouse.code || selectedWarehouse.name || selectedWarehouse.id}
+                                {t('productions:orderForm.warehouse')}: {selectedWarehouse.code || selectedWarehouse.name || selectedWarehouse.id}
                             </div>
                         )}
                         <label className="flex items-center gap-2 pt-1">
@@ -321,15 +319,15 @@ export default function OrderForm() {
                                     }
                                 }}
                             />
-                            <span>{L('Use recipe default quantity', 'Usar cantidad por defecto de la receta')}</span>
+                            <span>{t('productions:orderForm.useRecipeDefaultQty')}</span>
                         </label>
                     </div>
                 )}
 
                 {!id && (
                     <div className="rounded border border-gray-200 bg-white p-3 text-sm space-y-2">
-                        <div className="font-medium">{L('Quick production', 'Produccion rapida')}</div>
-                        <label className="block text-gray-600">{L('Recipe', 'Receta')}</label>
+                        <div className="font-medium">{t('productions:orderForm.quickProduction')}</div>
+                        <label className="block text-gray-600">{t('productions:orderForm.recipe')}</label>
                         <select
                             className="border rounded px-2 py-2 w-full"
                             value={String(form.recipe_id || '')}
@@ -373,7 +371,7 @@ export default function OrderForm() {
                                 }
                             }}
                         >
-                            <option value="">{loadingRecipes ? L('Loading...', 'Cargando...') : L('Select recipe...', 'Selecciona receta...')}</option>
+                            <option value="">{loadingRecipes ? t('productions:orderForm.loading') : t('productions:orderForm.selectRecipe')}</option>
                             {availableRecipes.map((r) => (
                                 <option key={r.id} value={r.id}>
                                     {r.name}
@@ -381,7 +379,7 @@ export default function OrderForm() {
                             ))}
                         </select>
                         <div className="text-xs text-gray-500">
-                            {L('Then keep same yield quantity or uncheck to set another quantity.', 'Luego puedes mantener la cantidad de rendimiento o desmarcar para usar otra cantidad.')}
+                            {t('productions:orderForm.yieldHint')}
                         </div>
                     </div>
                 )}
@@ -430,15 +428,12 @@ export default function OrderForm() {
                             )}
                             {isLockedByRecipe && (
                                 <div className="mt-1 text-xs text-gray-500">
-                                    {L('Auto-filled from selected recipe', 'Autocompletado desde la receta seleccionada')}
+                                    {t('productions:orderForm.autoFilled')}
                                 </div>
                             )}
                             {qtyLocked && (
                                 <div className="mt-1 text-xs text-gray-500">
-                                    {L(
-                                        'Uncheck "Use recipe default quantity" to edit this value.',
-                                        'Desmarca "Usar cantidad por defecto de la receta" para editar este valor.'
-                                    )}
+                                    {t('productions:orderForm.uncheckToEdit')}
                                 </div>
                             )}
                         </div>
@@ -446,8 +441,8 @@ export default function OrderForm() {
                 })}
 
                 <div className="pt-2">
-                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{L('Save', 'Guardar')}</button>
-                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>{L('Cancel', 'Cancelar')}</button>
+                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('productions:orderForm.save')}</button>
+                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>{t('productions:orderForm.cancel')}</button>
                 </div>
             </form>
         </div>

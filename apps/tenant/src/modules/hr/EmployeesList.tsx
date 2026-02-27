@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listEmpleados } from '../../services/api/hr'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
@@ -7,6 +8,7 @@ import type { Empleado } from '../../types/hr'
 import { PAGINATION_DEFAULTS } from '../../constants/defaults'
 
 export default function EmpleadosList() {
+    const { t } = useTranslation(['hr', 'common'])
     const [items, setItems] = useState<Empleado[]>([])
     const [loading, setLoading] = useState(false)
     const nav = useNavigate()
@@ -55,55 +57,55 @@ export default function EmpleadosList() {
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="font-semibold text-lg">Employees</h2>
+                <h2 className="font-semibold text-lg">{t('hr:employees.title')}</h2>
                 <button
                     className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                     onClick={() => nav('nuevo')}
                 >
-                    New Employee
+                    {t('hr:employees.new')}
                 </button>
             </div>
 
             {/* Filters */}
             <div className="bg-white border rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
-                    <label className="block text-sm font-medium mb-1">Search</label>
+                    <label className="block text-sm font-medium mb-1">{t('hr:employees.search')}</label>
                     <input
                         type="text"
-                        placeholder="Code, name, document..."
+                        placeholder={t('hr:employees.searchPlaceholder')}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="border px-2 py-1 rounded w-full text-sm"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium mb-1">Department</label>
+                    <label className="block text-sm font-medium mb-1">{t('hr:employees.department')}</label>
                     <select
                         value={departamento}
                         onChange={(e) => setDepartamento(e.target.value)}
                         className="border px-2 py-1 rounded w-full text-sm"
                     >
-                        <option value="">All</option>
+                        <option value="">{t('hr:employees.all')}</option>
                         {departamentos.map((d) => (
                             <option key={d} value={d}>{d}</option>
                         ))}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium mb-1">Status</label>
+                    <label className="block text-sm font-medium mb-1">{t('hr:employees.status')}</label>
                     <select
                         value={estadoFilter}
                         onChange={(e) => setEstadoFilter(e.target.value)}
                         className="border px-2 py-1 rounded w-full text-sm"
                     >
-                        <option value="">All</option>
-                        <option value="activo">Active</option>
-                        <option value="baja">Terminated</option>
-                        <option value="suspendido">Suspended</option>
+                        <option value="">{t('hr:employees.all')}</option>
+                        <option value="activo">{t('hr:employees.active')}</option>
+                        <option value="baja">{t('hr:employees.terminatedStatus')}</option>
+                        <option value="suspendido">{t('hr:employees.suspended')}</option>
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium mb-1">Per page</label>
+                    <label className="block text-sm font-medium mb-1">{t('hr:employees.perPage')}</label>
                     <select
                         value={per}
                         onChange={(e) => setPer(Number(e.target.value))}
@@ -122,27 +124,27 @@ export default function EmpleadosList() {
                 <table className="min-w-full text-sm">
                     <thead className="bg-gray-100">
                         <tr>
-                            <th className="px-3 py-2 text-left">Code</th>
-                            <th className="px-3 py-2 text-left">Name</th>
-                            <th className="px-3 py-2 text-left">Position</th>
-                            <th className="px-3 py-2 text-left">Department</th>
-                            <th className="px-3 py-2 text-left">Start Date</th>
-                            <th className="px-3 py-2 text-center">Status</th>
-                            <th className="px-3 py-2 text-center">Actions</th>
+                            <th className="px-3 py-2 text-left">{t('hr:employees.code')}</th>
+                            <th className="px-3 py-2 text-left">{t('hr:employees.name')}</th>
+                            <th className="px-3 py-2 text-left">{t('hr:employees.position')}</th>
+                            <th className="px-3 py-2 text-left">{t('hr:employees.department')}</th>
+                            <th className="px-3 py-2 text-left">{t('hr:employees.startDate')}</th>
+                            <th className="px-3 py-2 text-center">{t('hr:employees.status')}</th>
+                            <th className="px-3 py-2 text-center">{t('hr:employees.actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading && (
                             <tr>
                                 <td colSpan={7} className="text-center py-4 text-gray-500">
-                                    Loading...
+                                    {t('hr:employees.loading')}
                                 </td>
                             </tr>
                         )}
                         {!loading && view.length === 0 && (
                             <tr>
                                 <td colSpan={7} className="text-center py-4 text-gray-500">
-                                    No employees
+                                    {t('hr:employees.empty')}
                                 </td>
                             </tr>
                         )}
@@ -174,13 +176,13 @@ export default function EmpleadosList() {
                                         to={`${e.id}/editar`}
                                         className="text-blue-600 hover:underline text-xs mr-2"
                                     >
-                                        Edit
+                                        {t('hr:employees.edit_action')}
                                     </Link>
                                     <Link
                                         to={e.id}
                                         className="text-gray-600 hover:underline text-xs"
                                     >
-                                        View
+                                        {t('hr:employees.view')}
                                     </Link>
                                 </td>
                             </tr>
@@ -197,7 +199,7 @@ export default function EmpleadosList() {
             />
 
             <p className="text-xs text-gray-500 mt-2">
-                Showing {view.length} of {filtered.length} employees
+                {t('hr:employees.showing', { current: view.length, total: filtered.length })}
             </p>
         </div>
     )

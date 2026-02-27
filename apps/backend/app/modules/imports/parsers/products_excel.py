@@ -2,9 +2,11 @@
 
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import openpyxl
+import pandas as pd
 
 
 def _to_number(val: Any) -> float | None:
@@ -29,6 +31,41 @@ def _to_number(val: Any) -> float | None:
         return None
 
 
+def _select_sheet_name(sheet_names: list[str], explicit: str | None) -> str:
+    """Pick sheet name: explicit > REGISTRO > first."""
+    normalized = [str(name) for name in sheet_names]
+    if explicit and explicit in normalized:
+        return explicit
+    if "REGISTRO" in normalized:
+        return "REGISTRO"
+    return normalized[0]
+
+
+def _load_rows_from_excel(file_path: str, sheet_name: str | None = None) -> tuple[list, str]:
+    """Load rows from .xlsx/.xls using appropriate engine."""
+    ext = Path(file_path).suffix.lower()
+
+    if ext == ".xls":
+        try:
+            xls = pd.ExcelFile(file_path, engine="xlrd")
+        except ImportError as exc:
+            raise ValueError("xls_unsupported: xlrd not installed") from exc
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError(f"xls_unsupported: {exc}") from exc
+
+        target_sheet = _select_sheet_name(xls.sheet_names, sheet_name)
+        df = pd.read_excel(xls, sheet_name=target_sheet, dtype=object)
+        rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
+        return rows, target_sheet
+
+    wb = openpyxl.load_workbook(file_path, data_only=True)
+    target_sheet = _select_sheet_name(list(wb.sheetnames), sheet_name)
+    ws = wb[target_sheet]
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    return rows, target_sheet
+
+
 def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, Any]:
     """Parse products Excel with automatic category detection.
 
@@ -47,17 +84,7 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, An
             - categories: List of detected category names
             - stats: Parsing statistics
     """
-    wb = openpyxl.load_workbook(file_path, data_only=True)
-
-    # Try to find "REGISTRO" sheet, otherwise use first sheet
-    if sheet_name:
-        ws = wb[sheet_name]
-    elif "REGISTRO" in wb.sheetnames:
-        ws = wb["REGISTRO"]
-    else:
-        ws = wb.active
-
-    rows = list(ws.iter_rows(values_only=True))
+    rows, active_sheet = _load_rows_from_excel(file_path, sheet_name)
     if not rows:
         return {
             "products": [],
@@ -221,6 +248,7 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, An
         "categories": len(categories),
         "with_stock": sum(1 for p in products if p["cantidad"] > 0),
         "zero_stock": sum(1 for p in products if p["cantidad"] == 0),
+        "sheet": active_sheet,
     }
 
     return {

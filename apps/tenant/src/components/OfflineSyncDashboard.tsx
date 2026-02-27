@@ -9,6 +9,7 @@
  */
 
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import useOffline from '@/hooks/useOffline'
 
 interface OfflineSyncDashboardProps {
@@ -20,6 +21,7 @@ export default function OfflineSyncDashboard({
   position = 'bottom-right',
   compact = false
 }: OfflineSyncDashboardProps) {
+  const { t } = useTranslation()
   const { isOnline, totalPending, syncStatus, statusCounts, syncing, syncNow, lastSyncAt } = useOffline()
   const [expanded, setExpanded] = useState(!compact)
 
@@ -122,7 +124,7 @@ export default function OfflineSyncDashboard({
                 marginBottom: '0.5rem',
                 fontSize: '0.9rem'
               }}>
-                {totalPending} cambios pendientes
+                {t('components.offlineSync.pendingChanges', { count: totalPending })}
               </div>
 
               {/* Details by Entity */}
@@ -140,7 +142,7 @@ export default function OfflineSyncDashboard({
                 ))}
                 {Object.keys(statusCounts).length > 0 && (
                   <div style={{ paddingLeft: '0.5rem', marginTop: '0.5rem' }}>
-                    <div><strong>Estados:</strong></div>
+                    <div><strong>{t('components.offlineSync.statuses')}</strong></div>
                     {Object.entries(statusCounts).map(([status, count]) => (
                       <div key={status} style={{ paddingLeft: '0.5rem' }}>
                         • {status}: {count}
@@ -162,7 +164,7 @@ export default function OfflineSyncDashboard({
               borderBottom: '1px solid #eee'
             }}>
               <div>
-                ✓ Última sincronización: {lastSyncAt.toLocaleTimeString('es-ES', {
+                ✓ {t('components.offlineSync.lastSync')} {lastSyncAt.toLocaleTimeString(undefined, {
                   hour: '2-digit',
                   minute: '2-digit',
                   second: '2-digit'
@@ -203,7 +205,7 @@ export default function OfflineSyncDashboard({
               }
             }}
           >
-            {syncing ? 'Sincronizando...' : 'Sincronizar ahora'}
+            {syncing ? t('components.offlineSync.syncing') : t('components.offlineSync.syncNow')}
           </button>
 
           {/* Offline Warning */}
@@ -217,7 +219,7 @@ export default function OfflineSyncDashboard({
               fontSize: '0.8rem',
               color: '#721c24'
             }}>
-              Los cambios se guardan localmente y se enviarán automáticamente cuando recuperes conexión.
+              {t('components.offlineSync.offlineWarning')}
             </div>
           )}
         </div>

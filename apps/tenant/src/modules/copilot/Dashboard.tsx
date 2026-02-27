@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import {
   askCopilot,
@@ -9,6 +10,7 @@ import {
 } from './services'
 
 export default function CopilotDashboard() {
+  const { t } = useTranslation(['copilot', 'common'])
   const { error: showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [salesMonth, setSalesMonth] = useState<QueryResult | null>(null)
@@ -36,24 +38,24 @@ export default function CopilotDashboard() {
       setLowStock(stock)
       setPayments(pay)
     } catch {
-      showError('Error cargando datos de Copilot')
+      showError(t('copilot:errorLoading'))
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) return <div className="p-6">Cargando...</div>
+  if (loading) return <div className="p-6">{t('copilot:loading')}</div>
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">🤖 AI Copilot</h1>
+        <h1 className="text-3xl font-bold">🤖 {t('copilot:title')}</h1>
         <button
           onClick={loadData}
           disabled={loading}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Actualizando...' : 'Actualizar'}
+          {loading ? t('copilot:refreshing') : t('copilot:refresh')}
         </button>
       </div>
 
@@ -64,7 +66,7 @@ export default function CopilotDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {salesMonth && (
           <Card
-            title={salesMonth.cards[0]?.title || 'Ventas por Mes'}
+            title={salesMonth.cards[0]?.title || t('copilot:salesByMonth')}
             topic="ventas_mes"
             result={salesMonth}
             onUpdate={setSalesMonth}
@@ -77,7 +79,7 @@ export default function CopilotDashboard() {
 
         {topProducts && (
           <Card
-            title={topProducts.cards[0]?.title || 'Productos Top'}
+            title={topProducts.cards[0]?.title || t('copilot:topProducts')}
             topic="top_productos"
             result={topProducts}
             onUpdate={setTopProducts}
@@ -95,7 +97,7 @@ export default function CopilotDashboard() {
 
         {lowStock && (
           <Card
-            title={lowStock.cards[0]?.title || 'Stock Bajo'}
+            title={lowStock.cards[0]?.title || t('copilot:lowStock')}
             topic="stock_bajo"
             params={{ threshold: 5 }}
             result={lowStock}
@@ -104,7 +106,7 @@ export default function CopilotDashboard() {
             <div className="space-y-2">
               {lowStock.cards[0]?.data?.slice(0, 5).map((item: any, idx: number) => (
                 <div key={idx} className="text-sm text-red-600">
-                  {item.almacen}: {item.qty} unidades
+                  {item.almacen}: {item.qty} {t('copilot:units')}
                 </div>
               ))}
             </div>
@@ -113,7 +115,7 @@ export default function CopilotDashboard() {
 
         {payments && (
           <Card
-            title={payments.cards[0]?.title || 'Cobros/Pagos'}
+            title={payments.cards[0]?.title || t('copilot:paymentsCollections')}
             topic="cobros_pagos"
             result={payments}
             onUpdate={setPayments}
@@ -127,9 +129,9 @@ export default function CopilotDashboard() {
 
       {/* Footer con info técnica */}
       <div className="text-xs text-gray-500 space-y-1">
-        {salesMonth?.ai_model && <p>🤖 Modelo IA: {salesMonth.ai_model}</p>}
-        {suggestions?.generated_at && <p>⏱️ Sugerencias generadas: {new Date(suggestions.generated_at).toLocaleString()}</p>}
-        {salesMonth?.sql && <p>📊 SQL: {salesMonth.sql}</p>}
+        {salesMonth?.ai_model && <p>{t('copilot:aiModel')}: {salesMonth.ai_model}</p>}
+        {suggestions?.generated_at && <p>{t('copilot:suggestionsGenerated')}: {new Date(suggestions.generated_at).toLocaleString()}</p>}
+        {salesMonth?.sql && <p>{t('copilot:sql')}: {salesMonth.sql}</p>}
       </div>
     </div>
   )
@@ -152,6 +154,7 @@ function SuggestionsSection({
   suggestions: SuggestionsResult | null
   onLoad: (s: SuggestionsResult) => void
 }) {
+  const { t } = useTranslation(['copilot', 'common'])
   const [loading, setLoading] = useState(false)
 
   const handleLoad = async () => {
@@ -173,7 +176,7 @@ function SuggestionsSection({
         disabled={loading}
         className="w-full py-3 border-2 border-dashed border-purple-300 rounded-lg text-purple-600 hover:bg-purple-50 disabled:opacity-50"
       >
-        {loading ? '⏳ Generando sugerencias IA...' : '💡 Generar sugerencias con IA'}
+        {loading ? t('copilot:generatingSuggestions') : t('copilot:generateSuggestions')}
       </button>
     )
   }
@@ -202,6 +205,7 @@ function Card({
   onUpdate: (r: QueryResult) => void
   children: React.ReactNode
 }) {
+  const { t } = useTranslation(['copilot', 'common'])
   const [showInsights, setShowInsights] = React.useState(false)
   const [analyzing, setAnalyzing] = React.useState(false)
   const insights = result.ai_insights
@@ -229,7 +233,7 @@ function Card({
               onClick={() => setShowInsights(!showInsights)}
               className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
             >
-              {showInsights ? 'Datos' : '💡 Insights'}
+              {showInsights ? t('copilot:data') : t('copilot:insights')}
             </button>
           ) : (
             <button
@@ -237,7 +241,7 @@ function Card({
               disabled={analyzing}
               className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 disabled:opacity-50"
             >
-              {analyzing ? '⏳ Analizando...' : '🤖 Analizar con IA'}
+              {analyzing ? t('copilot:analyzing') : t('copilot:analyzeWithAI')}
             </button>
           )}
         </div>
@@ -253,11 +257,12 @@ function Card({
 }
 
 function InsightsPanel({ insights }: { insights: any }) {
+  const { t } = useTranslation(['copilot', 'common'])
   return (
     <div className="space-y-3">
       {insights.findings && insights.findings.length > 0 && (
         <div>
-          <h3 className="font-semibold text-sm text-gray-700">📌 Hallazgos Clave</h3>
+          <h3 className="font-semibold text-sm text-gray-700">{t('copilot:keyFindings')}</h3>
           <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 mt-1">
             {insights.findings.map((finding: string, idx: number) => (
               <li key={idx}>{finding}</li>
@@ -268,7 +273,7 @@ function InsightsPanel({ insights }: { insights: any }) {
 
       {insights.recommendations && insights.recommendations.length > 0 && (
         <div>
-          <h3 className="font-semibold text-sm text-gray-700">✨ Recomendaciones</h3>
+          <h3 className="font-semibold text-sm text-gray-700">{t('copilot:recommendations')}</h3>
           <ul className="list-disc list-inside text-sm text-green-600 space-y-1 mt-1">
             {insights.recommendations.map((rec: string, idx: number) => (
               <li key={idx}>{rec}</li>
@@ -279,7 +284,7 @@ function InsightsPanel({ insights }: { insights: any }) {
 
       {insights.alerts && insights.alerts.length > 0 && (
         <div>
-          <h3 className="font-semibold text-sm text-gray-700">🚨 Alertas</h3>
+          <h3 className="font-semibold text-sm text-gray-700">{t('copilot:alerts')}</h3>
           <div className="space-y-1 mt-1">
             {insights.alerts.map((alert: any, idx: number) => (
               <div key={idx} className="text-sm text-red-600">
@@ -300,6 +305,7 @@ function InsightsPanel({ insights }: { insights: any }) {
 }
 
 function SuggestionCard({ suggestion }: { suggestion: any }) {
+  const { t } = useTranslation(['copilot', 'common'])
   const priorityColor = {
     high: 'bg-red-50 border-red-200 text-red-900',
     medium: 'bg-yellow-50 border-yellow-200 text-yellow-900',
@@ -317,9 +323,9 @@ function SuggestionCard({ suggestion }: { suggestion: any }) {
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-semibold text-sm">
-            {priorityIcon} {suggestion.type === 'inventory' && 'Stock'}
-            {suggestion.type === 'sales' && 'Ventas'}
-            {suggestion.type === 'finance' && 'Finanzas'}
+            {priorityIcon} {suggestion.type === 'inventory' && t('copilot:stock')}
+            {suggestion.type === 'sales' && t('copilot:sales')}
+            {suggestion.type === 'finance' && t('copilot:finance')}
           </h3>
           <p className="text-sm mt-2">{suggestion.content}</p>
           {suggestion.count && (

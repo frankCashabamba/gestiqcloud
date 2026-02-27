@@ -1,0 +1,11 @@
+{
+  "title": "Configuración de Templates",
+  "refresh": "Actualizar",
+  "currentConfig": "UI Config Actual",
+  "noConfig": "No hay configuración",
+  "errorLoading": "Error al cargar la configuración de templates",
+  "loading": "Cargando...",
+  "size": "Tamaño",
+  "bytes": "bytes",
+  "fields": "Campos"
+}

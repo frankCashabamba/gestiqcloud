@@ -275,7 +275,7 @@
     "autoMode": {
       "recommended": "Modo automático (recomendado)",
       "help": "Activa productos, crea ALM-1 si falta y aplica stock inicial.",
-      "targetWarehouse": "Almac?n destino"
+      "targetWarehouse": "Almacén destino"
     },
     "zeroStock": {
       "notice": "Hay {{count}} productos con stock cero."
@@ -318,7 +318,7 @@
     "match": "coincidencia",
     "suggested": "Sugerido",
     "previewTitle": "Vista previa del mapeo (primeras 3 filas)",
-    "emptyValue": "(vac?o)",
+    "emptyValue": "(vacío)",
     "fileColumns": "Columnas del archivo",
     "dragHint": "Arrastra columnas a los campos destino",
     "saveModal": {
@@ -336,7 +336,7 @@
       "deleteFailed": "Error al eliminar plantilla"
     },
     "confirm": {
-      "deleteTemplate": "?Eliminar esta plantilla?"
+      "deleteTemplate": "Eliminar esta plantilla"
     },
     "empty": {
       "noTemplates": "No hay plantillas disponibles para este tipo de importación.",
@@ -364,10 +364,10 @@
     "saveConfiguration": "Guardar esta configuraci?n para reutilizar",
     "saveNamePlaceholder": "Ej: Proveedor L?cteos - Mensual",
     "readyToContinue": "Listo para continuar",
-    "mustMapProductNameFooter": "Debes mapear \"Nombre Producto\"",
+    "mustMapProductNameFooter": "Debes mapear \\\"Nombre Producto\\\"",
     "continueImport": "Continuar con importación",
     "alerts": {
-      "mustMapProductName": "Debes mapear al menos el campo \"Nombre Producto\""
+      "mustMapProductName": "Debes mapear al menos el campo \\\"Nombre Producto\\\""
     },
     "fields": {
       "productName": "Nombre Producto",
@@ -379,14 +379,30 @@
       "supplier": "Proveedor",
       "unit": "Unidad",
       "ignoreColumn": "Ignorar columna"
-      }
-      },
-      "importerPreviewPage": {
-      "actions": {
+    }
+  },
+  "importerPreviewPage": {
+    "actions": {
       "deleteAllProcesses": "Eliminar todos los procesos"
-      },
-      "confirm": {
+    },
+    "confirm": {
       "deleteAllProcesses": "¿Estás seguro de que deseas eliminar TODOS los procesos? Esta acción no se puede deshacer."
-      }
-      }
-      }
+    }
+  },
+  "feedback": {
+    "question": "¿La clasificación automática fue correcta?",
+    "close": "Cerrar",
+    "confidence": "Confianza:",
+    "yesCorrect": "Sí, correcto",
+    "noWrong": "No, era otro",
+    "thankYou": "Gracias por tu feedback",
+    "whichParser": "¿Cuál era el parser correcto?",
+    "selectParser": "-- Selecciona --",
+    "selectCorrectParser": "Por favor selecciona el parser correcto",
+    "cancel": "Cancelar",
+    "sending": "Enviando...",
+    "send": "Enviar",
+    "submitError": "Error al enviar feedback",
+    "unknownError": "Error desconocido"
+  }
+}

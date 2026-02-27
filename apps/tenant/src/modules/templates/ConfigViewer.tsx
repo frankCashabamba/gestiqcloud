@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import { getUIConfig, UIConfig } from './services'
 
 export default function TemplateConfigViewer() {
+  const { t } = useTranslation(['templates', 'common'])
   const { error: showError } = useToast()
   const [loading, setLoading] = useState(true)
   const [config, setConfig] = useState<UIConfig | null>(null)
@@ -18,7 +20,7 @@ export default function TemplateConfigViewer() {
       const data = await getUIConfig()
       setConfig(data)
     } catch {
-      showError('Error loading template configuration')
+      showError(t('templates:errorLoading'))
     } finally {
       setLoading(false)
     }
@@ -34,34 +36,34 @@ export default function TemplateConfigViewer() {
     setExpandedKeys(newSet)
   }
 
-  if (loading) return <div className="p-6">Loading...</div>
+  if (loading) return <div className="p-6">{t('templates:loading')}</div>
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Configuración de Templates</h1>
+        <h1 className="text-3xl font-bold">{t('templates:title')}</h1>
         <button
           onClick={loadConfig}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          Actualizar
+          {t('templates:refresh')}
         </button>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">UI Config Actual</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('templates:currentConfig')}</h2>
         <div className="space-y-2">
           {config ? (
             <JSONViewer data={config} expandedKeys={expandedKeys} onToggle={toggleKey} />
           ) : (
-            <p className="text-gray-500">No hay configuración</p>
+            <p className="text-gray-500">{t('templates:noConfig')}</p>
           )}
         </div>
       </div>
 
       <div className="text-xs text-gray-500">
-        <p>Tamaño: {config ? new Blob([JSON.stringify(config)]).size : 0} bytes</p>
-        <p>Campos: {config ? countFields(config) : 0}</p>
+        <p>{t('templates:size')}: {config ? new Blob([JSON.stringify(config)]).size : 0} {t('templates:bytes')}</p>
+        <p>{t('templates:fields')}: {config ? countFields(config) : 0}</p>
       </div>
     </div>
   )
