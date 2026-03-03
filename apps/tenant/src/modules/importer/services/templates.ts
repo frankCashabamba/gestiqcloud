@@ -4,7 +4,7 @@
 
 import { apiFetch } from '../../../lib/http'
 import { IMPORTS } from '@endpoints/imports'
-import type { TemplateV2, ImportTemplateV2, SimulateTemplateRequest, SimulateTemplateResult } from '@api-types/imports'
+import type { TemplateV2, ImportTemplateV2, SimulateTemplateResult } from '@api-types/imports'
 
 export interface ImportTemplate {
     id: string
@@ -102,12 +102,6 @@ export async function deleteImportTemplate(
     })
 }
 
-import type {
-    ImportTemplateV2,
-    TemplateV2,
-    SimulateTemplateResult,
-} from '@api-types/imports'
-
 export async function listTemplatesV2(sourceType?: string, token?: string): Promise<ImportTemplateV2[]> {
     const data = await apiFetch<any[]>(IMPORTS.templates.list, { authToken: token })
     const items = Array.isArray(data) ? data : []
@@ -169,7 +163,12 @@ export async function simulateTemplate(
     })
 }
 
-export type TemplateFieldsResponse = { source_type: string; fields: string[]; seeded?: boolean }
+export type TemplateFieldsResponse = {
+    source_type: string
+    fields: string[]
+    seeded?: boolean
+    source_types?: string[]
+}
 
 export async function listTemplateFields(sourceType?: string, token?: string): Promise<TemplateFieldsResponse> {
     const qs = sourceType ? `?source_type=${encodeURIComponent(sourceType)}` : ''

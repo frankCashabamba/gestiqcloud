@@ -28,13 +28,16 @@ logger = logging.getLogger("imports_v2")
 router = APIRouter(
     prefix="/imports/v2",
     tags=["imports-v2"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
 )
 
 
 def _detect_doc_type(filename: str, mime: str, text_preview: str = "") -> str:
     name = (filename or "").lower()
-    m = mime.lower() if mime else ""
     if name.endswith((".xlsx", ".xls", ".csv")):
         # Distinguir productos vs invoices por keywords en cabeceras más adelante
         return "auto_excel"
@@ -52,7 +55,9 @@ def _detect_doc_type(filename: str, mime: str, text_preview: str = "") -> str:
     return "generic"
 
 
-def _create_batch(db: Session, tenant_id: UUID, source_type: str, filename: str, created_by: UUID | None) -> ImportBatch:
+def _create_batch(
+    db: Session, tenant_id: UUID, source_type: str, filename: str, created_by: UUID | None
+) -> ImportBatch:
     batch = ImportBatch(
         id=uuid4(),
         tenant_id=tenant_id,
@@ -110,7 +115,13 @@ def _resolve_mapping(
     return None
 
 
-def _apply_mapping(headers: list[str], row: dict[str, Any], mapping: dict, transforms: dict | None, defaults: dict | None) -> dict[str, Any]:
+def _apply_mapping(
+    headers: list[str],
+    row: dict[str, Any],
+    mapping: dict,
+    transforms: dict | None,
+    defaults: dict | None,
+) -> dict[str, Any]:
     """Aplica mapping v1/legacy (ImportColumnMapping.mapping) usando DSL existente."""
     values = [row.get(h, "") for h in headers]
     return apply_mapping_pipeline(
@@ -135,12 +146,27 @@ def _auto_map_products(row: dict[str, Any]) -> dict[str, Any]:
                 return row[k]
         return None
 
-    nombre = pick(["nombre", "name", "descripcion", "descripción", "producto", "detalle", "articulo", "artículo"])
+    nombre = pick(
+        [
+            "nombre",
+            "name",
+            "descripcion",
+            "descripción",
+            "producto",
+            "detalle",
+            "articulo",
+            "artículo",
+        ]
+    )
     sku = pick(["sku", "codigo", "código", "code", "barcode", "ean", "upc"])
-    price = pick(["precio", "price", "pvp", "venta", "precio_venta", "precio unitario", "precio_unitario"])
+    price = pick(
+        ["precio", "price", "pvp", "venta", "precio_venta", "precio unitario", "precio_unitario"]
+    )
     cost = pick(["costo", "cost", "cost_price", "precio_costo"])
     stock = pick(["stock", "cantidad", "existencias", "unidades", "qty"])
-    category = pick(["categoria", "categoría", "category", "rubro", "familia", "grupo", "linea", "línea"])
+    category = pick(
+        ["categoria", "categoría", "category", "rubro", "familia", "grupo", "linea", "línea"]
+    )
     unit = pick(["unidad", "uom", "un", "unidad_medida", "medida"])
 
     if nombre is not None:
@@ -200,7 +226,9 @@ def _ingest_rows(
         # Normalizaciones rápidas para compatibilidad
         if doc_type in ("expenses", "invoices", "ticket_pos", "sales"):
             if "amount" not in norm:
-                norm["amount"] = _to_number(norm.get("importe") or norm.get("total") or norm.get("monto"))
+                norm["amount"] = _to_number(
+                    norm.get("importe") or norm.get("total") or norm.get("monto")
+                )
         if doc_type == "sales":
             # Fecha: intenta extraer, si no, hoy
             dt = _extract_date(text_blob) or datetime.utcnow().date().isoformat()
@@ -313,7 +341,13 @@ async def upload_and_ingest(
             for r in rows:
                 try:
                     mapped_rows.append(
-                        _apply_mapping(headers, r, mapping_obj.mapping, mapping_obj.transforms, mapping_obj.defaults)
+                        _apply_mapping(
+                            headers,
+                            r,
+                            mapping_obj.mapping,
+                            mapping_obj.transforms,
+                            mapping_obj.defaults,
+                        )
                     )
                 except Exception:
                     mapped_rows.append(r)
@@ -322,7 +356,11 @@ async def upload_and_ingest(
 
         # Heurística de doc_type por cabeceras o mapping
         lowered = " ".join(headers).lower()
-        if mapping_obj and mapping_obj.description and "source_type=" in (mapping_obj.description or ""):
+        if (
+            mapping_obj
+            and mapping_obj.description
+            and "source_type=" in (mapping_obj.description or "")
+        ):
             try:
                 doc_type = mapping_obj.description.split("source_type=", 1)[1].split()[0].strip()
             except Exception:
@@ -341,7 +379,12 @@ async def upload_and_ingest(
         if doc_type == "products" and not mapping_obj:
             rows = [_auto_map_products(r) for r in rows]
         count = _ingest_rows(db, batch, rows, doc_type, origin="excel")
-        return {"batch_id": str(batch.id), "items": count, "doc_type": doc_type, "mapping": str(mapping_obj.id) if mapping_obj else None}
+        return {
+            "batch_id": str(batch.id),
+            "items": count,
+            "doc_type": doc_type,
+            "mapping": str(mapping_obj.id) if mapping_obj else None,
+        }
 
     # PDF / imagen
     if filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp")):
@@ -363,7 +406,7 @@ async def upload_and_ingest(
             raise HTTPException(status_code=422, detail="ocr_empty")
 
         text = result.text
-        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
         # Extraer montos simples
         amounts = re.findall(r"\b\d+[.,]\d{2}\b", text)
         first_amount = amounts[0] if amounts else None
@@ -379,7 +422,13 @@ async def upload_and_ingest(
         if mapping_obj and mapping_obj.mapping:
             try:
                 rows = [
-                    _apply_mapping(list(row.keys()), row, mapping_obj.mapping, mapping_obj.transforms, mapping_obj.defaults)
+                    _apply_mapping(
+                        list(row.keys()),
+                        row,
+                        mapping_obj.mapping,
+                        mapping_obj.transforms,
+                        mapping_obj.defaults,
+                    )
                 ]
                 batch.mapping_id = mapping_obj.id
             except Exception:
