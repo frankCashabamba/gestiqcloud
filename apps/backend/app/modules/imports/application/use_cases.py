@@ -315,7 +315,8 @@ def _normalize_invoice_row(raw: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
     invoice_number = (
-        raw.get("invoice_number")
+        raw.get("num")
+        or raw.get("invoice_number")
         or raw.get("invoice")
         or raw.get("number")
         or raw.get("numero")
