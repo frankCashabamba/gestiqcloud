@@ -184,3 +184,6 @@ export async function listTemplateFields(sourceType?: string, token?: string): P
         source_types: (res as any).source_types,
     }
 }
+
+// Re-export types para consumo en componentes
+export type { ImportTemplateV2 } from '@api-types/imports'

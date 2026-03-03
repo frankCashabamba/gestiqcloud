@@ -1,20 +1,19 @@
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-import os
 from sqlalchemy import text as sa_text
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.models.company.company_settings import CompanySettings
 from app.models.company.settings import ConfiguracionEmpresa
-from app.models.core.ui_field_config import TenantFieldConfig
+from app.models.core.ui_field_config import SectorFieldDefault, TenantFieldConfig
 from app.models.core.ui_template import UiTemplate
-from app.models.core.ui_field_config import SectorFieldDefault
 from app.models.tenant import Tenant as Empresa
 from app.services.field_config import resolve_fields
 
@@ -409,6 +408,7 @@ def _allowed_import_tables() -> dict[str, str]:
         if table:
             mapping[table] = module
     return mapping
+
 
 @admin_router.get("/import-tables")
 def list_import_tables(db: Session = Depends(get_db)):

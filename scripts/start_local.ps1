@@ -191,6 +191,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 Set-Location $repoRoot
 
+# Build rápido para asegurar que frontend usa el código más reciente
+Write-Host "[4.5/7] Recompilando frontends (admin y tenant)..." -ForegroundColor Yellow
+if (Get-Command pnpm -ErrorAction SilentlyContinue) {
+    pnpm --filter admin run build 2>$null | Out-Null
+    pnpm --filter tenant run build 2>$null | Out-Null
+} else {
+    Write-Host "pnpm no encontrado; omitiendo build previo." -ForegroundColor DarkYellow
+}
+
 Write-Host "[5/7] Iniciando backend..." -ForegroundColor Green
 $venvPython = Join-Path $repoRoot ".venv/Scripts/python.exe"
 $backendJob = Start-Job -ScriptBlock {

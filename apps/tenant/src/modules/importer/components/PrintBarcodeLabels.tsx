@@ -1261,4 +1261,3 @@ export function usePrintBarcodeLabels() {
   return { open, close, PrintModal, updateModalExtras }
 
 }
-

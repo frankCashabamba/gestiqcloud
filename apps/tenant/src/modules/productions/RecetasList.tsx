@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listRecipes, type Recipe } from '../../services/api/recetas'
+import { listRecipes, deleteRecipe, type Recipe } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
 import { getRecipeFullCost, type FullCostSummary } from '../../services/api/productionCosts'
 import { getCompanySettings, getCurrencySymbol, getDefaultTaxRate, type CompanySettings } from '../../services/companySettings'
@@ -123,6 +123,20 @@ export default function RecetasList() {
     const rateCandidate = useProductTax && prod?.tax_rate != null ? Number(prod.tax_rate) : defaultTaxRate
     const rate = rateCandidate > 1 ? rateCandidate / 100 : rateCandidate
     return amount * (1 + (isFinite(rate) ? rate : defaultTaxRate))
+  }
+
+  const handleDelete = async (id: string, name?: string) => {
+    const targetName = name || t('recipe.singular')
+    const confirmMsg = t('forms.confirmDelete', { name: targetName })
+    if (!window.confirm(confirmMsg)) return
+    try {
+      await deleteRecipe(id)
+      setRecipes((prev) => prev.filter((r) => r.id !== id))
+      success(t('forms.successDelete', { name: targetName }))
+    } catch (e: any) {
+      console.error('Error deleting recipe', e)
+      toastError(t('errors.deletingRecipe'))
+    }
   }
 
   if (loading) return <div className="p-6 text-gray-500">{t('recipesList.loading')}</div>
@@ -311,6 +325,12 @@ export default function RecetasList() {
                         onClick={() => navigate(`${basePath}/recetas/${r.id}/editar`)}
                       >
                         {t('recipesList.edit')}
+                      </button>
+                      <button
+                        className="text-red-600 hover:underline text-sm"
+                        onClick={() => handleDelete(r.id, r.name)}
+                      >
+                        {t('actions.deleteRecipe')}
                       </button>
                     </div>
                   </div>

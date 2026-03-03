@@ -35,6 +35,7 @@ const ALIASES: Record<string, string> = {
   usuarios: 'users',
   manufacturing: 'productions',
   produccion: 'productions',
+  production: 'productions',
 }
 
 export default function ModuleLoader() {

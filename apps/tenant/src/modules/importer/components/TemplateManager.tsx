@@ -85,6 +85,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
     const [fieldsSeeded, setFieldsSeeded] = useState<boolean>(false)
     const [fieldsError, setFieldsError] = useState<string | null>(null)
     const [availableSourceTypes, setAvailableSourceTypes] = useState<string[]>([])
+    const [filterSourceType, setFilterSourceType] = useState<string>(sourceType)
     const [saving, setSaving] = useState(false)
     const [simulating, setSimulating] = useState(false)
     const prevSourceType = useRef<string>(sourceType)
@@ -93,22 +94,25 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
         setLoading(true)
         setError(null)
         try {
-            const [legacy, v2] = await Promise.all([
-                listImportTemplates(sourceType, token || undefined).catch(() => []),
-                listTemplatesV2(sourceType, token || undefined).catch(() => []),
-            ])
-            setTemplates(legacy)
+            const v2 = await listTemplatesV2(filterSourceType, token || undefined).catch(() => [])
+            // Legacy templates se ocultan: no los cargamos
+            setTemplates([])
             setTemplatesV2(v2)
         } catch (err: any) {
             setError(err?.message || 'Error loading templates')
         } finally {
             setLoading(false)
         }
-    }, [sourceType, token])
+    }, [filterSourceType, token])
 
     useEffect(() => {
         if (isOpen) loadTemplates()
     }, [isOpen, loadTemplates])
+
+    // Sync filter when parent sourceType changes
+    useEffect(() => {
+        setFilterSourceType(sourceType)
+    }, [sourceType])
 
     // Load available source types (only those with fields configured)
     useEffect(() => {
@@ -776,6 +780,21 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                 <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">{t('templateManager.title')}</h3>
                     <div className="flex items-center gap-3">
+                        {availableSourceTypes.length > 0 && (
+                            <select
+                                value={filterSourceType}
+                                onChange={e => {
+                                    setFilterSourceType(e.target.value)
+                                    setWiz(p => ({ ...p, source_type: e.target.value }))
+                                    loadTemplates()
+                                }}
+                                className="border border-gray-300 rounded px-2 py-1 text-sm"
+                            >
+                                {availableSourceTypes.map(st => (
+                                    <option key={st} value={st}>{st}</option>
+                                ))}
+                            </select>
+                        )}
                         <button
                             onClick={openCreateWizard}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm transition"

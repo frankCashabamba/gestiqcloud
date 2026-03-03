@@ -104,8 +104,8 @@ router = APIRouter(
 
 # Mount template engine v2 routes
 try:
-    from app.modules.imports.routes.templates import router as _templates_v2_router
     from app.modules.imports.routes.reprocess import router as _reprocess_v2_router
+    from app.modules.imports.routes.templates import router as _templates_v2_router
 
     router.include_router(_templates_v2_router)
     router.include_router(_reprocess_v2_router)

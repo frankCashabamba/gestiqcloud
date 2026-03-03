@@ -298,7 +298,8 @@ def build_api_router() -> APIRouter:
     # (deduplicated) Inventario router is already mounted above
 
     # Imports (controlado por IMPORTS_ENABLED)
-    if os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true"):
+    imports_enabled = os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true")
+    if imports_enabled:
         include_router_safe(
             r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
         )
@@ -334,8 +335,14 @@ def build_api_router() -> APIRouter:
             "imports.public_router mounted=%s via IMPORTS_ENABLED",
             bool(_mounted_public),
         )
+
+        # Minimal v2 importer
+        include_router_safe(r, ("app.modules.imports_v2", "router"), prefix="/api/v1")
+        # Minimal v2 importer
+        include_router_safe(r, ("app.modules.imports_v2", "router"), prefix="")
     else:
-        logger.debug("Imports routers skipped (IMPORTS_ENABLED=0)")
+        logger.debug("Imports routers skipped (IMPORTS_ENABLED=0); mounting imports_v2 anyway")
+        include_router_safe(r, ("app.modules.imports_v2", "router"), prefix="")
 
     # Accounting
     include_router_safe(
@@ -390,7 +397,9 @@ def build_api_router() -> APIRouter:
         prefix="/company/settings",
     )
     # Settings admin: field-config + ui-plantillas
-    include_router_safe(r, ("app.modules.settings.interface.http.tenant", "admin_router"), prefix="/api/v1")
+    include_router_safe(
+        r, ("app.modules.settings.interface.http.tenant", "admin_router"), prefix="/api/v1"
+    )
 
     # Dashboard KPIs
     include_router_safe(r, ("app.routers.dashboard_stats", "router"))

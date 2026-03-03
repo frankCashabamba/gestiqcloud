@@ -16,9 +16,9 @@ from app.db.rls import ensure_rls
 from app.models.core.modelsimport import ImportBatch, ImportItem, ImportMapping
 from app.modules.imports.application.template_engine import (
     TemplateInterpreter,
+    TemplateMatcher,
     TemplateV2,
     validate_template,
-    TemplateMatcher,
 )
 from app.modules.imports.application.template_engine.header_norm import normalize_headers
 
@@ -144,7 +144,11 @@ def analyze_batch(
         if matched:
             tpl_ref = next((tpl for tpl, tv2 in tpl_pairs if tv2 == matched), None)
             if tpl_ref:
-                suggested = {"id": str(tpl_ref.id), "name": tpl_ref.name, "score": matched.match.priority / 100}
+                suggested = {
+                    "id": str(tpl_ref.id),
+                    "name": tpl_ref.name,
+                    "score": matched.match.priority / 100,
+                }
 
     # Fallback overlap score using headers if no match
     if not suggested:
@@ -163,7 +167,11 @@ def analyze_batch(
                     best_score = score
                     best_template = tpl
         if best_template:
-            suggested = {"id": str(best_template.id), "name": best_template.name, "score": best_score}
+            suggested = {
+                "id": str(best_template.id),
+                "name": best_template.name,
+                "score": best_score,
+            }
 
     return {
         "batch_id": str(batch_id),
@@ -222,10 +230,7 @@ def apply_template_to_batch(
         tpl_v2 = None
 
     items: list[ImportItem] = (
-        db.query(ImportItem)
-        .filter(ImportItem.batch_id == batch_id)
-        .order_by(ImportItem.idx)
-        .all()
+        db.query(ImportItem).filter(ImportItem.batch_id == batch_id).order_by(ImportItem.idx).all()
     )
 
     processed = 0
@@ -234,7 +239,9 @@ def apply_template_to_batch(
 
         for item in items:
             raw = item.raw or {}
-            language = raw.get("language") or (tpl_v2.match.language[0] if tpl_v2.match.language else "es")
+            language = raw.get("language") or (
+                tpl_v2.match.language[0] if tpl_v2.match.language else "es"
+            )
             rows: list[dict[str, Any]] = []
             tables = raw.get("tables") or []
             if tables:

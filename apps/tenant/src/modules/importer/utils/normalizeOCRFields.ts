@@ -65,6 +65,18 @@ const OCR_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     categoria: 'category',
     descripcion: 'description',
   },
+  // Tickets de venta POS (se tratan como ventas simples)
+  ticket_pos: {
+    fecha: 'expense_date', // se reutiliza el campo de fecha para no romper el schema actual
+    issue_date: 'expense_date',
+    importe: 'amount',
+    monto: 'amount',
+    total: 'amount',
+    concepto: 'description',
+    descripcion: 'description',
+    categoria: 'category',
+    cliente: 'counterparty',
+  },
 }
 
 /**
@@ -86,6 +98,28 @@ export function normalizeOCRRow(row: Row, docType: string): Row {
     const lines = Array.isArray(row.lines) ? (row.lines as Array<Record<string, unknown>>) : []
     const firstLine = lines[0] || {}
     const routing = (row.routing_proposal as Record<string, unknown>) || {}
+
+    // Ticket POS canonical -> map a esquema de ventas ligero
+    if (docType === 'ticket_pos' || canonicalType === 'ticket_pos') {
+      return {
+        expense_date: toStringValue(row.issue_date ?? row.fecha ?? today),
+        amount: toStringValue((totals as any).total ?? row.total ?? row.importe ?? row.monto ?? ''),
+        description:
+          toStringValue(row.description ?? row.concept ?? firstLine.desc ?? 'Ticket POS'),
+        category: toStringValue(row.category ?? row.categoria ?? 'VENTAS'),
+        counterparty: toStringValue(
+          (row.vendor as any)?.name ??
+            row.vendor_name ??
+            row.cliente ??
+            (routing as any).counterparty ??
+            ''
+        ),
+        documentoTipo: 'ticket_pos',
+        origen: toStringValue(row.source ?? row.origen ?? 'ocr'),
+        totals,
+        lines,
+      }
+    }
 
     // Invoice canonical -> legacy invoices ingest fields expected by backend validator
     if (docType === 'invoices' || canonicalType === 'invoice') {

@@ -717,7 +717,9 @@ def parse_texto_recibo(text: str) -> dict[str, Any]:
     invoice_number = None
     m_num = re.search(r"\bR[-\s]?0*\d{3,}\b", text, re.IGNORECASE)
     if not m_num:
-        m_num = re.search(r"\b(?:ticket|factura|nota)\s*[#:–-]?\s*([A-Z0-9\-]{4,})", text, re.IGNORECASE)
+        m_num = re.search(
+            r"\b(?:ticket|factura|nota)\s*[#:–-]?\s*([A-Z0-9\-]{4,})", text, re.IGNORECASE
+        )
     if m_num:
         invoice_number = m_num.group(0) if len(m_num.groups()) == 0 else m_num.group(1)
 

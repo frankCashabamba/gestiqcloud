@@ -577,7 +577,8 @@ export default function PreviewPage() {
             return productos
         }
         const isHeaderLike = (p: ProductoPreview) => {
-            const name = (p.nombre || p.name || '').trim()
+            const rawName = p?.nombre ?? p?.name ?? ''
+            const name = (typeof rawName === 'string' ? rawName : String(rawName || '')).trim()
             if (!name) return false
             const upper = name.replace(/[^A-Z]/g, '').length
             const ratio = upper / name.length
@@ -1034,6 +1035,7 @@ export default function PreviewPage() {
                             <ReassignMappingInline
                               batchId={selectedBatch}
                               productos={productos}
+                              origin={(selectedBatchObj as any)?.origin || (selectedBatchObj as any)?.original_filename || null}
                               onAfter={() => { fetchBatches(); fetchProductos() }}
                             />
                         )}
@@ -1844,10 +1846,12 @@ function ReassignMappingInline({
     batchId,
     onAfter,
     productos = [],
+    origin,
 }: {
     batchId: string
     onAfter?: () => void
     productos?: any[]
+    origin?: string | null
 }) {
     const { token } = useAuth() as any
     const { t } = useTranslation()
@@ -1885,6 +1889,8 @@ function ReassignMappingInline({
         }
     }
 
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
     const applyFromAliases = async () => {
         if (!batchId || productos.length === 0) {
             toast.error(t('importerPreviewPage.errors.noBatchSelected'))
@@ -1918,8 +1924,8 @@ function ReassignMappingInline({
             const created = await createColumnMapping({
                 name: `auto-alias-${batchId}`,
                 mapping,
-                description: 'Generado desde aliases dinámicos',
-                file_pattern: null,
+                description: 'Generado desde aliases dinamicos',
+                file_pattern: origin ? `^${escapeRegex(origin)}$` : null,
             })
 
             await setBatchMapping(batchId, created.id, token || undefined)

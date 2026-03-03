@@ -10,6 +10,12 @@ from typing import Any
 import openpyxl
 from celery import states
 
+# Fallback para XLS antiguos (xlrd vía pandas); no es obligatorio en runtime
+try:  # pragma: no cover
+    import pandas as _pd  # type: ignore
+except Exception:  # pragma: no cover
+    _pd = None
+
 try:
     from app.modules.imports.application.celery_app import celery_app
 except Exception:  # pragma: no cover
@@ -144,21 +150,10 @@ def import_products_excel(
         db.commit()
 
         try:
-            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
-            ws = wb.active
-        except Exception as e:
-            batch.status = "ERROR"
-            db.add(batch)
-            db.commit()
-            raise RuntimeError(f"open_failed: {e}") from e
+            is_xls = file_path.lower().endswith(".xls")
 
-        try:
-            header_row = detect_header_row(ws)
-            headers: list[str] = extract_headers(ws, header_row)
             # Optional mapping for this batch
-            map_cfg = None
-            tf_cfg = None
-            df_cfg = None
+            map_cfg = tf_cfg = df_cfg = None
             try:
                 if getattr(batch, "mapping_id", None):
                     from app.models.imports import ImportColumnMapping  # type: ignore
@@ -174,8 +169,43 @@ def import_products_excel(
                         df_cfg = cm.defaults or {}
             except Exception:
                 map_cfg = tf_cfg = df_cfg = None
-            # Iterate rows after header
-            row_iter = ws.iter_rows(min_row=header_row + 1, values_only=True)
+
+            if is_xls:
+                if _pd is None:
+                    raise RuntimeError("xlrd_missing")
+                try:
+                    chunk_iter = _pd.read_excel(file_path, engine="xlrd", chunksize=1000)
+                except Exception as e:
+                    raise RuntimeError(f"xls_open_failed: {e}") from e
+
+                try:
+                    first_chunk = next(chunk_iter)
+                except StopIteration:
+                    first_chunk = None
+
+                if first_chunk is None or first_chunk.empty:
+                    batch.status = "PENDING"
+                    db.add(batch)
+                    db.commit()
+                    return {"processed": 0, "created": 0}
+
+                headers = [
+                    str(h).strip() or f"col_{i+1}" for i, h in enumerate(first_chunk.columns)
+                ]
+
+                def _row_iter():
+                    yield from first_chunk.itertuples(index=False, name=None)
+                    for chunk in chunk_iter:
+                        yield from chunk.itertuples(index=False, name=None)
+
+                row_iter = _row_iter()
+            else:
+                wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                ws = wb.active
+                header_row = detect_header_row(ws)
+                headers: list[str] = extract_headers(ws, header_row)
+                # Iterate rows after header
+                row_iter = ws.iter_rows(min_row=header_row + 1, values_only=True)
 
             idx_base = db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
             idx = idx_base

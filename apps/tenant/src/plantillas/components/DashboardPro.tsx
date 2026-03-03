@@ -16,27 +16,57 @@ interface DashboardProProps {
 }
 
 const getModuleIcon = (slug: string): string => {
+  const normalize = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '')
+
   const icons: Record<string, string> = {
     ventas: '$',
+    sales: '$',
     clientes: '@',
+    clients: '@',
+    customers: '@',
     products: '#',
+    productos: '#',
     inventario: 'I',
+    inventory: 'I',
     facturacion: 'F',
+    invoicing: 'F',
+    billing: 'F',
     facturacion_es: 'F',
     compras: 'C',
+    purchases: 'C',
     proveedores: 'P',
+    suppliers: 'P',
     gastos: 'G',
+    expenses: 'G',
     finanzas: 'M',
+    finance: 'M',
+    finances: 'M',
     contabilidad: 'A',
+    accounting: 'A',
     pos: 'P',
     tpv: 'P',
     imports: 'I',
+    importer: 'I',
+    importaciones: 'I',
     rrhh: 'H',
+    hr: 'H',
     configuracion: 'S',
     settings: 'S',
     usuarios: 'U',
+    users: 'U',
+    reconciliation: 'R',
+    conciliacion: 'R',
+    conciliacionbancaria: 'R',
+    templates: 'T',
+    webhooks: 'W',
   }
-  return icons[slug.toLowerCase()] || '•'
+
+  return icons[normalize(slug)] || '*'
 }
 
 const pickTextColorForBackground = (bgColor: string): string => {

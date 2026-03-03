@@ -2254,5 +2254,205 @@
         }
       }
     }
+  },
+  "eb16f429-1772-4448-b222-4e8e9289f2a0": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "fecha": {
+        "invoice_date": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "total": {
+        "amount_total": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "82a60e97-7607-4a40-9904-f08e5daf559b": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 3,
+          "total": 3
+        }
+      }
+    }
+  },
+  "d3da0764-19c5-4f92-8103-cfe832b8c137": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 5,
+          "total": 5
+        }
+      }
+    }
+  },
+  "c4032afe-68fa-4db9-8171-e9ba60691bdd": {
+    "sales_invoice": {
+      "amount": {
+        "amount_total": {
+          "correct": 1,
+          "total": 1
+        },
+        "amount_subtotal": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "b3d73660-52b2-40f4-b5cf-21f1d6b21c18": {
+    "sales_invoice": {
+      "numero de factura": {
+        "invoice_number": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "fecha": {
+        "invoice_date": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "84f3169a-bd2a-4cc2-b8db-27f6eae13df9": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "fecha": {
+        "invoice_date": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "total": {
+        "amount_total": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "dcb8f8a3-2247-4448-a7ba-21298f250ca2": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 3,
+          "total": 3
+        }
+      }
+    }
+  },
+  "bfd87a6f-2c52-4c87-9f50-c76c33c23448": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 5,
+          "total": 5
+        }
+      }
+    }
+  },
+  "4d0e5315-dc69-49ba-81cd-1c9bc257e794": {
+    "sales_invoice": {
+      "amount": {
+        "amount_total": {
+          "correct": 1,
+          "total": 1
+        },
+        "amount_subtotal": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "aec057e5-552d-49f5-8f07-0293b4f2c14a": {
+    "sales_invoice": {
+      "numero de factura": {
+        "invoice_number": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "fecha": {
+        "invoice_date": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "481f78c1-bfa5-4c76-ac35-de1aca54a830": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "fecha": {
+        "invoice_date": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "total": {
+        "amount_total": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "158c3986-a655-4898-a30c-d385675be474": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 3,
+          "total": 3
+        }
+      }
+    }
+  },
+  "8291b3f3-d7b9-4d33-9e15-c9f12c204b3d": {
+    "sales_invoice": {
+      "factura": {
+        "invoice_number": {
+          "correct": 5,
+          "total": 5
+        }
+      }
+    }
+  },
+  "6f27045a-808e-4dc3-b913-0588c3b27343": {
+    "sales_invoice": {
+      "amount": {
+        "amount_total": {
+          "correct": 1,
+          "total": 1
+        },
+        "amount_subtotal": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
   }
 }

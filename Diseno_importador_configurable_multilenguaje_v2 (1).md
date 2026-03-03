@@ -14,12 +14,12 @@ No volver a tocar el módulo: **nuevos archivos/idiomas** se soportan con **temp
 
 ## 2. Arquitectura final
 Etapas:
-A Ingesta+sha -> ImportBatch  
-B Artifacts (OCRJob, tablas, texto)  
-C IR en ImportItem.raw (source_locator)  
-D Match template (reglas + IA)  
-E Apply template -> normalized/canonical_doc  
-F Validación + ImportResolution  
+A Ingesta+sha -> ImportBatch
+B Artifacts (OCRJob, tablas, texto)
+C IR en ImportItem.raw (source_locator)
+D Match template (reglas + IA)
+E Apply template -> normalized/canonical_doc
+F Validación + ImportResolution
 G Promoción idempotente + lineage + PostingRegistry
 
 ## 3. BD (reusar tu esquema)
@@ -105,6 +105,6 @@ Env:
 IMPORTS_OCR_LANG=spa+eng
 IMPORTS_OCR_PSM=6
 IMPORTS_OCR_DPI=300
-IMPORTS_AI_PROVIDER=ollama ya implementado 
+IMPORTS_AI_PROVIDER=ollama ya implementado
 OPENAI_API_KEY=...
 ```

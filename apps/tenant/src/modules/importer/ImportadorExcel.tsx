@@ -255,6 +255,9 @@ export default function ImportadorPage() {
     const [cameraInitializing, setCameraInitializing] = useState(false)
     const [cameraError, setCameraError] = useState<string | null>(null)
 
+    // Tipo de importación seleccionado por el usuario (override de autodetección)
+    const [selectedDocType, setSelectedDocType] = useState<string>('expenses')
+
     const { empresa } = useParams()
     const navigate = useNavigate()
     const location = useLocation()
@@ -368,11 +371,12 @@ export default function ImportadorPage() {
             mappingId: defaultMappingId || undefined,
             info: null,
             jobId: undefined,
+            docType: selectedDocType || undefined,
         }))
         setQueue((prev) => [...items, ...prev])
         setGlobalError(null)
         setSavedSummary(null)
-    }, [defaultMappingId])
+    }, [defaultMappingId, selectedDocType])
 
     const onFiles: React.ChangeEventHandler<HTMLInputElement> = (e) => {
         const files = Array.from(e.target.files || [])
@@ -533,7 +537,7 @@ export default function ImportadorPage() {
                 if (isCSV) {
                     const textContent = await item.file.text()
                     const { headers, rows } = parseCSV(textContent)
-                    const docType = detectarTipoDocumento(headers)
+                    const docType = selectedDocType || detectarTipoDocumento(headers)
                     const tplId = findBestTemplate(item.name, docType)
                     updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: undefined, mappingId: tplId || item.mappingId })
                     // Guardar y navegar siempre a vista previa si hay batch_id, sin importar docType
@@ -571,7 +575,7 @@ export default function ImportadorPage() {
                     if (item.size > thresholdMb * 1024 * 1024) {
                         updateQueue(item.id, { status: 'processing', error: null, info: t('messages.uploadingInChunks') })
                         const res = await uploadExcelViaChunks(item.file, {
-                            sourceType: 'products',
+                            sourceType: selectedDocType || item.docType || 'products',
                             mappingId: effectiveMappingId || undefined,
                             onProgress: (pct) => updateQueue(item.id, { info: t('messages.uploadingPercent', { pct }) }),
                         })
@@ -580,7 +584,7 @@ export default function ImportadorPage() {
                         return
                     }
                     const { headers, rows } = await parseExcelFile(item.file, token || undefined)
-                    const docType = detectarTipoDocumento(headers)
+                    const docType = selectedDocType || detectarTipoDocumento(headers)
                     const tplId = findBestTemplate(item.name, docType)
                     updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: undefined, mappingId: tplId || item.mappingId })
                     // Guardar y navegar siempre a vista previa si hay batch_id, sin importar docType
@@ -625,7 +629,7 @@ export default function ImportadorPage() {
                         return result
                     })
 
-                    const docType = (documentos[0]?.documentoTipo as string) || 'generico'
+                    const docType = selectedDocType || (documentos[0]?.documentoTipo as string) || 'generico'
                     const tplId = findBestTemplate(item.name, docType)
 
                     updateQueue(item.id, {
@@ -657,7 +661,7 @@ export default function ImportadorPage() {
                 })
             }
         },
-        [token, updateQueue, mappings, defaultMappingId],
+        [token, updateQueue, mappings, defaultMappingId, selectedDocType],
     )
 
     const processAll = async () => {
@@ -695,7 +699,7 @@ export default function ImportadorPage() {
             if (isExcel || isXml) {
                 try {
                     const res = await uploadExcelViaChunks(item.file, {
-                        sourceType: item.docType || 'products',
+                        sourceType: selectedDocType || item.docType || 'products',
                         mappingId: effectiveMappingId || undefined,
                         authToken: token || undefined,
                         onProgress: (pct) => updateQueue(item.id, { info: t('messages.uploadingPercent', { pct }) }),
@@ -744,7 +748,7 @@ export default function ImportadorPage() {
 
                 const batch = await createBatch({
 
-                    source_type: item.docType || 'manual-upload',
+                    source_type: selectedDocType || item.docType || 'manual-upload',
 
                     origin: item.name || 'importador-tenant',
 
@@ -772,7 +776,7 @@ export default function ImportadorPage() {
 
         },
 
-        [token, updateQueue, defaultMappingId],
+        [token, updateQueue, defaultMappingId, selectedDocType],
 
     )
 
@@ -1018,6 +1022,34 @@ export default function ImportadorPage() {
 
                                 </div>
 
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                                        Tipo de importación (forzar)
+                                    </label>
+                                    <select
+                                        className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                                        value={selectedDocType}
+                                        onChange={(e) => {
+                                            setSelectedDocType(e.target.value)
+                                            // actualizar en cola actual
+                                            setQueue((prev) =>
+                                                prev.map((q) => q.status === 'pending' ? { ...q, docType: e.target.value || undefined } : q)
+                                            )
+                                        }}
+                                    >
+                                        <option value="expenses">expenses</option>
+                                        <option value="invoices">invoices</option>
+                                        <option value="products">products</option>
+                                        <option value="bank_transactions">bank_transactions</option>
+                                        <option value="ticket_pos">ticket_pos</option>
+                                        <option value="recipes">recipes</option>
+                                        <option value="generic">generic</option>
+                                    </select>
+                                    <p className="text-xs text-neutral-500">
+                                        Usaremos este tipo para crear el lote y elegir la plantilla, ignorando la detección automática.
+                                    </p>
+                                </div>
+
                                 <div className="flex w-full flex-wrap items-center gap-3">
 
                                     <label className="group flex flex-1 cursor-pointer flex-col items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50">
@@ -1027,17 +1059,11 @@ export default function ImportadorPage() {
                                         <span className="mt-1 text-xs text-neutral-500">{t('upload.maxFilesPerBatch')}</span>
 
                                         <input
-
                                             className="hidden"
-
                                             type="file"
-
                                             multiple
-
                                             accept=".csv,.xlsx,.xls,.pdf,image/*"
-
                                             onChange={onFiles}
-
                                         />
 
                                     </label>

@@ -85,11 +85,9 @@ def read_excel_tables(
 
     if suffix == ".xls":
         try:
-            import xlrd  # type: ignore
-
             return _read_xls(file_path, extract, header_norm, map_keys, language)
-        except ImportError:
-            raise ImportError("xlrd is required to read .xls files")
+        except ImportError as exc:
+            raise ImportError("xlrd is required to read .xls files") from exc
 
     wb = openpyxl.load_workbook(str(file_path), data_only=True, read_only=False)
     all_map_keys: set[str] = set(map_keys.keys())
@@ -124,12 +122,14 @@ def read_excel_tables(
                     row_dict[header] = row[col_idx]
             data_rows.append(row_dict)
 
-        tables.append({
-            "sheet": ws.title,
-            "headers_raw": headers_raw,
-            "headers_norm": headers_norm,
-            "rows": data_rows,
-        })
+        tables.append(
+            {
+                "sheet": ws.title,
+                "headers_raw": headers_raw,
+                "headers_norm": headers_norm,
+                "rows": data_rows,
+            }
+        )
 
     wb.close()
     return tables
@@ -178,11 +178,13 @@ def _read_xls(
                     row_dict[header] = row[col_idx]
             data_rows.append(row_dict)
 
-        tables.append({
-            "sheet": ws.name,
-            "headers_raw": headers_raw,
-            "headers_norm": headers_norm,
-            "rows": data_rows,
-        })
+        tables.append(
+            {
+                "sheet": ws.name,
+                "headers_raw": headers_raw,
+                "headers_norm": headers_norm,
+                "rows": data_rows,
+            }
+        )
 
     return tables

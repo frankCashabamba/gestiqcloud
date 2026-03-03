@@ -106,11 +106,7 @@ class ReprocessService:
             return mapping
 
         if batch.mapping_id:
-            return (
-                self.db.query(ImportMapping)
-                .filter(ImportMapping.id == batch.mapping_id)
-                .first()
-            )
+            return self.db.query(ImportMapping).filter(ImportMapping.id == batch.mapping_id).first()
 
         return (
             self.db.query(ImportMapping)

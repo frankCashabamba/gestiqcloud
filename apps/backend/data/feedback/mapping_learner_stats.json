@@ -209,46 +209,46 @@
     "products": {
       "nombre": {
         "PRODUCTO": {
-          "correct": 2,
-          "total": 2
+          "correct": 3,
+          "total": 3
         }
       },
       "precio": {
         "PRECIO UNITARIO VENTA": {
-          "correct": 2,
-          "total": 2
+          "correct": 3,
+          "total": 3
         }
       },
       "precio_venta": {
         "PRECIO UNITARIO VENTA": {
-          "correct": 2,
-          "total": 2
+          "correct": 3,
+          "total": 3
         }
       },
       "stock": {
         "CANTIDAD": {
-          "correct": 2,
-          "total": 2
+          "correct": 3,
+          "total": 3
         }
       }
     },
     "bank_transactions": {
       "transaction date": {
         "invoice_date": {
-          "correct": 1,
-          "total": 1
+          "correct": 2,
+          "total": 2
         }
       },
       "value date": {
         "invoice_date": {
-          "correct": 1,
-          "total": 1
+          "correct": 2,
+          "total": 2
         }
       },
       "description": {
         "name": {
-          "correct": 1,
-          "total": 1
+          "correct": 2,
+          "total": 2
         }
       }
     }

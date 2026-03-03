@@ -6,11 +6,8 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
-from app.modules.imports.application.transform_dsl import (
-    ALLOWED_FUNCS as _BASE_FUNCS,
-    SafeEval as _BaseSafeEval,
-    _to_number,
-)
+from app.modules.imports.application.transform_dsl import ALLOWED_FUNCS as _BASE_FUNCS
+from app.modules.imports.application.transform_dsl import SafeEval as _BaseSafeEval
 
 
 def _to_date(value: Any, fmt: str | None = None) -> str | None:

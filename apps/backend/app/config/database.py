@@ -178,44 +178,47 @@ def get_db(request: Request) -> Iterator[Session]:
     """
     db = SessionLocal()
     try:
+        dialect = getattr(getattr(db, "bind", None), "dialect", None)
+        is_postgres = getattr(dialect, "name", "") == "postgresql"
         # Defensive: clear any leftover GUCs from pooled connections.
         # set_config(..., NULL, true) is transaction-local and won't error
         # even if the custom GUC was never set.
-        try:
-            db.execute(text("SELECT set_config('app.tenant_id', NULL, true)"))
-            db.execute(text("SELECT set_config('app.user_id', NULL, true)"))
-        except Exception:
-            logger.warning("Failed to clear GUCs on pooled connection", exc_info=True)
-            db.rollback()
+        if is_postgres:
+            try:
+                db.execute(text("SELECT set_config('app.tenant_id', NULL, true)"))
+                db.execute(text("SELECT set_config('app.user_id', NULL, true)"))
+            except Exception:
+                logger.warning("Failed to clear GUCs on pooled connection", exc_info=True)
+                db.rollback()
 
-        # Set RLS GUCs on THIS session using request context
-        try:
-            claims = getattr(request.state, "access_claims", None) or {}
-            sess = getattr(request.state, "session", {}) or {}
-            tenant_id = None
-            user_id = None
-            if isinstance(claims, dict):
-                tenant_id = claims.get("tenant_id")
-                user_id = claims.get("user_id")
-            if tenant_id is None or user_id is None:
-                tenant_id = tenant_id or sess.get("tenant_id")
-                user_id = user_id or sess.get("tenant_user_id")
+            # Set RLS GUCs on THIS session using request context
+            try:
+                claims = getattr(request.state, "access_claims", None) or {}
+                sess = getattr(request.state, "session", {}) or {}
+                tenant_id = None
+                user_id = None
+                if isinstance(claims, dict):
+                    tenant_id = claims.get("tenant_id")
+                    user_id = claims.get("user_id")
+                if tenant_id is None or user_id is None:
+                    tenant_id = tenant_id or sess.get("tenant_id")
+                    user_id = user_id or sess.get("tenant_user_id")
 
-            if tenant_id is not None and user_id is not None:
-                tid = _resolve_tenant_id(db, str(tenant_id))
-                uid = str(user_id)
-                db.execute(
-                    text("SELECT set_config('app.tenant_id', :tid, true)"),
-                    {"tid": tid},
-                )
-                db.execute(
-                    text("SELECT set_config('app.user_id', :uid, true)"),
-                    {"uid": uid},
-                )
-                db.info["tenant_id"] = tid
-        except Exception:
-            logger.warning("Failed to set RLS GUCs for request", exc_info=True)
-            db.rollback()
+                if tenant_id is not None and user_id is not None:
+                    tid = _resolve_tenant_id(db, str(tenant_id))
+                    uid = str(user_id)
+                    db.execute(
+                        text("SELECT set_config('app.tenant_id', :tid, true)"),
+                        {"tid": tid},
+                    )
+                    db.execute(
+                        text("SELECT set_config('app.user_id', :uid, true)"),
+                        {"uid": uid},
+                    )
+                    db.info["tenant_id"] = tid
+            except Exception:
+                logger.warning("Failed to set RLS GUCs for request", exc_info=True)
+                db.rollback()
 
         # Final safeguard: ensure session isn't in aborted state before yielding
         try:

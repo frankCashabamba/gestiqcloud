@@ -1,5 +1,5 @@
-// Devuelve tipos alineados con backend: products | invoices | bank | expenses | recipes
-export type ImportDocType = 'products' | 'invoices' | 'bank' | 'expenses' | 'recipes'
+// Devuelve tipos alineados con backend: products | invoices | bank | expenses | recipes | ticket_pos
+export type ImportDocType = 'products' | 'invoices' | 'bank' | 'expenses' | 'recipes' | 'ticket_pos'
 
 export function detectarTipoDocumento(headers: string[]): ImportDocType {
   const normalize = (s: string) =>
@@ -35,6 +35,9 @@ export function detectarTipoDocumento(headers: string[]): ImportDocType {
   const PRICE_FIELDS = ['precio', 'precio unitario', 'pvp', 'precio venta', 'importe', 'valor']
 
   if (hasAny(recipeKeywords)) return 'recipes'
+
+  // Tickets POS cortos con palabras típicas de ticket.
+  if (hasAny(['ticket', 'tpv', 'pos', 'gracias por su compra', 'caja', 'cajero'])) return 'ticket_pos'
 
   const invoiceScore = countHits(INVOICE_KW) + countHits(SALES_KW)
   const bankScore = countHits(BANK_KW)

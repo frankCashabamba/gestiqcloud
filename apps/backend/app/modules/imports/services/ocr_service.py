@@ -11,8 +11,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from app.modules.imports.config.classification import get_classification_keywords
 from app.modules.imports.application.ocr_config import get_ocr_config
+from app.modules.imports.config.classification import get_classification_keywords
 
 logger = logging.getLogger("imports.ocr")
 

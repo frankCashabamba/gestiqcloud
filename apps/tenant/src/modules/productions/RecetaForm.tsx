@@ -25,6 +25,10 @@ const normalizeRecipeUnit = (unit?: string | null): string => {
   const u = String(unit || '').trim().toLowerCase();
   if (!u || u === 'unit' || u === 'units') return 'uds';
   if (u === 'unidad' || u === 'unid') return 'unidades';
+  if (u === 'gr' || u === 'gramo' || u === 'gramos') return 'g';
+  if (u === 'kilo' || u === 'kilos' || u === 'kilogramo' || u === 'kilogramos') return 'kg';
+  if (u === 'lbs' || u === 'pounds' || u === 'libra' || u === 'libras') return 'lb';
+  if (u === 'lt' || u === 'litro' || u === 'litros') return 'L';
   return u;
 };
 

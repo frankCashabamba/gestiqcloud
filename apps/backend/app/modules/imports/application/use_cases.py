@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -22,6 +22,7 @@ from app.models.core.modelsimport import (
     ImportLineage,
     ImportMapping,
 )
+from app.modules.imports.application.ir_builder import IRBuilder
 from app.modules.imports.application.photo_utils import (
     exif_auto_orienta,
     guardar_adjunto_bytes,
@@ -30,7 +31,7 @@ from app.modules.imports.application.photo_utils import (
     parse_texto_factura,
     parse_texto_recibo,
 )
-from app.modules.imports.application.ir_builder import IRBuilder
+from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
 from app.modules.imports.application.template_engine import (
     TemplateInterpreter,
     TemplateMatcher,
@@ -38,7 +39,6 @@ from app.modules.imports.application.template_engine import (
     validate_template,
 )
 from app.modules.imports.application.template_engine.header_norm import normalize_headers
-from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
 from app.modules.imports.domain.handlers import (
     BankHandler,
     ExpenseHandler,
@@ -95,16 +95,45 @@ def _validate_by_type(source_type: str, normalized: dict[str, Any]) -> list[dict
     return []
 
 
+def _normalize_dedupe_value(value: Any) -> str:
+    """Canonicalize values used for dedupe hashes (dates, numbers, strings)."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, (int, float)):
+        # Normalize numeric representation to avoid 100 vs 100.0 diffs
+        try:
+            return f"{float(value):.4f}".rstrip("0").rstrip(".")
+        except Exception:
+            return str(value)
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return ""
+        # Try a few common date formats to align 2024-02-01 vs 01/02/2024, etc.
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(s, fmt).date().isoformat()
+            except Exception:
+                continue
+        # Lowercase to avoid case-only differences
+        return s.lower()
+    return str(value)
+
+
 def _dedupe_hash(source_type: str, data: dict[str, Any], *, keys: list[str] | None = None) -> str:
     def g(*keys):
         for k in keys:
             if k in data and data[k] is not None:
-                return str(data[k])
+                return _normalize_dedupe_value(data[k])
         return ""
 
     # If custom keys provided (from ImportMapping.dedupe_keys), honor them
     if keys:
-        parts = [str(data.get(k) or "") for k in keys]
+        parts = [_normalize_dedupe_value(data.get(k)) for k in keys]
     elif source_type == "invoices":
         parts = [
             g("issuer_tax_id", "issuer", "supplier_tax_id"),
@@ -769,7 +798,9 @@ def ingest_rows(
                 except Exception:
                     continue
         if tpl_v2 is None and tpl_pairs:
-            filename = getattr(batch, "original_filename", None) or getattr(batch, "origin", "") or ""
+            filename = (
+                getattr(batch, "original_filename", None) or getattr(batch, "origin", "") or ""
+            )
             matcher = TemplateMatcher(tpl_pairs)
             matched = matcher.match(filename, "es")
             if matched:
@@ -813,7 +844,9 @@ def ingest_rows(
                 headers_norm = normalize_headers(headers_raw, tpl_v2.header_normalization, language)
             except Exception:
                 headers_norm = [str(h).strip().lower() for h in headers_raw]
-            normalized_row = {h_norm: raw_effective.get(h_raw) for h_norm, h_raw in zip(headers_norm, headers_raw)}
+            normalized_row = {
+                h_norm: raw_effective.get(h_raw) for h_norm, h_raw in zip(headers_norm, headers_raw)
+            }
             processed = interpreter.process_rows([normalized_row])
             if processed:
                 normalized = processed[0] if len(processed) == 1 else processed
@@ -1210,6 +1243,9 @@ def _detectar_tipo_por_texto(txt: str) -> str:
         return "ticket_pos"
     if "iban" in t or "saldo" in t or "transferencia" in t:
         return "bank"
+    # Priorizar recibos/recibos de pago antes que facturas
+    if "receipt" in t or "recibo" in t or "paid" in t:
+        return "expenses"
     if "factura" in t or "n° factura" in t or "invoice" in t:
         return "invoices"
     return "receipts"
@@ -1283,7 +1319,9 @@ def ingest_photo(
                         continue
             if tv2_list:
                 matcher = TemplateMatcher(tv2_list)
-                filename = getattr(batch, "original_filename", None) or getattr(batch, "origin", "") or ""
+                filename = (
+                    getattr(batch, "original_filename", None) or getattr(batch, "origin", "") or ""
+                )
                 matched = matcher.match(filename, "es")
                 if matched:
                     tpl_v2 = matched
@@ -1298,7 +1336,9 @@ def ingest_photo(
             headers_norm = normalize_headers(headers_raw, tpl_v2.header_normalization, lang)
         except Exception:
             headers_norm = headers_raw
-        normalized_row = {h_norm: raw.get(h_raw) for h_norm, h_raw in zip(headers_norm, headers_raw)}
+        normalized_row = {
+            h_norm: raw.get(h_raw) for h_norm, h_raw in zip(headers_norm, headers_raw)
+        }
         processed = interpreter.process_rows([normalized_row])
         if processed:
             normalized = processed[0] if len(processed) == 1 else processed

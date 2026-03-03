@@ -43,7 +43,7 @@ export type QueueItem = {
 
 type ImportQueueContextType = {
   queue: QueueItem[]
-  addToQueue: (files: FileList | File[]) => void
+  addToQueue: (files: FileList | File[], docType?: ImportDocType | string) => void
   removeFromQueue: (id: string) => void
   clearQueue: () => void
   isProcessing: boolean
@@ -68,6 +68,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     if (v === 'products' || v === 'product') return 'products'
     if (v === 'invoice' || v === 'invoices' || v === 'factura') return 'invoices'
     if (v === 'bank' || v === 'transferencia' || v === 'banco') return 'bank'
+    if (v === 'ticket_pos' || v === 'ticket' || v === 'pos') return 'ticket_pos' as ImportDocType
     if (v === 'recipe' || v === 'recipes' || v === 'receta' || v === 'recetas') return 'recipes'
     return 'expenses'
   }, [])
@@ -177,10 +178,12 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
           const isDoc = fileKind === 'doc'
 
       try {
+        const forcedDocType = item.docType ? normalizeDocType(item.docType) : undefined
+
         if (isCSV) {
           const textContent = await item.file.text()
           const { headers, rows } = parseCSV(textContent)
-          const docType = detectarTipoDocumento(headers)
+          const docType = forcedDocType || detectarTipoDocumento(headers)
           updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null })
           await saveItem(item, headers, rows, docType)
           return
@@ -205,7 +208,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
             }
 
             // Intentar análisis rápido (headers) para determinar docType antes de decidir chunking
-            let docType: ImportDocType = 'products'
+            let docType: ImportDocType = forcedDocType || 'products'
             let mappingSuggestion: Record<string, string> | null | undefined
             try {
               const analysis = await analyzeFile(item.file, token || undefined)
@@ -260,7 +263,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
             const { headers, rows } = await parseExcelFile(item.file, token || undefined)
             // Intentar análisis con IA para obtener doc_type y mapping sugerido
             // Recalcular docType usando headers reales; si AI discrepó, damos prioridad a los headers
-            const docTypeFromHeaders = detectarTipoDocumento(headers)
+            const docTypeFromHeaders = forcedDocType || detectarTipoDocumento(headers)
             let docTypeLocal: ImportDocType = docTypeFromHeaders
             if (docType && docType !== docTypeFromHeaders) {
               // Solo respetar sugerencia externa en casos especiales (recetas) donde headers son pobres
@@ -407,11 +410,11 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
           )
 
           const firstDoc = (documentos[0] || {}) as Record<string, unknown>
-          const docType = normalizeDocType(
-            (firstDoc.documentoTipo as string)
-            || (firstDoc.doc_type as string)
-            || (firstDoc.tipo as string)
-          )
+            const docType = forcedDocType || normalizeDocType(
+              (firstDoc.documentoTipo as string)
+              || (firstDoc.doc_type as string)
+              || (firstDoc.tipo as string)
+            )
           updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: response.jobId })
           await saveItem(item, headers, rows, docType)
           return
@@ -498,7 +501,8 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     }
   }
 
-  const addToQueue = useCallback((files: FileList | File[]) => {
+  const addToQueue = useCallback((files: FileList | File[], docType?: ImportDocType | string) => {
+    const forcedType = docType ? normalizeDocType(String(docType)) : undefined
     const newItems: QueueItem[] = Array.from(files).map((file) => ({
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       file,
@@ -506,6 +510,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
       type: file.type,
       size: file.size,
       status: 'pending' as const,
+      docType: forcedType,
     }))
 
     setQueue((prev) => [...prev, ...newItems])

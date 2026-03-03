@@ -7,19 +7,18 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from uuid import uuid4
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.core.modelsimport import ImportMapping
+from app.models.core.ui_field_config import SectorFieldDefault, TenantFieldConfig
 from app.modules.imports.application.template_engine import (
     TemplateInterpreter,
     TemplateV2,
     validate_template,
 )
-from app.models.core.ui_field_config import TenantFieldConfig, SectorFieldDefault
 
 logger = logging.getLogger("imports")
 
@@ -129,7 +128,9 @@ def list_template_fields_v2(
         tenant_modules = {
             m
             for (m,) in db.query(TenantFieldConfig.module)
-            .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module.like("imports_%"))
+            .filter(
+                TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module.like("imports_%")
+            )
             .all()
             if m
         }
@@ -172,7 +173,8 @@ def list_template_fields_v2(
     if not fields:
         for mod in modules_to_try:
             q = db.query(SectorFieldDefault).filter(
-                SectorFieldDefault.module == mod, SectorFieldDefault.sector.in_(["global", "default"])
+                SectorFieldDefault.module == mod,
+                SectorFieldDefault.sector.in_(["global", "default"]),
             )
             if hasattr(SectorFieldDefault, "ord"):
                 q = q.order_by(SectorFieldDefault.ord.asc().nullsfirst())
@@ -183,6 +185,7 @@ def list_template_fields_v2(
                     break
 
     return {"source_type": source_type, "fields": fields, "seeded": False}
+
 
 @router.get("/fields_dynamic")
 def list_template_fields_dynamic(
@@ -213,7 +216,9 @@ def list_template_fields_dynamic(
         tenant_modules = {
             m
             for (m,) in db.query(TenantFieldConfig.module)
-            .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module.like("imports_%"))
+            .filter(
+                TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module.like("imports_%")
+            )
             .all()
             if m
         }
@@ -254,7 +259,8 @@ def list_template_fields_dynamic(
     if not fields:
         for mod in modules_to_try:
             q = db.query(SectorFieldDefault).filter(
-                SectorFieldDefault.module == mod, SectorFieldDefault.sector.in_(["global", "default"])
+                SectorFieldDefault.module == mod,
+                SectorFieldDefault.sector.in_(["global", "default"]),
             )
             if hasattr(SectorFieldDefault, "ord"):
                 q = q.order_by(SectorFieldDefault.ord.asc().nullsfirst())
@@ -265,6 +271,7 @@ def list_template_fields_dynamic(
                     break
 
     return {"source_type": source_type, "fields": fields, "seeded": False}
+
 
 @router.get("/{template_id}")
 def get_template(
@@ -290,7 +297,9 @@ def get_template(
 @router.get("/fields")
 def list_template_fields(
     request: Request,
-    source_type: str | None = Query(None, description="products|expenses|invoices|bank|bank_transactions|recipes|generic"),
+    source_type: str | None = Query(
+        None, description="products|expenses|invoices|bank|bank_transactions|recipes|generic"
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -385,8 +394,15 @@ def list_template_fields(
         for mod in modules_to_try or []:
             rows = (
                 db.query(SectorFieldDefault)
-                .filter(SectorFieldDefault.module == mod, SectorFieldDefault.sector.in_(["global", "default"]))
-                .order_by(SectorFieldDefault.ord.asc().nullsfirst() if hasattr(SectorFieldDefault, "ord") else None)
+                .filter(
+                    SectorFieldDefault.module == mod,
+                    SectorFieldDefault.sector.in_(["global", "default"]),
+                )
+                .order_by(
+                    SectorFieldDefault.ord.asc().nullsfirst()
+                    if hasattr(SectorFieldDefault, "ord")
+                    else None
+                )
                 .all()
             )
             if rows:
@@ -404,7 +420,9 @@ def list_template_fields(
         if not seed_def:
             seed_def = SEEDS.get("generic")
         if seed_def:
-            module_name = modules_to_try[0] if modules_to_try else f"imports_{source_type or 'generic'}"
+            module_name = (
+                modules_to_try[0] if modules_to_try else f"imports_{source_type or 'generic'}"
+            )
             try:
                 objs = []
                 for idx, cfg in enumerate(seed_def):
@@ -555,12 +573,18 @@ def simulate_template(
             headers_norm = list(row.keys())
             if headers_norm:
                 try:
-                    from app.modules.imports.application.template_engine.header_norm import normalize_headers
+                    from app.modules.imports.application.template_engine.header_norm import (
+                        normalize_headers,
+                    )
                 except Exception:
                     headers_norm = list(row.keys())
                 else:
-                    headers_norm = normalize_headers(headers_norm, tpl_v2.header_normalization, lang)
-            normalized_row = {h_norm: row.get(h_raw) for h_norm, h_raw in zip(headers_norm, row.keys())}
+                    headers_norm = normalize_headers(
+                        headers_norm, tpl_v2.header_normalization, lang
+                    )
+            normalized_row = {
+                h_norm: row.get(h_raw) for h_norm, h_raw in zip(headers_norm, row.keys())
+            }
             results.extend(interpreter.process_rows([normalized_row]))
     else:
         from app.modules.imports.application.transform_dsl import apply_mapping_pipeline

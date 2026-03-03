@@ -36,6 +36,17 @@ import {
 } from '../../services/api/productionCosts';
 import tenantApi from '../../shared/api/client';
 
+const normalizeRecipeUnit = (unit?: string | null): string => {
+  const u = String(unit || '').trim().toLowerCase();
+  if (!u || u === 'unit' || u === 'units') return 'uds';
+  if (u === 'unidad' || u === 'unid') return 'unidades';
+  if (u === 'gr' || u === 'gramo' || u === 'gramos') return 'g';
+  if (u === 'kilo' || u === 'kilos' || u === 'kilogramo' || u === 'kilogramos') return 'kg';
+  if (u === 'lbs' || u === 'pounds' || u === 'libra' || u === 'libras') return 'lb';
+  if (u === 'lt' || u === 'litro' || u === 'litros') return 'L';
+  return u;
+};
+
 interface RecetaDetailProps {
   open: boolean;
   recipeId: string;
@@ -121,10 +132,10 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           id: ing.id,
           product_id: String(ing.product_id || ''),
           qty: Number(ing.qty || 0),
-          unit: String(ing.unit || 'uds'),
+          unit: normalizeRecipeUnit(ing.unit),
           purchase_packaging: String(ing.purchase_packaging || ''),
-          qty_per_package: Number(ing.qty_per_package || 1),
-          package_unit: String(ing.package_unit || 'uds'),
+          qty_per_package: Math.max(Number(ing.qty_per_package || 1), 0.0001),
+          package_unit: normalizeRecipeUnit(ing.package_unit),
           package_cost: Number(ing.package_cost || 0),
           notes: ing.notes || '',
           line_order: typeof ing.line_order === 'number' ? ing.line_order : idx,
@@ -202,8 +213,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
       if (field === 'product_id') {
         const p = products.find((x) => x.id === value);
         if (p) {
-          next[index].unit = String(p.unit || 'uds');
-          next[index].package_unit = String(p.unit || 'uds');
+          next[index].unit = normalizeRecipeUnit(p.unit);
+          next[index].package_unit = normalizeRecipeUnit(p.unit);
         }
       }
       return next;
@@ -267,10 +278,10 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         const payload = {
           product_id: row.product_id,
           qty: Number(row.qty || 0),
-          unit: String(row.unit || 'uds'),
+          unit: normalizeRecipeUnit(row.unit),
           purchase_packaging: String(row.purchase_packaging || '-'),
-          qty_per_package: Number(row.qty_per_package || 1),
-          package_unit: String(row.package_unit || row.unit || 'uds'),
+          qty_per_package: Math.max(Number(row.qty_per_package || 1), 0.0001),
+          package_unit: normalizeRecipeUnit(row.package_unit || row.unit),
           package_cost: Number(row.package_cost || 0),
           notes: row.notes || undefined,
           line_order: Number(row.line_order || 0),
@@ -631,6 +642,25 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                 const product = products.find((p) => p.id === item.product_id);
                 const productName = product?.name || (item as any)?.product_name || '-';
                 const qty = Number(item.qty ?? 0);
+                const unitNorm = normalizeRecipeUnit(item.unit);
+                let kgLbText: string | null = null;
+                if (unitNorm === 'g') {
+                  const kg = qty / 1000;
+                  const lb = qty / 453.592;
+                  kgLbText = `${kg.toFixed(3)} kg / ${lb.toFixed(3)} lb`;
+                } else if (unitNorm === 'kg') {
+                  const kg = qty;
+                  const lb = qty * 2.20462;
+                  kgLbText = `${kg.toFixed(3)} kg / ${lb.toFixed(3)} lb`;
+                } else if (unitNorm === 'lb') {
+                  const lb = qty;
+                  const kg = qty / 2.20462;
+                  kgLbText = `${kg.toFixed(3)} kg / ${lb.toFixed(3)} lb`;
+                } else if (unitNorm === 'oz') {
+                  const lb = qty / 16;
+                  const kg = lb / 2.20462;
+                  kgLbText = `${kg.toFixed(3)} kg / ${lb.toFixed(3)} lb`;
+                }
                 const estimatedCost =
                   Number(item.package_cost || 0) * (Number(item.qty || 0) / Math.max(Number(item.qty_per_package || 1), 1));
                 const pct = totalCost > 0 ? (estimatedCost / totalCost) * 100 : 0;
@@ -679,13 +709,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    {item.unit === 'g' ? (
+                    {kgLbText ? (
                       <Typography variant="body2" color="text.secondary">
-                        {(qty / 1000).toFixed(3)} kg / {(qty / 453.592).toFixed(3)} lb
-                      </Typography>
-                    ) : item.unit === 'kg' ? (
-                      <Typography variant="body2" color="text.secondary">
-                        {qty.toFixed(3)} kg / {(qty * 2.20462).toFixed(3)} lb
+                        {kgLbText}
                       </Typography>
                     ) : (
                       <Typography variant="body2" color="text.secondary">-</Typography>
@@ -784,7 +810,11 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         && !driverCode.startsWith('ENERGY')
                         && !driverCode.startsWith('OVEN'))
                   );
-                  const recipeLaborHours = (prodParams.touch_minutes_standard || 0) / 60;
+                  const laborMinutes = prodParams.touch_minutes_standard ?? prodParams.prep_time_minutes ?? 0;
+                  const recipeLaborHours = laborMinutes / 60;
+                  const laborSource = prodParams.touch_minutes_standard != null
+                    ? 'touch'
+                    : (prodParams.prep_time_minutes != null ? 'prep' : null);
                   const effectiveQty = isLaborAuto && recipeLaborHours > 0 ? recipeLaborHours : Number(cl.qty_standard);
                   const subtotal = effectiveQty * Number(rate) * (cl.headcount || 1);
                   return (
@@ -823,7 +853,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         {isLaborAuto && recipeLaborHours > 0 ? (
                           <Box>
                             <Typography variant="body2">{effectiveQty.toFixed(2)}h</Typography>
-                            <Typography variant="caption" color="text.secondary">⚡ auto (touch)</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              ⚡ auto ({laborSource === 'touch' ? 'touch' : 'prep'} {laborMinutes} min)
+                            </Typography>
                           </Box>
                         ) : isEditing ? (
                           <TextField

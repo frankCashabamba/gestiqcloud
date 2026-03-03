@@ -4,16 +4,77 @@ import { useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import i18n from '../i18n'
 
+const SLUG_CANONICAL: Record<string, string> = {
+  ventas: 'sales',
+  sales: 'sales',
+  productos: 'products',
+  products: 'products',
+  clientes: 'clients',
+  customers: 'clients',
+  clients: 'clients',
+  proveedores: 'suppliers',
+  suppliers: 'suppliers',
+  inventario: 'inventory',
+  inventory: 'inventory',
+  facturacion: 'invoicing',
+  invoicing: 'invoicing',
+  billing: 'invoicing',
+  reportes: 'reports',
+  reports: 'reports',
+  configuracion: 'settings',
+  settings: 'settings',
+  usuarios: 'users',
+  users: 'users',
+  pos: 'pos',
+  tpv: 'pos',
+  contabilidad: 'accounting',
+  accounting: 'accounting',
+  compras: 'purchases',
+  purchases: 'purchases',
+  gastos: 'expenses',
+  expenses: 'expenses',
+  rrhh: 'hr',
+  hr: 'hr',
+  importer: 'importer',
+  imports: 'importer',
+  importaciones: 'importer',
+  produccion: 'production',
+  production: 'production',
+  productions: 'production',
+  manufacturing: 'production',
+  finanzas: 'finances',
+  finance: 'finances',
+  finances: 'finances',
+  webhooks: 'webhooks',
+  reconciliation: 'reconciliation',
+  conciliacion: 'reconciliation',
+  conciliacionbancaria: 'reconciliation',
+  templates: 'templates',
+}
+
+function normalizeSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+}
+
+function canonicalizeSlug(value: string): string {
+  const normalized = normalizeSlug(value)
+  return SLUG_CANONICAL[normalized] || normalized
+}
+
 function toSlug(m: Modulo): string {
-  if (m.slug) return m.slug.toLowerCase()
+  if (m.slug) return canonicalizeSlug(m.slug)
   if (m.url) {
     const u = m.url.trim()
     const s = u.startsWith('/') ? u.slice(1) : u
     const seg = s.split('/')[0] || s
-    return seg.toLowerCase()
+    return canonicalizeSlug(seg)
   }
-  // fallback: normaliza nombre
-  return (m.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '')
+  return canonicalizeSlug(m.name || '')
 }
 
 const MODULE_NAME_KEYS: Record<string, string> = {
@@ -25,6 +86,7 @@ const MODULE_NAME_KEYS: Record<string, string> = {
   products: 'nav.products',
   clientes: 'nav.clients',
   customers: 'nav.clients',
+  clients: 'nav.clients',
   suppliers: 'nav.suppliers',
   proveedores: 'nav.suppliers',
   inventario: 'nav.inventory',
@@ -53,10 +115,10 @@ const MODULE_NAME_KEYS: Record<string, string> = {
   importer: 'modules.importer',
   imports: 'modules.importer',
   importaciones: 'modules.importer',
-  produccion: 'modules.production',
-  production: 'modules.production',
-  productions: 'modules.production',
-  manufacturing: 'modules.production',
+  produccion: 'modules.manufacturing',
+  production: 'modules.manufacturing',
+  productions: 'modules.manufacturing',
+  manufacturing: 'modules.manufacturing',
   finanzas: 'modules.finances',
   finance: 'modules.finances',
   finances: 'modules.finances',
@@ -77,10 +139,7 @@ function localizeModule(m: Modulo): Modulo {
 
 function dedupeModules(mods: Modulo[]): Modulo[] {
   const bySlug = new Map<string, Modulo>()
-  const byId = new Map<string, Modulo>()
   for (const m of mods) {
-    const id = String(m.id || '')
-    if (id && !byId.has(id)) byId.set(id, m)
     const slug = toSlug(m)
     if (!slug) continue
     const existing = bySlug.get(slug)
@@ -99,14 +158,15 @@ function dedupeModules(mods: Modulo[]): Modulo[] {
       bySlug.set(slug, m)
     }
   }
-  // Merge slug and id maps to keep any unique items without slug.
-  const merged = new Map<string, Modulo>()
-  for (const m of bySlug.values()) merged.set(String(m.id || toSlug(m)), m)
-  for (const m of byId.values()) {
-    const key = String(m.id || toSlug(m))
-    if (!merged.has(key)) merged.set(key, m)
+
+  const withoutSlug = mods.filter((m) => !toSlug(m))
+  const uniqueWithoutSlug = new Map<string, Modulo>()
+  for (const m of withoutSlug) {
+    const key = String(m.id || '')
+    if (key && !uniqueWithoutSlug.has(key)) uniqueWithoutSlug.set(key, m)
   }
-  return Array.from(merged.values())
+
+  return [...bySlug.values(), ...uniqueWithoutSlug.values()]
 }
 
 export function useMisModulos() {
