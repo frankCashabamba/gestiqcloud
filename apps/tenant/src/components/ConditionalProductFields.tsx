@@ -8,6 +8,7 @@
  * - Uses useSectorPlaceholders to load dynamically
  */
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../hooks/useSectorPlaceholders'
 
@@ -22,6 +23,7 @@ export function ConditionalProductFields({
   onChange,
   onCheckboxChange
 }: ConditionalProductFieldsProps) {
+  const { t } = useTranslation('common')
   const features = useCompanyFeatures()
   const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'products')
@@ -36,7 +38,7 @@ export function ConditionalProductFields({
       {features.inventory_expiry_tracking && (
         <div className="form-field">
           <label htmlFor="expires_at" className="form-label">
-            Expiration Date {features.inventory_expiry_tracking && '*'}
+            {t('productFields.expirationDate')} {features.inventory_expiry_tracking && '*'}
           </label>
           <input
             type="date"
@@ -50,7 +52,7 @@ export function ConditionalProductFields({
           />
           {features.inventory_expiry_tracking && (
             <small className="form-help">
-              Perishable products require expiration date
+              {t('productFields.perishableHelp')}
             </small>
           )}
         </div>
@@ -60,7 +62,7 @@ export function ConditionalProductFields({
       {features.inventory_lot_tracking && (
         <div className="form-field">
           <label htmlFor="lot" className="form-label">
-            Lot Number
+            {t('productFields.lotNumber')}
           </label>
           <input
             type="text"
@@ -68,11 +70,11 @@ export function ConditionalProductFields({
             name="lot"
             value={formData.lot || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Lot number')}
+            placeholder={getFieldPlaceholder(placeholders, 'lote', t('productFields.lotNumberPlaceholder'))}
             className="form-input"
           />
           <small className="form-help">
-            Identifies the production lot
+            {t('productFields.lotHelp')}
           </small>
         </div>
       )}
@@ -81,7 +83,7 @@ export function ConditionalProductFields({
       {features.inventory_serial_tracking && (
         <div className="form-field">
           <label htmlFor="serial_number" className="form-label">
-            Serial Number
+            {t('productFields.serialNumber')}
           </label>
           <input
             type="text"
@@ -89,11 +91,11 @@ export function ConditionalProductFields({
             name="serial_number"
             value={formData.serial_number || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'E.g.: SN-123456789')}
+            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', t('productFields.serialNumberPlaceholder'))}
             className="form-input"
           />
           <small className="form-help">
-            For individual parts/product tracking
+            {t('productFields.serialHelp')}
           </small>
         </div>
       )}
@@ -113,14 +115,14 @@ export function ConditionalProductFields({
                 checked={formData.sold_by_weight || false}
                 onChange={(e) => onCheckboxChange?.('sold_by_weight', e.target.checked)}
               />
-              <span>Sold by weight</span>
+              <span>{t('productFields.soldByWeight')}</span>
             </label>
           </div>
 
           {formData.sold_by_weight && (
             <div className="form-field">
               <label htmlFor="weight_unit" className="form-label">
-                Weight Unit *
+                {t('productFields.weightUnit')} *
               </label>
               <select
                 id="weight_unit"
@@ -130,9 +132,9 @@ export function ConditionalProductFields({
                 required
                 className="form-input"
               >
-                <option value="kg">Kilograms (kg)</option>
-                <option value="g">Grams (g)</option>
-                <option value="lb">Pounds (lb)</option>
+                <option value="kg">{t('productFields.kilograms')}</option>
+                <option value="g">{t('productFields.grams')}</option>
+                <option value="lb">{t('productFields.pounds')}</option>
               </select>
             </div>
           )}

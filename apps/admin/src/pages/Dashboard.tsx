@@ -5,6 +5,8 @@
 
 import React, { useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import { DashboardStats } from '../features/dashboard/DashboardStats';
 import { KpiBoard } from '../features/dashboard/KpiBoard';
 import { useDashboard } from '../hooks/useDashboard';
@@ -13,6 +15,7 @@ import '../features/dashboard/dashboard-page.css';
 
 export const Dashboard: React.FC = () => {
   const { stats, kpis, loading, error, refetch } = useDashboard(true, 30000);
+  const { t } = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -30,27 +33,27 @@ export const Dashboard: React.FC = () => {
         <div>
           <h1 className="dashboard-page__title">Dashboard</h1>
           <p className="dashboard-page__subtitle">
-            Bienvenido. Aquí tienes una visión general de tu plataforma.
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <button
           className={`dashboard-page__refresh-btn ${refreshing ? 'is-loading' : ''}`}
           onClick={handleRefresh}
           disabled={refreshing || loading}
-          title="Actualizar datos"
+          title={t('dashboard.refreshTitle')}
         >
           <svg className="dashboard-page__refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Actualizar
+          {t('dashboard.refresh')}
         </button>
       </div>
 
       {error && (
         <div className="dashboard-page__error">
-          <p>Error al cargar el dashboard: {error.message}</p>
+          <p>{t('dashboard.loadError', { message: error.message })}</p>
           <button onClick={handleRefresh} className="dashboard-page__error-retry">
-            Reintentar
+            {t('dashboard.retry')}
           </button>
         </div>
       )}
@@ -60,7 +63,7 @@ export const Dashboard: React.FC = () => {
 
       {stats && (
         <div className="dashboard-page__recent">
-          <h2 className="dashboard-page__section-title">Últimas Empresas</h2>
+          <h2 className="dashboard-page__section-title">{t('dashboard.recentCompanies')}</h2>
           <div className="dashboard-page__companies-grid">
             {stats.ultimos_tenants && stats.ultimos_tenants.length > 0 ? (
               stats.ultimos_tenants.map((tenant) => (
@@ -76,7 +79,7 @@ export const Dashboard: React.FC = () => {
                 </div>
               ))
             ) : (
-              <p className="dashboard-page__empty">Sin empresas registradas</p>
+              <p className="dashboard-page__empty">{t('dashboard.noCompanies')}</p>
             )}
           </div>
         </div>

@@ -9,6 +9,7 @@
  * - Uses useSectorPlaceholders to load dynamically
  */
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../hooks/useSectorPlaceholders'
 
@@ -23,6 +24,7 @@ export function ConditionalInventoryFields({
   onChange,
   moveType = 'in'
 }: ConditionalInventoryFieldsProps) {
+  const { t } = useTranslation('common')
   const features = useCompanyFeatures()
   const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'inventory')
@@ -38,9 +40,9 @@ export function ConditionalInventoryFields({
       {features.inventory_expiry_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="expires_at" className="field-label">
-            Expiration Date {features.inventory_expiry_tracking && '*'}
+            {t('inventoryFields.expirationDate')} {features.inventory_expiry_tracking && '*'}
             <span className="label-badge expiry">
-              {features.inventory_expiry_tracking ? '🥐 Required' : 'Optional'}
+              {features.inventory_expiry_tracking ? `🥐 ${t('inventoryFields.required')}` : t('inventoryFields.optional')}
             </span>
           </label>
           <input
@@ -52,11 +54,11 @@ export function ConditionalInventoryFields({
             min={new Date().toISOString().split('T')[0]}
             required={features.inventory_expiry_tracking}
             className="field-input"
-            aria-label="Product expiration date"
+            aria-label={t('inventoryFields.ariaExpirationDate')}
           />
           {features.inventory_expiry_tracking && (
             <small className="field-help warning">
-              ⚠️ Perishable products require a mandatory expiration date
+              ⚠️ {t('inventoryFields.perishableWarning')}
             </small>
           )}
         </div>
@@ -69,7 +71,7 @@ export function ConditionalInventoryFields({
       {features.inventory_lot_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="lot" className="field-label">
-            📦 Lot Number
+            📦 {t('inventoryFields.lotNumber')}
           </label>
           <input
             type="text"
@@ -77,12 +79,12 @@ export function ConditionalInventoryFields({
             name="lot"
             value={formData.lot || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Lot number')}
+            placeholder={getFieldPlaceholder(placeholders, 'lote', t('inventoryFields.lotNumberPlaceholder'))}
             className="field-input"
-            aria-label="Lot or batch number"
+            aria-label={t('inventoryFields.ariaLotNumber')}
           />
           <small className="field-help">
-            Identifies the production lot for traceability
+            {t('inventoryFields.lotHelp')}
           </small>
         </div>
       )}
@@ -94,7 +96,7 @@ export function ConditionalInventoryFields({
       {features.inventory_serial_tracking && (
         <div className="inventory-field">
           <label htmlFor="serial_number" className="field-label">
-            📱 Serial Number
+            📱 {t('inventoryFields.serialNumber')}
           </label>
           <input
             type="text"
@@ -102,12 +104,12 @@ export function ConditionalInventoryFields({
             name="serial_number"
             value={formData.serial_number || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'E.g.: SN-123456789')}
+            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', t('inventoryFields.serialNumberPlaceholder'))}
             className="field-input"
-            aria-label="Serial number for individual tracking"
+            aria-label={t('inventoryFields.ariaSerialNumber')}
           />
           <small className="field-help">
-            For individual product tracking
+            {t('inventoryFields.serialHelp')}
           </small>
         </div>
       )}
@@ -118,8 +120,8 @@ export function ConditionalInventoryFields({
 
       <div className="inventory-field">
         <label htmlFor="location" className="field-label">
-          Warehouse Location
-          <span className="label-badge location">Optional</span>
+          {t('inventoryFields.warehouseLocation')}
+          <span className="label-badge location">{t('inventoryFields.optional')}</span>
         </label>
         <input
           type="text"
@@ -127,12 +129,12 @@ export function ConditionalInventoryFields({
           name="location"
           value={formData.location || ''}
           onChange={onChange}
-          placeholder={getFieldPlaceholder(placeholders, 'ubicacion', 'E.g.: Aisle-A-Shelf-3')}
+          placeholder={getFieldPlaceholder(placeholders, 'ubicacion', t('inventoryFields.locationPlaceholder'))}
           className="field-input"
-          aria-label="Physical location in the warehouse"
+          aria-label={t('inventoryFields.ariaLocation')}
         />
         <small className="field-help">
-          Facilitates quick product location
+          {t('inventoryFields.locationHelp')}
         </small>
       </div>
 
@@ -142,7 +144,7 @@ export function ConditionalInventoryFields({
 
       <div className="inventory-field">
         <label htmlFor="notes" className="field-label">
-          Notes / Observations
+          {t('inventoryFields.notes')}
         </label>
         <textarea
           id="notes"
@@ -151,16 +153,16 @@ export function ConditionalInventoryFields({
           onChange={onChange}
           placeholder={
             moveType === 'adjustment'
-              ? 'Reason for adjustment: shrinkage, breakage, correction...'
-              : 'Additional observations about this movement'
+              ? t('inventoryFields.adjustmentPlaceholder')
+              : t('inventoryFields.observationsPlaceholder')
           }
           rows={3}
           className="field-textarea"
-          aria-label="Additional movement notes"
+          aria-label={t('inventoryFields.ariaMovementNotes')}
         />
         {moveType === 'adjustment' && (
           <small className="field-help warning">
-            ⚠️ Inventory adjustments require justification
+            ⚠️ {t('inventoryFields.adjustmentWarning')}
           </small>
         )}
       </div>
@@ -172,7 +174,7 @@ export function ConditionalInventoryFields({
       {moveType === 'transfer' && (
         <div className="inventory-field">
           <label htmlFor="destination_warehouse" className="field-label">
-            Destination Warehouse *
+            {t('inventoryFields.destinationWarehouse')} *
           </label>
           <select
             id="destination_warehouse"
@@ -181,11 +183,11 @@ export function ConditionalInventoryFields({
             onChange={onChange}
             required
             className="field-input"
-            aria-label="Select destination warehouse"
+            aria-label={t('inventoryFields.ariaSelectWarehouse')}
           >
-            <option value="">-- Select warehouse --</option>
-            <option value="main">Main Warehouse</option>
-            <option value="retail">Store/Point of Sale</option>
+            <option value="">{t('inventoryFields.selectWarehouse')}</option>
+            <option value="main">{t('inventoryFields.mainWarehouse')}</option>
+            <option value="retail">{t('inventoryFields.storePointOfSale')}</option>
           </select>
         </div>
       )}

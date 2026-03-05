@@ -466,7 +466,7 @@ def update_language(id: int, data: IdiomaUpdate, db: Session = Depends(get_db)):
         updated = UpdateLanguage(repo).execute(id, payload)
         return _language_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Language not found")
+        raise HTTPException(status_code=404, detail="language_not_found")
 
 
 @router.delete("/language/{id}")
@@ -475,7 +475,7 @@ def delete_language(id: int, db: Session = Depends(get_db)):
     try:
         DeleteLanguage(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Language not found")
+        raise HTTPException(status_code=404, detail="language_not_found")
     return {"ok": True}
 
 

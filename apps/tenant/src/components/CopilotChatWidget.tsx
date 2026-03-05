@@ -67,7 +67,7 @@ export default function CopilotChatWidget() {
         ...prev,
         {
           role: 'assistant',
-          content: 'Lo siento, no pude conectar con el asistente. Intenta de nuevo.',
+          content: t('common:copilot.connectionError'),
           timestamp: new Date(),
         },
       ])
@@ -132,8 +132,8 @@ export default function CopilotChatWidget() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '20px' }}>🤖</span>
               <div>
-                <div style={{ fontWeight: 600, fontSize: '14px' }}>Copilot IA</div>
-                <div style={{ fontSize: '11px', opacity: 0.85 }}>Asistente de tu negocio</div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>{t('common:copilot.title')}</div>
+                <div style={{ fontSize: '11px', opacity: 0.85 }}>{t('common:copilot.subtitle')}</div>
               </div>
             </div>
             <button

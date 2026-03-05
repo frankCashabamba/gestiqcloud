@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { apiFetch } from '../lib/http'
 import { useEnv } from '@ui/env'
 import { resolveTenantPath } from '../lib/tenantNavigation'
 
 export default function Login() {
+  const { t } = useTranslation(['common'])
   const { login } = useAuth()
   const navigate = useNavigate()
   const { adminOrigin } = useEnv()
@@ -35,9 +37,9 @@ export default function Login() {
     } catch (res: any) {
       if (res?.status === 429) {
         const wait = res?.retryAfter || 'a few'
-        throw new Error(`Too many attempts. Try again in ${wait} seconds.`)
+        throw new Error(t('login.tooManyAttempts', { wait }))
       }
-      throw new Error('Invalid credentials')
+      throw new Error(t('login.invalidCredentials'))
     }
   }
 
@@ -51,14 +53,14 @@ export default function Login() {
       navigate(target)
     } catch (err: any) {
       if (err?.status && err.status !== 401) {
-        setError(err?.message || 'Server error')
+        setError(err?.message || t('login.serverError'))
         setSubmitting(false)
         return
       }
       try {
         throw new Error('fallback_disabled')
       } catch (fallbackErr: any) {
-        setError(fallbackErr?.message || 'Invalid credentials')
+        setError(fallbackErr?.message || t('login.invalidCredentials'))
         setSubmitting(false)
       }
     }
@@ -73,13 +75,13 @@ export default function Login() {
             <div className="relative z-10 flex flex-col gap-8">
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100">
-                  GestiqCloud Platform
+                  {t('login.platformBadge')}
                 </span>
                 <h1 className="mt-4 text-3xl font-semibold leading-tight text-white">
-                  Power your ERP and CRM on a modular platform.
+                  {t('login.heroTitle')}
                 </h1>
                 <p className="mt-3 max-w-xl text-sm text-slate-200">
-                  Connect teams, processes and data in one place. Configure the modules your business needs and scale them at your own pace.
+                  {t('login.heroSubtitle')}
                 </p>
               </div>
               <ul className="space-y-4 text-sm text-slate-100">
@@ -87,45 +89,45 @@ export default function Login() {
                    <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
                      1
                    </span>
-                   Orchestrate operations, sales and finance with connected workflows.
+                   {t('login.feature1')}
                  </li>
                  <li className="flex items-start gap-3">
                    <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
                      2
                    </span>
-                   Activate modules by area and customize permissions for each team.
+                   {t('login.feature2')}
                  </li>
                  <li className="flex items-start gap-3">
                    <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
                      3
                    </span>
-                   Get real-time indicators to make informed decisions.
+                   {t('login.feature3')}
                  </li>
               </ul>
             </div>
             <div className="relative z-10 flex flex-wrap items-center gap-4 text-xs text-slate-300">
               <span className="rounded-full border border-white/15 px-3 py-1">
-                Enterprise security
+                {t('login.badgeSecurity')}
               </span>
               <span className="rounded-full border border-white/15 px-3 py-1">
-                Configurable roles and modules
+                {t('login.badgeRoles')}
               </span>
             </div>
           </aside>
 
           <section className="flex flex-col justify-center rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
             <header className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">Welcome</span>
-              <h2 className="text-2xl font-semibold text-slate-900">Sign in to GestiqCloud</h2>
+              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">{t('login.welcome')}</span>
+              <h2 className="text-2xl font-semibold text-slate-900">{t('login.signInTitle')}</h2>
               <p className="text-sm text-slate-500">
-                Sign in with your corporate credentials to continue. If you have global permissions, we will automatically redirect you to the admin panel.
+                {t('login.signInSubtitle')}
               </p>
             </header>
 
             <form onSubmit={onSubmit} className="mt-8 space-y-6" noValidate>
               <div className="space-y-1.5">
                 <label htmlFor="identificador" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Username or email
+                  {t('login.usernameLabel')}
                 </label>
                 <input
                   id="identificador"
@@ -142,7 +144,7 @@ export default function Login() {
 
               <div className="space-y-1.5">
                 <label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Password
+                  {t('login.passwordLabel')}
                 </label>
                 <input
                   id="password"
@@ -168,13 +170,13 @@ export default function Login() {
                 className="gc-button gc-button--primary w-full py-3 text-sm font-semibold"
                 disabled={submitting}
               >
-                {submitting ? 'Signing in…' : 'Sign in'}
+                {submitting ? t('login.signingIn') : t('login.signIn')}
               </button>
             </form>
 
             <footer className="mt-10 text-center text-xs text-slate-400">
-              <p>© GestiqCloud {year}. All rights reserved.</p>
-              <p className="mt-1">ERP · CRM · Modular platform for your business.</p>
+              <p>{t('login.copyright', { year })}</p>
+              <p className="mt-1">{t('login.tagline')}</p>
             </footer>
           </section>
         </div>

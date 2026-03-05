@@ -264,7 +264,7 @@ def _resolve_warehouse_id(db: Session, tenant_id: UUID, preferred: UUID | None =
     if not warehouse_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No warehouse available. Create inventory stock first or select a warehouse.",
+            detail="no_warehouse_available",
         )
     return warehouse_id
 
@@ -411,7 +411,7 @@ async def create_production_order(
     recipe_result = db.execute(recipe_stmt)
     recipe = recipe_result.scalar_one_or_none()
     if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     numero = _generate_next_numero(db, tenant_id)
     order = ProductionOrder(
         tenant_id=tenant_id,
@@ -432,7 +432,7 @@ async def create_production_order(
             if line_in.qty_required <= 0:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="Cada linea debe tener qty_required > 0",
+                    detail="line_qty_required_must_be_positive",
                 )
             line = ProductionOrderLine(
                 order_id=order.id,
@@ -452,7 +452,7 @@ async def create_production_order(
         if yield_qty <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La receta tiene rendimiento invalido (yield_qty <= 0)",
+                detail="recipe_invalid_yield_qty",
             )
         scale_factor = Decimal(str(order_in.qty_planned)) / yield_qty
         created_lines = 0
@@ -707,7 +707,7 @@ async def calculate_production(
     recipe_result = db.execute(recipe_stmt)
     recipe = recipe_result.scalar_one_or_none()
     if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     ingredients_stmt = select(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id)
     ingredients_result = db.execute(ingredients_stmt)
     ingredients = ingredients_result.scalars().all()
@@ -893,7 +893,7 @@ def get_recipe(
     tenant_id = UUID(claims["tenant_id"])
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     return recipe
 
 
@@ -907,7 +907,7 @@ def update_recipe(
     tenant_id = UUID(claims["tenant_id"])
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     update_data = recipe_data.dict(exclude_unset=True)
     ingredients_payload = update_data.pop("ingredients", None)
 
@@ -955,7 +955,7 @@ def delete_recipe(
 ):
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
     if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     db.delete(recipe)
     db.commit()
 
@@ -974,7 +974,7 @@ def add_recipe_ingredient(
     tenant_id = UUID(claims["tenant_id"])
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
 
     duplicate = (
         db.query(RecipeIngredient)
@@ -1130,7 +1130,7 @@ def sync_recipe_product_price(
             "message": "Precio sugerido sincronizado con el producto",
         }
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
 
 
 @router.get(
@@ -1145,7 +1145,7 @@ def get_recipe_cost_breakdown(
     try:
         return calculate_recipe_cost(db, recipe_id, update_product_price=False)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
 
 
 @router.post(
@@ -1161,7 +1161,7 @@ def calculate_recipe_production(
     try:
         calculation = calculate_purchase_for_production(db, recipe_id, payload.qty_to_produce)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
 
     tiempo = None
     if payload.workers:
@@ -1193,7 +1193,7 @@ def create_recipe_purchase_order(
             supplier_id=payload.supplier_id,
         )
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
 
 
 @router.post(
@@ -1214,7 +1214,7 @@ def recipe_profitability(
             indirect_costs_pct=payload.indirect_costs_pct,
         )
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
 
     # Uniformar campo de nombre con el esquema de respuesta
     name = data.pop("nombre", None)
@@ -1407,7 +1407,7 @@ def add_recipe_cost_line(
     tenant_id = UUID(claims["tenant_id"])
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
-        raise HTTPException(status_code=404, detail="Receta no encontrada")
+        raise HTTPException(status_code=404, detail="recipe_not_found")
     line = RecipeCostLine(recipe_id=recipe_id, **data.model_dump())
     db.add(line)
     db.commit()
@@ -1511,7 +1511,7 @@ def get_recipe_full_cost(
     tenant_id = UUID(claims["tenant_id"])
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
-        raise HTTPException(status_code=404, detail="Receta no encontrada")
+        raise HTTPException(status_code=404, detail="recipe_not_found")
     try:
         calculate_recipe_cost(db, recipe_id)
     except Exception:
@@ -1666,7 +1666,7 @@ def list_recipe_steps(
     tenant_id = UUID(claims["tenant_id"])
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
-        raise HTTPException(status_code=404, detail="Receta no encontrada")
+        raise HTTPException(status_code=404, detail="recipe_not_found")
     return (
         db.query(RecipeStep)
         .filter(RecipeStep.recipe_id == recipe_id, RecipeStep.is_active)
@@ -1689,7 +1689,7 @@ def create_recipe_step(
     tenant_id = UUID(claims["tenant_id"])
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
-        raise HTTPException(status_code=404, detail="Receta no encontrada")
+        raise HTTPException(status_code=404, detail="recipe_not_found")
     step = RecipeStep(
         recipe_id=recipe_id,
         step_name=data.step_name,

@@ -71,7 +71,7 @@ export default function PermissionDenied({
           fontWeight: '600',
         }}
       >
-        {severity === 'error' ? '❌ Unauthorized' : '⚠️ Restricted Access'}
+        {severity === 'error' ? `❌ ${t('common:permissions.unauthorized')}` : `⚠️ ${t('common:permissions.restrictedAccess')}`}
       </h3>
 
       {message ? (

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Conflict Resolver UI Component
  *
  * Shows sync conflicts that require manual user intervention.
@@ -6,6 +6,7 @@
  */
 
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { setConflictHandler } from '../../lib/electric'
 
 interface Conflict {
@@ -22,6 +23,7 @@ interface ConflictResolverProps {
 }
 
 export const ConflictResolver: React.FC<ConflictResolverProps> = ({ onResolve }) => {
+  const { t } = useTranslation('common')
   const [conflicts, setConflicts] = useState<Conflict[]>([])
 
   // Register conflict handler
@@ -43,23 +45,23 @@ export const ConflictResolver: React.FC<ConflictResolverProps> = ({ onResolve })
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Conflicto de Sincronización</h2>
+        <h2 className="text-xl font-bold mb-4">{t('syncConflict.title')}</h2>
         <p className="text-gray-600 mb-4">
-          Se encontraron cambios conflictivos durante la sincronización. Por favor, elija cómo resolver:
+          {t('syncConflict.description')}
         </p>
 
         {conflicts.map((conflict) => (
           <div key={conflict.id} className="border rounded-lg p-4 mb-4">
             <div className="mb-2">
-              <strong>Tabla:</strong> {conflict.table} | <strong>ID:</strong> {conflict.id}
+              <strong>{t('syncConflict.table')}</strong> {conflict.table} | <strong>{t('syncConflict.id')}</strong> {conflict.id}
             </div>
 
             {conflict.table === 'products' && conflict.conflict_details && (
               <div className="mb-3 p-3 bg-yellow-50 rounded">
                 <p className="text-sm text-yellow-800">
-                  <strong>Conflicto de price:</strong><br />
-                  Precio local: ${conflict.conflict_details.local_price}<br />
-                  Precio remoto: ${conflict.conflict_details.remote_price}
+                  <strong>{t('syncConflict.priceConflict')}</strong><br />
+                  {t('syncConflict.localPrice')} ${conflict.conflict_details.local_price}<br />
+                  {t('syncConflict.remotePrice')} ${conflict.conflict_details.remote_price}
                 </p>
               </div>
             )}
@@ -69,20 +71,20 @@ export const ConflictResolver: React.FC<ConflictResolverProps> = ({ onResolve })
                 onClick={() => handleResolve(conflict, 'local')}
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
-                Usar Cambios Locales
+                {t('syncConflict.useLocal')}
               </button>
               <button
                 onClick={() => handleResolve(conflict, 'remote')}
                 className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
               >
-                Usar Cambios Remotos
+                {t('syncConflict.useRemote')}
               </button>
               {conflict.table === 'products' && (
                 <button
                   onClick={() => handleResolve(conflict, 'merge')}
                   className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
                 >
-                  Mantener Precio Más Alto
+                  {t('syncConflict.keepHigherPrice')}
                 </button>
               )}
             </div>
@@ -94,7 +96,7 @@ export const ConflictResolver: React.FC<ConflictResolverProps> = ({ onResolve })
             onClick={() => setConflicts([])}
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
           >
-            Resolver Más Tarde
+            {t('syncConflict.resolveLater')}
           </button>
         </div>
       </div>

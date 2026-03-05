@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getSyncManager } from '@/lib/syncManager'
 import { ConflictInfo } from '@/lib/offlineStore'
 
@@ -16,6 +17,7 @@ interface ConflictResolverProps {
 }
 
 export default function ConflictResolver({ onConflictResolved }: ConflictResolverProps) {
+  const { t } = useTranslation('common')
   const [conflicts, setConflicts] = useState<ConflictInfo[]>([])
   const [selectedIdx, setSelectedIdx] = useState<number>(-1)
   const [resolving, setResolving] = useState(false)
@@ -57,7 +59,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
         choice === 'remote' ? conflict.remote : undefined
       )
 
-      setMessage(`✅ Conflicto resuelto (usando ${choice === 'local' ? 'cambios locales' : 'versión servidor'})`)
+      setMessage(`✅ ${t('conflictResolver.resolved', { source: choice === 'local' ? t('conflictResolver.localChanges') : t('conflictResolver.serverVersion') })}`)
 
       // Remove from list
       setTimeout(() => {
@@ -68,7 +70,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
       }, 1500)
     } catch (error) {
       console.error('Failed to resolve conflict:', error)
-      setMessage('❌ Error al resolver conflicto. Intenta de nuevo.')
+      setMessage(`❌ ${t('conflictResolver.resolveError')}`)
     } finally {
       setResolving(false)
     }
@@ -116,10 +118,10 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
           <h2 style={{ margin: '0 0 0.5rem', color: '#e74c3c', fontSize: '1.5rem' }}>
-            ⚠️ Conflictos de Sincronización
+            ⚠️ {t('conflictResolver.title')}
           </h2>
           <p style={{ margin: 0, color: '#666', fontSize: '0.95rem' }}>
-            {conflicts.length} conflicto(s) detectado(s). Elige qué versión mantener.
+            {t('conflictResolver.detected', { count: conflicts.length })}
           </p>
         </div>
 
@@ -180,7 +182,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
                   marginBottom: '1rem',
                   fontSize: '0.9rem'
                 }}>
-                  <strong>Campos en conflicto:</strong> {getDiffFields(selected.local, selected.remote).join(', ')}
+                  <strong>{t('conflictResolver.conflictingFields')}</strong> {getDiffFields(selected.local, selected.remote).join(', ')}
                 </div>
               )}
 
@@ -204,7 +206,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
                     fontSize: '0.95rem',
                     fontWeight: 600
                   }}>
-                    📱 Cambios Locales (v{selected.localVersion})
+                    📱 {t('conflictResolver.localChangesVersion', { version: selected.localVersion })}
                   </h4>
                   <pre style={{
                     margin: 0,
@@ -234,7 +236,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
                     fontSize: '0.95rem',
                     fontWeight: 600
                   }}>
-                    🌐 Versión Servidor (v{selected.remoteVersion})
+                    🌐 {t('conflictResolver.serverVersionLabel', { version: selected.remoteVersion })}
                   </h4>
                   <pre style={{
                     margin: 0,
@@ -289,7 +291,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
                     transition: 'opacity 0.2s'
                   }}
                 >
-                  ✅ Usar Locales
+                  ✅ {t('conflictResolver.useLocal')}
                 </button>
 
                 <button
@@ -308,7 +310,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
                     transition: 'opacity 0.2s'
                   }}
                 >
-                  ✅ Usar Servidor
+                  ✅ {t('conflictResolver.useServer')}
                 </button>
 
                 <button
@@ -326,7 +328,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
                     transition: 'opacity 0.2s'
                   }}
                 >
-                  Atrás
+                  {t('conflictResolver.back')}
                 </button>
               </div>
             </div>

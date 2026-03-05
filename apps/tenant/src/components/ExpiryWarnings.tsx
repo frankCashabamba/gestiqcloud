@@ -5,6 +5,7 @@
  * Only visible if features.inventory_expiry_tracking === true
  */
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
 import { apiFetch } from '../lib/http'
 

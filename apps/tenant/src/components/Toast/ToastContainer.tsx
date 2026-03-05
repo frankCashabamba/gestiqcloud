@@ -2,6 +2,7 @@
  * ToastContainer - Renderiza los toasts en la esquina inferior derecha
  */
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from './useToast'
 import './toast-styles.css'
 
@@ -13,6 +14,7 @@ const ICONS = {
 }
 
 export function ToastContainer() {
+  const { t } = useTranslation('common')
   const { toasts, dismiss } = useToast()
 
   return (
@@ -44,7 +46,7 @@ export function ToastContainer() {
           <button
             className="toast__close"
             onClick={() => dismiss(toast.id)}
-            aria-label="Cerrar notificación"
+            aria-label={t('toast.closeAriaLabel')}
           >
             ✕
           </button>

@@ -38,7 +38,7 @@ export default function Dashboard() {
             return (
               <Link key={m.id} to={to} style={{ display: 'block', padding: 16, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)', textDecoration: 'none', color: 'inherit' }}>
                 <div style={{ fontWeight: 600 }}>{m.name}</div>
-                <div style={{ color: 'var(--color-muted)', fontSize: 13 }}>{m.categoria || 'Module'}</div>
+                <div style={{ color: 'var(--color-muted)', fontSize: 13 }}>{m.categoria || t('dashboard.moduleFallback')}</div>
               </Link>
             )
           })}

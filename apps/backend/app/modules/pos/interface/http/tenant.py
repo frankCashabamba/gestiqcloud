@@ -49,27 +49,27 @@ def _get_tenant_id(request: Request) -> UUID:
     """Obtiene tenant_id como UUID (evita casts en SQL)."""
     claims = getattr(request.state, "access_claims", {}) or {}
     if not isinstance(claims, dict):
-        raise HTTPException(status_code=401, detail="Claims inv?lidos")
+        raise HTTPException(status_code=401, detail="invalid_claims")
 
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
-        raise HTTPException(status_code=401, detail="Tenant ID no encontrado")
+        raise HTTPException(status_code=401, detail="tenant_id_not_found")
 
     try:
         return UUID(str(tenant_id))
     except Exception:
-        raise HTTPException(status_code=401, detail="Tenant ID inv?lido")
+        raise HTTPException(status_code=401, detail="invalid_tenant_id")
 
 
 def _get_user_id(request: Request) -> UUID:
     """Obtiene user_id como UUID desde los claims (sin casts en SQL)."""
     claims = getattr(request.state, "access_claims", {}) or {}
     if not isinstance(claims, dict):
-        raise HTTPException(status_code=401, detail="Claims invÃ¡lidos")
+        raise HTTPException(status_code=401, detail="invalid_claims")
 
     user_id = claims.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+        raise HTTPException(status_code=401, detail="user_not_authenticated")
 
     try:
         return UUID(str(user_id))
