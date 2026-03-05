@@ -74,5 +74,59 @@
     "saved": "Branding guardado",
     "save": "Guardar",
     "saving": "Guardando..."
+  },
+  "advanced": {
+    "inventory": "Inventario",
+    "minForInvoice": "Minimo para exigir factura",
+    "selectProduct": "Seleccionar Producto",
+    "mustSelectProduct": "Debes seleccionar un producto",
+    "product": "Producto",
+    "quantity": "Cantidad",
+    "price": "Precio",
+    "name": "Nombre"
+  },
+  "modules": {
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "emptyCategory": "No hay módulos en esta categoría",
+    "clickToConfig": "Haz clic en cualquier tarjeta para configurar el módulo"
+  },
+  "moduleConfig": {
+    "priceIncludesTax": "Precio incluye impuestos",
+    "autoPrint": "Imprimir automáticamente",
+    "includeLogo": "Incluir logo en facturas",
+    "autoAssignCustomers": "Asignación automática de clientes",
+    "autoCreateOrder": "Crear orden automáticamente",
+    "noConfig": "No hay configuraciones disponibles para este módulo"
+  },
+  "notifications": {
+    "provider": "Proveedor"
+  },
+  "nav": {
+    "operative": "Operativo",
+    "operativeDesc": "POS e inventario"
+  },
+  "fiscal": {
+    "title": "Configuración Fiscal",
+    "regime": "Régimen",
+    "ivaPercent": "IVA (%)",
+    "ivaError": "IVA debe ser >= 0",
+    "saved": "Configuración fiscal guardada",
+    "save": "Guardar"
+  },
+  "schedule": {
+    "title": "Horarios",
+    "opening": "Apertura",
+    "closing": "Cierre",
+    "required": "Apertura y cierre son requeridos",
+    "saved": "Horarios guardados",
+    "save": "Guardar"
+  },
+  "limits": {
+    "title": "Límites",
+    "maxUsers": "Usuarios máximos",
+    "maxUsersError": "Usuarios máximos debe ser >= 1",
+    "saved": "Límites guardados",
+    "save": "Guardar"
   }
 }

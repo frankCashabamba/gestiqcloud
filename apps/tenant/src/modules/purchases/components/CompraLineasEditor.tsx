@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import type { CompraLinea } from '../services'
 
 type Props = {
@@ -7,6 +8,7 @@ type Props = {
 }
 
 export default function CompraLineasEditor({ lineas, onChange }: Props) {
+  const { t } = useTranslation(['purchases', 'common'])
   const addLinea = () => {
     onChange([
       ...lineas,
@@ -35,13 +37,13 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
-        <label className="font-medium">Purchase Lines</label>
+        <label className="font-medium">{t('purchases:lines.label')}</label>
         <button
           type="button"
           onClick={addLinea}
           className="bg-green-600 text-white px-3 py-1 rounded text-sm"
         >
-          + Add Line
+          {t('purchases:lines.addLine')}
         </button>
       </div>
 
@@ -49,10 +51,10 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-2 py-2">Product</th>
-              <th className="text-left px-2 py-2">Quantity</th>
-              <th className="text-left px-2 py-2">Unit Price</th>
-              <th className="text-left px-2 py-2">Subtotal</th>
+              <th className="text-left px-2 py-2">{t('purchases:lines.product')}</th>
+              <th className="text-left px-2 py-2">{t('purchases:lines.quantity')}</th>
+              <th className="text-left px-2 py-2">{t('purchases:lines.unitPrice')}</th>
+              <th className="text-left px-2 py-2">{t('purchases:lines.subtotal')}</th>
               <th className="px-2 py-2"></th>
             </tr>
           </thead>
@@ -62,7 +64,7 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
                 <td className="px-2 py-2">
                   <input
                     type="text"
-                    placeholder="Product ID or name"
+                    placeholder={t('purchases:lines.productPlaceholder')}
                     value={linea.producto_id}
                     onChange={(e) => updateLinea(idx, 'producto_id', e.target.value)}
                     className="border px-2 py-1 rounded w-full"
@@ -100,7 +102,7 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
                     onClick={() => removeLinea(idx)}
                     className="text-red-600 hover:underline"
                   >
-                    Remove
+                    {t('purchases:lines.remove')}
                   </button>
                 </td>
               </tr>
@@ -108,7 +110,7 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
             {lineas.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-2 py-4 text-center text-gray-500">
-                  No lines. Add at least one.
+                  {t('purchases:lines.emptyLines')}
                 </td>
               </tr>
             )}

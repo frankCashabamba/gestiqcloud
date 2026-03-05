@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createMovimientoCaja, type Movimiento } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
@@ -7,6 +8,7 @@ import { apiFetch } from '../../lib/http'
 type FieldCfg = { field: string; visible?: boolean; required?: boolean; ord?: number | null; label?: string | null; help?: string | null }
 
 export default function CajaForm() {
+    const { t } = useTranslation(['finances', 'common'])
     const { id, empresa } = useParams()
     const nav = useNavigate()
     const [form, setForm] = useState<Partial<Omit<Movimiento, 'id'>>>({
@@ -43,12 +45,12 @@ export default function CajaForm() {
 
     const fieldList = useMemo(() => {
         const base: FieldCfg[] = [
-            { field: 'fecha', visible: true, required: true, ord: 10, label: 'Date' },
-            { field: 'tipo', visible: true, required: true, ord: 20, label: 'Type' },
-            { field: 'concepto', visible: true, required: true, ord: 30, label: 'Concept' },
-            { field: 'monto', visible: true, required: true, ord: 40, label: 'Amount' },
-            { field: 'referencia', visible: true, required: false, ord: 50, label: 'Reference' },
-            { field: 'categoria', visible: true, required: false, ord: 60, label: 'Category' }
+            { field: 'fecha', visible: true, required: true, ord: 10, label: t('finances:cashForm.date') },
+            { field: 'tipo', visible: true, required: true, ord: 20, label: t('finances:cashForm.type') },
+            { field: 'concepto', visible: true, required: true, ord: 30, label: t('finances:cashForm.concept') },
+            { field: 'monto', visible: true, required: true, ord: 40, label: t('finances:cashForm.amount') },
+            { field: 'referencia', visible: true, required: false, ord: 50, label: t('finances:cashForm.reference') },
+            { field: 'categoria', visible: true, required: false, ord: 60, label: t('finances:cashForm.category') }
         ]
 
         const map = new Map(base.map((cfg) => [cfg.field, cfg]))
@@ -62,7 +64,7 @@ export default function CajaForm() {
         })
 
         return Array.from(map.values()).sort((a, b) => (a.ord || 999) - (b.ord || 999))
-    }, [fields])
+    }, [fields, t])
 
     const onSubmit: React.FormEventHandler = async (e) => {
         e.preventDefault()
@@ -71,14 +73,14 @@ export default function CajaForm() {
                 if (f.required && f.visible !== false) {
                     const val = (form as any)[f.field]
                     if (val === undefined || val === null || String(val).trim() === '') {
-                        throw new Error(`The field "${f.label || f.field}" is required`)
+                        throw new Error(t('finances:cashForm.fieldRequired', { field: f.label || f.field }))
                     }
                 }
             }
             // TODO: Implementar update cuando esté disponible
             // if (id) await updateMovimientoCaja(id, form as any)
             await createMovimientoCaja(form as any)
-            success('Cash transaction saved')
+            success(t('finances:cashForm.saved'))
             nav('..')
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -93,9 +95,9 @@ export default function CajaForm() {
 
     return (
         <div className="p-4">
-            <h3 className="text-xl font-semibold mb-3">{id ? 'Edit cash transaction' : 'New cash transaction'}</h3>
+            <h3 className="text-xl font-semibold mb-3">{id ? t('finances:cashForm.editTitle') : t('finances:cashForm.newTitle')}</h3>
             <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
-                {loadingCfg && <div className="text-sm text-gray-500">Loading fields…</div>}
+                {loadingCfg && <div className="text-sm text-gray-500">{t('finances:cashForm.loadingFields')}</div>}
                 {fieldList.map((f) => {
                     const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
                     const type = getInputType(f.field)
@@ -111,8 +113,8 @@ export default function CajaForm() {
                                     className="border px-2 py-1 w-full rounded"
                                     required={!!f.required}
                                 >
-                                    <option value="ingreso">Income</option>
-                                    <option value="egreso">Expense</option>
+                                    <option value="ingreso">{t('finances:cashForm.income')}</option>
+                                    <option value="egreso">{t('finances:cashForm.expense')}</option>
                                 </select>
                             </div>
                         )
@@ -134,8 +136,8 @@ export default function CajaForm() {
                     )
                 })}
                 <div className="pt-2">
-                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Save</button>
-                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>Cancel</button>
+                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('finances:cashForm.save')}</button>
+                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>{t('finances:cashForm.cancel')}</button>
                 </div>
             </form>
         </div>

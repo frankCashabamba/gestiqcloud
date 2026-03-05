@@ -113,7 +113,8 @@
     "maxFilesPerBatch": "Max. 10 archivos por lote",
     "tipAutoDetectDocType": "Detectamos tipo de documento automaticamente.",
     "tipApplyTemplatePerBatch": "Aplica plantillas de mapeo al crear cada lote.",
-    "tipReviewRowsBeforeSave": "Cada archivo genera un bloque de filas que puedes revisar antes de guardar."
+    "tipReviewRowsBeforeSave": "Cada archivo genera un bloque de filas que puedes revisar antes de guardar.",
+    "error": "Error al subir"
   },
   "queue": {
     "title": "Cola de documentos",
@@ -125,7 +126,9 @@
     "typeLabel": "Tipo: {{type}}",
     "templateLabel": "Plantilla:",
     "analyzingDocument": "Analizando documento...",
-    "savingData": "Guardando datos..."
+    "savingData": "Guardando datos...",
+    "errorProcessing": "Error al procesar el archivo",
+    "errorSaving": "Error al guardar"
   },
   "previewTable": {
     "showingRows": "Mostrando {{shown}} de {{total}} filas procesadas"
@@ -404,5 +407,84 @@
     "send": "Enviar",
     "submitError": "Error al enviar feedback",
     "unknownError": "Error desconocido"
+  },
+  "aiProvider": {
+    "selectDescription": "Selecciona el proveedor de clasificación automática",
+    "saved": "✓ Guardado",
+    "saveConfig": "Guardar Configuración"
+  },
+  "telemetry": {
+    "noData": "No hay datos de telemetría disponibles",
+    "totalCost": "Costo total",
+    "breakdownByProvider": "Desglose por proveedor"
+  },
+  "analysis": {
+    "processing": "⏳ Procesando...",
+    "confirm": "✓ Confirmar"
+  },
+  "mapping": {
+    "errorSaving": "No se pudo guardar el mapping",
+    "cancel": "Cancelar",
+    "saving": "Guardando...",
+    "saveAndUse": "Guardar mapping y usar"
+  },
+  "barcode": {
+    "noSavedConfigs": "No hay configuraciones guardadas",
+    "generating": "Generando...",
+    "printNow": "Imprimir ahora",
+    "textBelowPrice": "Texto que aparece debajo del precio"
+  },
+  "templates": {
+    "noFieldsConfigured": "No hay campos configurados para este tipo"
+  },
+  "imported": {
+    "pendingRecords": "{{count}} registro(s) en pendientes"
+  },
+  "settings": {
+    "aiProviderTitle": "Proveedor de clasificación IA",
+    "saving": "Guardando...",
+    "saveAliases": "Guardar aliases",
+    "products": "Productos",
+    "errorSeedingAliases": "Error al inicializar aliases",
+    "aliasesDbStatus": "Estado de Aliases en Base de Datos",
+    "configured": "Configurado",
+    "notConfigured": "Sin configurar"
+  },
+  "preview": {
+    "saveAs": "Guardar como",
+    "purchaseInvoice": "Factura de compra",
+    "bankMovement": "Movimiento bancario",
+    "ingredientsCost": "Costo ingredientes",
+    "importPreview": "Vista previa de importación",
+    "productsDetected": "{{total}} productos detectados • {{categories}} categorías",
+    "totalProducts": "Total Productos",
+    "valid": "Válidos ✓",
+    "withErrors": "Con Errores",
+    "categories": "Categorías",
+    "detectedCategories": "Categorías Detectadas",
+    "columnMapping": "Mapeo de Columnas",
+    "hide": "Ocultar",
+    "editMapping": "Editar Mapeo",
+    "optIgnore": "Ignorar",
+    "optName": "Nombre",
+    "optPrice": "Precio",
+    "optQuantity": "Cantidad",
+    "optCategory": "Categoría",
+    "optSku": "SKU/Código",
+    "optCost": "Costo",
+    "first10Products": "Primeros 10 Productos",
+    "status": "Estado",
+    "productsWithErrors": "{{count}} producto(s) con errores",
+    "errorsHint": "Estos productos no se importarán hasta que corrijas los errores. Puedes continuar con los {{valid}} válidos.",
+    "cancel": "Cancelar",
+    "importing": "Importando...",
+    "importProducts": "Importar {{count}} Productos →"
+  },
+  "docTypeLabels": {
+    "invoices": "Facturas / Ventas",
+    "products": "Productos",
+    "bankTransactions": "Transacciones Bancarias",
+    "expenses": "Gastos",
+    "generic": "Genérico"
   }
 }

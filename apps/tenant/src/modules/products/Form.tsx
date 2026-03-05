@@ -239,7 +239,7 @@ export default function ProductoForm() {
 
             // Validación de precio
             if (form.price !== undefined && form.price < 0) {
-                throw new Error('El precio no puede ser negativo')
+                throw new Error(t('products:form.priceNegativeError'))
             }
 
             const metadata = { ...(((form.product_metadata ?? {}) as Record<string, unknown>) ?? {}) }
@@ -261,7 +261,7 @@ export default function ProductoForm() {
             if (id) await updateProducto(id, payload)
             else await createProducto(payload)
 
-            success('Producto guardado')
+            success(t('products:form.saved'))
             nav('..')
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -290,7 +290,7 @@ export default function ProductoForm() {
                         value={value}
                         onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
                         className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder={f.help || 'Código del producto'}
+                        placeholder={f.help || t('products:form.codePlaceholder')}
                     />
                     <button
                         type="button"
@@ -406,9 +406,9 @@ export default function ProductoForm() {
     return (
         <div className="p-6 max-w-4xl mx-auto">
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">{id ? 'Editar producto' : 'Nuevo producto'}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{id ? t('products:form.editProduct') : t('products:form.newProduct')}</h1>
                 <p className="mt-1 text-sm text-gray-500">
-                    {id ? 'Modifica los datos del producto' : 'Completa el formulario para registrar un nuevo producto'}
+                    {id ? t('products:form.editDescription') : t('products:form.newDescription')}
                 </p>
             </div>
 

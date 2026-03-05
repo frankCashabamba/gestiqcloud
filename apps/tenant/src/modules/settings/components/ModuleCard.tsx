@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface ModuleCardProps {
   module: {
@@ -22,6 +23,7 @@ const badgeColors = {
 }
 
 export default function ModuleCard({ module, onToggle, onClick, disabled = false }: ModuleCardProps) {
+  const { t } = useTranslation(['settings', 'common'])
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (disabled) return
@@ -50,7 +52,7 @@ export default function ModuleCard({ module, onToggle, onClick, disabled = false
             module.enabled ? badgeColors.on : badgeColors.off
           }`}
         >
-          {module.enabled ? 'Activo' : 'Inactivo'}
+          {module.enabled ? t('settings:modules.active') : t('settings:modules.inactive')}
         </span>
       </div>
 

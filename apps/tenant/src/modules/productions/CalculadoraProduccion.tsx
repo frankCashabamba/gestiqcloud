@@ -1,8 +1,9 @@
-﻿/**
+/**
  * CalculadoraProduccion - Calculadora de materiales para producción
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   TextField, Typography, Box, Table, TableBody, TableCell,
@@ -17,6 +18,7 @@ interface CalculadoraProduccionProps {
 }
 
 export default function CalculadoraProduccion({ open, recipe, onClose }: CalculadoraProduccionProps) {
+  const { t } = useTranslation(['productions', 'common']);
   const [qtyToProduce, setQtyToProduce] = useState<number>(recipe.yield_qty);
   const [workers, setWorkers] = useState<number>(1);
   const [loading, setLoading] = useState(false);
@@ -36,7 +38,7 @@ export default function CalculadoraProduccion({ open, recipe, onClose }: Calcula
       const data = await calculateProduction(recipe.id, qtyToProduce, workers);
       setResult(data);
     } catch (err: any) {
-      setError(err.message || 'Error al calcular');
+      setError(err.message || t('productions:calculator.errorCalculating'));
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,7 @@ export default function CalculadoraProduccion({ open, recipe, onClose }: Calcula
             <TextField
               fullWidth
               type="number"
-              label="Cantidad a Producir"
+              label={t('productions:calculator.qtyToProduce')}
               value={qtyToProduce}
               onChange={(e) => setQtyToProduce(Number(e.target.value))}
               inputProps={{ min: 1 }}
@@ -183,7 +185,7 @@ export default function CalculadoraProduccion({ open, recipe, onClose }: Calcula
                   {/* Total */}
                   <TableRow>
                     <TableCell colSpan={4} align="right">
-                      <strong>TOTAL</strong>
+                      <strong>{t('productions:calculator.total')}</strong>
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="h6" color="primary">
@@ -199,7 +201,7 @@ export default function CalculadoraProduccion({ open, recipe, onClose }: Calcula
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cerrar</Button>
+        <Button onClick={onClose}>{t('productions:calculator.close')}</Button>
         {result && (
           <Button variant="contained" onClick={() => alert('Crear Orden de Compra')}>
             Crear Orden de Compra

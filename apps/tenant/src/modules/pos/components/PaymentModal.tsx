@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { payReceipt, redeemStoreCredit, createPaymentLink, type CheckoutResponse } from '../services'
 import { createMovimientoCaja } from '../../finances/services'
 import { listWarehouses, type Warehouse } from '../../inventory/services'
@@ -22,6 +23,7 @@ export default function PaymentModal({
   onCancel,
   warehouseId,
 }: PaymentModalProps) {
+  const { t } = useTranslation(['pos', 'common'])
   const { symbol: currencySymbol, currency } = useCurrency()
   const toast = useToast()
 
@@ -94,7 +96,7 @@ export default function PaymentModal({
   const handlePay = async () => {
     if (loading) return
     if (hasWarehouseSelectionIssue()) {
-      toast.warning('Selecciona un almacén para registrar el movimiento de stock.')
+      toast.warning(t('pos:payment.selectWarehouseWarning'))
       return
     }
 
@@ -107,7 +109,7 @@ export default function PaymentModal({
         const card = Math.max(0, toNumber(splitCardAmount))
         const paid = cash + card
         if (paid < totalAmount) {
-          toast.error('El pago dividido no cubre el total.')
+          toast.error(t('pos:payment.splitNotEnough'))
           setLoading(false)
           return
         }
@@ -120,12 +122,12 @@ export default function PaymentModal({
       } else if (paymentMethod === 'cash') {
         const paid = toNumber(cashAmount)
         if (paid <= 0) {
-          toast.error('Ingresa el importe recibido.')
+          toast.error(t('pos:payment.enterAmount'))
           setLoading(false)
           return
         }
         if (paid < totalAmount) {
-          toast.error('El importe recibido es menor al total.')
+          toast.error(t('pos:payment.amountLessThanTotal'))
           setLoading(false)
           return
         }
@@ -141,7 +143,7 @@ export default function PaymentModal({
         })
       } else if (paymentMethod === 'store_credit') {
         if (!selectedStoreCredit && !storeCreditCode.trim()) {
-          toast.warning('Selecciona un vale o ingresa un código.')
+          toast.warning(t('pos:payment.selectCreditOrCode'))
           setLoading(false)
           return
         }
@@ -162,7 +164,7 @@ export default function PaymentModal({
         })
         setPaymentLink(result.url)
         setShowQR(true)
-        toast.success('Enlace de pago generado.')
+        toast.success(t('pos:payment.linkGenerated'))
         setLoading(false)
         return
       }
@@ -190,7 +192,7 @@ export default function PaymentModal({
 
       onSuccess(payments, response)
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || 'Error al procesar pago')
+      toast.error(error?.response?.data?.detail || t('pos:payment.errorProcessing'))
     } finally {
       setLoading(false)
     }
@@ -208,10 +210,10 @@ export default function PaymentModal({
         className="pos-modal-card lg"
         style={{ background: '#f8fafc', border: '1px solid #cbd5e1', boxShadow: '0 24px 60px rgba(2, 6, 23, 0.28)' }}
       >
-        <h2 className="text-2xl font-bold mb-4" style={{ color: '#0f172a' }}>Cobrar</h2>
+        <h2 className="text-2xl font-bold mb-4" style={{ color: '#0f172a' }}>{t('pos:payment.charge')}</h2>
 
         <div className="mb-4 p-4 rounded" style={{ background: '#e2e8f0', border: '1px solid #cbd5e1' }}>
-          <p className="text-sm" style={{ color: '#334155' }}>Total</p>
+          <p className="text-sm" style={{ color: '#334155' }}>{t('pos:payment.total')}</p>
           <p className="text-3xl font-bold" style={{ color: '#0f172a' }}>
             {currencySymbol}
             {totalAmount.toFixed(2)}
@@ -219,22 +221,22 @@ export default function PaymentModal({
         </div>
 
         <div className="mb-4 grid grid-cols-3 gap-2">
-          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('cash') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'cash' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Efectivo</button>
-          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('card') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'card' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Tarjeta</button>
-          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('transfer') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'transfer' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Transferencia</button>
-          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('store_credit') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'store_credit' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Vale</button>
-          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('link') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'link' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Link</button>
-          <button onClick={() => setSplitEnabled((v) => !v)} className={`p-3 border-2 rounded font-semibold ${splitEnabled ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>Dividido</button>
+          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('cash') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'cash' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.cash')}</button>
+          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('card') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'card' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.cardMethod')}</button>
+          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('transfer') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'transfer' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.transfer')}</button>
+          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('store_credit') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'store_credit' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.creditVoucher')}</button>
+          <button onClick={() => { setSplitEnabled(false); setPaymentMethod('link') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'link' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.link')}</button>
+          <button onClick={() => setSplitEnabled((v) => !v)} className={`p-3 border-2 rounded font-semibold ${splitEnabled ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.split')}</button>
         </div>
 
         {splitEnabled && (
           <div className="mb-4 grid grid-cols-2 gap-3">
             <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: '#1e293b' }}>Efectivo</label>
+            <label className="block text-sm font-medium mb-1" style={{ color: '#1e293b' }}>{t('pos:payment.cash')}</label>
             <input type="text" inputMode="decimal" value={splitCashAmount} onChange={(e) => setSplitCashAmount(e.target.value)} className="w-full px-3 py-2 border rounded" />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: '#1e293b' }}>Tarjeta</label>
+            <label className="block text-sm font-medium mb-1" style={{ color: '#1e293b' }}>{t('pos:payment.cardMethod')}</label>
             <input type="text" inputMode="decimal" value={splitCardAmount} onChange={(e) => setSplitCardAmount(e.target.value)} className="w-full px-3 py-2 border rounded" />
           </div>
         </div>
@@ -242,21 +244,21 @@ export default function PaymentModal({
 
         {!splitEnabled && paymentMethod === 'cash' && (
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2" style={{ color: '#1e293b' }}>Recibido ({currencySymbol})</label>
+            <label className="block text-sm font-medium mb-2" style={{ color: '#1e293b' }}>{t('pos:payment.received')} ({currencySymbol})</label>
             <input type="text" inputMode="decimal" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} className="w-full px-3 py-2 border rounded text-xl text-center font-bold text-slate-900" autoFocus />
           </div>
         )}
 
         {!splitEnabled && paymentMethod === 'transfer' && (
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Referencia (opcional)</label>
+            <label className="block text-sm font-medium mb-2">{t('pos:payment.refOptional')}</label>
             <input type="text" value={transferRef} onChange={(e) => setTransferRef(e.target.value)} className="w-full px-3 py-2 border rounded" />
           </div>
         )}
 
         {!splitEnabled && paymentMethod === 'store_credit' && (
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Vale de descuento</label>
+            <label className="block text-sm font-medium mb-2">{t('pos:payment.storeCredit')}</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
@@ -265,16 +267,16 @@ export default function PaymentModal({
                 className="flex-1 px-3 py-2 border rounded uppercase"
                 placeholder="XXXX-XXXX-XXXX"
               />
-              <button onClick={() => setShowStoreCreditsModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Buscar</button>
+              <button onClick={() => setShowStoreCreditsModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">{t('pos:payment.search')}</button>
             </div>
           </div>
         )}
 
         {!warehouseId && warehouses.length > 1 && (
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Almacén</label>
+            <label className="block text-sm font-medium mb-2">{t('pos:payment.warehouse')}</label>
             <select value={selectedWarehouse || ''} onChange={(e) => setSelectedWarehouse(e.target.value || null)} className="w-full px-3 py-2 border rounded">
-              <option value="">Selecciona un almacén…</option>
+              <option value="">{t('pos:payment.selectWarehouse')}</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
               ))}
@@ -284,33 +286,33 @@ export default function PaymentModal({
 
         {change > 0 && (
           <p className="mb-3 font-bold text-lg" style={{ color: '#15803d' }}>
-            Cambio: {currencySymbol}
+            {t('pos:payment.change')}: {currencySymbol}
             {change.toFixed(2)}
           </p>
         )}
 
         <div className="pos-modal-actions" style={{ justifyContent: 'stretch' }}>
           <button onClick={handlePay} disabled={loading} className="pos-modal-btn primary" style={{ flex: 1, minWidth: 220, height: 44 }}>
-            {loading ? 'Procesando...' : 'Confirmar e imprimir'}
+            {loading ? t('pos:payment.processing') : t('pos:payment.confirmAndPrint')}
           </button>
           <button onClick={onCancel} disabled={loading} className="pos-modal-btn" style={{ minWidth: 120, height: 44 }}>
-            Cancelar
+            {t('pos:payment.cancel')}
           </button>
         </div>
 
         {showQR && paymentLink && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
-            <p className="text-sm font-medium mb-2">Enlace de pago</p>
+            <p className="text-sm font-medium mb-2">{t('pos:payment.paymentLink')}</p>
             <div className="flex items-center gap-2">
               <input type="text" value={paymentLink} readOnly className="flex-1 px-3 py-2 bg-white border rounded text-sm" />
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(paymentLink)
-                  toast.success('Enlace copiado')
+                  toast.success(t('pos:payment.linkCopied'))
                 }}
                 className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
-                Copiar
+                {t('pos:payment.copyLink')}
               </button>
             </div>
           </div>

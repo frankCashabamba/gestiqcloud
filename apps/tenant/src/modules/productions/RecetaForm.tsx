@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Grid, Box, Typography, IconButton,
@@ -33,6 +34,7 @@ const normalizeRecipeUnit = (unit?: string | null): string => {
 };
 
 export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
+  const { t } = useTranslation(['productions', 'common']);
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,12 +157,12 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
           'g': { qty: 1000, desc: 'Bolsa 1 kg' },
           'oz': { qty: 16, desc: 'Libra (16 oz)' },
           'L': { qty: 20, desc: 'Bidón 20 L' },
-          'unit': { qty: 24, desc: 'Caja 24 unidades' },
-          'unidades': { qty: 24, desc: 'Caja 24 unidades' }
+          'unit': { qty: 24, desc: t('productions:recipeForm.box24Units') },
+          'unidades': { qty: 24, desc: t('productions:recipeForm.box24Units') }
         };
 
         const unit = normalizeRecipeUnit(producto.unit);
-        const defaultPres = defaultPresentaciones[unit] || { qty: 1, desc: 'Unidad' };
+        const defaultPres = defaultPresentaciones[unit] || { qty: 1, desc: t('productions:recipeForm.unit') };
 
         updated[index].qty_per_package = defaultPres.qty;
         updated[index].purchase_packaging = defaultPres.desc;
@@ -241,7 +243,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <form onSubmit={handleSubmit}>
         <DialogTitle>
-          {recipe ? 'Editar Receta' : 'Nueva Receta'}
+          {recipe ? t('productions:recipeForm.editRecipe') : t('productions:recipeForm.newRecipe')}
         </DialogTitle>
 
         <DialogContent dividers>
@@ -256,7 +258,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Nombre de Receta"
+                label={t('productions:recipeForm.recipeName')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -270,7 +272,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 value={products.find(p => p.id === productId) || null}
                 onChange={(_, val) => setProductId(val?.id || null)}
                 renderInput={(params) => (
-                  <TextField {...params} label="Producto Final" required />
+                  <TextField {...params} label={t('productions:recipeForm.finalProduct')} required />
                 )}
               />
             </Grid>
@@ -371,7 +373,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 value={Math.max((prepTimeMinutes || 0) - (touchMinutesStandard || 0), 0) || ''}
                 InputProps={{ readOnly: true }}
                 inputProps={{ min: 0 }}
-                helperText="Auto: tiempo total − trabajo activo"
+                helperText={t('productions:recipeForm.autoHelperText')}
               />
             </Grid>
 
@@ -400,7 +402,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
               <TextField
                 fullWidth
                 type="number"
-                label="Unidades por bandeja"
+                label={t('productions:recipeForm.unitsPerTray')}
                 value={unitsPerTray ?? ''}
                 onChange={(e) => setUnitsPerTray(e.target.value ? Number(e.target.value) : null)}
                 inputProps={{ min: 0 }}
@@ -453,7 +455,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                   <TextField
                     size="small"
                     fullWidth
-                    label="Unidad"
+                    label={t('productions:recipeForm.unit')}
                     value={ing.unit}
                     onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
                   />

@@ -44,6 +44,17 @@
     "saving": "Guardando...",
     "cancel": "Cancelar"
   },
+  "lines": {
+    "label": "Líneas de Compra",
+    "addLine": "+ Agregar Línea",
+    "product": "Producto",
+    "quantity": "Cantidad",
+    "unitPrice": "Precio Unitario",
+    "subtotal": "Subtotal",
+    "productPlaceholder": "ID o nombre del producto",
+    "remove": "Quitar",
+    "emptyLines": "Sin líneas. Agrega al menos una."
+  },
   "detail": {
     "backToList": "← Volver al listado",
     "purchase": "Compra",

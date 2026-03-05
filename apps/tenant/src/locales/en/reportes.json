@@ -52,5 +52,28 @@
       "profit": "Profit",
       "margin": "Margin"
     }
+  },
+  "nav": {
+    "inventory": "Inventory"
+  },
+  "financial": {
+    "selectRange": "Select a date range and press \"Generate\" to view the financial report."
+  },
+  "inventory": {
+    "title": "📦 Inventory Report",
+    "inventory": "Inventory",
+    "totalProducts": "Total Products",
+    "totalValue": "Total Inventory Value"
+  },
+  "dashboard": {
+    "inventory": "Inventory",
+    "margins": "Margins",
+    "name": "Name",
+    "status": "Status"
+  },
+  "sales": {
+    "totalSales": "Total Sales",
+    "totalItems": "Total Items",
+    "selectRange": "Select a date range and press \"Generate\" to view the report."
   }
 }

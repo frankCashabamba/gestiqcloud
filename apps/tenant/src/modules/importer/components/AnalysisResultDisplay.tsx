@@ -12,6 +12,7 @@
  */
 
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { AnalyzeResponse } from '../services/analyzeApi'
 import { AIProviderBadge } from './AIProviderBadge'
 
@@ -28,6 +29,7 @@ export function AnalysisResultDisplay({
   onEdit,
   loading = false,
 }: AnalysisResultDisplayProps) {
+  const { t } = useTranslation(['importer'])
   const confidencePercentage = (analysis.confidence * 100).toFixed(0)
   const isHighConfidence = analysis.confidence >= 0.8
   const isMediumConfidence = analysis.confidence >= 0.6
@@ -188,7 +190,7 @@ export function AnalysisResultDisplay({
                   : 'bg-rose-600 hover:bg-rose-700'
               }`}
             >
-              {loading ? '⏳ Procesando...' : '✓ Confirmar'}
+              {loading ? t('importer:analysis.processing') : t('importer:analysis.confirm')}
             </button>
           )}
         </div>

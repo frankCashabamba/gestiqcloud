@@ -1,5 +1,6 @@
 /** DailyCountsView - Vista simple de cierres de caja */
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { listDailyCounts, listRegisters, getCurrentShift, getShiftSummary } from '../services'
 import { useCurrency } from '../../../hooks/useCurrency'
@@ -32,6 +33,7 @@ interface Register {
 }
 
 export default function DailyCountsView() {
+  const { t } = useTranslation(['pos', 'common'])
   const [searchParams, setSearchParams] = useSearchParams()
   const registerId = searchParams.get('register_id') || undefined
   const cashierId = searchParams.get('cashier_id') || undefined
@@ -87,7 +89,7 @@ export default function DailyCountsView() {
         setOpenSummary(null)
       }
     } catch (err: any) {
-      setError(err.message || 'Error al cargar datos')
+      setError(err.message || t('pos:daily.errorLoading'))
     } finally {
       setLoading(false)
     }
@@ -119,7 +121,7 @@ export default function DailyCountsView() {
   }
 
   if (loading) {
-    return <div className="p-4 text-center">Cargando resumen...</div>
+    return <div className="p-4 text-center">{t('pos:daily.loadingSummary')}</div>
   }
 
   if (error) {
@@ -147,17 +149,17 @@ export default function DailyCountsView() {
     <div className="p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold">Ventas del dia</h2>
-          <p className="text-sm text-gray-500">Resumen simple para caja</p>
+          <h2 className="text-2xl font-bold">{t('pos:daily.dailySales')}</h2>
+          <p className="text-sm text-gray-500">{t('pos:daily.simpleSummary')}</p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium">Caja:</label>
+          <label className="text-sm font-medium">{t('pos:daily.register')}:</label>
           <select
             value={registerId || ''}
             onChange={(e) => handleRegisterChange(e.target.value)}
             className="border rounded px-3 py-2"
           >
-            <option value="">Todas las cajas</option>
+            <option value="">{t('pos:daily.allRegisters')}</option>
             {registers.map((reg) => (
               <option key={reg.id} value={reg.id}>
                 {reg.name}
@@ -166,13 +168,13 @@ export default function DailyCountsView() {
           </select>
           {esAdminEmpresa && cashiers.length > 0 && (
             <>
-              <label className="text-sm font-medium">Cajero:</label>
+              <label className="text-sm font-medium">{t('pos:daily.cashier')}:</label>
               <select
                 value={cashierId || ''}
                 onChange={(e) => handleCashierChange(e.target.value)}
                 className="border rounded px-3 py-2"
               >
-                <option value="">Todos</option>
+                <option value="">{t('pos:daily.all')}</option>
                 {cashiers.map((u) => (
                   <option key={u.id} value={u.id}>
                     {formatCashierLabel(u)}
@@ -186,18 +188,18 @@ export default function DailyCountsView() {
 
       {!latest && !openSummary ? (
         <div className="bg-white border rounded-lg p-6 text-gray-600">
-          No hay cierres de caja aun. Cierra un turno para ver el resumen del dia.
+          {t('pos:daily.noClosings')}
         </div>
       ) : (
         <>
           <div className="bg-white border rounded-lg p-6 mb-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
               <div className="text-lg font-semibold">
-                {openShift ? 'Turno abierto' : 'Hoy'}
+                {openShift ? t('pos:daily.openShift') : t('pos:daily.today')}
               </div>
               <div className="text-sm text-gray-500">
                 {openShift
-                  ? `Caja ${registerName || openShift.register_id.slice(0, 6)}`
+                  ? t('pos:daily.registerLabel', { name: registerName || openShift.register_id.slice(0, 6) })
                   : latest
                   ? new Date(latest.count_date).toLocaleDateString()
                   : ''}
@@ -205,37 +207,37 @@ export default function DailyCountsView() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mt-4">
               <div className="border rounded-lg p-4">
-                <div className="text-xs text-gray-500">Total vendido</div>
+                <div className="text-xs text-gray-500">{t('pos:daily.totalSold')}</div>
                 <div className="text-2xl font-semibold">
                   {formatMoney(liveSalesTotal ?? latest?.total_sales ?? 0)}
                 </div>
               </div>
               <div className="border rounded-lg p-4">
-                <div className="text-xs text-gray-500">Efectivo</div>
+                <div className="text-xs text-gray-500">{t('pos:daily.cash')}</div>
                 <div className="text-xl font-semibold">
                   {formatMoney(openSummary ? cashTotal : latest?.cash_sales ?? 0)}
                 </div>
               </div>
               <div className="border rounded-lg p-4">
-                <div className="text-xs text-gray-500">Tarjeta</div>
+                <div className="text-xs text-gray-500">{t('pos:daily.card')}</div>
                 <div className="text-xl font-semibold">
                   {formatMoney(openSummary ? cardTotal : latest?.card_sales ?? 0)}
                 </div>
               </div>
               <div className="border rounded-lg p-4">
-                <div className="text-xs text-gray-500">Otros</div>
+                <div className="text-xs text-gray-500">{t('pos:daily.other')}</div>
                 <div className="text-xl font-semibold">
                   {formatMoney(openSummary ? otherTotal : latest?.other_sales ?? 0)}
                 </div>
               </div>
               <div className="border rounded-lg p-4">
-                <div className="text-xs text-gray-500">Tickets</div>
+                <div className="text-xs text-gray-500">{t('pos:daily.tickets')}</div>
                 <div className="text-xl font-semibold">
                   {liveTickets ?? 0}
                 </div>
               </div>
               <div className="border rounded-lg p-4">
-                <div className="text-xs text-gray-500">Ticket promedio</div>
+                <div className="text-xs text-gray-500">{t('pos:daily.avgTicket')}</div>
                 <div className="text-xl font-semibold">
                   {formatMoney(liveAvgTicket ?? 0)}
                 </div>
@@ -243,34 +245,34 @@ export default function DailyCountsView() {
             </div>
             {!openSummary && latest ? (
               <div className="mt-4 text-sm text-gray-500">
-                Datos basados en el ultimo cierre de caja.
+                {t('pos:daily.basedOnLastClose')}
               </div>
             ) : null}
           </div>
 
           <div className="bg-white border rounded-lg">
             <div className="px-6 py-4 border-b">
-              <h3 className="text-lg font-semibold">Ultimos cierres</h3>
-              <p className="text-sm text-gray-500">Ultimos 10 dias</p>
+              <h3 className="text-lg font-semibold">{t('pos:daily.recentClosings')}</h3>
+              <p className="text-sm text-gray-500">{t('pos:daily.last10Days')}</p>
             </div>
             <div className="divide-y">
               {counts.slice(0, 10).map((count) => (
                 <div key={count.id} className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                   <div>
                     <div className="font-medium">{new Date(count.count_date).toLocaleDateString()}</div>
-                    <div className="text-xs text-gray-500">Fondo inicial: {formatMoney(count.opening_float)}</div>
+                    <div className="text-xs text-gray-500">{t('pos:daily.openingFloat')}: {formatMoney(count.opening_float)}</div>
                   </div>
                   <div className="flex items-center gap-6 text-sm">
                     <div>
-                      <div className="text-gray-500">Total</div>
+                      <div className="text-gray-500">{t('pos:daily.total')}</div>
                       <div className="font-semibold">{formatMoney(count.total_sales)}</div>
                     </div>
                     <div>
-                      <div className="text-gray-500">Contado</div>
+                      <div className="text-gray-500">{t('pos:daily.counted')}</div>
                       <div className="font-semibold">{formatMoney(count.counted_cash)}</div>
                     </div>
                     <div>
-                      <div className="text-gray-500">Diferencia</div>
+                      <div className="text-gray-500">{t('pos:daily.difference')}</div>
                       <div className={`font-semibold ${count.discrepancy !== 0 ? 'text-red-600' : ''}`}>
                         {formatMoney(count.discrepancy)}
                       </div>

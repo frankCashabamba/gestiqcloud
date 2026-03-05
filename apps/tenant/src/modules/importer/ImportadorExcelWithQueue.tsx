@@ -44,7 +44,7 @@ export default function ImportadorExcelWithQueue() {
         })
       )
     } catch (e: any) {
-      error(e?.message || 'Error al subir')
+      error(e?.message || t('importer:upload.error'))
       setLastResult({ batch_id: '', items: 0, doc_type: '', error: e?.message })
     } finally {
       setUploading(false)

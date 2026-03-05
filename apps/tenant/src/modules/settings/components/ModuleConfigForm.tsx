@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 
 interface ModuleConfig {
@@ -17,10 +18,10 @@ interface ModuleConfigFormProps {
 const MODULE_SCHEMAS: Record<string, any[]> = {
   pos: [
     { key: 'ticket_width_mm', label: 'Ancho de Ticket (mm)', type: 'select', options: [58, 80], default: 58 },
-    { key: 'price_includes_tax', label: 'Precio incluye impuestos', type: 'boolean', default: true },
+    { key: 'price_includes_tax', labelKey: 'settings:moduleConfig.priceIncludesTax', type: 'boolean', default: true },
     { key: 'return_window_days', label: 'Días para devoluciones', type: 'number', default: 15 },
     { key: 'allow_negative_stock', label: 'Permitir stock negativo', type: 'boolean', default: false },
-    { key: 'auto_print', label: 'Imprimir automáticamente', type: 'boolean', default: false },
+    { key: 'auto_print', labelKey: 'settings:moduleConfig.autoPrint', type: 'boolean', default: false },
   ],
   inventory: [
     { key: 'track_lots', label: 'Gestionar lotes', type: 'boolean', default: false },
@@ -32,7 +33,7 @@ const MODULE_SCHEMAS: Record<string, any[]> = {
   invoicing: [
     { key: 'default_series', label: 'Serie por defecto', type: 'text', default: 'F' },
     { key: 'auto_number', label: 'Numeración automática', type: 'boolean', default: true },
-    { key: 'include_logo', label: 'Incluir logo en facturas', type: 'boolean', default: true },
+    { key: 'include_logo', labelKey: 'settings:moduleConfig.includeLogo', type: 'boolean', default: true },
     { key: 'payment_terms_days', label: 'Plazo de pago (días)', type: 'number', default: 30 },
   ],
   einvoicing: [
@@ -41,14 +42,14 @@ const MODULE_SCHEMAS: Record<string, any[]> = {
     { key: 'test_mode', label: 'Modo de pruebas', type: 'boolean', default: true },
   ],
   crm: [
-    { key: 'auto_assign', label: 'Asignación automática de clientes', type: 'boolean', default: false },
+    { key: 'auto_assign', labelKey: 'settings:moduleConfig.autoAssignCustomers', type: 'boolean', default: false },
     { key: 'lead_score', label: 'Scoring de leads', type: 'boolean', default: true },
     { key: 'email_notifications', label: 'Notificaciones por email', type: 'boolean', default: true },
   ],
   purchases: [
     { key: 'approval_required', label: 'Requiere aprobación', type: 'boolean', default: true },
     { key: 'min_approval_amount', label: 'Monto mínimo para aprobación', type: 'number', default: 1000 },
-    { key: 'auto_create_po', label: 'Crear orden automáticamente', type: 'boolean', default: false },
+    { key: 'auto_create_po', labelKey: 'settings:moduleConfig.autoCreateOrder', type: 'boolean', default: false },
   ],
   expenses: [
     { key: 'require_receipt', label: 'Comprobante obligatorio', type: 'boolean', default: true },
@@ -58,6 +59,7 @@ const MODULE_SCHEMAS: Record<string, any[]> = {
 }
 
 export default function ModuleConfigForm({ moduleId, moduleName, config, onSave, onClose }: ModuleConfigFormProps) {
+  const { t } = useTranslation(['settings', 'common'])
   const [formData, setFormData] = useState<ModuleConfig>(config || {})
   const [saving, setSaving] = useState(false)
   const { success, error } = useToast()
@@ -91,12 +93,13 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
 
   const renderField = (field: any) => {
     const value = formData[field.key]
+    const fieldLabel = field.labelKey ? t(field.labelKey) : field.label
 
     switch (field.type) {
       case 'boolean':
         return (
           <div key={field.key} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-            <label className="font-medium text-gray-700">{field.label}</label>
+            <label className="font-medium text-gray-700">{fieldLabel}</label>
             <button
               disabled={field.readonly}
               onClick={() => setFormData(prev => ({ ...prev, [field.key]: !value }))}
@@ -119,7 +122,7 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
       case 'number':
         return (
           <div key={field.key} className="space-y-1">
-            <label className="block font-medium text-gray-700">{field.label}</label>
+            <label className="block font-medium text-gray-700">{fieldLabel}</label>
             <input
               type="number"
               value={value ?? field.default ?? ''}
@@ -132,7 +135,7 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
       case 'select':
         return (
           <div key={field.key} className="space-y-1">
-            <label className="block font-medium text-gray-700">{field.label}</label>
+            <label className="block font-medium text-gray-700">{fieldLabel}</label>
             <select
               value={value ?? field.default ?? ''}
               onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
@@ -149,7 +152,7 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
       default:
         return (
           <div key={field.key} className="space-y-1">
-            <label className="block font-medium text-gray-700">{field.label}</label>
+            <label className="block font-medium text-gray-700">{fieldLabel}</label>
             <input
               type="text"
               value={value ?? field.default ?? ''}
@@ -178,7 +181,7 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
         <div className="p-6 overflow-y-auto flex-1">
           {schema.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <p>No hay configuraciones disponibles para este módulo</p>
+              <p>{t('settings:moduleConfig.noConfig')}</p>
             </div>
           ) : (
             <div className="space-y-4">

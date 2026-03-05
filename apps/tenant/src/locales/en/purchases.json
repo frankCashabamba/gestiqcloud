@@ -44,6 +44,17 @@
     "saving": "Saving...",
     "cancel": "Cancel"
   },
+  "lines": {
+    "label": "Purchase Lines",
+    "addLine": "+ Add Line",
+    "product": "Product",
+    "quantity": "Quantity",
+    "unitPrice": "Unit Price",
+    "subtotal": "Subtotal",
+    "productPlaceholder": "Product ID or name",
+    "remove": "Remove",
+    "emptyLines": "No lines. Add at least one."
+  },
   "detail": {
     "backToList": "← Back to list",
     "purchase": "Purchase",

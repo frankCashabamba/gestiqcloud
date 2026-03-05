@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ImportadorLayout from './components/ImportadorLayout'
 import { useAuth } from '../../auth/AuthContext'
 import { deleteMultipleItems, listAllProductItems, patchItem, promoteItems } from './services/importsApi'
@@ -34,6 +35,7 @@ type PendingItem = {
 }
 
 export default function ImportadosList() {
+  const { t } = useTranslation(['importer'])
   const { token, profile } = useAuth() as { token: string | null; profile?: { tenant_id?: string } | null }
   const [items, setItems] = useState<PendingItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -199,7 +201,7 @@ export default function ImportadosList() {
         )}
 
         <div className="flex items-center justify-between text-xs text-neutral-500">
-          <span>{total} registro{total === 1 ? '' : 's'} en pendientes</span>
+          <span>{t('importer:imported.pendingRecords', { count: total })}</span>
           <button
             type="button"
             className="rounded-md border border-neutral-200 px-2 py-1 font-medium text-neutral-700 hover:bg-neutral-100"

@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { listStoreCredits, getStoreCreditByCode, redeemStoreCredit } from '../services'
 import type { StoreCredit } from '../../../types/pos'
 import { useToast } from '../../../shared/toast'
@@ -13,6 +14,7 @@ interface StoreCreditsModalProps {
 }
 
 export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsModalProps) {
+  const { t } = useTranslation(['pos', 'common'])
   const toast = useToast()
   const [credits, setCredits] = useState<StoreCredit[]>([])
   const [loading, setLoading] = useState(false)
@@ -44,7 +46,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
       const credit = await getStoreCreditByCode(searchCode.toUpperCase())
       setFoundCredit(credit)
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Vale no encontrado')
+      toast.error(error.response?.data?.detail || t('pos:storeCredits.notFound'))
       setFoundCredit(null)
     } finally {
       setSearching(false)
@@ -53,7 +55,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
 
   const handleSelect = (credit: StoreCredit) => {
     if (credit.status !== 'active' || credit.amount_remaining <= 0) {
-      toast.warning('Este vale no es válido')
+      toast.warning(t('pos:storeCredits.invalidCredit'))
       return
     }
     onSelect(credit)
@@ -64,7 +66,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Vales de Descuento</h2>
+          <h2 className="text-2xl font-bold">{t('pos:storeCredits.title')}</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -75,13 +77,13 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
 
         {/* Buscador por código */}
         <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="font-semibold mb-2">Buscar por Código</h3>
+          <h3 className="font-semibold mb-2">{t('pos:storeCredits.searchByCode')}</h3>
           <div className="flex gap-2">
             <input
               type="text"
               value={searchCode}
               onChange={(e) => setSearchCode(e.target.value.toUpperCase())}
-              placeholder="Ingrese código del vale"
+              placeholder={t('pos:storeCredits.searchPlaceholder')}
               className="flex-1 px-3 py-2 border rounded uppercase"
               onKeyPress={(e) => e.key === 'Enter' && searchByCode()}
             />
@@ -90,21 +92,21 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
               disabled={searching || !searchCode.trim()}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              {searching ? 'Buscando...' : 'Buscar'}
+              {searching ? t('pos:storeCredits.searching') : t('pos:storeCredits.search')}
             </button>
           </div>
 
           {foundCredit && (
             <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
-              <p><strong>Vale encontrado:</strong> {foundCredit.code}</p>
-              <p>Cliente: {foundCredit.customer_id || 'Sin asignar'}</p>
-              <p>Monto restante: €{foundCredit.amount_remaining.toFixed(2)}</p>
-              <p>Expira: {foundCredit.expires_at ? new Date(foundCredit.expires_at).toLocaleDateString() : 'Sin expiración'}</p>
+              <p><strong>{t('pos:storeCredits.creditFound')}:</strong> {foundCredit.code}</p>
+              <p>{t('pos:storeCredits.customer')}: {foundCredit.customer_id || t('pos:storeCredits.customerUnassigned')}</p>
+              <p>{t('pos:storeCredits.remainingAmount')}: €{foundCredit.amount_remaining.toFixed(2)}</p>
+              <p>{t('pos:storeCredits.expires')}: {foundCredit.expires_at ? new Date(foundCredit.expires_at).toLocaleDateString() : t('pos:storeCredits.noExpiry')}</p>
               <button
                 onClick={() => handleSelect(foundCredit)}
                 className="mt-2 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
               >
-                Usar este vale
+                {t('pos:storeCredits.useCredit')}
               </button>
             </div>
           )}
@@ -112,12 +114,12 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
 
         {/* Lista de vales */}
         <div>
-          <h3 className="font-semibold mb-3">Available Credits</h3>
+          <h3 className="font-semibold mb-3">{t('pos:storeCredits.availableCredits')}</h3>
 
           {loading ? (
-            <div className="text-center py-4">Loading credits...</div>
+            <div className="text-center py-4">{t('pos:storeCredits.loadingCredits')}</div>
           ) : credits.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">No credits available</div>
+            <div className="text-center py-4 text-gray-500">{t('pos:storeCredits.noAvailable')}</div>
           ) : (
             <div className="grid gap-3 max-h-96 overflow-y-auto">
               {credits.map((credit) => (
@@ -134,10 +136,10 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
                     <div>
                       <p className="font-mono text-lg font-bold">{credit.code}</p>
                       <p className="text-sm text-gray-600">
-                        Cliente: {credit.customer_id || 'Sin asignar'}
+                        {t('pos:storeCredits.customer')}: {credit.customer_id || t('pos:storeCredits.customerUnassigned')}
                       </p>
                       <p className="text-sm text-gray-600">
-                        Estado: <span className={`font-medium ${
+                        {t('pos:storeCredits.status')}: <span className={`font-medium ${
                           credit.status === 'active' ? 'text-green-600' :
                           credit.status === 'redeemed' ? 'text-blue-600' :
                           'text-red-600'
@@ -152,11 +154,11 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
                         €{credit.amount_remaining.toFixed(2)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        de €{credit.amount_initial.toFixed(2)}
+                        {t('pos:storeCredits.of')} €{credit.amount_initial.toFixed(2)}
                       </p>
                       {credit.expires_at && (
                         <p className="text-xs text-orange-600">
-                          Expira: {new Date(credit.expires_at).toLocaleDateString()}
+                          {t('pos:storeCredits.expires')}: {new Date(credit.expires_at).toLocaleDateString()}
                         </p>
                       )}
                     </div>
@@ -164,7 +166,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
 
                   {credit.status === 'active' && credit.amount_remaining > 0 && (
                     <div className="mt-2 text-xs text-green-600">
-                      ✓ Click para usar
+                      {t('pos:storeCredits.clickToUse')}
                     </div>
                   )}
                 </div>
@@ -178,7 +180,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
             onClick={onClose}
             className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
           >
-            Cerrar
+            {t('pos:storeCredits.close')}
           </button>
         </div>
       </div>

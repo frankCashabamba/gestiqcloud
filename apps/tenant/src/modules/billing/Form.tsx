@@ -167,7 +167,7 @@ export default function FacturaForm() {
 
       {isLocked && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 text-amber-800 px-3 py-2 text-sm">
-          {t('billing.status.issued')} · {t('common.readonly') || 'Read-only'}
+          {t('billing.status.issued')} · {t('common.readonly')}
         </div>
       )}
 
@@ -200,7 +200,7 @@ export default function FacturaForm() {
               />
               {isNew && (
                 <p className="text-xs text-gray-500 mt-1">
-                  {t('billing.numberAutoPlaceholder') || 'Se asignara automaticamente al guardar'}
+                  {t('billing.numberAutoPlaceholder')}
                 </p>
               )}
             </div>
@@ -237,7 +237,7 @@ export default function FacturaForm() {
                 type="text"
                 value={form.cliente_nombre}
                 onChange={(e) => setForm({ ...form, cliente_nombre: e.target.value })}
-                placeholder="Nombre del cliente"
+                placeholder={t('billing.customerNamePlaceholder')}
                 className="border px-2 py-1 w-full rounded text-sm"
                 disabled={isLocked}
               />
@@ -264,7 +264,7 @@ export default function FacturaForm() {
                 className={`px-3 py-1 rounded text-sm ${isLocked ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 text-white'}`}
                 disabled={isLocked}
               >
-                {isLocked ? (t('common.readonly') || 'Solo lectura') : t('billing.sectorInvoice.addLine')}
+                {isLocked ? t('common.readonly') : t('billing.sectorInvoice.addLine')}
               </button>
             </div>
 
@@ -402,7 +402,7 @@ export default function FacturaForm() {
               variant={isLocked ? 'secondary' : 'primary'}
               disabled={isLocked}
             >
-              {isLocked ? t('common.readonly') || 'Read-only' : t('common.save')}
+              {isLocked ? t('common.readonly') : t('common.save')}
             </ProtectedButton>
             <button
               type="button"

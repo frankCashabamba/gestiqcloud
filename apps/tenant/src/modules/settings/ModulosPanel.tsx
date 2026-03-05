@@ -34,7 +34,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 export default function ModulosPanel() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['settings', 'common'])
   const { success, error, warning } = useToast()
 
   const [modules, setModules] = useState<Module[]>([])
@@ -277,7 +277,7 @@ export default function ModulosPanel() {
 
       {filteredModules.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          <p>No hay módulos en esta categoría</p>
+          <p>{t('settings:modules.emptyCategory')}</p>
         </div>
       )}
 
@@ -296,7 +296,7 @@ export default function ModulosPanel() {
       <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <h3 className="font-semibold text-yellow-800 mb-2">💡 Consejos</h3>
         <ul className="text-sm text-yellow-700 space-y-1 list-disc pl-5">
-          <li>Haz clic en cualquier tarjeta para configurar el módulo</li>
+          <li>{t('settings:modules.clickToConfig')}</li>
           <li>Los módulos desactivados no aparecerán en el menú principal</li>
           <li>{t('settings.moduleDependencies')}</li>
           <li>La configuración se guarda automáticamente</li>

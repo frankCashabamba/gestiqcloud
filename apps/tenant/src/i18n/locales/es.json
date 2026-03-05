@@ -200,6 +200,7 @@
     "notesPlaceholder": "Términos de pago, condiciones especiales, etc.",
     "numberAuto": "Se asignará automáticamente al guardar",
     "numberAutoPlaceholder": "Se asignara automaticamente al guardar",
+    "customerNamePlaceholder": "Nombre del cliente",
     "numberPlaceholder": "FAC-001",
     "posReceipt": "Recibo POS",
     "posSale": "Venta POS",

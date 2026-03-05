@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createLead, getLead, updateLead, type Lead } from '../../services'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { LeadStatus, LeadSource } from '../../types'
@@ -7,6 +8,7 @@ import { LeadStatus, LeadSource } from '../../types'
 export default function LeadForm() {
   const { id } = useParams()
   const nav = useNavigate()
+  const { t } = useTranslation('crm')
   const [form, setForm] = useState<Partial<Omit<Lead, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>>({
     name: '',
     email: '',
@@ -29,12 +31,12 @@ export default function LeadForm() {
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (!form.name || String(form.name).trim() === '') throw new Error('El campo "Nombre" es obligatorio')
-      if (!form.email || String(form.email).trim() === '') throw new Error('El campo "Email" es obligatorio')
-      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(form.email))) throw new Error('Email inválido')
+      if (!form.name || String(form.name).trim() === '') throw new Error(t('leads.nameRequired'))
+      if (!form.email || String(form.email).trim() === '') throw new Error(t('leads.emailRequired'))
+      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(form.email))) throw new Error(t('leads.emailInvalid'))
       if (id) await updateLead(id, form)
       else await createLead(form as any)
-      success('Lead guardado')
+      success(t('leads.saved'))
       nav('..')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -43,10 +45,10 @@ export default function LeadForm() {
 
   return (
     <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar lead' : 'Nuevo lead'}</h3>
+      <h3 className="text-xl font-semibold mb-3">{id ? t('leads.editLead') : t('leads.newLead')}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>
-          <label className="block mb-1">Nombre *</label>
+          <label className="block mb-1">{t('leads.name')} *</label>
           <input
             type="text"
             value={form.name ?? ''}
@@ -56,7 +58,7 @@ export default function LeadForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Email *</label>
+          <label className="block mb-1">{t('leads.email')} *</label>
           <input
             type="email"
             value={form.email ?? ''}
@@ -66,7 +68,7 @@ export default function LeadForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Teléfono</label>
+          <label className="block mb-1">{t('leads.phone')}</label>
           <input
             type="text"
             value={form.phone ?? ''}
@@ -75,7 +77,7 @@ export default function LeadForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Empresa</label>
+          <label className="block mb-1">{t('leads.company')}</label>
           <input
             type="text"
             value={form.company ?? ''}
@@ -84,7 +86,7 @@ export default function LeadForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Cargo</label>
+          <label className="block mb-1">{t('leads.position')}</label>
           <input
             type="text"
             value={form.position ?? ''}
@@ -93,37 +95,37 @@ export default function LeadForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Estado</label>
+          <label className="block mb-1">{t('leads.status')}</label>
           <select
             value={form.status ?? LeadStatus.NEW}
             onChange={(e)=> setForm({ ...form, status: e.target.value as LeadStatus })}
             className="border px-2 py-1 w-full rounded"
           >
-            <option value={LeadStatus.NEW}>Nuevo</option>
-            <option value={LeadStatus.CONTACTED}>Contactado</option>
-            <option value={LeadStatus.QUALIFIED}>Calificado</option>
-            <option value={LeadStatus.LOST}>Perdido</option>
-            <option value={LeadStatus.CONVERTED}>Convertido</option>
+            <option value={LeadStatus.NEW}>{t('leads.statusNew')}</option>
+            <option value={LeadStatus.CONTACTED}>{t('leads.statusContacted')}</option>
+            <option value={LeadStatus.QUALIFIED}>{t('leads.statusQualified')}</option>
+            <option value={LeadStatus.LOST}>{t('leads.statusLost')}</option>
+            <option value={LeadStatus.CONVERTED}>{t('leads.statusConverted')}</option>
           </select>
         </div>
         <div>
-          <label className="block mb-1">Fuente</label>
+          <label className="block mb-1">{t('leads.source')}</label>
           <select
             value={form.source ?? LeadSource.WEBSITE}
             onChange={(e)=> setForm({ ...form, source: e.target.value as LeadSource })}
             className="border px-2 py-1 w-full rounded"
           >
-            <option value={LeadSource.WEBSITE}>Website</option>
-            <option value={LeadSource.REFERRAL}>Referido</option>
-            <option value={LeadSource.SOCIAL_MEDIA}>Redes Sociales</option>
-            <option value={LeadSource.EMAIL}>Email</option>
-            <option value={LeadSource.PHONE}>Teléfono</option>
-            <option value={LeadSource.EVENT}>Evento</option>
-            <option value={LeadSource.OTHER}>Otro</option>
+            <option value={LeadSource.WEBSITE}>{t('leads.sourceWebsite')}</option>
+            <option value={LeadSource.REFERRAL}>{t('leads.sourceReferral')}</option>
+            <option value={LeadSource.SOCIAL_MEDIA}>{t('leads.sourceSocialMedia')}</option>
+            <option value={LeadSource.EMAIL}>{t('leads.sourceEmail')}</option>
+            <option value={LeadSource.PHONE}>{t('leads.phoneSource')}</option>
+            <option value={LeadSource.EVENT}>{t('leads.sourceEvent')}</option>
+            <option value={LeadSource.OTHER}>{t('leads.sourceOther')}</option>
           </select>
         </div>
         <div>
-          <label className="block mb-1">Asignado a</label>
+          <label className="block mb-1">{t('leads.assignedTo')}</label>
           <input
             type="text"
             value={form.assigned_to ?? ''}
@@ -132,7 +134,7 @@ export default function LeadForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Puntuación</label>
+          <label className="block mb-1">{t('leads.score')}</label>
           <input
             type="number"
             value={form.score ?? 0}
@@ -143,7 +145,7 @@ export default function LeadForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Notas</label>
+          <label className="block mb-1">{t('leads.notes')}</label>
           <textarea
             value={form.notes ?? ''}
             onChange={(e)=> setForm({ ...form, notes: e.target.value })}
@@ -152,8 +154,8 @@ export default function LeadForm() {
           />
         </div>
         <div className="pt-2">
-          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>Cancelar</button>
+          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('leads.save')}</button>
+          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>{t('leads.cancel')}</button>
         </div>
       </form>
     </div>

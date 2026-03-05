@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Close as CloseIcon,
   Edit as EditIcon,
@@ -45,6 +46,7 @@ export function VistaPrevia({
   onConfirm,
   onCancel
 }: VistaPreviaProps) {
+  const { t } = useTranslation(['importer']);
   const [customMapping, setCustomMapping] = useState<Record<string, string>>(
     analysis.suggested_mapping || {}
   );
@@ -76,9 +78,9 @@ export function VistaPrevia({
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold">📊 Import Preview</h2>
+            <h2 className="text-2xl font-bold">📊 {t('importer:preview.importPreview')}</h2>
             <p className="text-blue-100 mt-1">
-              {stats.total} products detected • {stats.categories} categories
+              {t('importer:preview.productsDetected', { total: stats.total, categories: stats.categories })}
             </p>
           </div>
           <button
@@ -95,26 +97,26 @@ export function VistaPrevia({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <div className="text-3xl font-bold text-blue-600">{stats.total}</div>
-              <div className="text-sm text-gray-600">Total Products</div>
+              <div className="text-sm text-gray-600">{t('importer:preview.totalProducts')}</div>
             </div>
             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
               <div className="text-3xl font-bold text-green-600">{validItems.length}</div>
-              <div className="text-sm text-gray-600">Valid ✓</div>
+              <div className="text-sm text-gray-600">{t('importer:preview.valid')}</div>
             </div>
             <div className="bg-red-50 p-4 rounded-lg border border-red-200">
               <div className="text-3xl font-bold text-red-600">{invalidItems.length}</div>
-              <div className="text-sm text-gray-600">With Errors</div>
+              <div className="text-sm text-gray-600">{t('importer:preview.withErrors')}</div>
             </div>
             <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
               <div className="text-3xl font-bold text-purple-600">{categories.length}</div>
-              <div className="text-sm text-gray-600">Categories</div>
+              <div className="text-sm text-gray-600">{t('importer:preview.categories')}</div>
             </div>
           </div>
 
           {/* Detected Categories */}
           {categories.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-3">🏷️ Detected Categories</h3>
+              <h3 className="text-lg font-semibold mb-3">🏷️ {t('importer:preview.detectedCategories')}</h3>
               <div className="flex flex-wrap gap-2">
                 {categories.map((cat, idx) => (
                   <span
@@ -131,13 +133,13 @@ export function VistaPrevia({
           {/* Column Mapping */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold">🔗 Column Mapping</h3>
+              <h3 className="text-lg font-semibold">🔗 {t('importer:preview.columnMapping')}</h3>
               <button
                 onClick={() => setShowMappingEditor(!showMappingEditor)}
                 className="text-blue-600 hover:text-blue-800 flex items-center gap-2 text-sm"
               >
                 <EditIcon className="w-4 h-4" />
-                {showMappingEditor ? 'Hide' : 'Edit Mapping'}
+                {showMappingEditor ? t('importer:preview.hide') : t('importer:preview.editMapping')}
               </button>
             </div>
 
@@ -152,13 +154,13 @@ export function VistaPrevia({
                       onChange={(e) => updateMapping(excelCol, e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
                     >
-                      <option value="ignore">Ignore</option>
-                      <option value="name">Name</option>
-                      <option value="precio">Price</option>
-                      <option value="cantidad">Quantity</option>
-                      <option value="categoria">Category</option>
-                      <option value="sku">SKU/Code</option>
-                      <option value="costo">Cost</option>
+                      <option value="ignore">{t('importer:preview.optIgnore')}</option>
+                      <option value="name">{t('importer:preview.optName')}</option>
+                      <option value="precio">{t('importer:preview.optPrice')}</option>
+                      <option value="cantidad">{t('importer:preview.optQuantity')}</option>
+                      <option value="categoria">{t('importer:preview.optCategory')}</option>
+                      <option value="sku">{t('importer:preview.optSku')}</option>
+                      <option value="costo">{t('importer:preview.optCost')}</option>
                     </select>
                   </div>
                 ))}
@@ -168,17 +170,17 @@ export function VistaPrevia({
 
           {/* Preview Table */}
           <div>
-            <h3 className="text-lg font-semibold mb-3">👁️ First 10 Products</h3>
+            <h3 className="text-lg font-semibold mb-3">👁️ {t('importer:preview.first10Products')}</h3>
             <div className="overflow-x-auto border border-gray-200 rounded-lg">
               <table className="w-full text-sm">
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="px-4 py-3 text-left">#</th>
-                    <th className="px-4 py-3 text-left">Name</th>
-                    <th className="px-4 py-3 text-right">Price</th>
-                    <th className="px-4 py-3 text-right">Quantity</th>
-                    <th className="px-4 py-3 text-left">Category</th>
-                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-left">{t('importer:preview.optName')}</th>
+                    <th className="px-4 py-3 text-right">{t('importer:preview.optPrice')}</th>
+                    <th className="px-4 py-3 text-right">{t('importer:preview.optQuantity')}</th>
+                    <th className="px-4 py-3 text-left">{t('importer:preview.optCategory')}</th>
+                    <th className="px-4 py-3 text-center">{t('importer:preview.status')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -228,11 +230,10 @@ export function VistaPrevia({
                 <ErrorOutlineIcon className="w-5 h-5 text-yellow-600 mt-0.5" />
                 <div>
                   <h4 className="font-semibold text-yellow-900">
-                    {invalidItems.length} product(s) with errors
+                    {t('importer:preview.productsWithErrors', { count: invalidItems.length })}
                   </h4>
                   <p className="text-sm text-yellow-700 mt-1">
-                    These products will not be imported until you fix the errors.
-                    You can continue with the {validItems.length} valid ones.
+                    {t('importer:preview.errorsHint', { valid: validItems.length })}
                   </p>
                 </div>
               </div>
@@ -246,7 +247,7 @@ export function VistaPrevia({
             onClick={onCancel}
             className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition"
           >
-            Cancel
+            {t('importer:preview.cancel')}
           </button>
           <button
             onClick={handleConfirmImport}
@@ -256,12 +257,12 @@ export function VistaPrevia({
             {loading ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Importing...
+                {t('importer:preview.importing')}
               </>
             ) : (
               <>
                 <CloudUploadIcon className="w-5 h-5" />
-                Import {validItems.length} Products →
+                {t('importer:preview.importProducts', { count: validItems.length })}
               </>
             )}
           </button>

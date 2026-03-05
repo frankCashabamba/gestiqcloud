@@ -200,6 +200,7 @@
     "notesPlaceholder": "Payment terms, special conditions, etc.",
     "numberAuto": "Auto-assigned on save",
     "numberAutoPlaceholder": "Will be assigned automatically on save",
+    "customerNamePlaceholder": "Customer name",
     "numberPlaceholder": "INV-001",
     "posReceipt": "POS Receipt",
     "posSale": "POS Sale",

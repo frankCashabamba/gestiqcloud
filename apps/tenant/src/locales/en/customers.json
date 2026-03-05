@@ -12,5 +12,21 @@
   "messages": {
     "deleted": "Customer deleted"
   },
-  "confirmDelete": "Delete customer?"
+  "confirmDelete": "Delete customer?",
+  "form": {
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "wholesale": "Wholesale",
+    "saved": "Customer saved",
+    "edit": "Edit customer",
+    "new": "New customer",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loadingFields": "Loading fields…",
+    "required": "Required",
+    "optional": "optional",
+    "fieldRequired": "The field \"{{field}}\" is required",
+    "invalidEmail": "Invalid email"
+  }
 }

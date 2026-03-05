@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getErrorMessage, useToast } from '../../shared/toast'
 import {
   createNotificationChannel,
@@ -53,6 +54,7 @@ const DEFAULT_TELEGRAM: ChannelState = {
 }
 
 export default function NotificacionesSettings() {
+  const { t } = useTranslation(['settings', 'common'])
   const { success, error } = useToast()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState<NotificationChannelType | null>(null)
@@ -267,7 +269,7 @@ export default function NotificacionesSettings() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm mb-1">Proveedor</label>
+            <label className="block text-sm mb-1">{t('settings:notifications.provider')}</label>
             <select
               className="border px-2 py-1 w-full rounded"
               value={whatsappChannel.config.provider || 'twilio'}

@@ -30,5 +30,17 @@
   "messages": {
     "deleted": "Expense deleted"
   },
-  "confirmDelete": "Delete expense?"
+  "confirmDelete": "Delete expense?",
+  "detail": {
+    "loadingDetail": "Loading detail...",
+    "order": "Order",
+    "produced": "Produced",
+    "ingredient": "Ingredient",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "unitCost": "Unit Cost",
+    "subtotal": "Subtotal",
+    "total": "Total",
+    "errorLoadingDetail": "Could not load detail"
+  }
 }

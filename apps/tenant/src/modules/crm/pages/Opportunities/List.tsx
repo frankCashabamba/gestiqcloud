@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listOpportunities, deleteOpportunity, type Opportunity } from '../../services'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { usePagination, Pagination } from '../../../../shared/pagination'
@@ -11,6 +12,7 @@ export default function OpportunitiesList() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
+  const { t } = useTranslation('crm')
   const [q, setQ] = useState('')
   const [stageFilter, setStageFilter] = useState<string>('')
   const [assignedFilter, setAssignedFilter] = useState<string>('')
@@ -46,32 +48,32 @@ export default function OpportunitiesList() {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-3">
-        <h2 className="font-semibold text-lg">Oportunidades</h2>
-        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>Nueva Oportunidad</button>
+        <h2 className="font-semibold text-lg">{t('opportunities.title')}</h2>
+        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>{t('opportunities.newButton')}</button>
       </div>
-      <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder="Buscar título..." className="mb-3 w-full px-3 py-2 border rounded text-sm" />
+      <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder={t('opportunities.searchPlaceholder')} className="mb-3 w-full px-3 py-2 border rounded text-sm" />
       <div className="flex gap-3 mb-3">
         <select value={stageFilter} onChange={(e)=> setStageFilter(e.target.value)} className="border px-2 py-1 rounded text-sm">
-          <option value="">Todas las etapas</option>
-          <option value={OpportunityStage.PROSPECTING}>Prospección</option>
-          <option value={OpportunityStage.QUALIFICATION}>Calificación</option>
-          <option value={OpportunityStage.PROPOSAL}>Propuesta</option>
-          <option value={OpportunityStage.NEGOTIATION}>Negociación</option>
-          <option value={OpportunityStage.CLOSED_WON}>Ganada</option>
-          <option value={OpportunityStage.CLOSED_LOST}>Perdida</option>
+          <option value="">{t('opportunities.allStages')}</option>
+          <option value={OpportunityStage.PROSPECTING}>{t('opportunities.stageProspecting')}</option>
+          <option value={OpportunityStage.QUALIFICATION}>{t('opportunities.stageQualification')}</option>
+          <option value={OpportunityStage.PROPOSAL}>{t('opportunities.stageProposal')}</option>
+          <option value={OpportunityStage.NEGOTIATION}>{t('opportunities.stageNegotiation')}</option>
+          <option value={OpportunityStage.CLOSED_WON}>{t('opportunities.stageClosedWon')}</option>
+          <option value={OpportunityStage.CLOSED_LOST}>{t('opportunities.stageClosedLost')}</option>
         </select>
         <input
           type="text"
           value={assignedFilter}
           onChange={(e)=> setAssignedFilter(e.target.value)}
-          placeholder="Filtrar por asignado"
+          placeholder={t('opportunities.filterAssigned')}
           className="border px-2 py-1 rounded text-sm"
         />
       </div>
-      {loading && <div className="text-sm text-gray-500">Cargando…</div>}
+      {loading && <div className="text-sm text-gray-500">{t('opportunities.loading')}</div>}
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
       <div className="flex items-center gap-3 mb-2 text-sm">
-        <label>Por página</label>
+        <label>{t('opportunities.perPage')}</label>
         <select value={per} onChange={(e)=> setPer(Number(e.target.value))} className="border px-2 py-1 rounded">
           <option value={10}>10</option>
           <option value={25}>25</option>
@@ -81,13 +83,13 @@ export default function OpportunitiesList() {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left border-b">
-            <th><button className="underline" onClick={()=> { setSortKey('name'); setSortDir(d=> d==='asc'?'desc':'asc') }}>Título {sortKey==='name' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
-            <th><button className="underline" onClick={()=> { setSortKey('value'); setSortDir(d=> d==='asc'?'desc':'asc') }}>Valor {sortKey==='value' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
-            <th>Probabilidad</th>
-            <th><button className="underline" onClick={()=> { setSortKey('stage'); setSortDir(d=> d==='asc'?'desc':'asc') }}>Etapa {sortKey==='stage' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
-            <th><button className="underline" onClick={()=> { setSortKey('expected_close_date'); setSortDir(d=> d==='asc'?'desc':'asc') }}>Fecha Cierre {sortKey==='expected_close_date' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
-            <th>Asignado a</th>
-            <th>Acciones</th>
+            <th><button className="underline" onClick={()=> { setSortKey('name'); setSortDir(d=> d==='asc'?'desc':'asc') }}>{t('opportunities.name')} {sortKey==='name' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
+            <th><button className="underline" onClick={()=> { setSortKey('value'); setSortDir(d=> d==='asc'?'desc':'asc') }}>{t('opportunities.value')} {sortKey==='value' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
+            <th>{t('opportunities.probability')}</th>
+            <th><button className="underline" onClick={()=> { setSortKey('stage'); setSortDir(d=> d==='asc'?'desc':'asc') }}>{t('opportunities.stage')} {sortKey==='stage' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
+            <th><button className="underline" onClick={()=> { setSortKey('expected_close_date'); setSortDir(d=> d==='asc'?'desc':'asc') }}>{t('opportunities.closeDate')} {sortKey==='expected_close_date' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
+            <th>{t('opportunities.assignedTo')}</th>
+            <th>{t('opportunities.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -100,12 +102,12 @@ export default function OpportunitiesList() {
               <td>{c.expected_close_date || '-'}</td>
               <td>{c.assigned_to || '-'}</td>
               <td>
-                <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
-                <button className="text-red-700" onClick={async () => { if (!confirm('¿Eliminar oportunidad?')) return; try { await deleteOpportunity(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success('Oportunidad eliminada') } catch(e:any){ toastError(getErrorMessage(e)) } }}>Eliminar</button>
+                <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('opportunities.editBtn')}</Link>
+                <button className="text-red-700" onClick={async () => { if (!confirm(t('opportunities.deleteConfirm'))) return; try { await deleteOpportunity(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success(t('opportunities.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('opportunities.deleteBtn')}</button>
               </td>
             </tr>
           ))}
-          {!loading && items.length === 0 && (<tr><td className="py-3 px-3" colSpan={7}>Sin registros</td></tr>)}
+          {!loading && items.length === 0 && (<tr><td className="py-3 px-3" colSpan={7}>{t('opportunities.empty')}</td></tr>)}
         </tbody>
       </table>
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />

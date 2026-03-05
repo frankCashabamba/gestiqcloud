@@ -3,9 +3,11 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { purgeProductosConfirm, purgeProductosDryRun } from '../productsApi'
 import { useToast, getErrorMessage } from '../../../shared/toast'
+import { useTranslation } from 'react-i18next'
 
 export default function ProductosPurge() {
   const nav = useNavigate()
+  const { t } = useTranslation(['products', 'common'])
   const { error: toastError, success } = useToast()
   const [busy, setBusy] = useState(false)
   const [counts, setCounts] = useState<Record<string, number> | null>(null)
@@ -26,7 +28,7 @@ export default function ProductosPurge() {
 
   const onPurge = async () => {
     if ((confirmText || '').toUpperCase() !== 'PURGE') {
-      toastError('Escribe PURGE para confirmar')
+      toastError(t('products:purge.typeConfirm'))
       return
     }
     try {
@@ -43,7 +45,7 @@ export default function ProductosPurge() {
 
   return (
     <div className="p-6 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Eliminar todo el catálogo</h1>
+      <h1 className="text-2xl font-bold mb-4">{t('products:purge.title')}</h1>
       <div className="bg-white border border-red-200 rounded-lg p-4 mb-4">
         <p className="text-red-700">
           Esta acción borrará todos los productos del catálogo y su stock asociado en todos los almacenes para este tenant.
@@ -59,7 +61,7 @@ export default function ProductosPurge() {
         )}
       </div>
       <div className="mb-4">
-        <label className="block text-sm mb-1">Escribe <b>PURGE</b> para confirmar</label>
+        <label className="block text-sm mb-1">{t('products:purge.typeLabel')} <b>PURGE</b> {t('products:purge.toConfirm')}</label>
         <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} className="border px-3 py-2 rounded w-full" placeholder="PURGE" />
       </div>
       <div className="flex gap-3">

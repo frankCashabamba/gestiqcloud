@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box, Typography, Button, IconButton, Tabs, Tab,
   Card, CardContent, CardActions, Grid, Chip, Alert
@@ -29,6 +30,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function RecetasPanel() {
+  const { t } = useTranslation(['productions', 'common']);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export default function RecetasPanel() {
       setRecipes(data);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Error al cargar recetas');
+      setError(err.message || t('productions:recipesPanel.errorLoading'));
     } finally {
       setLoading(false);
     }

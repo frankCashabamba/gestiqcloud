@@ -85,7 +85,7 @@ export default function NominaForm() {
                 if (f.required && f.visible !== false) {
                     const val = (form as any)[f.field]
                     if (val === undefined || val === null || String(val).trim() === '') {
-                        throw new Error(`El campo "${f.label || f.field}" es obligatorio`)
+                        throw new Error(t('hr:payroll.fieldRequired', { field: f.label || f.field }))
                     }
                 }
             }

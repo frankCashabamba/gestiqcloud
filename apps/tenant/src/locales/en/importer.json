@@ -113,7 +113,8 @@
     "maxFilesPerBatch": "Max. 10 files per batch",
     "tipAutoDetectDocType": "We automatically detect document type.",
     "tipApplyTemplatePerBatch": "Apply mapping templates when creating each batch.",
-    "tipReviewRowsBeforeSave": "Each file creates a row block you can review before saving."
+    "tipReviewRowsBeforeSave": "Each file creates a row block you can review before saving.",
+    "error": "Error uploading"
   },
   "queue": {
     "title": "Document queue",
@@ -125,7 +126,9 @@
     "typeLabel": "Type: {{type}}",
     "templateLabel": "Template:",
     "analyzingDocument": "Analyzing document...",
-    "savingData": "Saving data..."
+    "savingData": "Saving data...",
+    "errorProcessing": "Error processing file",
+    "errorSaving": "Error saving"
   },
   "previewTable": {
     "showingRows": "Showing {{shown}} of {{total}} processed rows"
@@ -404,5 +407,84 @@
     "send": "Send",
     "submitError": "Error submitting feedback",
     "unknownError": "Unknown error"
+  },
+  "aiProvider": {
+    "selectDescription": "Select the automatic classification provider",
+    "saved": "✓ Saved",
+    "saveConfig": "Save Configuration"
+  },
+  "telemetry": {
+    "noData": "No telemetry data available",
+    "totalCost": "Total cost",
+    "breakdownByProvider": "Breakdown by provider"
+  },
+  "analysis": {
+    "processing": "⏳ Processing...",
+    "confirm": "✓ Confirm"
+  },
+  "mapping": {
+    "errorSaving": "Could not save the mapping",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "saveAndUse": "Save mapping and use"
+  },
+  "barcode": {
+    "noSavedConfigs": "No saved configurations",
+    "generating": "Generating...",
+    "printNow": "Print now",
+    "textBelowPrice": "Text that appears below the price"
+  },
+  "templates": {
+    "noFieldsConfigured": "No fields configured for this type"
+  },
+  "imported": {
+    "pendingRecords": "{{count}} record(s) pending"
+  },
+  "settings": {
+    "aiProviderTitle": "AI Classification Provider",
+    "saving": "Saving...",
+    "saveAliases": "Save aliases",
+    "products": "Products",
+    "errorSeedingAliases": "Error initializing aliases",
+    "aliasesDbStatus": "Aliases Database Status",
+    "configured": "Configured",
+    "notConfigured": "Not configured"
+  },
+  "preview": {
+    "saveAs": "Save as",
+    "purchaseInvoice": "Purchase invoice",
+    "bankMovement": "Bank movement",
+    "ingredientsCost": "Ingredients cost",
+    "importPreview": "Import Preview",
+    "productsDetected": "{{total}} products detected • {{categories}} categories",
+    "totalProducts": "Total Products",
+    "valid": "Valid ✓",
+    "withErrors": "With Errors",
+    "categories": "Categories",
+    "detectedCategories": "Detected Categories",
+    "columnMapping": "Column Mapping",
+    "hide": "Hide",
+    "editMapping": "Edit Mapping",
+    "optIgnore": "Ignore",
+    "optName": "Name",
+    "optPrice": "Price",
+    "optQuantity": "Quantity",
+    "optCategory": "Category",
+    "optSku": "SKU/Code",
+    "optCost": "Cost",
+    "first10Products": "First 10 Products",
+    "status": "Status",
+    "productsWithErrors": "{{count}} product(s) with errors",
+    "errorsHint": "These products will not be imported until you fix the errors. You can continue with the {{valid}} valid ones.",
+    "cancel": "Cancel",
+    "importing": "Importing...",
+    "importProducts": "Import {{count}} Products →"
+  },
+  "docTypeLabels": {
+    "invoices": "Invoices / Sales",
+    "products": "Products",
+    "bankTransactions": "Bank Transactions",
+    "expenses": "Expenses",
+    "generic": "Generic"
   }
 }

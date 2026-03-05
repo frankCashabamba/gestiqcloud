@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 import { useAuth } from '../../../auth/AuthContext'
 import PermissionDenied from '../../../components/PermissionDenied'
@@ -48,6 +49,7 @@ function fromAliasText(text: string): string[] {
 }
 
 export default function ImportadorSettings() {
+  const { t } = useTranslation(['importer'])
   const navigate = useNavigate()
   const { token, profile } = useAuth()
   const canManageImporterSettings = isCompanyAdmin(profile, token)
@@ -184,7 +186,7 @@ export default function ImportadorSettings() {
 
       {activeTab === 'ia' && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-4">Proveedor de clasificacion IA</h2>
+          <h2 className="text-xl font-bold mb-4">{t('importer:settings.aiProviderTitle')}</h2>
           <AIProviderSettings />
         </div>
       )}
@@ -288,7 +290,7 @@ export default function ImportadorSettings() {
               disabled={savingAliases}
               className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-slate-300"
             >
-              {savingAliases ? 'Guardando...' : 'Guardar aliases'}
+              {savingAliases ? t('importer:settings.saving') : t('importer:settings.saveAliases')}
             </button>
           </div>
 
@@ -299,15 +301,19 @@ export default function ImportadorSettings() {
   )
 }
 
-const DOC_TYPE_LABELS: Record<string, string> = {
-  invoices: 'Facturas / Ventas',
-  products: 'Productos',
-  bank_transactions: 'Transacciones Bancarias',
-  expenses: 'Gastos',
-  generic: 'Genérico',
+function getDocTypeLabels(t: (key: string) => string): Record<string, string> {
+  return {
+    invoices: t('importer:docTypeLabels.invoices'),
+    products: t('importer:docTypeLabels.products'),
+    bank_transactions: t('importer:docTypeLabels.bankTransactions'),
+    expenses: t('importer:docTypeLabels.expenses'),
+    generic: t('importer:docTypeLabels.generic'),
+  }
 }
 
 function ImportBehaviorTab({ token }: { token: string | null }) {
+  const { t } = useTranslation(['importer'])
+  const DOC_TYPE_LABELS = getDocTypeLabels(t)
   const [status, setStatus] = useState<{ total: number; by_type: Record<string, number> } | null>(null)
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
@@ -345,7 +351,7 @@ function ImportBehaviorTab({ token }: { token: string | null }) {
       }
       setSeedResult(parts.join(' | '))
     } catch (err: any) {
-      setSeedResult(err?.message || 'Error al inicializar aliases')
+      setSeedResult(err?.message || t('importer:settings.errorSeedingAliases'))
     } finally {
       setSeeding(false)
     }
@@ -356,7 +362,7 @@ function ImportBehaviorTab({ token }: { token: string | null }) {
       <h2 className="text-xl font-bold">Comportamiento de importación</h2>
 
       <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-        <h3 className="font-semibold text-slate-800">Estado de Aliases en Base de Datos</h3>
+        <h3 className="font-semibold text-slate-800">{t('importer:settings.aliasesDbStatus')}</h3>
         <p className="text-xs text-slate-500">
           Los aliases permiten que el importador reconozca automáticamente las columnas de tus archivos
           (ej: &quot;Num. Factura&quot; → invoice_number). Sin aliases, el sistema usa solo heurísticas básicas.
@@ -375,7 +381,7 @@ function ImportBehaviorTab({ token }: { token: string | null }) {
                       {count} campos
                     </div>
                     <div className="text-[10px] text-slate-500">
-                      {count > 0 ? 'Configurado' : 'Sin configurar'}
+                      {count > 0 ? t('importer:settings.configured') : t('importer:settings.notConfigured')}
                     </div>
                   </div>
                 )

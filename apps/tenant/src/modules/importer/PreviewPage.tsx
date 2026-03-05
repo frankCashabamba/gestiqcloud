@@ -85,7 +85,7 @@ interface Category {
 
 export default function PreviewPage() {
     const { token, profile } = useAuth()
-    const { t } = useTranslation()
+    const { t } = useTranslation(['importer'])
     const toast = useToast()
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
@@ -618,13 +618,13 @@ export default function PreviewPage() {
                         </div>
                         <div className="space-y-4 px-4 py-4">
                             <div>
-                                <div className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-1">Guardar como</div>
+                                <div className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-1">{t('importer:preview.saveAs')}</div>
                                 <div className="grid grid-cols-2 gap-2">
                                     {([
-                                        { value: 'invoices', label: 'Factura de compra', icon: '📄' },
+                                        { value: 'invoices', label: t('importer:preview.purchaseInvoice'), icon: '📄' },
                                         { value: 'sales', label: 'Venta / Ticket POS', icon: '🧾' },
                                         { value: 'expenses', label: 'Gasto', icon: '💸' },
-                                        { value: 'bank', label: 'Movimiento bancario', icon: '🏦' },
+                                        { value: 'bank', label: t('importer:preview.bankMovement'), icon: '🏦' },
                                     ] as const).map(opt => (
                                         <button
                                             key={opt.value}
@@ -1482,7 +1482,7 @@ export default function PreviewPage() {
                                                     <th className="px-3 py-3 text-left font-medium text-slate-600">Tipo</th>
                                                     <th className="px-3 py-3 text-left font-medium text-slate-600">Clasificacion</th>
                                                     <th className="px-3 py-3 text-left font-medium text-slate-600">Porciones</th>
-                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Costo ingredientes</th>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">{t('importer:preview.ingredientsCost')}</th>
                                                     <th className="px-3 py-3 text-left font-medium text-slate-600">Ingredientes</th>
                                                     <th className="px-3 py-3 text-left font-medium text-slate-600">Materiales</th>
                                                 </>
@@ -1854,7 +1854,7 @@ function ReassignMappingInline({
     origin?: string | null
 }) {
     const { token } = useAuth() as any
-    const { t } = useTranslation()
+    const { t } = useTranslation(['importer'])
     const toast = useToast()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)

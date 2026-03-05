@@ -83,8 +83,28 @@
     "suggestedPriceHelp": "Calculado automáticamente desde la receta",
     "useSuggestedPriceLabel": "Usar precio sugerido",
     "useSuggestedPriceCheckbox": "Aplicar precio sugerido como precio de venta",
-    "useSuggestedPriceHelp": "Habilita esto para usar automáticamente el precio sugerido como precio de venta"
+    "useSuggestedPriceHelp": "Habilita esto para usar automáticamente el precio sugerido como precio de venta",
+    "priceNegativeError": "El precio no puede ser negativo",
+    "saved": "Producto guardado",
+    "codePlaceholder": "Código del producto",
+    "editProduct": "Editar producto",
+    "newProduct": "Nuevo producto",
+    "editDescription": "Modifica los datos del producto",
+    "newDescription": "Completa el formulario para registrar un nuevo producto"
     },
+  "list": {
+    "errorSavingConfig": "Error guardando la configuración",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "viewRecipe": "Ver receta",
+    "createRecipe": "Crear receta desde este producto"
+  },
+  "purge": {
+    "typeConfirm": "Escribe PURGE para confirmar",
+    "title": "Eliminar todo el catálogo",
+    "typeLabel": "Escribe",
+    "toConfirm": "para confirmar"
+  },
   "mergeDuplicates": {
     "open": "Unificar similares",
     "title": "Unificar productos similares",

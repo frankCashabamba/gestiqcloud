@@ -349,7 +349,7 @@ export default function ProductosList() {
         setSelectedSavedConfigId(saved.id)
         success('Configuración guardada.')
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Error guardando la configuración'
+        const message = err instanceof Error ? err.message : t('products:list.errorSavingConfig')
         toastError(message)
       }
     },
@@ -563,7 +563,7 @@ export default function ProductosList() {
 
   const exportCSV = () => {
     const headers = [t('products:code'), t('products:name'), t('products:price'), t('products:tax'), t('products:status')]
-    const rows = sorted.map((p) => [p.sku || '', p.name, p.price?.toFixed(2) || '0', `${p.iva_tasa || 0}%`, p.active ? 'Activo' : 'Inactivo'])
+    const rows = sorted.map((p) => [p.sku || '', p.name, p.price?.toFixed(2) || '0', `${p.iva_tasa || 0}%`, p.active ? t('products:list.active') : t('products:list.inactive')])
 
     const csv = [headers, ...rows].map((row) => row.join(';')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -917,14 +917,14 @@ export default function ProductosList() {
                           <Link
                             to={`/${empresa || ''}/produccion/recetas/${recipeByProduct.get(p.id)}`}
                             className="text-green-600 hover:text-green-800 mr-4"
-                            title="Ver receta"
+                            title={t('products:list.viewRecipe')}
                           >
-                            Ver receta
+                            {t('products:list.viewRecipe')}
                           </Link>
                         ) : (
                           <button
                             className="text-amber-600 hover:text-amber-800 mr-4"
-                            title="Crear receta desde este producto"
+                            title={t('products:list.createRecipe')}
                             onClick={() =>
                               nav(
                                 `/${empresa || ''}/produccion/recetas/nueva?productId=${encodeURIComponent(

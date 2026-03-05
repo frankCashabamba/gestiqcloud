@@ -356,10 +356,10 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
     return (
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogContent>
-          <Alert severity="error">{error || 'No se pudo cargar la receta'}</Alert>
+          <Alert severity="error">{error || t('productions:recipe.errorLoading')}</Alert>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose}>Cerrar</Button>
+          <Button onClick={onClose}>{t('productions:recipe.close')}</Button>
         </DialogActions>
       </Dialog>
     );
@@ -413,9 +413,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                     ${Number(fc.indirect_total).toFixed(2)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {Number(fc.labor_total) > 0 && `MO: $${Number(fc.labor_with_burden_factor || fc.labor_total).toFixed(2)} `}
-                    {Number(fc.diesel_total) > 0 && `Diésel: $${Number(fc.diesel_total).toFixed(2)} `}
-                    {Number(fc.electricity_total) > 0 && `Luz: $${Number(fc.electricity_total).toFixed(2)}`}
+                    {Number(fc.labor_total) > 0 && `${t('productions:recipe.labor')}: $${Number(fc.labor_with_burden_factor || fc.labor_total).toFixed(2)} `}
+                    {Number(fc.diesel_total) > 0 && `${t('productions:recipe.diesel')}: $${Number(fc.diesel_total).toFixed(2)} `}
+                    {Number(fc.electricity_total) > 0 && `${t('productions:recipe.electricity')}: $${Number(fc.electricity_total).toFixed(2)}`}
                   </Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
@@ -426,7 +426,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                     ${Number(fc.full_cost_unit).toFixed(4)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Total: ${Number(fc.full_cost_total).toFixed(2)}
+                    {t('productions:recipe.total')}: ${Number(fc.full_cost_total).toFixed(2)}
                   </Typography>
                 </Grid>
               </>
@@ -591,7 +591,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               <Chip label={`⏸️ ${t('productions:recipe.restLabel')}: ${recipe.rest_time_minutes} min`} color="info" size="small" />
             )}
             {(recipe as any).touch_minutes_standard != null && (recipe as any).touch_minutes_standard > 0 && (
-              <Chip label={`🟢 Touch: ${(recipe as any).touch_minutes_standard} min`} color="success" size="small" />
+              <Chip label={`🟢 ${t('productions:recipe.activeWorkMin')}: ${(recipe as any).touch_minutes_standard} min`} color="success" size="small" />
             )}
             {(recipe as any).process_minutes != null && (recipe as any).process_minutes > 0 && (
               <Chip label={`⚫ ${t('productions:recipe.processLabel')}: ${(recipe as any).process_minutes} min`} color="default" size="small" />
@@ -619,7 +619,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Ingrediente</TableCell>
+                <TableCell>{t('productions:recipe.ingredients')}</TableCell>
                 <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
                 <TableCell align="right">Kg / Lb</TableCell>
                 <TableCell>{t('productions:recipe.packaging')}</TableCell>

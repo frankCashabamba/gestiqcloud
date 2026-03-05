@@ -338,20 +338,20 @@ export default function GastosList() {
                 <tr className="bg-blue-50">
                   <td colSpan={5} className="py-3 px-4">
                     {detailLoading ? (
-                      <div className="text-sm text-gray-500">Cargando detalle...</div>
+                      <div className="text-sm text-gray-500">{t('expenses:detail.loadingDetail')}</div>
                     ) : detailData ? (
                       <div>
                         <div className="text-sm font-semibold mb-2">
-                          {detailData.recipe_name} — Orden: {detailData.order_number} — Producido: {detailData.qty_produced}
+                          {detailData.recipe_name} — {t('expenses:detail.order')}: {detailData.order_number} — {t('expenses:detail.produced')}: {detailData.qty_produced}
                         </div>
                         <table className="w-full text-xs border">
                           <thead>
                             <tr className="bg-blue-100 text-left">
-                              <th className="py-1 px-2">Ingrediente</th>
-                              <th className="py-1 px-2">Cantidad</th>
-                              <th className="py-1 px-2">Unidad</th>
-                              <th className="py-1 px-2">Costo Unit.</th>
-                              <th className="py-1 px-2">Subtotal</th>
+                              <th className="py-1 px-2">{t('expenses:detail.ingredient')}</th>
+                              <th className="py-1 px-2">{t('expenses:detail.quantity')}</th>
+                              <th className="py-1 px-2">{t('expenses:detail.unit')}</th>
+                              <th className="py-1 px-2">{t('expenses:detail.unitCost')}</th>
+                              <th className="py-1 px-2">{t('expenses:detail.subtotal')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -367,14 +367,14 @@ export default function GastosList() {
                           </tbody>
                           <tfoot>
                             <tr className="border-t font-semibold bg-blue-100">
-                              <td colSpan={4} className="py-1 px-2 text-right">Total:</td>
+                              <td colSpan={4} className="py-1 px-2 text-right">{t('expenses:detail.total')}:</td>
                               <td className="py-1 px-2">${detailData.total_cost.toFixed(2)}</td>
                             </tr>
                           </tfoot>
                         </table>
                       </div>
                     ) : (
-                      <div className="text-sm text-red-500">No se pudo cargar el detalle</div>
+                      <div className="text-sm text-red-500">{t('expenses:detail.errorLoadingDetail')}</div>
                     )}
                   </td>
                 </tr>

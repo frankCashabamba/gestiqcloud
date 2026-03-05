@@ -12,5 +12,21 @@
   "messages": {
     "deleted": "Cliente eliminado"
   },
-  "confirmDelete": "¿Eliminar cliente?"
+  "confirmDelete": "¿Eliminar cliente?",
+  "form": {
+    "name": "Nombre",
+    "email": "Email",
+    "phone": "Teléfono",
+    "wholesale": "Mayorista",
+    "saved": "Cliente guardado",
+    "edit": "Editar cliente",
+    "new": "Nuevo cliente",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "loadingFields": "Cargando campos…",
+    "required": "Obligatorio",
+    "optional": "opcional",
+    "fieldRequired": "El campo \"{{field}}\" es obligatorio",
+    "invalidEmail": "Email inválido"
+  }
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { getFinancialReport, exportReport, downloadBlob, type GeneratedReport } from './services'
 import './reportes.css'
@@ -12,6 +13,7 @@ const formatPct = (n: number) => `${n.toFixed(2)}%`
 
 export default function FinancialReport() {
   const nav = useNavigate()
+  const { t } = useTranslation(['reportes', 'common'])
   const { success, error: toastError } = useToast()
   const [dateFrom, setDateFrom] = useState(() => toISO(addDays(new Date(), -30)))
   const [dateTo, setDateTo] = useState(() => toISO(new Date()))
@@ -97,7 +99,7 @@ export default function FinancialReport() {
       <div className="tabs">
         <button onClick={() => nav('..')}>Dashboard</button>
         <button onClick={() => nav('../ventas')}>Ventas</button>
-        <button onClick={() => nav('../inventario')}>Inventario</button>
+        <button onClick={() => nav('../inventario')}>{t('reportes:nav.inventory')}</button>
         <button className="active">Financiero</button>
         <button onClick={() => nav('../margenes')}>Márgenes</button>
       </div>
@@ -131,7 +133,7 @@ export default function FinancialReport() {
       {loading ? (
         <div className="panel muted">Cargando reporte...</div>
       ) : !report ? (
-        <div className="panel muted">Selecciona un rango de fechas y presiona "Generar" para ver el reporte financiero.</div>
+        <div className="panel muted">{t('reportes:financial.selectRange')}</div>
       ) : (
         <>
           <div className="reports-cards">

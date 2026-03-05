@@ -11,6 +11,7 @@
  */
 
 import React, { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import JsBarcode from 'jsbarcode'
 
@@ -176,6 +177,7 @@ export default function PrintBarcodeLabels({
   modalExtras,
   currencySymbol = '$',
 }: PrintBarcodeLabelsProps) {
+  const { t } = useTranslation(['importer'])
   const [generating, setGenerating] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const [localConfig, setLocalConfig] = useState<PrintConfig>(defaultConfig ?? DEFAULT_CONFIG)
@@ -544,7 +546,7 @@ export default function PrintBarcodeLabels({
                       {savedConfigs.length === 0
                         ? configsLoading
                           ? 'Cargando?'
-                          : 'No hay configuraciones guardadas'
+                          : t('importer:barcode.noSavedConfigs')
                         : 'Selecciona un perfil'}
                     </option>
                     {savedConfigs.map((config) => (
@@ -562,7 +564,7 @@ export default function PrintBarcodeLabels({
                   disabled={!selectedPrinter?.port || generating}
                   className="px-4 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-60"
                 >
-                  {generating ? 'Generando...' : 'Imprimir ahora'}
+                  {generating ? t('importer:barcode.generating') : t('importer:barcode.printNow')}
                 </button>
               </div>
               <p className="text-xs text-gray-500">
@@ -583,7 +585,7 @@ export default function PrintBarcodeLabels({
                 onClick={handlePrint}
                 className="px-4 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
               >
-                Imprimir ahora
+                {t('importer:barcode.printNow')}
               </button>
             </div>
           )}
@@ -898,7 +900,7 @@ export default function PrintBarcodeLabels({
 
               className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
 
-              placeholder="Texto que aparece debajo del precio"
+              placeholder={t('importer:barcode.textBelowPrice')}
 
             />
 

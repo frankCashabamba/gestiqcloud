@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createCliente, getCliente, updateCliente, type Cliente as C } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
@@ -15,6 +16,7 @@ const FIELD_ALIASES: Record<string, string> = {
 const normalizeFieldId = (field: string) => FIELD_ALIASES[field] || field
 
 export default function ClienteForm() {
+  const { t } = useTranslation(['customers', 'common'])
   const { id, empresa } = useParams()
   const nav = useNavigate()
   const [form, setForm] = useState<Partial<Omit<C, 'id'>>>({ name: '', email: '', phone: '', is_wholesale: false })
@@ -53,10 +55,10 @@ export default function ClienteForm() {
 
   const fieldList = useMemo(() => {
     const base: FieldCfg[] = [
-      { field: 'name', visible: true, required: true, ord: 10, label: 'Nombre', field_type: 'text' },
-      { field: 'email', visible: true, required: false, ord: 20, label: 'Email', field_type: 'email' },
-      { field: 'phone', visible: true, required: false, ord: 21, label: 'Teléfono', field_type: 'text' },
-      { field: 'is_wholesale', visible: true, required: false, ord: 40, label: 'Mayorista', field_type: 'boolean' },
+      { field: 'name', visible: true, required: true, ord: 10, label: t('customers:form.name'), field_type: 'text' },
+      { field: 'email', visible: true, required: false, ord: 20, label: t('customers:form.email'), field_type: 'email' },
+      { field: 'phone', visible: true, required: false, ord: 21, label: t('customers:form.phone'), field_type: 'text' },
+      { field: 'is_wholesale', visible: true, required: false, ord: 40, label: t('customers:form.wholesale'), field_type: 'boolean' },
     ]
     return mergeFieldConfig(base, normalizedFields)
   }, [normalizedFields])
@@ -72,14 +74,14 @@ export default function ClienteForm() {
         if (f.required && f.visible !== false) {
           const val = (form as any)[f.field]
           if (val === undefined || val === null || String(val).trim() === '') {
-            throw new Error(`El campo "${f.label || f.field}" es obligatorio`)
+            throw new Error(t('customers:form.fieldRequired', { field: f.label || f.field }))
           }
         }
       }
-      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(form.email))) throw new Error('Email inválido')
+      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(form.email))) throw new Error(t('customers:form.invalidEmail'))
       if (id) await updateCliente(id, form as any)
       else await createCliente(form as any)
-      success('Cliente guardado')
+      success(t('customers:form.saved'))
       nav('..')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -88,9 +90,9 @@ export default function ClienteForm() {
 
   return (
     <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar cliente' : 'Nuevo cliente'}</h3>
+      <h3 className="text-xl font-semibold mb-3">{id ? t('customers:form.edit') : t('customers:form.new')}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
-        {loadingCfg && <div className="text-sm text-gray-500">Cargando campos…</div>}
+        {loadingCfg && <div className="text-sm text-gray-500">{t('customers:form.loadingFields')}</div>}
         {fieldList.map((f) => {
           const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
           const value = (form as any)[f.field] ?? ''
@@ -103,9 +105,9 @@ export default function ClienteForm() {
                 <label className="block mb-1">
                   {label}
                   {isRequired ? (
-                    <span className="text-red-600 ml-1" aria-label="Obligatorio">*</span>
+                    <span className="text-red-600 ml-1" aria-label={t('customers:form.required')}>*</span>
                   ) : (
-                    <span className="text-gray-500 ml-1 text-xs">(opcional)</span>
+                    <span className="text-gray-500 ml-1 text-xs">({t('customers:form.optional')})</span>
                   )}
                 </label>
               )}
@@ -117,8 +119,8 @@ export default function ClienteForm() {
           )
         })}
         <div className="pt-2">
-          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>Cancelar</button>
+          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('customers:form.save')}</button>
+          <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>{t('customers:form.cancel')}</button>
         </div>
       </form>
     </div>

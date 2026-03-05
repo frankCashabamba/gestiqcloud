@@ -1,6 +1,7 @@
 // apps/tenant/src/modules/inventario/StockListFixed.tsx (UTF-8)
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   listStockItems,
   listWarehouses,
@@ -14,6 +15,7 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import { getDefaultReorderPoint, getCompanySettings } from '../../services/companySettings'
 
 export default function StockList() {
+  const { t } = useTranslation(['inventory', 'common'])
   const [items, setItems] = useState<StockItem[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [loading, setLoading] = useState(false)
@@ -63,12 +65,12 @@ export default function StockList() {
       setLoading(true)
       const exists = warehouses.find((w) => w.code === 'ALM-1')
       if (exists) {
-        info('Warehouse ALM-1 already exists')
+        info(t('inventory:stock.warehouseExists'))
         return
       }
       const w = await createWarehouse({ code: 'ALM-1', name: 'Principal', is_active: true })
       setWarehouses((prev) => [...prev, w])
-      success('Warehouse created: ALM-1')
+      success(t('inventory:stock.warehouseCreated'))
     } catch (e: any) {
       toastError(getErrorMessage(e))
     } finally {
@@ -84,12 +86,12 @@ export default function StockList() {
       const ws = warehouses.length ? warehouses : await listWarehouses()
       const wh = ws[0]
       if (!wh) {
-        toastError('Create a warehouse first')
+        toastError(t('inventory:quickAdjust.missingWarehouse'))
         return
       }
-      const productId = window.prompt('Product ID (UUID)')?.trim()
+      const productId = window.prompt(t('inventory:quickAdjust.productPrompt'))?.trim()
       if (!productId) return
-      const qtyStr = window.prompt('Quantity to adjust (e.g. 10 or -5)')?.trim()
+      const qtyStr = window.prompt(t('inventory:quickAdjust.qtyPrompt'))?.trim()
       if (!qtyStr) return
       const delta = Number(qtyStr)
       if (Number.isNaN(delta)) return
@@ -149,7 +151,7 @@ export default function StockList() {
   const { page, setPage, totalPages, view, perPage, setPerPage } = usePagination(sorted, per)
 
   const exportCSV = () => {
-    const headers = ['Warehouse', 'SKU', 'Product', 'Quantity', 'Location', 'Lot', 'Expires']
+    const headers = [t('inventory:stock.warehouse'), 'SKU', t('inventory:stock.product'), t('inventory:stock.stock'), t('inventory:stock.location'), t('inventory:stock.batch'), t('inventory:stock.expiry')]
     const rows = sorted.map((item) => [
       item.warehouse?.code || '',
       item.product?.sku || '',
@@ -170,8 +172,8 @@ export default function StockList() {
   const getAlertaInfo = (item: StockItem) => {
     const min = getReorderPoint(item)
     const max = item.product?.product_metadata?.max_stock
-    if (min > 0 && item.qty <= min) return { tipo: 'bajo' as const, texto: 'Low stock', color: 'bg-red-100 text-red-800' }
-    if (max && item.qty > max) return { tipo: 'sobre' as const, texto: 'Overstock', color: 'bg-orange-100 text-orange-800' }
+    if (min > 0 && item.qty <= min) return { tipo: 'bajo' as const, texto: t('inventory:stock.lowStock'), color: 'bg-red-100 text-red-800' }
+    if (max && item.qty > max) return { tipo: 'sobre' as const, texto: t('inventory:stock.overstock'), color: 'bg-orange-100 text-orange-800' }
     return null
   }
 
@@ -192,24 +194,24 @@ export default function StockList() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Current Stock</h1>
-          <p className="mt-1 text-sm text-gray-500">Stock control by warehouse</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('inventory:stock.title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('inventory:stock.subtitle')}</p>
           {defaultReorderPoint > 0 && (
-            <p className="mt-1 text-xs text-gray-500">Global minimum stock: {defaultReorderPoint}</p>
+            <p className="mt-1 text-xs text-gray-500">{t('inventory:stock.globalMin')}: {defaultReorderPoint}</p>
           )}
         </div>
         <div className="flex gap-2">
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={exportCSV}>
-            Export CSV
+            {t('inventory:stock.exportCsv')}
           </button>
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={crearAlmacenDefecto} title="Create warehouse ALM-1">
-            Create warehouse
+            {t('inventory:stock.createWarehouse')}
           </button>
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={ajusteRapido} title="Quick adjust de stock">
-            Quick adjust
+            {t('inventory:stock.quickAdjust')}
           </button>
           <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium" onClick={() => nav('movimientos/nuevo')}>
-            New movement
+            {t('inventory:stock.newMovement')}
           </button>
         </div>
       </div>
@@ -217,15 +219,15 @@ export default function StockList() {
       {/* KPIs rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <div className="text-sm text-gray-600">Total products</div>
+          <div className="text-sm text-gray-600">{t('inventory:stock.totalProducts')}</div>
           <div className="text-2xl font-bold text-gray-900">{totalProductosUnicos}</div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <div className="text-sm text-gray-600">Total stock value</div>
+          <div className="text-sm text-gray-600">{t('inventory:stock.totalStockValue')}</div>
           <div className="text-2xl font-bold text-green-600">${totalValue.toFixed(2)}</div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <div className="text-sm text-gray-600">Low stock alerts</div>
+          <div className="text-sm text-gray-600">{t('inventory:stock.lowStockAlerts')}</div>
           <div className="text-2xl font-bold text-red-600">
             {items.filter((i) => {
               const min = getReorderPoint(i)
@@ -234,7 +236,7 @@ export default function StockList() {
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <div className="text-sm text-gray-600">Overstock</div>
+          <div className="text-sm text-gray-600">{t('inventory:stock.overstock')}</div>
           <div className="text-2xl font-bold text-orange-600">{items.filter((i) => i.product?.product_metadata?.max_stock && i.qty > i.product.product_metadata.max_stock).length}</div>
         </div>
       </div>
@@ -245,16 +247,16 @@ export default function StockList() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name or code..."
+            placeholder={t('inventory:stock.searchPlaceholder')}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            aria-label="Search products"
+            aria-label={t('inventory:stock.searchAriaLabel')}
           />
           <select
             value={filterWarehouse}
             onChange={(e) => setFilterWarehouse(e.target.value === 'all' ? 'all' : String(e.target.value))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All warehouses</option>
+            <option value="all">{t('inventory:stock.allWarehouses')}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name} ({w.code})
@@ -266,16 +268,16 @@ export default function StockList() {
             onChange={(e) => setFilterAlerta(e.target.value as any)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All alerts</option>
-            <option value="bajo">Low stock only</option>
-            <option value="sobre">Overstock only</option>
+            <option value="all">{t('inventory:stock.allAlerts')}</option>
+            <option value="bajo">{t('inventory:stock.lowStockOnly')}</option>
+            <option value="sobre">{t('inventory:stock.overstockOnly')}</option>
           </select>
         </div>
       </div>
 
       {loading && (
         <div className="flex items-center gap-2 text-gray-600 mb-4">
-          <span>Loading…</span>
+          <span>{t('inventory:stock.loading')}</span>
           <svg className="animate-spin h-4 w-4 text-gray-500" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -303,10 +305,10 @@ export default function StockList() {
                         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
                       }}
                     >
-                      WAREHOUSE {sortKey === 'warehouse' && (sortDir === 'asc' ? '▲' : '▼')}
+                      {t('inventory:stock.warehouse')} {sortKey === 'warehouse' && (sortDir === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">CODE</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('inventory:stock.code')}</th>
                   <th className="px-4 py-3 text-left">
                     <button
                       className="text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
@@ -315,7 +317,7 @@ export default function StockList() {
                         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
                       }}
                     >
-                      Product {sortKey === 'producto' && (sortDir === 'asc' ? '▲' : '▼')}
+                      {t('inventory:stock.product')} {sortKey === 'producto' && (sortDir === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
                   <th className="px-4 py-3 text-right">
@@ -329,10 +331,10 @@ export default function StockList() {
                       Stock {sortKey === 'qty' && (sortDir === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Location</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Batch</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Expiry</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('inventory:stock.location')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('inventory:stock.batch')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('inventory:stock.expiry')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('inventory:stock.status')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -350,8 +352,8 @@ export default function StockList() {
                         <div className="text-sm font-medium text-gray-900">{item.product?.name || '—'}</div>
                         {getReorderPoint(item) > 0 && (
                           <div className="text-xs text-gray-500">
-                            Min stock: {getReorderPoint(item)}
-                            {item.product?.product_metadata?.max_stock ? ` / Max: ${item.product.product_metadata?.max_stock}` : ''}
+                            {t('inventory:stock.minStock')}: {getReorderPoint(item)}
+                            {item.product?.product_metadata?.max_stock ? ` / ${t('inventory:stock.maxStock')}: ${item.product.product_metadata?.max_stock}` : ''}
                           </div>
                         )}
                       </td>
@@ -389,7 +391,7 @@ export default function StockList() {
           <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
             <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} />
             <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>Per page:</span>
+              <span>{t('inventory:stock.perPage')}:</span>
               <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1">
                 {[10, 25, 50, 100].map((n) => (
                   <option key={n} value={n}>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { listCaja, createMovimientoCaja } from './services'
 import type { Movimiento } from './types'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -6,6 +7,7 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import { PAGINATION_DEFAULTS } from '../../constants/defaults'
 
 export default function CajaList() {
+    const { t } = useTranslation(['finances', 'common'])
     const [items, setItems] = useState<Movimiento[]>([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -66,7 +68,7 @@ export default function CajaList() {
         e.preventDefault()
         try {
             await createMovimientoCaja(form)
-            success('Transaction created')
+            success(t('finances:messages.transactionCreated'))
             setShowForm(false)
             setForm({
                 fecha: new Date().toISOString().slice(0, 10),
@@ -81,17 +83,17 @@ export default function CajaList() {
         }
     }
 
-    if (loading) return <div className="p-4 text-sm text-gray-500">Loading…</div>
+    if (loading) return <div className="p-4 text-sm text-gray-500">{t('finances:cash.loading')}</div>
 
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="font-semibold text-lg">Cash Transactions</h2>
+                <h2 className="font-semibold text-lg">{t('finances:cash.title')}</h2>
                 <button
                     className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                     onClick={() => setShowForm(!showForm)}
                 >
-                    {showForm ? 'Cancel' : '+ New Transaction'}
+                    {showForm ? t('finances:cash.cancel') : t('finances:cash.newTransaction')}
                 </button>
             </div>
 
@@ -99,7 +101,7 @@ export default function CajaList() {
                 <div className="bg-gray-50 border rounded p-4 mb-4">
                     <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block mb-1 text-sm font-medium">Date</label>
+                            <label className="block mb-1 text-sm font-medium">{t('finances:cash.date')}</label>
                             <input
                                 type="date"
                                 value={form.fecha}
@@ -109,19 +111,19 @@ export default function CajaList() {
                             />
                         </div>
                         <div>
-                            <label className="block mb-1 text-sm font-medium">Type</label>
+                            <label className="block mb-1 text-sm font-medium">{t('finances:cash.type')}</label>
                             <select
                                 value={form.tipo}
                                 onChange={(e) => setForm({ ...form, tipo: e.target.value as any })}
                                 className="border px-2 py-1 rounded w-full"
                                 required
                             >
-                                <option value="ingreso">Income</option>
-                                <option value="egreso">Expense</option>
+                                <option value="ingreso">{t('finances:cash.income')}</option>
+                                <option value="egreso">{t('finances:cash.expense')}</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block mb-1 text-sm font-medium">Concept</label>
+                            <label className="block mb-1 text-sm font-medium">{t('finances:cash.concept')}</label>
                             <input
                                 type="text"
                                 value={form.concepto}
@@ -131,7 +133,7 @@ export default function CajaList() {
                             />
                         </div>
                         <div>
-                            <label className="block mb-1 text-sm font-medium">Amount</label>
+                            <label className="block mb-1 text-sm font-medium">{t('finances:cash.amount')}</label>
                             <input
                                 type="number"
                                 step="0.01"
@@ -143,13 +145,13 @@ export default function CajaList() {
                             />
                         </div>
                         <div className="col-span-2">
-                            <label className="block mb-1 text-sm font-medium">Reference</label>
+                            <label className="block mb-1 text-sm font-medium">{t('finances:cash.reference')}</label>
                             <input
                                 type="text"
                                 value={form.referencia}
                                 onChange={(e) => setForm({ ...form, referencia: e.target.value })}
                                 className="border px-2 py-1 rounded w-full"
-                                placeholder="Optional"
+                                placeholder={t('finances:cash.optional')}
                             />
                         </div>
                         <div className="col-span-2">
@@ -157,7 +159,7 @@ export default function CajaList() {
                                 type="submit"
                                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                             >
-                                Save Transaction
+                                {t('finances:cash.saveTransaction')}
                             </button>
                         </div>
                     </form>
@@ -166,15 +168,15 @@ export default function CajaList() {
 
             <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="bg-green-50 border border-green-200 rounded p-3">
-                    <div className="text-sm text-gray-600">Total Income</div>
+                    <div className="text-sm text-gray-600">{t('finances:cash.totalIncome')}</div>
                     <div className="text-xl font-bold text-green-700">${totalIngresos.toFixed(2)}</div>
                 </div>
                 <div className="bg-red-50 border border-red-200 rounded p-3">
-                    <div className="text-sm text-gray-600">Total Expenses</div>
+                    <div className="text-sm text-gray-600">{t('finances:cash.totalExpenses')}</div>
                     <div className="text-xl font-bold text-red-700">${totalEgresos.toFixed(2)}</div>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    <div className="text-sm text-gray-600">Net Balance</div>
+                    <div className="text-sm text-gray-600">{t('finances:cash.netBalance')}</div>
                     <div className={`text-xl font-bold ${saldo >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
                         ${saldo.toFixed(2)}
                     </div>
@@ -183,19 +185,19 @@ export default function CajaList() {
 
             <div className="mb-3 flex gap-3 items-end text-sm flex-wrap">
                 <div>
-                    <label className="block mb-1">Type</label>
+                    <label className="block mb-1">{t('finances:cash.type')}</label>
                     <select
                         value={tipo}
                         onChange={(e) => setTipo(e.target.value as any)}
                         className="border px-2 py-1 rounded"
                     >
-                        <option value="">All</option>
-                        <option value="ingreso">Income</option>
-                        <option value="egreso">Expenses</option>
+                        <option value="">{t('finances:cash.all')}</option>
+                        <option value="ingreso">{t('finances:cash.income')}</option>
+                        <option value="egreso">{t('finances:cash.expense')}</option>
                     </select>
                 </div>
                 <div>
-                    <label className="block mb-1">From</label>
+                    <label className="block mb-1">{t('finances:cash.from')}</label>
                     <input
                         type="date"
                         value={desde}
@@ -204,7 +206,7 @@ export default function CajaList() {
                     />
                 </div>
                 <div>
-                    <label className="block mb-1">To</label>
+                    <label className="block mb-1">{t('finances:cash.to')}</label>
                     <input
                         type="date"
                         value={hasta}
@@ -213,9 +215,9 @@ export default function CajaList() {
                     />
                 </div>
                 <div>
-                    <label className="block mb-1">Search</label>
+                    <label className="block mb-1">{t('finances:cash.search')}</label>
                     <input
-                        placeholder="concept"
+                        placeholder={t('finances:cash.searchPlaceholder')}
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         className="border px-2 py-1 rounded"
@@ -224,7 +226,7 @@ export default function CajaList() {
             </div>
 
             <div className="flex items-center gap-3 mb-2 text-sm">
-                <label>Per page</label>
+                <label>{t('finances:cash.perPage')}</label>
                 <select
                     value={per}
                     onChange={(e) => setPer(Number(e.target.value))}
@@ -240,11 +242,11 @@ export default function CajaList() {
                 <table className="min-w-full text-sm">
                     <thead>
                         <tr className="text-left border-b bg-gray-50">
-                            <th className="py-2 px-3">Date</th>
-                            <th className="py-2 px-3">Concept</th>
-                            <th className="py-2 px-3">Type</th>
-                            <th className="py-2 px-3 text-right">Amount</th>
-                            <th className="py-2 px-3">Reference</th>
+                            <th className="py-2 px-3">{t('finances:cash.date')}</th>
+                            <th className="py-2 px-3">{t('finances:cash.concept')}</th>
+                            <th className="py-2 px-3">{t('finances:cash.type')}</th>
+                            <th className="py-2 px-3 text-right">{t('finances:cash.amount')}</th>
+                            <th className="py-2 px-3">{t('finances:cash.reference')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -270,7 +272,7 @@ export default function CajaList() {
                         {view.length === 0 && (
                             <tr>
                                 <td className="py-3 px-3 text-center text-gray-500" colSpan={5}>
-                                    No records
+                                    {t('finances:cash.noRecords')}
                                 </td>
                             </tr>
                         )}

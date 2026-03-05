@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { getInventoryReport, exportReport, downloadBlob, type GeneratedReport } from './services'
 import './reportes.css'
@@ -8,6 +9,7 @@ const formatMoney = (n: number) => `$${n.toLocaleString('es', { minimumFractionD
 
 export default function InventoryReport() {
   const nav = useNavigate()
+  const { t } = useTranslation(['reportes', 'common'])
   const { success, error: toastError } = useToast()
   const [report, setReport] = useState<GeneratedReport | null>(null)
   const [loading, setLoading] = useState(false)
@@ -45,7 +47,7 @@ export default function InventoryReport() {
     <div className="reports-shell">
       <div className="reports-hero">
         <div>
-          <h1>📦 Reporte de Inventario</h1>
+          <h1>{t('reportes:inventory.title')}</h1>
           <p>Estado actual del inventario, valorización y alertas de stock.</p>
         </div>
         <div className="reports-filters">
@@ -73,7 +75,7 @@ export default function InventoryReport() {
       <div className="tabs">
         <button onClick={() => nav('..')}>Dashboard</button>
         <button onClick={() => nav('../ventas')}>Ventas</button>
-        <button className="active">Inventario</button>
+        <button className="active">{t('reportes:inventory.inventory')}</button>
         <button onClick={() => nav('../financiero')}>Financiero</button>
         <button onClick={() => nav('../margenes')}>Márgenes</button>
       </div>
@@ -107,7 +109,7 @@ export default function InventoryReport() {
       {summary && (
         <div className="reports-cards">
           <div className="card">
-            <span>Total Productos</span>
+            <span>{t('reportes:inventory.totalProducts')}</span>
             <strong>{summary.total_products ?? summary.total_productos ?? 0}</strong>
           </div>
           <div className="card" style={{ borderColor: 'rgba(227,147,42,0.4)' }}>
@@ -119,7 +121,7 @@ export default function InventoryReport() {
             <strong style={{ color: '#b13513' }}>{summary.out_of_stock ?? summary.sin_stock ?? 0}</strong>
           </div>
           <div className="card highlight">
-            <span>Valor Total Inventario</span>
+            <span>{t('reportes:inventory.totalValue')}</span>
             <strong>{formatMoney(summary.total_value ?? summary.valor_total ?? 0)}</strong>
           </div>
         </div>

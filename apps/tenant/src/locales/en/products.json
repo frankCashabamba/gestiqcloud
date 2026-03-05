@@ -83,8 +83,28 @@
     "suggestedPriceHelp": "Automatically calculated from recipe",
     "useSuggestedPriceLabel": "Use suggested price",
     "useSuggestedPriceCheckbox": "Apply suggested price as sale price",
-    "useSuggestedPriceHelp": "Enable this to automatically use the suggested price as the sale price"
+    "useSuggestedPriceHelp": "Enable this to automatically use the suggested price as the sale price",
+    "priceNegativeError": "Price cannot be negative",
+    "saved": "Product saved",
+    "codePlaceholder": "Product code",
+    "editProduct": "Edit product",
+    "newProduct": "New product",
+    "editDescription": "Modify the product data",
+    "newDescription": "Complete the form to register a new product"
     },
+  "list": {
+    "errorSavingConfig": "Error saving configuration",
+    "active": "Active",
+    "inactive": "Inactive",
+    "viewRecipe": "View recipe",
+    "createRecipe": "Create recipe from this product"
+  },
+  "purge": {
+    "typeConfirm": "Type PURGE to confirm",
+    "title": "Delete entire catalog",
+    "typeLabel": "Type",
+    "toConfirm": "to confirm"
+  },
   "mergeDuplicates": {
     "open": "Merge similar",
     "title": "Merge similar products",

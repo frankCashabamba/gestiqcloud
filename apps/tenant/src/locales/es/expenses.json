@@ -30,5 +30,17 @@
   "messages": {
     "deleted": "Gasto eliminado"
   },
-  "confirmDelete": "¿Eliminar gasto?"
+  "confirmDelete": "¿Eliminar gasto?",
+  "detail": {
+    "loadingDetail": "Cargando detalle...",
+    "order": "Orden",
+    "produced": "Producido",
+    "ingredient": "Ingrediente",
+    "quantity": "Cantidad",
+    "unit": "Unidad",
+    "unitCost": "Costo Unit.",
+    "subtotal": "Subtotal",
+    "total": "Total",
+    "errorLoadingDetail": "No se pudo cargar el detalle"
+  }
 }

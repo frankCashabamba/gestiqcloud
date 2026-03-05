@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createOpportunity, getOpportunity, updateOpportunity, type Opportunity } from '../../services'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { OpportunityStage } from '../../types'
@@ -7,6 +8,7 @@ import { OpportunityStage } from '../../types'
 export default function OpportunityForm() {
   const { id } = useParams()
   const nav = useNavigate()
+  const { t } = useTranslation('crm')
   const [form, setForm] = useState<Partial<Omit<Opportunity, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>>({
     name: '',
     description: '',
@@ -27,11 +29,11 @@ export default function OpportunityForm() {
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (!form.name || String(form.name).trim() === '') throw new Error('El campo "Título" es obligatorio')
-      if (form.value === undefined || form.value === null) throw new Error('El campo "Valor" es obligatorio')
+      if (!form.name || String(form.name).trim() === '') throw new Error(t('opportunities.titleRequired'))
+      if (form.value === undefined || form.value === null) throw new Error(t('opportunities.valueRequired'))
       if (id) await updateOpportunity(id, form)
       else await createOpportunity(form as any)
-      success('Oportunidad guardada')
+      success(t('opportunities.saved'))
       nav('..')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -40,10 +42,10 @@ export default function OpportunityForm() {
 
   return (
     <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar oportunidad' : 'Nueva oportunidad'}</h3>
+      <h3 className="text-xl font-semibold mb-3">{id ? t('opportunities.edit') : t('opportunities.new')}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>
-          <label className="block mb-1">Título *</label>
+          <label className="block mb-1">{t('opportunities.name')} *</label>
           <input
             type="text"
             value={form.name ?? ''}
@@ -53,7 +55,7 @@ export default function OpportunityForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Descripción</label>
+          <label className="block mb-1">{t('opportunities.description')}</label>
           <textarea
             value={form.description ?? ''}
             onChange={(e)=> setForm({ ...form, description: e.target.value })}
@@ -62,7 +64,7 @@ export default function OpportunityForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Valor *</label>
+          <label className="block mb-1">{t('opportunities.value')} *</label>
           <input
             type="number"
             value={form.value ?? 0}
@@ -74,7 +76,7 @@ export default function OpportunityForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Moneda</label>
+          <label className="block mb-1">{t('opportunities.currency')}</label>
           <input
             type="text"
             value={form.currency ?? 'USD'}
@@ -83,7 +85,7 @@ export default function OpportunityForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Probabilidad (%)</label>
+          <label className="block mb-1">{t('opportunities.probability')}</label>
           <input
             type="number"
             value={form.probability ?? 0}
@@ -94,22 +96,22 @@ export default function OpportunityForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Etapa</label>
+          <label className="block mb-1">{t('opportunities.stage')}</label>
           <select
             value={form.stage ?? OpportunityStage.PROSPECTING}
             onChange={(e)=> setForm({ ...form, stage: e.target.value as OpportunityStage })}
             className="border px-2 py-1 w-full rounded"
           >
-            <option value={OpportunityStage.PROSPECTING}>Prospección</option>
-            <option value={OpportunityStage.QUALIFICATION}>Calificación</option>
-            <option value={OpportunityStage.PROPOSAL}>Propuesta</option>
-            <option value={OpportunityStage.NEGOTIATION}>Negociación</option>
-            <option value={OpportunityStage.CLOSED_WON}>Ganada</option>
-            <option value={OpportunityStage.CLOSED_LOST}>Perdida</option>
+            <option value={OpportunityStage.PROSPECTING}>{t('opportunities.stageProspecting')}</option>
+            <option value={OpportunityStage.QUALIFICATION}>{t('opportunities.stageQualification')}</option>
+            <option value={OpportunityStage.PROPOSAL}>{t('opportunities.stageProposal')}</option>
+            <option value={OpportunityStage.NEGOTIATION}>{t('opportunities.stageNegotiation')}</option>
+            <option value={OpportunityStage.CLOSED_WON}>{t('opportunities.stageClosedWon')}</option>
+            <option value={OpportunityStage.CLOSED_LOST}>{t('opportunities.stageClosedLost')}</option>
           </select>
         </div>
         <div>
-          <label className="block mb-1">Fecha Cierre Esperada</label>
+          <label className="block mb-1">{t('opportunities.expectedCloseDate')}</label>
           <input
             type="date"
             value={form.expected_close_date ?? ''}
@@ -118,7 +120,7 @@ export default function OpportunityForm() {
           />
         </div>
         <div>
-          <label className="block mb-1">Asignado a</label>
+          <label className="block mb-1">{t('opportunities.assignedTo')}</label>
           <input
             type="text"
             value={form.assigned_to ?? ''}
@@ -127,8 +129,8 @@ export default function OpportunityForm() {
           />
         </div>
         <div className="pt-2">
-          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>Cancelar</button>
+          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('opportunities.save')}</button>
+          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>{t('opportunities.cancel')}</button>
         </div>
       </form>
     </div>

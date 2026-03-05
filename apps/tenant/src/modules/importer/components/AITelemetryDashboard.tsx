@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { IMPORTS } from '@endpoints/imports'
 import { apiFetch } from '../../../lib/http'
 import { withImportAIProvider } from '../services/aiProviderPreference'
@@ -87,6 +88,7 @@ function normalizeTelemetry(data: BackendTelemetryResponse): DashboardStats {
 }
 
 export const AITelemetryDashboard: React.FC = () => {
+  const { t } = useTranslation(['importer'])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -126,7 +128,7 @@ export const AITelemetryDashboard: React.FC = () => {
   if (!stats) {
     return (
       <div className="p-4 bg-amber-50 border border-amber-200 rounded">
-        <p className="text-amber-800">No hay datos de telemetria disponibles</p>
+        <p className="text-amber-800">{t('importer:telemetry.noData')}</p>
       </div>
     )
   }
@@ -169,7 +171,7 @@ export const AITelemetryDashboard: React.FC = () => {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <p className="text-sm text-gray-600">Costo total</p>
+          <p className="text-sm text-gray-600">{t('importer:telemetry.totalCost')}</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">${stats.totalCost.toFixed(2)}</p>
         </div>
 
@@ -184,7 +186,7 @@ export const AITelemetryDashboard: React.FC = () => {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-        <h3 className="text-lg font-bold mb-4">Desglose por proveedor</h3>
+        <h3 className="text-lg font-bold mb-4">{t('importer:telemetry.breakdownByProvider')}</h3>
         {stats.providers.length === 0 ? (
           <p className="text-sm text-gray-600">No hay desglose por proveedor disponible.</p>
         ) : (

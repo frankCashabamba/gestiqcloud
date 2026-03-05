@@ -3,6 +3,7 @@
  * Sprint 2: Selector de proveedor (local, OpenAI, Azure)
  */
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 type AIProvider = 'local' | 'openai' | 'azure'
 
@@ -15,6 +16,7 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
   onSave,
   initialProvider = 'local'
 }) => {
+  const { t } = useTranslation(['importer'])
   const [provider, setProvider] = useState<AIProvider>(initialProvider)
   const [isOpen, setIsOpen] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -72,7 +74,7 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
         <div className="absolute top-full mt-2 right-0 w-96 bg-white border border-gray-300 rounded-lg shadow-lg z-50 p-4 space-y-4">
           <div className="border-b pb-2">
             <h3 className="font-bold text-gray-800">Configuración de IA para Clasificación</h3>
-            <p className="text-xs text-gray-600 mt-1">Selecciona el proveedor de clasificación automática</p>
+            <p className="text-xs text-gray-600 mt-1">{t('importer:aiProvider.selectDescription')}</p>
           </div>
 
           {/* Provider Options */}
@@ -137,13 +139,13 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               onClick={handleSave}
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition"
             >
-              {saved ? '✓ Guardado' : 'Guardar Configuración'}
+              {saved ? t('importer:aiProvider.saved') : t('importer:aiProvider.saveConfig')}
             </button>
             <button
               onClick={() => setIsOpen(false)}
               className="px-3 py-2 rounded border border-gray-300 hover:bg-gray-50 text-sm font-medium transition"
             >
-              Cerrar
+              {t('importer:common.close')}
             </button>
           </div>
 

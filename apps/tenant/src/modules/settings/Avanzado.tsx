@@ -56,7 +56,7 @@ type AvanzadoSettingsProps = {
 }
 
 export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettingsProps) {
-    const { t } = useTranslation()
+    const { t } = useTranslation(['settings', 'common'])
     const { success, error } = useToast()
     const { profile } = useAuth()
     const isCompanyAdmin = Boolean(
@@ -408,7 +408,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                     </section>
 
                     <section className="border rounded-lg p-4 mb-6">
-                        <h3 className="font-semibold mb-3">Inventario</h3>
+                        <h3 className="font-semibold mb-3">{t('settings:advanced.inventory')}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <label className="text-sm flex items-center gap-2">
                                 <input
@@ -554,7 +554,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1">Minimo para exigir factura</label>
+                                <label className="block text-sm mb-1">{t('settings:advanced.minForInvoice')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     type="number"
@@ -585,7 +585,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded">
                             <div>
-                                <label className="block text-sm mb-1 font-medium">Seleccionar Producto</label>
+                                <label className="block text-sm mb-1 font-medium">{t('settings:advanced.selectProduct')}</label>
                                 <select
                                     className="border px-2 py-1 w-full rounded"
                                     value={bulkPricingForm.product_id}
@@ -647,7 +647,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                     className="bg-green-600 text-white px-3 py-1.5 rounded w-full disabled:opacity-60"
                                     onClick={() => {
                                         if (!bulkPricingForm.product_id) {
-                                            error('Debes seleccionar un producto')
+                                            error(t('settings:advanced.mustSelectProduct'))
                                             return
                                         }
                                         if (bulkPricingForm.quantity <= 0) {
@@ -690,9 +690,9 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50">
                                     <tr>
-                                        <th className="text-left px-3 py-2">Producto</th>
-                                        <th className="text-right px-3 py-2">Cantidad</th>
-                                        <th className="text-right px-3 py-2">Precio</th>
+                                        <th className="text-left px-3 py-2">{t('settings:advanced.product')}</th>
+                                        <th className="text-right px-3 py-2">{t('settings:advanced.quantity')}</th>
+                                        <th className="text-right px-3 py-2">{t('settings:advanced.price')}</th>
                                         <th className="text-right px-3 py-2">Precio/Unidad</th>
                                         <th className="text-right px-3 py-2">Acción</th>
                                     </tr>
@@ -918,7 +918,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm mb-1">Nombre</label>
+                                        <label className="block text-sm mb-1">{t('settings:advanced.name')}</label>
                                         <input
                                             className="border px-2 py-1 w-full rounded"
                                             value={seriesForm.name}
@@ -1015,7 +1015,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                     <table className="w-full text-sm">
                                         <thead className="bg-slate-50">
                                             <tr>
-                                                <th className="text-left px-3 py-2">Nombre</th>
+                                                <th className="text-left px-3 py-2">{t('settings:advanced.name')}</th>
                                                 <th className="text-left px-3 py-2">Tipo</th>
                                                 <th className="text-left px-3 py-2">Register</th>
                                                 <th className="text-right px-3 py-2">Numero</th>

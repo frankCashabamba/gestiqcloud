@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { addToOutbox } from '../services'
 import { retryFailedReceipts } from '../offlineSync'
 import useOffline from '../../../hooks/useOffline'
@@ -13,6 +14,7 @@ interface LegacyOutboxItem {
 }
 
 export default function useOfflineSync(intervalMs: number = 30000) {
+  const { t } = useTranslation(['pos', 'common'])
   const toast = useToast()
   const { isOnline, syncStatus, syncNow: globalSyncNow } = useOffline(intervalMs)
   const pendingCount = syncStatus.receipt ?? 0
@@ -67,12 +69,12 @@ export default function useOfflineSync(intervalMs: number = 30000) {
   }, [syncNow])
 
   const clearOutbox = useCallback(() => {
-    toast.warning('¿Limpiar todos los tickets pendientes? Esta acción no se puede deshacer.', {
+    toast.warning(t('pos:offline.clearWarning'), {
       action: {
-        label: 'Confirmar',
+        label: t('pos:offline.confirm'),
         onClick: async () => {
           await clearEntity('receipt')
-          toast.success('Tickets pendientes eliminados')
+          toast.success(t('pos:offline.ticketsDeleted'))
         },
       },
     })

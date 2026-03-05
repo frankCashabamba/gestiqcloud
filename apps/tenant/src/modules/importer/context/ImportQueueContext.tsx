@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
+import i18n from '../../../i18n'
 import { useAuth } from '../../../auth/AuthContext'
 import { pollOcrJob, processDocument } from '../services/importsApi'
 import { parseExcelFile } from '../services/parseExcelFile'
@@ -424,7 +425,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
       } catch (err: any) {
         updateQueue(item.id, {
           status: 'error',
-          error: err?.message || 'Error al procesar el archivo',
+          error: err?.message || i18n.t('importer:queue.errorProcessing'),
           info: null,
         })
       } finally {
@@ -496,7 +497,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
       updateQueue(item.id, { status: 'saved', batchId })
       return true
     } catch (err: any) {
-      updateQueue(item.id, { status: 'error', error: err?.message || 'Error al guardar' })
+      updateQueue(item.id, { status: 'error', error: err?.message || i18n.t('importer:queue.errorSaving') })
       return false
     }
   }

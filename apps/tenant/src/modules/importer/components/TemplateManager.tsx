@@ -161,13 +161,13 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                 }
             } catch (err: any) {
                 if (!cancelled) {
-                    setFieldsError(err?.message || 'No hay campos configurados para este tipo')
+                    setFieldsError(err?.message || t('templates.noFieldsConfigured'))
                 }
             }
             if (!cancelled) {
                 setCanonicalFields([])
                 setFieldsSeeded(false)
-                setFieldsError(prev => prev || 'No hay campos configurados para este tipo')
+                setFieldsError(prev => prev || t('templates.noFieldsConfigured'))
             }
         }
         if (isOpen) loadFields()

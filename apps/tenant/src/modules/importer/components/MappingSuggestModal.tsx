@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { suggestMapping, createColumnMapping, type ImportMapping } from '../services/importsApi'
 import { useAuth } from '../../../auth/AuthContext'
 
@@ -14,6 +15,7 @@ const CANONICAL_FIELDS = [
 ]
 
 export default function MappingSuggestModal({ file, open, onClose, onSaved }: Props) {
+  const { t } = useTranslation(['importer'])
   const { token } = useAuth() as { token: string | null }
   const [headers, setHeaders] = useState<string[]>([])
   const [mapping, setMapping] = useState<Record<string,string>>({})
@@ -36,7 +38,7 @@ export default function MappingSuggestModal({ file, open, onClose, onSaved }: Pr
           setDefaults(sug.defaults || {})
         }
       } catch (e:any) {
-        if (!cancelled) setError(e?.message || 'No se pudo sugerir el mapping')
+        if (!cancelled) setError(e?.message || t('importer:mapping.errorSaving'))
       }
     })()
     return () => { cancelled = true }
@@ -53,7 +55,7 @@ export default function MappingSuggestModal({ file, open, onClose, onSaved }: Pr
       onSaved(saved)
       onClose()
     } catch (e:any) {
-      setError(e?.message || 'No se pudo guardar el mapping')
+      setError(e?.message || t('importer:mapping.errorSaving'))
     } finally {
       setSaving(false)
     }
@@ -99,12 +101,12 @@ export default function MappingSuggestModal({ file, open, onClose, onSaved }: Pr
           </table>
         </div>
         <div className="mt-3 flex items-center justify-end gap-2">
-          <button className="rounded border border-slate-300 px-3 py-1.5 text-sm" onClick={onClose}>Cancelar</button>
+          <button className="rounded border border-slate-300 px-3 py-1.5 text-sm" onClick={onClose}>{t('importer:mapping.cancel')}</button>
           <button
             className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
             onClick={save}
             disabled={saving}
-          >{saving ? 'Guardando...' : 'Guardar mapping y usar'}</button>
+          >{saving ? t('importer:mapping.saving') : t('importer:mapping.saveAndUse')}</button>
         </div>
       </div>
     </div>

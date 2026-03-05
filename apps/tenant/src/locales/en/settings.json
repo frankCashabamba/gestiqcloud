@@ -74,5 +74,59 @@
     "saved": "Branding saved",
     "save": "Save",
     "saving": "Saving..."
+  },
+  "advanced": {
+    "inventory": "Inventory",
+    "minForInvoice": "Minimum to require invoice",
+    "selectProduct": "Select Product",
+    "mustSelectProduct": "You must select a product",
+    "product": "Product",
+    "quantity": "Quantity",
+    "price": "Price",
+    "name": "Name"
+  },
+  "modules": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "emptyCategory": "No modules in this category",
+    "clickToConfig": "Click any card to configure the module"
+  },
+  "moduleConfig": {
+    "priceIncludesTax": "Price includes tax",
+    "autoPrint": "Auto print",
+    "includeLogo": "Include logo in invoices",
+    "autoAssignCustomers": "Auto-assign customers",
+    "autoCreateOrder": "Auto-create order",
+    "noConfig": "No configurations available for this module"
+  },
+  "notifications": {
+    "provider": "Provider"
+  },
+  "nav": {
+    "operative": "Operational",
+    "operativeDesc": "POS and inventory"
+  },
+  "fiscal": {
+    "title": "Fiscal Configuration",
+    "regime": "Regime",
+    "ivaPercent": "VAT (%)",
+    "ivaError": "VAT must be >= 0",
+    "saved": "Fiscal configuration saved",
+    "save": "Save"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "opening": "Opening",
+    "closing": "Closing",
+    "required": "Opening and closing are required",
+    "saved": "Schedule saved",
+    "save": "Save"
+  },
+  "limits": {
+    "title": "Limits",
+    "maxUsers": "Maximum users",
+    "maxUsersError": "Maximum users must be >= 1",
+    "saved": "Limits saved",
+    "save": "Save"
   }
 }

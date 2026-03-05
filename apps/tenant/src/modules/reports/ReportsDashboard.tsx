@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { getAvailableReports, exportReport, downloadBlob } from './services'
 import './reportes.css'
@@ -15,7 +16,7 @@ const REPORT_CARDS = [
   {
     key: 'inventario',
     icon: '📦',
-    title: 'Inventario',
+    titleKey: 'reportes:dashboard.inventory',
     description: 'Estado actual del inventario, valorización y alertas de stock bajo.',
     exportType: 'inventory_status',
   },
@@ -37,6 +38,7 @@ const REPORT_CARDS = [
 
 export default function ReportsDashboard() {
   const nav = useNavigate()
+  const { t } = useTranslation(['reportes', 'common'])
   const { success, error: toastError } = useToast()
   const [history, setHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,9 +87,9 @@ export default function ReportsDashboard() {
       <div className="tabs">
         <button className="active">Dashboard</button>
         <button onClick={() => nav('ventas')}>Ventas</button>
-        <button onClick={() => nav('inventario')}>Inventario</button>
+        <button onClick={() => nav('inventario')}>{t('reportes:dashboard.inventory')}</button>
         <button onClick={() => nav('financiero')}>Financiero</button>
-        <button onClick={() => nav('margenes')}>Márgenes</button>
+        <button onClick={() => nav('margenes')}>{t('reportes:dashboard.margins')}</button>
       </div>
 
       {/* Report type cards */}
@@ -100,7 +102,7 @@ export default function ReportsDashboard() {
             onClick={() => nav(card.key)}
           >
             <div style={{ fontSize: 32, marginBottom: 4 }}>{card.icon}</div>
-            <strong style={{ fontSize: 16 }}>{card.title}</strong>
+            <strong style={{ fontSize: 16 }}>{(card as any).titleKey ? t((card as any).titleKey) : card.title}</strong>
             <span style={{ fontSize: 13, textTransform: 'none', letterSpacing: 0 }}>
               {card.description}
             </span>
@@ -144,11 +146,11 @@ export default function ReportsDashboard() {
           <table>
             <thead>
               <tr>
-                <th>Nombre</th>
+                <th>{t('reportes:dashboard.name')}</th>
                 <th>Tipo</th>
                 <th>Formato</th>
                 <th>Filas</th>
-                <th>Estado</th>
+                <th>{t('reportes:dashboard.status')}</th>
               </tr>
             </thead>
             <tbody>

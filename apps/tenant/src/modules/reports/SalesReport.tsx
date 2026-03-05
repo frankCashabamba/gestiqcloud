@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { getSalesReport, exportReport, downloadBlob, type GeneratedReport } from './services'
 import './reportes.css'
@@ -11,6 +12,7 @@ const formatMoney = (n: number) => `$${n.toLocaleString('es', { minimumFractionD
 
 export default function SalesReport() {
   const nav = useNavigate()
+  const { t } = useTranslation(['reportes', 'common'])
   const { success, error: toastError } = useToast()
   const [dateFrom, setDateFrom] = useState(() => toISO(addDays(new Date(), -30)))
   const [dateTo, setDateTo] = useState(() => toISO(new Date()))
@@ -91,7 +93,7 @@ export default function SalesReport() {
       <div className="tabs">
         <button onClick={() => nav('..')}>Dashboard</button>
         <button className="active">Ventas</button>
-        <button onClick={() => nav('../inventario')}>Inventario</button>
+        <button onClick={() => nav('../inventario')}>{t('reportes:nav.inventory')}</button>
         <button onClick={() => nav('../financiero')}>Financiero</button>
         <button onClick={() => nav('../margenes')}>Márgenes</button>
       </div>
@@ -125,11 +127,11 @@ export default function SalesReport() {
       {summary && (
         <div className="reports-cards">
           <div className="card highlight">
-            <span>Total Ventas</span>
+            <span>{t('reportes:sales.totalSales')}</span>
             <strong>{formatMoney(summary.total_sales ?? summary.total_ventas ?? 0)}</strong>
           </div>
           <div className="card">
-            <span>Total Items</span>
+            <span>{t('reportes:sales.totalItems')}</span>
             <strong>{summary.total_items ?? summary.total_productos ?? 0}</strong>
           </div>
           <div className="card">
@@ -147,7 +149,7 @@ export default function SalesReport() {
       {loading ? (
         <div className="panel muted">Cargando reporte...</div>
       ) : !report ? (
-        <div className="panel muted">Selecciona un rango de fechas y presiona "Generar" para ver el reporte.</div>
+        <div className="panel muted">{t('reportes:sales.selectRange')}</div>
       ) : report.data.rows.length === 0 ? (
         <div className="panel muted">No hay datos para el período seleccionado.</div>
       ) : (
