@@ -28,6 +28,9 @@ class ImpDocumento(Base):
     nombre_archivo: Mapped[str] = mapped_column(String(500), nullable=False)
     tipo_archivo: Mapped[str] = mapped_column(String(10), nullable=False, comment="PDF, JPG, PNG, XLSX, CSV, XML, TXT")
     tamanio_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    hash_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True, comment="Hash de contenido para dedupe")
+    fingerprint_json: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment="Fingerprint de cabeceras/hojas para matching de recetas")
+    sheet_profiles_json: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment="Per-sheet stats: filas, headers, types")
 
     # AI classification
     tipo_documento_detectado: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="FACTURA, RECIBO, NOTA_CREDITO, BOLETA, EXTRACTO, OTRO")

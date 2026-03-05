@@ -62,6 +62,8 @@ export type RunResult = {
   llm_model?: string
   recipe_used?: string
   recipe_snapshot_id?: string
+  auto_recipe_created?: boolean
+  auto_recipe_name?: string
 }
 
 export type Recipe = {

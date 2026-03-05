@@ -1,4 +1,4 @@
-"""Clasificador AI y extractor de campos para documentos."""
+"""Analizador AI universal para cualquier tipo de documento contable."""
 from __future__ import annotations
 import json
 import logging
@@ -11,127 +11,82 @@ logger = logging.getLogger("importador.ai")
 
 CONFIDENCE_THRESHOLD = 0.85
 
-DOC_TYPES = ["FACTURA", "RECIBO", "NOTA_CREDITO", "BOLETA", "EXTRACTO_BANCARIO", "TICKET", "OTRO"]
 
-EXTRACTION_FIELDS = {
-    "FACTURA": ["ruc", "proveedor", "fecha", "serie", "correlativo", "subtotal", "igv", "monto_total", "moneda", "descripcion"],
-    "RECIBO": ["ruc", "proveedor", "fecha", "monto_total", "concepto", "moneda"],
-    "NOTA_CREDITO": ["ruc", "proveedor", "fecha", "serie", "correlativo", "subtotal", "igv", "monto_total", "moneda", "motivo"],
-    "BOLETA": ["ruc", "proveedor", "fecha", "serie", "correlativo", "monto_total", "moneda"],
-    "EXTRACTO_BANCARIO": ["banco", "cuenta", "fecha_inicio", "fecha_fin", "saldo_inicial", "saldo_final", "moneda"],
-    "TICKET": ["establecimiento", "fecha", "monto_total", "moneda"],
-    "OTRO": ["fecha", "monto_total", "descripcion"],
-}
-
-
-async def classify_document(
-    text: str,
+async def analyze_document(
+    content: str,
     filename: str = "",
     format_hint: str = "",
+    has_structured_rows: bool = False,
     recipe_config: dict | None = None,
 ) -> dict[str, Any]:
-    """Classify document type using AI.
-    Returns: {"tipo_documento": str, "confianza": float, "razonamiento": str,
-              "raw_response": str, "model_used": str, "prompt_sent": str}
+    """Analiza cualquier documento contable en una sola llamada LLM.
+
+    Para Excel/CSV con filas ya parseadas (has_structured_rows=True):
+      - Recibe cabeceras + muestra de filas
+      - LLM clasifica el tipo y confirma los nombres de columnas
+      - Las filas reales vienen del parser (structured_data), no del LLM
+
+    Para PDF/imagen/XML/TXT (has_structured_rows=False):
+      - Recibe texto extraído por OCR
+      - LLM clasifica + extrae todos los campos
+
+    Returns: {
+        "tipo_documento": str,
+        "confianza": float,
+        "razonamiento": str,
+        "es_tabla": bool,
+        "columnas": list[str],   # si es_tabla=True
+        "campos": dict,           # si es_tabla=False
+        "raw_response": str,
+        "model_used": str,
+        "prompt_sent": str,
+    }
     """
     rc = recipe_config or {}
-    system_prefix = rc.get("prompt_system", "")
 
-    prompt = ""
-    if system_prefix:
-        prompt += system_prefix.rstrip() + "\n\n"
-    prompt += (
-        "Clasifica este documento contable/financiero.\n\n"
-        f"Nombre archivo: {filename}\n"
-        f"Formato: {format_hint}\n\n"
-        f"Texto del documento (primeros 3000 chars):\n{text[:3000]}\n\n"
-        f"Tipos posibles: {DOC_TYPES}\n\n"
-        "Responde SOLO con JSON válido:\n"
-        '{"tipo_documento": "...", "confianza": 0.0-1.0, "razonamiento": "breve explicación"}'
+    system_prompt = rc.get("prompt_system") or (
+        "Eres un analizador de documentos contables universal. "
+        "Identificas y extraes información de CUALQUIER tipo de documento: "
+        "facturas, inventarios, nóminas, extractos bancarios, listas de precios, "
+        "presupuestos, órdenes de compra, costeos, recibos, boletas, contratos, etc."
     )
 
-    model_override = rc.get("model")
+    tabular_note = (
+        "NOTA: El contenido ya está preprocesado como tabla estructurada. "
+        "Si reconoces una lista o tabla, marca es_tabla=true y proporciona los nombres de columna limpios. "
+        "NO necesitas devolver las filas individuales.\n\n"
+        if has_structured_rows else ""
+    )
 
-    try:
-        response = await AIService.query(
-            task=AITask.CLASSIFICATION,
-            prompt=prompt,
-            temperature=0.1,
-            max_tokens=300,
-            module="importador",
-            enable_recovery=True,
-        )
+    user_prompt = (
+        f"{tabular_note}"
+        f"Archivo: {filename} | Formato: {format_hint}\n\n"
+        f"Contenido:\n{content[:4000]}\n\n"
+        "Analiza el documento y responde SOLO con JSON válido:\n"
+        "{\n"
+        '  "tipo_documento": "string libre (FACTURA, INVENTARIO, NOMINA, EXTRACTO_BANCARIO, '
+        'LISTA_PRECIOS, COSTEO, PRESUPUESTO, ORDEN_COMPRA, RECIBO, BOLETA, TICKET, OTRO, etc.)",\n'
+        '  "confianza": 0.0-1.0,\n'
+        '  "razonamiento": "explicación breve",\n'
+        '  "es_tabla": true o false,\n'
+        '  "columnas": ["col1", "col2"],\n'
+        '  "campos": {"campo1": valor, "campo2": valor}\n'
+        "}\n"
+        "Reglas:\n"
+        "- Si es_tabla=true: incluye 'columnas' con los nombres limpios de cada columna; omite 'campos'\n"
+        "- Si es_tabla=false: incluye 'campos' con todos los datos del documento; omite 'columnas'\n"
+        "- Fechas: YYYY-MM-DD. Montos: número con punto decimal. Ausentes: null\n"
+        "- No inventes datos que no estén en el documento."
+    )
 
-        raw_content = response.content
-        model_used = response.model or "unknown"
-
-        if response.is_error:
-            logger.warning("AI classification failed: %s", response.error)
-            result = _fallback_classify(text, filename)
-            result["raw_response"] = response.error
-            result["model_used"] = model_used
-            result["prompt_sent"] = prompt[:500]
-            return result
-
-        result = _parse_json_response(raw_content)
-        if result and result.get("tipo_documento") in DOC_TYPES:
-            result["raw_response"] = raw_content
-            result["model_used"] = model_used
-            result["prompt_sent"] = prompt[:500]
-            return result
-
-        fallback = _fallback_classify(text, filename)
-        fallback["raw_response"] = raw_content
-        fallback["model_used"] = model_used
-        fallback["prompt_sent"] = prompt[:500]
-        return fallback
-
-    except Exception as exc:
-        logger.error("AI classification error: %s", exc)
-        result = _fallback_classify(text, filename)
-        result["raw_response"] = str(exc)
-        result["model_used"] = "fallback"
-        result["prompt_sent"] = prompt[:500]
-        return result
-
-
-async def extract_fields(
-    text: str,
-    tipo_documento: str,
-    filename: str = "",
-    recipe_config: dict | None = None,
-) -> dict[str, Any]:
-    """Extract structured fields from document text using AI.
-    Returns: dict with field names as keys plus _raw_response, _model_used, _prompt_sent.
-    """
-    rc = recipe_config or {}
-    fields = EXTRACTION_FIELDS.get(tipo_documento, EXTRACTION_FIELDS["OTRO"])
-
-    if rc.get("prompt_user"):
-        prompt = rc["prompt_user"].replace("{text}", text[:4000]).replace("{tipo}", tipo_documento).replace("{fields}", str(fields))
-    else:
-        prompt = (
-            f"Extrae los siguientes campos de este documento de tipo {tipo_documento}.\n\n"
-            f"Campos a extraer: {fields}\n\n"
-            f"Texto del documento:\n{text[:4000]}\n\n"
-            "Reglas:\n"
-            "- Fechas en formato YYYY-MM-DD\n"
-            "- Montos como números sin separadores de miles (usar punto decimal)\n"
-            "- Si es NOTA_CREDITO, los montos deben ser NEGATIVOS\n"
-            "- Si no encuentras un campo, usa null\n"
-            "- RUC/DNI: solo dígitos\n\n"
-            "Responde SOLO con JSON válido con los campos extraídos."
-        )
-
-    if rc.get("prompt_system"):
-        prompt = rc["prompt_system"].rstrip() + "\n\n" + prompt
+    full_prompt = system_prompt.rstrip() + "\n\n" + user_prompt
 
     try:
         response = await AIService.query(
             task=AITask.EXTRACTION,
-            prompt=prompt,
+            prompt=full_prompt,
             temperature=0.1,
-            max_tokens=800,
+            max_tokens=1000,
             module="importador",
             enable_recovery=True,
         )
@@ -140,39 +95,64 @@ async def extract_fields(
         model_used = response.model or "unknown"
 
         if response.is_error:
-            logger.warning("AI extraction failed: %s", response.error)
-            return {"_raw_response": response.error, "_model_used": model_used, "_prompt_sent": prompt[:500]}
+            logger.warning("AI analysis failed: %s", response.error)
+            fallback = _fallback_classify(content, filename)
+            fallback.update({"es_tabla": has_structured_rows, "columnas": [], "campos": {}})
+            fallback["raw_response"] = response.error
+            fallback["model_used"] = model_used
+            fallback["prompt_sent"] = full_prompt[:500]
+            return fallback
 
-        result = _parse_json_response(raw_content)
-        if result:
-            result["_raw_response"] = raw_content
-            result["_model_used"] = model_used
-            result["_prompt_sent"] = prompt[:500]
-            return result
-        return {"_raw_response": raw_content, "_model_used": model_used, "_prompt_sent": prompt[:500]}
+        parsed = _parse_json_response(raw_content)
+        if parsed and parsed.get("tipo_documento"):
+            parsed.setdefault("es_tabla", False)
+            parsed.setdefault("columnas", [])
+            parsed.setdefault("campos", {})
+            parsed.setdefault("confianza", 0.7)
+            parsed.setdefault("razonamiento", "")
+            parsed["raw_response"] = raw_content
+            parsed["model_used"] = model_used
+            parsed["prompt_sent"] = full_prompt[:500]
+            return parsed
+
+        fallback = _fallback_classify(content, filename)
+        fallback.update({"es_tabla": has_structured_rows, "columnas": [], "campos": {}})
+        fallback["raw_response"] = raw_content
+        fallback["model_used"] = model_used
+        fallback["prompt_sent"] = full_prompt[:500]
+        return fallback
 
     except Exception as exc:
-        logger.error("AI extraction error: %s", exc)
-        return {"_raw_response": str(exc), "_model_used": "error", "_prompt_sent": prompt[:500]}
+        logger.error("AI analysis error: %s", exc)
+        fallback = _fallback_classify(content, filename)
+        fallback.update({"es_tabla": has_structured_rows, "columnas": [], "campos": {}})
+        fallback["raw_response"] = str(exc)
+        fallback["model_used"] = "fallback"
+        fallback["prompt_sent"] = full_prompt[:500]
+        return fallback
 
 
 def _fallback_classify(text: str, filename: str) -> dict[str, Any]:
-    """Rule-based fallback classification when AI is unavailable."""
+    """Clasificación por reglas cuando el AI no está disponible."""
     text_lower = text.lower()
     fn_lower = filename.lower()
 
     patterns = {
         "FACTURA": ["factura", "invoice", "fact.", "f/"],
-        "NOTA_CREDITO": ["nota de crédito", "nota de credito", "credit note", "nc-", "nc/"],
+        "NOTA_CREDITO": ["nota de crédito", "nota de credito", "credit note", "nc-"],
         "RECIBO": ["recibo", "receipt", "recibo de pago"],
-        "BOLETA": ["boleta", "b/v", "boleta de venta"],
-        "EXTRACTO_BANCARIO": ["extracto", "estado de cuenta", "bank statement", "movimientos"],
-        "TICKET": ["ticket", "voucher", "comprobante"],
+        "BOLETA": ["boleta", "boleta de venta"],
+        "EXTRACTO_BANCARIO": ["extracto", "estado de cuenta", "bank statement"],
+        "TICKET": ["ticket", "voucher"],
+        "NOMINA": ["nómina", "nomina", "planilla", "rol de pagos"],
+        "INVENTARIO": ["inventario", "stock", "existencias", "kardex"],
+        "COSTEO": ["costeo", "costo de producción"],
+        "LISTA_PRECIOS": ["lista de precios", "price list", "tarifario"],
+        "MOVIMIENTOS_BANCARIOS": ["movimientos", "transacciones bancarias"],
     }
 
     best_type = "OTRO"
     best_score = 0.0
-
     for doc_type, keywords in patterns.items():
         matches = sum(1 for kw in keywords if kw in text_lower or kw in fn_lower)
         if matches > best_score:
@@ -180,7 +160,6 @@ def _fallback_classify(text: str, filename: str) -> dict[str, Any]:
             best_type = doc_type
 
     confidence = min(0.7, 0.3 + (best_score * 0.2)) if best_score > 0 else 0.2
-
     return {
         "tipo_documento": best_type,
         "confianza": confidence,
@@ -189,7 +168,7 @@ def _fallback_classify(text: str, filename: str) -> dict[str, Any]:
 
 
 def _parse_json_response(content: str) -> dict | None:
-    """Parse JSON from AI response, handling markdown code blocks."""
+    """Parsea JSON de la respuesta del LLM, manejando bloques markdown."""
     content = content.strip()
     if content.startswith("```"):
         lines = content.split("\n")
@@ -197,10 +176,11 @@ def _parse_json_response(content: str) -> dict | None:
     try:
         return json.loads(content)
     except json.JSONDecodeError:
-        match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
-        if match:
+        start = content.find("{")
+        end = content.rfind("}")
+        if start != -1 and end > start:
             try:
-                return json.loads(match.group())
+                return json.loads(content[start : end + 1])
             except json.JSONDecodeError:
                 pass
     return None

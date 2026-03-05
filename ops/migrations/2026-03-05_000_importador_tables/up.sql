@@ -97,4 +97,8 @@ CREATE INDEX IF NOT EXISTS idx_icu_snapshot_recipe ON icu_recipe_snapshot(recipe
 ALTER TABLE imp_documento
     ADD COLUMN IF NOT EXISTS recipe_snapshot_id UUID REFERENCES icu_recipe_snapshot(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS llm_model          VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS raw_ai_json        JSONB;
+    ADD COLUMN IF NOT EXISTS raw_ai_json        JSONB,
+    ADD COLUMN IF NOT EXISTS hash_sha256        VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS fingerprint_json   JSONB,
+    ADD COLUMN IF NOT EXISTS sheet_profiles_json JSONB;
+CREATE INDEX IF NOT EXISTS idx_imp_doc_hash ON imp_documento(hash_sha256);

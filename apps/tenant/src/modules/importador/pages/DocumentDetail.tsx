@@ -38,9 +38,11 @@ export default function DocumentDetail() {
 
   const startEdit = () => {
     const data = (doc?.datos_extraidos || {}) as Record<string, unknown>
+    // No editar tablas (tipo inventario/nomina) — solo campos escalares
+    if (data.filas && Array.isArray(data.filas)) return
     const flat: Record<string, string> = {}
     Object.entries(data).forEach(([k, v]) => {
-      if (typeof v !== 'object' || v === null) flat[k] = String(v ?? '')
+      if (!k.startsWith('_') && (typeof v !== 'object' || v === null)) flat[k] = String(v ?? '')
     })
     setEditFields(flat)
     setEditMode(true)
@@ -80,9 +82,11 @@ export default function DocumentDetail() {
         </div>
         {doc.estado === 'REVIEW' && (
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>✏️ Editar</button>
-            <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>❌ Rechazar</button>
-            <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>{saving ? '...' : '✅ Confirmar'}</button>
+            {!((doc.datos_extraidos as any)?.filas) && (
+              <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>Editar</button>
+            )}
+            <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>Rechazar</button>
+            <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>{saving ? '...' : 'Confirmar'}</button>
           </div>
         )}
       </div>
@@ -120,37 +124,103 @@ export default function DocumentDetail() {
           )}
         </div>
 
-        {/* Right: Extracted fields */}
+        {/* Right: Extracted fields / Table rows */}
         <div style={{ flex: 1, minWidth: 300 }}>
           <div style={section}>
-            <h3 style={{ marginTop: 0 }}>🔗 Campos Extraídos</h3>
-            {editMode ? (
-              <div>
-                {Object.entries(editFields).map(([key, val]) => (
-                  <label key={key} style={{ display: 'flex', flexDirection: 'column', marginBottom: '0.5rem', fontSize: 13 }}>
-                    <span style={{ color: '#6b7280', fontWeight: 600 }}>{key}</span>
-                    <input value={val} onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))} style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }} />
-                  </label>
-                ))}
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                  <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#6366F1' }}>💾 Guardar</button>
-                  <button onClick={() => setEditMode(false)} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>Cancelar</button>
-                </div>
-              </div>
+            {datos.filas && Array.isArray(datos.filas) ? (
+              // Vista de tabla para INVENTARIO, NOMINA, COSTEO, etc.
+              (() => {
+                const allRows = datos.filas as Record<string, unknown>[]
+                // columnas_norm = claves reales de los dicts de filas (ej: "precio_unitario_venta")
+                // columnas      = nombres display para la UI (ej: "PRECIO UNITARIO VENTA")
+                const normKeys: string[] = datos.columnas_norm && Array.isArray(datos.columnas_norm) && (datos.columnas_norm as string[]).length > 0
+                  ? (datos.columnas_norm as string[])
+                  : allRows.length > 0 ? Object.keys(allRows[0]).filter(k => k !== '_sheet') : []
+                const displayNames: string[] = datos.columnas && Array.isArray(datos.columnas) ? (datos.columnas as string[]) : normKeys
+                // Filtrar columnas que no tienen ningún dato real en las primeras 30 filas
+                const visibleIdxs = normKeys.reduce<number[]>((acc, key, i) => {
+                  const vals = allRows.slice(0, 30).map(r => r[key])
+                  if (vals.some(v => v !== null && v !== undefined && v !== '' && v !== 0)) acc.push(i)
+                  return acc
+                }, [])
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <h3 style={{ margin: 0 }}>Filas del documento</h3>
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>{datos.total_filas as number} filas totales · {visibleIdxs.length} columnas</span>
+                    </div>
+                    <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb', position: 'sticky', top: 0 }}>
+                            {visibleIdxs.map(i => (
+                              <th key={i} style={{ padding: '0.4rem 0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap', background: '#f9fafb' }}>
+                                {displayNames[i] ?? normKeys[i]}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allRows.slice(0, 150).map((row, ri) => (
+                            <tr key={ri} style={{ borderBottom: '1px solid #f3f4f6' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+                              onMouseLeave={e => (e.currentTarget.style.background = '')}
+                            >
+                              {visibleIdxs.map(i => {
+                                const val = row[normKeys[i]]
+                                const isNum = typeof val === 'number'
+                                return (
+                                  <td key={i} style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap', textAlign: isNum ? 'right' : 'left' }}>
+                                    {val == null || val === '' ? '' : isNum ? (val as number).toLocaleString('es-ES', { maximumFractionDigits: 4 }) : String(val)}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {(datos.total_filas as number) > 150 && (
+                      <p style={{ fontSize: 12, color: '#9ca3af', marginTop: '0.5rem', textAlign: 'center' }}>
+                        Mostrando 150 de {datos.total_filas as number} filas
+                      </p>
+                    )}
+                  </>
+                )
+              })()
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>
-                  {Object.entries(datos).filter(([, v]) => typeof v !== 'object' || v === null).map(([key, val]) => (
-                    <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{key}</td>
-                      <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '—')}</td>
-                    </tr>
-                  ))}
-                  {Object.keys(datos).filter(k => typeof datos[k] !== 'object' || datos[k] === null).length === 0 && (
-                    <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>Sin campos extraídos</td></tr>
-                  )}
-                </tbody>
-              </table>
+              // Vista de campos para FACTURA, RECIBO, etc.
+              <>
+                <h3 style={{ marginTop: 0 }}>Campos Extraídos</h3>
+                {editMode ? (
+                  <div>
+                    {Object.entries(editFields).map(([key, val]) => (
+                      <label key={key} style={{ display: 'flex', flexDirection: 'column', marginBottom: '0.5rem', fontSize: 13 }}>
+                        <span style={{ color: '#6b7280', fontWeight: 600 }}>{key}</span>
+                        <input value={val} onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))} style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }} />
+                      </label>
+                    ))}
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                      <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#6366F1' }}>Guardar</button>
+                      <button onClick={() => setEditMode(false)} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <tbody>
+                      {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && (typeof v !== 'object' || v === null)).map(([key, val]) => (
+                        <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{key}</td>
+                          <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '—')}</td>
+                        </tr>
+                      ))}
+                      {Object.keys(datos).filter(k => !k.startsWith('_') && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
+                        <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>Sin campos extraídos</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </>
             )}
           </div>
         </div>

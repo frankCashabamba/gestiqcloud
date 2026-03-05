@@ -105,6 +105,8 @@ class RunResponse(BaseModel):
     llm_model: str | None = None
     recipe_used: str | None = None
     recipe_snapshot_id: UUID | None = None
+    auto_recipe_created: bool | None = None
+    auto_recipe_name: str | None = None
 
 
 class RecipeCreate(BaseModel):

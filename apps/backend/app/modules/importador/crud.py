@@ -1,7 +1,7 @@
 """CRUD for imp_documento and imp_log_cambios."""
 from __future__ import annotations
 from uuid import UUID
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session, joinedload
 from app.models.importador import ImpDocumento, ImpLogCambios
 
@@ -44,6 +44,46 @@ def count_documentos(db: Session, tenant_id: UUID) -> dict:
         .group_by(ImpDocumento.estado)
     ).all()
     return {estado: count for estado, count in rows}
+
+
+def find_existing_documento(
+    db: Session,
+    tenant_id: UUID,
+    nombre_archivo: str,
+    tamanio_bytes: int,
+    hash_sha256: str | None = None,
+) -> ImpDocumento | None:
+    """Busca un documento ya subido para dedupe.
+
+    Prioridad: hash (si se pasa) > filename+size.
+    """
+    if hash_sha256:
+        doc = db.scalars(
+            select(ImpDocumento)
+            .where(
+                and_(
+                    ImpDocumento.tenant_id == tenant_id,
+                    ImpDocumento.hash_sha256 == hash_sha256,
+                )
+            )
+            .order_by(ImpDocumento.created_at.desc())
+            .limit(1)
+        ).first()
+        if doc:
+            return doc
+
+    return db.scalars(
+        select(ImpDocumento)
+        .where(
+            and_(
+                ImpDocumento.tenant_id == tenant_id,
+                ImpDocumento.nombre_archivo == nombre_archivo,
+                ImpDocumento.tamanio_bytes == tamanio_bytes,
+            )
+        )
+        .order_by(ImpDocumento.created_at.desc())
+        .limit(1)
+    ).first()
 
 
 def add_log(db: Session, documento_id: UUID, accion: str, usuario_id: str | None = None, detalle: dict | None = None) -> ImpLogCambios:

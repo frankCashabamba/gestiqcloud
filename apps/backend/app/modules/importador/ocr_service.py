@@ -2,16 +2,19 @@
 from __future__ import annotations
 import csv
 import io
+import itertools
 import logging
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Tuple
 import openpyxl
+import datetime
 from PIL import Image
 
 logger = logging.getLogger("importador.ocr")
 
-SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif", ".xlsx", ".xls", ".csv", ".xml", ".txt"}
+SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif", ".xlsx", ".xls", ".csv", ".xml", ".txt", ".zip"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif"}
 
 # UBL 2.1 namespaces
@@ -23,7 +26,10 @@ _UBL_NS = {
 
 def detect_file_type(filename: str) -> str:
     ext = Path(filename).suffix.lower()
-    type_map = {".pdf": "PDF", ".jpg": "JPG", ".jpeg": "JPG", ".png": "PNG", ".tiff": "IMG", ".bmp": "IMG", ".gif": "IMG", ".xlsx": "XLSX", ".xls": "XLS", ".csv": "CSV", ".xml": "XML", ".txt": "TXT"}
+    type_map = {
+        ".pdf": "PDF", ".jpg": "JPG", ".jpeg": "JPG", ".png": "PNG", ".tiff": "IMG", ".bmp": "IMG", ".gif": "IMG",
+        ".xlsx": "XLSX", ".xls": "XLS", ".csv": "CSV", ".xml": "XML", ".txt": "TXT", ".zip": "ZIP",
+    }
     return type_map.get(ext, "UNKNOWN")
 
 
@@ -38,15 +44,66 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
     elif ext in IMAGE_EXTENSIONS:
         return await _extract_image(file_bytes)
     elif ext in (".xlsx", ".xls"):
-        return _extract_excel(file_bytes)
+        try:
+            return _extract_excel(file_bytes, ext=ext)
+        except Exception as exc:
+            logger.warning("Excel parse failed (%s): %s", ext, exc)
+            return {"text": "", "pages": 1, "structured_data": None, "format": "EXCEL_ERROR", "error": str(exc)}
     elif ext == ".csv":
         return _extract_csv(file_bytes)
     elif ext == ".xml":
-        return _extract_xml(file_bytes)
+        try:
+            return _extract_xml(file_bytes)
+        except Exception as exc:
+            logger.warning("XML parse failed: %s", exc)
+            preview = file_bytes[:4000].decode("utf-8", errors="ignore")
+            return {"text": preview, "pages": 1, "structured_data": None, "format": "XML_PARSE_ERROR", "error": str(exc)}
     elif ext == ".txt":
         return _extract_txt(file_bytes)
+    elif ext == ".zip":
+        return _extract_zip_summary(file_bytes, filename)
     else:
         raise ValueError(f"Formato no soportado: {ext}")
+
+
+def iter_zip_entries(file_bytes: bytes, max_files: int = 20, max_size_bytes: int = 8 * 1024 * 1024) -> Iterable[Tuple[str, bytes]]:
+    """Itera ficheros válidos dentro de un ZIP.
+
+    - Ignora directorios y ficheros vacíos.
+    - Limita número de entradas y tamaño por archivo para evitar OOM.
+    - Solo devuelve extensiones soportadas.
+    """
+    with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+        count = 0
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            if info.file_size <= 0 or info.file_size > max_size_bytes:
+                logger.warning("Zip entry %s skipped (size %s bytes)", info.filename, info.file_size)
+                continue
+            ext = Path(info.filename).suffix.lower()
+            if ext not in SUPPORTED_EXTENSIONS:
+                logger.warning("Zip entry %s skipped (ext %s no soportada)", info.filename, ext)
+                continue
+            with zf.open(info) as fp:
+                yield info.filename, fp.read()
+                count += 1
+                if count >= max_files:
+                    logger.warning("Zip truncado a %s ficheros", max_files)
+                    break
+
+
+def _extract_zip_summary(file_bytes: bytes, zip_name: str) -> dict[str, Any]:
+    """Devuelve un resumen de contenido de un ZIP (no reemplaza el fan-out por archivo).
+
+    Se usa solo para mostrar preview rápida si se sube el ZIP como un único documento.
+    El fan-out real lo maneja router/run antes de llamar a este extractor.
+    """
+    summaries = []
+    for inner_name, inner_bytes in iter_zip_entries(file_bytes):
+        summaries.append({"filename": inner_name, "size": len(inner_bytes)})
+    text = "\n".join(f"{s['filename']} ({s['size']} bytes)" for s in summaries)
+    return {"text": text, "pages": 1, "structured_data": summaries, "format": "ZIP"}
 
 
 async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
@@ -134,43 +191,183 @@ def _ocr_image(img: Image.Image) -> str:
             return ""
 
 
-def _extract_excel(file_bytes: bytes) -> dict[str, Any]:
-    """Parse all Excel sheets instead of only the active one.
+def _normalize_header(h: Any, idx: int) -> str:
+    return str(h or f"col_{idx}").strip().lower().replace(" ", "_")
 
-    Heuristics:
-    - Collect rows from every worksheet (skipping empty rows).
-    - Tag each row with `_sheet` so the UI/LLM knows the origin sheet.
-    - Build a compact text sample per sheet (first 30 rows) to feed the LLM.
-    - Pick the sheet with the highest signal (rows + presence of date/amount headers)
-      as `sheet_used` for transparency.
-    """
+
+def _detect_col_type(values: list[Any]) -> str:
+    num = sum(isinstance(v, (int, float)) for v in values if v is not None)
+    dates = sum(isinstance(v, (datetime.date, datetime.datetime)) for v in values if v is not None)
+    strings = sum(isinstance(v, str) for v in values if v is not None)
+    counts = {"number": num, "date": dates, "string": strings}
+    return max(counts, key=counts.get)
+
+
+def _iter_xls_rows(file_bytes: bytes):
+    try:
+        import xlrd
+    except ImportError:
+        raise RuntimeError("Falta dependencia xlrd para archivos .xls (pip install xlrd)")
+    book = xlrd.open_workbook(file_contents=file_bytes)
+    for sheet in book.sheets():
+        yield sheet.name, (sheet.nrows, sheet.ncols), (
+            [sheet.cell_value(r, c) for c in range(sheet.ncols)] for r in range(sheet.nrows)
+        )
+
+
+def _iter_xlsx_rows(file_bytes: bytes):
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    try:
+        for ws in wb.worksheets:
+            yield ws.title, (ws.max_row or 0, ws.max_column or 0), ws.iter_rows(values_only=True)
+    finally:
+        wb.close()
 
-    all_rows: list[dict[str, Any]] = []
+
+def _score_header_row(row: tuple | list) -> float:
+    """Score a row as a potential header row. Higher = more likely to be a header.
+
+    Good headers: many non-empty strings, no numbers, short label-like text (ALL-CAPS / Title).
+    Bad headers: lots of numbers, single text value, very long strings (prose, not labels).
+    Minimum 2 unique text values required — single-value rows (titles, totals) are excluded.
+    """
+    if not row:
+        return 0.0
+    values = [v for v in row if v is not None]
+    if not values:
+        return 0.0
+    text_vals = [str(v).strip() for v in values if isinstance(v, str) and str(v).strip()]
+    numeric_count = sum(1 for v in values if isinstance(v, (int, float)) and not isinstance(v, bool))
+    if not text_vals:
+        return 0.0
+    unique_text = len(set(t.upper() for t in text_vals))
+    # Require at least 2 unique text values — single-value rows (titles/totals) cannot be headers
+    if unique_text < 2:
+        return 0.0
+    # Prefer all-caps or title-case labels (typical for column headers)
+    caps_count = sum(1 for t in text_vals if t.isupper() or t.istitle())
+    # Prefer short labels (column names are usually < 40 chars); long prose is likely data
+    avg_len = sum(len(t) for t in text_vals) / len(text_vals)
+    length_bonus = 1.0 if avg_len <= 25 else 0.0
+    # Prefer rows where most cells are non-null (dense rows = likely headers)
+    fill_ratio = len(values) / max(len(row), 1)
+    # Penalize rows with numbers (data rows have lots of numbers; header rows rarely do)
+    score = (unique_text * 2.0) + (caps_count * 0.5) + (length_bonus * 1.0) + (fill_ratio * 1.5) - (numeric_count * 3.0)
+    return score
+
+
+def _find_header_row(initial_rows: list[tuple | list]) -> tuple[int, list]:
+    """Scan rows and return (best_index, best_row) most likely to be the header.
+
+    Prefers rows closer to the start when scores are equal, so a title in row 0
+    does not displace a proper header in row 1.
+    """
+    if not initial_rows:
+        return 0, []
+    scores = [_score_header_row(r) for r in initial_rows]
+    best_score = max(scores)
+    if best_score <= 0.0:
+        # No valid header found — return first non-empty row
+        for i, r in enumerate(initial_rows):
+            if any(v is not None for v in r):
+                return i, list(r)
+        return 0, list(initial_rows[0])
+    # Among rows with the best score, prefer the earliest (smallest index)
+    best_idx = next(i for i, s in enumerate(scores) if s == best_score)
+    return best_idx, list(initial_rows[best_idx])
+
+
+def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
+    """Stream Excel safely, build fingerprint and a small preview (no OOM)."""
+    MAX_HEADER_SCAN = 25          # rows scanned to find the real header row
+    MAX_PREVIEW_ROWS_PER_SHEET = 120
+    MAX_SCAN_ROWS_PER_SHEET = MAX_PREVIEW_ROWS_PER_SHEET * 4
+    MAX_TEXT_CHARS = 4000
+
+    row_iters = _iter_xls_rows(file_bytes) if ext == ".xls" else _iter_xlsx_rows(file_bytes)
+
+    all_preview_rows: list[dict[str, Any]] = []
     text_lines: list[str] = []
-    sheet_scores: dict[str, int] = {}
+    sheet_profiles: dict[str, Any] = {}
     sheet_used = None
     best_score = -1
 
-    for ws in wb.worksheets:
-        rows = list(ws.iter_rows(values_only=True))
-        if not rows:
+    for sheet_name, (nrows, ncols), rows_iter in row_iters:
+        rows_iter = iter(rows_iter)
+
+        # Scan first N rows to find the most likely header row
+        initial_rows: list[tuple | list] = []
+        for _ in range(MAX_HEADER_SCAN):
+            try:
+                initial_rows.append(next(rows_iter))
+            except StopIteration:
+                break
+
+        if not initial_rows:
             continue
 
-        headers = [str(h or f"col_{i}").strip() for i, h in enumerate(rows[0])]
-        sheet_rows: list[dict[str, Any]] = []
-        for row in rows[1:]:
+        header_idx, first_row = _find_header_row(initial_rows)
+
+        # Rows AFTER the header row (from the scanned batch) become the first data rows
+        data_prefix = [initial_rows[i] for i in range(header_idx + 1, len(initial_rows))]
+        rows_iter = itertools.chain(data_prefix, rows_iter)
+
+        # Build headers from the detected header row, using the max column count
+        # seen in ALL scanned rows (so data columns not represented in headers get col_N names)
+        max_cols = max((len(r) for r in initial_rows), default=len(first_row))
+        if len(first_row) < max_cols:
+            first_row = list(first_row) + [None] * (max_cols - len(first_row))
+
+        headers = [_normalize_header(h, i) for i, h in enumerate(first_row)]
+        header_display = [str(h or f"col_{i}") for i, h in enumerate(first_row)]
+        sample_values_by_col: dict[str, list[Any]] = {h: [] for h in headers}
+
+        preview_rows_sheet: list[dict[str, Any]] = []
+        total_rows_counted = 0
+
+        for row in rows_iter:
+            total_rows_counted += 1
             if all(v is None for v in row):
                 continue
-            row_dict = {headers[j]: row[j] for j in range(min(len(headers), len(row)))}
-            row_dict["_sheet"] = ws.title
-            sheet_rows.append(row_dict)
+            # Si la fila tiene más columnas que el header, crear col_N para las extras
+            row_list = list(row)
+            if len(row_list) > len(headers):
+                for extra_i in range(len(headers), len(row_list)):
+                    headers.append(f"col_{extra_i}")
+                    header_display.append(f"col_{extra_i}")
+                    sample_values_by_col[f"col_{extra_i}"] = []
+            row_dict = {headers[j]: row_list[j] for j in range(min(len(headers), len(row_list)))}
+            # Normaliza fechas numéricas en .xls si parecen fechas Excel
+            if ext == ".xls":
+                for k, v in list(row_dict.items()):
+                    if isinstance(v, (int, float)):
+                        try:
+                            import xlrd
+                            dt = xlrd.xldate_as_datetime(v, 0)
+                            row_dict[k] = dt
+                        except Exception:
+                            pass
+            row_dict["_sheet"] = sheet_name
 
-        if not sheet_rows:
-            continue
+            if len(preview_rows_sheet) < MAX_PREVIEW_ROWS_PER_SHEET:
+                preview_rows_sheet.append(row_dict)
+                for h in headers:
+                    sample_values_by_col[h].append(row_dict.get(h))
 
-        # Score the sheet: favor more rows and date/amount headers
-        score = len(sheet_rows)
+            if total_rows_counted >= MAX_SCAN_ROWS_PER_SHEET:
+                break
+
+        text_lines.append(f"[{sheet_name}] " + "\t".join(header_display))
+        for row in preview_rows_sheet[:30]:
+            text_lines.append(f"[{sheet_name}] " + "\t".join(str(row.get(h, "") or "") for h in headers))
+
+        col_profiles = {}
+        for h, vals in sample_values_by_col.items():
+            if not vals:
+                continue
+            col_profiles[h] = {"type": _detect_col_type(vals)}
+
+        score = len(preview_rows_sheet)
         headers_lower = [h.lower() for h in headers]
         if any("fecha" in h or "date" in h for h in headers_lower):
             score += 50
@@ -178,37 +375,28 @@ def _extract_excel(file_bytes: bytes) -> dict[str, Any]:
             score += 20
         if score > best_score:
             best_score = score
-            sheet_used = ws.title
+            sheet_used = sheet_name
 
-        all_rows.extend(sheet_rows)
+        all_preview_rows.extend(preview_rows_sheet)
+        sheet_profiles[sheet_name] = {
+            "rows_previewed": len(preview_rows_sheet),
+            "rows_counted": total_rows_counted,
+            "headers": header_display,
+            "headers_norm": headers,
+            "column_profiles": col_profiles,
+        }
 
-        # Build a compact text sample for the LLM (limit to 30 rows per sheet)
-        text_lines.append(f"[{ws.title}] " + "\t".join(headers))
-        for row in sheet_rows[:30]:
-            text_lines.append(
-                f"[{ws.title}] "
-                + "\t".join(str(row.get(h, "") or "") for h in headers)
-            )
-
-        sheet_scores[ws.title] = score
-
-    wb.close()
-
-    if not all_rows:
-        return {"text": "", "pages": 1, "structured_data": [], "format": "EXCEL"}
-
-    # Keep text short to avoid huge prompts (cap ~4000 chars)
     text = "\n".join(text_lines)
-    if len(text) > 4000:
-        text = text[:4000]
+    if len(text) > MAX_TEXT_CHARS:
+        text = text[:MAX_TEXT_CHARS]
 
     return {
         "text": text,
         "pages": 1,
-        "structured_data": all_rows,
+        "structured_data": all_preview_rows,
         "format": "EXCEL",
         "sheet_used": sheet_used,
-        "sheet_scores": sheet_scores,
+        "sheet_profiles": sheet_profiles,
     }
 
 
@@ -236,8 +424,19 @@ def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
 
 
 def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
-    """XML UBL 2.1 extraction."""
-    root = ET.fromstring(file_bytes)
+    """XML UBL 2.1 extraction with graceful fallback on malformed XML."""
+    try:
+        root = ET.fromstring(file_bytes)
+    except Exception as exc:
+        # Malformed XML: degrade to text preview and mark parse error, but do NOT raise
+        preview = file_bytes[:4000].decode("utf-8", errors="ignore")
+        return {
+            "text": preview,
+            "pages": 1,
+            "structured_data": None,
+            "format": "XML_PARSE_ERROR",
+            "error": str(exc),
+        }
     tag = root.tag.split("}")[-1] if "}" in root.tag else root.tag
     is_credit_note = tag.lower() in ("creditnote", "debitnote")
 
