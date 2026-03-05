@@ -5,7 +5,7 @@
  */
 
 import { useMemo } from 'react'
-import CountryValidator, { type ValidationError } from '../modules/importer/utils/countryValidators'
+import CountryValidator, { type ValidationError } from '../modules/_old_importer/utils/countryValidators'
 
 export interface CountryValidationResult {
   isValid: boolean

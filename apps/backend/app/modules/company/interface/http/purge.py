@@ -161,6 +161,7 @@ def delete_all_companies(
         "total": len(rows),
         "deleted_count": len(deleted),
         "failed_count": len(failed),
+        "orphan_cleanup": purge_orphans(db),
         "deleted": deleted,
         "failed": failed,
     }

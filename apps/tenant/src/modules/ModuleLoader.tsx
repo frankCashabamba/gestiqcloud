@@ -14,8 +14,8 @@ const PANELS = import.meta.glob('./*/Panel.tsx')
 // Alias opcionales por compatibilidad (slug viejo -> carpeta nueva)
 const ALIASES: Record<string, string> = {
   // Rutas legacy -> carpeta real
-  imports: 'importer',
-  importador: 'importer',
+  imports: 'importador',
+  importador: 'importador',
   reportes: 'reports',
   clientes: 'customers',
   clients: 'customers',
@@ -31,7 +31,7 @@ const ALIASES: Record<string, string> = {
   ventas: 'sales',
   productos: 'products',
   proveedores: 'suppliers',
-  importaciones: 'importer',
+  importaciones: 'importador',
   usuarios: 'users',
   manufacturing: 'productions',
   produccion: 'productions',

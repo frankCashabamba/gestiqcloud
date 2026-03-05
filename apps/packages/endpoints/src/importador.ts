@@ -1,0 +1,19 @@
+export const TENANT_IMPORTADOR = {
+  upload: '/api/v1/importador/upload',
+  run: '/api/v1/importador/run',
+  documents: '/api/v1/importador/documents',
+  documentById: (id: string) => `/api/v1/importador/documents/${id}`,
+  confirm: (id: string) => `/api/v1/importador/documents/${id}/confirm`,
+  edit: (id: string) => `/api/v1/importador/documents/${id}/edit`,
+  reject: (id: string) => `/api/v1/importador/documents/${id}/reject`,
+  logs: (id: string) => `/api/v1/importador/documents/${id}/logs`,
+  dashboard: '/api/v1/importador/dashboard',
+  // Recipes
+  recipes: '/api/v1/importador/recipes',
+  recipeById: (id: string) => `/api/v1/importador/recipes/${id}`,
+  recipeDrafts: (recipeId: string) => `/api/v1/importador/recipes/${recipeId}/drafts`,
+  draftById: (id: string) => `/api/v1/importador/drafts/${id}`,
+  draftSnapshot: (draftId: string) => `/api/v1/importador/drafts/${draftId}/snapshot`,
+  recipeSnapshots: (recipeId: string) => `/api/v1/importador/recipes/${recipeId}/snapshots`,
+  snapshotById: (id: string) => `/api/v1/importador/snapshots/${id}`,
+}

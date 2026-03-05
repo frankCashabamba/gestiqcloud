@@ -15,7 +15,9 @@ import { manifest as webhooks } from './webhooks/manifest'
 import { manifest as einvoicing } from './einvoicing/manifest'
 import { manifest as reconciliation } from './reconciliation/manifest'
 import { manifest as notifications } from './notifications/manifest'
-import { manifest as importer } from './importer/manifest'
+// OLD IMPORTER DISABLED (renamed to _old_importer)
+// import { manifest as importer } from './importer/manifest'
+import { manifest as importador } from './importador/manifest'
 
 export const MODULES = [
   productosManifest,   // 0 - Productos
@@ -34,7 +36,8 @@ export const MODULES = [
   einvoicing,          // 14 - Facturación Electrónica (stub)
   reconciliation,      // 15 - Conciliación Bancaria (stub)
   notifications,       // 16 - Notificaciones
-  importer,            // 17 - Importador
+  // importer,            // 17 - Importador (disabled)
+  importador,            // 18 - Importador Contable Universal v1.1
 ]
 
 export type ModuleManifest = typeof pos

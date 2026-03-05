@@ -186,31 +186,8 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logging.getLogger("app.docs").warning("Could not prepare Swagger/ReDoc assets: %s", exc)
 
-    try:
-        if _imports_job_runner is None and _imports_enabled() and _imports_tables_ready():
-            try:
-                from app.modules.imports.application.job_runner import job_runner as _jr
-
-                runner_to_start = _jr
-            except Exception:
-                logging.getLogger("app.startup").info(
-                    "Imports runner not available (import failed)"
-                )
-        else:
-            logging.getLogger("app.startup").info(
-                "Imports runner skipped (disabled or missing tables)"
-            )
-    except Exception:
-        logging.getLogger("app.startup").exception(
-            "Failed preparing imports runner; continuing without it"
-        )
-
-    if runner_to_start is not None:
-        try:
-            runner_to_start.start()
-            globals()["_imports_job_runner"] = runner_to_start
-        except Exception:
-            logging.getLogger("app.startup").exception("Failed starting imports runner")
+    # OLD imports runner disabled (module renamed to _old_imports)
+    logging.getLogger("app.startup").info("Imports runner skipped (old module disabled)")
 
     yield
 
@@ -690,132 +667,24 @@ except Exception as e:
 
     _router_logger.error(traceback.format_exc())
 
-# Imports router fallback safeguard
-_IMPORTS_PRIVATE_MARKERS = ("/api/v1/imports/batches",)
+# -----------------------------------------------------------
+# Módulo Importador Contable Universal v1.3
+# -----------------------------------------------------------
 try:
+    from app.modules.importador.router import router as importador_router
 
-    def _has_imports_with_post(routes):
-        markers = {m.rstrip("/") for m in _IMPORTS_PRIVATE_MARKERS}
-        for rt in routes:
-            path = (getattr(rt, "path", "") or "").rstrip("/")
-            methods = getattr(rt, "methods", None) or set()
-            if "POST" in methods and path in markers:
-                return True
-        return False
+    app.include_router(importador_router, prefix="/api/v1")
+    _router_logger.info("Importador router mounted at /api/v1/importador")
+except Exception as e:
+    _router_logger.warning(f"Importador router mount failed: {e}")
 
-    has_imports = _has_imports_with_post(app.router.routes)
-except Exception:
-    has_imports = False
+try:
+    from app.modules.importador.recipe_router import router as recipe_router
 
-
-def _mount_imports_auxiliary_routes() -> None:
-    """Mount imports analyze/preview/ai/ocr auxiliary routers once."""
-    if getattr(app.state, "_imports_aux_routes_mounted", False):
-        return
-
-    # Analyze router for file analysis
-    try:
-        from app.modules.imports.interface.http.analyze import router as analyze_router
-
-        app.include_router(analyze_router, prefix="/api/v1/imports")
-        _router_logger.info("Analyze router mounted at /api/v1/imports/uploads")
-    except Exception as e:
-        _router_logger.warning(f"Analyze router mount failed: {e}")
-
-    # Preview + files router
-    try:
-        from app.modules.imports.interface.http.preview import files_router as preview_files_router
-        from app.modules.imports.interface.http.preview import router as preview_router
-
-        app.include_router(preview_router, prefix="/api/v1/imports")
-        app.include_router(preview_files_router, prefix="/api/v1/imports")
-        _router_logger.info("Preview/files routers mounted at /api/v1/imports")
-    except Exception as e:
-        _router_logger.warning(f"Preview/files routers mount failed: {e}")
-
-    # IA Classification router
-    try:
-        from app.modules.imports.ai.http_endpoints import router as ai_router
-
-        app.include_router(ai_router, prefix="/api/v1/imports")
-        _router_logger.info("IA Classification router mounted at /api/v1/imports/ai")
-    except Exception as e:
-        _router_logger.warning(f"IA Classification router mount failed: {e}")
-
-    # AI Health router
-    try:
-        from app.modules.imports.interface.http.ai_health import (
-            protected_router as ai_health_protected_router,
-        )
-        from app.modules.imports.interface.http.ai_health import router as ai_health_router
-
-        app.include_router(ai_health_router, prefix="/api/v1/imports")
-        app.include_router(ai_health_protected_router, prefix="/api/v1/imports")
-        _router_logger.info("AI Health router mounted at /api/v1/imports/ai")
-    except Exception as e:
-        _router_logger.warning(f"AI Health router mount failed: {e}")
-
-    # Feedback router
-    try:
-        from app.modules.imports.interface.http.feedback import router as feedback_router
-
-        app.include_router(feedback_router, prefix="/api/v2/imports")
-        _router_logger.info("Feedback router mounted at /api/v2/imports/feedback")
-    except Exception as e:
-        _router_logger.warning(f"Feedback router mount failed: {e}")
-
-    # OCR router
-    try:
-        from app.modules.imports.interface.http.ocr import router as ocr_router
-
-        app.include_router(ocr_router, prefix="/api/v1/imports")
-        _router_logger.info("OCR router mounted at /api/v1/imports/ocr")
-    except Exception as e:
-        _router_logger.warning(f"OCR router mount failed: {e}")
-
-    app.state._imports_aux_routes_mounted = True
-
-
-if not has_imports:
-    mounted = False
-    try:
-        from .modules.imports.interface.http.tenant import public_router as _rel_imports_public
-        from .modules.imports.interface.http.tenant import router as _rel_imports_router
-
-        app.include_router(_rel_imports_router, prefix="/api/v1")
-        app.include_router(_rel_imports_public, prefix="/api/v1")
-        mounted = True
-    except Exception:
-        pass
-    try:
-        from app.modules.imports.interface.http.tenant import public_router as _imports_public
-        from app.modules.imports.interface.http.tenant import router as _imports_router
-
-        app.include_router(_imports_router, prefix="/api/v1")
-        app.include_router(_imports_public, prefix="/api/v1")
-        mounted = True
-    except Exception:
-        pass
-    if not mounted:
-        try:
-            from backend.app.modules.imports.interface.http.tenant import (
-                public_router as _imports_public_b,
-            )
-            from backend.app.modules.imports.interface.http.tenant import (
-                router as _imports_router_b,
-            )
-
-            app.include_router(_imports_router_b, prefix="/api/v1")
-            app.include_router(_imports_public_b, prefix="/api/v1")
-        except Exception:
-            pass
-    if mounted:
-        _mount_imports_auxiliary_routes()
-
-if os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true"):
-    _mount_imports_auxiliary_routes()
-else:
-    _router_logger.info("Imports/OCR routers skipped (IMPORTS_ENABLED=0)")
+    app.include_router(recipe_router, prefix="/api/v1")
+    _router_logger.info("Importador recipe router mounted at /api/v1/importador (recipes + /run)")
+except Exception as e:
+    _router_logger.warning(f"Importador recipe router mount failed: {e}")
 
 # Ensure admin routes
 try:

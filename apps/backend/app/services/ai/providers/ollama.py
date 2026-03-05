@@ -41,7 +41,8 @@ class OllamaProvider(BaseAIProvider):
 
         self.use_chat_api = "chat" in self.endpoint
         self.default_model = config.get("model", "qwen2.5:3b")
-        self.request_timeout = config.get("timeout", 120.0)
+        # Algunos modelos locales tardan bastante en la primera inferencia (carga a GPU/CPU)
+        self.request_timeout = config.get("timeout", 300.0)
 
     async def call(self, request: AIRequest) -> AIResponse:
         """Llama a Ollama API."""
@@ -118,6 +119,20 @@ class OllamaProvider(BaseAIProvider):
                 content="",
                 model=selected_model,
                 error=f"No se puede conectar a Ollama: {str(e)}",
+                processing_time_ms=int((time.time() - start_time) * 1000),
+            )
+        except httpx.ReadTimeout as e:
+            logger.error(
+                "Ollama timeout tras %.0fs para modelo '%s' en %s",
+                self.request_timeout,
+                selected_model,
+                self._endpoint_url,
+            )
+            return AIResponse(
+                task=request.task,
+                content="",
+                model=selected_model,
+                error=f"Ollama timeout ({self.request_timeout:.0f}s). Revisa que el modelo esté cargado o aumenta OLLAMA_TIMEOUT.",
                 processing_time_ms=int((time.time() - start_time) * 1000),
             )
         except httpx.HTTPStatusError as e:

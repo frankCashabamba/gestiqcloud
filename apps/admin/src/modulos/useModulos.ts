@@ -24,6 +24,57 @@ export type UseModulosResult = {
   error: string | null;
 };
 
+// Map common Spanish module slugs to their English label so we can dedupe
+const SPANISH_TO_ENGLISH: Record<string, string> = {
+  ventas: "Sales",
+  facturacion: "Billing",
+  facturacion_electronica: "eInvoicing",
+  compras: "Purchases",
+  proveedores: "Suppliers",
+  clientes: "Customers",
+  inventario: "Inventory",
+  gastos: "Expenses",
+  finanzas: "Finances",
+  contabilidad: "Accounting",
+  rrhh: "HR",
+  recursos_humanos: "HR",
+  produccion: "Productions",
+  produccion_fabrica: "Productions",
+  reportes: "Reports",
+  ajustes: "Settings",
+  configuracion: "Settings",
+  notificaciones: "Notifications",
+  punto_de_venta: "POS",
+  tienda: "POS",
+  plantillas: "Templates",
+  usuarios: "Users",
+  webhooks: "Webhooks",
+  crm: "CRM",
+  productos: "Products",
+  conciliacion: "Reconciliation",
+  conciliaciones: "Reconciliation",
+};
+
+const slugify = (value: string): string =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+function normalizeNameToEnglish(name: string): {
+  displayName: string;
+  key: string;
+  wasTranslated: boolean;
+} {
+  const slug = slugify(name);
+  const mapped = SPANISH_TO_ENGLISH[slug];
+  const displayName = mapped || name;
+  const key = slugify(mapped || name);
+  return { displayName, key, wasTranslated: Boolean(mapped) };
+}
+
 function normalizeModulo(raw: BackendModulo): Modulo {
   return {
     id: String(raw.id),
@@ -50,7 +101,25 @@ export function useModulos(): UseModulosResult {
           { signal: ac.signal } as any
         );
         const data = res.data || [];
-        setModulos(data.map(normalizeModulo));
+        const dedup = new Map<string, { modulo: Modulo; wasTranslated: boolean }>();
+
+        data.map(normalizeModulo).forEach((m) => {
+          const { displayName, key, wasTranslated } = normalizeNameToEnglish(m.name);
+          const candidate: Modulo = { ...m, name: displayName };
+          const current = dedup.get(key);
+
+          if (!current) {
+            dedup.set(key, { modulo: candidate, wasTranslated });
+            return;
+          }
+
+          // Prefer the version that already comes in English (wasTranslated === false)
+          if (current.wasTranslated && !wasTranslated) {
+            dedup.set(key, { modulo: candidate, wasTranslated });
+          }
+        });
+
+        setModulos(Array.from(dedup.values()).map((item) => item.modulo));
       } catch (err: any) {
         if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
         console.error("Error cargando módulos", err);
