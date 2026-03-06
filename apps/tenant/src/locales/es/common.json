@@ -1,4 +1,4 @@
-﻿{
+{
   "actionsLabel": "Acciones",
   "edit": "Editar",
   "delete": "Eliminar",
@@ -16,6 +16,28 @@
     "+create": "+ Crear",
     "save": "Guardar",
     "cancel": "Cancelar"
+  },
+  "login": {
+    "platformBadge": "Plataforma de Gestión Empresarial",
+    "heroTitle": "Gestiona tu negocio desde la nube",
+    "heroSubtitle": "Controla inventario, ventas, compras, finanzas y más en un solo lugar. Diseñado para empresas en crecimiento.",
+    "feature1": "Inventario, compras y ventas en tiempo real",
+    "feature2": "Reportes financieros y contabilidad automatizada",
+    "feature3": "Multi-sucursal y control de acceso por roles",
+    "badgeSecurity": "🔒 Seguridad empresarial",
+    "badgeRoles": "👥 Roles y permisos",
+    "welcome": "Bienvenido",
+    "signInTitle": "Inicia sesión en tu cuenta",
+    "signInSubtitle": "Ingresa tus credenciales para acceder a la plataforma",
+    "usernameLabel": "Correo o usuario",
+    "passwordLabel": "Contraseña",
+    "signIn": "Iniciar sesión",
+    "signingIn": "Iniciando sesión…",
+    "copyright": "© {{year}} GestiqCloud. Todos los derechos reservados.",
+    "tagline": "Hecho para negocios modernos",
+    "invalidCredentials": "Usuario o contraseña incorrectos",
+    "serverError": "Error del servidor. Intenta de nuevo más tarde.",
+    "tooManyAttempts": "Demasiados intentos. Espera {{wait}} segundos."
   },
   "availableModules": {
     "proveedores": {

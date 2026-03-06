@@ -25,11 +25,39 @@ class DocumentoOut(BaseModel):
     usuario_id: str | None = None
     created_at: datetime
     recipe_snapshot_id: UUID | None = None
+    synced_recipe_id: UUID | None = None
     llm_model: str | None = None
     raw_ai_json: dict | None = None
+    synced_sheets: dict | None = None
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SyncRecipeResponse(BaseModel):
+    recipe_id: UUID
+    recipe_name: str
+    was_new: bool
+    total_cost: float
+    ingredients_count: int
+
+
+class SyncRecipeSheetResponse(BaseModel):
+    sheet_name: str
+    status: str
+    recipe_id: UUID | None = None
+    recipe_name: str | None = None
+    was_new: bool = False
+    total_cost: float = 0
+    ingredients_count: int = 0
+    message: str | None = None
+
+
+class SyncRecipesResponse(BaseModel):
+    total_sheets: int
+    processed_count: int
+    skipped_count: int
+    results: list[SyncRecipeSheetResponse]
 
 
 class DocumentoListOut(BaseModel):

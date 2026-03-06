@@ -18,6 +18,7 @@ export default function UploadPage() {
   const [processing, setProcessing] = useState(false)
   const [results, setResults] = useState<RunResult[]>([])
   const [error, setError] = useState('')
+  const [forceReprocess, setForceReprocess] = useState(false)
 
   // Recipe selector (RB-01: optional, never blocks)
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -83,7 +84,10 @@ export default function UploadPage() {
     setError('')
     setResults([])
 
-    const opts = selectedSnapshotId ? { recipe_snapshot_id: selectedSnapshotId } : undefined
+    const opts = {
+      ...(selectedSnapshotId ? { recipe_snapshot_id: selectedSnapshotId } : {}),
+      force: forceReprocess,
+    }
     const allResults: RunResult[] = []
     const BATCH = 5
 
@@ -296,6 +300,22 @@ export default function UploadPage() {
           )}
         </div>
       </div>
+
+      {/* Opción forzar reimportación */}
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', fontSize: 13, color: '#6b7280', cursor: 'pointer', userSelect: 'none' }}>
+        <input
+          type="checkbox"
+          checked={forceReprocess}
+          onChange={e => setForceReprocess(e.target.checked)}
+          style={{ width: 15, height: 15, cursor: 'pointer' }}
+        />
+        <span>
+          Reimportar aunque ya exista
+          <span style={{ color: '#9ca3af', marginLeft: 4 }}>
+            (fuerza reprocesar con la IA aunque el archivo ya haya sido importado antes)
+          </span>
+        </span>
+      </label>
 
       {/* Botón procesar */}
       <button

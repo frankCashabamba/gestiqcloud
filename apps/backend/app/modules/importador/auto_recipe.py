@@ -124,20 +124,28 @@ def _flatten_headers(sheet_profiles: dict) -> list[str]:
 
 
 def resolve_auto_recipe(
-    db: Session, tenant_id: UUID, sheet_profiles: dict, created_by: str | None = None,
+    db: Session,
+    tenant_id: UUID,
+    sheet_profiles: dict,
+    created_by: str | None = None,
+    force_new: bool = False,
 ) -> Tuple[dict, "UUID | None", str, bool, "str | None"]:
-    """Excel/CSV: return (recipe_config, snapshot_id, mode, created, recipe_name). Creates snapshot if missing."""
+    """Excel/CSV: return (recipe_config, snapshot_id, mode, created, recipe_name).
+
+    force_new=True fuerza crear un snapshot nuevo ignorando coincidencias previas
+    (útil para reimportar sin arrastrar recetas anteriores).
+    """
     if not sheet_profiles:
         return {}, None, "zero_shot", False, None
     fp, fp_hash = build_fingerprint(sheet_profiles)
-    snap = find_snapshot_by_hash(db, tenant_id, fp_hash)
+    snap = None if force_new else find_snapshot_by_hash(db, tenant_id, fp_hash)
     created = False
     recipe_name: str | None = None
     if not snap:
         prompts = _auto_prompts_excel(_flatten_headers(sheet_profiles))
         name = f"auto-excel-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         recipe_name, snap = _create_recipe_and_snapshot(
-            db, tenant_id, name, "Generada autom?ticamente por fingerprint de cabeceras Excel",
+            db, tenant_id, name, "Generada automáticamente por fingerprint de cabeceras Excel",
             fp, fp_hash, prompts, {"sheet_profiles": sheet_profiles}, created_by,
         )
         created = True
@@ -157,21 +165,23 @@ def resolve_auto_recipe_from_text(
     datos_extraidos: dict | None,
     format_hint: str,
     created_by: str | None = None,
+    force_new: bool = False,
 ) -> Tuple[dict, "UUID | None", str, bool, "str | None"]:
-    """PDF/XML/imagen/TXT: fingerprint post-extracciÃ³n. Crea snapshot si no existe.
+    """PDF/XML/imagen/TXT: fingerprint post-extraccion. Crea snapshot si no existe.
 
+    force_new=True fuerza crear snapshot nuevo aunque ya exista uno para el mismo fingerprint.
     Returns (recipe_config, snapshot_id, mode, was_created, recipe_name).
     La primera subida es zero-shot; el snapshot queda guardado para futuras similares.
     """
     campos = [
         k for k in (datos_extraidos or {}).keys()
-        if not k.startswith("_") and k not in ("filas", "total_filas")
+        if not k.startswith('_') and k not in ('filas', 'total_filas')
     ]
     if not campos:
-        return {}, None, "zero_shot", False, None
+        return {}, None, 'zero_shot', False, None
 
     fp, fp_hash = build_text_fingerprint(tipo_doc, datos_extraidos, format_hint)
-    snap = find_snapshot_by_hash(db, tenant_id, fp_hash)
+    snap = None if force_new else find_snapshot_by_hash(db, tenant_id, fp_hash)
     was_created = False
     recipe_name: str | None = None
 
@@ -180,14 +190,15 @@ def resolve_auto_recipe_from_text(
         name = f"auto-{tipo_doc.lower()}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         recipe_name, snap = _create_recipe_and_snapshot(
             db, tenant_id, name,
-            f"Generada automÃ¡ticamente para {tipo_doc} ({format_hint})",
+            f"Generada automaticamente para {tipo_doc} ({format_hint})",
             fp, fp_hash, prompts, {}, created_by,
         )
         was_created = True
 
     recipe_config = {
-        "prompt_system": snap.content_json.get("prompt_system"),
-        "prompt_user": snap.content_json.get("prompt_user"),
-        "model": snap.content_json.get("model"),
+        'prompt_system': snap.content_json.get('prompt_system'),
+        'prompt_user': snap.content_json.get('prompt_user'),
+        'model': snap.content_json.get('model'),
     }
-    return recipe_config, snap.id, "auto_text_fingerprint", was_created, recipe_name
+    return recipe_config, snap.id, 'auto_text_fingerprint', was_created, recipe_name
+

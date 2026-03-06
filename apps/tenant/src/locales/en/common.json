@@ -1,4 +1,4 @@
-﻿{
+{
   "actionsLabel": "Actions",
   "edit": "Edit",
   "delete": "Delete",
@@ -16,5 +16,27 @@
     "+create": "+ Create",
     "save": "Save",
     "cancel": "Cancel"
+  },
+  "login": {
+    "platformBadge": "Business Management Platform",
+    "heroTitle": "Manage your business from the cloud",
+    "heroSubtitle": "Control inventory, sales, purchases, finances and more in one place. Designed for growing companies.",
+    "feature1": "Inventory, purchases and sales in real time",
+    "feature2": "Financial reports and automated accounting",
+    "feature3": "Multi-branch and role-based access control",
+    "badgeSecurity": "🔒 Enterprise-grade security",
+    "badgeRoles": "👥 Roles & permissions",
+    "welcome": "Welcome",
+    "signInTitle": "Sign in to your account",
+    "signInSubtitle": "Enter your credentials to access the platform",
+    "usernameLabel": "Email or username",
+    "passwordLabel": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "copyright": "© {{year}} GestiqCloud. All rights reserved.",
+    "tagline": "Built for modern businesses",
+    "invalidCredentials": "Invalid username or password",
+    "serverError": "Server error. Please try again later.",
+    "tooManyAttempts": "Too many attempts. Please wait {{wait}} seconds."
   }
 }

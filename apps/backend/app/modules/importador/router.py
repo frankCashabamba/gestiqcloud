@@ -11,12 +11,15 @@ from . import crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .auto_recipe import resolve_auto_recipe
+from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 import hashlib
 import datetime
 from .schemas import (
     ConfirmRequest, DashboardStats, DocumentoDetailOut, DocumentoListOut,
-    DocumentoOut, EditFieldsRequest, LogCambioOut, UploadResponse,
+    DocumentoOut, EditFieldsRequest, LogCambioOut, SyncRecipeResponse, SyncRecipesResponse,
+    SyncRecipeSheetResponse, UploadResponse,
 )
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,67 @@ def _tenant_id(request: Request) -> UUID:
 def _user_id(request: Request) -> str:
     claims = getattr(request.state, "access_claims", None) or {}
     return str(claims.get("user_id", "unknown"))
+
+
+def _get_doc_import_data(doc) -> dict:
+    data = doc.datos_confirmados or doc.datos_extraidos or {}
+    return data if isinstance(data, dict) else {}
+
+
+def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
+    from app.models.recipes import Recipe
+
+    synced: dict[str, dict] = {}
+    recipe_to_sheet: dict[str, str] = {}
+    candidate_ids: list[UUID] = []
+    logs = sorted((getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min)
+    for log in logs:
+        detail = log.detalle or {}
+        if log.accion != "SYNC_PRODUCTION" or not isinstance(detail, dict):
+            continue
+        raw_id = str(detail.get("recipe_id") or "").strip()
+        if not raw_id:
+            continue
+        try:
+            candidate_ids.append(UUID(raw_id))
+        except ValueError:
+            continue
+
+    existing_recipe_ids = {
+        str(row[0])
+        for row in db.query(Recipe.id)
+        .filter(Recipe.tenant_id == doc.tenant_id, Recipe.id.in_(candidate_ids))
+        .all()
+    } if candidate_ids else set()
+
+    for log in logs:
+        if log.accion != "SYNC_PRODUCTION":
+            continue
+        detail = log.detalle or {}
+        if not isinstance(detail, dict):
+            continue
+        sheet_name = str(detail.get("sheet_used") or "").strip()
+        if not sheet_name:
+            continue
+        raw_recipe_id = str(detail.get("recipe_id") or "").strip()
+        if not raw_recipe_id:
+            continue
+        try:
+            recipe_id = str(UUID(raw_recipe_id))
+        except ValueError:
+            continue
+        if recipe_id not in existing_recipe_ids:
+            continue
+        existing_sheet = recipe_to_sheet.get(recipe_id)
+        if existing_sheet and existing_sheet != sheet_name:
+            continue
+        recipe_to_sheet[recipe_id] = sheet_name
+        synced[sheet_name] = {
+            "recipe_id": recipe_id,
+            "recipe_name": str(detail.get("recipe_name") or "") or None,
+            "created_at": log.created_at,
+        }
+    return synced
 
 
 @router.post("/upload", response_model=list[UploadResponse], dependencies=protected)
@@ -101,44 +165,46 @@ async def upload_files(
                 for prof in sheet_profiles.values():
                     headers_lower.extend([h.lower() for h in prof.get("headers", [])])
 
-            # Auto-resolver de receta si no viene receta (upload no permite recipe_id)
-            recipe_config, resolved_snapshot_id, resolution_mode, _, _ = resolve_auto_recipe(
-                db, tenant_id, sheet_profiles or {}, user_id,
-            )
-
-            # Preparar contenido para el LLM
+            # Excel/CSV tiene filas ya parseadas — el LLM solo clasifica el tipo, no extrae datos
             has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
+
+            headers_norm: list[str] = []
+            headers_display: list[str] = []
             if has_structured:
-                # headers_norm = claves normalizadas que usan los dicts de filas ("precio_unitario_venta")
-                # headers_display = nombres legibles ("PRECIO UNITARIO VENTA") para enviar al LLM y mostrar en UI
-                headers_norm: list[str] = []
-                headers_display: list[str] = []
                 for prof in sheet_profiles.values():
                     headers_norm = prof.get("headers_norm") or []
                     headers_display = prof.get("headers") or headers_norm
                     break
-                headers = headers_norm
+
+            # Fingerprint para trazabilidad; NO usar el recipe_config guardado para Excel
+            # (podría tener prompts de clasificaciones incorrectas anteriores)
+            resolved_snapshot_id = None
+            resolution_mode = "zero_shot"
+            if sheet_profiles:
+                _, resolved_snapshot_id, resolution_mode, _, _ = resolve_auto_recipe(
+                    db, tenant_id, sheet_profiles, user_id,
+                )
+
+            # Contenido para el LLM
+            if has_structured:
                 sample_lines = [f"Columnas: {headers_display}"]
-                for row in (structured[:15] if isinstance(structured, list) else []):
+                for row in (structured[:5] if isinstance(structured, list) else []):
                     if isinstance(row, dict):
-                        sample_lines.append(str({k: v for k, v in row.items() if not k.startswith("_")}))
-                    else:
-                        sample_lines.append(str(row))
+                        sample_lines.append(str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")}))
                 llm_content = "\n".join(sample_lines)
             else:
                 llm_content = text[:4000] if text else ""
 
-            # Una sola llamada LLM: clasifica + extrae (sin reglas hardcodeadas)
+            # LLM con prompt genérico limpio (sin recipe_config que pueda sesgar la clasificación)
             analysis = await analyze_document(
                 llm_content, filename, extraction.get("format", tipo_archivo),
                 has_structured_rows=has_structured,
-                recipe_config=recipe_config,
+                recipe_config={},
             )
 
             tipo_doc = analysis.get("tipo_documento", "OTRO")
             confianza = float(analysis.get("confianza", 0.0))
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
-            es_tabla = analysis.get("es_tabla", False)
 
             crud.add_log(db, doc.id, "CLASSIFY", user_id, {
                 "tipo_documento": tipo_doc, "confianza": confianza,
@@ -146,18 +212,30 @@ async def upload_files(
             })
 
             # Construir datos_extraidos
-            if es_tabla and has_structured:
-                # Tabla: usar filas ya parseadas (structured_data); no se pide al LLM que reprocese filas
-                # columnas = display names para la UI; columnas_norm = claves reales de los dicts de filas
-                columnas = headers_display or headers_norm
+            if has_structured:
+                # Excel/CSV: SIEMPRE filas parseadas — el LLM no decide si es tabla
+                sheet_used_str = extraction.get("sheet_used")
+                sheet_metadata_raw = extraction.get("sheet_metadata") or {}
+
+                # Agrupar filas por hoja (cada fila tiene _sheet)
+                filas_por_hoja_raw: dict[str, list] = {}
+                for _row in (structured or []):
+                    if isinstance(_row, dict):
+                        _sname = str(_row.get("_sheet") or sheet_used_str or "")
+                        if _sname:
+                            filas_por_hoja_raw.setdefault(_sname, []).append(_row)
+
                 datos_extraidos = {
                     "filas": structured[:200],
                     "total_filas": len(structured),
-                    "columnas": columnas,
+                    "columnas": headers_display or headers_norm,
                     "columnas_norm": headers_norm,
+                    "filas_por_hoja": filas_por_hoja_raw,
+                    "metadata_por_hoja": sheet_metadata_raw,
+                    "sheet_usada": sheet_used_str,
                 }
             else:
-                # Documento único o tabla extraída por LLM desde texto (PDF, etc.)
+                # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
                 datos_extraidos = analysis.get("campos") or {}
 
             crud.add_log(db, doc.id, "EXTRACT", user_id, {"campos_extraidos": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []})
@@ -242,10 +320,27 @@ def list_documents(
 
 @router.get("/documents/{doc_id}", response_model=DocumentoDetailOut, dependencies=protected)
 def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
+    from app.models.recipes import Recipe
     doc = crud.get_documento(db, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
+    # Si synced_recipe_id apunta a una receta que ya no existe, limpiar la referencia
+    if doc.synced_recipe_id:
+        exists = db.query(Recipe.id).filter(Recipe.id == doc.synced_recipe_id).first()
+        if not exists:
+            doc.synced_recipe_id = None
+            db.commit()
+    doc.synced_sheets = _get_synced_sheet_map(db, doc)
     return doc
+
+
+class SyncRecipeRequest(BaseModel):
+    sheet_usada: str | None = None
+    force: bool = False
+
+
+class SyncRecipesRequest(BaseModel):
+    force: bool = False
 
 
 @router.post("/documents/{doc_id}/confirm", response_model=DocumentoOut, dependencies=protected)
@@ -261,6 +356,131 @@ def confirm_document(doc_id: UUID, body: ConfirmRequest, request: Request, db: S
     crud.add_log(db, doc.id, "CONFIRM", user_id, {"datos_confirmados": body.datos_confirmados})
     db.commit()
     return doc
+
+
+@router.post("/documents/{doc_id}/sync_recipe", response_model=SyncRecipeResponse, dependencies=protected)
+def sync_recipe(doc_id: UUID, body: SyncRecipeRequest | None, request: Request, db: Session = Depends(get_db)):
+    from app.models.recipes import Recipe
+    user_id = _user_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    data = _get_doc_import_data(doc)
+    available_sheets = get_available_recipe_sheets(data)
+    sheet_override = body.sheet_usada if body else None
+    force = bool(body.force) if body else False
+    sheet_name = sheet_override or data.get("sheet_usada") or (available_sheets[0] if available_sheets else None)
+    synced_sheets = _get_synced_sheet_map(db, doc)
+
+    if sheet_name and sheet_name in synced_sheets and not force:
+        raise HTTPException(status_code=409, detail=f"La hoja '{sheet_name}' ya fue sincronizada.")
+
+    recipe_id, was_new = upsert_recipe_from_import(doc, db, sheet_override=sheet_override)
+    if not recipe_id:
+        raise HTTPException(status_code=422, detail="No se pudo extraer una receta del documento. Verifique que sea un documento de costeo con filas de ingredientes.")
+
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+
+    # Guardar referencia en el documento
+    doc.synced_recipe_id = recipe_id
+    crud.add_log(db, doc.id, "SYNC_PRODUCTION", user_id, {
+        "recipe_id": str(recipe_id),
+        "recipe_name": recipe.name if recipe else None,
+        "sheet_used": sheet_name,
+        "was_new": was_new,
+    })
+    db.commit()
+
+    return SyncRecipeResponse(
+        recipe_id=recipe_id,
+        recipe_name=recipe.name if recipe else "Receta",
+        was_new=was_new,
+        total_cost=float(recipe.total_cost) if recipe and recipe.total_cost else 0.0,
+        ingredients_count=len(recipe.ingredients) if recipe else 0,
+    )
+
+
+@router.post("/documents/{doc_id}/sync_recipes", response_model=SyncRecipesResponse, dependencies=protected)
+def sync_recipes(doc_id: UUID, body: SyncRecipesRequest | None, request: Request, db: Session = Depends(get_db)):
+    from app.models.recipes import Recipe
+
+    user_id = _user_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    data = _get_doc_import_data(doc)
+    available_sheets = get_available_recipe_sheets(data)
+    if not available_sheets:
+        raise HTTPException(status_code=422, detail="El documento no contiene hojas separadas para sincronizar.")
+
+    force = bool(body.force) if body else False
+    synced_sheets = _get_synced_sheet_map(db, doc)
+    processed_count = 0
+    skipped_count = 0
+    processed_sheet_names: list[str] = []
+    results: list[SyncRecipeSheetResponse] = []
+
+    for sheet_name in available_sheets:
+        previous_sync = synced_sheets.get(sheet_name)
+        if previous_sync and not force:
+            skipped_count += 1
+            results.append(SyncRecipeSheetResponse(
+                sheet_name=sheet_name,
+                status="skipped",
+                recipe_id=UUID(previous_sync["recipe_id"]) if previous_sync.get("recipe_id") else None,
+                recipe_name=previous_sync.get("recipe_name"),
+                message="Hoja ya sincronizada",
+            ))
+            continue
+
+        recipe_id, was_new = upsert_recipe_from_import(doc, db, sheet_override=sheet_name)
+        if not recipe_id:
+            results.append(SyncRecipeSheetResponse(
+                sheet_name=sheet_name,
+                status="error",
+                message="No se pudo extraer una receta valida de esta hoja.",
+            ))
+            continue
+
+        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+        doc.synced_recipe_id = recipe_id
+        crud.add_log(db, doc.id, "SYNC_PRODUCTION", user_id, {
+            "recipe_id": str(recipe_id),
+            "recipe_name": recipe.name if recipe else None,
+            "sheet_used": sheet_name,
+            "was_new": was_new,
+            "batch": True,
+        })
+
+        processed_count += 1
+        processed_sheet_names.append(sheet_name)
+        results.append(SyncRecipeSheetResponse(
+            sheet_name=sheet_name,
+            status="created" if was_new else "updated",
+            recipe_id=recipe_id,
+            recipe_name=recipe.name if recipe else sheet_name,
+            was_new=was_new,
+            total_cost=float(recipe.total_cost) if recipe and recipe.total_cost else 0.0,
+            ingredients_count=len(recipe.ingredients) if recipe else 0,
+        ))
+
+    crud.add_log(db, doc.id, "SYNC_PRODUCTION_BATCH", user_id, {
+        "processed_count": processed_count,
+        "skipped_count": skipped_count,
+        "sheet_count": len(available_sheets),
+        "sheets": processed_sheet_names,
+        "force": force,
+    })
+    db.commit()
+
+    return SyncRecipesResponse(
+        total_sheets=len(available_sheets),
+        processed_count=processed_count,
+        skipped_count=skipped_count,
+        results=results,
+    )
 
 
 @router.patch("/documents/{doc_id}/edit", response_model=DocumentoOut, dependencies=protected)

@@ -51,6 +51,7 @@ const btn: React.CSSProperties = { padding: '0.5rem 1rem', border: '1px solid #d
 // Inline uploader (reutiliza lógica principal de UploadPage, simplificada)
 type ImportMode = 'files' | 'folder'
 type FileEntry = { file: File; status: 'pending' | 'done' | 'error'; result?: RunResult }
+type DirectoryInputProps = React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory?: string }
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.xlsx,.xls,.csv,.xml,.txt'
 const ACCEPTED_EXTENSIONS = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.xlsx', '.xls', '.csv', '.xml', '.txt'])
 
@@ -70,6 +71,7 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
   const [snapshots, setSnapshots] = useState<RecipeSnapshot[]>([])
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
   const [selectedSnapshotId, setSelectedSnapshotId] = useState('')
+  const directoryInputProps: DirectoryInputProps = { webkitdirectory: 'true' }
 
   useEffect(() => { fetchRecipes().then(setRecipes).catch(() => {}) }, [])
   useEffect(() => {
@@ -175,7 +177,7 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
           <div style={{ fontSize: 40, marginBottom: '0.5rem' }}>🗂️</div>
           <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Seleccionar carpeta</p>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Procesa todos los archivos soportados dentro</p>
-          <input ref={folderRef} type="file" multiple webkitdirectory="true" onChange={onFolderChange} style={{ display: 'none' }} />
+          <input ref={folderRef} type="file" multiple onChange={onFolderChange} style={{ display: 'none' }} {...directoryInputProps} />
         </div>
       )}
 

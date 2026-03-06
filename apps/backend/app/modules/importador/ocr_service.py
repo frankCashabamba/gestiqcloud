@@ -277,6 +277,47 @@ def _find_header_row(initial_rows: list[tuple | list]) -> tuple[int, list]:
     return best_idx, list(initial_rows[best_idx])
 
 
+def _extract_kv_pairs(rows_before_header: list[tuple | list]) -> dict[str, Any]:
+    """Extrae pares clave/valor en la sección superior de la hoja (antes del header).
+
+    Heurística simple: toma cada celda de texto como posible clave y asigna
+    el primer valor no vacío hacia la derecha en la misma fila.
+    """
+    kv: dict[str, Any] = {}
+    for row in rows_before_header:
+        if not row:
+            continue
+        # Requiere al menos dos valores no vacíos para considerar la fila útil
+        non_null = [v for v in row if v not in (None, "")]
+        if len(non_null) < 2:
+            continue
+        idx = 0
+        row_list = list(row)
+        while idx < len(row_list):
+            label = row_list[idx]
+            if not (isinstance(label, str) and label.strip() and len(label.strip()) <= 60):
+                idx += 1
+                continue
+            label_clean = label.strip()
+            value = None
+            next_idx = idx + 1
+            while next_idx < len(row_list):
+                v = row_list[next_idx]
+                if v is None or (isinstance(v, str) and not v.strip()):
+                    next_idx += 1
+                    continue
+                value = v
+                break
+            if value is not None:
+                key_norm = _normalize_header(label_clean, idx)
+                if key_norm not in kv:
+                    kv[key_norm] = value
+                idx = next_idx + 1
+            else:
+                idx += 1
+    return kv
+
+
 def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
     """Stream Excel safely, build fingerprint and a small preview (no OOM)."""
     MAX_HEADER_SCAN = 25          # rows scanned to find the real header row
@@ -289,6 +330,7 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
     all_preview_rows: list[dict[str, Any]] = []
     text_lines: list[str] = []
     sheet_profiles: dict[str, Any] = {}
+    sheet_metadata: dict[str, dict[str, Any]] = {}
     sheet_used = None
     best_score = -1
 
@@ -307,6 +349,8 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
             continue
 
         header_idx, first_row = _find_header_row(initial_rows)
+        # Capturar metadatos antes del header (títulos, pares clave/valor)
+        kv_pairs = _extract_kv_pairs(initial_rows[:header_idx])
 
         # Rows AFTER the header row (from the scanned batch) become the first data rows
         data_prefix = [initial_rows[i] for i in range(header_idx + 1, len(initial_rows))]
@@ -384,7 +428,9 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
             "headers": header_display,
             "headers_norm": headers,
             "column_profiles": col_profiles,
+            "kv_pairs": kv_pairs,
         }
+        sheet_metadata[sheet_name] = kv_pairs
 
     text = "\n".join(text_lines)
     if len(text) > MAX_TEXT_CHARS:
@@ -397,6 +443,7 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
         "format": "EXCEL",
         "sheet_used": sheet_used,
         "sheet_profiles": sheet_profiles,
+        "sheet_metadata": sheet_metadata,
     }
 
 

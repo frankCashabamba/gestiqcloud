@@ -816,8 +816,8 @@ async def get_production_stats(
 def list_recipes(
     is_active: bool | None = None,
     product_id: UUID | None = None,
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -838,6 +838,15 @@ def create_recipe(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
+    # Verificar que product_id pertenece al tenant
+    from app.models.core.products import Product as ProductModel
+    if recipe_data.product_id:
+        product = db.query(ProductModel).filter(
+            ProductModel.id == recipe_data.product_id,
+            ProductModel.tenant_id == tenant_id,
+        ).first()
+        if not product:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="product_not_found_or_unauthorized")
     recipe = Recipe(
         tenant_id=tenant_id,
         product_id=recipe_data.product_id,
@@ -953,7 +962,8 @@ def delete_recipe(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     db.delete(recipe)

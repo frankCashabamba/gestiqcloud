@@ -28,7 +28,7 @@ import {
   type PrintModalExtras,
   type PrintConfig,
   type SavedPrinterConfig,
-} from '../importer/components/PrintBarcodeLabels'
+} from '../_old_importer/components/PrintBarcodeLabels'
 import { apiFetch } from '../../lib/http'
 import { usePermission } from '../../hooks/usePermission'
 import ProtectedButton from '../../components/ProtectedButton'

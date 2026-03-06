@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchDocument, confirmDocument, editDocumentFields, rejectDocument, type Documento, type LogCambio } from '../services'
+import { fetchDocument, confirmDocument, editDocumentFields, rejectDocument, syncAllRecipes, syncRecipe, type Documento, type LogCambio, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
 export default function DocumentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -10,7 +10,19 @@ export default function DocumentDetail() {
   const [editMode, setEditMode] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncingAll, setSyncingAll] = useState(false)
   const [error, setError] = useState('')
+  const [rawSyncResult, setSyncResult] = useState<SyncRecipeResult | null>(null)
+  const [batchSyncResult, setBatchSyncResult] = useState<SyncRecipesResult | null>(null)
+  const syncResult = rawSyncResult
+    ? {
+        ...rawSyncResult,
+        total_cost: Number(rawSyncResult.total_cost ?? 0),
+        ingredients_count: Number(rawSyncResult.ingredients_count ?? 0),
+      }
+    : null
+  const [activeSheet, setActiveSheet] = useState<string | null>(null)
 
   const load = async () => {
     if (!id) return
@@ -21,6 +33,33 @@ export default function DocumentDetail() {
 
   useEffect(() => { load() }, [id])
 
+  useEffect(() => {
+    const reloadOnFocus = () => { void load() }
+    const reloadOnVisibility = () => {
+      if (!document.hidden) void load()
+    }
+    window.addEventListener('focus', reloadOnFocus)
+    document.addEventListener('visibilitychange', reloadOnVisibility)
+    return () => {
+      window.removeEventListener('focus', reloadOnFocus)
+      document.removeEventListener('visibilitychange', reloadOnVisibility)
+    }
+  }, [id])
+
+  // Selección automática de hoja cuando llega un documento nuevo
+  useEffect(() => {
+    const datos = (doc?.datos_extraidos || {}) as Record<string, unknown>
+    const sheetMap = datos?.filas_por_hoja && typeof datos.filas_por_hoja === 'object'
+      ? Object.keys(datos.filas_por_hoja as Record<string, unknown>)
+      : []
+    if (sheetMap.length > 0) {
+      const preferred = (datos.sheet_usada as string) || sheetMap[0]
+      setActiveSheet(preferred)
+    } else {
+      setActiveSheet(null)
+    }
+  }, [doc?.id])
+
   const handleConfirm = async () => {
     if (!id || !doc) return
     setSaving(true)
@@ -29,6 +68,48 @@ export default function DocumentDetail() {
       load()
     } catch { setError('Error confirmando') }
     setSaving(false)
+  }
+
+  const handleSyncSheet = async () => {
+    if (!id) return
+    if (activeSheetIsSynced) {
+      setError(`La hoja ${activeSheet || ''} ya fue sincronizada.`.trim())
+      return
+    }
+    setSyncing(true)
+    setError('')
+    setSyncResult(null)
+    setBatchSyncResult(null)
+    try {
+      const result = await syncRecipe(id, activeSheet || undefined)
+      setSyncResult({
+        ...result,
+        total_cost: Number(result.total_cost ?? 0),
+        ingredients_count: Number(result.ingredients_count ?? 0),
+      })
+      load()
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || 'Error sincronizando receta'
+      setError(msg)
+    }
+    setSyncing(false)
+  }
+
+  const handleSyncAll = async () => {
+    if (!id || !hasMultiSheetDocument || unsyncedSheets.length === 0) return
+    setSyncingAll(true)
+    setError('')
+    setSyncResult(null)
+    setBatchSyncResult(null)
+    try {
+      const result = await syncAllRecipes(id)
+      setBatchSyncResult(result)
+      load()
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || 'Error sincronizando hojas'
+      setError(msg)
+    }
+    setSyncingAll(false)
   }
 
   const handleReject = async () => {
@@ -63,12 +144,90 @@ export default function DocumentDetail() {
   if (!doc) return <div style={{ padding: '1.5rem' }}>Documento no encontrado</div>
 
   const datos = (doc.datos_extraidos || {}) as Record<string, unknown>
+  const filasPorHoja = (datos.filas_por_hoja || {}) as Record<string, Record<string, unknown>[]>
+  const sheets = Object.keys(filasPorHoja || {})
+  const sheetCounts = (datos.filas_por_hoja_count || {}) as Record<string, number>
   const confPct = doc.confianza_clasificacion != null ? Math.round(doc.confianza_clasificacion * 100) : null
+  const syncedSheets = Object.entries(doc.synced_sheets || {}).reduce<Record<string, { recipeId?: string; recipeName?: string; createdAt?: string }>>((acc, [sheetName, value]) => {
+    const recipeId = typeof value?.recipe_id === 'string' ? value.recipe_id.trim() : ''
+    if (!sheetName || !recipeId) return acc
+    acc[sheetName] = {
+      recipeId,
+      recipeName: typeof value?.recipe_name === 'string' ? value.recipe_name : undefined,
+      createdAt: typeof value?.created_at === 'string' ? value.created_at : undefined,
+    }
+    return acc
+  }, {})
+  const syncedSheetNames = Object.keys(syncedSheets)
+  const syncedCount = syncedSheetNames.length
+  const activeSheetSync = activeSheet ? syncedSheets[activeSheet] : undefined
+  const activeSheetIsSynced = Boolean(activeSheet && activeSheetSync?.recipeId)
+  const hasMultiSheetDocument = sheets.length > 0
+  const unsyncedSheets = sheets.filter(sheet => !syncedSheets[sheet]?.recipeId)
+  const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
+  const isSynced = syncedCount > 0
 
   return (
     <div style={{ padding: '1.5rem' }}>
-      <button onClick={() => navigate(-1)} style={{ marginBottom: '1rem', cursor: 'pointer', border: 'none', background: 'none', fontSize: 14, color: '#6366F1' }}>← Volver</button>
+      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f9fafb', paddingBottom: '0.75rem' }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            cursor: 'pointer',
+            border: '1px solid #e5e7eb',
+            background: '#fff',
+            fontSize: 14,
+            color: '#111827',
+            padding: '0.45rem 0.75rem',
+            borderRadius: 10,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          }}
+        >
+          ← Volver
+        </button>
+      </div>
       {error && <div style={{ color: 'red', marginBottom: '0.5rem' }}>{error}</div>}
+
+      {syncResult && (
+        <div style={{ padding: '0.75rem', background: syncResult.was_new ? '#F0FDF4' : '#EFF6FF', border: '1px solid ' + (syncResult.was_new ? '#BBF7D0' : '#BFDBFE'), borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>
+            {syncResult.was_new ? '✅ Receta creada' : '🔄 Receta actualizada'}: <strong>{syncResult.recipe_name}</strong>
+            {' · '}{syncResult.ingredients_count} ingredientes · Costo total: <strong>${syncResult.total_cost.toFixed(4)}</strong>
+          </span>
+          <button onClick={() => setSyncResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>×</button>
+        </div>
+      )}
+
+      {batchSyncResult && (
+        <div style={{ padding: '0.75rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14 }}>
+          <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 6 }}>
+            Lote sincronizado: {batchSyncResult.processed_count} creadas/actualizadas, {batchSyncResult.skipped_count} omitidas
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {batchSyncResult.results.map(result => (
+              <span
+                key={result.sheet_name}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  background: result.status === 'skipped' ? '#E5E7EB' : result.status === 'error' ? '#FEE2E2' : '#DBEAFE',
+                  color: result.status === 'error' ? '#B91C1C' : '#1F2937',
+                }}
+              >
+                {result.sheet_name}: {result.status === 'skipped' ? 'sincronizada' : result.status === 'error' ? 'error' : 'ok'}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isSynced && !syncResult && !batchSyncResult && (
+        <div style={{ padding: '0.6rem 0.9rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#1e40af' }}>
+          {syncedCount > 1 ? `${syncedCount} hojas sincronizadas con produccion.` : 'Receta ya sincronizada con produccion.'}
+          {syncedRecipeId ? ` ID: ${syncedRecipeId.substring(0, 8)}...` : ''}
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
@@ -76,19 +235,55 @@ export default function DocumentDetail() {
           <h2 style={{ marginBottom: 4 }}>📄 {doc.nombre_archivo}</h2>
           <div style={{ display: 'flex', gap: '0.75rem', fontSize: 13, color: '#6b7280' }}>
             <span>{doc.tipo_archivo}</span>
-            <span>{(doc.tamanio_bytes / 1024).toFixed(0)} KB</span>
+            <span>{Math.round(Number(doc.tamanio_bytes ?? 0) / 1024)} KB</span>
             <span>{new Date(doc.created_at).toLocaleString()}</span>
           </div>
         </div>
-        {doc.estado === 'REVIEW' && (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {!((doc.datos_extraidos as any)?.filas) && (
-              <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>Editar</button>
-            )}
-            <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>Rechazar</button>
-            <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>{saving ? '...' : 'Confirmar'}</button>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {doc.estado === 'REVIEW' && (
+            <>
+              {!((doc.datos_extraidos as any)?.filas) && (
+                <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>Editar</button>
+              )}
+              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>Rechazar</button>
+              <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>{saving ? '...' : 'Confirmar'}</button>
+            </>
+          )}
+          {isSynced && syncedRecipeId && (
+            <a
+              href={`../../produccion/recetas`}
+              style={{ ...actionBtn, background: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+              title="Ver receta en módulo de Producción"
+            >
+              Ver receta
+            </a>
+          )}
+          {hasMultiSheetDocument && (
+            <button
+              onClick={handleSyncAll}
+              disabled={syncingAll || syncing || unsyncedSheets.length === 0}
+              style={{ ...actionBtn, background: unsyncedSheets.length === 0 ? '#94a3b8' : '#0f766e' }}
+              title="Crea recetas para todas las hojas pendientes"
+            >
+              {syncingAll ? '...' : unsyncedSheets.length === 0 ? 'Todo sincronizado' : `Guardar ${unsyncedSheets.length} hojas`}
+            </button>
+          )}
+          <button
+            onClick={handleSyncSheet}
+            disabled={syncingAll || syncing || activeSheetIsSynced}
+            style={{ ...actionBtn, background: activeSheetIsSynced ? '#94a3b8' : '#2563eb' }}
+            title="Sincroniza con Producción (recetas) usando la hoja activa"
+          >
+            {syncing ? '...' : activeSheetIsSynced ? 'Sincronizado' : 'Guardar hoja'}
+          </button>
+          <button
+            onClick={() => navigate('../upload')}
+            title="Ir a importación → marcar 'Reimportar aunque ya exista' → subir el archivo de nuevo"
+            style={{ ...actionBtn, background: '#6366F1', opacity: 0.85 }}
+          >
+            Reimportar
+          </button>
+        </div>
       </div>
 
       {/* Confidence warning */}
@@ -130,26 +325,65 @@ export default function DocumentDetail() {
             {datos.filas && Array.isArray(datos.filas) ? (
               // Vista de tabla para INVENTARIO, NOMINA, COSTEO, etc.
               (() => {
-                const allRows = datos.filas as Record<string, unknown>[]
+                const pickRows = () => {
+                  if (activeSheet && filasPorHoja[activeSheet]) return filasPorHoja[activeSheet]
+                  return datos.filas as Record<string, unknown>[]
+                }
+                const allRows = pickRows()
+
                 // columnas_norm = claves reales de los dicts de filas (ej: "precio_unitario_venta")
                 // columnas      = nombres display para la UI (ej: "PRECIO UNITARIO VENTA")
-                const normKeys: string[] = datos.columnas_norm && Array.isArray(datos.columnas_norm) && (datos.columnas_norm as string[]).length > 0
-                  ? (datos.columnas_norm as string[])
-                  : allRows.length > 0 ? Object.keys(allRows[0]).filter(k => k !== '_sheet') : []
-                const displayNames: string[] = datos.columnas && Array.isArray(datos.columnas) ? (datos.columnas as string[]) : normKeys
+                const normKeys: string[] = (() => {
+                  if (activeSheet && activeSheet === (datos.sheet_usada as string) && Array.isArray(datos.columnas_norm) && (datos.columnas_norm as string[]).length > 0) {
+                    return datos.columnas_norm as string[]
+                  }
+                  return allRows.length > 0 ? Object.keys(allRows[0]).filter(k => k !== '_sheet') : []
+                })()
+                const displayNames: string[] = (() => {
+                  if (activeSheet && activeSheet === (datos.sheet_usada as string) && Array.isArray(datos.columnas)) return datos.columnas as string[]
+                  return normKeys
+                })()
                 // Filtrar columnas que no tienen ningún dato real en las primeras 30 filas
                 const visibleIdxs = normKeys.reduce<number[]>((acc, key, i) => {
                   const vals = allRows.slice(0, 30).map(r => r[key])
                   if (vals.some(v => v !== null && v !== undefined && v !== '' && v !== 0)) acc.push(i)
                   return acc
                 }, [])
+                const totalFilasSheet = activeSheet && sheetCounts[activeSheet] ? sheetCounts[activeSheet] : (datos.total_filas as number)
                 return (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <h3 style={{ margin: 0 }}>Filas del documento</h3>
-                      <span style={{ fontSize: 12, color: '#6b7280' }}>{datos.total_filas as number} filas totales · {visibleIdxs.length} columnas</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0 }}>Filas del documento</h3>
+                        {sheets.length > 0 && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {sheets.map(s => {
+                              const isSheetSynced = Boolean(syncedSheets[s]?.recipeId)
+                              return (
+                                <button
+                                  key={s}
+                                  onClick={() => setActiveSheet(s)}
+                                  style={{
+                                    padding: '6px 10px',
+                                    borderRadius: 10,
+                                    border: '1px solid ' + (activeSheet === s ? '#0ea5e9' : isSheetSynced ? '#10b981' : '#e5e7eb'),
+                                    background: activeSheet === s ? '#e0f2fe' : isSheetSynced ? '#ecfdf5' : '#fff',
+                                    color: '#0f172a',
+                                    fontSize: 12,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {s} <span style={{ color: '#64748b' }}>({sheetCounts[s] ?? '-'})</span>
+                                  {isSheetSynced && <span style={{ marginLeft: 6, color: '#047857', fontWeight: 600 }}>Sync</span>}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>{totalFilasSheet} filas · {visibleIdxs.length} columnas</span>
                     </div>
-                    <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
+                    <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 10 }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                         <thead>
                           <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb', position: 'sticky', top: 0 }}>
@@ -180,10 +414,20 @@ export default function DocumentDetail() {
                         </tbody>
                       </table>
                     </div>
-                    {(datos.total_filas as number) > 150 && (
+                    {totalFilasSheet > 150 && (
                       <p style={{ fontSize: 12, color: '#9ca3af', marginTop: '0.5rem', textAlign: 'center' }}>
-                        Mostrando 150 de {datos.total_filas as number} filas
+                        Mostrando 150 de {totalFilasSheet} filas
                       </p>
+                    )}
+                    {datos.metadata && typeof datos.metadata === 'object' && (!activeSheet || activeSheet === (datos.sheet_usada as string)) && (
+                      <div style={{ marginTop: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.75rem', fontSize: 13 }}>
+                        <strong style={{ color: '#0f172a' }}>Cabecera detectada</strong>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px 12px', marginTop: 8 }}>
+                          {Object.entries(datos.metadata as Record<string, unknown>).map(([k, v]) => (
+                            <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? '—')}</div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </>
                 )

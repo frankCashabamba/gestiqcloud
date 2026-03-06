@@ -6,6 +6,17 @@ import { listProducts, type Product } from '../../services/api/products'
 import { getRecipeFullCost, type FullCostSummary } from '../../services/api/productionCosts'
 import { getCompanySettings, getCurrencySymbol, getDefaultTaxRate, type CompanySettings } from '../../services/companySettings'
 import tenantApi from '../../shared/api/client'
+
+function safeImageUrl(url: unknown): string | null {
+  if (!url || typeof url !== 'string') return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null
+    return url
+  } catch {
+    return null
+  }
+}
 import { useToast } from '../../shared/toast'
 
 export default function RecetasList() {
@@ -27,6 +38,8 @@ export default function RecetasList() {
   const [markupPct, setMarkupPct] = useState<number>(25)
   const [useProductTax, setUseProductTax] = useState<boolean>(false)
   const [fullCosts, setFullCosts] = useState<Record<string, FullCostSummary>>({})
+  const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const currency = useMemo(() => getCurrencySymbol(settings || undefined), [settings])
 
   useEffect(() => {
@@ -125,17 +138,19 @@ export default function RecetasList() {
     return amount * (1 + (isFinite(rate) ? rate : defaultTaxRate))
   }
 
-  const handleDelete = async (id: string, name?: string) => {
-    const targetName = name || t('recipe.singular')
-    const confirmMsg = t('forms.confirmDelete', { name: targetName })
-    if (!window.confirm(confirmMsg)) return
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal) return
+    setDeleting(true)
     try {
-      await deleteRecipe(id)
-      setRecipes((prev) => prev.filter((r) => r.id !== id))
-      success(t('forms.successDelete', { name: targetName }))
+      await deleteRecipe(deleteModal.id)
+      setRecipes((prev) => prev.filter((r) => r.id !== deleteModal.id))
+      success(t('forms.successDelete', { name: deleteModal.name }))
+      setDeleteModal(null)
     } catch (e: any) {
       console.error('Error deleting recipe', e)
       toastError(t('errors.deletingRecipe'))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -143,7 +158,8 @@ export default function RecetasList() {
   if (error) return <div className="p-6 text-red-600">{error}</div>
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <>
+      <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2 w-full md:w-auto">
           <input
@@ -267,8 +283,8 @@ export default function RecetasList() {
                 <div key={r.id} className="border rounded-lg p-4 bg-white shadow-sm">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      {prod?.image_url ? (
-                        <img src={prod.image_url} alt={prod.name} className="w-10 h-10 rounded object-cover bg-gray-100" />
+                      {prod?.image_url && safeImageUrl(prod.image_url) ? (
+                        <img src={safeImageUrl(prod.image_url)!} alt={prod.name} className="w-10 h-10 rounded object-cover bg-gray-100" />
                       ) : (
                         <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-500 text-sm">
                           {(r.product_name || 'P').charAt(0).toUpperCase()}
@@ -328,7 +344,7 @@ export default function RecetasList() {
                       </button>
                       <button
                         className="text-red-600 hover:underline text-sm"
-                        onClick={() => handleDelete(r.id, r.name)}
+                        onClick={() => setDeleteModal({ id: r.id, name: r.name })}
                       >
                         {t('actions.deleteRecipe')}
                       </button>
@@ -351,6 +367,54 @@ export default function RecetasList() {
           </div>
         </>
       )}
-    </div>
+      </div>
+      {deleteModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={() => !deleting && setDeleteModal(null)}
+        >
+          <div
+            style={{
+              background: '#fff', borderRadius: 12, padding: '1.5rem', maxWidth: 400, width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '1rem' }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="20" height="20" fill="none" stroke="#EF4444" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>
+                  {t('forms.confirmDelete', { name: deleteModal.name })}
+                </div>
+                <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
+                  Esta acción no se puede deshacer.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: '1rem' }}>
+              <button
+                disabled={deleting}
+                onClick={() => setDeleteModal(null)}
+                style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#374151' }}
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={deleting}
+                onClick={handleDeleteConfirm}
+                style={{ padding: '0.5rem 1.25rem', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', cursor: deleting ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 14, opacity: deleting ? 0.7 : 1 }}
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

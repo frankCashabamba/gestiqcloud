@@ -4,6 +4,8 @@ export const TENANT_IMPORTADOR = {
   documents: '/api/v1/importador/documents',
   documentById: (id: string) => `/api/v1/importador/documents/${id}`,
   confirm: (id: string) => `/api/v1/importador/documents/${id}/confirm`,
+  syncRecipe: (id: string) => `/api/v1/importador/documents/${id}/sync_recipe`,
+  syncRecipes: (id: string) => `/api/v1/importador/documents/${id}/sync_recipes`,
   edit: (id: string) => `/api/v1/importador/documents/${id}/edit`,
   reject: (id: string) => `/api/v1/importador/documents/${id}/reject`,
   logs: (id: string) => `/api/v1/importador/documents/${id}/logs`,

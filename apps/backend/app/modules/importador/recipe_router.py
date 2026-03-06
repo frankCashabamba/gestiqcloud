@@ -9,6 +9,7 @@ Business Rules:
 from __future__ import annotations
 import logging
 from uuid import UUID
+from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 from app.config.database import get_db
@@ -172,46 +173,76 @@ async def run_import(
             text = extraction.get("text", "")
             structured = extraction.get("structured_data")
             sheet_profiles = extraction.get("sheet_profiles")
+            sheet_metadata = extraction.get("sheet_metadata") or {}
+            sheet_used = extraction.get("sheet_used")
             headers_lower = []
             if sheet_profiles and isinstance(sheet_profiles, dict):
                 for prof in sheet_profiles.values():
                     headers_lower.extend([h.lower() for h in prof.get("headers", [])])
 
-            # Auto recipe si zero-shot y tenemos cabeceras Excel
-            local_recipe_config = recipe_config
+            # Para Excel/CSV: las filas YA están parseadas. No necesitamos LLM para extraer datos,
+            # solo para clasificar el tipo de documento. El LLM NO decide si es tabla.
+            has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
+            structured_rows_all: list[dict] = structured if isinstance(structured, list) else []
+            structured_rows: list[dict] = list(structured_rows_all)
+
+            headers_norm: list[str] = []
+            headers_display: list[str] = []
+            if has_structured:
+                sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
+                if sheet_used is None and sheet_names:
+                    sheet_used = sheet_names[0]
+                if sheet_used and structured_rows:
+                    filtered_rows = [r for r in structured_rows if isinstance(r, dict) and r.get("_sheet") == sheet_used]
+                    if filtered_rows:
+                        structured_rows = filtered_rows
+                if sheet_profiles:
+                    prof = sheet_profiles.get(sheet_used) or (sheet_profiles[sheet_names[0]] if sheet_names else None)
+                    if prof:
+                        headers_norm = prof.get("headers_norm") or []
+                        headers_display = prof.get("headers") or headers_norm
+
+            # Fingerprint / recipe selection
+            local_recipe_config = recipe_config or {}
             local_resolution = resolution_mode
             local_snapshot_id = resolved_snapshot_id
             local_auto_created = False
             local_auto_name: str | None = None
-            if resolution_mode == "zero_shot" and not resolved_snapshot_id and sheet_profiles:
-                local_recipe_config, local_snapshot_id, local_resolution, local_auto_created, local_auto_name = resolve_auto_recipe(
-                    db, tenant_id, sheet_profiles, user_id
+            if sheet_profiles and not recipe_config:
+                auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = resolve_auto_recipe(
+                    db, tenant_id, sheet_profiles, user_id, force_new=force
                 )
+                if auto_rc:
+                    local_recipe_config = auto_rc
+                    local_resolution = auto_mode
+                if auto_snap_id:
+                    local_snapshot_id = auto_snap_id
 
-            # Preparar contenido para el LLM
-            has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
+            # LLM: solo clasificar el tipo de documento (para Excel/CSV)
+            # Para PDF/imagen/TXT: también extraer campos
+            recipe_name_detected: str | None = None
             if has_structured:
-                # Excel/CSV: enviar cabeceras + muestra de filas al LLM
-                # headers_norm = claves normalizadas que usan los dicts de filas ("precio_unitario_venta")
-                # headers_display = nombres legibles para mostrar ("PRECIO UNITARIO VENTA")
-                headers_norm: list[str] = []
-                headers_display: list[str] = []
-                for prof in sheet_profiles.values():
-                    headers_norm = prof.get("headers_norm") or []
-                    headers_display = prof.get("headers") or headers_norm
-                    break
-                headers = headers_norm  # alias para compatibilidad
+                sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
+                if sheet_used is None and sheet_names:
+                    sheet_used = sheet_names[0]
+                # Contenido mínimo para clasificación: solo cabeceras + 5 filas de muestra
                 sample_lines = [f"Columnas: {headers_display}"]
-                for row in (structured[:15] if isinstance(structured, list) else []):
+                for row in structured_rows[:5]:
                     if isinstance(row, dict):
-                        sample_lines.append(str({k: v for k, v in row.items() if not k.startswith("_")}))
-                    else:
-                        sample_lines.append(str(row))
+                        sample_lines.append(str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")}))
+                        if recipe_name_detected is None:
+                            for key in row.keys():
+                                key_norm = str(key or '').strip().lower()
+                                if key_norm in ("nombre_de_la_receta", "nombre_receta", "nombre de la receta", "nombre"):
+                                    val = row.get(key)
+                                    if val:
+                                        recipe_name_detected = str(val).strip()
+                                        break
                 llm_content = "\n".join(sample_lines)
             else:
                 llm_content = text[:4000] if text else ""
 
-            # Una sola llamada LLM: clasifica + extrae (sin reglas hardcodeadas)
+            # Llamada LLM con prompt genérico limpio (sin recipe_config que pueda sesgar)
             analysis = await analyze_document(
                 llm_content, filename, extraction.get("format", tipo_archivo),
                 has_structured_rows=has_structured,
@@ -221,7 +252,6 @@ async def run_import(
             tipo_doc = analysis.get("tipo_documento", "OTRO")
             confianza = float(analysis.get("confianza", 0.0))
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
-            es_tabla = analysis.get("es_tabla", False)
 
             extraction_raw = {
                 "_raw_response": analysis.get("raw_response"),
@@ -230,25 +260,77 @@ async def run_import(
             }
 
             # Construir datos_extraidos
-            if es_tabla and has_structured:
-                # Tabla con filas ya parseadas: usar structured_data directamente
-                # columnas usa headers_display para mostrar nombres bonitos en la UI
-                # Las filas usan headers_norm como claves (deben coincidir con lo que guarda ocr_service)
+            if has_structured:
+                sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
+                if sheet_used is None and sheet_names:
+                    sheet_used = sheet_names[0]
+                # Excel/CSV: SIEMPRE retornar filas parseadas — el LLM no decide si es tabla
                 columnas = headers_display or headers_norm
-                datos_extraidos = {"filas": structured[:200], "total_filas": len(structured), "columnas": columnas, "columnas_norm": headers_norm}
+                if recipe_name_detected is None:
+                    for row in structured_rows[:200]:
+                        if not isinstance(row, dict):
+                            continue
+                        for key in row.keys():
+                            key_norm = str(key or '').strip().lower()
+                            if key_norm in ('nombre_de_la_receta', 'nombre_receta', 'nombre de la receta', 'nombre'):
+                                val = row.get(key)
+                                if val:
+                                    recipe_name_detected = str(val).strip()
+                                    break
+                        if recipe_name_detected:
+                            break
+                meta_for_sheet = None
+                if sheet_metadata:
+                    meta_for_sheet = sheet_metadata.get(sheet_used) or (sheet_metadata.get(sheet_names[0]) if sheet_names else None)
+                if recipe_name_detected is None and meta_for_sheet:
+                    for key, val in meta_for_sheet.items():
+                        key_norm = str(key or "").strip().lower()
+                        if key_norm in ("nombre_de_la_receta", "nombre_receta", "nombre de la receta", "nombre"):
+                            if val:
+                                recipe_name_detected = str(val).strip()
+                                break
+                if recipe_name_detected is None:
+                    recipe_name_detected = sheet_used or (list(sheet_profiles.keys())[0] if sheet_profiles else None) or Path(filename).stem
+
+                # Agrupar todas las filas por hoja para visualización completa en el frontend
+                filas_por_hoja: dict[str, list] = {}
+                for row in structured_rows_all:
+                    if not isinstance(row, dict):
+                        continue
+                    sheet_name = row.get("_sheet") or sheet_used or ""
+                    filas_por_hoja.setdefault(str(sheet_name), []).append(row)
+                filas_count = {k: len(v) for k, v in filas_por_hoja.items()}
+
+                datos_extraidos = {
+                    "filas": structured_rows[:200],
+                    "total_filas": len(structured_rows),
+                    "columnas": columnas,
+                    "columnas_norm": headers_norm,
+                    "nombre_receta": recipe_name_detected,
+                    "sheet_usada": sheet_used,
+                    "hojas": sheet_names,
+                }
+                if meta_for_sheet:
+                    datos_extraidos["metadata"] = meta_for_sheet
+                if filas_por_hoja:
+                    datos_extraidos["filas_por_hoja"] = {k: v[:200] for k, v in filas_por_hoja.items()}
+                    datos_extraidos["filas_por_hoja_count"] = filas_count
             else:
-                # Documento único o tabla detectada por LLM en texto (PDF, etc.)
+                # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
                 datos_extraidos = analysis.get("campos") or {}
 
             # Para PDF/XML/imagen/TXT: crear fingerprint post-extracción para futuros imports similares
-            auto_recipe_created = False
-            auto_recipe_name: str | None = None
+            auto_recipe_created = local_auto_created
+            auto_recipe_name: str | None = local_auto_name
             if not sheet_profiles and tipo_doc != "OTRO":
-                _, post_snap_id, _, auto_recipe_created, auto_recipe_name = resolve_auto_recipe_from_text(
+                auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = resolve_auto_recipe_from_text(
                     db, tenant_id, tipo_doc, datos_extraidos,
                     extraction.get("format", tipo_archivo),
                     user_id,
+                    force_new=force,
                 )
+                if not local_recipe_config and auto_rc2:
+                    local_recipe_config = auto_rc2
                 if post_snap_id and not local_snapshot_id:
                     local_snapshot_id = post_snap_id
 
@@ -269,7 +351,7 @@ async def run_import(
                         "tipo_documento": tipo_doc,
                         "confianza": confianza,
                         "razonamiento": analysis.get("razonamiento", ""),
-                        "es_tabla": es_tabla,
+                        "es_tabla": has_structured,
                     },
                     "campos_extraidos": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else [],
                 },

@@ -36,6 +36,12 @@ const REPORT_CARDS = [
   },
 ] as const
 
+type ReportCard = (typeof REPORT_CARDS)[number]
+
+function getReportCardTitle(card: ReportCard, t: (key: string) => string) {
+  return 'titleKey' in card ? t(card.titleKey) : card.title
+}
+
 export default function ReportsDashboard() {
   const nav = useNavigate()
   const { t } = useTranslation(['reportes', 'common'])
@@ -102,7 +108,7 @@ export default function ReportsDashboard() {
             onClick={() => nav(card.key)}
           >
             <div style={{ fontSize: 32, marginBottom: 4 }}>{card.icon}</div>
-            <strong style={{ fontSize: 16 }}>{(card as any).titleKey ? t((card as any).titleKey) : card.title}</strong>
+            <strong style={{ fontSize: 16 }}>{getReportCardTitle(card, t)}</strong>
             <span style={{ fontSize: 13, textTransform: 'none', letterSpacing: 0 }}>
               {card.description}
             </span>

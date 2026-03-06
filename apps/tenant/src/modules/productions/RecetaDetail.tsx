@@ -36,15 +36,99 @@ import {
 } from '../../services/api/productionCosts';
 import tenantApi from '../../shared/api/client';
 
+const VALID_UNITS = new Set(['kg', 'g', 'lb', 'oz', 'ton', 'mg', 'L', 'ml', 'gal', 'qt', 'pt', 'cup', 'fl_oz', 'tbsp', 'tsp', 'uds', 'unidades', 'pcs']);
+
 const normalizeRecipeUnit = (unit?: string | null): string => {
   const u = String(unit || '').trim().toLowerCase();
-  if (!u || u === 'unit' || u === 'units') return 'uds';
-  if (u === 'unidad' || u === 'unid') return 'unidades';
+  if (!u || u === '-' || /^\d+$/.test(u)) return 'uds';
+  if (u === 'unit' || u === 'units' || u === 'und' || u === 'uni') return 'uds';
+  if (u === 'unidad' || u === 'unid' || u === 'pza' || u === 'pieza' || u === 'cantidad') return 'unidades';
   if (u === 'gr' || u === 'gramo' || u === 'gramos') return 'g';
   if (u === 'kilo' || u === 'kilos' || u === 'kilogramo' || u === 'kilogramos') return 'kg';
   if (u === 'lbs' || u === 'pounds' || u === 'libra' || u === 'libras') return 'lb';
-  if (u === 'lt' || u === 'litro' || u === 'litros') return 'L';
-  return u;
+  if (u === 'lt' || u === 'litr' || u === 'litro' || u === 'litros') return 'L';
+  for (const valid of VALID_UNITS) {
+    if (u === valid.toLowerCase()) return valid;
+  }
+  return 'uds';
+};
+
+const dialogPaperSx = {
+  borderRadius: 4,
+  border: '1px solid #e2e8f0',
+  backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)',
+  boxShadow: '0 28px 80px rgba(15, 23, 42, 0.18)',
+};
+
+const sectionCardSx = {
+  mb: 3,
+  p: { xs: 2, md: 2.5 },
+  borderRadius: 3,
+  border: '1px solid #e7edf5',
+  backgroundColor: '#ffffff',
+  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.05)',
+};
+
+const metricCardSx = {
+  height: '100%',
+  p: 1.75,
+  borderRadius: 2.5,
+  border: '1px solid #e8eef5',
+  backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)',
+};
+
+const fieldGroupSx = {
+  '& .MuiTextField-root': {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 2.5,
+      backgroundColor: '#ffffff',
+    },
+    '& .MuiInputLabel-root': {
+      fontWeight: 500,
+    },
+    '& .MuiFormHelperText-root': {
+      marginLeft: 0.25,
+    },
+  },
+};
+
+const tableContainerSx = {
+  borderRadius: 3,
+  border: '1px solid #e2e8f0',
+  boxShadow: 'none',
+  overflow: 'hidden',
+  backgroundColor: '#ffffff',
+  '& .MuiTableHead-root .MuiTableCell-root': {
+    backgroundColor: '#f8fafc',
+    color: '#475569',
+    fontWeight: 700,
+    borderBottom: '1px solid #e2e8f0',
+  },
+  '& .MuiTableBody-root .MuiTableCell-root': {
+    borderBottom: '1px solid #eef2f7',
+    verticalAlign: 'middle',
+  },
+};
+
+const dialogActionsSx = {
+  px: { xs: 2, md: 3 },
+  py: 2,
+  gap: 1,
+  borderTop: '1px solid #e5e7eb',
+  backgroundColor: 'rgba(255,255,255,0.94)',
+  backdropFilter: 'blur(10px)',
+  justifyContent: 'space-between',
+  flexWrap: 'wrap',
+};
+
+const infoAlertSx = {
+  py: 0.5,
+  borderRadius: 2.5,
+  backgroundColor: '#eff6ff',
+  border: '1px solid #bfdbfe',
+  '& .MuiAlert-icon': {
+    color: '#2563eb',
+  },
 };
 
 interface RecetaDetailProps {
@@ -374,75 +458,108 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
   const hasIndirect = fc && Number(fc.indirect_total || 0) > 0;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Typography variant="h5">{recipe.name}</Typography>
-        <Typography variant="body2" color="text.secondary">
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+      <DialogTitle
+        component="div"
+        sx={{
+          px: { xs: 2, md: 3 },
+          py: { xs: 2, md: 2.5 },
+          borderBottom: '1px solid #e5e7eb',
+          backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        }}
+      >
+        <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
+          {recipe.name}
+        </Typography>
+        <Typography variant="body2" component="p" color="text.secondary" sx={{ mt: 0.5 }}>
           {recipe.product_name}
         </Typography>
       </DialogTitle>
 
-      <DialogContent dividers>
+      <DialogContent
+        dividers
+        sx={{
+          px: { xs: 2, md: 3 },
+          py: { xs: 2, md: 3 },
+          borderColor: '#e5e7eb',
+          backgroundColor: '#f8fafc',
+        }}
+      >
         {/* Resumen */}
-        <Box mb={3}>
+        <Box sx={sectionCardSx}>
+          <Typography variant="overline" sx={{ color: '#64748b', letterSpacing: 1.2 }}>
+            Resumen de receta
+          </Typography>
           <Grid container spacing={2}>
             <Grid item xs={6} sm={3}>
-              <Typography variant="caption" color="text.secondary">
-                {t('productions:recipe.yield')}
-              </Typography>
-              <Typography variant="h6">{recipe.yield_qty} uds</Typography>
+              <Box sx={metricCardSx}>
+                <Typography variant="caption" color="text.secondary">
+                  {t('productions:recipe.yield')}
+                </Typography>
+                <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>{recipe.yield_qty} uds</Typography>
+              </Box>
             </Grid>
 
             <Grid item xs={6} sm={3}>
-              <Typography variant="caption" color="text.secondary">
-                {t('productions:recipe.materialsCost')}
-              </Typography>
-              <Typography variant="h6">${totalCost.toFixed(2)}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                /u: ${unitCost.toFixed(4)}
-              </Typography>
+              <Box sx={metricCardSx}>
+                <Typography variant="caption" color="text.secondary">
+                  {t('productions:recipe.materialsCost')}
+                </Typography>
+                <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>${totalCost.toFixed(2)}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  /u: ${unitCost.toFixed(4)}
+                </Typography>
+              </Box>
             </Grid>
 
             {hasIndirect ? (
               <>
                 <Grid item xs={6} sm={3}>
-                  <Typography variant="caption" color="text.secondary">
-                    {t('productions:recipe.indirectCosts')}
-                  </Typography>
-                  <Typography variant="h6" color="warning.main">
-                    ${Number(fc.indirect_total).toFixed(2)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {Number(fc.labor_total) > 0 && `${t('productions:recipe.labor')}: $${Number(fc.labor_with_burden_factor || fc.labor_total).toFixed(2)} `}
-                    {Number(fc.diesel_total) > 0 && `${t('productions:recipe.diesel')}: $${Number(fc.diesel_total).toFixed(2)} `}
-                    {Number(fc.electricity_total) > 0 && `${t('productions:recipe.electricity')}: $${Number(fc.electricity_total).toFixed(2)}`}
-                  </Typography>
+                  <Box sx={metricCardSx}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t('productions:recipe.indirectCosts')}
+                    </Typography>
+                    <Typography variant="h6" color="warning.main" sx={{ mt: 0.5, fontWeight: 700 }}>
+                      ${Number(fc.indirect_total).toFixed(2)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {Number(fc.labor_total) > 0 && `${t('productions:recipe.labor')}: $${Number(fc.labor_with_burden_factor || fc.labor_total).toFixed(2)} `}
+                      {Number(fc.diesel_total) > 0 && `${t('productions:recipe.diesel')}: $${Number(fc.diesel_total).toFixed(2)} `}
+                      {Number(fc.electricity_total) > 0 && `${t('productions:recipe.electricity')}: $${Number(fc.electricity_total).toFixed(2)}`}
+                    </Typography>
+                  </Box>
                 </Grid>
                 <Grid item xs={6} sm={3}>
-                  <Typography variant="caption" color="text.secondary">
-                    {t('productions:recipe.fullCostUnit')}
-                  </Typography>
-                  <Typography variant="h6" color="error.main">
-                    ${Number(fc.full_cost_unit).toFixed(4)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {t('productions:recipe.total')}: ${Number(fc.full_cost_total).toFixed(2)}
-                  </Typography>
+                  <Box sx={metricCardSx}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t('productions:recipe.fullCostUnit')}
+                    </Typography>
+                    <Typography variant="h6" color="error.main" sx={{ mt: 0.5, fontWeight: 700 }}>
+                      ${Number(fc.full_cost_unit).toFixed(4)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {t('productions:recipe.total')}: ${Number(fc.full_cost_total).toFixed(2)}
+                    </Typography>
+                  </Box>
                 </Grid>
               </>
             ) : (
               <>
                 <Grid item xs={6} sm={3}>
-                  <Typography variant="caption" color="text.secondary">
-                    {t('productions:recipe.costUnit')}
-                  </Typography>
-                  <Typography variant="h6">${unitCost.toFixed(4)}</Typography>
+                  <Box sx={metricCardSx}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t('productions:recipe.costUnit')}
+                    </Typography>
+                    <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>${unitCost.toFixed(4)}</Typography>
+                  </Box>
                 </Grid>
                 <Grid item xs={6} sm={3}>
-                  <Typography variant="caption" color="text.secondary">
-                    {t('productions:recipe.ingredients')}
-                  </Typography>
-                  <Typography variant="h6">{ingredientsCount}</Typography>
+                  <Box sx={metricCardSx}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t('productions:recipe.ingredients')}
+                    </Typography>
+                    <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>{ingredientsCount}</Typography>
+                  </Box>
                 </Grid>
               </>
             )}
@@ -451,7 +568,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
 
         {/* Parámetros de producción */}
         {isEditing ? (
-          <Box mb={2}>
+          <Box sx={{ ...sectionCardSx, ...fieldGroupSx }}>
             <Typography variant="subtitle2" gutterBottom>
               {t('productions:recipe.productionParameters')}
             </Typography>
@@ -502,7 +619,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               </Grid>
               {/* TOUCH vs PROCESO */}
               <Grid item xs={12}>
-                <Alert severity="info" sx={{ py: 0.5 }}>
+                <Alert severity="info" sx={infoAlertSx}>
                   🟢 Touch = {t('productions:recipe.touchDescription')} | ⚫ {t('productions:recipe.processDescription')}
                 </Alert>
               </Grid>
@@ -577,7 +694,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             </Grid>
           </Box>
         ) : (
-          <Box mb={2} display="flex" flexWrap="wrap" gap={1}>
+          <Box sx={{ ...sectionCardSx, display: 'flex', flexWrap: 'wrap', gap: 1, '& .MuiChip-root': { borderRadius: 2 } }}>
             {recipe.prep_time_minutes != null && (
               <Chip label={`⏱️ ${t('productions:recipe.prepLabel')}: ${recipe.prep_time_minutes} min`} color="primary" size="small" />
             )}
@@ -608,14 +725,14 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           </Box>
         )}
 
-        <Divider sx={{ my: 2 }} />
+        <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
 
         {/* Desglose de ingredientes */}
-        <Typography variant="h6" gutterBottom>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, mb: 1.5 }}>
           {t('productions:recipe.ingredientsBreakdown')}
         </Typography>
 
-        <TableContainer component={Paper} variant="outlined">
+        <TableContainer component={Paper} variant="outlined" sx={tableContainerSx}>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -775,19 +892,19 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         </TableContainer>
 
         {/* Costos indirectos */}
-        <Divider sx={{ my: 2 }} />
-        <Typography variant="h6" gutterBottom>
+        <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, mb: 1.5 }}>
           {t('productions:recipe.indirectCosts')}
         </Typography>
 
         {costDrivers.length === 0 && !isEditing && (
-          <Alert severity="info" sx={{ mb: 2 }}>
+          <Alert severity="info" sx={{ ...infoAlertSx, mb: 2 }}>
             {t('productions:recipe.noCostDriversInfo')}
           </Alert>
         )}
 
         {(costLinesDraft.length > 0 || isEditing) && (
-          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+          <TableContainer component={Paper} variant="outlined" sx={{ ...tableContainerSx, mb: 2 }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -952,7 +1069,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               {t('productions:recipe.addIndirectCost')}
             </Button>
           ) : (
-            <Alert severity="warning" sx={{ mb: 2 }}>
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2.5, backgroundColor: '#fff7ed', border: '1px solid #fdba74', '& .MuiAlert-icon': { color: '#ea580c' } }}>
               {t('productions:recipe.noCostDrivers')}
             </Alert>
           )
@@ -961,24 +1078,27 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         {/* Instrucciones (solo lectura) */}
         {!isEditing && recipe.instructions && (
           <>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="h6" gutterBottom>
+            <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, mb: 1.5 }}>
               {t('productions:recipe.instructions')}
             </Typography>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {recipe.instructions}
-            </Typography>
+            <Box sx={{ ...sectionCardSx, mb: 0 }}>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#334155', lineHeight: 1.7 }}>
+                {recipe.instructions}
+              </Typography>
+            </Box>
           </>
         )}
       </DialogContent>
 
-      <DialogActions>
+      <DialogActions sx={dialogActionsSx}>
         {isEditing ? (
           <Button
             variant="contained"
             color="primary"
             onClick={handleSaveIngredients}
             disabled={updating}
+            sx={{ minWidth: 140, borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
           >
             {t('productions:recipe.save')}
           </Button>
@@ -987,6 +1107,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             variant="outlined"
             onClick={() => setIsEditing(true)}
             disabled={updating}
+            sx={{ borderRadius: 2.5, fontWeight: 600 }}
           >
             {t('productions:recipe.edit')}
           </Button>
@@ -996,6 +1117,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           startIcon={<Add />}
           onClick={addNewIngredientRow}
           disabled={updating}
+          sx={{ borderRadius: 2.5, fontWeight: 600 }}
         >
           {t('productions:recipe.addIngredient')}
         </Button>
@@ -1004,6 +1126,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             variant="text"
             onClick={() => onEdit(recipe)}
             disabled={updating}
+            sx={{ borderRadius: 2.5, fontWeight: 600 }}
           >
             {t('productions:recipe.openEditor')}
           </Button>
@@ -1014,16 +1137,19 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             color="primary"
             onClick={openOrderPrompt}
             disabled={updating}
+            sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
           >
             {t('productions:recipe.newOrder')}
           </Button>
         )}
-        <Button onClick={onClose}>{t('productions:recipe.close')}</Button>
+        <Button onClick={onClose} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>{t('productions:recipe.close')}</Button>
       </DialogActions>
 
-      <Dialog open={orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('productions:recipe.createOrder')}</DialogTitle>
-        <DialogContent>
+      <Dialog open={orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
+          {t('productions:recipe.createOrder')}
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, py: 3, backgroundColor: '#f8fafc' }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {t('productions:recipe.useRecipeQty')}
           </Typography>
@@ -1050,11 +1176,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             </strong>
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOrderPromptOpen(false)}>{t('common:actions.cancel')}</Button>
+        <DialogActions sx={dialogActionsSx}>
+          <Button onClick={() => setOrderPromptOpen(false)} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>{t('common:actions.cancel')}</Button>
           <Button
             variant="outlined"
             onClick={() => submitOrderWithQty(Number(recipe?.yield_qty || 1))}
+            sx={{ borderRadius: 2.5, fontWeight: 600 }}
           >
             {t('productions:recipe.sameQty')}
           </Button>
@@ -1062,6 +1189,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             variant="contained"
             onClick={() => submitOrderWithQty(Number(customOrderQty))}
             disabled={!Number(customOrderQty) || Number(customOrderQty) <= 0}
+            sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
           >
             {t('productions:recipe.useThisQty')}
           </Button>

@@ -55,6 +55,9 @@ class ImpDocumento(Base):
 
     usuario_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Produccion: receta sincronizada desde este documento
+    synced_recipe_id: Mapped[uuid.UUID | None] = mapped_column(UUID_COL, nullable=True, comment="ID receta produccion creada/actualizada desde este documento")
+
     # AI recipe traceability
     recipe_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("icu_recipe_snapshot.id", ondelete="SET NULL"), nullable=True)
     llm_model: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Modelo AI usado: gpt-4o, llama3.1, etc")

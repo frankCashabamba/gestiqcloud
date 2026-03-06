@@ -22,15 +22,62 @@ interface RecetaFormProps {
   onClose: () => void;
 }
 
+const VALID_UNITS = new Set(['kg', 'g', 'lb', 'oz', 'ton', 'mg', 'L', 'ml', 'gal', 'qt', 'pt', 'cup', 'fl_oz', 'tbsp', 'tsp', 'uds', 'unidades', 'pcs']);
+
 const normalizeRecipeUnit = (unit?: string | null): string => {
   const u = String(unit || '').trim().toLowerCase();
-  if (!u || u === 'unit' || u === 'units') return 'uds';
-  if (u === 'unidad' || u === 'unid') return 'unidades';
+  if (!u || u === '-' || /^\d+$/.test(u)) return 'uds';
+  if (u === 'unit' || u === 'units' || u === 'und' || u === 'uni') return 'uds';
+  if (u === 'unidad' || u === 'unid' || u === 'pza' || u === 'pieza' || u === 'cantidad') return 'unidades';
   if (u === 'gr' || u === 'gramo' || u === 'gramos') return 'g';
   if (u === 'kilo' || u === 'kilos' || u === 'kilogramo' || u === 'kilogramos') return 'kg';
   if (u === 'lbs' || u === 'pounds' || u === 'libra' || u === 'libras') return 'lb';
-  if (u === 'lt' || u === 'litro' || u === 'litros') return 'L';
-  return u;
+  if (u === 'lt' || u === 'litr' || u === 'litro' || u === 'litros') return 'L';
+  for (const valid of VALID_UNITS) {
+    if (u === valid.toLowerCase()) return valid;
+  }
+  return 'uds';
+};
+
+const formDialogPaperSx = {
+  borderRadius: 4,
+  border: '1px solid #e2e8f0',
+  backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)',
+  boxShadow: '0 28px 80px rgba(15, 23, 42, 0.16)',
+};
+
+const formSectionSx = {
+  mb: 3,
+  p: { xs: 2, md: 2.5 },
+  borderRadius: 3,
+  border: '1px solid #e7edf5',
+  backgroundColor: '#ffffff',
+  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.05)',
+};
+
+const formFieldGroupSx = {
+  '& .MuiTextField-root': {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 2.5,
+      backgroundColor: '#ffffff',
+    },
+    '& .MuiInputLabel-root': {
+      fontWeight: 500,
+    },
+  },
+  '& .MuiAutocomplete-root .MuiOutlinedInput-root': {
+    borderRadius: 2.5,
+    backgroundColor: '#ffffff',
+  },
+};
+
+const formActionsSx = {
+  px: { xs: 2, md: 3 },
+  py: 2,
+  gap: 1,
+  borderTop: '1px solid #e5e7eb',
+  backgroundColor: 'rgba(255,255,255,0.94)',
+  backdropFilter: 'blur(10px)',
 };
 
 export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
@@ -229,8 +276,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   // Si no tenemos productos aún, mostrar cargando
   if (open && products.length === 0) {
     return (
-      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogContent>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: formDialogPaperSx }}>
+        <DialogContent sx={{ px: 3, py: 4, backgroundColor: '#f8fafc' }}>
           <Box display="flex" justifyContent="center" alignItems="center" p={4}>
             <Typography>Loading products...</Typography>
           </Box>
@@ -240,13 +287,34 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth PaperProps={{ sx: formDialogPaperSx }}>
       <form onSubmit={handleSubmit}>
-        <DialogTitle>
-          {recipe ? t('productions:recipeForm.editRecipe') : t('productions:recipeForm.newRecipe')}
+        <DialogTitle
+          component="div"
+          sx={{
+            px: { xs: 2, md: 3 },
+            py: { xs: 2, md: 2.5 },
+            borderBottom: '1px solid #e5e7eb',
+            backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+          }}
+        >
+          <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
+            {recipe ? t('productions:recipeForm.editRecipe') : t('productions:recipeForm.newRecipe')}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Define producto, rendimiento e ingredientes con una estructura mas clara.
+          </Typography>
         </DialogTitle>
 
-        <DialogContent dividers>
+        <DialogContent
+          dividers
+          sx={{
+            px: { xs: 2, md: 3 },
+            py: { xs: 2, md: 3 },
+            borderColor: '#e5e7eb',
+            backgroundColor: '#f8fafc',
+          }}
+        >
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
@@ -254,7 +322,11 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
           )}
 
           {/* Datos básicos */}
-          <Grid container spacing={2}>
+          <Box sx={{ ...formSectionSx, ...formFieldGroupSx }}>
+            <Typography variant="overline" sx={{ color: '#64748b', letterSpacing: 1.2 }}>
+              Base de la receta
+            </Typography>
+            <Grid container spacing={2}>
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -299,11 +371,15 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 onChange={(e) => setInstructions(e.target.value)}
               />
             </Grid>
-          </Grid>
+            </Grid>
+          </Box>
 
           {/* Tiempos y Producción */}
-          <Divider sx={{ my: 3 }} />
-          <Typography variant="h6" sx={{ mb: 2 }}>Tiempos y Producción</Typography>
+          <Box sx={{ ...formSectionSx, ...formFieldGroupSx }}>
+            <Typography variant="overline" sx={{ color: '#64748b', letterSpacing: 1.2 }}>
+              Produccion
+            </Typography>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Tiempos y Produccion</Typography>
 
           <Grid container spacing={2}>
             {/* Row 1: Tiempos */}
@@ -350,7 +426,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
             {/* Row 2: TOUCH vs PROCESO */}
             <Grid item xs={12}>
-              <Alert severity="info" sx={{ py: 0.5 }}>
+              <Alert severity="info" sx={{ py: 0.5, borderRadius: 2.5, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', '& .MuiAlert-icon': { color: '#2563eb' } }}>
                 🟢 Touch = trabajo activo (cuesta MO) | ⚫ Proceso = pasivo (fermentación/reposo)
               </Alert>
             </Grid>
@@ -409,23 +485,24 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
               />
             </Grid>
           </Grid>
+          </Box>
 
           {/* Ingredientes */}
-          <Divider sx={{ my: 3 }} />
-
+          <Box sx={{ ...formSectionSx, ...formFieldGroupSx }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6">Ingredientes</Typography>
             <Button
               size="small"
               startIcon={<Add />}
               onClick={handleAddIngredient}
+              sx={{ borderRadius: 2.5, fontWeight: 600 }}
             >
               Agregar
             </Button>
           </Box>
 
           {ingredientes.map((ing, index) => (
-            <Box key={index} mb={2} p={2} sx={{ bgcolor: 'grey.50', borderRadius: 1 }}>
+            <Box key={index} mb={2} p={2} sx={{ bgcolor: '#f8fafc', borderRadius: 2.5, border: '1px solid #e2e8f0' }}>
               <Grid container spacing={1.5}>
                 <Grid item xs={12} sm={6}>
                   <Autocomplete
@@ -516,11 +593,12 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
               </Grid>
             </Box>
           ))}
+          </Box>
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={loading}>
+        <DialogActions sx={formActionsSx}>
+          <Button onClick={onClose} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>Cancel</Button>
+          <Button type="submit" variant="contained" disabled={loading} sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}>
             {loading ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
