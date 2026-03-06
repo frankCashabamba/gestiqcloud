@@ -4,6 +4,7 @@ export const TENANT_IMPORTADOR = {
   documents: '/api/v1/importador/documents',
   documentById: (id: string) => `/api/v1/importador/documents/${id}`,
   confirm: (id: string) => `/api/v1/importador/documents/${id}/confirm`,
+  save: (id: string) => `/api/v1/importador/documents/${id}/save`,
   syncRecipe: (id: string) => `/api/v1/importador/documents/${id}/sync_recipe`,
   syncRecipes: (id: string) => `/api/v1/importador/documents/${id}/sync_recipes`,
   edit: (id: string) => `/api/v1/importador/documents/${id}/edit`,
@@ -18,4 +19,5 @@ export const TENANT_IMPORTADOR = {
   draftSnapshot: (draftId: string) => `/api/v1/importador/drafts/${draftId}/snapshot`,
   recipeSnapshots: (recipeId: string) => `/api/v1/importador/recipes/${recipeId}/snapshots`,
   snapshotById: (id: string) => `/api/v1/importador/snapshots/${id}`,
+  saveDailyLog: (id: string) => `/api/v1/importador/documents/${id}/save-as-daily-log`,
 }

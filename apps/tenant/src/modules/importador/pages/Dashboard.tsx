@@ -65,6 +65,7 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState<RunResult[]>([])
+  const [forceReprocess, setForceReprocess] = useState(false)
 
   // recipes
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -114,7 +115,10 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
     const pending = entries.filter(e => e.status === 'pending')
     if (!pending.length) return
     setProcessing(true); setError(''); setResults([])
-    const opts = selectedSnapshotId ? { recipe_snapshot_id: selectedSnapshotId } : undefined
+    const opts = {
+      ...(selectedSnapshotId ? { recipe_snapshot_id: selectedSnapshotId } : {}),
+      force: forceReprocess,
+    }
     try {
       const res = await runImport(pending.map(e => e.file), opts)
       setEntries(prev => prev.map((e, idx) => {
@@ -205,9 +209,24 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
             ))}
           </select>
         )}
-    </div>
+      </div>
 
-    <button
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', fontSize: 13, color: '#6b7280', cursor: 'pointer', userSelect: 'none' }}>
+        <input
+          type="checkbox"
+          checked={forceReprocess}
+          onChange={e => setForceReprocess(e.target.checked)}
+          style={{ width: 15, height: 15, cursor: 'pointer' }}
+        />
+        <span>
+          Reimportacion limpia
+          <span style={{ color: '#9ca3af', marginLeft: 4 }}>
+            (omite dedupe y sirve para volver a procesar un archivo que ya habias importado hace tiempo)
+          </span>
+        </span>
+      </label>
+
+      <button
         onClick={handleRun}
         disabled={pendingCount === 0 || processing}
         style={{

@@ -14,7 +14,7 @@ import { Add, Delete } from '@mui/icons-material';
 import {
   createRecipe, updateRecipe, type Recipe, type RecipeIngredient
 } from '../../services/api/recetas';
-import { listProducts, type Product } from '../../services/api/products';
+import { createProduct, listProducts, type Product } from '../../services/api/products';
 
 interface RecetaFormProps {
   open: boolean;
@@ -86,10 +86,12 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
 
   // Datos de receta
   const [name, setName] = useState('');
   const [productId, setProductId] = useState<string | null>(null);
+  const [productInputValue, setProductInputValue] = useState('');
   const [yieldQty, setYieldQty] = useState<number>(1);
   const [prepTimeMinutes, setPrepTimeMinutes] = useState<number | null>(null);
   const [instructions, setInstructions] = useState('');
@@ -118,6 +120,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
     if (recipe) {
       setName(recipe.name);
       setProductId(recipe.product_id);
+      setProductInputValue(recipe.product_name || recipe.name || '');
       setYieldQty(recipe.yield_qty);
       setPrepTimeMinutes(recipe.prep_time_minutes || null);
       setInstructions(recipe.instructions || '');
@@ -155,12 +158,22 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
     }
   }, [recipe, searchParams])
 
+  useEffect(() => {
+    if (!productId) return
+    const selectedProduct = products.find((product) => product.id === productId)
+    if (selectedProduct) {
+      setProductInputValue(selectedProduct.name)
+    }
+  }, [productId, products])
+
   const loadProducts = async () => {
     try {
       const data = await listProducts({ limit: 500 });
       setProducts(data);
     } catch (err: any) {
       console.error('Error cargando productos:', err);
+    } finally {
+      setProductsLoaded(true);
     }
   };
 
@@ -225,8 +238,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!productId) {
-      setError('Must select a product');
+    const trimmedProductName = productInputValue.trim();
+
+    if (!productId && !trimmedProductName) {
+      setError('Must select or create a final product');
       return;
     }
 
@@ -238,10 +253,40 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
     try {
       setLoading(true);
       setError(null);
+      let resolvedProductId = productId;
+
+      if (!resolvedProductId && trimmedProductName) {
+        const existingProduct = products.find(
+          (product) => product.name.trim().toLowerCase() === trimmedProductName.toLowerCase()
+        );
+        if (existingProduct) {
+          resolvedProductId = existingProduct.id;
+        } else {
+          const createdProduct = await createProduct({
+            name: trimmedProductName,
+            price: 0,
+            stock: 0,
+            unit: 'uds',
+            tax_rate: 0,
+            active: true,
+          });
+          resolvedProductId = createdProduct.id;
+          setProducts((prev) => (
+            [...prev, createdProduct].sort((a, b) => a.name.localeCompare(b.name))
+          ));
+        }
+      }
+
+      if (!resolvedProductId) {
+        setError('Must select or create a final product');
+        return;
+      }
+
+      setProductId(resolvedProductId);
 
       const data = {
         name,
-        product_id: productId,
+        product_id: resolvedProductId,
         yield_qty: yieldQty,
         prep_time_minutes: prepTimeMinutes || undefined,
         baking_time_minutes: bakingTimeMinutes ?? undefined,
@@ -274,7 +319,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   };
 
   // Si no tenemos productos aún, mostrar cargando
-  if (open && products.length === 0) {
+  if (open && !productsLoaded) {
     return (
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: formDialogPaperSx }}>
         <DialogContent sx={{ px: 3, py: 4, backgroundColor: '#f8fafc' }}>
@@ -339,12 +384,35 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
             <Grid item xs={12} sm={6}>
               <Autocomplete
+                freeSolo
                 options={products}
-                getOptionLabel={(opt) => opt.name}
+                getOptionLabel={(opt) => typeof opt === 'string' ? opt : opt.name}
                 value={products.find(p => p.id === productId) || null}
-                onChange={(_, val) => setProductId(val?.id || null)}
+                inputValue={productInputValue}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                onInputChange={(_, value) => {
+                  setProductInputValue(value)
+                  const matchedProduct = products.find(
+                    (product) => product.name.trim().toLowerCase() === value.trim().toLowerCase()
+                  )
+                  setProductId(matchedProduct?.id || null)
+                }}
+                onChange={(_, val) => {
+                  if (typeof val === 'string') {
+                    setProductId(null)
+                    setProductInputValue(val)
+                    return
+                  }
+                  setProductId(val?.id || null)
+                  setProductInputValue(val?.name || '')
+                }}
                 renderInput={(params) => (
-                  <TextField {...params} label={t('productions:recipeForm.finalProduct')} required />
+                  <TextField
+                    {...params}
+                    label={t('productions:recipeForm.finalProduct')}
+                    helperText="Si no existe, escribelo y se crearÃ¡ al guardar."
+                    required
+                  />
                 )}
               />
             </Grid>

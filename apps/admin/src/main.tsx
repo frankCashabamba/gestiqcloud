@@ -47,7 +47,7 @@ setupPWA((ev: 'need-refresh' | 'offline-ready') => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <EnvProvider value={env}>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <ToastProvider>
             <App />

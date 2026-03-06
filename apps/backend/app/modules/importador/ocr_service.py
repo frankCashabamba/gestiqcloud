@@ -163,11 +163,25 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
 
 
 async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
-    """Image: OCR with Tesseract."""
+    """Image: OCR with Tesseract with preprocessing for better results."""
+    from PIL import ImageEnhance, ImageFilter
     img = Image.open(io.BytesIO(file_bytes))
-    # Preprocessing: convert to grayscale for better OCR
+
+    # Resize if too small — Tesseract works best at ~300 DPI equivalent
+    min_width = 1800
+    if img.width < min_width:
+        scale = min_width / img.width
+        img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+
+    # Convert to grayscale
     if img.mode != "L":
         img = img.convert("L")
+
+    # Enhance contrast and sharpness before OCR (helps with WhatsApp compressed photos)
+    img = ImageEnhance.Contrast(img).enhance(1.8)
+    img = ImageEnhance.Sharpness(img).enhance(2.0)
+    img = img.filter(ImageFilter.SHARPEN)
+
     text = _ocr_image(img)
     return {"text": text, "pages": 1, "structured_data": None, "format": "IMAGE_OCR"}
 

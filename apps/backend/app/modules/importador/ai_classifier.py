@@ -58,24 +58,46 @@ async def analyze_document(
         if has_structured_rows else ""
     )
 
+    # For OCR/PDF content use more chars; for pre-structured tables 4000 is enough
+    content_limit = 4000 if has_structured_rows else 7000
+
     user_prompt = (
         f"{tabular_note}"
         f"Archivo: {filename} | Formato: {format_hint}\n\n"
-        f"Contenido:\n{content[:4000]}\n\n"
+        f"Contenido:\n{content[:content_limit]}\n\n"
         "Analiza el documento y responde SOLO con JSON válido:\n"
         "{\n"
-        '  "tipo_documento": "string libre (FACTURA, INVENTARIO, NOMINA, EXTRACTO_BANCARIO, '
-        'LISTA_PRECIOS, COSTEO, PRESUPUESTO, ORDEN_COMPRA, RECIBO, BOLETA, TICKET, OTRO, etc.)",\n'
+        '  "tipo_documento": "FACTURA | TICKETDEVENTA | RECIBO | BOLETA | TICKET | NOTA_CREDITO | '
+        'ORDEN_COMPRA | PRESUPUESTO | INVENTARIO | LISTA_PRECIOS | COSTEO | NOMINA | '
+        'EXTRACTO_BANCARIO | MOVIMIENTOS_BANCARIOS | OTRO",\n'
         '  "confianza": 0.0-1.0,\n'
         '  "razonamiento": "explicación breve",\n'
         '  "es_tabla": true o false,\n'
         '  "columnas": ["col1", "col2"],\n'
-        '  "campos": {"campo1": valor, "campo2": valor}\n'
+        '  "campos": {\n'
+        '    "proveedor": "nombre de quien EMITE/VENDE — busca: Razón Social emisor, nombre empresa vendedora",\n'
+        '    "ruc_proveedor": "RUC/NIT del emisor o null",\n'
+        '    "cliente": "nombre de quien RECIBE/COMPRA — busca: DATOS DEL CLIENTE, receptor",\n'
+        '    "ruc_cliente": "RUC/CI del cliente o null",\n'
+        '    "numero_documento": "número de factura/pedido/ticket — busca: No., Pedido No., Factura No.",\n'
+        '    "fecha": "fecha de emisión YYYY-MM-DD o null",\n'
+        '    "monto_total": NÚMERO — busca VALOR TOTAL o TOTAL al FINAL del documento, NO la cantidad de productos,\n'
+        '    "subtotal": número subtotal sin IVA o null,\n'
+        '    "iva": número IVA o null,\n'
+        '    "moneda": "USD/EUR/etc o null",\n'
+        '    "lineas": [\n'
+        '      {"descripcion": "nombre producto", "cantidad": número, "precio_unitario": número, "precio_total": número}\n'
+        '    ]\n'
+        "  }\n"
         "}\n"
-        "Reglas:\n"
-        "- Si es_tabla=true: incluye 'columnas' con los nombres limpios de cada columna; omite 'campos'\n"
-        "- Si es_tabla=false: incluye 'campos' con todos los datos del documento; omite 'columnas'\n"
-        "- Fechas: YYYY-MM-DD. Montos: número con punto decimal. Ausentes: null\n"
+        "Reglas CRÍTICAS:\n"
+        "- monto_total = el GRAN TOTAL al final del documento (busca 'VALOR TOTAL', 'TOTAL A PAGAR', 'TOTAL'). "
+        "  NO confundas con la cantidad de unidades de un producto.\n"
+        "- lineas = cada línea de producto/servicio con su cantidad y precio por unidad\n"
+        "- proveedor = la empresa que EMITE la factura (vendedor/acreedor)\n"
+        "- cliente = la persona/empresa que PAGA (comprador/deudor)\n"
+        "- Si es_tabla=true: solo devuelve 'columnas'; en 'campos' pon fecha y monto_total si los ves\n"
+        "- Fechas: YYYY-MM-DD. Montos: número con punto decimal (ej: 2145.00). Ausentes: null\n"
         "- No inventes datos que no estén en el documento."
     )
 
@@ -86,7 +108,7 @@ async def analyze_document(
             task=AITask.EXTRACTION,
             prompt=full_prompt,
             temperature=0.1,
-            max_tokens=1000,
+            max_tokens=1500,
             module="importador",
             enable_recovery=True,
         )

@@ -1,6 +1,7 @@
 """Pydantic schemas for Importador module."""
 from __future__ import annotations
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, Field
 
@@ -112,6 +113,37 @@ class UploadResponse(BaseModel):
     confianza_clasificacion: float | None = None
     requiere_revision: bool = False
     datos_extraidos: dict | None = None
+
+
+class SaveDocumentRequest(BaseModel):
+    destination: Literal["recipe", "expense", "supplier_invoice"] | None = None
+    payment_status: Literal["pending", "partial", "paid"] = "pending"
+    paid_amount: float | None = Field(default=None, ge=0)
+    pending_amount: float | None = Field(default=None, ge=0)
+    payment_method: str | None = Field(default=None, max_length=32)
+    paid_at: str | None = None
+    notes: str | None = None
+
+
+class SaveDocumentResponse(BaseModel):
+    target: Literal["recipes", "expenses"]
+    destination: Literal["recipe", "expense", "supplier_invoice"]
+    status: Literal["created", "updated", "skipped"]
+    record_id: str | None = None
+    record_ids: list[str] = Field(default_factory=list)
+    message: str | None = None
+
+
+class SaveDailyLogRequest(BaseModel):
+    """Permite sobreescribir la fecha si el usuario la corrige."""
+    log_date: str | None = None  # ISO 8601 YYYY-MM-DD; si None se infiere del nombre de archivo
+
+
+class SaveDailyLogResponse(BaseModel):
+    log_date: str
+    inserted: int
+    matched_recipes: int
+    unmatched_products: list[str] = Field(default_factory=list)
 
 
 # -----------  v1.3 Recipe / Run schemas  -----------

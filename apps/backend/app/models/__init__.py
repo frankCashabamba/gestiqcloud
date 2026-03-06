@@ -87,7 +87,7 @@ from app.models.pos import (
 from app.models.printing.printer_label_configuration import PrinterLabelConfiguration
 
 # Nuevos módulos profesionales
-from app.models.production import ProductionOrder, ProductionOrderLine
+from app.models.production import DailyProductionLog, ProductionOrder, ProductionOrderLine
 from app.models.purchases import Purchase, PurchaseLine
 from app.models.recipes import Recipe, RecipeIngredient
 from app.models.sales.delivery import Delivery

@@ -1,5 +1,5 @@
 """
-Servicios compartidos entre módulos.
+Shared service compatibility exports.
 """
 
 from .document_converter import DocumentConverter

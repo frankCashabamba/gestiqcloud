@@ -19,6 +19,13 @@ from . import crud, recipe_crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .auto_recipe import resolve_auto_recipe, resolve_auto_recipe_from_text
+from .document_fields import (
+    detect_document_currency,
+    detect_document_date,
+    detect_document_total,
+    get_data_value,
+    safe_floatish,
+)
 import hashlib
 import datetime
 from .schemas import (
@@ -54,6 +61,14 @@ def _tenant_id(request: Request) -> UUID:
 def _user_id(request: Request) -> str:
     claims = getattr(request.state, "access_claims", None) or {}
     return str(claims.get("user_id", "unknown"))
+
+
+def _has_explicit_recipe_context(
+    recipe_id: UUID | None,
+    recipe_snapshot_id: UUID | None,
+    recipe_draft_json: str | None,
+) -> bool:
+    return bool(recipe_id or recipe_snapshot_id or (recipe_draft_json and str(recipe_draft_json).strip()))
 
 
 # =====================================================================
@@ -122,6 +137,8 @@ async def run_import(
     recipe_config, resolution_mode, resolved_snapshot_id = _resolve_recipe_config(
         db, recipe_id, recipe_snapshot_id, recipe_draft,
     )
+    explicit_recipe_context = _has_explicit_recipe_context(recipe_id, recipe_snapshot_id, recipe_draft)
+    force_clean_reimport = force and not explicit_recipe_context
 
     results: list[RunResponse] = []
 
@@ -163,6 +180,9 @@ async def run_import(
         crud.add_log(db, doc.id, "RUN", user_id, {
             "filename": filename,
             "size": len(file_bytes),
+            "force": force,
+            "force_clean_reimport": force_clean_reimport,
+            "explicit_recipe_context": explicit_recipe_context,
             "recipe_resolution": resolution_mode,
             "recipe_snapshot_id": str(resolved_snapshot_id) if resolved_snapshot_id else None,
         })
@@ -204,19 +224,28 @@ async def run_import(
 
             # Fingerprint / recipe selection
             local_recipe_config = recipe_config or {}
-            local_resolution = resolution_mode
-            local_snapshot_id = resolved_snapshot_id
+            local_resolution = "force_clean" if force_clean_reimport and not recipe_config else resolution_mode
+            local_snapshot_id = None if force_clean_reimport and not recipe_config else resolved_snapshot_id
             local_auto_created = False
             local_auto_name: str | None = None
+            generated_auto_snapshot_id: UUID | None = None
+            generated_auto_mode: str | None = None
             if sheet_profiles and not recipe_config:
                 auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = resolve_auto_recipe(
                     db, tenant_id, sheet_profiles, user_id, force_new=force
                 )
-                if auto_rc:
-                    local_recipe_config = auto_rc
-                    local_resolution = auto_mode
-                if auto_snap_id:
-                    local_snapshot_id = auto_snap_id
+                generated_auto_snapshot_id = auto_snap_id
+                generated_auto_mode = auto_mode
+                if force_clean_reimport:
+                    local_recipe_config = {}
+                    local_resolution = "force_clean"
+                    local_snapshot_id = None
+                else:
+                    if auto_rc:
+                        local_recipe_config = auto_rc
+                        local_resolution = auto_mode
+                    if auto_snap_id:
+                        local_snapshot_id = auto_snap_id
 
             # LLM: solo clasificar el tipo de documento (para Excel/CSV)
             # Para PDF/imagen/TXT: también extraer campos
@@ -242,7 +271,7 @@ async def run_import(
             else:
                 llm_content = text[:4000] if text else ""
 
-            # Llamada LLM con prompt genérico limpio (sin recipe_config que pueda sesgar)
+            # En reimportación limpia, no reutilizar auto-plantillas para sesgar la clasificación.
             analysis = await analyze_document(
                 llm_content, filename, extraction.get("format", tipo_archivo),
                 has_structured_rows=has_structured,
@@ -341,6 +370,11 @@ async def run_import(
                         "recipe_id": str(recipe_id) if recipe_id else None,
                         "recipe_snapshot_id": str(local_snapshot_id or resolved_snapshot_id) if (local_snapshot_id or resolved_snapshot_id) else None,
                         "used": local_resolution,
+                        "force": force,
+                        "force_clean_reimport": force_clean_reimport,
+                        "explicit_recipe_context": explicit_recipe_context,
+                        "generated_auto_snapshot_id": str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None,
+                        "generated_auto_snapshot_mode": generated_auto_mode,
                     },
                     "model": model_used,
                 },
@@ -368,11 +402,11 @@ async def run_import(
                 "requiere_revision": requiere_revision,
                 "datos_extraidos": datos_extraidos,
                 "estado": "REVIEW",
-                "proveedor_detectado": datos_extraidos.get("proveedor") if isinstance(datos_extraidos, dict) else None,
-                "ruc_detectado": datos_extraidos.get("ruc") if isinstance(datos_extraidos, dict) else None,
-                "monto_total": _safe_float(datos_extraidos.get("monto_total") if isinstance(datos_extraidos, dict) else None),
-                "moneda": datos_extraidos.get("moneda") if isinstance(datos_extraidos, dict) else None,
-                "fecha_documento": datos_extraidos.get("fecha") if isinstance(datos_extraidos, dict) else None,
+                "proveedor_detectado": get_data_value(datos_extraidos, "proveedor", "vendor_name", "supplier", "emisor") if isinstance(datos_extraidos, dict) else None,
+                "ruc_detectado": get_data_value(datos_extraidos, "ruc", "tax_id", "supplier_tax_id", "vendor_tax_id") if isinstance(datos_extraidos, dict) else None,
+                "monto_total": detect_document_total(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
+                "moneda": detect_document_currency(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
+                "fecha_documento": detect_document_date(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
                 "llm_model": model_used,
                 "raw_ai_json": raw_ai_json,
                 "fingerprint_json": sheet_profiles,
@@ -384,6 +418,8 @@ async def run_import(
                 "model": model_used,
                 "recipe_mode": local_resolution,
                 "auto_recipe_created": auto_recipe_created,
+                "force_clean_reimport": force_clean_reimport,
+                "generated_auto_snapshot_id": str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None,
             })
             db.commit()
 
@@ -586,9 +622,4 @@ def get_snapshot(snapshot_id: UUID, request: Request, db: Session = Depends(get_
 
 
 def _safe_float(val) -> float | None:
-    if val is None:
-        return None
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return None
+    return safe_floatish(val)

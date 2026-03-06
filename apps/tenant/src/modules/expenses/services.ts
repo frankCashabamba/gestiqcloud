@@ -25,6 +25,11 @@ export type GastoStats = {
   pending: number
 }
 
+const toNumber = (value: unknown): number => {
+  const next = Number(value)
+  return Number.isFinite(next) ? next : 0
+}
+
 const normalizeGasto = (raw: any): Gasto => ({
   id: String(raw?.id ?? ''),
   date: raw?.date ?? raw?.fecha ?? '',
@@ -164,6 +169,8 @@ export type ProductionDetail = {
   order_number: string
   recipe_name: string
   qty_produced: number
+  materials_total: number
+  indirect_total: number
   total_cost: number
   lines: {
     ingredient_name: string
@@ -172,9 +179,78 @@ export type ProductionDetail = {
     cost_unit: number
     cost_total: number
   }[]
+  indirect_costs: {
+    driver_name: string
+    driver_unit?: string | null
+    qty_actual: number
+    headcount_actual: number
+    rate_applied: number
+    cost_total: number
+    notes?: string | null
+  }[]
+}
+
+const normalizeProductionDetail = (raw: any): ProductionDetail => {
+  const lines = Array.isArray(raw?.lines)
+    ? raw.lines.map((line: any) => {
+        const qtyConsumed = toNumber(line?.qty_consumed)
+        const costTotal = toNumber(
+          line?.cost_total ?? (qtyConsumed * toNumber(line?.cost_unit))
+        )
+        const costUnit = qtyConsumed > 0
+          ? toNumber(line?.cost_unit ?? (costTotal / qtyConsumed))
+          : toNumber(line?.cost_unit)
+        return {
+          ingredient_name: String(line?.ingredient_name ?? ''),
+          qty_consumed: qtyConsumed,
+          unit: String(line?.unit ?? ''),
+          cost_unit: costUnit,
+          cost_total: costTotal,
+        }
+      })
+    : []
+
+  const materialsTotal = raw?.materials_total != null
+    ? toNumber(raw.materials_total)
+    : lines.reduce((sum, line) => sum + toNumber(line.cost_total), 0)
+
+  const indirectCosts = Array.isArray(raw?.indirect_costs)
+    ? raw.indirect_costs.map((line: any) => ({
+        driver_name: String(line?.driver_name ?? ''),
+        driver_unit: line?.driver_unit ?? null,
+        qty_actual: toNumber(line?.qty_actual),
+        headcount_actual: Math.max(1, toNumber(line?.headcount_actual) || 1),
+        rate_applied: toNumber(line?.rate_applied),
+        cost_total: toNumber(
+          line?.cost_total
+          ?? (toNumber(line?.qty_actual) * Math.max(1, toNumber(line?.headcount_actual) || 1) * toNumber(line?.rate_applied))
+        ),
+        notes: line?.notes ?? null,
+      }))
+    : []
+
+  const indirectTotal = raw?.indirect_total != null
+    ? toNumber(raw.indirect_total)
+    : indirectCosts.reduce((sum, line) => sum + toNumber(line.cost_total), 0)
+
+  const totalCost = raw?.total_cost != null
+    ? toNumber(raw.total_cost)
+    : toNumber(materialsTotal + indirectTotal)
+
+  return {
+    expense_id: String(raw?.expense_id ?? ''),
+    order_number: String(raw?.order_number ?? ''),
+    recipe_name: String(raw?.recipe_name ?? ''),
+    qty_produced: toNumber(raw?.qty_produced),
+    materials_total: materialsTotal,
+    indirect_total: indirectTotal,
+    total_cost: totalCost,
+    lines,
+    indirect_costs: indirectCosts,
+  }
 }
 
 export async function getProductionDetail(id: string): Promise<ProductionDetail> {
   const { data } = await tenantApi.get<ProductionDetail>(`${TENANT_EXPENSES.byId(id)}/production-detail`)
-  return data
+  return normalizeProductionDetail(data)
 }

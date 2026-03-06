@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -11,12 +12,22 @@ from . import crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .auto_recipe import resolve_auto_recipe
+from .document_fields import (
+    detect_document_currency,
+    detect_document_date,
+    detect_document_subtotal,
+    detect_document_tax,
+    detect_document_total,
+    get_data_value,
+    safe_floatish,
+)
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 import hashlib
 import datetime
 from .schemas import (
     ConfirmRequest, DashboardStats, DocumentoDetailOut, DocumentoListOut,
     DocumentoOut, EditFieldsRequest, LogCambioOut, SyncRecipeResponse, SyncRecipesResponse,
+    SaveDocumentRequest, SaveDocumentResponse, SaveDailyLogRequest, SaveDailyLogResponse,
     SyncRecipeSheetResponse, UploadResponse,
 )
 from pydantic import BaseModel
@@ -25,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
+SUPPORTED_PAYMENT_METHODS = {
+    "bank", "cash", "card", "transfer", "direct_debit", "check", "other",
+}
 
 
 def _json_safe(obj):
@@ -109,6 +123,294 @@ def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
             "created_at": log.created_at,
         }
     return synced
+
+
+def _first_non_empty(*values):
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                continue
+        return value
+    return None
+
+
+def _coerce_user_uuid(user_id: str):
+    import uuid
+
+    try:
+        return UUID(str(user_id))
+    except (TypeError, ValueError):
+        return uuid.uuid4()
+
+
+def _infer_save_destination(doc) -> str:
+    tipo = str(doc.tipo_documento_detectado or "").strip().upper()
+    data = _get_doc_import_data(doc)
+
+    if tipo == "COSTEO":
+        return "recipe"
+    if isinstance(data.get("filas"), list) and tipo in {"COSTEO", "OTRO", ""}:
+        return "recipe"
+    if tipo in {"RECIBO", "BOLETA", "TICKET"}:
+        return "expense"
+    if tipo in {"FACTURA", "NOTA_CREDITO", "ORDEN_COMPRA", "PRESUPUESTO"}:
+        return "supplier_invoice"
+    if doc.proveedor_detectado or doc.ruc_detectado or doc.monto_total is not None:
+        return "supplier_invoice"
+    return "expense"
+
+
+def _normalize_payment_details(total: float | None, body: SaveDocumentRequest) -> dict:
+    status = body.payment_status or "pending"
+    paid_amount = _safe_float(body.paid_amount)
+    pending_amount = _safe_float(body.pending_amount)
+
+    if status == "paid":
+        paid_amount = paid_amount if paid_amount is not None else total
+        pending_amount = 0.0
+    elif status == "pending":
+        paid_amount = 0.0
+        pending_amount = pending_amount if pending_amount is not None else total
+    else:
+        if paid_amount is None and pending_amount is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Para pagos parciales debes indicar el monto pagado o el pendiente.",
+            )
+        if total is not None:
+            if paid_amount is None:
+                paid_amount = max(total - float(pending_amount or 0), 0.0)
+            if pending_amount is None:
+                pending_amount = max(total - float(paid_amount or 0), 0.0)
+            if (paid_amount or 0.0) + (pending_amount or 0.0) > total + 0.01:
+                raise HTTPException(
+                    status_code=400,
+                    detail="La suma de pagado y pendiente no puede superar el total del documento.",
+                )
+        elif paid_amount is None or pending_amount is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Sin total detectado, un pago parcial requiere monto pagado y pendiente.",
+            )
+
+    return {
+        "status": status,
+        "paid_amount": round(float(paid_amount), 2) if paid_amount is not None else None,
+        "pending_amount": round(float(pending_amount), 2) if pending_amount is not None else None,
+    }
+
+
+def _lookup_supplier(db: Session, tenant_id: UUID, doc, data: dict) -> tuple[UUID | None, str | None]:
+    from app.models.suppliers.supplier import Supplier
+
+    supplier_name = _first_non_empty(
+        doc.proveedor_detectado,
+        get_data_value(data, "proveedor", "vendor_name", "vendor", "supplier", "emisor", "issuer"),
+    )
+    supplier_tax_id = _first_non_empty(
+        doc.ruc_detectado,
+        get_data_value(data, "ruc", "tax_id", "vendor_tax_id", "supplier_tax_id", "ruc_proveedor"),
+    )
+
+    supplier = None
+    if supplier_tax_id:
+        supplier = (
+            db.query(Supplier)
+            .filter(
+                Supplier.tenant_id == tenant_id,
+                func.lower(Supplier.tax_id) == str(supplier_tax_id).strip().lower(),
+            )
+            .first()
+        )
+    if not supplier and supplier_name:
+        supplier = (
+            db.query(Supplier)
+            .filter(
+                Supplier.tenant_id == tenant_id,
+                func.lower(Supplier.name) == str(supplier_name).strip().lower(),
+            )
+            .first()
+        )
+
+    return (supplier.id if supplier else None, str(supplier_name).strip() if supplier_name else None)
+
+
+def _compose_expense_notes(
+    doc,
+    destination: str,
+    supplier_name: str | None,
+    payment: dict,
+    payment_method: str | None,
+    paid_at: str | None,
+    extra_notes: str | None,
+) -> str:
+    lines = []
+    if extra_notes:
+        lines.append(str(extra_notes).strip())
+    lines.append(f"Documento origen: {doc.nombre_archivo}")
+    if supplier_name:
+        lines.append(f"Proveedor detectado: {supplier_name}")
+    lines.append(
+        "Tipo guardado: Factura proveedor"
+        if destination == "supplier_invoice"
+        else "Tipo guardado: Gasto"
+    )
+    lines.append(f"Estado de pago: {payment['status']}")
+    if payment.get("paid_amount") is not None:
+        lines.append(f"Monto pagado: {payment['paid_amount']:.2f}")
+    if payment.get("pending_amount") is not None:
+        lines.append(f"Monto pendiente: {payment['pending_amount']:.2f}")
+    if payment_method:
+        lines.append(f"Metodo de pago: {payment_method}")
+    if paid_at:
+        lines.append(f"Fecha de pago: {paid_at}")
+    return "\n".join(line for line in lines if line)
+
+
+def _get_document_total(doc) -> float | None:
+    data = _get_doc_import_data(doc)
+    return _first_non_empty(doc.monto_total, detect_document_total(data))
+
+
+def _parse_document_date(value) -> datetime.date:
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    raw = str(value or "").strip()
+    if not raw:
+        return datetime.date.today()
+    for candidate in (raw[:10], raw):
+        try:
+            return datetime.date.fromisoformat(candidate)
+        except ValueError:
+            continue
+    return datetime.date.today()
+
+
+def _save_document_to_expense(
+    db: Session,
+    tenant_id: UUID,
+    user_id: str,
+    doc,
+    body: SaveDocumentRequest,
+) -> SaveDocumentResponse:
+    from app.models.expenses.expense import Expense
+    from app.modules.expenses.infrastructure.repositories import ExpenseRepo
+
+    data = _get_doc_import_data(doc)
+    total = _get_document_total(doc)
+    vat = detect_document_tax(data) or 0.0
+    subtotal = detect_document_subtotal(data)
+
+    if subtotal is None and total is not None:
+        subtotal = max(total - vat, 0.0)
+    if subtotal is None and total is None:
+        raise HTTPException(
+            status_code=422,
+            detail="No se detecto un monto suficiente para guardar este documento como gasto.",
+        )
+    if total is None:
+        total = round(float(subtotal or 0.0) + float(vat or 0.0), 2)
+
+    payment = _normalize_payment_details(total, body)
+    payment_method = (
+        body.payment_method.strip().lower()
+        if body.payment_method and body.payment_method.strip().lower() in SUPPORTED_PAYMENT_METHODS
+        else None
+    )
+
+    supplier_id, supplier_name = _lookup_supplier(db, tenant_id, doc, data)
+    invoice_number = _first_non_empty(
+        get_data_value(data, "numero_factura", "invoice_number", "invoice_no", "numero", "factura", "comprobante"),
+    )
+    concept = _first_non_empty(
+        get_data_value(data, "concepto", "descripcion", "detalle", "description", "notes", "productos"),
+    )
+    if not concept:
+        prefix = "Factura proveedor" if body.destination == "supplier_invoice" else "Gasto"
+        concept = f"{prefix} {supplier_name or doc.nombre_archivo}"
+    concept = str(concept)[:255]
+
+    expense_date = _parse_document_date(
+        _first_non_empty(
+            doc.fecha_documento,
+            detect_document_date(data),
+            datetime.date.today().isoformat(),
+        )
+    )
+    category = str(
+        _first_non_empty(
+            "supplier_invoice" if body.destination == "supplier_invoice" else None,
+            get_data_value(data, "category", "categoria"),
+            "expense",
+        )
+    )[:50]
+    notes = _compose_expense_notes(
+        doc,
+        body.destination or "expense",
+        supplier_name,
+        payment,
+        payment_method,
+        body.paid_at,
+        body.notes or get_data_value(data, "notes", "nota", "observaciones"),
+    )
+
+    existing_expense = None
+    if invoice_number:
+        q = db.query(Expense).filter(
+            Expense.tenant_id == tenant_id,
+            func.lower(Expense.invoice_number) == str(invoice_number).strip().lower(),
+        )
+        if supplier_id:
+            q = q.filter(Expense.supplier_id == supplier_id)
+        existing_expense = q.first()
+    if not existing_expense:
+        existing_expense = (
+            db.query(Expense)
+            .filter(
+                Expense.tenant_id == tenant_id,
+                Expense.date == expense_date,
+                func.lower(Expense.concept) == concept.lower(),
+                Expense.total == float(total),
+            )
+            .first()
+        )
+    if existing_expense:
+        return SaveDocumentResponse(
+            target="expenses",
+            destination=body.destination or "expense",
+            status="skipped",
+            record_id=str(existing_expense.id),
+            message="El gasto ya existia y no se duplico.",
+        )
+
+    expense = ExpenseRepo(db).create(
+        tenant_id,
+        date=expense_date,
+        supplier_id=supplier_id,
+        amount=float(subtotal or 0.0),
+        concept=concept,
+        category=category,
+        payment_method=payment_method,
+        invoice_number=str(invoice_number) if invoice_number else None,
+        status="paid" if payment["status"] == "paid" else "pending",
+        notes=notes,
+        vat=float(vat),
+        total=float(total),
+        user_id=_coerce_user_uuid(user_id),
+    )
+    db.flush()
+    return SaveDocumentResponse(
+        target="expenses",
+        destination=body.destination or "expense",
+        status="created",
+        record_id=str(expense.id),
+        message="Documento guardado en gastos.",
+    )
 
 
 @router.post("/upload", response_model=list[UploadResponse], dependencies=protected)
@@ -250,11 +552,11 @@ async def upload_files(
                 "requiere_revision": requiere_revision,
                 "datos_extraidos": datos_extraidos,
                 "estado": "REVIEW",
-                "proveedor_detectado": datos_extraidos.get("proveedor") if isinstance(datos_extraidos, dict) else None,
-                "ruc_detectado": datos_extraidos.get("ruc") if isinstance(datos_extraidos, dict) else None,
-                "monto_total": _safe_float(datos_extraidos.get("monto_total") if isinstance(datos_extraidos, dict) else None),
-                "moneda": datos_extraidos.get("moneda") if isinstance(datos_extraidos, dict) else None,
-                "fecha_documento": datos_extraidos.get("fecha") if isinstance(datos_extraidos, dict) else None,
+                "proveedor_detectado": get_data_value(datos_extraidos, "proveedor", "vendor_name", "supplier", "emisor") if isinstance(datos_extraidos, dict) else None,
+                "ruc_detectado": get_data_value(datos_extraidos, "ruc", "tax_id", "supplier_tax_id", "vendor_tax_id") if isinstance(datos_extraidos, dict) else None,
+                "monto_total": detect_document_total(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
+                "moneda": detect_document_currency(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
+                "fecha_documento": detect_document_date(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
                 "fingerprint_json": sheet_profiles,
                 "sheet_profiles_json": sheet_profiles,
                 "recipe_snapshot_id": resolved_snapshot_id,
@@ -483,6 +785,120 @@ def sync_recipes(doc_id: UUID, body: SyncRecipesRequest | None, request: Request
     )
 
 
+@router.post("/documents/{doc_id}/save", response_model=SaveDocumentResponse, dependencies=protected)
+def save_document(
+    doc_id: UUID,
+    body: SaveDocumentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user_id = _user_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    destination = body.destination or _infer_save_destination(doc)
+
+    if destination == "recipe":
+        data = _get_doc_import_data(doc)
+        available_sheets = get_available_recipe_sheets(data)
+        if not available_sheets:
+            raise HTTPException(
+                status_code=422,
+                detail="Este documento no contiene una receta o costeo sincronizable.",
+            )
+        if len(available_sheets) > 1:
+            sync_result = sync_recipes(doc_id, SyncRecipesRequest(force=False), request, db)
+            record_ids = [str(item.recipe_id) for item in sync_result.results if item.recipe_id]
+            result = SaveDocumentResponse(
+                target="recipes",
+                destination="recipe",
+                status="created" if sync_result.processed_count > 0 else "skipped",
+                record_id=record_ids[-1] if record_ids else None,
+                record_ids=record_ids,
+                message=(
+                    f"Se guardaron {sync_result.processed_count} hojas en recetas."
+                    if sync_result.processed_count > 0
+                    else "Todas las hojas ya estaban sincronizadas."
+                ),
+            )
+        else:
+            sync_result = sync_recipe(doc_id, SyncRecipeRequest(force=False), request, db)
+            result = SaveDocumentResponse(
+                target="recipes",
+                destination="recipe",
+                status="created" if sync_result.was_new else "updated",
+                record_id=str(sync_result.recipe_id),
+                record_ids=[str(sync_result.recipe_id)],
+                message=f"Receta guardada: {sync_result.recipe_name}",
+            )
+    else:
+        result = _save_document_to_expense(
+            db=db,
+            tenant_id=doc.tenant_id,
+            user_id=user_id,
+            doc=doc,
+            body=SaveDocumentRequest(
+                destination=destination,
+                payment_status=body.payment_status,
+                paid_amount=body.paid_amount,
+                pending_amount=body.pending_amount,
+                payment_method=body.payment_method,
+                paid_at=body.paid_at,
+                notes=body.notes,
+            ),
+        )
+
+    payment_snapshot = (
+        _normalize_payment_details(_get_document_total(doc), body)
+        if destination != "recipe"
+        else {"status": None, "paid_amount": None, "pending_amount": None}
+    )
+    confirmed = dict(_get_doc_import_data(doc))
+    confirmed["_save"] = {
+        "destination": destination,
+        "target": result.target,
+        "status": result.status,
+        "record_id": result.record_id,
+        "record_ids": result.record_ids,
+        "payment_status": payment_snapshot.get("status"),
+        "paid_amount": payment_snapshot.get("paid_amount"),
+        "pending_amount": payment_snapshot.get("pending_amount"),
+        "payment_method": body.payment_method,
+        "paid_at": body.paid_at,
+        "notes": body.notes,
+        "saved_at": datetime.datetime.utcnow().isoformat(),
+    }
+    crud.update_documento(
+        db,
+        doc,
+        {
+            "datos_confirmados": confirmed,
+            "estado": "CONFIRMED",
+        },
+    )
+    crud.add_log(
+        db,
+        doc.id,
+        "SAVE_DESTINATION",
+        user_id,
+        {
+            "destination": destination,
+            "target": result.target,
+            "status": result.status,
+            "record_id": result.record_id,
+            "record_ids": result.record_ids,
+            "payment_status": payment_snapshot.get("status"),
+            "paid_amount": payment_snapshot.get("paid_amount"),
+            "pending_amount": payment_snapshot.get("pending_amount"),
+            "payment_method": body.payment_method,
+            "paid_at": body.paid_at,
+        },
+    )
+    db.commit()
+    return result
+
+
 @router.patch("/documents/{doc_id}/edit", response_model=DocumentoOut, dependencies=protected)
 def edit_document_fields(doc_id: UUID, body: EditFieldsRequest, request: Request, db: Session = Depends(get_db)):
     user_id = _user_id(request)
@@ -534,9 +950,62 @@ def get_dashboard(request: Request, db: Session = Depends(get_db)):
 
 
 def _safe_float(val) -> float | None:
-    if val is None:
-        return None
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return None
+    return safe_floatish(val)
+
+
+@router.post(
+    "/documents/{doc_id}/save-as-daily-log",
+    response_model=SaveDailyLogResponse,
+    dependencies=protected,
+)
+def save_as_daily_log(
+    doc_id: UUID,
+    body: SaveDailyLogRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Guarda la hoja REGISTRO del documento como historial diario de producción.
+    La fecha se infiere del nombre del archivo (DD-MM-YY) o se puede pasar en el body.
+    No afecta el stock actual — es solo historial analítico.
+    """
+    from .daily_log_service import parse_registro_rows, save_daily_log, _parse_date_from_filename
+    from datetime import date as date_type
+
+    tenant_id = _tenant_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="documento_no_encontrado")
+
+    # Resolver fecha
+    log_date: date_type | None = None
+    if body.log_date:
+        try:
+            log_date = date_type.fromisoformat(body.log_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="fecha_invalida (usar YYYY-MM-DD)")
+    else:
+        log_date = _parse_date_from_filename(doc.nombre_archivo)
+
+    if not log_date:
+        raise HTTPException(
+            status_code=400,
+            detail="no_se_pudo_inferir_fecha — incluye log_date en el body (YYYY-MM-DD)",
+        )
+
+    datos = doc.datos_extraidos or {}
+    rows = parse_registro_rows(datos)
+    if not rows:
+        raise HTTPException(
+            status_code=422,
+            detail="sin_filas_registro — el documento no tiene una hoja REGISTRO con datos válidos",
+        )
+
+    result = save_daily_log(
+        db=db,
+        tenant_id=tenant_id,
+        document_id=doc_id,
+        log_date=log_date,
+        rows=rows,
+    )
+    return SaveDailyLogResponse(**result)

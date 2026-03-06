@@ -1,1 +1,1 @@
-"""Shared module HTTP interface."""
+"""Shared HTTP interface compatibility package."""

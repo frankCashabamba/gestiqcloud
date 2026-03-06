@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchDocument, confirmDocument, editDocumentFields, rejectDocument, syncAllRecipes, syncRecipe, type Documento, type LogCambio, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { useTranslation } from 'react-i18next'
+import SaveDocumentModal from '../components/SaveDocumentModal'
+import { canSaveDocument, fetchDocument, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
 export default function DocumentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation('importer')
   const [doc, setDoc] = useState<Documento | null>(null)
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
@@ -12,6 +15,9 @@ export default function DocumentDetail() {
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncingAll, setSyncingAll] = useState(false)
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [savingDailyLog, setSavingDailyLog] = useState(false)
+  const [dailyLogResult, setDailyLogResult] = useState<SaveDailyLogResult | null>(null)
   const [error, setError] = useState('')
   const [rawSyncResult, setSyncResult] = useState<SyncRecipeResult | null>(null)
   const [batchSyncResult, setBatchSyncResult] = useState<SyncRecipesResult | null>(null)
@@ -27,7 +33,7 @@ export default function DocumentDetail() {
   const load = async () => {
     if (!id) return
     setLoading(true)
-    try { setDoc(await fetchDocument(id)) } catch { setError('Error cargando') }
+    try { setDoc(await fetchDocument(id)) } catch { setError(t('docDetail.errorLoading')) }
     setLoading(false)
   }
 
@@ -66,16 +72,13 @@ export default function DocumentDetail() {
     try {
       await confirmDocument(id, doc.datos_extraidos || {})
       load()
-    } catch { setError('Error confirmando') }
+    } catch { setError(t('docDetail.errorConfirming')) }
     setSaving(false)
   }
 
   const handleSyncSheet = async () => {
     if (!id) return
-    if (activeSheetIsSynced) {
-      setError(`La hoja ${activeSheet || ''} ya fue sincronizada.`.trim())
-      return
-    }
+    if (activeSheetIsSynced) return
     setSyncing(true)
     setError('')
     setSyncResult(null)
@@ -89,7 +92,7 @@ export default function DocumentDetail() {
       })
       load()
     } catch (e: any) {
-      const msg = e?.response?.data?.detail || 'Error sincronizando receta'
+      const msg = e?.response?.data?.detail || t('docDetail.errorSaving')
       setError(msg)
     }
     setSyncing(false)
@@ -106,15 +109,30 @@ export default function DocumentDetail() {
       setBatchSyncResult(result)
       load()
     } catch (e: any) {
-      const msg = e?.response?.data?.detail || 'Error sincronizando hojas'
+      const msg = e?.response?.data?.detail || t('docDetail.errorSaving')
       setError(msg)
     }
     setSyncingAll(false)
   }
 
   const handleReject = async () => {
-    if (!id || !confirm('¿Rechazar este documento?')) return
-    try { await rejectDocument(id); load() } catch { setError('Error rechazando') }
+    if (!id || !confirm(t('docDetail.confirmReject'))) return
+    try { await rejectDocument(id); load() } catch { setError(t('docDetail.errorRejecting')) }
+  }
+
+  const handleSaveDailyLog = async () => {
+    if (!id) return
+    setSavingDailyLog(true)
+    setError('')
+    setDailyLogResult(null)
+    try {
+      const result = await saveDailyLog(id)
+      setDailyLogResult(result)
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || t('docDetail.errorSaving')
+      setError(msg)
+    }
+    setSavingDailyLog(false)
   }
 
   const startEdit = () => {
@@ -136,12 +154,12 @@ export default function DocumentDetail() {
       await editDocumentFields(id, editFields)
       setEditMode(false)
       load()
-    } catch { setError('Error guardando') }
+    } catch { setError(t('docDetail.errorSaving')) }
     setSaving(false)
   }
 
-  if (loading) return <div style={{ padding: '1.5rem' }}>Cargando...</div>
-  if (!doc) return <div style={{ padding: '1.5rem' }}>Documento no encontrado</div>
+  if (loading) return <div style={{ padding: '1.5rem' }}>{t('docDetail.loading')}</div>
+  if (!doc) return <div style={{ padding: '1.5rem' }}>{t('docDetail.notFound')}</div>
 
   const datos = (doc.datos_extraidos || {}) as Record<string, unknown>
   const filasPorHoja = (datos.filas_por_hoja || {}) as Record<string, Record<string, unknown>[]>
@@ -166,6 +184,28 @@ export default function DocumentDetail() {
   const unsyncedSheets = sheets.filter(sheet => !syncedSheets[sheet]?.recipeId)
   const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
   const isSynced = syncedCount > 0
+  const saveEnabled = canSaveDocument(doc)
+  const saveDestination = suggestSaveDestination(doc)
+  const docCategory = getDocCategory(doc, sheets)
+  const rawAi = (doc.raw_ai_json || {}) as Record<string, unknown>
+  const rawRun = ((rawAi.run as Record<string, unknown> | undefined) || {})
+  const rawRecipeResolution = ((rawRun.recipe_resolution as Record<string, unknown> | undefined) || {})
+  const aiModeKey = typeof rawRecipeResolution.used === 'string'
+    ? rawRecipeResolution.used
+    : (doc.recipe_snapshot_id ? 'snapshot' : 'zero_shot')
+  const aiModeLabel = ({
+    zero_shot: 'Zero-shot',
+    snapshot: 'Snapshot',
+    draft: 'Borrador',
+    recipe_latest: 'Receta',
+    auto_fingerprint: 'Auto-plantilla',
+    auto_text_fingerprint: 'Auto-plantilla texto',
+    force_clean: 'Reimportacion limpia',
+  } as Record<string, string>)[aiModeKey] || aiModeKey
+
+  const handleSaved = (_result: SaveDocumentResult) => {
+    void load()
+  }
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -183,7 +223,7 @@ export default function DocumentDetail() {
             boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
           }}
         >
-          ← Volver
+          {t('docDetail.back')}
         </button>
       </div>
       {error && <div style={{ color: 'red', marginBottom: '0.5rem' }}>{error}</div>}
@@ -191,8 +231,8 @@ export default function DocumentDetail() {
       {syncResult && (
         <div style={{ padding: '0.75rem', background: syncResult.was_new ? '#F0FDF4' : '#EFF6FF', border: '1px solid ' + (syncResult.was_new ? '#BBF7D0' : '#BFDBFE'), borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>
-            {syncResult.was_new ? '✅ Receta creada' : '🔄 Receta actualizada'}: <strong>{syncResult.recipe_name}</strong>
-            {' · '}{syncResult.ingredients_count} ingredientes · Costo total: <strong>${syncResult.total_cost.toFixed(4)}</strong>
+            {syncResult.was_new ? '✅' : '🔄'} <strong>{syncResult.recipe_name}</strong>
+            {' · '}{t('docDetail.recipeSynced', { name: '', count: syncResult.ingredients_count, cost: syncResult.total_cost.toFixed(4) })}
           </span>
           <button onClick={() => setSyncResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>×</button>
         </div>
@@ -201,7 +241,7 @@ export default function DocumentDetail() {
       {batchSyncResult && (
         <div style={{ padding: '0.75rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14 }}>
           <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 6 }}>
-            Lote sincronizado: {batchSyncResult.processed_count} creadas/actualizadas, {batchSyncResult.skipped_count} omitidas
+            {t('docDetail.batchSynced', { processed: batchSyncResult.processed_count, skipped: batchSyncResult.skipped_count })}
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {batchSyncResult.results.map(result => (
@@ -215,17 +255,33 @@ export default function DocumentDetail() {
                   color: result.status === 'error' ? '#B91C1C' : '#1F2937',
                 }}
               >
-                {result.sheet_name}: {result.status === 'skipped' ? 'sincronizada' : result.status === 'error' ? 'error' : 'ok'}
+                {result.sheet_name}: {result.status === 'skipped' ? t('docDetail.buttons.synced').toLowerCase() : result.status === 'error' ? 'error' : 'ok'}
               </span>
             ))}
           </div>
         </div>
       )}
 
+      {dailyLogResult && (
+        <div style={{ padding: '0.75rem', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <strong style={{ color: '#5b21b6' }}>✅ {t('docDetail.dailyLogSaved', { date: dailyLogResult.log_date })}</strong>
+            <span style={{ marginLeft: 12, color: '#374151' }}>
+              {t('docDetail.dailyLogStats', { inserted: dailyLogResult.inserted, matched: dailyLogResult.matched_recipes })}
+            </span>
+            {dailyLogResult.unmatched_products.length > 0 && (
+              <div style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
+                {t('docDetail.dailyLogUnmatched', { products: dailyLogResult.unmatched_products.join(', ') })}
+              </div>
+            )}
+          </div>
+          <button onClick={() => setDailyLogResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>×</button>
+        </div>
+      )}
+
       {isSynced && !syncResult && !batchSyncResult && (
         <div style={{ padding: '0.6rem 0.9rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#1e40af' }}>
-          {syncedCount > 1 ? `${syncedCount} hojas sincronizadas con produccion.` : 'Receta ya sincronizada con produccion.'}
-          {syncedRecipeId ? ` ID: ${syncedRecipeId.substring(0, 8)}...` : ''}
+          {t('docDetail.alreadySynced', { count: syncedCount })}
         </div>
       )}
 
@@ -239,57 +295,96 @@ export default function DocumentDetail() {
             <span>{new Date(doc.created_at).toLocaleString()}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {doc.estado === 'REVIEW' && (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {/* DAILY LOG */}
+          {docCategory === 'daily_log' && (
             <>
-              {!((doc.datos_extraidos as any)?.filas) && (
-                <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>Editar</button>
-              )}
-              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>Rechazar</button>
-              <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>{saving ? '...' : 'Confirmar'}</button>
+              <button onClick={handleSaveDailyLog} disabled={savingDailyLog} style={{ ...actionBtn, background: '#7c3aed' }}>
+                {savingDailyLog ? t('docDetail.buttons.savingDailyLog') : dailyLogResult ? t('docDetail.buttons.resaveDailyLog') : t('docDetail.buttons.saveDailyLog')}
+              </button>
+              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280' }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
-          {isSynced && syncedRecipeId && (
-            <a
-              href={`../../produccion/recetas`}
-              style={{ ...actionBtn, background: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
-              title="Ver receta en módulo de Producción"
-            >
-              Ver receta
-            </a>
+
+          {/* RECIPE / COSTEO */}
+          {docCategory === 'recipe' && (
+            <>
+              {isSynced && syncedRecipeId && (
+                <a href="../../produccion/recetas" style={{ ...actionBtn, background: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                  {t('docDetail.buttons.viewRecipe')}
+                </a>
+              )}
+              {hasMultiSheetDocument && unsyncedSheets.length > 0 && (
+                <button onClick={handleSyncAll} disabled={syncingAll || syncing} style={{ ...actionBtn, background: '#0f766e' }}>
+                  {syncingAll ? '...' : t('docDetail.buttons.saveSheets', { count: unsyncedSheets.length })}
+                </button>
+              )}
+              <button onClick={handleSyncSheet} disabled={syncingAll || syncing || activeSheetIsSynced} style={{ ...actionBtn, background: activeSheetIsSynced ? '#94a3b8' : '#2563eb' }}>
+                {syncing ? '...' : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
+              </button>
+              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+            </>
           )}
-          {hasMultiSheetDocument && (
-            <button
-              onClick={handleSyncAll}
-              disabled={syncingAll || syncing || unsyncedSheets.length === 0}
-              style={{ ...actionBtn, background: unsyncedSheets.length === 0 ? '#94a3b8' : '#0f766e' }}
-              title="Crea recetas para todas las hojas pendientes"
-            >
-              {syncingAll ? '...' : unsyncedSheets.length === 0 ? 'Todo sincronizado' : `Guardar ${unsyncedSheets.length} hojas`}
-            </button>
+
+          {/* EXPENSE */}
+          {docCategory === 'expense' && (
+            <>
+              {saveEnabled && <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>{t('docDetail.buttons.saveExpense')}</button>}
+              {doc.estado === 'REVIEW' && (
+                <>
+                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
+                  <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+                </>
+              )}
+              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+            </>
           )}
-          <button
-            onClick={handleSyncSheet}
-            disabled={syncingAll || syncing || activeSheetIsSynced}
-            style={{ ...actionBtn, background: activeSheetIsSynced ? '#94a3b8' : '#2563eb' }}
-            title="Sincroniza con Producción (recetas) usando la hoja activa"
-          >
-            {syncing ? '...' : activeSheetIsSynced ? 'Sincronizado' : 'Guardar hoja'}
-          </button>
-          <button
-            onClick={() => navigate('../upload')}
-            title="Ir a importación → marcar 'Reimportar aunque ya exista' → subir el archivo de nuevo"
-            style={{ ...actionBtn, background: '#6366F1', opacity: 0.85 }}
-          >
-            Reimportar
-          </button>
+
+          {/* SUPPLIER INVOICE */}
+          {docCategory === 'supplier_invoice' && (
+            <>
+              {saveEnabled && <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>{t('docDetail.buttons.saveInvoice')}</button>}
+              {doc.estado === 'REVIEW' && (
+                <>
+                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
+                  <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+                </>
+              )}
+              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+            </>
+          )}
+
+          {/* BANK / INVENTORY / PAYROLL / OTHER — confirm + reject */}
+          {(docCategory === 'bank' || docCategory === 'inventory' || docCategory === 'payroll' || docCategory === 'other') && (
+            <>
+              {docCategory === 'other' && saveEnabled && (
+                <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
+                  {saveDestination === 'supplier_invoice' ? t('docDetail.buttons.saveInvoice') : t('docDetail.buttons.saveExpense')}
+                </button>
+              )}
+              {doc.estado === 'REVIEW' && (
+                <>
+                  {!((doc.datos_extraidos as any)?.filas) && (
+                    <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
+                  )}
+                  <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
+                    {saving ? t('docDetail.buttons.confirming') : t('docDetail.buttons.confirm')}
+                  </button>
+                </>
+              )}
+              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Confidence warning */}
       {doc.requiere_revision && confPct != null && confPct < 85 && (
         <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, marginBottom: '1rem', fontSize: 14 }}>
-          ⚠️ <strong>Revisión obligatoria</strong> — Confianza de clasificación: <strong style={{ color: confPct < 50 ? '#EF4444' : '#F59E0B' }}>{confPct}%</strong>. Verifique los datos extraídos antes de confirmar.
+          ⚠️ <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
         </div>
       )}
 
@@ -435,7 +530,7 @@ export default function DocumentDetail() {
             ) : (
               // Vista de campos para FACTURA, RECIBO, etc.
               <>
-                <h3 style={{ marginTop: 0 }}>Campos Extraídos</h3>
+                <h3 style={{ marginTop: 0 }}>{t('docDetail.extractedFields', 'Extracted Fields')}</h3>
                 {editMode ? (
                   <div>
                     {Object.entries(editFields).map(([key, val]) => (
@@ -445,24 +540,51 @@ export default function DocumentDetail() {
                       </label>
                     ))}
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                      <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#6366F1' }}>Guardar</button>
-                      <button onClick={() => setEditMode(false)} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>Cancelar</button>
+                      <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#6366F1' }}>{t('docDetail.buttons.saveEdit')}</button>
+                      <button onClick={() => setEditMode(false)} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>{t('docDetail.buttons.cancelEdit')}</button>
                     </div>
                   </div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <tbody>
-                      {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && (typeof v !== 'object' || v === null)).map(([key, val]) => (
-                        <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                          <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{key}</td>
-                          <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '—')}</td>
-                        </tr>
-                      ))}
-                      {Object.keys(datos).filter(k => !k.startsWith('_') && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
-                        <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>Sin campos extraídos</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                  <>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <tbody>
+                        {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && (typeof v !== 'object' || v === null)).map(([key, val]) => (
+                          <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{key}</td>
+                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '—')}</td>
+                          </tr>
+                        ))}
+                        {Object.keys(datos).filter(k => !k.startsWith('_') && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
+                          <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>—</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                    {Array.isArray((datos as any).lineas) && (datos as any).lineas.length > 0 && (
+                      <div style={{ marginTop: '0.75rem' }}>
+                        <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 4 }}>Line items</div>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ background: '#f9fafb' }}>
+                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Description</th>
+                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Qty</th>
+                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Unit price</th>
+                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {((datos as any).lineas as Array<Record<string, unknown>>).map((line, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                <td style={{ padding: '0.3rem 0.5rem' }}>{String(line.descripcion ?? line.description ?? line.producto ?? '—')}</td>
+                                <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{String(line.cantidad ?? line.qty ?? line.quantity ?? '—')}</td>
+                                <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{line.precio_unitario != null ? `$${Number(line.precio_unitario).toFixed(2)}` : '—'}</td>
+                                <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{line.precio_total != null ? `$${Number(line.precio_total).toFixed(2)}` : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -477,7 +599,7 @@ export default function DocumentDetail() {
           <div>
             <span style={{ color: '#6b7280', fontWeight: 600 }}>Modo: </span>
             <span style={{ background: '#e0e7ff', padding: '2px 8px', borderRadius: 6 }}>
-              {doc.recipe_snapshot_id ? '📌 Snapshot' : '🧠 Zero-shot'}
+              {aiModeLabel}
             </span>
           </div>
           {doc.llm_model && (
@@ -536,6 +658,13 @@ export default function DocumentDetail() {
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{JSON.stringify(doc.datos_confirmados, null, 2)}</pre>
         </div>
       )}
+
+      <SaveDocumentModal
+        doc={doc}
+        open={saveModalOpen}
+        onClose={() => setSaveModalOpen(false)}
+        onSaved={handleSaved}
+      />
     </div>
   )
 }

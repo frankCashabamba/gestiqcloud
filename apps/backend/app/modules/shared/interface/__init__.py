@@ -1,1 +1,1 @@
-"""Shared module interface layer."""
+"""Shared module interface layer compatibility package."""

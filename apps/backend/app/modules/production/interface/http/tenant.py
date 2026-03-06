@@ -240,6 +240,16 @@ def _serialize_order_cost(cost: ProductionOrderCost) -> OrderCostResponse:
     )
 
 
+def _resolve_order_cost_total(cost: ProductionOrderCost) -> Decimal:
+    stored_total = getattr(cost, "cost_total", None)
+    if stored_total is not None:
+        return Decimal(str(stored_total))
+    qty_actual = Decimal(str(cost.qty_actual or 0))
+    rate_applied = Decimal(str(cost.rate_applied or 0))
+    headcount_actual = Decimal(str(cost.headcount_actual or 1))
+    return qty_actual * rate_applied * headcount_actual
+
+
 def _seed_default_order_costs(db: Session, order: ProductionOrder) -> None:
     if not _order_costs_storage_available(db):
         return
@@ -523,7 +533,7 @@ def _create_expense_for_completed_production(
             .all()
         )
         for cost in order_costs:
-            total_cost += Decimal(str(cost.cost_total or 0))
+            total_cost += _resolve_order_cost_total(cost)
 
     qty = Decimal(str(order.qty_produced or 0))
     concept = f"Production cost - {recipe_name} ({qty})"

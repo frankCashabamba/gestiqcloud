@@ -6,11 +6,7 @@ R = TypeVar("R")
 
 
 class BaseUseCase(Generic[R]):
-    """Base use-case carrying its repository dependency.
-
-    Subclasses should set `repo` via constructor or DI factory; no need to
-    re-implement boilerplate `__init__` that only stores `repo`.
-    """
+    """Minimal compatibility base for use-cases that carry a repo dependency."""
 
     def __init__(self, repo: R):
         self.repo: R = repo

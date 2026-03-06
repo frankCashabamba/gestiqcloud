@@ -1,4 +1,4 @@
-"""General listings router - provides common listing endpoints."""
+"""General listings router compatibility shim."""
 
 from fastapi import APIRouter
 

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import tenantApi from '../../shared/api/client'
 import { clearCompanySettingsCache, getCompanySettings } from '../../services/companySettings'
+import { listRecipes, type Recipe } from '../../services/api/recetas'
 import { getErrorMessage, useToast } from '../../shared/toast'
 import { useAuth } from '../../auth/AuthContext'
 import { NUMBERING_DEFAULTS, resetToDefaults } from '../../constants/defaults'
@@ -55,6 +56,12 @@ type AvanzadoSettingsProps = {
     variant?: 'admin' | 'operativo'
 }
 
+type BulkPricingProductOption = {
+    id: string
+    name: string
+    recipe_name?: string
+}
+
 export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettingsProps) {
     const { t } = useTranslation(['settings', 'common'])
     const { success, error } = useToast()
@@ -88,7 +95,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
     const [docSeriesList, setDocSeriesList] = useState<DocSeries[]>([])
     const [docSeriesLoading, setDocSeriesLoading] = useState(false)
     const [seriesForm, setSeriesForm] = useState(NUMBERING_DEFAULTS.DOC_SERIES_FORM)
-    const [products, setProducts] = useState<any[]>([])
+    const [products, setProducts] = useState<BulkPricingProductOption[]>([])
     const [productsLoading, setProductsLoading] = useState(false)
     const [bulkPricingForm, setBulkPricingForm] = useState<BulkPricingItem>({
         product_id: '',
@@ -186,8 +193,20 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
     const loadProducts = async () => {
         try {
             setProductsLoading(true)
-            const res = await tenantApi.get<any[]>('/api/v1/tenant/products')
-            setProducts(res.data || [])
+            const recipes = await listRecipes({ activo: true, limit: 500 })
+            const byProductId = new Map<string, BulkPricingProductOption>()
+            ;(Array.isArray(recipes) ? recipes : []).forEach((recipe: Recipe) => {
+                const productId = String(recipe.product_id || '').trim()
+                if (!productId || byProductId.has(productId)) return
+                byProductId.set(productId, {
+                    id: productId,
+                    name: String(recipe.product_name || recipe.name || productId),
+                    recipe_name: recipe.name || undefined,
+                })
+            })
+            setProducts(
+                Array.from(byProductId.values()).sort((a, b) => a.name.localeCompare(b.name))
+            )
         } catch (err: any) {
             error(getErrorMessage(err))
         } finally {

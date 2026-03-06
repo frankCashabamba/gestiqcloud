@@ -11,6 +11,7 @@ import StatsCard from './components/StatsCard'
 export default function GastosList() {
   const { t } = useTranslation(['expenses', 'common'])
   const can = usePermission()
+  const formatUnitCost = (value: number) => `$${value < 1 ? value.toFixed(6) : value.toFixed(4)}`
   const [items, setItems] = useState<Gasto[]>([])
   const [stats, setStats] = useState<GastoStats | null>(null)
   const [loading, setLoading] = useState(false)
@@ -124,6 +125,11 @@ export default function GastosList() {
     try {
       const detail = await getProductionDetail(expense.id)
       setDetailData(detail)
+      setItems((prev) => prev.map((item) => (
+        item.id === expense.id
+          ? { ...item, amount: detail.total_cost }
+          : item
+      )))
     } catch {
       setDetailData(null)
     } finally {
@@ -340,7 +346,7 @@ export default function GastosList() {
                     {detailLoading ? (
                       <div className="text-sm text-gray-500">{t('expenses:detail.loadingDetail')}</div>
                     ) : detailData ? (
-                      <div>
+                      <div className="space-y-3">
                         <div className="text-sm font-semibold mb-2">
                           {detailData.recipe_name} — {t('expenses:detail.order')}: {detailData.order_number} — {t('expenses:detail.produced')}: {detailData.qty_produced}
                         </div>
@@ -360,15 +366,59 @@ export default function GastosList() {
                                 <td className="py-1 px-2">{line.ingredient_name}</td>
                                 <td className="py-1 px-2">{line.qty_consumed.toFixed(3)}</td>
                                 <td className="py-1 px-2">{line.unit}</td>
-                                <td className="py-1 px-2">${line.cost_unit.toFixed(4)}</td>
+                                <td className="py-1 px-2">{formatUnitCost(line.cost_unit)}</td>
                                 <td className="py-1 px-2 font-medium">${line.cost_total.toFixed(2)}</td>
                               </tr>
                             ))}
                           </tbody>
                           <tfoot>
                             <tr className="border-t font-semibold bg-blue-100">
-                              <td colSpan={4} className="py-1 px-2 text-right">{t('expenses:detail.total')}:</td>
-                              <td className="py-1 px-2">${detailData.total_cost.toFixed(2)}</td>
+                              <td colSpan={4} className="py-1 px-2 text-right">{t('expenses:detail.materialsTotal')}:</td>
+                              <td className="py-1 px-2">${detailData.materials_total.toFixed(2)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        {detailData.indirect_costs.length > 0 && (
+                          <table className="w-full text-xs border">
+                            <thead>
+                              <tr className="bg-amber-100 text-left">
+                                <th className="py-1 px-2">{t('expenses:detail.indirectCost')}</th>
+                                <th className="py-1 px-2">{t('expenses:detail.quantityApplied')}</th>
+                                <th className="py-1 px-2">{t('expenses:detail.headcount')}</th>
+                                <th className="py-1 px-2">{t('expenses:detail.rateApplied')}</th>
+                                <th className="py-1 px-2">{t('expenses:detail.subtotal')}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detailData.indirect_costs.map((line, idx) => (
+                                <tr key={idx} className="border-t">
+                                  <td className="py-1 px-2">
+                                    {line.driver_name}
+                                    {line.notes ? <div className="text-[11px] text-gray-500">{line.notes}</div> : null}
+                                  </td>
+                                  <td className="py-1 px-2">
+                                    {line.qty_actual.toFixed(4)}
+                                    {line.driver_unit ? ` ${line.driver_unit}` : ''}
+                                  </td>
+                                  <td className="py-1 px-2">{line.headcount_actual}</td>
+                                  <td className="py-1 px-2">${line.rate_applied.toFixed(4)}</td>
+                                  <td className="py-1 px-2 font-medium">${line.cost_total.toFixed(2)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t font-semibold bg-amber-100">
+                                <td colSpan={4} className="py-1 px-2 text-right">{t('expenses:detail.indirectTotal')}:</td>
+                                <td className="py-1 px-2">${detailData.indirect_total.toFixed(2)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        )}
+                        <table className="w-full text-xs border">
+                          <tfoot>
+                            <tr className="font-semibold bg-slate-100">
+                              <td colSpan={4} className="py-2 px-2 text-right">{t('expenses:detail.grandTotal')}:</td>
+                              <td className="py-2 px-2">${detailData.total_cost.toFixed(2)}</td>
                             </tr>
                           </tfoot>
                         </table>

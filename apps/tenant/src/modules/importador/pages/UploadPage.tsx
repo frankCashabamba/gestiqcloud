@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { runImport, fetchRecipes, fetchSnapshots, type RunResult, type Recipe, type RecipeSnapshot } from '../services'
 
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.xlsx,.xls,.csv,.xml,.txt'
@@ -10,15 +10,17 @@ type ImportMode = 'files' | 'folder'
 
 export default function UploadPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
+  const reimportRequested = searchParams.get('reimport') === 'clean'
   const [mode, setMode] = useState<ImportMode>('files')
   const [dragging, setDragging] = useState(false)
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [processing, setProcessing] = useState(false)
   const [results, setResults] = useState<RunResult[]>([])
   const [error, setError] = useState('')
-  const [forceReprocess, setForceReprocess] = useState(false)
+  const [forceReprocess, setForceReprocess] = useState(reimportRequested)
 
   // Recipe selector (RB-01: optional, never blocks)
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -31,6 +33,10 @@ export default function UploadPage() {
     setRecipesLoading(true)
     fetchRecipes().then(setRecipes).catch(() => {}).finally(() => setRecipesLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (reimportRequested) setForceReprocess(true)
+  }, [reimportRequested])
 
   useEffect(() => {
     if (!selectedRecipeId) { setSnapshots([]); setSelectedSnapshotId(''); return }
@@ -134,6 +140,7 @@ export default function UploadPage() {
       zero_shot: 'Zero-shot', snapshot: 'Snapshot', draft: 'Borrador',
       recipe_latest: 'Receta', auto_fingerprint: 'Auto-plantilla',
       auto_text_fingerprint: 'Auto-plantilla',
+      force_clean: 'Reimportacion limpia',
     }
     return labels[mode || ''] || mode || ''
   }
@@ -155,6 +162,12 @@ export default function UploadPage() {
           </button>
         )}
       </div>
+
+      {reimportRequested && (
+        <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, color: '#1d4ed8', fontSize: 13 }}>
+          Reimportacion limpia activada. Vuelve a subir el archivo original; si no eliges una plantilla manual, se reprocesara con prompt generico y sin reutilizar auto-plantillas previas para sesgar la clasificacion.
+        </div>
+      )}
 
       {/* Mode toggle */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -310,9 +323,9 @@ export default function UploadPage() {
           style={{ width: 15, height: 15, cursor: 'pointer' }}
         />
         <span>
-          Reimportar aunque ya exista
+          Reimportacion limpia
           <span style={{ color: '#9ca3af', marginLeft: 4 }}>
-            (fuerza reprocesar con la IA aunque el archivo ya haya sido importado antes)
+            (omite dedupe y, si no eliges una plantilla manual, reprocesa con prompt generico sin reutilizar auto-plantillas previas)
           </span>
         </span>
       </label>

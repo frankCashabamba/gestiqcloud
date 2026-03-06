@@ -1,4 +1,4 @@
-"""Home page router."""
+"""Home page router compatibility shim."""
 
 from datetime import datetime
 
