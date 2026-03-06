@@ -65,8 +65,8 @@ def _auto_prompts_excel(headers_flat: list[str]) -> dict:
     prompt_system = (
         "Eres un extractor contable. Usa SOLO las columnas listadas.\n"
         f"Columnas detectadas: {headers_flat}\n"
-        "- Si un campo no estÃ¡ en las columnas, devuÃ©lvelo como null.\n"
-        "- Fechas en YYYY-MM-DD. Montos en nÃºmero con punto decimal.\n"
+        "- Si un campo no está en las columnas, devuélvelo como null.\n"
+        "- Fechas en YYYY-MM-DD. Montos en número con punto decimal.\n"
         "- No inventes valores."
     )
     return {"prompt_system": prompt_system, "prompt_user": None, "model": None}
@@ -75,10 +75,10 @@ def _auto_prompts_excel(headers_flat: list[str]) -> dict:
 def _auto_prompts_text(tipo_doc: str, campos: list[str]) -> dict:
     prompt_system = (
         f"Eres un extractor contable especializado en documentos de tipo {tipo_doc}.\n"
-        f"Campos tÃ­picos detectados en este formato: {campos}\n"
-        "- Fechas en YYYY-MM-DD. Montos en nÃºmero con punto decimal.\n"
-        "- Si un campo no estÃ¡ presente, devuÃ©lvelo como null.\n"
-        "- No inventes valores ni asumas datos que no estÃ©n en el documento."
+        f"Campos típicos detectados en este formato: {campos}\n"
+        "- Fechas en YYYY-MM-DD. Montos en número con punto decimal.\n"
+        "- Si un campo no está presente, devuélvelo como null.\n"
+        "- No inventes valores ni asumas datos que no estén en el documento."
     )
     return {"prompt_system": prompt_system, "prompt_user": None, "model": None}
 

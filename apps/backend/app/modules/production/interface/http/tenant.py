@@ -396,6 +396,33 @@ async def _create_stock_moves_for_ingredients(
                 qty=-abs(float(line.qty_consumed)),
             )
             db.add(new_stock_item)
+        db.flush()
+        # Sync aggregated stock back to products.stock for this ingredient
+        try:
+            from sqlalchemy import func as _func
+
+            total_qty = (
+                db.query(_func.coalesce(_func.sum(StockItem.qty), 0.0))
+                .filter(
+                    StockItem.product_id == line.ingredient_product_id,
+                    StockItem.tenant_id == order.tenant_id,
+                )
+                .scalar()
+            ) or 0.0
+            from app.models.core.products import Product as _Product
+
+            prod = (
+                db.query(_Product)
+                .filter(
+                    _Product.id == line.ingredient_product_id, _Product.tenant_id == order.tenant_id
+                )
+                .first()
+            )
+            if prod:
+                prod.stock = float(total_qty)
+                db.add(prod)
+        except Exception:
+            pass
     return stock_move_ids
 
 
@@ -437,6 +464,32 @@ async def _create_stock_move_for_output(
             lot=order.batch_number,
         )
         db.add(new_stock_item)
+    db.flush()
+
+    # Sync aggregated stock back to products.stock
+    try:
+        from sqlalchemy import func as _func
+
+        total_qty = (
+            db.query(_func.coalesce(_func.sum(StockItem.qty), 0.0))
+            .filter(
+                StockItem.product_id == order.product_id, StockItem.tenant_id == order.tenant_id
+            )
+            .scalar()
+        ) or 0.0
+        from app.models.core.products import Product as _Product
+
+        prod = (
+            db.query(_Product)
+            .filter(_Product.id == order.product_id, _Product.tenant_id == order.tenant_id)
+            .first()
+        )
+        if prod:
+            prod.stock = float(total_qty)
+            db.add(prod)
+    except Exception:
+        pass
+
     return stock_move.id
 
 
@@ -1134,7 +1187,7 @@ def list_recipes(
     is_active: bool | None = None,
     product_id: UUID | None = None,
     skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=100, ge=1, le=5000),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):

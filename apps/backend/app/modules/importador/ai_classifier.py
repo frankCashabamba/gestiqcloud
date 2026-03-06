@@ -74,6 +74,16 @@ async def analyze_document(
         "Always respond with valid JSON using the exact output keys specified, regardless of the document language."
     )
 
+    # Field descriptions can be customized per tenant via recipe_config["field_descriptions"].
+    # Defaults are intentionally generic — locale-specific hints belong in the DB config.
+    _fd = rc.get("field_descriptions") or {}
+    _f_subtotal = _fd.get("subtotal") or (
+        "taxable base amount before tax (subtotal, net, base imponible, or similar). Number or null"
+    )
+    _f_tax = _fd.get("tax_amount") or (
+        "total tax amount (VAT/IVA/IGV/GST/TVA or equivalent). Use 0 if present but zero. Number or null if absent"
+    )
+
     tabular_note = (
         "NOTE: Content is already pre-processed as a structured table. "
         "If you recognize a list or table, set is_table=true and provide clean column names. "
@@ -107,8 +117,8 @@ async def analyze_document(
         '    "doc_number": "document reference number, or null",\n'
         '    "issue_date": "YYYY-MM-DD or null",\n'
         '    "total_amount": NUMBER — the GRAND TOTAL at the END of the document (not a product quantity),\n'
-        '    "subtotal": number before tax, or null,\n'
-        '    "tax_amount": total tax/VAT/IVA/GST/TVA amount, or null,\n'
+        f'    "subtotal": {_f_subtotal},\n'
+        f'    "tax_amount": {_f_tax},\n'
         '    "currency": "ISO 4217 code (USD, EUR, GBP, CNY, MXN…) or null",\n'
         '    "line_items": [\n'
         '      {"description": "...", "quantity": number, "unit_price": number, "total_price": number}\n'

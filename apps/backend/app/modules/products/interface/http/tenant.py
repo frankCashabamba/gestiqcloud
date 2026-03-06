@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -16,6 +16,7 @@ from app.core.authz import require_scope
 from app.middleware.tenant import ensure_tenant
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
+from app.models.inventory.stock import StockItem
 
 router = APIRouter(
     prefix="/products",
@@ -184,13 +185,13 @@ def _is_similar_product_name(left: str | None, right: str | None, threshold: flo
     return min_side >= 0.8 and jaccard >= 0.55
 
 
-def _to_product_out_row(row: Product) -> ProductOut:
+def _to_product_out_row(row: Product, real_stock: float | None = None) -> ProductOut:
     """Normalize nullable DB values to satisfy ProductOut response contract."""
     return ProductOut(
         id=row.id,
         name=row.name or "",
         price=float(row.price or 0),
-        stock=float(row.stock or 0),
+        stock=real_stock if real_stock is not None else float(row.stock or 0),
         unit=row.unit or "unit",
         sku=row.sku,
         category=row.category,
@@ -355,18 +356,32 @@ def list_products(
     if tenant_id is None:
         return []
 
-    query = select(Product).where(Product.tenant_id == UUID(tenant_id))
+    tid_uuid = UUID(tenant_id)
 
-    # Filtro por estado activo (opcional)
+    # Subquery: stock real agregado por producto desde stock_items
+    stock_subq = (
+        select(
+            StockItem.product_id,
+            func.coalesce(func.sum(StockItem.qty), 0.0).label("real_stock"),
+        )
+        .where(StockItem.tenant_id == tid_uuid)
+        .group_by(StockItem.product_id)
+        .subquery()
+    )
+
+    query = (
+        select(Product, func.coalesce(stock_subq.c.real_stock, 0.0).label("real_stock"))
+        .outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
+        .where(Product.tenant_id == tid_uuid)
+    )
+
     if activo is not None:
         query = query.where(Product.active == activo)
 
-    # Filtro por búsqueda de texto
     if q:
         like = f"%{q}%"
         query = query.where(Product.name.ilike(like))
 
-    # Filtro por categoría (nombre)
     if categoria:
         categoria_name = _normalize_category_name(categoria)
         if categoria_name:
@@ -375,8 +390,8 @@ def list_products(
             )
 
     query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
-    rows = db.execute(query).scalars().all()
-    return [_to_product_out_row(row) for row in rows]
+    rows = db.execute(query).all()
+    return [_to_product_out_row(row.Product, real_stock=float(row.real_stock)) for row in rows]
 
 
 class SimilarProductCandidateOut(BaseModel):

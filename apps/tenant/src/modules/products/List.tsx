@@ -8,6 +8,7 @@ import {
   bulkSetActive,
   bulkAssignCategory,
   listCategorias,
+  updateProducto,
   type Producto,
 } from './productsApi'
 import SimilarProductsMergeModal from './SimilarProductsMergeModal'
@@ -102,6 +103,8 @@ export default function ProductosList() {
   const [configsLoading, setConfigsLoading] = useState(false)
   const selectedSavedConfigIdRef = useRef<string | null>(null)
   const [recipeByProduct, setRecipeByProduct] = useState<Map<string, string>>(new Map())
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('')
   const can = usePermission()
   const fetchPrinters = useCallback(async (): Promise<PrinterInfo[]> => {
     try {
@@ -889,7 +892,57 @@ export default function ProductosList() {
                       <span className="font-mono text-xs text-gray-600">{p.product_metadata?.Código_barras || '—'}</span>
                     </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="text-sm font-semibold text-gray-900">{p.price?.toFixed(2) || '0.00'} {currencySymbol}</span>
+                    {can('products:update') && editingPriceId === p.id ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        autoFocus
+                        className="w-24 text-sm font-semibold text-gray-900 border border-blue-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={editingPriceValue}
+                        onChange={(e) => setEditingPriceValue(e.target.value)}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            const newPrice = parseFloat(editingPriceValue)
+                            if (!isNaN(newPrice) && newPrice >= 0) {
+                              try {
+                                await updateProducto(p.id, { price: newPrice })
+                                setItems((prev) => prev.map((x) => x.id === p.id ? { ...x, price: newPrice } : x))
+                              } catch (err: any) {
+                                toastError(getErrorMessage(err))
+                              }
+                            }
+                            setEditingPriceId(null)
+                          } else if (e.key === 'Escape') {
+                            setEditingPriceId(null)
+                          }
+                        }}
+                        onBlur={async () => {
+                          const newPrice = parseFloat(editingPriceValue)
+                          if (!isNaN(newPrice) && newPrice >= 0) {
+                            try {
+                              await updateProducto(p.id, { price: newPrice })
+                              setItems((prev) => prev.map((x) => x.id === p.id ? { ...x, price: newPrice } : x))
+                            } catch (err: any) {
+                              toastError(getErrorMessage(err))
+                            }
+                          }
+                          setEditingPriceId(null)
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className={`text-sm font-semibold text-gray-900 ${can('products:update') ? 'cursor-pointer hover:text-blue-600 hover:underline' : ''}`}
+                        title={can('products:update') ? 'Click para editar precio' : undefined}
+                        onClick={() => {
+                          if (!can('products:update')) return
+                          setEditingPriceId(p.id)
+                          setEditingPriceValue(String(p.price ?? 0))
+                        }}
+                      >
+                        {p.price?.toFixed(2) || '0.00'} {currencySymbol}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                   <span className="text-sm text-gray-600">{p.iva_tasa || 0}%</span>
@@ -912,8 +965,8 @@ export default function ProductosList() {
                       {(sectorFeatures?.recipes ||
                         sector.features?.recipes ||
                         sector.plantilla?.toLowerCase().includes('panaderia') ||
-                        sector.plantilla?.toLowerCase().includes('bakery')) && (
-                        recipeByProduct.has(p.id) ? (
+                        sector.plantilla?.toLowerCase().includes('bakery')) &&
+                        recipeByProduct.has(p.id) && (
                           <Link
                             to={`/${empresa || ''}/produccion/recetas/${recipeByProduct.get(p.id)}`}
                             className="text-green-600 hover:text-green-800 mr-4"
@@ -921,22 +974,7 @@ export default function ProductosList() {
                           >
                             {t('products:list.viewRecipe')}
                           </Link>
-                        ) : (
-                          <button
-                            className="text-amber-600 hover:text-amber-800 mr-4"
-                            title={t('products:list.createRecipe')}
-                            onClick={() =>
-                              nav(
-                                `/${empresa || ''}/produccion/recetas/nueva?productId=${encodeURIComponent(
-                                  p.id
-                                )}`
-                              )
-                            }
-                          >
-                            {t('products:makeRecipe')}
-                          </button>
-                        )
-                      )}
+                        )}
                       {can('products:delete') && (
                         <ProtectedButton
                           permission="products:delete"

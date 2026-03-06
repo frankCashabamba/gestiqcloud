@@ -50,7 +50,9 @@ def test_admin_ops_migrate_runs_idempotent_script_and_logs_history(
                 "text": text,
             }
         )
-        return SimpleNamespace(returncode=0, stdout="[SUCCESS] All applicable migration(s) processed!", stderr="")
+        return SimpleNamespace(
+            returncode=0, stdout="[SUCCESS] All applicable migration(s) processed!", stderr=""
+        )
 
     monkeypatch.setattr(admin_ops.subprocess, "run", fake_run)
 

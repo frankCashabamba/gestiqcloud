@@ -330,7 +330,7 @@ async def run_import(
                                         break
                 llm_content = "\n".join(sample_lines)
             else:
-                llm_content = text[:4000] if text else ""
+                llm_content = text[:6000] if text else ""
 
             # En reimportación limpia, no reutilizar auto-plantillas para sesgar la clasificación.
             analysis = await analyze_document(

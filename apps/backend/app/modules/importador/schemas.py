@@ -166,6 +166,20 @@ class SaveProductsFromDocumentResponse(BaseModel):
     skipped_names: list[str] = Field(default_factory=list)
 
 
+class SaveAsPurchaseRequest(BaseModel):
+    warehouse_id: UUID | None = None  # None → primer almacén activo del tenant
+    notes: str | None = None
+
+
+class SaveAsPurchaseResponse(BaseModel):
+    purchase_id: UUID
+    status: Literal["created", "skipped"]
+    lines_created: int = 0
+    lines_matched: int = 0
+    unmatched_descriptions: list[str] = Field(default_factory=list)
+    message: str | None = None
+
+
 # -----------  v1.3 Recipe / Run schemas  -----------
 
 
