@@ -177,6 +177,18 @@ class RecipeUpdate(BaseModel):
     is_active: bool | None = None
     ingredients: list[RecipeIngredientCreate] | None = None
 
+    @field_validator("ingredients")
+    @classmethod
+    def validate_ingredients(cls, v):
+        if v is None or len(v) == 0:
+            return v
+
+        product_ids = [ing.product_id for ing in v]
+        if len(product_ids) != len(set(product_ids)):
+            raise ValueError("No puede haber ingredientes duplicados en la receta")
+
+        return v
+
 
 class RecipeResponse(RecipeBase):
     id: UUID
@@ -269,12 +281,12 @@ class ProductionCalculationResponse(BaseModel):
     recipe: dict
     qty_to_produce: int
     batches_required: float
-    ingredients: list[dict]
-    total_production_cost: float
-    unit_cost: float
+    ingredientes: list[dict]
+    costo_total_produccion: float
+    costo_por_unidad: float
 
     # Opcional: tiempo estimado
-    estimated_time: dict | None = None
+    tiempo_estimado: dict | None = None
 
 
 class PurchaseOrderRequest(BaseModel):

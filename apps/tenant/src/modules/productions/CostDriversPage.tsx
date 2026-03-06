@@ -11,6 +11,7 @@ import {
   updateCostDriver,
   deleteCostDriver,
   type CostDriver,
+  type CostDriverCreate,
 } from '../../services/api/productionCosts';
 import { useUnits } from '../../hooks/useGlobalCatalogs';
 
@@ -19,9 +20,10 @@ interface EditForm {
   name: string;
   unit: string;
   default_rate: string;
+  consumption_rate: string;
 }
 
-const emptyForm: EditForm = { code: '', name: '', unit: 'HORA', default_rate: '' };
+const emptyForm: EditForm = { code: '', name: '', unit: 'HORA', default_rate: '', consumption_rate: '' };
 
 export default function CostDriversPage() {
   const { t } = useTranslation(['productions', 'common']);
@@ -67,12 +69,15 @@ export default function CostDriversPage() {
     try {
       setSaving(true);
       setError(null);
-      const payload = {
+      const payload: CostDriverCreate = {
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         unit: form.unit,
         default_rate: Number(form.default_rate) || 0,
       };
+      if (form.consumption_rate !== '') {
+        payload.consumption_rate = Number(form.consumption_rate);
+      }
       if (editingId) {
         await updateCostDriver(editingId, payload);
       } else {
@@ -96,6 +101,7 @@ export default function CostDriversPage() {
       name: d.name,
       unit: d.unit,
       default_rate: String(d.default_rate),
+      consumption_rate: d.consumption_rate != null ? String(d.consumption_rate) : '',
     });
     setShowForm(true);
   };
@@ -219,6 +225,21 @@ export default function CostDriversPage() {
               />
             </div>
           </div>
+          <div className="mt-3">
+            <label className="block text-xs text-gray-600 mb-1">
+              {t('productions:costDrivers.consumptionRate')}
+              <span className="ml-1 text-gray-400">{t('productions:costDrivers.consumptionRateHint')}</span>
+            </label>
+            <input
+              type="number"
+              className="px-3 py-2 border rounded text-sm w-48"
+              placeholder="ej: 2.0"
+              min="0"
+              step="0.01"
+              value={form.consumption_rate}
+              onChange={(e) => setForm({ ...form, consumption_rate: e.target.value })}
+            />
+          </div>
           <div className="flex gap-2 mt-4">
             <button
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
@@ -276,6 +297,9 @@ export default function CostDriversPage() {
                 <th className="text-right px-4 py-3 font-medium text-gray-600">
                   {t('productions:costDrivers.defaultRate')}
                 </th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">
+                  {t('productions:costDrivers.consumptionRate')}
+                </th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">
                   {t('productions:costDrivers.status')}
                 </th>
@@ -294,6 +318,9 @@ export default function CostDriversPage() {
                   </td>
                   <td className="px-4 py-3 text-right font-semibold">
                     ${Number(d.default_rate).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-600">
+                    {d.consumption_rate != null ? `${Number(d.consumption_rate).toFixed(2)}/hr` : '—'}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span

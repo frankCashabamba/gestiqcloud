@@ -18,6 +18,7 @@ class CostDriverBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="Display name")
     unit: str = Field(default="hour", max_length=20, description="hour, kwh, unit, flat")
     default_rate: Decimal = Field(default=Decimal("0"), ge=0, description="Default cost per unit")
+    consumption_rate: Decimal | None = Field(None, ge=0, description="Auto-calc consumption (L/hr, kWh/hr, etc.)")
     is_active: bool = Field(default=True)
 
 
@@ -31,6 +32,7 @@ class CostDriverUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     unit: str | None = Field(None, max_length=20)
     default_rate: Decimal | None = Field(None, ge=0)
+    consumption_rate: Decimal | None = Field(None, ge=0)
     is_active: bool | None = None
 
 
@@ -83,6 +85,7 @@ class RecipeCostLineResponse(RecipeCostLineBase):
     driver_name: str | None = None
     driver_unit: str | None = None
     driver_default_rate: Decimal | None = None
+    driver_consumption_rate: Decimal | None = None
 
     # Calculated
     effective_rate: Decimal | None = None

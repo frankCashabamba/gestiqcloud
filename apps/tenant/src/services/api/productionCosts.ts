@@ -16,6 +16,7 @@ export interface CostDriver {
   name: string;
   unit: string;
   default_rate: number;
+  consumption_rate: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -26,6 +27,7 @@ export interface CostDriverCreate {
   name: string;
   unit?: string;
   default_rate?: number;
+  consumption_rate?: number | null;
   is_active?: boolean;
 }
 
@@ -52,6 +54,7 @@ export interface RecipeCostLine {
   driver_name: string | null;
   driver_unit: string | null;
   driver_default_rate: number | null;
+  driver_consumption_rate: number | null;
   effective_rate: number | null;
   line_cost: number | null;
 }

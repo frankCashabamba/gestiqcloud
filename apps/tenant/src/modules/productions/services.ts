@@ -20,6 +20,29 @@ export type ProductionOrder = {
     updated_at?: string
 }
 
+export type ProductionOrderCost = {
+    id: string
+    order_id: string
+    driver_id: string
+    qty_actual: number
+    headcount_actual: number
+    rate_applied: number
+    cost_total: number
+    notes?: string | null
+    created_at?: string
+    driver_code?: string | null
+    driver_name?: string | null
+    driver_unit?: string | null
+}
+
+export type ProductionOrderCostInput = {
+    driver_id: string
+    qty_actual: number
+    headcount_actual?: number
+    rate_applied: number
+    notes?: string | null
+}
+
 export type Recipe = {
     id: string
     name: string
@@ -72,6 +95,19 @@ export async function startProductionOrder(id: string): Promise<ProductionOrder>
 export async function completeProductionOrder(id: string, payload: { qty_produced: number; waste_qty?: number }): Promise<ProductionOrder> {
     const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/complete`, payload)
     return data
+}
+
+export async function listProductionOrderCosts(id: string): Promise<ProductionOrderCost[]> {
+    const { data } = await tenantApi.get<ProductionOrderCost[]>(`/api/v1/tenant/production/orders/${id}/costs`)
+    return Array.isArray(data) ? data : []
+}
+
+export async function replaceProductionOrderCosts(
+    id: string,
+    payload: ProductionOrderCostInput[],
+): Promise<ProductionOrderCost[]> {
+    const { data } = await tenantApi.put<ProductionOrderCost[]>(`/api/v1/tenant/production/orders/${id}/costs`, payload)
+    return Array.isArray(data) ? data : []
 }
 
 export async function cancelProductionOrder(id: string): Promise<ProductionOrder> {

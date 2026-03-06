@@ -47,7 +47,9 @@
     "emptyDescription": "Create cost types like labor roles, energy, packaging to track indirect production costs.",
     "createFirst": "Create first cost type",
     "namePlaceholder": "e.g. Baker",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "consumptionRate": "Consumption/hr",
+    "consumptionRateHint": "(L/hr or kWh/hr for automatic calc from baking time)"
   },
   "recipe": {
     "yield": "Yield",

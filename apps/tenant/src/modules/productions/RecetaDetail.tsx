@@ -14,9 +14,6 @@ import { Add, Delete } from '@mui/icons-material';
 import {
   getRecipe,
   getCostBreakdown,
-  addIngredient,
-  updateIngredient,
-  deleteIngredient,
   updateRecipe,
   type Recipe,
   type CostBreakdown,
@@ -67,6 +64,16 @@ const sectionCardSx = {
   border: '1px solid #e7edf5',
   backgroundColor: '#ffffff',
   boxShadow: '0 12px 32px rgba(15, 23, 42, 0.05)',
+};
+
+const clickableSectionSx = {
+  cursor: 'pointer',
+  transition: 'border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+  '&:hover': {
+    borderColor: '#bfdbfe',
+    boxShadow: '0 16px 40px rgba(37, 99, 235, 0.10)',
+    transform: 'translateY(-1px)',
+  },
 };
 
 const metricCardSx = {
@@ -139,7 +146,7 @@ interface RecetaDetailProps {
   onEdit?: (recipe: Recipe) => void;
 }
 
-export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, onEdit }: RecetaDetailProps) {
+export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }: RecetaDetailProps) {
   const { t } = useTranslation(['productions', 'common']);
 
   const [loading, setLoading] = useState(true);
@@ -151,7 +158,6 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
   const [customOrderQty, setCustomOrderQty] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [deletedIngredientIds, setDeletedIngredientIds] = useState<string[]>([]);
   const [costDrivers, setCostDrivers] = useState<CostDriver[]>([]);
   const [costLinesDraft, setCostLinesDraft] = useState<Array<{
     id?: string;
@@ -225,7 +231,6 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           line_order: typeof ing.line_order === 'number' ? ing.line_order : idx,
         }))
       );
-      setDeletedIngredientIds([]);
       setProdParams({
         prep_time_minutes: recipeData.prep_time_minutes ?? null,
         baking_time_minutes: recipeData.baking_time_minutes ?? null,
@@ -324,13 +329,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
   };
 
   const removeIngredientRow = (index: number) => {
-    setIngredientsDraft((prev) => {
-      const target = prev[index];
-      if (target?.id) {
-        setDeletedIngredientIds((ids) => [...ids, target.id!]);
-      }
-      return prev.filter((_, i) => i !== index);
-    });
+    setIngredientsDraft((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSaveIngredients = async () => {
@@ -338,6 +337,30 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
     try {
       setUpdating(true);
       setError(null);
+
+      const normalizedIngredients = ingredientsDraft
+        .filter((row) => row.product_id && Number(row.qty || 0) > 0)
+        .map((row, index) => ({
+          product_id: row.product_id,
+          qty: Number(row.qty || 0),
+          unit: normalizeRecipeUnit(row.unit),
+          purchase_packaging: String(row.purchase_packaging || '-'),
+          qty_per_package: Math.max(Number(row.qty_per_package || 1), 0.0001),
+          package_unit: normalizeRecipeUnit(row.package_unit || row.unit),
+          package_cost: Number(row.package_cost || 0),
+          notes: row.notes || undefined,
+          line_order: index,
+        }));
+
+      const seenProducts = new Set<string>();
+      for (const ingredient of normalizedIngredients) {
+        if (seenProducts.has(ingredient.product_id)) {
+          const productName = products.find((item) => item.id === ingredient.product_id)?.name;
+          setError(productName ? `El ingrediente ${productName} ya existe en la receta.` : 'El ingrediente ya existe en la receta.');
+          return;
+        }
+        seenProducts.add(ingredient.product_id);
+      }
 
       await updateRecipe(recipe.id, {
         prep_time_minutes: prodParams.prep_time_minutes ?? undefined,
@@ -351,41 +374,40 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         trays_per_batch: (prodParams.trays_per_batch && prodParams.trays_per_batch >= 1) ? prodParams.trays_per_batch : undefined,
         units_per_tray: (prodParams.units_per_tray && prodParams.units_per_tray >= 1) ? prodParams.units_per_tray : undefined,
         instructions: prodParams.instructions || undefined,
+        ingredients: normalizedIngredients,
       });
-
-      for (const ingredientId of deletedIngredientIds) {
-        await deleteIngredient(recipe.id, ingredientId);
-      }
-
-      for (const row of ingredientsDraft) {
-        if (!row.product_id || Number(row.qty || 0) <= 0) continue;
-        const payload = {
-          product_id: row.product_id,
-          qty: Number(row.qty || 0),
-          unit: normalizeRecipeUnit(row.unit),
-          purchase_packaging: String(row.purchase_packaging || '-'),
-          qty_per_package: Math.max(Number(row.qty_per_package || 1), 0.0001),
-          package_unit: normalizeRecipeUnit(row.package_unit || row.unit),
-          package_cost: Number(row.package_cost || 0),
-          notes: row.notes || undefined,
-          line_order: Number(row.line_order || 0),
-        };
-        if (row._isNew || !row.id) {
-          await addIngredient(recipe.id, payload as any);
-        } else {
-          await updateIngredient(recipe.id, row.id, payload as any);
-        }
-      }
 
       // Save cost lines
       for (const clId of deletedCostLineIds) {
         await deleteRecipeCostLine(recipe.id, clId);
       }
+      const laborMinutesForSave = prodParams.touch_minutes_standard ?? prodParams.prep_time_minutes ?? 0;
+      const laborHoursForSave = laborMinutesForSave / 60;
+
       for (const cl of costLinesDraft) {
         if (!cl.driver_id) continue;
+        const driver = costDrivers.find((d) => d.id === cl.driver_id);
+        const driverCodeSave = (driver?.code || '').toUpperCase();
+        const driverUnitSave = (driver?.unit || '').trim().toLowerCase();
+        const isHourUnitSave = ['hour', 'hours', 'hora', 'horas', 'hr', 'hrs'].includes(driverUnitSave);
+        const isLaborAutoSave = driver && (
+          driverCodeSave.startsWith('LABOR')
+          || (isHourUnitSave && !driverCodeSave.startsWith('ENERGY') && !driverCodeSave.startsWith('OVEN'))
+        );
+        const isOvenAutoSave = driver && !isLaborAutoSave && (driver.consumption_rate ?? 0) > 0;
+        const ovenMinutesForSave = prodParams.baking_time_minutes ?? 0;
+        const ovenAutoQtyForSave = isOvenAutoSave && ovenMinutesForSave > 0
+          ? (ovenMinutesForSave / 60) * (driver!.consumption_rate ?? 0)
+          : null;
+        const qtyToSave = isLaborAutoSave && laborHoursForSave > 0
+          ? laborHoursForSave
+          : ovenAutoQtyForSave !== null
+            ? ovenAutoQtyForSave
+            : Number(cl.qty_standard || 0);
+
         const clPayload = {
           driver_id: cl.driver_id,
-          qty_standard: Number(cl.qty_standard || 0),
+          qty_standard: qtyToSave,
           headcount: cl.headcount || 1,
           rate_override: cl.rate_override ?? undefined,
           notes: cl.notes || undefined,
@@ -422,6 +444,14 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
     const safeQty = Number.isFinite(qty) && qty > 0 ? qty : Number(recipe.yield_qty || 1);
     onCreateOrder(recipe, { qty: safeQty, autoCreate: true });
     setOrderPromptOpen(false);
+  };
+
+  const startInlineEdit = () => {
+    if (!isEditing) setIsEditing(true);
+  };
+
+  const handleCancelEditing = () => {
+    void loadData();
   };
 
   if (loading) {
@@ -569,9 +599,14 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         {/* Parámetros de producción */}
         {isEditing ? (
           <Box sx={{ ...sectionCardSx, ...fieldGroupSx }}>
-            <Typography variant="subtitle2" gutterBottom>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 2 }}>
+              <Typography variant="subtitle2">
               {t('productions:recipe.productionParameters')}
-            </Typography>
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#64748b' }}>
+                Edicion rapida
+              </Typography>
+            </Box>
             <Grid container spacing={2}>
               <Grid item xs={6} sm={3}>
                 <TextField
@@ -694,7 +729,18 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             </Grid>
           </Box>
         ) : (
-          <Box sx={{ ...sectionCardSx, display: 'flex', flexWrap: 'wrap', gap: 1, '& .MuiChip-root': { borderRadius: 2 } }}>
+          <Box
+            sx={{ ...sectionCardSx, ...clickableSectionSx, display: 'flex', flexWrap: 'wrap', gap: 1, '& .MuiChip-root': { borderRadius: 2 } }}
+            onClick={startInlineEdit}
+          >
+            <Box sx={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                {t('productions:recipe.productionParameters')}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600 }}>
+                Haz clic para editar
+              </Typography>
+            </Box>
             {recipe.prep_time_minutes != null && (
               <Chip label={`⏱️ ${t('productions:recipe.prepLabel')}: ${recipe.prep_time_minutes} min`} color="primary" size="small" />
             )}
@@ -728,27 +774,70 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
 
         {/* Desglose de ingredientes */}
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, mb: 1.5 }}>
-          {t('productions:recipe.ingredientsBreakdown')}
-        </Typography>
+        <Box
+          sx={{ ...sectionCardSx, ...(isEditing ? {} : clickableSectionSx), mb: 3 }}
+          onClick={isEditing ? undefined : startInlineEdit}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {t('productions:recipe.ingredientsBreakdown')}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#64748b' }}>
+                {isEditing ? 'Edita ingredientes directamente en la tabla.' : 'Haz clic en la tabla para editar ingredientes.'}
+              </Typography>
+            </Box>
+            {isEditing && (
+              <Button
+                size="small"
+                startIcon={<Add />}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  addNewIngredientRow();
+                }}
+                sx={{ borderRadius: 2.5, fontWeight: 600 }}
+              >
+                {t('productions:recipe.addIngredient')}
+              </Button>
+            )}
+          </Box>
 
         <TableContainer component={Paper} variant="outlined" sx={tableContainerSx}>
           <Table size="small">
             <TableHead>
-              <TableRow>
-                <TableCell>{t('productions:recipe.ingredients')}</TableCell>
-                <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
-                <TableCell align="right">Kg / Lb</TableCell>
-                <TableCell>{t('productions:recipe.packaging')}</TableCell>
-                <TableCell align="right">{t('productions:recipe.cost')}</TableCell>
-                <TableCell align="right">% {t('productions:recipe.cost')}</TableCell>
-                {isEditing && <TableCell align="right">{t('productions:recipe.actionsColumn')}</TableCell>}
-              </TableRow>
+              {isEditing ? (
+                <>
+                  <TableRow>
+                    <TableCell rowSpan={2}>{t('productions:recipe.ingredients')}</TableCell>
+                    <TableCell colSpan={2} align="center">Uso receta</TableCell>
+                    <TableCell rowSpan={2} align="right">Kg / Lb</TableCell>
+                    <TableCell colSpan={3} align="center">Compra</TableCell>
+                    <TableCell rowSpan={2} align="right">% {t('productions:recipe.cost')}</TableCell>
+                    <TableCell rowSpan={2} align="right">{t('productions:recipe.actionsColumn')}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
+                    <TableCell>Unidad</TableCell>
+                    <TableCell>{t('productions:recipe.packaging')}</TableCell>
+                    <TableCell align="right">Contenido</TableCell>
+                    <TableCell align="right">Costo pack</TableCell>
+                  </TableRow>
+                </>
+              ) : (
+                <TableRow>
+                  <TableCell>{t('productions:recipe.ingredients')}</TableCell>
+                  <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
+                  <TableCell align="right">Kg / Lb</TableCell>
+                  <TableCell>{t('productions:recipe.packaging')}</TableCell>
+                  <TableCell align="right">{t('productions:recipe.cost')}</TableCell>
+                  <TableCell align="right">% {t('productions:recipe.cost')}</TableCell>
+                </TableRow>
+              )}
             </TableHead>
             <TableBody>
               {ingredientsDraft.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isEditing ? 7 : 6} align="center">
+                  <TableCell colSpan={isEditing ? 9 : 6} align="center">
                     <Typography variant="body2" color="text.secondary">
                       {t('productions:recipe.noIngredients')}
                     </Typography>
@@ -806,25 +895,27 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                   </TableCell>
                   <TableCell align="right">
                     {isEditing ? (
-                      <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                        <TextField
-                          type="number"
-                          value={item.qty}
-                          onChange={(e) => setIngredientField(index, 'qty', Number(e.target.value))}
-                          size="small"
-                          sx={{ width: 90 }}
-                        />
-                        <TextField
-                          value={item.unit}
-                          onChange={(e) => setIngredientField(index, 'unit', e.target.value)}
-                          size="small"
-                          sx={{ width: 90 }}
-                        />
-                      </Box>
+                      <TextField
+                        type="number"
+                        value={item.qty}
+                        onChange={(e) => setIngredientField(index, 'qty', Number(e.target.value))}
+                        size="small"
+                        sx={{ width: 90 }}
+                      />
                     ) : (
                       `${qty.toFixed(2)} ${item.unit || ''}`
                     )}
                   </TableCell>
+                  {isEditing && (
+                    <TableCell>
+                      <TextField
+                        value={item.unit}
+                        onChange={(e) => setIngredientField(index, 'unit', e.target.value)}
+                        size="small"
+                        sx={{ width: 90 }}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell align="right">
                     {kgLbText ? (
                       <Typography variant="body2" color="text.secondary">
@@ -848,16 +939,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell align="right">
-                    {isEditing ? (
-                      <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                        <TextField
-                          type="number"
-                          value={item.package_cost}
-                          onChange={(e) => setIngredientField(index, 'package_cost', Number(e.target.value))}
-                          size="small"
-                          sx={{ width: 90 }}
-                        />
+                  {isEditing ? (
+                    <>
+                      <TableCell align="right">
                         <TextField
                           type="number"
                           value={item.qty_per_package}
@@ -865,11 +949,22 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                           size="small"
                           sx={{ width: 90 }}
                         />
-                      </Box>
-                    ) : (
+                      </TableCell>
+                      <TableCell align="right">
+                        <TextField
+                          type="number"
+                          value={item.package_cost}
+                          onChange={(e) => setIngredientField(index, 'package_cost', Number(e.target.value))}
+                          size="small"
+                          sx={{ width: 100 }}
+                        />
+                      </TableCell>
+                    </>
+                  ) : (
+                    <TableCell align="right">
                       <strong>${estimatedCost.toFixed(2)}</strong>
-                    )}
-                  </TableCell>
+                    </TableCell>
+                  )}
                   <TableCell align="right">
                     <Chip
                       label={`${pct.toFixed(1)}%`}
@@ -890,21 +985,33 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             </TableBody>
           </Table>
         </TableContainer>
+        </Box>
 
         {/* Costos indirectos */}
         <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, mb: 1.5 }}>
-          {t('productions:recipe.indirectCosts')}
-        </Typography>
+        <Box
+          sx={{ ...sectionCardSx, ...(isEditing ? {} : clickableSectionSx), mb: 3 }}
+          onClick={isEditing ? undefined : startInlineEdit}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {t('productions:recipe.indirectCosts')}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#64748b' }}>
+                {isEditing ? 'Ajusta mano de obra y costos por driver.' : 'Haz clic para editar costos indirectos.'}
+              </Typography>
+            </Box>
+          </Box>
 
         {costDrivers.length === 0 && !isEditing && (
-          <Alert severity="info" sx={{ ...infoAlertSx, mb: 2 }}>
+          <Alert severity="info" sx={{ ...infoAlertSx, mb: 0 }}>
             {t('productions:recipe.noCostDriversInfo')}
           </Alert>
         )}
 
         {(costLinesDraft.length > 0 || isEditing) && (
-          <TableContainer component={Paper} variant="outlined" sx={{ ...tableContainerSx, mb: 2 }}>
+          <TableContainer component={Paper} variant="outlined" sx={{ ...tableContainerSx, mb: 0 }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -921,18 +1028,28 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                   const driver = costDrivers.find((d) => d.id === cl.driver_id);
                   const rate = cl.rate_override ?? (driver?.default_rate || 0);
                   const driverCode = (driver?.code || '').toUpperCase();
+                  const driverUnitNorm = (driver?.unit || '').trim().toLowerCase();
+                  const isHourUnit = ['hour', 'hours', 'hora', 'horas', 'hr', 'hrs'].includes(driverUnitNorm);
                   const isLaborAuto = driver && (
                     driverCode.startsWith('LABOR')
-                    || ((driver.unit || '').toLowerCase() === 'hour'
-                        && !driverCode.startsWith('ENERGY')
-                        && !driverCode.startsWith('OVEN'))
+                    || (isHourUnit && !driverCode.startsWith('ENERGY') && !driverCode.startsWith('OVEN'))
                   );
+                  // Cualquier driver con consumption_rate > 0 que no sea labor → auto-calcula desde tiempo de horno
+                  const isEnergyDriver = !!driver && !isLaborAuto && (driver.consumption_rate ?? 0) > 0;
+                  const isOvenAuto = isEnergyDriver;
                   const laborMinutes = prodParams.touch_minutes_standard ?? prodParams.prep_time_minutes ?? 0;
                   const recipeLaborHours = laborMinutes / 60;
                   const laborSource = prodParams.touch_minutes_standard != null
                     ? 'touch'
                     : (prodParams.prep_time_minutes != null ? 'prep' : null);
-                  const effectiveQty = isLaborAuto && recipeLaborHours > 0 ? recipeLaborHours : Number(cl.qty_standard);
+                  const ovenMinutes = prodParams.baking_time_minutes ?? 0;
+                  const ovenHours = ovenMinutes / 60;
+                  const ovenAutoQty = isOvenAuto ? ovenHours * (driver!.consumption_rate ?? 0) : 0;
+                  const effectiveQty = isLaborAuto && recipeLaborHours > 0
+                    ? recipeLaborHours
+                    : isOvenAuto && ovenMinutes > 0
+                      ? ovenAutoQty
+                      : Number(cl.qty_standard);
                   const subtotal = effectiveQty * Number(rate) * (cl.headcount || 1);
                   return (
                     <TableRow key={idx}>
@@ -972,6 +1089,22 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                             <Typography variant="body2">{effectiveQty.toFixed(2)}h</Typography>
                             <Typography variant="caption" color="text.secondary">
                               ⚡ auto ({laborSource === 'touch' ? 'touch' : 'prep'} {laborMinutes} min)
+                            </Typography>
+                          </Box>
+                        ) : isOvenAuto && ovenMinutes > 0 ? (
+                          <Box>
+                            <Typography variant="body2">{effectiveQty.toFixed(3)} {driverUnitNorm.includes('kw') ? 'kWh' : 'L'}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              🔥 auto (horno {ovenMinutes} min)
+                            </Typography>
+                          </Box>
+                        ) : isEnergyDriver && !isOvenAuto ? (
+                          <Box>
+                            <Typography variant="body2" color="warning.main" sx={{ fontSize: '0.72rem' }}>
+                              ⚙️ Sin consumo/hr
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                              Configura en Costos Indirectos
                             </Typography>
                           </Box>
                         ) : isEditing ? (
@@ -1074,15 +1207,24 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             </Alert>
           )
         )}
+        </Box>
 
         {/* Instrucciones (solo lectura) */}
         {!isEditing && recipe.instructions && (
           <>
             <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, mb: 1.5 }}>
-              {t('productions:recipe.instructions')}
-            </Typography>
-            <Box sx={{ ...sectionCardSx, mb: 0 }}>
+            <Box
+              sx={{ ...sectionCardSx, ...clickableSectionSx, mb: 0 }}
+              onClick={startInlineEdit}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  {t('productions:recipe.instructions')}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600 }}>
+                  Haz clic para editar
+                </Typography>
+              </Box>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#334155', lineHeight: 1.7 }}>
                 {recipe.instructions}
               </Typography>
@@ -1093,56 +1235,44 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
 
       <DialogActions sx={dialogActionsSx}>
         {isEditing ? (
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSaveIngredients}
-            disabled={updating}
-            sx={{ minWidth: 140, borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
-          >
-            {t('productions:recipe.save')}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="text"
+              onClick={handleCancelEditing}
+              disabled={updating}
+              sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}
+            >
+              Cancelar edicion
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleSaveIngredients}
+              disabled={updating}
+              sx={{ minWidth: 160, borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
+            >
+              Guardar cambios
+            </Button>
+          </Box>
         ) : (
-          <Button
-            variant="outlined"
-            onClick={() => setIsEditing(true)}
-            disabled={updating}
-            sx={{ borderRadius: 2.5, fontWeight: 600 }}
-          >
-            {t('productions:recipe.edit')}
-          </Button>
+          <Typography variant="caption" sx={{ color: '#64748b', px: 1 }}>
+            Haz clic en parametros, ingredientes o costos para editar.
+          </Typography>
         )}
-        <Button
-          variant="outlined"
-          startIcon={<Add />}
-          onClick={addNewIngredientRow}
-          disabled={updating}
-          sx={{ borderRadius: 2.5, fontWeight: 600 }}
-        >
-          {t('productions:recipe.addIngredient')}
-        </Button>
-        {onEdit && recipe && !isEditing && (
-          <Button
-            variant="text"
-            onClick={() => onEdit(recipe)}
-            disabled={updating}
-            sx={{ borderRadius: 2.5, fontWeight: 600 }}
-          >
-            {t('productions:recipe.openEditor')}
-          </Button>
-        )}
-        {onCreateOrder && recipe && (
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={openOrderPrompt}
-            disabled={updating}
-            sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
-          >
-            {t('productions:recipe.newOrder')}
-          </Button>
-        )}
-        <Button onClick={onClose} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>{t('productions:recipe.close')}</Button>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', marginLeft: 'auto' }}>
+          {onCreateOrder && recipe && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={openOrderPrompt}
+              disabled={updating}
+              sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
+            >
+              {t('productions:recipe.newOrder')}
+            </Button>
+          )}
+          <Button onClick={onClose} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>{t('productions:recipe.close')}</Button>
+        </Box>
       </DialogActions>
 
       <Dialog open={orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>

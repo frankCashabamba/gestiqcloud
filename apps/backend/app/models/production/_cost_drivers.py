@@ -25,14 +25,14 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.config.database import Base
+from app.config.database import Base, schema_column, schema_table_args
 
 
 class CostDriverUnitType(Base):
     """Catalog of unit types for cost drivers (hour, kwh, unit, flat, etc.)."""
 
     __tablename__ = "cost_driver_unit_types"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -58,7 +58,7 @@ class ProductionCostDriver(Base):
     """Catalog of indirect cost types per tenant."""
 
     __tablename__ = "production_cost_drivers"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -71,6 +71,9 @@ class ProductionCostDriver(Base):
     )
     default_rate: Mapped[Decimal] = mapped_column(
         Numeric(12, 4), nullable=False, default=0, comment="Default cost per unit"
+    )
+    consumption_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 4), nullable=True, comment="Auto-calc rate (e.g. L/hr for diesel, kWh/hr for electricity)"
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -88,7 +91,7 @@ class RecipeCostLine(Base):
     """Standard indirect cost line for a recipe."""
 
     __tablename__ = "recipe_cost_lines"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -101,7 +104,7 @@ class RecipeCostLine(Base):
     )
     driver_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("production_cost_drivers.id", ondelete="RESTRICT"),
+        ForeignKey(schema_column("production_cost_drivers"), ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
@@ -131,20 +134,20 @@ class ProductionOrderCost(Base):
     """Actual indirect cost recorded for a production batch."""
 
     __tablename__ = "production_order_costs"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     order_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("production_orders.id", ondelete="CASCADE"),
+        ForeignKey(schema_column("production_orders"), ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     driver_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("production_cost_drivers.id", ondelete="RESTRICT"),
+        ForeignKey(schema_column("production_cost_drivers"), ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )

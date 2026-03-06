@@ -3,10 +3,10 @@ Recipe Calculator - Servicio de cálculo de costos y producción
 Calcula costos de recetas y materiales necesarios para producción
 """
 
+import math
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.company.company_settings import CompanySettings
@@ -504,43 +504,77 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
     if not recipe:
         raise ValueError(f"Receta no encontrada: {recipe_id}")
 
-    # Calcular batches
-    batches_required = qty_to_produce / recipe.yield_qty
+    ingredientes_receta = (
+        db.query(RecipeIngredient)
+        .filter(RecipeIngredient.recipe_id == recipe_id)
+        .order_by(RecipeIngredient.line_order.asc(), RecipeIngredient.created_at.asc())
+        .all()
+    )
 
-    # Usar función PostgreSQL
-    result = db.execute(
-        text("SELECT * FROM calculate_production_materials(:recipe_id, :qty)"),
-        {"recipe_id": str(recipe_id), "qty": qty_to_produce},
-    ).fetchall()
+    # Calcular batches
+    yield_qty = Decimal(str(recipe.yield_qty or 0))
+    if yield_qty <= 0:
+        raise ValueError(f"Receta con rendimiento inválido: {recipe_id}")
+    batches_required = Decimal(str(qty_to_produce)) / yield_qty
 
     ingredientes = []
-    costo_total = 0.0
+    costo_total = Decimal("0")
 
-    for row in result:
+    for ing in ingredientes_receta:
+        qty_base = Decimal(str(ing.qty or 0))
+        qty_per_package = Decimal(str(ing.qty_per_package or 0))
+        package_cost = Decimal(str(ing.package_cost or 0))
+
+        if qty_base <= 0:
+            continue
+
+        required_qty = (qty_base * batches_required).quantize(Decimal("0.0001"))
+        if required_qty <= 0:
+            continue
+
+        packages_required = 0
+        if qty_per_package > 0:
+            packages_required = math.ceil(float(required_qty / qty_per_package))
+
+        # Costo proporcional (consumo real), no redondeado a paquetes enteros
+        if qty_per_package > 0 and package_cost > 0:
+            estimated_cost = (required_qty * package_cost / qty_per_package).quantize(Decimal("0.0001"))
+        elif qty_per_package <= 0:
+            ingredient_cost = Decimal(str(getattr(ing, "ingredient_cost", 0) or 0))
+            unit_cost = (ingredient_cost / qty_base) if qty_base > 0 and ingredient_cost > 0 else Decimal("0")
+            estimated_cost = (required_qty * unit_cost).quantize(Decimal("0.0001"))
+        else:
+            estimated_cost = Decimal("0")
+
+        product = db.query(Product).filter(Product.id == ing.product_id).first()
+        package_label = ing.purchase_packaging or (
+            f"{float(qty_per_package):g} {ing.package_unit}" if qty_per_package > 0 and ing.package_unit else "-"
+        )
+
         ingredientes.append(
             {
-                "product_id": str(row.producto_id),
-                "product": row.producto_nombre,
-                "required_qty": float(row.qty_necesaria),
-                "unit": row.unidad_medida,
-                "packages_required": int(row.presentaciones_necesarias),
-                "purchase_packaging": row.presentacion_compra,
-                "estimated_cost": float(row.costo_estimado),
+                "producto_id": str(ing.product_id),
+                "producto": product.name if product else "Unknown",
+                "qty_necesaria": round(float(required_qty), 4),
+                "unidad": ing.unit,
+                "presentaciones_necesarias": packages_required,
+                "presentacion_compra": package_label,
+                "costo_estimado": round(float(estimated_cost), 4),
             }
         )
-        costo_total += float(row.costo_estimado)
+        costo_total += estimated_cost
 
     return {
         "recipe": {
             "id": str(recipe.id),
             "name": recipe.name,
-            "yield_qty": recipe.yield_qty,
+            "rendimiento": recipe.yield_qty,
         },
         "qty_to_produce": qty_to_produce,
-        "batches_required": round(batches_required, 2),
-        "ingredients": ingredientes,
-        "total_production_cost": round(costo_total, 2),
-        "unit_cost": round(costo_total / qty_to_produce, 4) if qty_to_produce > 0 else 0,
+        "batches_required": round(float(batches_required), 2),
+        "ingredientes": ingredientes,
+        "costo_total_produccion": round(float(costo_total), 2),
+        "costo_por_unidad": round(float(costo_total / Decimal(str(qty_to_produce))), 4) if qty_to_produce > 0 else 0,
     }
 
 
@@ -621,19 +655,19 @@ def create_purchase_order_from_recipe(
 
     # Preparar líneas de orden de compra
     purchase_lines = []
-    for ing in calculation["ingredients"]:
+    for ing in calculation["ingredientes"]:
         purchase_lines.append(
             {
-                "product_id": ing["product_id"],
-                "product_name": ing["product"],
-                "qty": ing["packages_required"],
+                "product_id": ing["producto_id"],
+                "product_name": ing["producto"],
+                "qty": ing["presentaciones_necesarias"],
                 "unit": "package",  # Comprar por presentación completa
                 "precio_estimado": (
-                    ing["estimated_cost"] / ing["packages_required"]
-                    if ing["packages_required"] > 0
+                    ing["costo_estimado"] / ing["presentaciones_necesarias"]
+                    if ing["presentaciones_necesarias"] > 0
                     else 0
                 ),
-                "total": ing["estimated_cost"],
+                "total": ing["costo_estimado"],
                 "notes": f"To produce {qty_to_produce} {calculation['recipe']['name']}",
             }
         )
@@ -643,7 +677,7 @@ def create_purchase_order_from_recipe(
         "recipe_name": calculation["recipe"]["name"],
         "qty_to_produce": qty_to_produce,
         "supplier_id": str(supplier_id) if supplier_id else None,
-        "estimated_total": calculation["total_production_cost"],
+        "estimated_total": calculation["costo_total_produccion"],
         "lines": purchase_lines,
         "metadata": {
             "batches_required": calculation["batches_required"],

@@ -24,18 +24,20 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import func, select, text
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
-from app.config.database import get_db
+from app.config.database import IS_SQLITE, PG_SCHEMA_NAME, get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
+from app.models.inventory.warehouse import Warehouse
 from app.models.production._cost_drivers import (
     CostDriverUnitType,
     ProductionCostDriver,
+    ProductionOrderCost,
     RecipeCostLine,
 )
 from app.models.production._cost_periods import CostPeriod
@@ -65,6 +67,8 @@ from app.schemas.production_costs import (
     CostDriverCreate,
     CostDriverResponse,
     CostDriverUpdate,
+    OrderCostCreate,
+    OrderCostResponse,
     RecipeCostLineCreate,
     RecipeCostLineResponse,
     RecipeCostLineUpdate,
@@ -114,6 +118,180 @@ logger = logging.getLogger(__name__)
 
 
 # HELPERS
+def _ensure_order_costs_indexes_and_rls(db: Session) -> None:
+    if IS_SQLITE:
+        return
+
+    full_table_name = f"{PG_SCHEMA_NAME}.production_order_costs"
+    inspector = inspect(db.bind)
+    indexes = inspector.get_indexes("production_order_costs", schema=PG_SCHEMA_NAME)
+    indexed_columns = {tuple(index.get("column_names") or []) for index in indexes}
+
+    if ("order_id",) not in indexed_columns:
+        db.execute(
+            text(
+                f"""
+                CREATE INDEX IF NOT EXISTS idx_prod_order_costs_order
+                ON {full_table_name} (order_id)
+                """
+            )
+        )
+    if ("driver_id",) not in indexed_columns:
+        db.execute(
+            text(
+                f"""
+                CREATE INDEX IF NOT EXISTS idx_prod_order_costs_driver
+                ON {full_table_name} (driver_id)
+                """
+            )
+        )
+    db.execute(text(f"ALTER TABLE {full_table_name} ENABLE ROW LEVEL SECURITY"))
+    db.execute(
+        text(
+            f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_policies
+                    WHERE schemaname = '{PG_SCHEMA_NAME}'
+                      AND tablename = 'production_order_costs'
+                      AND policyname = 'production_order_costs_tenant_policy'
+                ) THEN
+                    CREATE POLICY production_order_costs_tenant_policy
+                    ON {full_table_name}
+                    USING (
+                        EXISTS (
+                            SELECT 1
+                            FROM {PG_SCHEMA_NAME}.production_orders po
+                            WHERE po.id = order_id
+                              AND po.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+                        )
+                    )
+                    WITH CHECK (
+                        EXISTS (
+                            SELECT 1
+                            FROM {PG_SCHEMA_NAME}.production_orders po
+                            WHERE po.id = order_id
+                              AND po.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+                        )
+                    );
+                END IF;
+            END
+            $$;
+            """
+        )
+    )
+
+
+def _order_costs_storage_available(db: Session) -> bool:
+    cached = db.info.get("production_order_costs_available")
+    if cached is not None:
+        return bool(cached)
+    try:
+        inspector = inspect(db.bind)
+        schema = None if IS_SQLITE else PG_SCHEMA_NAME
+        available = inspector.has_table("production_order_costs", schema=schema)
+        if not available:
+            has_orders = inspector.has_table("production_orders", schema=schema)
+            has_drivers = inspector.has_table("production_cost_drivers", schema=schema)
+            if has_orders and has_drivers:
+                ProductionOrderCost.__table__.create(bind=db.bind, checkfirst=True)
+                inspector = inspect(db.bind)
+                available = inspector.has_table("production_order_costs", schema=schema)
+                if available:
+                    logger.warning(
+                        "Auto-created missing production_order_costs table. "
+                        "Apply Alembic migration 016_production_order_costs to persist the schema history."
+                    )
+            else:
+                logger.warning(
+                    "production_order_costs table is missing and cannot be auto-created "
+                    "(production_orders=%s, production_cost_drivers=%s)",
+                    has_orders,
+                    has_drivers,
+                )
+
+        if available:
+            _ensure_order_costs_indexes_and_rls(db)
+    except Exception:
+        logger.exception("Could not ensure production_order_costs storage")
+        db.rollback()
+        available = False
+    db.info["production_order_costs_available"] = available
+    return available
+
+
+def _serialize_order_cost(cost: ProductionOrderCost) -> OrderCostResponse:
+    driver = cost.driver
+    return OrderCostResponse(
+        id=cost.id,
+        order_id=cost.order_id,
+        driver_id=cost.driver_id,
+        qty_actual=cost.qty_actual,
+        headcount_actual=cost.headcount_actual,
+        rate_applied=cost.rate_applied,
+        notes=cost.notes,
+        cost_total=cost.cost_total,
+        created_at=cost.created_at,
+        driver_code=driver.code if driver else None,
+        driver_name=driver.name if driver else None,
+        driver_unit=driver.unit if driver else None,
+    )
+
+
+def _seed_default_order_costs(db: Session, order: ProductionOrder) -> None:
+    if not _order_costs_storage_available(db):
+        return
+
+    existing_cost = (
+        db.query(ProductionOrderCost)
+        .filter(ProductionOrderCost.order_id == order.id)
+        .first()
+    )
+    if existing_cost:
+        return
+
+    recipe = db.execute(select(Recipe).where(Recipe.id == order.recipe_id)).scalar_one_or_none()
+    if not recipe:
+        return
+
+    yield_qty = Decimal(str(recipe.yield_qty or 0))
+    qty_source = Decimal(str(order.qty_produced or order.qty_planned or 0))
+    if yield_qty <= 0 or qty_source <= 0:
+        return
+
+    scale_factor = qty_source / yield_qty
+    if scale_factor <= 0:
+        return
+
+    try:
+        full_cost = calculate_recipe_full_cost(db, order.recipe_id)
+    except Exception:
+        logger.exception("Could not preload default order costs for order %s", order.id)
+        return
+
+    for line in full_cost.get("cost_lines", []) or []:
+        driver_id = line.get("driver_id")
+        if not driver_id:
+            continue
+        qty_actual = Decimal(str(line.get("qty_standard") or 0)) * scale_factor
+        rate_applied = Decimal(str(line.get("effective_rate") or line.get("driver_default_rate") or 0))
+        headcount_actual = int(line.get("headcount") or 1)
+        if qty_actual <= 0 and rate_applied <= 0:
+            continue
+        db.add(
+            ProductionOrderCost(
+                order_id=order.id,
+                driver_id=UUID(str(driver_id)),
+                qty_actual=qty_actual.quantize(Decimal("0.0001")),
+                headcount_actual=max(headcount_actual, 1),
+                rate_applied=rate_applied.quantize(Decimal("0.0001")),
+                notes=line.get("notes") or "Auto-cargado desde costos de la receta",
+            )
+        )
+
+
 def _generate_next_numero(db: Session, tenant_id: UUID) -> str:
     year = datetime.utcnow().year
     prefix = f"OP-{year}-"
@@ -254,6 +432,7 @@ async def _create_stock_move_for_output(
 def _resolve_warehouse_id(db: Session, tenant_id: UUID, preferred: UUID | None = None) -> UUID:
     if preferred:
         return preferred
+    # Try to find from stock items first
     stmt = (
         select(StockItem.warehouse_id)
         .where(StockItem.tenant_id == tenant_id)
@@ -261,12 +440,22 @@ def _resolve_warehouse_id(db: Session, tenant_id: UUID, preferred: UUID | None =
         .limit(1)
     )
     warehouse_id = db.execute(stmt).scalar_one_or_none()
+    if warehouse_id:
+        return warehouse_id
+    # Fallback: find any active warehouse for this tenant
+    wh_stmt = (
+        select(Warehouse.id)
+        .where(Warehouse.tenant_id == str(tenant_id), Warehouse.is_active.is_(True))
+        .order_by(Warehouse.id.asc())
+        .limit(1)
+    )
+    warehouse_id = db.execute(wh_stmt).scalar_one_or_none()
     if not warehouse_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="no_warehouse_available",
         )
-    return warehouse_id
+    return UUID(str(warehouse_id))
 
 
 def _create_expense_for_completed_production(
@@ -326,6 +515,15 @@ def _create_expense_for_completed_production(
             line.ingredient_product_id, Decimal(str(line.cost_unit or 0))
         )
         total_cost += qty * unit_cost
+
+    if _order_costs_storage_available(db):
+        order_costs = (
+            db.query(ProductionOrderCost)
+            .filter(ProductionOrderCost.order_id == order.id)
+            .all()
+        )
+        for cost in order_costs:
+            total_cost += Decimal(str(cost.cost_total or 0))
 
     qty = Decimal(str(order.qty_produced or 0))
     concept = f"Production cost - {recipe_name} ({qty})"
@@ -491,6 +689,112 @@ async def create_production_order(
     return order
 
 
+@router.get("/orders/{order_id}/costs", response_model=list[OrderCostResponse])
+def list_order_costs(
+    order_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    order = db.execute(
+        select(ProductionOrder).where(
+            ProductionOrder.id == order_id,
+            ProductionOrder.tenant_id == tenant_id,
+        )
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
+    if not _order_costs_storage_available(db):
+        return []
+
+    costs = (
+        db.query(ProductionOrderCost)
+        .filter(ProductionOrderCost.order_id == order.id)
+        .order_by(ProductionOrderCost.created_at.asc())
+        .all()
+    )
+    return [_serialize_order_cost(cost) for cost in costs]
+
+
+@router.put("/orders/{order_id}/costs", response_model=list[OrderCostResponse])
+def replace_order_costs(
+    order_id: UUID,
+    items: list[OrderCostCreate] = Body(default=[]),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    order = db.execute(
+        select(ProductionOrder).where(
+            ProductionOrder.id == order_id,
+            ProductionOrder.tenant_id == tenant_id,
+        )
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
+    if order.status == "COMPLETED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pueden editar costos de una orden completada",
+        )
+    if order.status == "CANCELLED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pueden editar costos de una orden cancelada",
+        )
+    if not _order_costs_storage_available(db):
+        return []
+
+    driver_ids = {item.driver_id for item in items}
+    if driver_ids:
+        valid_driver_ids = {
+            row[0]
+            for row in db.execute(
+                select(ProductionCostDriver.id).where(
+                    ProductionCostDriver.tenant_id == tenant_id,
+                    ProductionCostDriver.id.in_(driver_ids),
+                )
+            ).all()
+        }
+        missing = driver_ids - valid_driver_ids
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uno o más gastos usan drivers no válidos para este tenant",
+            )
+
+    (
+        db.query(ProductionOrderCost)
+        .filter(ProductionOrderCost.order_id == order.id)
+        .delete(synchronize_session=False)
+    )
+
+    for item in items:
+        db.add(
+            ProductionOrderCost(
+                order_id=order.id,
+                driver_id=item.driver_id,
+                qty_actual=item.qty_actual,
+                headcount_actual=item.headcount_actual,
+                rate_applied=item.rate_applied,
+                notes=item.notes,
+            )
+        )
+
+    db.commit()
+    costs = (
+        db.query(ProductionOrderCost)
+        .filter(ProductionOrderCost.order_id == order.id)
+        .order_by(ProductionOrderCost.created_at.asc())
+        .all()
+    )
+    return [_serialize_order_cost(cost) for cost in costs]
+
+
 @router.get("/orders/{order_id}", response_model=ProductionOrderResponse)
 async def get_production_order(
     order_id: UUID,
@@ -623,7 +927,10 @@ async def complete_production(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
         )
-    if order.status != "IN_PROGRESS":
+    if order.status in ["DRAFT", "SCHEDULED"]:
+        order.started_at = order.started_at or request.completed_at or datetime.utcnow()
+        order.status = "IN_PROGRESS"
+    elif order.status != "IN_PROGRESS":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Solo se pueden completar órdenes en estado IN_PROGRESS (actual: {order.status})",
@@ -646,6 +953,7 @@ async def complete_production(
         await _create_stock_moves_for_ingredients(db, order, warehouse_id)
         await _create_stock_move_for_output(db, order, warehouse_id)
         try:
+            _seed_default_order_costs(db, order)
             _create_expense_for_completed_production(db, order, tenant_id, user_id)
         except Exception as expense_exc:
             # Do not block production completion if expense posting fails.
@@ -1396,6 +1704,7 @@ def list_recipe_cost_lines(
                 driver_name=d.name if d else None,
                 driver_unit=d.unit if d else None,
                 driver_default_rate=d.default_rate if d else None,
+                driver_consumption_rate=d.consumption_rate if d else None,
                 effective_rate=effective_rate,
                 line_cost=round(line_cost, 4),
             )
@@ -1441,6 +1750,7 @@ def add_recipe_cost_line(
         driver_name=d.name if d else None,
         driver_unit=d.unit if d else None,
         driver_default_rate=d.default_rate if d else None,
+        driver_consumption_rate=d.consumption_rate if d else None,
         effective_rate=effective_rate,
         line_cost=round(line_cost, 4),
     )
@@ -1484,6 +1794,7 @@ def update_recipe_cost_line(
         driver_name=d.name if d else None,
         driver_unit=d.unit if d else None,
         driver_default_rate=d.default_rate if d else None,
+        driver_consumption_rate=d.consumption_rate if d else None,
         effective_rate=effective_rate,
         line_cost=round(line_cost, 4),
     )

@@ -47,7 +47,9 @@
     "emptyDescription": "Crea tipos como roles de mano de obra, energía, empaque para rastrear costos indirectos.",
     "createFirst": "Crear primer tipo de costo",
     "namePlaceholder": "ej. Panadero",
-    "loading": "Cargando..."
+    "loading": "Cargando...",
+    "consumptionRate": "Consumo/hora",
+    "consumptionRateHint": "(L/hr o kWh/hr para cálculo automático desde tiempo de horno)"
   },
   "recipe": {
     "yield": "Rendimiento",
