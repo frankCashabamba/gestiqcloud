@@ -225,7 +225,7 @@ export default function UploadPage() {
             ref={folderRef}
             type="file"
             multiple
-            // @ts-ignore — webkitdirectory no está en los tipos estándar
+            // @ts-expect-error React no tipa el atributo no estandar `webkitdirectory`
             webkitdirectory=""
             onChange={onFolderChange}
             style={{ display: 'none' }}
