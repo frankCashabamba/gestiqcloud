@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 from app.config.database import IS_SQLITE, PG_SCHEMA_NAME, get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_guc_expr_text
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
@@ -123,6 +123,7 @@ def _ensure_order_costs_indexes_and_rls(db: Session) -> None:
         return
 
     full_table_name = f"{PG_SCHEMA_NAME}.production_order_costs"
+    tenant_expr = tenant_id_guc_expr_text()
     inspector = inspect(db.bind)
     indexes = inspector.get_indexes("production_order_costs", schema=PG_SCHEMA_NAME)
     indexed_columns = {tuple(index.get("column_names") or []) for index in indexes}
@@ -165,7 +166,7 @@ def _ensure_order_costs_indexes_and_rls(db: Session) -> None:
                             SELECT 1
                             FROM {PG_SCHEMA_NAME}.production_orders po
                             WHERE po.id = order_id
-                              AND po.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+                              AND po.tenant_id = {tenant_expr}
                         )
                     )
                     WITH CHECK (
@@ -173,7 +174,7 @@ def _ensure_order_costs_indexes_and_rls(db: Session) -> None:
                             SELECT 1
                             FROM {PG_SCHEMA_NAME}.production_orders po
                             WHERE po.id = order_id
-                              AND po.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+                              AND po.tenant_id = {tenant_expr}
                         )
                     );
                 END IF;

@@ -10,6 +10,7 @@ from app.config.database import get_db
 __all__ = [
     "ensure_rls",
     "tenant_id_sql_expr",
+    "tenant_id_guc_expr_text",
     "tenant_id_sql_expr_text",
     "tenant_id_from_request",
     "set_tenant_guc",
@@ -93,6 +94,16 @@ def tenant_id_sql_expr():
         stmt = select(Model).where(Model.tenant_id == tenant_id_sql_expr())
     """
     return literal_column("current_setting('app.tenant_id', true)::uuid").label("tenant_id")
+
+
+def tenant_id_guc_expr_text() -> str:
+    """
+    Devuelve un FRAGMENTO DE TEXTO SQL que lee el tenant solo desde la GUC.
+
+    Úsalo en DDL/políticas RLS, donde no queremos introducir bind params
+    de fallback ni fijar un tenant concreto en tiempo de creación.
+    """
+    return "NULLIF(current_setting('app.tenant_id', true), '')::uuid"
 
 
 def tenant_id_sql_expr_text(param_name: str = "tid") -> str:
