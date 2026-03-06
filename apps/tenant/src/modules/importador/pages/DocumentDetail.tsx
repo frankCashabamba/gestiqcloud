@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SaveDocumentModal from '../components/SaveDocumentModal'
-import { canSaveDocument, fetchDocument, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import SaveProductsModal from '../components/SaveProductsModal'
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
 export default function DocumentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -16,8 +17,10 @@ export default function DocumentDetail() {
   const [syncing, setSyncing] = useState(false)
   const [syncingAll, setSyncingAll] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [saveProductsOpen, setSaveProductsOpen] = useState(false)
   const [savingDailyLog, setSavingDailyLog] = useState(false)
   const [dailyLogResult, setDailyLogResult] = useState<SaveDailyLogResult | null>(null)
+  const [saveProductsResult, setSaveProductsResult] = useState<SaveProductsFromDocumentResult | null>(null)
   const [error, setError] = useState('')
   const [rawSyncResult, setSyncResult] = useState<SyncRecipeResult | null>(null)
   const [batchSyncResult, setBatchSyncResult] = useState<SyncRecipesResult | null>(null)
@@ -187,6 +190,37 @@ export default function DocumentDetail() {
   const saveEnabled = canSaveDocument(doc)
   const saveDestination = suggestSaveDestination(doc)
   const docCategory = getDocCategory(doc, sheets)
+  const activeSheetRows = (() => {
+    if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
+      return filasPorHoja[activeSheet]
+    }
+    return Array.isArray(datos.filas) ? (datos.filas as Record<string, unknown>[]) : []
+  })()
+  const activeNormKeys: string[] = (() => {
+    if (
+      activeSheet &&
+      activeSheet === (datos.sheet_usada as string) &&
+      Array.isArray(datos.columnas_norm) &&
+      (datos.columnas_norm as string[]).length > 0
+    ) {
+      return datos.columnas_norm as string[]
+    }
+    return activeSheetRows.length > 0
+      ? Object.keys(activeSheetRows[0]).filter(key => key !== '_sheet')
+      : []
+  })()
+  const activeDisplayNames: string[] = (() => {
+    if (
+      activeSheet &&
+      activeSheet === (datos.sheet_usada as string) &&
+      Array.isArray(datos.columnas)
+    ) {
+      return datos.columnas as string[]
+    }
+    return activeNormKeys
+  })()
+  const canSaveProducts = activeSheetRows.length > 0
+    && canSaveProductsSheet(docCategory, activeSheet, activeNormKeys)
   const rawAi = (doc.raw_ai_json || {}) as Record<string, unknown>
   const rawRun = ((rawAi.run as Record<string, unknown> | undefined) || {})
   const rawRecipeResolution = ((rawRun.recipe_resolution as Record<string, unknown> | undefined) || {})
@@ -204,6 +238,11 @@ export default function DocumentDetail() {
   } as Record<string, string>)[aiModeKey] || aiModeKey
 
   const handleSaved = (_result: SaveDocumentResult) => {
+    void load()
+  }
+
+  const handleProductsSaved = (result: SaveProductsFromDocumentResult) => {
+    setSaveProductsResult(result)
     void load()
   }
 
@@ -279,6 +318,30 @@ export default function DocumentDetail() {
         </div>
       )}
 
+      {saveProductsResult && (
+        <div style={{ padding: '0.75rem', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <strong style={{ color: '#047857' }}>Productos guardados</strong>
+            <span style={{ marginLeft: 12, color: '#374151' }}>
+              {saveProductsResult.created} creados · {saveProductsResult.skipped_existing} omitidos por existentes · {saveProductsResult.skipped_invalid} omitidos por invalidos
+            </span>
+            {(saveProductsResult.sheet_name || saveProductsResult.category_name) && (
+              <div style={{ marginTop: 4, fontSize: 12, color: '#065f46' }}>
+                {saveProductsResult.sheet_name ? `Hoja: ${saveProductsResult.sheet_name}` : ''}
+                {saveProductsResult.sheet_name && saveProductsResult.category_name ? ' · ' : ''}
+                {saveProductsResult.category_name ? `Categoria: ${saveProductsResult.category_name}` : ''}
+              </div>
+            )}
+            {saveProductsResult.skipped_names.length > 0 && (
+              <div style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
+                Ya existentes: {saveProductsResult.skipped_names.join(', ')}
+              </div>
+            )}
+          </div>
+          <button onClick={() => setSaveProductsResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>x</button>
+        </div>
+      )}
+
       {isSynced && !syncResult && !batchSyncResult && (
         <div style={{ padding: '0.6rem 0.9rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#1e40af' }}>
           {t('docDetail.alreadySynced', { count: syncedCount })}
@@ -296,6 +359,12 @@ export default function DocumentDetail() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {canSaveProducts && (
+            <button onClick={() => setSaveProductsOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
+              Guardar productos
+            </button>
+          )}
+
           {/* DAILY LOG */}
           {docCategory === 'daily_log' && (
             <>
@@ -420,24 +489,9 @@ export default function DocumentDetail() {
             {datos.filas && Array.isArray(datos.filas) ? (
               // Vista de tabla para INVENTARIO, NOMINA, COSTEO, etc.
               (() => {
-                const pickRows = () => {
-                  if (activeSheet && filasPorHoja[activeSheet]) return filasPorHoja[activeSheet]
-                  return datos.filas as Record<string, unknown>[]
-                }
-                const allRows = pickRows()
-
-                // columnas_norm = claves reales de los dicts de filas (ej: "precio_unitario_venta")
-                // columnas      = nombres display para la UI (ej: "PRECIO UNITARIO VENTA")
-                const normKeys: string[] = (() => {
-                  if (activeSheet && activeSheet === (datos.sheet_usada as string) && Array.isArray(datos.columnas_norm) && (datos.columnas_norm as string[]).length > 0) {
-                    return datos.columnas_norm as string[]
-                  }
-                  return allRows.length > 0 ? Object.keys(allRows[0]).filter(k => k !== '_sheet') : []
-                })()
-                const displayNames: string[] = (() => {
-                  if (activeSheet && activeSheet === (datos.sheet_usada as string) && Array.isArray(datos.columnas)) return datos.columnas as string[]
-                  return normKeys
-                })()
+                const allRows = activeSheetRows
+                const normKeys = activeNormKeys
+                const displayNames = activeDisplayNames
                 // Filtrar columnas que no tienen ningún dato real en las primeras 30 filas
                 const visibleIdxs = normKeys.reduce<number[]>((acc, key, i) => {
                   const vals = allRows.slice(0, 30).map(r => r[key])
@@ -664,6 +718,16 @@ export default function DocumentDetail() {
         open={saveModalOpen}
         onClose={() => setSaveModalOpen(false)}
         onSaved={handleSaved}
+      />
+      <SaveProductsModal
+        doc={doc}
+        open={saveProductsOpen}
+        onClose={() => setSaveProductsOpen(false)}
+        onSaved={handleProductsSaved}
+        sheetName={activeSheet}
+        rows={activeSheetRows}
+        columnKeys={activeNormKeys}
+        columnLabels={activeDisplayNames}
       />
     </div>
   )

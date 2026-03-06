@@ -71,6 +71,39 @@ def _has_explicit_recipe_context(
     return bool(recipe_id or recipe_snapshot_id or (recipe_draft_json and str(recipe_draft_json).strip()))
 
 
+def _pick_analysis_value(analysis: dict[str, object], *keys: str) -> object | None:
+    for key in keys:
+        value = analysis.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _normalize_analysis_output(analysis: dict[str, object]) -> dict[str, object]:
+    """Accept both the canonical English analyzer contract and legacy Spanish keys."""
+    raw_doc_type = _pick_analysis_value(analysis, "doc_type", "tipo_documento")
+    doc_type = str(raw_doc_type or "OTHER").strip().upper() or "OTHER"
+
+    raw_confidence = _pick_analysis_value(analysis, "confidence", "confianza")
+    try:
+        confidence = float(raw_confidence if raw_confidence is not None else 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    raw_reasoning = _pick_analysis_value(analysis, "reasoning", "razonamiento")
+    reasoning = str(raw_reasoning or "").strip()
+
+    raw_fields = _pick_analysis_value(analysis, "fields", "campos")
+    fields = raw_fields if isinstance(raw_fields, dict) else {}
+
+    return {
+        "doc_type": doc_type,
+        "confidence": confidence,
+        "reasoning": reasoning,
+        "fields": fields,
+    }
+
+
 # =====================================================================
 #  POST /run  — Core processing endpoint (RB-01: never requires recipe)
 # =====================================================================
@@ -277,9 +310,12 @@ async def run_import(
                 has_structured_rows=has_structured,
                 recipe_config=local_recipe_config,
             )
+            normalized_analysis = _normalize_analysis_output(analysis)
 
-            tipo_doc = analysis.get("tipo_documento", "OTRO")
-            confianza = float(analysis.get("confianza", 0.0))
+            tipo_doc = str(normalized_analysis["doc_type"])
+            confianza = float(normalized_analysis["confidence"])
+            razonamiento = str(normalized_analysis["reasoning"])
+            analysis_fields = normalized_analysis["fields"]
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
 
             extraction_raw = {
@@ -346,12 +382,12 @@ async def run_import(
                     datos_extraidos["filas_por_hoja_count"] = filas_count
             else:
                 # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
-                datos_extraidos = analysis.get("campos") or {}
+                datos_extraidos = analysis_fields or {}
 
             # Para PDF/XML/imagen/TXT: crear fingerprint post-extracción para futuros imports similares
             auto_recipe_created = local_auto_created
             auto_recipe_name: str | None = local_auto_name
-            if not sheet_profiles and tipo_doc != "OTRO":
+            if not sheet_profiles and tipo_doc != "OTHER":
                 auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = resolve_auto_recipe_from_text(
                     db, tenant_id, tipo_doc, datos_extraidos,
                     extraction.get("format", tipo_archivo),
@@ -384,7 +420,7 @@ async def run_import(
                     "parsed": {
                         "tipo_documento": tipo_doc,
                         "confianza": confianza,
-                        "razonamiento": analysis.get("razonamiento", ""),
+                        "razonamiento": razonamiento,
                         "es_tabla": has_structured,
                     },
                     "campos_extraidos": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else [],

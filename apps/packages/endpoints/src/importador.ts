@@ -5,6 +5,7 @@ export const TENANT_IMPORTADOR = {
   documentById: (id: string) => `/api/v1/importador/documents/${id}`,
   confirm: (id: string) => `/api/v1/importador/documents/${id}/confirm`,
   save: (id: string) => `/api/v1/importador/documents/${id}/save`,
+  saveProducts: (id: string) => `/api/v1/importador/documents/${id}/save-as-products`,
   syncRecipe: (id: string) => `/api/v1/importador/documents/${id}/sync_recipe`,
   syncRecipes: (id: string) => `/api/v1/importador/documents/${id}/sync_recipes`,
   edit: (id: string) => `/api/v1/importador/documents/${id}/edit`,

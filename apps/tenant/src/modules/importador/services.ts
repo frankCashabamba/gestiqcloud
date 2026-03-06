@@ -303,11 +303,100 @@ function _matchesAny(tipo: string, keywords: string[]): boolean {
   return keywords.some(kw => tipo.includes(kw))
 }
 
+function _normalizeLoose(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function _matchesLooseKeyword(value: string, keywords: string[]): boolean {
+  return keywords.some((keyword) => value === keyword || value.includes(keyword))
+}
+
+const _productSheetKeywords = [
+  'product',
+  'producto',
+  'productos',
+  'catalog',
+  'catalogo',
+  'inventory',
+  'inventario',
+  'stock',
+  'price list',
+  'lista precios',
+]
+
+const _productNameKeywords = [
+  'producto',
+  'product',
+  'nombre',
+  'articulo',
+  'item',
+  'descripcion',
+  'description',
+  'denominacion',
+]
+
+const _productPriceKeywords = [
+  'precio',
+  'price',
+  'pvp',
+  'precio unitario',
+  'precio venta',
+  'sale price',
+  'unit price',
+  'valor',
+]
+
+const _productStockKeywords = [
+  'stock',
+  'existencia',
+  'inventario',
+  'disponible',
+  'saldo',
+  'cantidad stock',
+]
+
+const _productCostKeywords = [
+  'costo',
+  'cost',
+  'compra',
+  'purchase',
+]
+
+const _productSkuKeywords = [
+  'sku',
+  'codigo',
+  'code',
+  'barcode',
+  'ean',
+  'referencia',
+  'ref',
+]
+
+const _productCategoryKeywords = [
+  'categoria',
+  'category',
+  'familia',
+  'grupo',
+  'linea',
+]
+
 export function getDocCategory(
   doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>,
   sheets: string[],
 ): DocCategory {
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
+  if (
+    tipo.includes('PRODUCTS')
+    || tipo.includes('PRODUCTOS')
+    || tipo.includes('PRODUCT_LIST')
+    || tipo.includes('CATALOG')
+    || tipo.includes('CATALOGO')
+  ) return 'inventory'
   if (sheets.some(s => s.toLowerCase() === 'registro')) return 'daily_log'
   // Keyword substring match against the DB-driven map (works for any free-form AI label)
   if (_matchesAny(tipo, _categoryKeywords.recipe    ?? [])) return 'recipe'
@@ -327,6 +416,32 @@ export function canSaveDocument(doc: Pick<Documento, 'tipo_documento_detectado' 
   return !_matchesAny(tipo, _categoryKeywords.inventory ?? [])
     && !_matchesAny(tipo, _categoryKeywords.bank     ?? [])
     && !_matchesAny(tipo, _categoryKeywords.payroll  ?? [])
+}
+
+export function canSaveProductsSheet(
+  docCategory: DocCategory,
+  sheetName: string | null,
+  columnKeys: string[],
+): boolean {
+  if (!columnKeys.length) return false
+  if (docCategory === 'bank' || docCategory === 'payroll' || docCategory === 'recipe') return false
+
+  const normalizedSheet = _normalizeLoose(String(sheetName || ''))
+  const normalizedKeys = columnKeys.map(_normalizeLoose).filter(Boolean)
+  if (!normalizedKeys.length) return false
+
+  const hasName = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productNameKeywords))
+  if (!hasName) return false
+
+  const hasSheetHint = _matchesLooseKeyword(normalizedSheet, _productSheetKeywords)
+  const hasPrice = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productPriceKeywords))
+  const hasStock = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productStockKeywords))
+  const hasCost = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productCostKeywords))
+  const hasSku = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSkuKeywords))
+  const hasCategory = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productCategoryKeywords))
+
+  if (docCategory === 'inventory') return hasName
+  return hasSheetHint || hasPrice || hasStock || hasCost || hasSku || hasCategory
 }
 
 export async function syncRecipe(id: string, sheet_usada?: string): Promise<SyncRecipeResult> {
@@ -499,6 +614,30 @@ export async function saveDailyLog(id: string, logDate?: string): Promise<SaveDa
   const body = logDate ? { log_date: logDate } : {}
   const { data } = await api.post(TENANT_IMPORTADOR.saveDailyLog(id), body)
   return data as SaveDailyLogResult
+}
+
+export type SaveProductsFromDocumentPayload = {
+  sheet_name?: string
+  row_indexes: number[]
+  category_name?: string
+}
+
+export type SaveProductsFromDocumentResult = {
+  sheet_name?: string
+  category_name?: string
+  created: number
+  skipped_existing: number
+  skipped_invalid: number
+  product_ids: string[]
+  skipped_names: string[]
+}
+
+export async function saveProductsFromDocument(
+  id: string,
+  payload: SaveProductsFromDocumentPayload,
+): Promise<SaveProductsFromDocumentResult> {
+  const { data } = await api.post(TENANT_IMPORTADOR.saveProducts(id), payload)
+  return data as SaveProductsFromDocumentResult
 }
 
 export async function purgeAllImportador(): Promise<{ deleted_total: number; tables: Record<string, number> }> {

@@ -21,6 +21,7 @@ from .document_fields import (
     get_data_value,
     safe_floatish,
 )
+from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 import hashlib
 import datetime
@@ -28,6 +29,7 @@ from .schemas import (
     ConfirmRequest, DashboardStats, DocumentoDetailOut, DocumentoListOut,
     DocumentoOut, EditFieldsRequest, LogCambioOut, SyncRecipeResponse, SyncRecipesResponse,
     SaveDocumentRequest, SaveDocumentResponse, SaveDailyLogRequest, SaveDailyLogResponse,
+    SaveProductsFromDocumentRequest, SaveProductsFromDocumentResponse,
     SyncRecipeSheetResponse, UploadResponse,
 )
 from pydantic import BaseModel
@@ -932,6 +934,92 @@ def reject_document(doc_id: UUID, request: Request, db: Session = Depends(get_db
     crud.add_log(db, doc.id, "REJECT", user_id)
     db.commit()
     return doc
+
+
+@router.post(
+    "/documents/{doc_id}/save-as-products",
+    response_model=SaveProductsFromDocumentResponse,
+    dependencies=protected,
+)
+def save_document_as_products(
+    doc_id: UUID,
+    body: SaveProductsFromDocumentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user_id = _user_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    data = _get_doc_import_data(doc)
+    candidates, resolved_sheet = build_product_candidates(
+        data,
+        sheet_name=body.sheet_name,
+        row_indexes=body.row_indexes,
+        default_category_name=body.category_name,
+    )
+    if not candidates:
+        raise HTTPException(
+            status_code=422,
+            detail="No se encontraron filas validas para crear productos.",
+        )
+
+    result = save_product_candidates(
+        db=db,
+        tenant_id=doc.tenant_id,
+        candidates=candidates,
+        source_document_id=doc_id,
+    )
+
+    save_meta = {
+        "destination": "products",
+        "target": "products",
+        "status": "created" if result["created"] > 0 else "skipped",
+        "record_ids": result["product_ids"],
+        "sheet_name": resolved_sheet,
+        "category_name": body.category_name,
+        "saved_at": datetime.datetime.utcnow().isoformat(),
+    }
+    confirmed = dict(data)
+    confirmed["_save"] = save_meta
+
+    crud.update_documento(
+        db,
+        doc,
+        {
+            "datos_confirmados": confirmed,
+            "estado": "CONFIRMED",
+            "tipo_documento_detectado": "PRODUCTS",
+            "confianza_clasificacion": 1.0,
+            "requiere_revision": False,
+        },
+    )
+    crud.add_log(
+        db,
+        doc.id,
+        "SAVE_PRODUCTS",
+        user_id,
+        {
+            **save_meta,
+            "created": result["created"],
+            "skipped_existing": result["skipped_existing"],
+            "skipped_invalid": result["skipped_invalid"],
+            "skipped_names": result["skipped_names"],
+            "selected_rows": body.row_indexes,
+        },
+    )
+    db.commit()
+
+    return SaveProductsFromDocumentResponse(
+        sheet_name=resolved_sheet,
+        category_name=body.category_name,
+        created=result["created"],
+        skipped_existing=result["skipped_existing"],
+        skipped_invalid=result["skipped_invalid"],
+        product_ids=result["product_ids"],
+        skipped_names=result["skipped_names"],
+    )
 
 
 @router.get("/documents/{doc_id}/logs", response_model=list[LogCambioOut], dependencies=protected)

@@ -146,6 +146,22 @@ class SaveDailyLogResponse(BaseModel):
     unmatched_products: list[str] = Field(default_factory=list)
 
 
+class SaveProductsFromDocumentRequest(BaseModel):
+    sheet_name: str | None = None
+    row_indexes: list[int] = Field(default_factory=list)
+    category_name: str | None = Field(default=None, max_length=200)
+
+
+class SaveProductsFromDocumentResponse(BaseModel):
+    sheet_name: str | None = None
+    category_name: str | None = None
+    created: int = 0
+    skipped_existing: int = 0
+    skipped_invalid: int = 0
+    product_ids: list[str] = Field(default_factory=list)
+    skipped_names: list[str] = Field(default_factory=list)
+
+
 # -----------  v1.3 Recipe / Run schemas  -----------
 
 
