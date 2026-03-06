@@ -86,6 +86,12 @@ def _recreate_sqlite_db_if_needed():
     """Ensure SQLite test database is clean before running tests."""
     db_url = os.environ.get("DATABASE_URL", "")
     if db_url.startswith("sqlite") and ":memory:" not in db_url:
+        try:
+            from app.config.database import engine
+
+            engine.dispose()
+        except Exception:
+            pass
         prefix = "sqlite:///"
         if db_url.startswith(prefix):
             path = db_url[len(prefix) :]
@@ -250,7 +256,6 @@ _ensure_test_env()
 def client() -> TestClient:
     from app.config.database import Base, engine
 
-    _recreate_sqlite_db_if_needed()
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
@@ -350,6 +355,18 @@ def db():
 def seed_sector_config(request):
     """Seed mínimo para sectores/templates cuando la BD de pruebas no tiene datos."""
     if request.node.get_closest_marker("no_db"):
+        yield
+        return
+    db_related_fixtures = {
+        "db",
+        "client",
+        "admin_login",
+        "superuser_factory",
+        "usuario_empresa_factory",
+        "tenant_with_data",
+        "tenant_minimal",
+    }
+    if not any(name in request.fixturenames for name in db_related_fixtures):
         yield
         return
     fspath = str(getattr(request.node, "fspath", "")).replace("\\", "/").lower()
@@ -515,27 +532,33 @@ def seed_sector_config(request):
         },
     }
 
+    dirty = False
+
     # Crear templates si faltan
     for code, cfg in sectors.items():
         existing_tpl = existing_templates.get(code)
+        desired_config = {"defaults": cfg["defaults"], "fields": cfg["fields"]}
         if not existing_tpl:
             tpl = SectorTemplate(
                 code=code,
                 name=cfg["name"],
                 description=f"Plantilla {cfg['name']}",
-                template_config={"defaults": cfg["defaults"], "fields": cfg["fields"]},
+                template_config=desired_config,
                 is_active=True,
             )
             db.add(tpl)
+            dirty = True
         else:
-            config = existing_tpl.template_config or {}
-            config["defaults"] = cfg["defaults"]
-            config["fields"] = cfg["fields"]
-            existing_tpl.template_config = config
-            flag_modified(existing_tpl, "template_config")
-            existing_tpl.is_active = True
+            if existing_tpl.template_config != desired_config:
+                existing_tpl.template_config = desired_config
+                flag_modified(existing_tpl, "template_config")
+                dirty = True
+            if existing_tpl.is_active is not True:
+                existing_tpl.is_active = True
+                dirty = True
 
-    db.flush()
+    if dirty:
+        db.flush()
 
     # Insertar sector_field_defaults si faltan
     for code, cfg in sectors.items():
@@ -564,7 +587,9 @@ def seed_sector_config(request):
                         help=field.get("help"),
                     )
                 )
-    db.commit()
+                dirty = True
+    if dirty:
+        db.commit()
     yield
 
 
