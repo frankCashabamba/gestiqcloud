@@ -6,6 +6,7 @@ Each row: field = category name (invoice/receipt/recipe/…), options = JSON arr
 Cache refreshes every 5 minutes. On DB failure falls back to a minimal hardcoded set
 so the system degrades gracefully without crashing.
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,12 +23,12 @@ _cache_ts: float = 0.0
 # Minimal emergency defaults — used only when DB is unreachable.
 # Add new categories via DB migration, not here.
 _BUILTIN_FALLBACK: dict[str, list[str]] = {
-    "invoice":   ["INVOICE", "FACTURA", "CREDIT_NOTE", "PURCHASE_ORDER", "QUOTE", "PROFORMA"],
-    "receipt":   ["RECEIPT", "TICKET", "RECIBO", "BOLETA", "VOUCHER"],
-    "recipe":    ["COSTING", "COSTEO", "RECIPE", "RECETA"],
+    "invoice": ["INVOICE", "FACTURA", "CREDIT_NOTE", "PURCHASE_ORDER", "QUOTE", "PROFORMA"],
+    "receipt": ["RECEIPT", "TICKET", "RECIBO", "BOLETA", "VOUCHER"],
+    "recipe": ["COSTING", "COSTEO", "RECIPE", "RECETA"],
     "inventory": ["INVENTORY", "INVENTARIO", "PRICE_LIST", "LISTA_PRECIOS", "STOCK"],
-    "bank":      ["BANK_STATEMENT", "EXTRACTO_BANCARIO", "BANK_MOVEMENTS", "MOVIMIENTOS_BANCARIOS"],
-    "payroll":   ["PAYROLL", "NOMINA", "PLANILLA"],
+    "bank": ["BANK_STATEMENT", "EXTRACTO_BANCARIO", "BANK_MOVEMENTS", "MOVIMIENTOS_BANCARIOS"],
+    "payroll": ["PAYROLL", "NOMINA", "PLANILLA"],
 }
 
 
@@ -41,6 +42,7 @@ def get_doc_categories(db: Any) -> dict[str, list[str]]:
 
     try:
         from app.models.core.ui_field_config import SectorFieldDefault
+
         rows = (
             db.query(SectorFieldDefault)
             .filter(

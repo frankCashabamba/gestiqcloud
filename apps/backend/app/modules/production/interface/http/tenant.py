@@ -255,9 +255,7 @@ def _seed_default_order_costs(db: Session, order: ProductionOrder) -> None:
         return
 
     existing_cost = (
-        db.query(ProductionOrderCost)
-        .filter(ProductionOrderCost.order_id == order.id)
-        .first()
+        db.query(ProductionOrderCost).filter(ProductionOrderCost.order_id == order.id).first()
     )
     if existing_cost:
         return
@@ -286,7 +284,9 @@ def _seed_default_order_costs(db: Session, order: ProductionOrder) -> None:
         if not driver_id:
             continue
         qty_actual = Decimal(str(line.get("qty_standard") or 0)) * scale_factor
-        rate_applied = Decimal(str(line.get("effective_rate") or line.get("driver_default_rate") or 0))
+        rate_applied = Decimal(
+            str(line.get("effective_rate") or line.get("driver_default_rate") or 0)
+        )
         headcount_actual = int(line.get("headcount") or 1)
         if qty_actual <= 0 and rate_applied <= 0:
             continue
@@ -528,9 +528,7 @@ def _create_expense_for_completed_production(
 
     if _order_costs_storage_available(db):
         order_costs = (
-            db.query(ProductionOrderCost)
-            .filter(ProductionOrderCost.order_id == order.id)
-            .all()
+            db.query(ProductionOrderCost).filter(ProductionOrderCost.order_id == order.id).all()
         )
         for cost in order_costs:
             total_cost += _resolve_order_cost_total(cost)
@@ -1158,13 +1156,20 @@ def create_recipe(
     tenant_id = UUID(claims["tenant_id"])
     # Verificar que product_id pertenece al tenant
     from app.models.core.products import Product as ProductModel
+
     if recipe_data.product_id:
-        product = db.query(ProductModel).filter(
-            ProductModel.id == recipe_data.product_id,
-            ProductModel.tenant_id == tenant_id,
-        ).first()
+        product = (
+            db.query(ProductModel)
+            .filter(
+                ProductModel.id == recipe_data.product_id,
+                ProductModel.tenant_id == tenant_id,
+            )
+            .first()
+        )
         if not product:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="product_not_found_or_unauthorized")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="product_not_found_or_unauthorized"
+            )
     recipe = Recipe(
         tenant_id=tenant_id,
         product_id=recipe_data.product_id,

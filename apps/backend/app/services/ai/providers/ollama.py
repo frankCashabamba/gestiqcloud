@@ -121,7 +121,7 @@ class OllamaProvider(BaseAIProvider):
                 error=f"No se puede conectar a Ollama: {str(e)}",
                 processing_time_ms=int((time.time() - start_time) * 1000),
             )
-        except httpx.ReadTimeout as e:
+        except httpx.ReadTimeout:
             logger.error(
                 "Ollama timeout tras %.0fs para modelo '%s' en %s",
                 self.request_timeout,

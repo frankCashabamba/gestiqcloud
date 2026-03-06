@@ -1,8 +1,11 @@
 """Pydantic schemas for Importador module."""
+
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -136,6 +139,7 @@ class SaveDocumentResponse(BaseModel):
 
 class SaveDailyLogRequest(BaseModel):
     """Permite sobreescribir la fecha si el usuario la corrige."""
+
     log_date: str | None = None  # ISO 8601 YYYY-MM-DD; si None se infiere del nombre de archivo
 
 

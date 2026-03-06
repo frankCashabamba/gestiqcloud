@@ -1,6 +1,7 @@
 """
 Service to import REGISTRO-like sheets as daily production history.
 """
+
 from __future__ import annotations
 
 import json
@@ -225,7 +226,11 @@ def _collect_column_stats(rows: list[dict[str, Any]]) -> dict[str, ColumnStats]:
         values = [row.get(key) for row in rows if row.get(key) not in (None, "")]
         non_empty = len(values)
         numeric_values = [num for value in values if (num := _to_float(value)) is not None]
-        string_values = [str(value).strip() for value in values if (num := _to_float(value)) is None and str(value).strip()]
+        string_values = [
+            str(value).strip()
+            for value in values
+            if (num := _to_float(value)) is None and str(value).strip()
+        ]
 
         integer_ratio = (
             sum(1 for value in numeric_values if float(value).is_integer()) / len(numeric_values)
@@ -233,13 +238,16 @@ def _collect_column_stats(rows: list[dict[str, Any]]) -> dict[str, ColumnStats]:
             else 0.0
         )
         decimal_ratio = (
-            sum(1 for value in numeric_values if not float(value).is_integer()) / len(numeric_values)
+            sum(1 for value in numeric_values if not float(value).is_integer())
+            / len(numeric_values)
             if numeric_values
             else 0.0
         )
         positive_values = [value for value in numeric_values if value > 0]
         median_positive = median(positive_values) if positive_values else 0.0
-        unique_base = string_values if string_values else [f"{value:.4f}" for value in numeric_values]
+        unique_base = (
+            string_values if string_values else [f"{value:.4f}" for value in numeric_values]
+        )
         unique_ratio = len(set(unique_base)) / len(unique_base) if unique_base else 0.0
 
         stats[key] = ColumnStats(
@@ -260,7 +268,12 @@ def _string_column_score(stat: ColumnStats) -> float:
     if stat.string_ratio < 0.5 or stat.non_empty < 2:
         return -1.0
     coverage = min(stat.non_empty / 25.0, 1.0)
-    return (stat.string_ratio * 3.0) + (stat.unique_ratio * 2.0) + coverage - (stat.numeric_ratio * 2.0)
+    return (
+        (stat.string_ratio * 3.0)
+        + (stat.unique_ratio * 2.0)
+        + coverage
+        - (stat.numeric_ratio * 2.0)
+    )
 
 
 def _price_column_score(stat: ColumnStats) -> float:
@@ -280,7 +293,9 @@ def _approx_equal(left: float, right: float, rel_tol: float = 0.03, abs_tol: flo
     return abs(left - right) / max(abs(right), 1.0) <= rel_tol
 
 
-def _pair_product_score(rows: list[dict[str, Any]], left_key: str, right_key: str, total_key: str) -> tuple[float, int]:
+def _pair_product_score(
+    rows: list[dict[str, Any]], left_key: str, right_key: str, total_key: str
+) -> tuple[float, int]:
     checks = 0
     hits = 0
     for row in rows:
@@ -342,7 +357,8 @@ def _pick_qty_produced_key(
     price_key: str | None,
 ) -> str | None:
     candidates = [
-        key for key, stat in stats.items()
+        key
+        for key, stat in stats.items()
         if stat.numeric_ratio >= 0.6 and stat.non_empty >= 2 and key != price_key
     ]
     if not candidates:
@@ -354,9 +370,15 @@ def _pick_qty_produced_key(
         stat = stats[key]
         score = min(stat.non_empty / 25.0, 1.0) + stat.integer_ratio
         if sold_key:
-            score += _comparison_ratio(rows, key, sold_key, lambda left, right: left + 0.01 >= right)
-            score += 0.75 * _comparison_ratio(rows, key, sold_key, lambda left, right: left > right + 0.01)
-            score += 0.25 * _comparison_ratio(rows, key, sold_key, lambda left, right: _approx_equal(left, right))
+            score += _comparison_ratio(
+                rows, key, sold_key, lambda left, right: left + 0.01 >= right
+            )
+            score += 0.75 * _comparison_ratio(
+                rows, key, sold_key, lambda left, right: left > right + 0.01
+            )
+            score += 0.25 * _comparison_ratio(
+                rows, key, sold_key, lambda left, right: _approx_equal(left, right)
+            )
             for other_key in candidates:
                 if other_key in {key, sold_key}:
                     continue
@@ -388,8 +410,7 @@ def _infer_mapping_structurally(rows: list[dict[str, Any]]) -> RegistroMapping |
             product_key = key
 
     numeric_keys = [
-        key for key, stat in stats.items()
-        if stat.numeric_ratio >= 0.6 and stat.non_empty >= 2
+        key for key, stat in stats.items() if stat.numeric_ratio >= 0.6 and stat.non_empty >= 2
     ]
 
     unit_price_key = None
@@ -412,7 +433,11 @@ def _infer_mapping_structurally(rows: list[dict[str, Any]]) -> RegistroMapping |
                 right_price_score = _price_column_score(stats[right_key])
                 price_key = left_key if left_price_score >= right_price_score else right_key
                 sold_key = right_key if price_key == left_key else left_key
-                score = (relation_score * 3.0) + _price_column_score(stats[price_key]) + stats[sold_key].integer_ratio
+                score = (
+                    (relation_score * 3.0)
+                    + _price_column_score(stats[price_key])
+                    + stats[sold_key].integer_ratio
+                )
 
                 if score > best_relation_score:
                     best_relation_score = score
@@ -702,15 +727,19 @@ def save_daily_log(
     replace_existing: bool = True,
 ) -> dict:
     if replace_existing:
-        existing = db.execute(
-            select(DailyProductionLog).where(
-                and_(
-                    DailyProductionLog.tenant_id == str(tenant_id),
-                    DailyProductionLog.log_date == log_date,
-                    DailyProductionLog.source_document_id == str(document_id),
+        existing = (
+            db.execute(
+                select(DailyProductionLog).where(
+                    and_(
+                        DailyProductionLog.tenant_id == str(tenant_id),
+                        DailyProductionLog.log_date == log_date,
+                        DailyProductionLog.source_document_id == str(document_id),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for entry in existing:
             db.delete(entry)
 

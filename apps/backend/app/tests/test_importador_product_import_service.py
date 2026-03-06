@@ -91,7 +91,9 @@ def test_build_product_candidates_rejects_generic_name_only_tables():
         }
     }
 
-    candidates, sheet_name = build_product_candidates(datos, sheet_name="PERSONAL", row_indexes=[0, 1])
+    candidates, sheet_name = build_product_candidates(
+        datos, sheet_name="PERSONAL", row_indexes=[0, 1]
+    )
 
     assert sheet_name == "PERSONAL"
     assert candidates == []
@@ -150,7 +152,9 @@ def test_save_product_candidates_skips_existing_products_and_forwards_category(d
     assert result["created"] == 1
     assert result["skipped_existing"] == 1
 
-    products = db.query(Product).filter(Product.tenant_id == tenant.id).order_by(Product.name.asc()).all()
+    products = (
+        db.query(Product).filter(Product.tenant_id == tenant.id).order_by(Product.name.asc()).all()
+    )
     assert [product.name for product in products] == ["Empanadas", "Tapados"]
     assert products[0].sku == "PAN-0002"
     assert len(resolver_calls) == 1

@@ -41,7 +41,9 @@ def _get_production_order_number(expense: Expense) -> str | None:
     return invoice.replace("PROD-", "", 1) or None
 
 
-def _find_production_order(db: Session, tenant_id: UUID, expense: Expense) -> ProductionOrder | None:
+def _find_production_order(
+    db: Session, tenant_id: UUID, expense: Expense
+) -> ProductionOrder | None:
     order_number = _get_production_order_number(expense)
     if not order_number:
         return None
@@ -70,11 +72,7 @@ def _build_production_breakdown(db: Session, order: ProductionOrder) -> dict:
     product_ids = [line.ingredient_product_id for line in order.lines if line.ingredient_product_id]
     product_map: dict = {}
     if product_ids:
-        products = (
-            db.execute(select(Product).where(Product.id.in_(product_ids)))
-            .scalars()
-            .all()
-        )
+        products = db.execute(select(Product).where(Product.id.in_(product_ids))).scalars().all()
         product_map = {product.id: product for product in products}
 
     lines = []
@@ -82,8 +80,10 @@ def _build_production_breakdown(db: Session, order: ProductionOrder) -> dict:
     for line in order.lines:
         qty_consumed = float(line.qty_consumed or line.qty_required or 0)
         stored_cost_total = getattr(line, "cost_total", None)
-        cost_total = float(stored_cost_total) if stored_cost_total is not None else float(
-            (line.qty_consumed or line.qty_required or 0) * (line.cost_unit or 0)
+        cost_total = (
+            float(stored_cost_total)
+            if stored_cost_total is not None
+            else float((line.qty_consumed or line.qty_required or 0) * (line.cost_unit or 0))
         )
         cost_unit = (cost_total / qty_consumed) if qty_consumed > 0 else float(line.cost_unit or 0)
         product = product_map.get(line.ingredient_product_id)

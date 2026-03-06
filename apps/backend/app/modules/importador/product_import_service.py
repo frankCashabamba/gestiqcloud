@@ -16,7 +16,6 @@ from app.modules.products.interface.http.tenant import (
     _resolve_category_id,
 )
 
-
 SUMMARY_NAMES = {
     "total",
     "subtotal",
@@ -145,7 +144,9 @@ def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _select_document_rows(datos: dict[str, Any], sheet_name: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
+def _select_document_rows(
+    datos: dict[str, Any], sheet_name: str | None = None
+) -> tuple[list[dict[str, Any]], str | None]:
     rows_by_sheet = datos.get("filas_por_hoja", {})
     if isinstance(rows_by_sheet, dict) and rows_by_sheet:
         if sheet_name and isinstance(rows_by_sheet.get(sheet_name), list):
@@ -213,18 +214,12 @@ def _is_summary_name(name: str, row: dict[str, Any]) -> bool:
         return True
 
     normalized_text_values = [
-        _norm(value)
-        for value in row.values()
-        if isinstance(value, str) and _norm(value)
+        _norm(value) for value in row.values() if isinstance(value, str) and _norm(value)
     ]
     if any(value in SUMMARY_NAMES for value in normalized_text_values if value != normalized_name):
         return True
 
-    numeric_values = [
-        _safe_float(value)
-        for key, value in row.items()
-        if key != "sheet"
-    ]
+    numeric_values = [_safe_float(value) for key, value in row.items() if key != "sheet"]
     meaningful_numeric_values = [value for value in numeric_values if value not in (None, 0.0)]
     if normalized_name not in SUMMARY_NAMES and meaningful_numeric_values:
         return False
@@ -342,9 +337,7 @@ def build_product_candidates(
                     "source_sheet": resolved_sheet,
                     "source_row_index": index,
                     "source_row": {
-                        key: value
-                        for key, value in row.items()
-                        if value not in (None, "")
+                        key: value for key, value in row.items() if value not in (None, "")
                     },
                 },
             )
@@ -359,9 +352,9 @@ def save_product_candidates(
     candidates: list[ProductCandidate],
     source_document_id: UUID | None = None,
 ) -> dict[str, Any]:
-    existing_products = db.execute(
-        select(Product).where(Product.tenant_id == tenant_id)
-    ).scalars().all()
+    existing_products = (
+        db.execute(select(Product).where(Product.tenant_id == tenant_id)).scalars().all()
+    )
     existing_names = {_norm(product.name): product for product in existing_products if product.name}
     used_skus = {
         str(product.sku).strip().upper()
@@ -383,11 +376,7 @@ def save_product_candidates(
             continue
 
         category_name = _normalize_category_name(candidate.category_name)
-        category_id = (
-            _resolve_category_id(db, tenant_id, category_name)
-            if category_name
-            else None
-        )
+        category_id = _resolve_category_id(db, tenant_id, category_name) if category_name else None
 
         sku = candidate.sku.strip() if candidate.sku else None
         if sku and sku.upper() in used_skus:

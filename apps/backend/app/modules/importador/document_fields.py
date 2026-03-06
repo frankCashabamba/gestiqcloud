@@ -57,7 +57,16 @@ def safe_floatish(value: Any) -> float | None:
 
 def detect_document_total(data: dict[str, Any] | None) -> float | None:
     return safe_floatish(
-        get_data_value(data, "total_amount", "monto_total", "total", "amount", "importe", "grand_total", "total_general"),
+        get_data_value(
+            data,
+            "total_amount",
+            "monto_total",
+            "total",
+            "amount",
+            "importe",
+            "grand_total",
+            "total_general",
+        ),
     )
 
 
@@ -81,4 +90,3 @@ def detect_document_currency(data: dict[str, Any] | None) -> str | None:
 def detect_document_date(data: dict[str, Any] | None) -> str | None:
     value = get_data_value(data, "issue_date", "fecha", "date", "invoice_date", "expense_date")
     return str(value).strip() if value is not None else None
-

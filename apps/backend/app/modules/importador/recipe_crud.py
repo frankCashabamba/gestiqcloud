@@ -1,8 +1,12 @@
 """CRUD for icu_recipe, icu_recipe_draft, icu_recipe_snapshot."""
+
 from __future__ import annotations
+
 from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
 from app.models.importador import IcuRecipe, IcuRecipeDraft, IcuRecipeSnapshot
 
 
@@ -47,7 +51,11 @@ def get_draft(db: Session, draft_id: UUID) -> IcuRecipeDraft | None:
 
 
 def list_drafts(db: Session, recipe_id: UUID):
-    q = select(IcuRecipeDraft).where(IcuRecipeDraft.recipe_id == recipe_id).order_by(IcuRecipeDraft.updated_at.desc())
+    q = (
+        select(IcuRecipeDraft)
+        .where(IcuRecipeDraft.recipe_id == recipe_id)
+        .order_by(IcuRecipeDraft.updated_at.desc())
+    )
     return db.scalars(q).all()
 
 
@@ -72,7 +80,11 @@ def get_snapshot(db: Session, snapshot_id: UUID) -> IcuRecipeSnapshot | None:
 
 
 def list_snapshots(db: Session, recipe_id: UUID):
-    q = select(IcuRecipeSnapshot).where(IcuRecipeSnapshot.recipe_id == recipe_id).order_by(IcuRecipeSnapshot.created_at.desc())
+    q = (
+        select(IcuRecipeSnapshot)
+        .where(IcuRecipeSnapshot.recipe_id == recipe_id)
+        .order_by(IcuRecipeSnapshot.created_at.desc())
+    )
     return db.scalars(q).all()
 
 

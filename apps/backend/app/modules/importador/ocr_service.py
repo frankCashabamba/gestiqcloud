@@ -1,20 +1,38 @@
 """Servicio OCR y extracción de texto para el Importador."""
+
 from __future__ import annotations
+
 import csv
+import datetime
 import io
 import itertools
 import logging
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Tuple
+from typing import Any
+
 import openpyxl
-import datetime
 from PIL import Image
 
 logger = logging.getLogger("importador.ocr")
 
-SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif", ".xlsx", ".xls", ".csv", ".xml", ".txt", ".zip"}
+SUPPORTED_EXTENSIONS = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tiff",
+    ".bmp",
+    ".gif",
+    ".xlsx",
+    ".xls",
+    ".csv",
+    ".xml",
+    ".txt",
+    ".zip",
+}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif"}
 
 # UBL 2.1 namespaces
@@ -27,8 +45,19 @@ _UBL_NS = {
 def detect_file_type(filename: str) -> str:
     ext = Path(filename).suffix.lower()
     type_map = {
-        ".pdf": "PDF", ".jpg": "JPG", ".jpeg": "JPG", ".png": "PNG", ".tiff": "IMG", ".bmp": "IMG", ".gif": "IMG",
-        ".xlsx": "XLSX", ".xls": "XLS", ".csv": "CSV", ".xml": "XML", ".txt": "TXT", ".zip": "ZIP",
+        ".pdf": "PDF",
+        ".jpg": "JPG",
+        ".jpeg": "JPG",
+        ".png": "PNG",
+        ".tiff": "IMG",
+        ".bmp": "IMG",
+        ".gif": "IMG",
+        ".xlsx": "XLSX",
+        ".xls": "XLS",
+        ".csv": "CSV",
+        ".xml": "XML",
+        ".txt": "TXT",
+        ".zip": "ZIP",
     }
     return type_map.get(ext, "UNKNOWN")
 
@@ -48,7 +77,13 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
             return _extract_excel(file_bytes, ext=ext)
         except Exception as exc:
             logger.warning("Excel parse failed (%s): %s", ext, exc)
-            return {"text": "", "pages": 1, "structured_data": None, "format": "EXCEL_ERROR", "error": str(exc)}
+            return {
+                "text": "",
+                "pages": 1,
+                "structured_data": None,
+                "format": "EXCEL_ERROR",
+                "error": str(exc),
+            }
     elif ext == ".csv":
         return _extract_csv(file_bytes)
     elif ext == ".xml":
@@ -57,7 +92,13 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
         except Exception as exc:
             logger.warning("XML parse failed: %s", exc)
             preview = file_bytes[:4000].decode("utf-8", errors="ignore")
-            return {"text": preview, "pages": 1, "structured_data": None, "format": "XML_PARSE_ERROR", "error": str(exc)}
+            return {
+                "text": preview,
+                "pages": 1,
+                "structured_data": None,
+                "format": "XML_PARSE_ERROR",
+                "error": str(exc),
+            }
     elif ext == ".txt":
         return _extract_txt(file_bytes)
     elif ext == ".zip":
@@ -66,7 +107,9 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
         raise ValueError(f"Formato no soportado: {ext}")
 
 
-def iter_zip_entries(file_bytes: bytes, max_files: int = 20, max_size_bytes: int = 8 * 1024 * 1024) -> Iterable[Tuple[str, bytes]]:
+def iter_zip_entries(
+    file_bytes: bytes, max_files: int = 20, max_size_bytes: int = 8 * 1024 * 1024
+) -> Iterable[tuple[str, bytes]]:
     """Itera ficheros válidos dentro de un ZIP.
 
     - Ignora directorios y ficheros vacíos.
@@ -79,7 +122,9 @@ def iter_zip_entries(file_bytes: bytes, max_files: int = 20, max_size_bytes: int
             if info.is_dir():
                 continue
             if info.file_size <= 0 or info.file_size > max_size_bytes:
-                logger.warning("Zip entry %s skipped (size %s bytes)", info.filename, info.file_size)
+                logger.warning(
+                    "Zip entry %s skipped (size %s bytes)", info.filename, info.file_size
+                )
                 continue
             ext = Path(info.filename).suffix.lower()
             if ext not in SUPPORTED_EXTENSIONS:
@@ -130,7 +175,12 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
 
     # If embedded text is sufficient, use it
     if total_chars > 50:
-        return {"text": "\n".join(text_parts), "pages": pages, "structured_data": None, "format": "PDF"}
+        return {
+            "text": "\n".join(text_parts),
+            "pages": pages,
+            "structured_data": None,
+            "format": "PDF",
+        }
 
     # Otherwise, convert pages to images and OCR
     # Strategy 1: Use PyMuPDF native rendering (no Poppler needed)
@@ -143,7 +193,12 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             ocr_texts.append(_ocr_image(img))
         combined = "\n\n".join(t for t in ocr_texts if t)
         if combined.strip():
-            return {"text": combined, "pages": len(doc2), "structured_data": None, "format": "PDF_OCR"}
+            return {
+                "text": combined,
+                "pages": len(doc2),
+                "structured_data": None,
+                "format": "PDF_OCR",
+            }
     except Exception as exc:
         logger.warning("PyMuPDF OCR fallback failed: %s", exc)
     finally:
@@ -152,19 +207,31 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     # Strategy 2: pdf2image (requires Poppler)
     try:
         from pdf2image import convert_from_bytes
+
         images = convert_from_bytes(file_bytes, dpi=300)
         ocr_texts = []
         for img in images:
             ocr_texts.append(_ocr_image(img))
-        return {"text": "\n\n".join(ocr_texts), "pages": len(images), "structured_data": None, "format": "PDF_OCR"}
+        return {
+            "text": "\n\n".join(ocr_texts),
+            "pages": len(images),
+            "structured_data": None,
+            "format": "PDF_OCR",
+        }
     except Exception as exc:
         logger.warning("pdf2image OCR fallback failed: %s", exc)
-        return {"text": "\n".join(text_parts) if text_parts else "", "pages": pages, "structured_data": None, "format": "PDF"}
+        return {
+            "text": "\n".join(text_parts) if text_parts else "",
+            "pages": pages,
+            "structured_data": None,
+            "format": "PDF",
+        }
 
 
 async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
     """Image: OCR with Tesseract with preprocessing for better results."""
     from PIL import ImageEnhance, ImageFilter
+
     img = Image.open(io.BytesIO(file_bytes))
 
     # Resize if too small — Tesseract works best at ~300 DPI equivalent
@@ -190,14 +257,17 @@ def _ocr_image(img: Image.Image) -> str:
     """Run Tesseract OCR on a PIL Image."""
     try:
         import pytesseract
+
         text = pytesseract.image_to_string(img, lang="spa+eng")
         return text.strip()
     except Exception as exc:
         logger.warning("Tesseract OCR failed: %s", exc)
         try:
             import easyocr
+
             reader = easyocr.Reader(["es", "en"], gpu=False)
             import numpy as np
+
             results = reader.readtext(np.array(img))
             return "\n".join([r[1] for r in results])
         except Exception as exc2:
@@ -251,10 +321,12 @@ def _score_header_row(row: tuple | list) -> float:
     if not values:
         return 0.0
     text_vals = [str(v).strip() for v in values if isinstance(v, str) and str(v).strip()]
-    numeric_count = sum(1 for v in values if isinstance(v, (int, float)) and not isinstance(v, bool))
+    numeric_count = sum(
+        1 for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)
+    )
     if not text_vals:
         return 0.0
-    unique_text = len(set(t.upper() for t in text_vals))
+    unique_text = len({t.upper() for t in text_vals})
     # Require at least 2 unique text values — single-value rows (titles/totals) cannot be headers
     if unique_text < 2:
         return 0.0
@@ -266,7 +338,13 @@ def _score_header_row(row: tuple | list) -> float:
     # Prefer rows where most cells are non-null (dense rows = likely headers)
     fill_ratio = len(values) / max(len(row), 1)
     # Penalize rows with numbers (data rows have lots of numbers; header rows rarely do)
-    score = (unique_text * 2.0) + (caps_count * 0.5) + (length_bonus * 1.0) + (fill_ratio * 1.5) - (numeric_count * 3.0)
+    score = (
+        (unique_text * 2.0)
+        + (caps_count * 0.5)
+        + (length_bonus * 1.0)
+        + (fill_ratio * 1.5)
+        - (numeric_count * 3.0)
+    )
     return score
 
 
@@ -334,7 +412,7 @@ def _extract_kv_pairs(rows_before_header: list[tuple | list]) -> dict[str, Any]:
 
 def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
     """Stream Excel safely, build fingerprint and a small preview (no OOM)."""
-    MAX_HEADER_SCAN = 25          # rows scanned to find the real header row
+    MAX_HEADER_SCAN = 25  # rows scanned to find the real header row
     MAX_PREVIEW_ROWS_PER_SHEET = 120
     MAX_SCAN_ROWS_PER_SHEET = MAX_PREVIEW_ROWS_PER_SHEET * 4
     MAX_TEXT_CHARS = 4000
@@ -401,6 +479,7 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
                     if isinstance(v, (int, float)):
                         try:
                             import xlrd
+
                             dt = xlrd.xldate_as_datetime(v, 0)
                             row_dict[k] = dt
                         except Exception:
@@ -417,7 +496,9 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
 
         text_lines.append(f"[{sheet_name}] " + "\t".join(header_display))
         for row in preview_rows_sheet[:30]:
-            text_lines.append(f"[{sheet_name}] " + "\t".join(str(row.get(h, "") or "") for h in headers))
+            text_lines.append(
+                f"[{sheet_name}] " + "\t".join(str(row.get(h, "") or "") for h in headers)
+            )
 
         col_profiles = {}
         for h, vals in sample_values_by_col.items():
@@ -557,7 +638,12 @@ def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
                     pass
 
     full_text = ET.tostring(root, encoding="unicode", method="text")
-    return {"text": full_text[:10000] if full_text else str(header), "pages": 1, "structured_data": [header], "format": "XML_UBL"}
+    return {
+        "text": full_text[:10000] if full_text else str(header),
+        "pages": 1,
+        "structured_data": [header],
+        "format": "XML_UBL",
+    }
 
 
 def _extract_txt(file_bytes: bytes) -> dict[str, Any]:

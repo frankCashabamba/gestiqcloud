@@ -1,16 +1,23 @@
 """API endpoints for Importador Contable Universal."""
+
 from __future__ import annotations
+
+import datetime
+import hashlib
 import logging
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+
 from . import crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .auto_recipe import resolve_auto_recipe
 from .document_fields import (
     detect_document_currency,
@@ -21,25 +28,41 @@ from .document_fields import (
     get_data_value,
     safe_floatish,
 )
+from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
-import hashlib
-import datetime
 from .schemas import (
-    ConfirmRequest, DashboardStats, DocumentoDetailOut, DocumentoListOut,
-    DocumentoOut, EditFieldsRequest, LogCambioOut, SyncRecipeResponse, SyncRecipesResponse,
-    SaveDocumentRequest, SaveDocumentResponse, SaveDailyLogRequest, SaveDailyLogResponse,
-    SaveProductsFromDocumentRequest, SaveProductsFromDocumentResponse,
-    SyncRecipeSheetResponse, UploadResponse,
+    ConfirmRequest,
+    DashboardStats,
+    DocumentoDetailOut,
+    DocumentoListOut,
+    DocumentoOut,
+    EditFieldsRequest,
+    LogCambioOut,
+    SaveDailyLogRequest,
+    SaveDailyLogResponse,
+    SaveDocumentRequest,
+    SaveDocumentResponse,
+    SaveProductsFromDocumentRequest,
+    SaveProductsFromDocumentResponse,
+    SyncRecipeResponse,
+    SyncRecipeSheetResponse,
+    SyncRecipesResponse,
+    UploadResponse,
 )
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
 SUPPORTED_PAYMENT_METHODS = {
-    "bank", "cash", "card", "transfer", "direct_debit", "check", "other",
+    "bank",
+    "cash",
+    "card",
+    "transfer",
+    "direct_debit",
+    "check",
+    "other",
 }
 
 
@@ -77,7 +100,9 @@ def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
     synced: dict[str, dict] = {}
     recipe_to_sheet: dict[str, str] = {}
     candidate_ids: list[UUID] = []
-    logs = sorted((getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min)
+    logs = sorted(
+        (getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min
+    )
     for log in logs:
         detail = log.detalle or {}
         if log.accion != "SYNC_PRODUCTION" or not isinstance(detail, dict):
@@ -90,12 +115,16 @@ def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
         except ValueError:
             continue
 
-    existing_recipe_ids = {
-        str(row[0])
-        for row in db.query(Recipe.id)
-        .filter(Recipe.tenant_id == doc.tenant_id, Recipe.id.in_(candidate_ids))
-        .all()
-    } if candidate_ids else set()
+    existing_recipe_ids = (
+        {
+            str(row[0])
+            for row in db.query(Recipe.id)
+            .filter(Recipe.tenant_id == doc.tenant_id, Recipe.id.in_(candidate_ids))
+            .all()
+        }
+        if candidate_ids
+        else set()
+    )
 
     for log in logs:
         if log.accion != "SYNC_PRODUCTION":
@@ -150,6 +179,7 @@ def _coerce_user_uuid(user_id: str):
 
 def _infer_save_destination(doc, db: Session) -> str:
     from .category_loader import classify_doc_type, get_doc_categories
+
     tipo = str(doc.tipo_documento_detectado or "").strip().upper()
     data = _get_doc_import_data(doc)
     cats = get_doc_categories(db)
@@ -208,7 +238,9 @@ def _normalize_payment_details(total: float | None, body: SaveDocumentRequest) -
     }
 
 
-def _lookup_supplier(db: Session, tenant_id: UUID, doc, data: dict) -> tuple[UUID | None, str | None]:
+def _lookup_supplier(
+    db: Session, tenant_id: UUID, doc, data: dict
+) -> tuple[UUID | None, str | None]:
     from app.models.suppliers.supplier import Supplier
 
     supplier_name = _first_non_empty(
@@ -240,7 +272,10 @@ def _lookup_supplier(db: Session, tenant_id: UUID, doc, data: dict) -> tuple[UUI
             .first()
         )
 
-    return (supplier.id if supplier else None, str(supplier_name).strip() if supplier_name else None)
+    return (
+        supplier.id if supplier else None,
+        str(supplier_name).strip() if supplier_name else None,
+    )
 
 
 def _compose_expense_notes(
@@ -330,10 +365,20 @@ def _save_document_to_expense(
 
     supplier_id, supplier_name = _lookup_supplier(db, tenant_id, doc, data)
     invoice_number = _first_non_empty(
-        get_data_value(data, "numero_factura", "invoice_number", "invoice_no", "numero", "factura", "comprobante"),
+        get_data_value(
+            data,
+            "numero_factura",
+            "invoice_number",
+            "invoice_no",
+            "numero",
+            "factura",
+            "comprobante",
+        ),
     )
     concept = _first_non_empty(
-        get_data_value(data, "concepto", "descripcion", "detalle", "description", "notes", "productos"),
+        get_data_value(
+            data, "concepto", "descripcion", "detalle", "description", "notes", "productos"
+        ),
     )
     if not concept:
         prefix = "Factura proveedor" if body.destination == "supplier_invoice" else "Gasto"
@@ -422,7 +467,9 @@ def _save_document_to_expense(
 async def upload_files(
     request: Request,
     files: list[UploadFile] = File(...),
-    force: bool = Query(default=False, description="Si true, fuerza reprocesar aunque exista duplicado"),
+    force: bool = Query(
+        default=False, description="Si true, fuerza reprocesar aunque exista duplicado"
+    ),
     db: Session = Depends(get_db),
 ):
     """Upload one or multiple files. Auto-classifies and extracts data."""
@@ -435,30 +482,41 @@ async def upload_files(
         tipo_archivo = tipo_archivo or detect_file_type(filename)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-        existing = None if force else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        existing = (
+            None
+            if force
+            else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        )
         if existing and existing.estado in ("CONFIRMED", "REVIEW"):
             # Reutiliza resultado anterior para ahorrar tiempo
-            crud.add_log(db, existing.id, "SKIP_DUPLICATE", user_id, {"reason": "same hash_or_name"})
+            crud.add_log(
+                db, existing.id, "SKIP_DUPLICATE", user_id, {"reason": "same hash_or_name"}
+            )
             db.commit()
-            results.append(UploadResponse(
-                id=existing.id,
-                estado=existing.estado,
-                tipo_documento_detectado=existing.tipo_documento_detectado,
-                confianza_clasificacion=existing.confianza_clasificacion,
-                requiere_revision=existing.requiere_revision,
-                datos_extraidos=existing.datos_extraidos,
-            ))
+            results.append(
+                UploadResponse(
+                    id=existing.id,
+                    estado=existing.estado,
+                    tipo_documento_detectado=existing.tipo_documento_detectado,
+                    confianza_clasificacion=existing.confianza_clasificacion,
+                    requiere_revision=existing.requiere_revision,
+                    datos_extraidos=existing.datos_extraidos,
+                )
+            )
             return
 
-        doc = crud.create_documento(db, {
-            "tenant_id": tenant_id,
-            "nombre_archivo": filename,
-            "tipo_archivo": tipo_archivo,
-            "tamanio_bytes": len(file_bytes),
-            "hash_sha256": file_hash,
-            "estado": "PROCESSING",
-            "usuario_id": user_id,
-        })
+        doc = crud.create_documento(
+            db,
+            {
+                "tenant_id": tenant_id,
+                "nombre_archivo": filename,
+                "tipo_archivo": tipo_archivo,
+                "tamanio_bytes": len(file_bytes),
+                "hash_sha256": file_hash,
+                "estado": "PROCESSING",
+                "usuario_id": user_id,
+            },
+        )
         crud.add_log(db, doc.id, "UPLOAD", user_id, {"filename": filename, "size": len(file_bytes)})
         db.commit()
 
@@ -489,22 +547,29 @@ async def upload_files(
             resolution_mode = "zero_shot"
             if sheet_profiles:
                 _, resolved_snapshot_id, resolution_mode, _, _ = resolve_auto_recipe(
-                    db, tenant_id, sheet_profiles, user_id,
+                    db,
+                    tenant_id,
+                    sheet_profiles,
+                    user_id,
                 )
 
             # Contenido para el LLM
             if has_structured:
                 sample_lines = [f"Columnas: {headers_display}"]
-                for row in (structured[:5] if isinstance(structured, list) else []):
+                for row in structured[:5] if isinstance(structured, list) else []:
                     if isinstance(row, dict):
-                        sample_lines.append(str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")}))
+                        sample_lines.append(
+                            str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")})
+                        )
                 llm_content = "\n".join(sample_lines)
             else:
                 llm_content = text[:4000] if text else ""
 
             # LLM con prompt genérico limpio (sin recipe_config que pueda sesgar la clasificación)
             analysis = await analyze_document(
-                llm_content, filename, extraction.get("format", tipo_archivo),
+                llm_content,
+                filename,
+                extraction.get("format", tipo_archivo),
                 has_structured_rows=has_structured,
                 recipe_config={},
             )
@@ -513,10 +578,18 @@ async def upload_files(
             confianza = float(analysis.get("confidence", 0.0))
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
 
-            crud.add_log(db, doc.id, "CLASSIFY", user_id, {
-                "tipo_documento": tipo_doc, "confianza": confianza,
-                "razonamiento": analysis.get("reasoning", ""), "model_used": analysis.get("model_used"),
-            })
+            crud.add_log(
+                db,
+                doc.id,
+                "CLASSIFY",
+                user_id,
+                {
+                    "tipo_documento": tipo_doc,
+                    "confianza": confianza,
+                    "razonamiento": analysis.get("reasoning", ""),
+                    "model_used": analysis.get("model_used"),
+                },
+            )
 
             # Construir datos_extraidos
             if has_structured:
@@ -526,7 +599,7 @@ async def upload_files(
 
                 # Agrupar filas por hoja (cada fila tiene _sheet)
                 filas_por_hoja_raw: dict[str, list] = {}
-                for _row in (structured or []):
+                for _row in structured or []:
                     if isinstance(_row, dict):
                         _sname = str(_row.get("_sheet") or sheet_used_str or "")
                         if _sname:
@@ -545,37 +618,95 @@ async def upload_files(
                 # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
                 datos_extraidos = analysis.get("fields") or {}
 
-            crud.add_log(db, doc.id, "EXTRACT", user_id, {"campos_extraidos": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []})
+            crud.add_log(
+                db,
+                doc.id,
+                "EXTRACT",
+                user_id,
+                {
+                    "campos_extraidos": (
+                        list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                    )
+                },
+            )
 
-            datos_extraidos = _json_safe(datos_extraidos) if isinstance(datos_extraidos, (dict, list)) else datos_extraidos
-            sheet_profiles = _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
+            datos_extraidos = (
+                _json_safe(datos_extraidos)
+                if isinstance(datos_extraidos, (dict, list))
+                else datos_extraidos
+            )
+            sheet_profiles = (
+                _json_safe(sheet_profiles)
+                if isinstance(sheet_profiles, (dict, list))
+                else sheet_profiles
+            )
 
-            crud.update_documento(db, doc, {
-                "texto_ocr": text[:50000],
-                "tipo_documento_detectado": tipo_doc,
-                "confianza_clasificacion": confianza,
-                "requiere_revision": requiere_revision,
-                "datos_extraidos": datos_extraidos,
-                "estado": "REVIEW",
-                "proveedor_detectado": get_data_value(datos_extraidos, "vendor", "proveedor", "vendor_name", "supplier", "emisor") if isinstance(datos_extraidos, dict) else None,
-                "ruc_detectado": get_data_value(datos_extraidos, "vendor_tax_id", "ruc", "tax_id", "supplier_tax_id", "ruc_proveedor") if isinstance(datos_extraidos, dict) else None,
-                "monto_total": detect_document_total(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
-                "moneda": detect_document_currency(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
-                "fecha_documento": detect_document_date(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
-                "fingerprint_json": sheet_profiles,
-                "sheet_profiles_json": sheet_profiles,
-                "recipe_snapshot_id": resolved_snapshot_id,
-            })
+            crud.update_documento(
+                db,
+                doc,
+                {
+                    "texto_ocr": text[:50000],
+                    "tipo_documento_detectado": tipo_doc,
+                    "confianza_clasificacion": confianza,
+                    "requiere_revision": requiere_revision,
+                    "datos_extraidos": datos_extraidos,
+                    "estado": "REVIEW",
+                    "proveedor_detectado": (
+                        get_data_value(
+                            datos_extraidos,
+                            "vendor",
+                            "proveedor",
+                            "vendor_name",
+                            "supplier",
+                            "emisor",
+                        )
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "ruc_detectado": (
+                        get_data_value(
+                            datos_extraidos,
+                            "vendor_tax_id",
+                            "ruc",
+                            "tax_id",
+                            "supplier_tax_id",
+                            "ruc_proveedor",
+                        )
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "monto_total": (
+                        detect_document_total(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "moneda": (
+                        detect_document_currency(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "fecha_documento": (
+                        detect_document_date(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "fingerprint_json": sheet_profiles,
+                    "sheet_profiles_json": sheet_profiles,
+                    "recipe_snapshot_id": resolved_snapshot_id,
+                },
+            )
             db.commit()
 
-            results.append(UploadResponse(
-                id=doc.id,
-                estado=doc.estado,
-                tipo_documento_detectado=tipo_doc,
-                confianza_clasificacion=confianza,
-                requiere_revision=requiere_revision,
-                datos_extraidos=datos_extraidos,
-            ))
+            results.append(
+                UploadResponse(
+                    id=doc.id,
+                    estado=doc.estado,
+                    tipo_documento_detectado=tipo_doc,
+                    confianza_clasificacion=confianza,
+                    requiere_revision=requiere_revision,
+                    datos_extraidos=datos_extraidos,
+                )
+            )
         except Exception as exc:
             logger.error("Error processing %s: %s", filename, exc)
             crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": str(exc)})
@@ -591,22 +722,37 @@ async def upload_files(
         if tipo_archivo == "ZIP":
             entries = list(iter_zip_entries(file_bytes))
             if not entries:
-                doc = crud.create_documento(db, {
-                    "tenant_id": tenant_id,
-                    "nombre_archivo": filename,
-                    "tipo_archivo": tipo_archivo,
-                    "tamanio_bytes": len(file_bytes),
-                    "estado": "FAILED",
-                    "usuario_id": user_id,
-                    "error_detalle": "ZIP vacío o sin ficheros soportados",
-                })
-                crud.add_log(db, doc.id, "UPLOAD", user_id, {"filename": filename, "size": len(file_bytes)})
-                crud.add_log(db, doc.id, "ERROR", user_id, {"error": "ZIP vacío o sin ficheros soportados"})
+                doc = crud.create_documento(
+                    db,
+                    {
+                        "tenant_id": tenant_id,
+                        "nombre_archivo": filename,
+                        "tipo_archivo": tipo_archivo,
+                        "tamanio_bytes": len(file_bytes),
+                        "estado": "FAILED",
+                        "usuario_id": user_id,
+                        "error_detalle": "ZIP vacío o sin ficheros soportados",
+                    },
+                )
+                crud.add_log(
+                    db, doc.id, "UPLOAD", user_id, {"filename": filename, "size": len(file_bytes)}
+                )
+                crud.add_log(
+                    db, doc.id, "ERROR", user_id, {"error": "ZIP vacío o sin ficheros soportados"}
+                )
                 db.commit()
-                results.append(UploadResponse(id=doc.id, estado="FAILED", datos_extraidos={"error": "ZIP vacío o sin ficheros soportados"}))
+                results.append(
+                    UploadResponse(
+                        id=doc.id,
+                        estado="FAILED",
+                        datos_extraidos={"error": "ZIP vacío o sin ficheros soportados"},
+                    )
+                )
                 continue
             for inner_name, inner_bytes in entries:
-                await _process_single(inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name))
+                await _process_single(
+                    inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name)
+                )
         else:
             await _process_single(file_bytes, filename, tipo_archivo)
 
@@ -628,6 +774,7 @@ def list_documents(
 @router.get("/documents/{doc_id}", response_model=DocumentoDetailOut, dependencies=protected)
 def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     from app.models.recipes import Recipe
+
     doc = crud.get_documento(db, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
@@ -651,7 +798,9 @@ class SyncRecipesRequest(BaseModel):
 
 
 @router.post("/documents/{doc_id}/confirm", response_model=DocumentoOut, dependencies=protected)
-def confirm_document(doc_id: UUID, body: ConfirmRequest, request: Request, db: Session = Depends(get_db)):
+def confirm_document(
+    doc_id: UUID, body: ConfirmRequest, request: Request, db: Session = Depends(get_db)
+):
     user_id = _user_id(request)
     doc = crud.get_documento(db, doc_id)
     if not doc:
@@ -659,15 +808,22 @@ def confirm_document(doc_id: UUID, body: ConfirmRequest, request: Request, db: S
     if doc.estado == "CONFIRMED":
         raise HTTPException(status_code=400, detail="Documento ya confirmado")
 
-    crud.update_documento(db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"})
+    crud.update_documento(
+        db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"}
+    )
     crud.add_log(db, doc.id, "CONFIRM", user_id, {"datos_confirmados": body.datos_confirmados})
     db.commit()
     return doc
 
 
-@router.post("/documents/{doc_id}/sync_recipe", response_model=SyncRecipeResponse, dependencies=protected)
-def sync_recipe(doc_id: UUID, body: SyncRecipeRequest | None, request: Request, db: Session = Depends(get_db)):
+@router.post(
+    "/documents/{doc_id}/sync_recipe", response_model=SyncRecipeResponse, dependencies=protected
+)
+def sync_recipe(
+    doc_id: UUID, body: SyncRecipeRequest | None, request: Request, db: Session = Depends(get_db)
+):
     from app.models.recipes import Recipe
+
     user_id = _user_id(request)
     doc = crud.get_documento(db, doc_id)
     if not doc:
@@ -677,7 +833,11 @@ def sync_recipe(doc_id: UUID, body: SyncRecipeRequest | None, request: Request, 
     available_sheets = get_available_recipe_sheets(data)
     sheet_override = body.sheet_usada if body else None
     force = bool(body.force) if body else False
-    sheet_name = sheet_override or data.get("sheet_usada") or (available_sheets[0] if available_sheets else None)
+    sheet_name = (
+        sheet_override
+        or data.get("sheet_usada")
+        or (available_sheets[0] if available_sheets else None)
+    )
     synced_sheets = _get_synced_sheet_map(db, doc)
 
     if sheet_name and sheet_name in synced_sheets and not force:
@@ -685,18 +845,27 @@ def sync_recipe(doc_id: UUID, body: SyncRecipeRequest | None, request: Request, 
 
     recipe_id, was_new = upsert_recipe_from_import(doc, db, sheet_override=sheet_override)
     if not recipe_id:
-        raise HTTPException(status_code=422, detail="No se pudo extraer una receta del documento. Verifique que sea un documento de costeo con filas de ingredientes.")
+        raise HTTPException(
+            status_code=422,
+            detail="No se pudo extraer una receta del documento. Verifique que sea un documento de costeo con filas de ingredientes.",
+        )
 
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
 
     # Guardar referencia en el documento
     doc.synced_recipe_id = recipe_id
-    crud.add_log(db, doc.id, "SYNC_PRODUCTION", user_id, {
-        "recipe_id": str(recipe_id),
-        "recipe_name": recipe.name if recipe else None,
-        "sheet_used": sheet_name,
-        "was_new": was_new,
-    })
+    crud.add_log(
+        db,
+        doc.id,
+        "SYNC_PRODUCTION",
+        user_id,
+        {
+            "recipe_id": str(recipe_id),
+            "recipe_name": recipe.name if recipe else None,
+            "sheet_used": sheet_name,
+            "was_new": was_new,
+        },
+    )
     db.commit()
 
     return SyncRecipeResponse(
@@ -708,8 +877,12 @@ def sync_recipe(doc_id: UUID, body: SyncRecipeRequest | None, request: Request, 
     )
 
 
-@router.post("/documents/{doc_id}/sync_recipes", response_model=SyncRecipesResponse, dependencies=protected)
-def sync_recipes(doc_id: UUID, body: SyncRecipesRequest | None, request: Request, db: Session = Depends(get_db)):
+@router.post(
+    "/documents/{doc_id}/sync_recipes", response_model=SyncRecipesResponse, dependencies=protected
+)
+def sync_recipes(
+    doc_id: UUID, body: SyncRecipesRequest | None, request: Request, db: Session = Depends(get_db)
+):
     from app.models.recipes import Recipe
 
     user_id = _user_id(request)
@@ -720,7 +893,9 @@ def sync_recipes(doc_id: UUID, body: SyncRecipesRequest | None, request: Request
     data = _get_doc_import_data(doc)
     available_sheets = get_available_recipe_sheets(data)
     if not available_sheets:
-        raise HTTPException(status_code=422, detail="El documento no contiene hojas separadas para sincronizar.")
+        raise HTTPException(
+            status_code=422, detail="El documento no contiene hojas separadas para sincronizar."
+        )
 
     force = bool(body.force) if body else False
     synced_sheets = _get_synced_sheet_map(db, doc)
@@ -733,53 +908,73 @@ def sync_recipes(doc_id: UUID, body: SyncRecipesRequest | None, request: Request
         previous_sync = synced_sheets.get(sheet_name)
         if previous_sync and not force:
             skipped_count += 1
-            results.append(SyncRecipeSheetResponse(
-                sheet_name=sheet_name,
-                status="skipped",
-                recipe_id=UUID(previous_sync["recipe_id"]) if previous_sync.get("recipe_id") else None,
-                recipe_name=previous_sync.get("recipe_name"),
-                message="Hoja ya sincronizada",
-            ))
+            results.append(
+                SyncRecipeSheetResponse(
+                    sheet_name=sheet_name,
+                    status="skipped",
+                    recipe_id=(
+                        UUID(previous_sync["recipe_id"]) if previous_sync.get("recipe_id") else None
+                    ),
+                    recipe_name=previous_sync.get("recipe_name"),
+                    message="Hoja ya sincronizada",
+                )
+            )
             continue
 
         recipe_id, was_new = upsert_recipe_from_import(doc, db, sheet_override=sheet_name)
         if not recipe_id:
-            results.append(SyncRecipeSheetResponse(
-                sheet_name=sheet_name,
-                status="error",
-                message="No se pudo extraer una receta valida de esta hoja.",
-            ))
+            results.append(
+                SyncRecipeSheetResponse(
+                    sheet_name=sheet_name,
+                    status="error",
+                    message="No se pudo extraer una receta valida de esta hoja.",
+                )
+            )
             continue
 
         recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
         doc.synced_recipe_id = recipe_id
-        crud.add_log(db, doc.id, "SYNC_PRODUCTION", user_id, {
-            "recipe_id": str(recipe_id),
-            "recipe_name": recipe.name if recipe else None,
-            "sheet_used": sheet_name,
-            "was_new": was_new,
-            "batch": True,
-        })
+        crud.add_log(
+            db,
+            doc.id,
+            "SYNC_PRODUCTION",
+            user_id,
+            {
+                "recipe_id": str(recipe_id),
+                "recipe_name": recipe.name if recipe else None,
+                "sheet_used": sheet_name,
+                "was_new": was_new,
+                "batch": True,
+            },
+        )
 
         processed_count += 1
         processed_sheet_names.append(sheet_name)
-        results.append(SyncRecipeSheetResponse(
-            sheet_name=sheet_name,
-            status="created" if was_new else "updated",
-            recipe_id=recipe_id,
-            recipe_name=recipe.name if recipe else sheet_name,
-            was_new=was_new,
-            total_cost=float(recipe.total_cost) if recipe and recipe.total_cost else 0.0,
-            ingredients_count=len(recipe.ingredients) if recipe else 0,
-        ))
+        results.append(
+            SyncRecipeSheetResponse(
+                sheet_name=sheet_name,
+                status="created" if was_new else "updated",
+                recipe_id=recipe_id,
+                recipe_name=recipe.name if recipe else sheet_name,
+                was_new=was_new,
+                total_cost=float(recipe.total_cost) if recipe and recipe.total_cost else 0.0,
+                ingredients_count=len(recipe.ingredients) if recipe else 0,
+            )
+        )
 
-    crud.add_log(db, doc.id, "SYNC_PRODUCTION_BATCH", user_id, {
-        "processed_count": processed_count,
-        "skipped_count": skipped_count,
-        "sheet_count": len(available_sheets),
-        "sheets": processed_sheet_names,
-        "force": force,
-    })
+    crud.add_log(
+        db,
+        doc.id,
+        "SYNC_PRODUCTION_BATCH",
+        user_id,
+        {
+            "processed_count": processed_count,
+            "skipped_count": skipped_count,
+            "sheet_count": len(available_sheets),
+            "sheets": processed_sheet_names,
+            "force": force,
+        },
+    )
     db.commit()
 
     return SyncRecipesResponse(
@@ -790,7 +985,9 @@ def sync_recipes(doc_id: UUID, body: SyncRecipesRequest | None, request: Request
     )
 
 
-@router.post("/documents/{doc_id}/save", response_model=SaveDocumentResponse, dependencies=protected)
+@router.post(
+    "/documents/{doc_id}/save", response_model=SaveDocumentResponse, dependencies=protected
+)
 def save_document(
     doc_id: UUID,
     body: SaveDocumentRequest,
@@ -905,7 +1102,9 @@ def save_document(
 
 
 @router.patch("/documents/{doc_id}/edit", response_model=DocumentoOut, dependencies=protected)
-def edit_document_fields(doc_id: UUID, body: EditFieldsRequest, request: Request, db: Session = Depends(get_db)):
+def edit_document_fields(
+    doc_id: UUID, body: EditFieldsRequest, request: Request, db: Session = Depends(get_db)
+):
     user_id = _user_id(request)
     doc = crud.get_documento(db, doc_id)
     if not doc:
@@ -918,7 +1117,13 @@ def edit_document_fields(doc_id: UUID, body: EditFieldsRequest, request: Request
         current.update(body.campos)
 
     crud.update_documento(db, doc, {"datos_extraidos": current})
-    crud.add_log(db, doc.id, "EDIT", user_id, {"campos_modificados": body.campos, "valores_anteriores": previous})
+    crud.add_log(
+        db,
+        doc.id,
+        "EDIT",
+        user_id,
+        {"campos_modificados": body.campos, "valores_anteriores": previous},
+    )
     db.commit()
     return doc
 
@@ -1031,6 +1236,7 @@ def get_document_logs(doc_id: UUID, request: Request, db: Session = Depends(get_
 def get_doc_categories(db: Session = Depends(get_db)):
     """Returns the doc_type→category keyword map from DB for client-side use."""
     from .category_loader import get_doc_categories
+
     return get_doc_categories(db)
 
 
@@ -1067,8 +1273,9 @@ async def save_as_daily_log(
     La fecha se infiere del nombre del archivo (DD-MM-YY) o se puede pasar en el body.
     No afecta el stock actual — es solo historial analítico.
     """
-    from .daily_log_service import resolve_registro_rows, save_daily_log, _parse_date_from_filename
     from datetime import date as date_type
+
+    from .daily_log_service import _parse_date_from_filename, resolve_registro_rows, save_daily_log
 
     tenant_id = _tenant_id(request)
     user_id = _user_id(request)
@@ -1138,7 +1345,11 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
     fk_tables = [
         ("imp_log_cambios", "documento_id", "SELECT id FROM imp_documento WHERE tenant_id = :tid"),
         ("import_attachments", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
-        ("import_item_corrections", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
+        (
+            "import_item_corrections",
+            "item_id",
+            "SELECT id FROM import_items WHERE tenant_id = :tid",
+        ),
         ("import_lineage", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
     ]
 

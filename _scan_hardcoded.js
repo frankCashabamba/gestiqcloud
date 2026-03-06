@@ -44,7 +44,7 @@ for (const f of files) {
     if (line.trim().startsWith('import ') || line.trim().startsWith('//') || line.trim().startsWith('*')) continue;
     // skip lines that already use t()
     if (line.includes("t('") || line.includes('t("') || line.includes('t(`')) continue;
-    
+
     const match = line.match(pattern);
     if (match) {
       const rel = path.relative('.', f).replace(/\\/g, '/');

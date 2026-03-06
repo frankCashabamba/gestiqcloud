@@ -151,7 +151,6 @@ except Exception:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    runner_to_start = None
     global _imports_job_runner
 
     # 🔒 Validar configuración crítica PRIMERO

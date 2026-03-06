@@ -538,17 +538,25 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
 
         # Costo proporcional (consumo real), no redondeado a paquetes enteros
         if qty_per_package > 0 and package_cost > 0:
-            estimated_cost = (required_qty * package_cost / qty_per_package).quantize(Decimal("0.0001"))
+            estimated_cost = (required_qty * package_cost / qty_per_package).quantize(
+                Decimal("0.0001")
+            )
         elif qty_per_package <= 0:
             ingredient_cost = Decimal(str(getattr(ing, "ingredient_cost", 0) or 0))
-            unit_cost = (ingredient_cost / qty_base) if qty_base > 0 and ingredient_cost > 0 else Decimal("0")
+            unit_cost = (
+                (ingredient_cost / qty_base)
+                if qty_base > 0 and ingredient_cost > 0
+                else Decimal("0")
+            )
             estimated_cost = (required_qty * unit_cost).quantize(Decimal("0.0001"))
         else:
             estimated_cost = Decimal("0")
 
         product = db.query(Product).filter(Product.id == ing.product_id).first()
         package_label = ing.purchase_packaging or (
-            f"{float(qty_per_package):g} {ing.package_unit}" if qty_per_package > 0 and ing.package_unit else "-"
+            f"{float(qty_per_package):g} {ing.package_unit}"
+            if qty_per_package > 0 and ing.package_unit
+            else "-"
         )
 
         ingredientes.append(
@@ -574,7 +582,9 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
         "batches_required": round(float(batches_required), 2),
         "ingredientes": ingredientes,
         "costo_total_produccion": round(float(costo_total), 2),
-        "costo_por_unidad": round(float(costo_total / Decimal(str(qty_to_produce))), 4) if qty_to_produce > 0 else 0,
+        "costo_por_unidad": (
+            round(float(costo_total / Decimal(str(qty_to_produce))), 4) if qty_to_produce > 0 else 0
+        ),
     }
 
 

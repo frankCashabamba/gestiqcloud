@@ -1,9 +1,11 @@
 """Universal AI analyzer for any accounting document in any language."""
+
 from __future__ import annotations
+
 import json
 import logging
-import re
 from typing import Any
+
 from app.services.ai.base import AITask
 from app.services.ai.service import AIService
 
@@ -14,12 +16,18 @@ CONFIDENCE_THRESHOLD = 0.85
 # Minimal emergency patterns — used ONLY when both AI and DB are unavailable.
 # Extend document types via DB migration (sector_field_defaults), not here.
 _EMERGENCY_PATTERNS: dict[str, list[str]] = {
-    "INVOICE":        ["invoice", "factura", "rechnung", "fattura", "fatura", "facture"],
-    "RECEIPT":        ["receipt", "recibo", "reçu", "quittung", "boleta", "ticket"],
-    "BANK_STATEMENT": ["bank statement", "extracto", "kontoauszug", "état de compte", "estado de cuenta"],
-    "PAYROLL":        ["payroll", "nomina", "planilla", "lohnabrechnung"],
-    "INVENTORY":      ["inventory", "inventario", "stock", "bestandsliste"],
-    "COSTING":        ["costing", "costeo", "kalkulation", "receta"],
+    "INVOICE": ["invoice", "factura", "rechnung", "fattura", "fatura", "facture"],
+    "RECEIPT": ["receipt", "recibo", "reçu", "quittung", "boleta", "ticket"],
+    "BANK_STATEMENT": [
+        "bank statement",
+        "extracto",
+        "kontoauszug",
+        "état de compte",
+        "estado de cuenta",
+    ],
+    "PAYROLL": ["payroll", "nomina", "planilla", "lohnabrechnung"],
+    "INVENTORY": ["inventory", "inventario", "stock", "bestandsliste"],
+    "COSTING": ["costing", "costeo", "kalkulation", "receta"],
 }
 
 
@@ -70,7 +78,8 @@ async def analyze_document(
         "NOTE: Content is already pre-processed as a structured table. "
         "If you recognize a list or table, set is_table=true and provide clean column names. "
         "Do NOT return individual rows.\n\n"
-        if has_structured_rows else ""
+        if has_structured_rows
+        else ""
     )
 
     content_limit = 4000 if has_structured_rows else 7000
@@ -82,9 +91,9 @@ async def analyze_document(
         "Analyze the document and respond ONLY with valid JSON:\n"
         "{\n"
         '  "doc_type": "A short uppercase label describing the document type in English. '
-        'Use standard terms when they clearly apply (e.g. INVOICE, RECEIPT, TICKET, CREDIT_NOTE, '
-        'PURCHASE_ORDER, QUOTE, DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, '
-        'BANK_STATEMENT, BANK_MOVEMENTS) or any descriptive label that fits (e.g. EXPENSE_REPORT, '
+        "Use standard terms when they clearly apply (e.g. INVOICE, RECEIPT, TICKET, CREDIT_NOTE, "
+        "PURCHASE_ORDER, QUOTE, DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, "
+        "BANK_STATEMENT, BANK_MOVEMENTS) or any descriptive label that fits (e.g. EXPENSE_REPORT, "
         'CONTRACT, PROFORMA, CUSTOMS_DECLARATION). Use OTHER only if truly unclassifiable.",\n'
         '  "confidence": 0.0-1.0,\n'
         '  "reasoning": "brief explanation of classification",\n'
@@ -103,7 +112,7 @@ async def analyze_document(
         '    "currency": "ISO 4217 code (USD, EUR, GBP, CNY, MXN…) or null",\n'
         '    "line_items": [\n'
         '      {"description": "...", "quantity": number, "unit_price": number, "total_price": number}\n'
-        '    ]\n'
+        "    ]\n"
         "  }\n"
         "}\n"
         "CRITICAL rules:\n"

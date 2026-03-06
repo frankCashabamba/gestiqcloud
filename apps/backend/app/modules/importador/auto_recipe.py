@@ -1,17 +1,18 @@
 """Auto-generation and reuse of recipes based on detected headers/fingerprints."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 from datetime import datetime
-from typing import Tuple
 from uuid import UUID
 
-from sqlalchemy import select, cast, String
+from sqlalchemy import String, cast, select
 from sqlalchemy.orm import Session
 
-from . import recipe_crud
 from app.models.importador import IcuRecipeSnapshot
+
+from . import recipe_crud
 
 
 def _fingerprint_hash(obj: dict) -> str:
@@ -19,7 +20,7 @@ def _fingerprint_hash(obj: dict) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def build_fingerprint(sheet_profiles: dict) -> Tuple[dict, str]:
+def build_fingerprint(sheet_profiles: dict) -> tuple[dict, str]:
     """Build a tenant-agnostic fingerprint from sheet_profiles (Excel/CSV)."""
     normalized = {}
     for sheet, prof in (sheet_profiles or {}).items():
@@ -33,10 +34,13 @@ def build_fingerprint(sheet_profiles: dict) -> Tuple[dict, str]:
     return fp, _fingerprint_hash(fp)
 
 
-def build_text_fingerprint(tipo_doc: str, datos_extraidos: dict | None, format_hint: str) -> Tuple[dict, str]:
+def build_text_fingerprint(
+    tipo_doc: str, datos_extraidos: dict | None, format_hint: str
+) -> tuple[dict, str]:
     """Build a fingerprint for PDF/XML/image/TXT based on document type + field structure."""
     campos = sorted(
-        k for k in (datos_extraidos or {}).keys()
+        k
+        for k in (datos_extraidos or {}).keys()
         if not k.startswith("_") and k not in ("filas", "total_filas")
     )
     fp = {"kind": "text", "tipo_documento": tipo_doc, "campos": campos, "formato": format_hint}
@@ -80,31 +84,55 @@ def _auto_prompts_text(tipo_doc: str, campos: list[str]) -> dict:
 
 
 def _create_recipe_and_snapshot(
-    db: Session, tenant_id: UUID, name: str, description: str,
-    fp: dict, fp_hash: str, prompts: dict, extra_content: dict,
+    db: Session,
+    tenant_id: UUID,
+    name: str,
+    description: str,
+    fp: dict,
+    fp_hash: str,
+    prompts: dict,
+    extra_content: dict,
     created_by: str | None,
-) -> Tuple[str, "IcuRecipeSnapshot"]:
-    recipe = recipe_crud.create_recipe(db, {
-        "tenant_id": tenant_id, "name": name, "description": description,
-        "is_public": False, "created_by": created_by,
-    })
-    draft = recipe_crud.create_draft(db, {
-        "tenant_id": tenant_id, "recipe_id": recipe.id,
-        "prompt_system": prompts["prompt_system"], "prompt_user": prompts["prompt_user"],
-        "model_config": {"model": prompts["model"]} if prompts.get("model") else None,
-        "updated_by": created_by,
-    })
-    snapshot = recipe_crud.create_snapshot(db, {
-        "tenant_id": tenant_id, "recipe_id": recipe.id, "draft_id": draft.id,
-        "version_tag": "auto-1",
-        "content_json": {
-            "fingerprint_hash": fp_hash, "fingerprint": fp,
-            "prompt_system": prompts["prompt_system"], "prompt_user": prompts["prompt_user"],
-            "model": prompts["model"],
-            **extra_content,
+) -> tuple[str, IcuRecipeSnapshot]:
+    recipe = recipe_crud.create_recipe(
+        db,
+        {
+            "tenant_id": tenant_id,
+            "name": name,
+            "description": description,
+            "is_public": False,
+            "created_by": created_by,
         },
-        "created_by": created_by,
-    })
+    )
+    draft = recipe_crud.create_draft(
+        db,
+        {
+            "tenant_id": tenant_id,
+            "recipe_id": recipe.id,
+            "prompt_system": prompts["prompt_system"],
+            "prompt_user": prompts["prompt_user"],
+            "model_config": {"model": prompts["model"]} if prompts.get("model") else None,
+            "updated_by": created_by,
+        },
+    )
+    snapshot = recipe_crud.create_snapshot(
+        db,
+        {
+            "tenant_id": tenant_id,
+            "recipe_id": recipe.id,
+            "draft_id": draft.id,
+            "version_tag": "auto-1",
+            "content_json": {
+                "fingerprint_hash": fp_hash,
+                "fingerprint": fp,
+                "prompt_system": prompts["prompt_system"],
+                "prompt_user": prompts["prompt_user"],
+                "model": prompts["model"],
+                **extra_content,
+            },
+            "created_by": created_by,
+        },
+    )
     return recipe.name, snapshot
 
 
@@ -121,15 +149,13 @@ def _flatten_headers(sheet_profiles: dict) -> list[str]:
     return uniq
 
 
-
-
 def resolve_auto_recipe(
     db: Session,
     tenant_id: UUID,
     sheet_profiles: dict,
     created_by: str | None = None,
     force_new: bool = False,
-) -> Tuple[dict, "UUID | None", str, bool, "str | None"]:
+) -> tuple[dict, UUID | None, str, bool, str | None]:
     """Excel/CSV: return (recipe_config, snapshot_id, mode, created, recipe_name).
 
     force_new=True fuerza crear un snapshot nuevo ignorando coincidencias previas
@@ -145,15 +171,25 @@ def resolve_auto_recipe(
         prompts = _auto_prompts_excel(_flatten_headers(sheet_profiles))
         name = f"auto-excel-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         recipe_name, snap = _create_recipe_and_snapshot(
-            db, tenant_id, name, "Generada automáticamente por fingerprint de cabeceras Excel",
-            fp, fp_hash, prompts, {"sheet_profiles": sheet_profiles}, created_by,
+            db,
+            tenant_id,
+            name,
+            "Generada automáticamente por fingerprint de cabeceras Excel",
+            fp,
+            fp_hash,
+            prompts,
+            {"sheet_profiles": sheet_profiles},
+            created_by,
         )
         created = True
         db.commit()
     recipe_config = {
         "prompt_system": snap.content_json.get("prompt_system"),
         "prompt_user": snap.content_json.get("prompt_user"),
-        "model": (snap.content_json.get("model") or (snap.content_json.get("model_config") or {}).get("model")),
+        "model": (
+            snap.content_json.get("model")
+            or (snap.content_json.get("model_config") or {}).get("model")
+        ),
     }
     return recipe_config, snap.id, "auto_fingerprint", created, recipe_name
 
@@ -166,7 +202,7 @@ def resolve_auto_recipe_from_text(
     format_hint: str,
     created_by: str | None = None,
     force_new: bool = False,
-) -> Tuple[dict, "UUID | None", str, bool, "str | None"]:
+) -> tuple[dict, UUID | None, str, bool, str | None]:
     """PDF/XML/imagen/TXT: fingerprint post-extraccion. Crea snapshot si no existe.
 
     force_new=True fuerza crear snapshot nuevo aunque ya exista uno para el mismo fingerprint.
@@ -174,11 +210,12 @@ def resolve_auto_recipe_from_text(
     La primera subida es zero-shot; el snapshot queda guardado para futuras similares.
     """
     campos = [
-        k for k in (datos_extraidos or {}).keys()
-        if not k.startswith('_') and k not in ('filas', 'total_filas')
+        k
+        for k in (datos_extraidos or {}).keys()
+        if not k.startswith("_") and k not in ("filas", "total_filas")
     ]
     if not campos:
-        return {}, None, 'zero_shot', False, None
+        return {}, None, "zero_shot", False, None
 
     fp, fp_hash = build_text_fingerprint(tipo_doc, datos_extraidos, format_hint)
     snap = None if force_new else find_snapshot_by_hash(db, tenant_id, fp_hash)
@@ -189,16 +226,21 @@ def resolve_auto_recipe_from_text(
         prompts = _auto_prompts_text(tipo_doc, sorted(campos))
         name = f"auto-{tipo_doc.lower()}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         recipe_name, snap = _create_recipe_and_snapshot(
-            db, tenant_id, name,
+            db,
+            tenant_id,
+            name,
             f"Generada automaticamente para {tipo_doc} ({format_hint})",
-            fp, fp_hash, prompts, {}, created_by,
+            fp,
+            fp_hash,
+            prompts,
+            {},
+            created_by,
         )
         was_created = True
 
     recipe_config = {
-        'prompt_system': snap.content_json.get('prompt_system'),
-        'prompt_user': snap.content_json.get('prompt_user'),
-        'model': snap.content_json.get('model'),
+        "prompt_system": snap.content_json.get("prompt_system"),
+        "prompt_user": snap.content_json.get("prompt_user"),
+        "model": snap.content_json.get("model"),
     }
-    return recipe_config, snap.id, 'auto_text_fingerprint', was_created, recipe_name
-
+    return recipe_config, snap.id, "auto_text_fingerprint", was_created, recipe_name

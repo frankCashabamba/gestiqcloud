@@ -4,7 +4,6 @@
   "warehouse": "Warehouse",
   "code": "Code",
   "product": "Product",
-  "stock": "Stock",
   "location": "Location",
   "batch": "Batch",
   "expiry": "Expiry",

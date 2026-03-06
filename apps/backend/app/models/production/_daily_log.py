@@ -10,14 +10,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import (
-    DATE,
-    TIMESTAMP,
-    ForeignKey,
-    Numeric,
-    String,
-    Text,
-)
+from sqlalchemy import DATE, TIMESTAMP, ForeignKey, Numeric, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,9 +25,7 @@ class DailyProductionLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     log_date: Mapped[date] = mapped_column(DATE, nullable=False)
 
     # Nombre tal como viene en la hoja (para búsqueda histórica aunque cambie la receta)
@@ -59,9 +50,7 @@ class DailyProductionLog(Base):
     unit_price: Mapped[Decimal] = mapped_column(
         Numeric(12, 4), nullable=False, default=Decimal("0")
     )
-    qty_sold: Mapped[Decimal] = mapped_column(
-        Numeric(12, 4), nullable=False, default=Decimal("0")
-    )
+    qty_sold: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=Decimal("0"))
 
     # qty_leftover y revenue son columnas GENERATED en DB; solo se leen
     source_document_id: Mapped[uuid.UUID | None] = mapped_column(

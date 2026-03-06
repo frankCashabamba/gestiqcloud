@@ -73,7 +73,9 @@ class ProductionCostDriver(Base):
         Numeric(12, 4), nullable=False, default=0, comment="Default cost per unit"
     )
     consumption_rate: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 4), nullable=True, comment="Auto-calc rate (e.g. L/hr for diesel, kWh/hr for electricity)"
+        Numeric(10, 4),
+        nullable=True,
+        comment="Auto-calc rate (e.g. L/hr for diesel, kWh/hr for electricity)",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(

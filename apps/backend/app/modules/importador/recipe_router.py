@@ -6,18 +6,24 @@ Business Rules:
   RB-03  Every execution stores a recipe_snapshot reference for traceability.
   RB-04  Drafts vs Snapshots – drafts are editable, snapshots immutable.
 """
+
 from __future__ import annotations
+
+import datetime
+import hashlib
 import logging
-from uuid import UUID
 from pathlib import Path
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+
 from . import crud, recipe_crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .auto_recipe import resolve_auto_recipe, resolve_auto_recipe_from_text
 from .document_fields import (
     detect_document_currency,
@@ -26,12 +32,16 @@ from .document_fields import (
     get_data_value,
     safe_floatish,
 )
-import hashlib
-import datetime
+from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .schemas import (
-    DraftCreate, DraftOut, DraftUpdate,
-    RecipeCreate, RecipeOut, RecipeUpdate,
-    RunResponse, SnapshotOut,
+    DraftCreate,
+    DraftOut,
+    DraftUpdate,
+    RecipeCreate,
+    RecipeOut,
+    RecipeUpdate,
+    RunResponse,
+    SnapshotOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,7 +78,9 @@ def _has_explicit_recipe_context(
     recipe_snapshot_id: UUID | None,
     recipe_draft_json: str | None,
 ) -> bool:
-    return bool(recipe_id or recipe_snapshot_id or (recipe_draft_json and str(recipe_draft_json).strip()))
+    return bool(
+        recipe_id or recipe_snapshot_id or (recipe_draft_json and str(recipe_draft_json).strip())
+    )
 
 
 def _pick_analysis_value(analysis: dict[str, object], *keys: str) -> object | None:
@@ -108,6 +120,7 @@ def _normalize_analysis_output(analysis: dict[str, object]) -> dict[str, object]
 #  POST /run  — Core processing endpoint (RB-01: never requires recipe)
 # =====================================================================
 
+
 def _resolve_recipe_config(
     db: Session,
     recipe_id: UUID | None,
@@ -115,7 +128,7 @@ def _resolve_recipe_config(
     recipe_draft_json: str | None,
 ) -> tuple[dict, str, UUID | None]:
     """Resolve recipe configuration with CA-02 priority order.
-    
+
     Returns: (config_dict, resolution_mode, snapshot_id_or_None)
     Priority: snapshot_id > draft_json > recipe_id(latest snapshot) > zero_shot
     """
@@ -131,7 +144,11 @@ def _resolve_recipe_config(
     # 2. Inline draft (ephemeral, not persisted)
     if recipe_draft_json:
         try:
-            draft_data = _json.loads(recipe_draft_json) if isinstance(recipe_draft_json, str) else recipe_draft_json
+            draft_data = (
+                _json.loads(recipe_draft_json)
+                if isinstance(recipe_draft_json, str)
+                else recipe_draft_json
+            )
             return draft_data, "draft", None
         except (ValueError, TypeError):
             logger.warning("Invalid recipe_draft JSON, falling back to zero-shot")
@@ -158,7 +175,7 @@ async def run_import(
     db: Session = Depends(get_db),
 ):
     """Process files with optional recipe. RB-01: recipe is NEVER required.
-    
+
     CA-01: Works without any recipe selection.
     CA-02: Resolves prompt config: snapshot > draft > recipe_id > zero_shot.
     CA-03: Persists configuration used (model, prompts, raw response).
@@ -168,9 +185,14 @@ async def run_import(
 
     # Resolve recipe (never fails — always falls back to zero_shot)
     recipe_config, resolution_mode, resolved_snapshot_id = _resolve_recipe_config(
-        db, recipe_id, recipe_snapshot_id, recipe_draft,
+        db,
+        recipe_id,
+        recipe_snapshot_id,
+        recipe_draft,
     )
-    explicit_recipe_context = _has_explicit_recipe_context(recipe_id, recipe_snapshot_id, recipe_draft)
+    explicit_recipe_context = _has_explicit_recipe_context(
+        recipe_id, recipe_snapshot_id, recipe_draft
+    )
     force_clean_reimport = force and not explicit_recipe_context
 
     results: list[RunResponse] = []
@@ -180,45 +202,66 @@ async def run_import(
         tipo_archivo = tipo_archivo or detect_file_type(filename)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-        existing = None if force else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        existing = (
+            None
+            if force
+            else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        )
         if existing and existing.estado in ("CONFIRMED", "REVIEW"):
-            crud.add_log(db, existing.id, "SKIP_DUPLICATE", user_id, {
-                "reason": "same hash_or_name",
-                "recipe_resolution": resolution_mode,
-            })
+            crud.add_log(
+                db,
+                existing.id,
+                "SKIP_DUPLICATE",
+                user_id,
+                {
+                    "reason": "same hash_or_name",
+                    "recipe_resolution": resolution_mode,
+                },
+            )
             db.commit()
-            results.append(RunResponse(
-                id=existing.id,
-                estado=existing.estado,
-                tipo_documento_detectado=existing.tipo_documento_detectado,
-                confianza_clasificacion=existing.confianza_clasificacion,
-                requiere_revision=existing.requiere_revision,
-                datos_extraidos=existing.datos_extraidos,
-                llm_model=existing.llm_model,
-                recipe_used=resolution_mode,
-                recipe_snapshot_id=existing.recipe_snapshot_id,
-            ))
+            results.append(
+                RunResponse(
+                    id=existing.id,
+                    estado=existing.estado,
+                    tipo_documento_detectado=existing.tipo_documento_detectado,
+                    confianza_clasificacion=existing.confianza_clasificacion,
+                    requiere_revision=existing.requiere_revision,
+                    datos_extraidos=existing.datos_extraidos,
+                    llm_model=existing.llm_model,
+                    recipe_used=resolution_mode,
+                    recipe_snapshot_id=existing.recipe_snapshot_id,
+                )
+            )
             return
 
-        doc = crud.create_documento(db, {
-            "tenant_id": tenant_id,
-            "nombre_archivo": filename,
-            "tipo_archivo": tipo_archivo,
-            "tamanio_bytes": len(file_bytes),
-            "hash_sha256": file_hash,
-            "estado": "PROCESSING",
-            "usuario_id": user_id,
-            "recipe_snapshot_id": resolved_snapshot_id,
-        })
-        crud.add_log(db, doc.id, "RUN", user_id, {
-            "filename": filename,
-            "size": len(file_bytes),
-            "force": force,
-            "force_clean_reimport": force_clean_reimport,
-            "explicit_recipe_context": explicit_recipe_context,
-            "recipe_resolution": resolution_mode,
-            "recipe_snapshot_id": str(resolved_snapshot_id) if resolved_snapshot_id else None,
-        })
+        doc = crud.create_documento(
+            db,
+            {
+                "tenant_id": tenant_id,
+                "nombre_archivo": filename,
+                "tipo_archivo": tipo_archivo,
+                "tamanio_bytes": len(file_bytes),
+                "hash_sha256": file_hash,
+                "estado": "PROCESSING",
+                "usuario_id": user_id,
+                "recipe_snapshot_id": resolved_snapshot_id,
+            },
+        )
+        crud.add_log(
+            db,
+            doc.id,
+            "RUN",
+            user_id,
+            {
+                "filename": filename,
+                "size": len(file_bytes),
+                "force": force,
+                "force_clean_reimport": force_clean_reimport,
+                "explicit_recipe_context": explicit_recipe_context,
+                "recipe_resolution": resolution_mode,
+                "recipe_snapshot_id": str(resolved_snapshot_id) if resolved_snapshot_id else None,
+            },
+        )
         db.commit()
 
         try:
@@ -246,26 +289,36 @@ async def run_import(
                 if sheet_used is None and sheet_names:
                     sheet_used = sheet_names[0]
                 if sheet_used and structured_rows:
-                    filtered_rows = [r for r in structured_rows if isinstance(r, dict) and r.get("_sheet") == sheet_used]
+                    filtered_rows = [
+                        r
+                        for r in structured_rows
+                        if isinstance(r, dict) and r.get("_sheet") == sheet_used
+                    ]
                     if filtered_rows:
                         structured_rows = filtered_rows
                 if sheet_profiles:
-                    prof = sheet_profiles.get(sheet_used) or (sheet_profiles[sheet_names[0]] if sheet_names else None)
+                    prof = sheet_profiles.get(sheet_used) or (
+                        sheet_profiles[sheet_names[0]] if sheet_names else None
+                    )
                     if prof:
                         headers_norm = prof.get("headers_norm") or []
                         headers_display = prof.get("headers") or headers_norm
 
             # Fingerprint / recipe selection
             local_recipe_config = recipe_config or {}
-            local_resolution = "force_clean" if force_clean_reimport and not recipe_config else resolution_mode
-            local_snapshot_id = None if force_clean_reimport and not recipe_config else resolved_snapshot_id
+            local_resolution = (
+                "force_clean" if force_clean_reimport and not recipe_config else resolution_mode
+            )
+            local_snapshot_id = (
+                None if force_clean_reimport and not recipe_config else resolved_snapshot_id
+            )
             local_auto_created = False
             local_auto_name: str | None = None
             generated_auto_snapshot_id: UUID | None = None
             generated_auto_mode: str | None = None
             if sheet_profiles and not recipe_config:
-                auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = resolve_auto_recipe(
-                    db, tenant_id, sheet_profiles, user_id, force_new=force
+                auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = (
+                    resolve_auto_recipe(db, tenant_id, sheet_profiles, user_id, force_new=force)
                 )
                 generated_auto_snapshot_id = auto_snap_id
                 generated_auto_mode = auto_mode
@@ -291,11 +344,18 @@ async def run_import(
                 sample_lines = [f"Columnas: {headers_display}"]
                 for row in structured_rows[:5]:
                     if isinstance(row, dict):
-                        sample_lines.append(str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")}))
+                        sample_lines.append(
+                            str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")})
+                        )
                         if recipe_name_detected is None:
                             for key in row.keys():
-                                key_norm = str(key or '').strip().lower()
-                                if key_norm in ("nombre_de_la_receta", "nombre_receta", "nombre de la receta", "nombre"):
+                                key_norm = str(key or "").strip().lower()
+                                if key_norm in (
+                                    "nombre_de_la_receta",
+                                    "nombre_receta",
+                                    "nombre de la receta",
+                                    "nombre",
+                                ):
                                     val = row.get(key)
                                     if val:
                                         recipe_name_detected = str(val).strip()
@@ -306,7 +366,9 @@ async def run_import(
 
             # En reimportación limpia, no reutilizar auto-plantillas para sesgar la clasificación.
             analysis = await analyze_document(
-                llm_content, filename, extraction.get("format", tipo_archivo),
+                llm_content,
+                filename,
+                extraction.get("format", tipo_archivo),
                 has_structured_rows=has_structured,
                 recipe_config=local_recipe_config,
             )
@@ -317,12 +379,6 @@ async def run_import(
             razonamiento = str(normalized_analysis["reasoning"])
             analysis_fields = normalized_analysis["fields"]
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
-
-            extraction_raw = {
-                "_raw_response": analysis.get("raw_response"),
-                "_model_used": analysis.get("model_used"),
-                "_prompt_sent": analysis.get("prompt_sent"),
-            }
 
             # Construir datos_extraidos
             if has_structured:
@@ -336,8 +392,13 @@ async def run_import(
                         if not isinstance(row, dict):
                             continue
                         for key in row.keys():
-                            key_norm = str(key or '').strip().lower()
-                            if key_norm in ('nombre_de_la_receta', 'nombre_receta', 'nombre de la receta', 'nombre'):
+                            key_norm = str(key or "").strip().lower()
+                            if key_norm in (
+                                "nombre_de_la_receta",
+                                "nombre_receta",
+                                "nombre de la receta",
+                                "nombre",
+                            ):
                                 val = row.get(key)
                                 if val:
                                     recipe_name_detected = str(val).strip()
@@ -346,16 +407,27 @@ async def run_import(
                             break
                 meta_for_sheet = None
                 if sheet_metadata:
-                    meta_for_sheet = sheet_metadata.get(sheet_used) or (sheet_metadata.get(sheet_names[0]) if sheet_names else None)
+                    meta_for_sheet = sheet_metadata.get(sheet_used) or (
+                        sheet_metadata.get(sheet_names[0]) if sheet_names else None
+                    )
                 if recipe_name_detected is None and meta_for_sheet:
                     for key, val in meta_for_sheet.items():
                         key_norm = str(key or "").strip().lower()
-                        if key_norm in ("nombre_de_la_receta", "nombre_receta", "nombre de la receta", "nombre"):
+                        if key_norm in (
+                            "nombre_de_la_receta",
+                            "nombre_receta",
+                            "nombre de la receta",
+                            "nombre",
+                        ):
                             if val:
                                 recipe_name_detected = str(val).strip()
                                 break
                 if recipe_name_detected is None:
-                    recipe_name_detected = sheet_used or (list(sheet_profiles.keys())[0] if sheet_profiles else None) or Path(filename).stem
+                    recipe_name_detected = (
+                        sheet_used
+                        or (list(sheet_profiles.keys())[0] if sheet_profiles else None)
+                        or Path(filename).stem
+                    )
 
                 # Agrupar todas las filas por hoja para visualización completa en el frontend
                 filas_por_hoja: dict[str, list] = {}
@@ -378,7 +450,9 @@ async def run_import(
                 if meta_for_sheet:
                     datos_extraidos["metadata"] = meta_for_sheet
                 if filas_por_hoja:
-                    datos_extraidos["filas_por_hoja"] = {k: v[:200] for k, v in filas_por_hoja.items()}
+                    datos_extraidos["filas_por_hoja"] = {
+                        k: v[:200] for k, v in filas_por_hoja.items()
+                    }
                     datos_extraidos["filas_por_hoja_count"] = filas_count
             else:
                 # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
@@ -388,11 +462,16 @@ async def run_import(
             auto_recipe_created = local_auto_created
             auto_recipe_name: str | None = local_auto_name
             if not sheet_profiles and tipo_doc != "OTHER":
-                auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = resolve_auto_recipe_from_text(
-                    db, tenant_id, tipo_doc, datos_extraidos,
-                    extraction.get("format", tipo_archivo),
-                    user_id,
-                    force_new=force,
+                auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = (
+                    resolve_auto_recipe_from_text(
+                        db,
+                        tenant_id,
+                        tipo_doc,
+                        datos_extraidos,
+                        extraction.get("format", tipo_archivo),
+                        user_id,
+                        force_new=force,
+                    )
                 )
                 if not local_recipe_config and auto_rc2:
                     local_recipe_config = auto_rc2
@@ -404,12 +483,18 @@ async def run_import(
                 "run": {
                     "recipe_resolution": {
                         "recipe_id": str(recipe_id) if recipe_id else None,
-                        "recipe_snapshot_id": str(local_snapshot_id or resolved_snapshot_id) if (local_snapshot_id or resolved_snapshot_id) else None,
+                        "recipe_snapshot_id": (
+                            str(local_snapshot_id or resolved_snapshot_id)
+                            if (local_snapshot_id or resolved_snapshot_id)
+                            else None
+                        ),
                         "used": local_resolution,
                         "force": force,
                         "force_clean_reimport": force_clean_reimport,
                         "explicit_recipe_context": explicit_recipe_context,
-                        "generated_auto_snapshot_id": str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None,
+                        "generated_auto_snapshot_id": (
+                            str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None
+                        ),
                         "generated_auto_snapshot_mode": generated_auto_mode,
                     },
                     "model": model_used,
@@ -423,64 +508,118 @@ async def run_import(
                         "razonamiento": razonamiento,
                         "es_tabla": has_structured,
                     },
-                    "campos_extraidos": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else [],
+                    "campos_extraidos": (
+                        list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                    ),
                 },
             }
 
-            datos_extraidos = _json_safe(datos_extraidos) if isinstance(datos_extraidos, (dict, list)) else datos_extraidos
-            sheet_profiles = _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
+            datos_extraidos = (
+                _json_safe(datos_extraidos)
+                if isinstance(datos_extraidos, (dict, list))
+                else datos_extraidos
+            )
+            sheet_profiles = (
+                _json_safe(sheet_profiles)
+                if isinstance(sheet_profiles, (dict, list))
+                else sheet_profiles
+            )
             raw_ai_json = _json_safe(raw_ai_json)
 
-            crud.update_documento(db, doc, {
-                "texto_ocr": text[:50000],
-                "tipo_documento_detectado": tipo_doc,
-                "confianza_clasificacion": confianza,
-                "requiere_revision": requiere_revision,
-                "datos_extraidos": datos_extraidos,
-                "estado": "REVIEW",
-                "proveedor_detectado": get_data_value(datos_extraidos, "proveedor", "vendor_name", "supplier", "emisor") if isinstance(datos_extraidos, dict) else None,
-                "ruc_detectado": get_data_value(datos_extraidos, "ruc", "tax_id", "supplier_tax_id", "vendor_tax_id") if isinstance(datos_extraidos, dict) else None,
-                "monto_total": detect_document_total(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
-                "moneda": detect_document_currency(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
-                "fecha_documento": detect_document_date(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
-                "llm_model": model_used,
-                "raw_ai_json": raw_ai_json,
-                "fingerprint_json": sheet_profiles,
-                "sheet_profiles_json": sheet_profiles,
-                "recipe_snapshot_id": local_snapshot_id or resolved_snapshot_id,
-            })
-            crud.add_log(db, doc.id, "EXTRACT", user_id, {
-                "campos_extraidos": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else [],
-                "model": model_used,
-                "recipe_mode": local_resolution,
-                "auto_recipe_created": auto_recipe_created,
-                "force_clean_reimport": force_clean_reimport,
-                "generated_auto_snapshot_id": str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None,
-            })
+            crud.update_documento(
+                db,
+                doc,
+                {
+                    "texto_ocr": text[:50000],
+                    "tipo_documento_detectado": tipo_doc,
+                    "confianza_clasificacion": confianza,
+                    "requiere_revision": requiere_revision,
+                    "datos_extraidos": datos_extraidos,
+                    "estado": "REVIEW",
+                    "proveedor_detectado": (
+                        get_data_value(
+                            datos_extraidos, "proveedor", "vendor_name", "supplier", "emisor"
+                        )
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "ruc_detectado": (
+                        get_data_value(
+                            datos_extraidos, "ruc", "tax_id", "supplier_tax_id", "vendor_tax_id"
+                        )
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "monto_total": (
+                        detect_document_total(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "moneda": (
+                        detect_document_currency(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "fecha_documento": (
+                        detect_document_date(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "llm_model": model_used,
+                    "raw_ai_json": raw_ai_json,
+                    "fingerprint_json": sheet_profiles,
+                    "sheet_profiles_json": sheet_profiles,
+                    "recipe_snapshot_id": local_snapshot_id or resolved_snapshot_id,
+                },
+            )
+            crud.add_log(
+                db,
+                doc.id,
+                "EXTRACT",
+                user_id,
+                {
+                    "campos_extraidos": (
+                        list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                    ),
+                    "model": model_used,
+                    "recipe_mode": local_resolution,
+                    "auto_recipe_created": auto_recipe_created,
+                    "force_clean_reimport": force_clean_reimport,
+                    "generated_auto_snapshot_id": (
+                        str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None
+                    ),
+                },
+            )
             db.commit()
 
-            results.append(RunResponse(
-                id=doc.id,
-                estado=doc.estado,
-                tipo_documento_detectado=tipo_doc,
-                confianza_clasificacion=confianza,
-                requiere_revision=requiere_revision,
-                datos_extraidos=datos_extraidos,
-                llm_model=model_used,
-                recipe_used=local_resolution,
-                recipe_snapshot_id=local_snapshot_id or resolved_snapshot_id,
-                auto_recipe_created=auto_recipe_created or None,
-                auto_recipe_name=auto_recipe_name,
-            ))
+            results.append(
+                RunResponse(
+                    id=doc.id,
+                    estado=doc.estado,
+                    tipo_documento_detectado=tipo_doc,
+                    confianza_clasificacion=confianza,
+                    requiere_revision=requiere_revision,
+                    datos_extraidos=datos_extraidos,
+                    llm_model=model_used,
+                    recipe_used=local_resolution,
+                    recipe_snapshot_id=local_snapshot_id or resolved_snapshot_id,
+                    auto_recipe_created=auto_recipe_created or None,
+                    auto_recipe_name=auto_recipe_name,
+                )
+            )
 
         except Exception as exc:
             logger.error("Error processing %s: %s", filename, exc)
-            crud.update_documento(db, doc, {
-                "estado": "FAILED",
-                "error_detalle": str(exc),
-                "llm_model": "error",
-                "raw_ai_json": {"run": {"used": resolution_mode, "error": str(exc)}},
-            })
+            crud.update_documento(
+                db,
+                doc,
+                {
+                    "estado": "FAILED",
+                    "error_detalle": str(exc),
+                    "llm_model": "error",
+                    "raw_ai_json": {"run": {"used": resolution_mode, "error": str(exc)}},
+                },
+            )
             crud.add_log(db, doc.id, "ERROR", user_id, {"error": str(exc)})
             db.commit()
             results.append(RunResponse(id=doc.id, estado="FAILED", recipe_used=resolution_mode))
@@ -493,28 +632,43 @@ async def run_import(
         if tipo_archivo == "ZIP":
             entries = list(iter_zip_entries(file_bytes))
             if not entries:
-                doc = crud.create_documento(db, {
-                    "tenant_id": tenant_id,
-                    "nombre_archivo": filename,
-                    "tipo_archivo": tipo_archivo,
-                    "tamanio_bytes": len(file_bytes),
-                    "estado": "FAILED",
-                    "usuario_id": user_id,
-                    "recipe_snapshot_id": resolved_snapshot_id,
-                    "error_detalle": "ZIP vacío o sin ficheros soportados",
-                })
-                crud.add_log(db, doc.id, "RUN", user_id, {
-                    "filename": filename,
-                    "size": len(file_bytes),
-                    "recipe_resolution": resolution_mode,
-                    "recipe_snapshot_id": str(resolved_snapshot_id) if resolved_snapshot_id else None,
-                })
-                crud.add_log(db, doc.id, "ERROR", user_id, {"error": "ZIP vacío o sin ficheros soportados"})
+                doc = crud.create_documento(
+                    db,
+                    {
+                        "tenant_id": tenant_id,
+                        "nombre_archivo": filename,
+                        "tipo_archivo": tipo_archivo,
+                        "tamanio_bytes": len(file_bytes),
+                        "estado": "FAILED",
+                        "usuario_id": user_id,
+                        "recipe_snapshot_id": resolved_snapshot_id,
+                        "error_detalle": "ZIP vacío o sin ficheros soportados",
+                    },
+                )
+                crud.add_log(
+                    db,
+                    doc.id,
+                    "RUN",
+                    user_id,
+                    {
+                        "filename": filename,
+                        "size": len(file_bytes),
+                        "recipe_resolution": resolution_mode,
+                        "recipe_snapshot_id": (
+                            str(resolved_snapshot_id) if resolved_snapshot_id else None
+                        ),
+                    },
+                )
+                crud.add_log(
+                    db, doc.id, "ERROR", user_id, {"error": "ZIP vacío o sin ficheros soportados"}
+                )
                 db.commit()
                 results.append(RunResponse(id=doc.id, estado="FAILED", recipe_used=resolution_mode))
                 continue
             for inner_name, inner_bytes in entries:
-                await _process_single(inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name))
+                await _process_single(
+                    inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name)
+                )
         else:
             await _process_single(file_bytes, filename, tipo_archivo)
 
@@ -525,15 +679,19 @@ async def run_import(
 #  Recipe CRUD
 # =====================================================================
 
+
 @router.post("/recipes", response_model=RecipeOut, dependencies=protected)
 def create_recipe(body: RecipeCreate, request: Request, db: Session = Depends(get_db)):
-    recipe = recipe_crud.create_recipe(db, {
-        "tenant_id": _tenant_id(request),
-        "name": body.name,
-        "description": body.description,
-        "is_public": body.is_public,
-        "created_by": _user_id(request),
-    })
+    recipe = recipe_crud.create_recipe(
+        db,
+        {
+            "tenant_id": _tenant_id(request),
+            "name": body.name,
+            "description": body.description,
+            "is_public": body.is_public,
+            "created_by": _user_id(request),
+        },
+    )
     db.commit()
     return recipe
 
@@ -556,7 +714,9 @@ def get_recipe(recipe_id: UUID, request: Request, db: Session = Depends(get_db))
 
 
 @router.patch("/recipes/{recipe_id}", response_model=RecipeOut, dependencies=protected)
-def update_recipe(recipe_id: UUID, body: RecipeUpdate, request: Request, db: Session = Depends(get_db)):
+def update_recipe(
+    recipe_id: UUID, body: RecipeUpdate, request: Request, db: Session = Depends(get_db)
+):
     recipe = recipe_crud.get_recipe(db, recipe_id)
     if not recipe:
         raise HTTPException(404, "Receta no encontrada")
@@ -569,19 +729,25 @@ def update_recipe(recipe_id: UUID, body: RecipeUpdate, request: Request, db: Ses
 #  Draft CRUD
 # =====================================================================
 
+
 @router.post("/recipes/{recipe_id}/drafts", response_model=DraftOut, dependencies=protected)
-def create_draft(recipe_id: UUID, body: DraftCreate, request: Request, db: Session = Depends(get_db)):
+def create_draft(
+    recipe_id: UUID, body: DraftCreate, request: Request, db: Session = Depends(get_db)
+):
     recipe = recipe_crud.get_recipe(db, recipe_id)
     if not recipe:
         raise HTTPException(404, "Receta no encontrada")
-    draft = recipe_crud.create_draft(db, {
-        "tenant_id": _tenant_id(request),
-        "recipe_id": recipe_id,
-        "prompt_system": body.prompt_system,
-        "prompt_user": body.prompt_user,
-        "model_config": body.ai_model_config,
-        "updated_by": _user_id(request),
-    })
+    draft = recipe_crud.create_draft(
+        db,
+        {
+            "tenant_id": _tenant_id(request),
+            "recipe_id": recipe_id,
+            "prompt_system": body.prompt_system,
+            "prompt_user": body.prompt_user,
+            "model_config": body.ai_model_config,
+            "updated_by": _user_id(request),
+        },
+    )
     db.commit()
     return draft
 
@@ -600,7 +766,9 @@ def get_draft(draft_id: UUID, request: Request, db: Session = Depends(get_db)):
 
 
 @router.patch("/drafts/{draft_id}", response_model=DraftOut, dependencies=protected)
-def update_draft(draft_id: UUID, body: DraftUpdate, request: Request, db: Session = Depends(get_db)):
+def update_draft(
+    draft_id: UUID, body: DraftUpdate, request: Request, db: Session = Depends(get_db)
+):
     draft = recipe_crud.get_draft(db, draft_id)
     if not draft:
         raise HTTPException(404, "Borrador no encontrado")
@@ -621,8 +789,14 @@ def update_draft(draft_id: UUID, body: DraftUpdate, request: Request, db: Sessio
 #  Snapshots (immutable — CA-04/CA-05)
 # =====================================================================
 
+
 @router.post("/drafts/{draft_id}/snapshot", response_model=SnapshotOut, dependencies=protected)
-def create_snapshot(draft_id: UUID, request: Request, version_tag: str | None = Query(default=None), db: Session = Depends(get_db)):
+def create_snapshot(
+    draft_id: UUID,
+    request: Request,
+    version_tag: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
     """Create an immutable snapshot from a draft (RB-03, RB-04)."""
     draft = recipe_crud.get_draft(db, draft_id)
     if not draft:
@@ -632,19 +806,24 @@ def create_snapshot(draft_id: UUID, request: Request, version_tag: str | None = 
         "prompt_user": draft.prompt_user,
         "model_config": draft.model_config,
     }
-    snap = recipe_crud.create_snapshot(db, {
-        "tenant_id": _tenant_id(request),
-        "recipe_id": draft.recipe_id,
-        "draft_id": draft_id,
-        "version_tag": version_tag,
-        "content_json": content,
-        "created_by": _user_id(request),
-    })
+    snap = recipe_crud.create_snapshot(
+        db,
+        {
+            "tenant_id": _tenant_id(request),
+            "recipe_id": draft.recipe_id,
+            "draft_id": draft_id,
+            "version_tag": version_tag,
+            "content_json": content,
+            "created_by": _user_id(request),
+        },
+    )
     db.commit()
     return snap
 
 
-@router.get("/recipes/{recipe_id}/snapshots", response_model=list[SnapshotOut], dependencies=protected)
+@router.get(
+    "/recipes/{recipe_id}/snapshots", response_model=list[SnapshotOut], dependencies=protected
+)
 def list_snapshots(recipe_id: UUID, request: Request, db: Session = Depends(get_db)):
     return recipe_crud.list_snapshots(db, recipe_id)
 

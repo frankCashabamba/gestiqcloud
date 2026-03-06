@@ -1,4 +1,5 @@
 """Sync importador costing documents into production recipes."""
+
 from __future__ import annotations
 
 import re
@@ -12,7 +13,26 @@ from app.models.core.products import Product
 from app.models.importador import ImpDocumento
 from app.models.recipes import Recipe, RecipeIngredient
 
-_VALID_UNITS = {"kg", "g", "lb", "oz", "ton", "mg", "L", "ml", "gal", "qt", "pt", "cup", "fl_oz", "tbsp", "tsp", "uds", "unidades", "pcs"}
+_VALID_UNITS = {
+    "kg",
+    "g",
+    "lb",
+    "oz",
+    "ton",
+    "mg",
+    "L",
+    "ml",
+    "gal",
+    "qt",
+    "pt",
+    "cup",
+    "fl_oz",
+    "tbsp",
+    "tsp",
+    "uds",
+    "unidades",
+    "pcs",
+}
 
 
 def _normalize_unit(unit: str | None) -> str:
@@ -133,7 +153,11 @@ def _get_recipe_name(
     return (
         _pick_first(metadata, *RECIPE_NAME_KEYS)
         or row_name
-        or (sheet_override.strip() if isinstance(sheet_override, str) and sheet_override.strip() else None)
+        or (
+            sheet_override.strip()
+            if isinstance(sheet_override, str) and sheet_override.strip()
+            else None
+        )
         or doc_data.get("nombre_receta")
         or doc_data.get("sheet_usada")
         or filename.split("::")[0].split(".")[0]
@@ -188,7 +212,9 @@ def _find_or_create_product(
     return product
 
 
-def _compute_ingredient_cost(qty: Decimal, qty_per_package: Decimal, package_cost: Decimal) -> Decimal:
+def _compute_ingredient_cost(
+    qty: Decimal, qty_per_package: Decimal, package_cost: Decimal
+) -> Decimal:
     if qty_per_package <= 0:
         return Decimal("0")
     return (qty * package_cost) / qty_per_package
@@ -263,7 +289,9 @@ def _enrich_data_from_doc(data: dict, doc: ImpDocumento) -> dict:
     return data
 
 
-def upsert_recipe_from_import(doc: ImpDocumento, db: Session, *, sheet_override: str | None = None) -> tuple[UUID | None, bool]:
+def upsert_recipe_from_import(
+    doc: ImpDocumento, db: Session, *, sheet_override: str | None = None
+) -> tuple[UUID | None, bool]:
     """Create or update one production recipe from one import sheet."""
     data = doc.datos_confirmados or doc.datos_extraidos or {}
     if not isinstance(data, dict):
@@ -336,19 +364,12 @@ def upsert_recipe_from_import(doc: ImpDocumento, db: Session, *, sheet_override:
 
         name = row.get("ingredientes") or row.get("ingredient") or row.get("nombre")
         if not name:
-            name = (
-                row.get("descripci\u00f3n")
-                or row.get("descripcion")
-                or row.get("description")
-            )
+            name = row.get("descripci\u00f3n") or row.get("descripcion") or row.get("description")
         if not name or not str(name).strip():
             continue
 
         qty = _as_decimal(
-            row.get("cantidad_(ml_/gr)")
-            or row.get("cantidad")
-            or row.get("qty")
-            or 0
+            row.get("cantidad_(ml_/gr)") or row.get("cantidad") or row.get("qty") or 0
         )
         unit = _normalize_unit(row.get("unidad_(ml_/_gr)") or row.get("unidad"))
 
@@ -380,21 +401,27 @@ def upsert_recipe_from_import(doc: ImpDocumento, db: Session, *, sheet_override:
             or row.get("dimension_medida")
         )
 
-        product = _find_or_create_product(db, doc.tenant_id, str(name).strip(), unit=None, cost_price=None)
+        product = _find_or_create_product(
+            db, doc.tenant_id, str(name).strip(), unit=None, cost_price=None
+        )
         ingredient = RecipeIngredient(
             recipe_id=recipe.id,
             product_id=product.id,
             qty=qty if qty > 0 else Decimal("1"),
             unit=unit,
             purchase_packaging=str(packaging) if packaging else None,
-            qty_per_package=qty_per_package if qty_per_package > 0 else qty if qty > 0 else Decimal("1"),
+            qty_per_package=(
+                qty_per_package if qty_per_package > 0 else qty if qty > 0 else Decimal("1")
+            ),
             package_unit=unit,
             package_cost=package_cost,
             line_order=line_order,
             notes=None,
         )
         db.add(ingredient)
-        total_cost += _compute_ingredient_cost(ingredient.qty, ingredient.qty_per_package, package_cost)
+        total_cost += _compute_ingredient_cost(
+            ingredient.qty, ingredient.qty_per_package, package_cost
+        )
         line_order += 1
 
     recipe.total_cost = total_cost
