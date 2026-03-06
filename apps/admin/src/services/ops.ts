@@ -1,13 +1,13 @@
 import { apiFetch } from '../lib/http'
 
-export async function runMigrations(): Promise<{ ok: boolean; job_id?: string; started?: boolean; mode?: string; message?: string; pending_count?: number }>{
+export async function runMigrations(): Promise<{ ok: boolean; job_id?: string; started?: boolean; mode?: string; message?: string; pending_count?: number; applied_count?: number; runner?: string }>{
   // Backend mounts admin ops under /api/v1; Worker accepts /v1/*
   return apiFetch('/v1/admin/ops/migrate', { method: 'POST' })
 }
 
 export type MigrationState = {
   running: boolean
-  mode: 'inline' | 'inline_async' | 'render_job' | string | null
+  mode: 'inline' | 'inline_async' | 'render_job' | 'sql_idempotent' | 'sql_idempotent_async' | string | null
   started_at: string | null
   finished_at: string | null
   ok: boolean | null

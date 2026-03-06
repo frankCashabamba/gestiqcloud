@@ -23,7 +23,7 @@ export default function Migraciones() {
       if (res?.ok && res?.started === false && res?.message === 'sin_migraciones_pendientes') {
         setMsg('Sin migraciones pendientes')
       } else {
-        setMsg(res?.ok ? 'Migraciones disparadas correctamente' : 'No se pudo disparar el job')
+        setMsg(res?.ok ? 'Migraciones iniciadas correctamente' : 'No se pudo ejecutar el runner')
       }
       try {
         const s = await getMigrationStatus()
@@ -90,16 +90,11 @@ export default function Migraciones() {
     <div className="p-4">
       <h2 className="text-lg font-semibold mb-3">Migraciones de base de datos</h2>
       <p className="text-sm text-slate-600 mb-2">
-        Este botón solicita al backend que dispare el Job de Render configurado (RENDER_MIGRATE_JOB_ID). Úsalo tras cambios de esquema.
+        Este botón ejecuta en el backend el runner SQL idempotente <code>ops/scripts/migrate_all_migrations_idempotent.py</code> y registra el resultado en el historial.
       </p>
       <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 text-sm">
-        Nota: Por ahora el pipeline es manual; en el futuro se activará automáticamente al detectar cambios de esquema.
+        Nota: el runner registra en <code>_migrations</code> las migraciones ya aplicadas y solo deja pendientes las que faltan por procesar.
       </div>
-      {state?.alembic_heads && state.alembic_heads.count !== 1 && (
-        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-800 text-sm">
-          Advertencia: se detectaron {state.alembic_heads.count} heads de Alembic. Heads: {state.alembic_heads.heads.join(', ')}
-        </div>
-      )}
 
       <button
         disabled={loading || (state?.running ?? false)}
@@ -125,6 +120,17 @@ export default function Migraciones() {
           {state.started_at && <div>Inicio: {new Date(state.started_at).toLocaleString()}</div>}
           {state.finished_at && <div>Fin: {new Date(state.finished_at).toLocaleString()}</div>}
           {state.error && <div className="text-red-600">Error: {state.error}</div>}
+        </div>
+      )}
+      {state?.alembic_heads && state.alembic_heads.count !== 1 && (
+        <div className="mt-4 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-slate-700 text-sm">
+          <div className="font-semibold text-slate-800">Diagnostico Alembic</div>
+          <div>
+            Se detectaron {state.alembic_heads.count} heads: {state.alembic_heads.heads.join(', ')}.
+          </div>
+          <div className="mt-1">
+            Este aviso es solo informativo y no bloquea el runner SQL idempotente del boton.
+          </div>
         </div>
       )}
 
