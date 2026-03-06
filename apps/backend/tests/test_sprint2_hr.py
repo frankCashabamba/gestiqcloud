@@ -345,7 +345,7 @@ def test_payslip_generation(db: Session, tenant_id, employee, employee_salary):
 
     assert len(payslips) >= 1
     assert payslips[0].status == "GENERATED"
-    assert payslips[0].valid_until > date.today()
+    assert payslips[0].valid_until == date(2026, 3, 1)
     assert payslips[0].download_count == 0
 
 

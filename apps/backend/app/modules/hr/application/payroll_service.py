@@ -141,6 +141,7 @@ class PayrollService:
             total_deductions += detail.total_deductions
 
             db.add(detail)
+            db.flush()
 
             # Crear PaymentSlip
             payslip = PaymentSlip(

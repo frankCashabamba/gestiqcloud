@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from sqlalchemy import TIMESTAMP, Boolean, Date
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -130,10 +130,13 @@ class EInvoice(Base):
     # Audit
     created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
     )
 
     # Relations
@@ -229,10 +232,13 @@ class EInvoiceSignature(Base):
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
     )
 
     # Relations
@@ -285,7 +291,7 @@ class EInvoiceStatus(Base):
         PGUUID(as_uuid=True), nullable=True, comment="Usuario que hizo el cambio"
     )
     changed_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
 
@@ -342,7 +348,7 @@ class EInvoiceError(Base):
 
     # Audit
     occurred_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
     # Relations

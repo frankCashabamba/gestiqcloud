@@ -434,10 +434,19 @@ def test_einvoice_signature_creation(db: Session, tenant_id, sii_settings, invoi
         assert einvoice.signature.status in ["SIGNED", "VERIFIED"]
 
 
-def test_einvoice_signature_info(db: Session):
+def test_einvoice_signature_info(db: Session, tenant_id):
     """Test: guarda información de firma."""
+    einvoice = EInvoice(
+        tenant_id=tenant_id,
+        invoice_id=uuid4(),
+        country="ES",
+        status="PENDING",
+    )
+    db.add(einvoice)
+    db.flush()
+
     signature = EInvoiceSignature(
-        einvoice_id=uuid4(),
+        einvoice_id=einvoice.id,
         certificate_serial="1234567890",
         certificate_issuer="CA Trustworthy",
         digest_algorithm="SHA256",

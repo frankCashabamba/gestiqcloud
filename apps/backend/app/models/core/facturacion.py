@@ -254,14 +254,27 @@ class LegacyPayment(Base):
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         "tenant_id", UUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True
     )
-    bank_tx_id: Mapped[uuid.UUID] = mapped_column(
-        "bank_tx_id", UUID(as_uuid=True), ForeignKey("bank_transactions.id"), index=True
+    # Legacy payment rows were historically sparse and now coexist with the
+    # finance `payments` model on the same table when running under SQLite
+    # tests (`extend_existing=True`). Keep the legacy-only columns nullable so
+    # the newer finance workflow can persist rows without inventing bank
+    # reconciliation data.
+    bank_tx_id: Mapped[uuid.UUID | None] = mapped_column(
+        "bank_tx_id",
+        UUID(as_uuid=True),
+        ForeignKey("bank_transactions.id"),
+        index=True,
+        nullable=True,
     )
-    invoice_id: Mapped[uuid.UUID] = mapped_column(
-        "invoice_id", UUID(as_uuid=True), ForeignKey("invoices.id"), index=True
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(
+        "invoice_id",
+        UUID(as_uuid=True),
+        ForeignKey("invoices.id"),
+        index=True,
+        nullable=True,
     )
-    date: Mapped[date] = mapped_column(Date())
-    applied_amount: Mapped[float] = mapped_column("applied_amount")
+    date: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    applied_amount: Mapped[float | None] = mapped_column("applied_amount", nullable=True)
     notes: Mapped[str] = mapped_column("notes", String, nullable=True)
 
     # Relationships

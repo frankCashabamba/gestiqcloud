@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import TIMESTAMP, Date, ForeignKey, Numeric, String
+from sqlalchemy import TIMESTAMP, Date, ForeignKey, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -75,10 +75,13 @@ class CashPosition(Base):
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
     )
 
 
@@ -107,10 +110,13 @@ class BankStatement(Base):
     matched_count: Mapped[int] = mapped_column(nullable=False, default=0)
     unmatched_count: Mapped[int] = mapped_column(nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
     )
 
     # Relations
@@ -155,7 +161,7 @@ class BankStatementLine(Base):
     match_status: Mapped[str] = mapped_column(String(20), nullable=False, default="unmatched")
     match_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
     # Relations
@@ -234,8 +240,11 @@ class CashProjection(Base):
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
     )

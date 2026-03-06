@@ -16,7 +16,7 @@ from decimal import Decimal
 
 from sqlalchemy import JSON, TIMESTAMP, Date
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Numeric, String, Text
+from sqlalchemy import ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -139,7 +139,7 @@ class CashMovement(Base):
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
     # Relation to closing
@@ -243,8 +243,11 @@ class CashClosing(Base):
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
     )

@@ -1,6 +1,6 @@
 import pytest
 
-from app.modules.importador.recipe_router import _normalize_analysis_output
+from app.modules.importador.analysis_normalizer import _normalize_analysis_output
 
 
 @pytest.mark.no_db

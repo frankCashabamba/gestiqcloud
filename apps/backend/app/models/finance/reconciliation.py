@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from sqlalchemy import TIMESTAMP, Boolean, Date
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Numeric, String, Text
+from sqlalchemy import ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -122,10 +122,13 @@ class BankReconciliation(Base):
         TIMESTAMP(timezone=True), nullable=True, comment="Fecha de reconciliación"
     )
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=datetime.utcnow,
     )
 
     # Relations
@@ -215,7 +218,7 @@ class ReconciliationMatch(Base):
         PGUUID(as_uuid=True), nullable=True, comment="Usuario que hizo el match"
     )
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
     # Relations
@@ -283,7 +286,7 @@ class ReconciliationDifference(Base):
         TIMESTAMP(timezone=True), nullable=True, comment="Fecha de resolución"
     )
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
     # Relations
