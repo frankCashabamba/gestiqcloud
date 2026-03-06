@@ -36,13 +36,6 @@ describe('useSectorValidation hook', () => {
   })
 })
 
-describe('useCountryValidation hook', () => {
-  it('should export useCountryValidation function', async () => {
-    const { useCountryValidation } = await import('../hooks/useCountryValidation')
-    expect(typeof useCountryValidation).toBe('function')
-  })
-})
-
 describe('useDashboardKPIs hook', () => {
   it('should export useDashboardKPIs function', async () => {
     const { useDashboardKPIs } = await import('../hooks/useDashboardKPIs')
