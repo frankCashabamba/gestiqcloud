@@ -4,6 +4,7 @@ import SaveDocumentModal from '../components/SaveDocumentModal'
 import {
   canSaveDocument,
   fetchDocuments,
+  purgeAllImportador,
   suggestSaveDestination,
   type Documento,
   type SaveDocumentResult,
@@ -17,6 +18,7 @@ export default function DocumentList() {
   const [filter, setFilter] = useState(searchParams.get('estado') || '')
   const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [purging, setPurging] = useState(false)
 
   const loadDocuments = async () => {
     setLoading(true)
@@ -71,6 +73,21 @@ export default function DocumentList() {
     void loadDocuments()
   }
 
+  const handlePurgeAll = async () => {
+    if (!window.confirm('¿Borrar TODO el historial del importador? Esta acción no se puede deshacer.')) return
+    setPurging(true)
+    setFeedback('')
+    try {
+      const res = await purgeAllImportador()
+      setFeedback(`Historial borrado: ${res.deleted_total} registros eliminados.`)
+      void loadDocuments()
+    } catch {
+      setFeedback('Error al borrar el historial.')
+    } finally {
+      setPurging(false)
+    }
+  }
+
   return (
     <div style={{ padding: '1.5rem' }}>
       <button
@@ -87,7 +104,7 @@ export default function DocumentList() {
             Cada documento ya puede guardarse directo en recetas o gastos.
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {['', 'REVIEW', 'CONFIRMED', 'FAILED'].map((estado) => (
             <button
               key={estado}
@@ -105,6 +122,23 @@ export default function DocumentList() {
               {estado || 'Todos'}
             </button>
           ))}
+          <button
+            onClick={handlePurgeAll}
+            disabled={purging}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 999,
+              border: '1px solid #fca5a5',
+              background: '#dc2626',
+              color: '#fff',
+              cursor: purging ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+              fontWeight: 700,
+              marginLeft: 8,
+            }}
+          >
+            {purging ? 'Borrando...' : '🗑 Borrar historial'}
+          </button>
         </div>
       </div>
 

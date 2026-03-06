@@ -146,17 +146,20 @@ def _coerce_user_uuid(user_id: str):
         return uuid.uuid4()
 
 
-def _infer_save_destination(doc) -> str:
+def _infer_save_destination(doc, db: Session) -> str:
+    from .category_loader import classify_doc_type, get_doc_categories
     tipo = str(doc.tipo_documento_detectado or "").strip().upper()
     data = _get_doc_import_data(doc)
+    cats = get_doc_categories(db)
 
-    if tipo == "COSTEO":
+    category = classify_doc_type(tipo, cats)
+    if category == "recipe":
         return "recipe"
-    if isinstance(data.get("filas"), list) and tipo in {"COSTEO", "OTRO", ""}:
+    if isinstance(data.get("filas"), list) and category == "other":
         return "recipe"
-    if tipo in {"RECIBO", "BOLETA", "TICKET"}:
+    if category == "receipt":
         return "expense"
-    if tipo in {"FACTURA", "NOTA_CREDITO", "ORDEN_COMPRA", "PRESUPUESTO"}:
+    if category == "invoice":
         return "supplier_invoice"
     if doc.proveedor_detectado or doc.ruc_detectado or doc.monto_total is not None:
         return "supplier_invoice"
@@ -504,13 +507,13 @@ async def upload_files(
                 recipe_config={},
             )
 
-            tipo_doc = analysis.get("tipo_documento", "OTRO")
-            confianza = float(analysis.get("confianza", 0.0))
+            tipo_doc = analysis.get("doc_type", "OTHER")
+            confianza = float(analysis.get("confidence", 0.0))
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
 
             crud.add_log(db, doc.id, "CLASSIFY", user_id, {
                 "tipo_documento": tipo_doc, "confianza": confianza,
-                "razonamiento": analysis.get("razonamiento", ""), "model_used": analysis.get("model_used"),
+                "razonamiento": analysis.get("reasoning", ""), "model_used": analysis.get("model_used"),
             })
 
             # Construir datos_extraidos
@@ -538,7 +541,7 @@ async def upload_files(
                 }
             else:
                 # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
-                datos_extraidos = analysis.get("campos") or {}
+                datos_extraidos = analysis.get("fields") or {}
 
             crud.add_log(db, doc.id, "EXTRACT", user_id, {"campos_extraidos": list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []})
 
@@ -552,8 +555,8 @@ async def upload_files(
                 "requiere_revision": requiere_revision,
                 "datos_extraidos": datos_extraidos,
                 "estado": "REVIEW",
-                "proveedor_detectado": get_data_value(datos_extraidos, "proveedor", "vendor_name", "supplier", "emisor") if isinstance(datos_extraidos, dict) else None,
-                "ruc_detectado": get_data_value(datos_extraidos, "ruc", "tax_id", "supplier_tax_id", "vendor_tax_id") if isinstance(datos_extraidos, dict) else None,
+                "proveedor_detectado": get_data_value(datos_extraidos, "vendor", "proveedor", "vendor_name", "supplier", "emisor") if isinstance(datos_extraidos, dict) else None,
+                "ruc_detectado": get_data_value(datos_extraidos, "vendor_tax_id", "ruc", "tax_id", "supplier_tax_id", "ruc_proveedor") if isinstance(datos_extraidos, dict) else None,
                 "monto_total": detect_document_total(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
                 "moneda": detect_document_currency(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
                 "fecha_documento": detect_document_date(datos_extraidos) if isinstance(datos_extraidos, dict) else None,
@@ -797,7 +800,7 @@ def save_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
-    destination = body.destination or _infer_save_destination(doc)
+    destination = body.destination or _infer_save_destination(doc, db)
 
     if destination == "recipe":
         data = _get_doc_import_data(doc)
@@ -936,6 +939,13 @@ def get_document_logs(doc_id: UUID, request: Request, db: Session = Depends(get_
     return crud.get_logs(db, doc_id)
 
 
+@router.get("/doc-categories", dependencies=protected)
+def get_doc_categories(db: Session = Depends(get_db)):
+    """Returns the doc_type→category keyword map from DB for client-side use."""
+    from .category_loader import get_doc_categories
+    return get_doc_categories(db)
+
+
 @router.get("/dashboard", response_model=DashboardStats, dependencies=protected)
 def get_dashboard(request: Request, db: Session = Depends(get_db)):
     tenant_id = _tenant_id(request)
@@ -958,7 +968,7 @@ def _safe_float(val) -> float | None:
     response_model=SaveDailyLogResponse,
     dependencies=protected,
 )
-def save_as_daily_log(
+async def save_as_daily_log(
     doc_id: UUID,
     body: SaveDailyLogRequest,
     request: Request,
@@ -969,10 +979,11 @@ def save_as_daily_log(
     La fecha se infiere del nombre del archivo (DD-MM-YY) o se puede pasar en el body.
     No afecta el stock actual — es solo historial analítico.
     """
-    from .daily_log_service import parse_registro_rows, save_daily_log, _parse_date_from_filename
+    from .daily_log_service import resolve_registro_rows, save_daily_log, _parse_date_from_filename
     from datetime import date as date_type
 
     tenant_id = _tenant_id(request)
+    user_id = _user_id(request)
     doc = crud.get_documento(db, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="documento_no_encontrado")
@@ -993,8 +1004,7 @@ def save_as_daily_log(
             detail="no_se_pudo_inferir_fecha — incluye log_date en el body (YYYY-MM-DD)",
         )
 
-    datos = doc.datos_extraidos or {}
-    rows = parse_registro_rows(datos)
+    rows = await resolve_registro_rows(db, tenant_id, doc, user_id=user_id)
     if not rows:
         raise HTTPException(
             status_code=422,
@@ -1009,3 +1019,66 @@ def save_as_daily_log(
         rows=rows,
     )
     return SaveDailyLogResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Purge all importador history (tenant-scoped)
+# ---------------------------------------------------------------------------
+@router.delete("/purge-all", dependencies=protected)
+def purge_all_importador(request: Request, db: Session = Depends(get_db)):
+    from sqlalchemy import text as sql_text
+
+    tenant_id = _tenant_id(request)
+    tid = str(tenant_id)
+
+    # Order: children first, then parents (FK constraints)
+    # Tables with tenant_id column directly
+    tenant_tables = [
+        "icu_recipe_snapshot",
+        "icu_recipe_draft",
+        "imp_documento",
+        "icu_recipe",
+        "import_items",
+        "import_resolutions",
+        "posting_registry",
+        "import_ocr_jobs",
+        "import_batches",
+        "import_mappings",
+        "import_column_mappings",
+    ]
+    # Tables without tenant_id — delete via FK sub-select
+    fk_tables = [
+        ("imp_log_cambios", "documento_id", "SELECT id FROM imp_documento WHERE tenant_id = :tid"),
+        ("import_attachments", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
+        ("import_item_corrections", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
+        ("import_lineage", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
+    ]
+
+    deleted: dict[str, int] = {}
+
+    for tname, fk_col, sub_q in fk_tables:
+        try:
+            r = db.execute(
+                sql_text(f"DELETE FROM {tname} WHERE {fk_col} IN ({sub_q})"),
+                {"tid": tid},
+            )
+            if r.rowcount:
+                deleted[tname] = r.rowcount
+        except Exception:
+            logger.debug("purge skip %s (may not exist)", tname, exc_info=True)
+
+    for tname in tenant_tables:
+        try:
+            r = db.execute(
+                sql_text(f"DELETE FROM {tname} WHERE tenant_id = :tid"),
+                {"tid": tid},
+            )
+            if r.rowcount:
+                deleted[tname] = r.rowcount
+        except Exception:
+            logger.debug("purge skip %s (may not exist)", tname, exc_info=True)
+
+    db.commit()
+    total = sum(deleted.values())
+    logger.info("purge_all_importador tenant=%s deleted=%s", tenant_id, deleted)
+    return {"deleted_total": total, "tables": deleted}

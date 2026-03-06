@@ -166,9 +166,9 @@ function normalizeSyncedSheets(raw: unknown): Documento['synced_sheets'] {
 function normalizeDocument(raw: unknown): Documento {
   const data = (raw || {}) as Record<string, unknown>
   const importData = getDocumentData(data)
-  const inferredTotal = parseNumberish(getDocumentValue(importData, 'monto_total', 'total', 'amount', 'importe', 'grand_total', 'total_general'))
-  const inferredCurrency = getDocumentValue(importData, 'moneda', 'currency', 'divisa')
-  const inferredDate = getDocumentValue(importData, 'fecha', 'date', 'issue_date', 'invoice_date', 'expense_date')
+  const inferredTotal = parseNumberish(getDocumentValue(importData, 'total_amount', 'monto_total', 'total', 'amount', 'importe', 'grand_total'))
+  const inferredCurrency = getDocumentValue(importData, 'currency', 'moneda', 'divisa')
+  const inferredDate = getDocumentValue(importData, 'issue_date', 'fecha', 'date', 'invoice_date', 'expense_date')
 
   return {
     ...(data as Documento),
@@ -259,11 +259,9 @@ export type SaveDocumentResult = {
 
 export function suggestSaveDestination(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>): DocumentSaveDestination {
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
-  if (tipo === 'COSTEO') return 'recipe'
-  if (tipo === 'RECIBO' || tipo === 'BOLETA' || tipo === 'TICKET') return 'expense'
-  if (tipo === 'FACTURA' || tipo === 'NOTA_CREDITO' || tipo === 'ORDEN_COMPRA' || tipo === 'PRESUPUESTO') {
-    return 'supplier_invoice'
-  }
+  if (_matchesAny(tipo, _categoryKeywords.recipe   ?? [])) return 'recipe'
+  if (_matchesAny(tipo, _categoryKeywords.receipt  ?? [])) return 'expense'
+  if (_matchesAny(tipo, _categoryKeywords.invoice  ?? [])) return 'supplier_invoice'
   if (doc.proveedor_detectado || doc.monto_total != null) return 'supplier_invoice'
   return 'expense'
 }
@@ -278,25 +276,47 @@ export type DocCategory =
   | 'payroll'
   | 'other'
 
-const EXPENSE_TYPES = new Set(['TICKETDEVENTA', 'RECIBO', 'BOLETA', 'TICKET', 'RECEIPT'])
-const INVOICE_TYPES = new Set(['FACTURA', 'NOTA_CREDITO', 'ORDEN_COMPRA', 'PRESUPUESTO'])
-const INVENTORY_TYPES = new Set(['INVENTARIO', 'LISTA_PRECIOS', 'CATALOGO', 'CATALOGO_PRECIOS'])
-const BANK_TYPES = new Set(['EXTRACTO_BANCARIO', 'MOVIMIENTOS_BANCARIOS'])
+// UI-side category keyword map.
+// Source of truth is sector_field_defaults in DB (module='importador.doc_categories').
+// These are a client-side snapshot used for button rendering — not critical routing.
+// Update via DB migration; this map is a best-effort local copy for offline/instant rendering.
+let _categoryKeywords: Record<string, string[]> = {
+  recipe:    ['COSTING', 'COSTEO', 'RECIPE', 'RECETA', 'KALKULATION', 'CALCUL_COUT', 'FOOD_COST', 'FICHA_TECNICA'],
+  receipt:   ['RECEIPT', 'TICKET', 'VOUCHER', 'RECIBO', 'BOLETA', 'TICKETDEVENTA', 'REÇU', 'QUITTUNG', 'NOTA_VENTA'],
+  invoice:   ['INVOICE', 'FACTURA', 'RECHNUNG', 'FATTURA', 'FATURA', 'FACTURE',
+              'CREDIT_NOTE', 'NOTA_CREDITO', 'PURCHASE_ORDER', 'ORDEN_COMPRA',
+              'QUOTE', 'PRESUPUESTO', 'PROFORMA', 'DELIVERY_NOTE', 'DEVIS', 'LIEFERSCHEIN', 'NOTA_FISCAL'],
+  inventory: ['INVENTORY', 'INVENTARIO', 'INVENTAR', 'PRICE_LIST', 'LISTA_PRECIOS',
+              'PREISLISTE', 'CATALOGUE', 'CATALOGO', 'STOCK', 'BESTANDSLISTE'],
+  bank:      ['BANK_STATEMENT', 'EXTRACTO_BANCARIO', 'KONTOAUSZUG', 'BANK_MOVEMENTS',
+              'MOVIMIENTOS_BANCARIOS', 'ACCOUNT_STATEMENT', 'RELEVÉ', 'EXTRAIT'],
+  payroll:   ['PAYROLL', 'NOMINA', 'PLANILLA', 'LOHNABRECHNUNG', 'BULLETIN_PAIE', 'LIQUIDACION'],
+}
+
+/** Override the local category keyword map with server-fetched data. */
+export function setDocCategoryKeywords(map: Record<string, string[]>) {
+  _categoryKeywords = map
+}
+
+
+function _matchesAny(tipo: string, keywords: string[]): boolean {
+  return keywords.some(kw => tipo.includes(kw))
+}
 
 export function getDocCategory(
   doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>,
   sheets: string[],
 ): DocCategory {
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
-  // Hoja REGISTRO tiene prioridad absoluta
   if (sheets.some(s => s.toLowerCase() === 'registro')) return 'daily_log'
-  if (tipo === 'COSTEO') return 'recipe'
-  if (EXPENSE_TYPES.has(tipo)) return 'expense'
-  if (INVOICE_TYPES.has(tipo)) return 'supplier_invoice'
-  if (INVENTORY_TYPES.has(tipo)) return 'inventory'
-  if (BANK_TYPES.has(tipo)) return 'bank'
-  if (tipo === 'NOMINA') return 'payroll'
-  // Para OTRO/vacío: si tiene proveedor o monto es una factura/gasto, si no es genérico
+  // Keyword substring match against the DB-driven map (works for any free-form AI label)
+  if (_matchesAny(tipo, _categoryKeywords.recipe    ?? [])) return 'recipe'
+  if (_matchesAny(tipo, _categoryKeywords.receipt   ?? [])) return 'expense'
+  if (_matchesAny(tipo, _categoryKeywords.invoice   ?? [])) return 'supplier_invoice'
+  if (_matchesAny(tipo, _categoryKeywords.inventory ?? [])) return 'inventory'
+  if (_matchesAny(tipo, _categoryKeywords.bank      ?? [])) return 'bank'
+  if (_matchesAny(tipo, _categoryKeywords.payroll   ?? [])) return 'payroll'
+  // Fallback: infer from extracted metadata
   if (doc.proveedor_detectado || doc.monto_total != null) return 'supplier_invoice'
   return 'other'
 }
@@ -304,7 +324,9 @@ export function getDocCategory(
 export function canSaveDocument(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>): boolean {
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
   if (!tipo) return Boolean(doc.proveedor_detectado || doc.monto_total != null)
-  return !['INVENTARIO', 'LISTA_PRECIOS', 'NOMINA', 'EXTRACTO_BANCARIO', 'MOVIMIENTOS_BANCARIOS'].includes(tipo)
+  return !_matchesAny(tipo, _categoryKeywords.inventory ?? [])
+    && !_matchesAny(tipo, _categoryKeywords.bank     ?? [])
+    && !_matchesAny(tipo, _categoryKeywords.payroll  ?? [])
 }
 
 export async function syncRecipe(id: string, sheet_usada?: string): Promise<SyncRecipeResult> {
@@ -446,6 +468,25 @@ export async function createSnapshot(draftId: string, versionTag?: string): Prom
   return data
 }
 
+// --- Doc category keywords (from DB) ---
+export async function loadDocCategoryKeywords(): Promise<void> {
+  try {
+    const { data } = await api.get(TENANT_IMPORTADOR.docCategories)
+    if (data && typeof data === 'object') {
+      setDocCategoryKeywords(
+        Object.fromEntries(
+          Object.entries(data as Record<string, unknown>).map(([k, v]) => [
+            k,
+            Array.isArray(v) ? (v as string[]).map(s => String(s).toUpperCase()) : [],
+          ])
+        )
+      )
+    }
+  } catch {
+    // Keep using the local snapshot — non-critical
+  }
+}
+
 // --- Daily Production Log ---
 export type SaveDailyLogResult = {
   log_date: string
@@ -458,4 +499,9 @@ export async function saveDailyLog(id: string, logDate?: string): Promise<SaveDa
   const body = logDate ? { log_date: logDate } : {}
   const { data } = await api.post(TENANT_IMPORTADOR.saveDailyLog(id), body)
   return data as SaveDailyLogResult
+}
+
+export async function purgeAllImportador(): Promise<{ deleted_total: number; tables: Record<string, number> }> {
+  const { data } = await api.delete(TENANT_IMPORTADOR.purgeAll)
+  return data as { deleted_total: number; tables: Record<string, number> }
 }

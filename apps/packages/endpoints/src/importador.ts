@@ -11,6 +11,7 @@ export const TENANT_IMPORTADOR = {
   reject: (id: string) => `/api/v1/importador/documents/${id}/reject`,
   logs: (id: string) => `/api/v1/importador/documents/${id}/logs`,
   dashboard: '/api/v1/importador/dashboard',
+  docCategories: '/api/v1/importador/doc-categories',
   // Recipes
   recipes: '/api/v1/importador/recipes',
   recipeById: (id: string) => `/api/v1/importador/recipes/${id}`,
@@ -20,4 +21,5 @@ export const TENANT_IMPORTADOR = {
   recipeSnapshots: (recipeId: string) => `/api/v1/importador/recipes/${recipeId}/snapshots`,
   snapshotById: (id: string) => `/api/v1/importador/snapshots/${id}`,
   saveDailyLog: (id: string) => `/api/v1/importador/documents/${id}/save-as-daily-log`,
+  purgeAll: '/api/v1/importador/purge-all',
 }
