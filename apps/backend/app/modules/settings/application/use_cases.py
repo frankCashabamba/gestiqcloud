@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 from app.models.company.company_settings import CompanySettings
 from app.models.tenant import Tenant
 
-from .modules_catalog import get_available_modules, get_module_by_id, validate_module_dependencies
+from .modules_catalog import (
+    canonicalize_module_id,
+    get_available_modules,
+    get_module_by_id,
+    validate_module_dependencies,
+)
 
 
 class SettingsManager:
@@ -64,13 +69,13 @@ class SettingsManager:
         Returns:
             Dict with module configuration
         """
-        all_settings = self.get_all_settings(tenant_id)
-        module_config = all_settings["modules"].get(module, {})
-
-        # Check if the module exists in the catalog
         module_info = get_module_by_id(module)
         if not module_info:
             raise ValueError(f"Module '{module}' does not exist")
+        module = module_info["id"]
+
+        all_settings = self.get_all_settings(tenant_id)
+        module_config = all_settings["modules"].get(module, {})
 
         return {
             "module": module,
@@ -95,8 +100,10 @@ class SettingsManager:
             Dict with updated configuration
         """
         # Check that the module exists
-        if not get_module_by_id(module):
+        module_info = get_module_by_id(module)
+        if not module_info:
             raise ValueError(f"Module '{module}' does not exist")
+        module = module_info["id"]
 
         settings = (
             self.db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
@@ -139,6 +146,7 @@ class SettingsManager:
         module_info = get_module_by_id(module)
         if not module_info:
             raise ValueError(f"Module '{module}' does not exist")
+        module = module_info["id"]
 
         # Validate dependencies
         settings = self.get_all_settings(tenant_id)
@@ -182,6 +190,7 @@ class SettingsManager:
         module_info = get_module_by_id(module)
         if not module_info:
             raise ValueError(f"Module '{module}' does not exist")
+        module = module_info["id"]
 
         # Do not allow disabling required modules
         if module_info.get("required", False):
@@ -245,7 +254,11 @@ class SettingsManager:
                 country = tenant.country
 
             settings = self.get_all_settings(tenant_id)
-            enabled_map = {m: cfg.get("enabled", False) for m, cfg in settings["modules"].items()}
+            enabled_map = {
+                canonical: cfg.get("enabled", False)
+                for m, cfg in settings["modules"].items()
+                if (canonical := canonicalize_module_id(m))
+            }
 
         modules = get_available_modules(country)
 

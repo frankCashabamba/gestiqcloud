@@ -50,6 +50,25 @@ const normalizeRecipeUnit = (unit?: string | null): string => {
   return 'uds';
 };
 
+const HOUR_LIKE_DRIVER_UNITS = new Set(['h', 'hh', 'hr', 'hrs', 'hora', 'horas', 'hour', 'hours']);
+
+const normalizeCostDriverUnit = (unit?: string | null): string =>
+  String(unit || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+
+const isHourLikeDriverUnit = (unit?: string | null): boolean =>
+  HOUR_LIKE_DRIVER_UNITS.has(normalizeCostDriverUnit(unit));
+
+const isLaborAutoDriver = (driver?: CostDriver | null): boolean => {
+  if (!driver) return false;
+  const driverCode = (driver.code || '').toUpperCase();
+  if (driverCode.startsWith('LABOR')) return true;
+  return isHourLikeDriverUnit(driver.unit)
+    && !driverCode.startsWith('ENERGY')
+    && !driverCode.startsWith('DIESEL')
+    && !driverCode.startsWith('FUEL')
+    && !driverCode.startsWith('OVEN');
+};
+
 const dialogPaperSx = {
   borderRadius: 4,
   border: '1px solid #e2e8f0',
@@ -143,7 +162,6 @@ interface RecetaDetailProps {
   recipeId: string;
   onClose: () => void;
   onCreateOrder?: (recipe: Recipe, options?: { qty?: number; autoCreate?: boolean }) => void;
-  onEdit?: (recipe: Recipe) => void;
 }
 
 export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }: RecetaDetailProps) {
@@ -157,6 +175,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const [orderPromptOpen, setOrderPromptOpen] = useState(false);
   const [customOrderQty, setCustomOrderQty] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
+  const [yieldQtyDraft, setYieldQtyDraft] = useState<number | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [costDrivers, setCostDrivers] = useState<CostDriver[]>([]);
   const [costLinesDraft, setCostLinesDraft] = useState<Array<{
@@ -216,20 +235,29 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
       setRecipe(recipeData);
       setBreakdown(breakdownData);
+      setYieldQtyDraft(Number(recipeData.yield_qty || 1));
       const recipeIngredients = Array.isArray(recipeData.ingredients) ? recipeData.ingredients : [];
+      const seenProductIds = new Set<string>();
       setIngredientsDraft(
-        recipeIngredients.map((ing: RecipeIngredientResponse, idx: number) => ({
-          id: ing.id,
-          product_id: String(ing.product_id || ''),
-          qty: Number(ing.qty || 0),
-          unit: normalizeRecipeUnit(ing.unit),
-          purchase_packaging: String(ing.purchase_packaging || ''),
-          qty_per_package: Math.max(Number(ing.qty_per_package || 1), 0.0001),
-          package_unit: normalizeRecipeUnit(ing.package_unit),
-          package_cost: Number(ing.package_cost || 0),
-          notes: ing.notes || '',
-          line_order: typeof ing.line_order === 'number' ? ing.line_order : idx,
-        }))
+        recipeIngredients
+          .filter((ing: RecipeIngredientResponse) => {
+            const pid = String(ing.product_id || '');
+            if (!pid || seenProductIds.has(pid)) return false;
+            seenProductIds.add(pid);
+            return true;
+          })
+          .map((ing: RecipeIngredientResponse, idx: number) => ({
+            id: ing.id,
+            product_id: String(ing.product_id || ''),
+            qty: Number(ing.qty || 0),
+            unit: normalizeRecipeUnit(ing.unit),
+            purchase_packaging: String(ing.purchase_packaging || ''),
+            qty_per_package: Math.max(Number(ing.qty_per_package || 1), 0.0001),
+            package_unit: normalizeRecipeUnit(ing.package_unit),
+            package_cost: Number(ing.package_cost || 0),
+            notes: ing.notes || '',
+            line_order: typeof ing.line_order === 'number' ? ing.line_order : idx,
+          }))
       );
       setProdParams({
         prep_time_minutes: recipeData.prep_time_minutes ?? null,
@@ -338,6 +366,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       setUpdating(true);
       setError(null);
 
+      const normalizedYieldQty = Math.floor(Number(yieldQtyDraft || 0));
+      if (!Number.isFinite(normalizedYieldQty) || normalizedYieldQty <= 0) {
+        setError('El rendimiento debe ser mayor que 0');
+        return;
+      }
+
       const normalizedIngredients = ingredientsDraft
         .filter((row) => row.product_id && Number(row.qty || 0) > 0)
         .map((row, index) => ({
@@ -363,6 +397,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       }
 
       await updateRecipe(recipe.id, {
+        yield_qty: normalizedYieldQty,
         prep_time_minutes: prodParams.prep_time_minutes ?? undefined,
         baking_time_minutes: prodParams.baking_time_minutes ?? undefined,
         oven_temp_celsius: prodParams.oven_temp_celsius ?? undefined,
@@ -387,13 +422,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       for (const cl of costLinesDraft) {
         if (!cl.driver_id) continue;
         const driver = costDrivers.find((d) => d.id === cl.driver_id);
-        const driverCodeSave = (driver?.code || '').toUpperCase();
-        const driverUnitSave = (driver?.unit || '').trim().toLowerCase();
-        const isHourUnitSave = ['hour', 'hours', 'hora', 'horas', 'hr', 'hrs'].includes(driverUnitSave);
-        const isLaborAutoSave = driver && (
-          driverCodeSave.startsWith('LABOR')
-          || (isHourUnitSave && !driverCodeSave.startsWith('ENERGY') && !driverCodeSave.startsWith('OVEN'))
-        );
+        const isLaborAutoSave = isLaborAutoDriver(driver);
         const isOvenAutoSave = driver && !isLaborAutoSave && (driver.consumption_rate ?? 0) > 0;
         const ovenMinutesForSave = prodParams.baking_time_minutes ?? 0;
         const ovenAutoQtyForSave = isOvenAutoSave && ovenMinutesForSave > 0
@@ -515,18 +544,47 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
           backgroundColor: '#f8fafc',
         }}
       >
+        {!isEditing && (
+          <Alert severity="info" sx={{ ...infoAlertSx, mb: 3, fontWeight: 600 }}>
+            Haz clic en parametros, ingredientes o costos para editar.
+          </Alert>
+        )}
+
         {/* Resumen */}
-        <Box sx={sectionCardSx}>
-          <Typography variant="overline" sx={{ color: '#64748b', letterSpacing: 1.2 }}>
-            Resumen de receta
-          </Typography>
+        <Box
+          sx={{ ...sectionCardSx, ...(isEditing ? {} : clickableSectionSx) }}
+          onClick={isEditing ? undefined : startInlineEdit}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
+            <Typography variant="overline" sx={{ color: '#64748b', letterSpacing: 1.2 }}>
+              Resumen de receta
+            </Typography>
+            {!isEditing && (
+              <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600 }}>
+                Haz clic para editar rendimiento
+              </Typography>
+            )}
+          </Box>
           <Grid container spacing={2}>
             <Grid item xs={6} sm={3}>
               <Box sx={metricCardSx}>
                 <Typography variant="caption" color="text.secondary">
                   {t('productions:recipe.yield')}
                 </Typography>
-                <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>{recipe.yield_qty} uds</Typography>
+                {isEditing ? (
+                  <TextField
+                    type="number"
+                    size="small"
+                    fullWidth
+                    value={yieldQtyDraft ?? ''}
+                    onChange={(e) => setYieldQtyDraft(e.target.value ? Number(e.target.value) : null)}
+                    inputProps={{ min: 1, step: 1 }}
+                    helperText="Unidades producidas por receta"
+                    sx={{ mt: 1 }}
+                  />
+                ) : (
+                  <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>{recipe.yield_qty} uds</Typography>
+                )}
               </Box>
             </Grid>
 
@@ -1027,13 +1085,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                 {costLinesDraft.map((cl, idx) => {
                   const driver = costDrivers.find((d) => d.id === cl.driver_id);
                   const rate = cl.rate_override ?? (driver?.default_rate || 0);
-                  const driverCode = (driver?.code || '').toUpperCase();
-                  const driverUnitNorm = (driver?.unit || '').trim().toLowerCase();
-                  const isHourUnit = ['hour', 'hours', 'hora', 'horas', 'hr', 'hrs'].includes(driverUnitNorm);
-                  const isLaborAuto = driver && (
-                    driverCode.startsWith('LABOR')
-                    || (isHourUnit && !driverCode.startsWith('ENERGY') && !driverCode.startsWith('OVEN'))
-                  );
+                  const driverUnitNorm = normalizeCostDriverUnit(driver?.unit);
+                  const isLaborAuto = isLaborAutoDriver(driver);
                   // Cualquier driver con consumption_rate > 0 que no sea labor → auto-calcula desde tiempo de horno
                   const isEnergyDriver = !!driver && !isLaborAuto && (driver.consumption_rate ?? 0) > 0;
                   const isOvenAuto = isEnergyDriver;
@@ -1255,9 +1308,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
             </Button>
           </Box>
         ) : (
-          <Typography variant="caption" sx={{ color: '#64748b', px: 1 }}>
-            Haz clic en parametros, ingredientes o costos para editar.
-          </Typography>
+          <Box />
         )}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', marginLeft: 'auto' }}>
           {onCreateOrder && recipe && (

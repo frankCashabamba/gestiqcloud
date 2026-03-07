@@ -14,6 +14,7 @@ from app.models.company.company_settings import CompanySettings
 from app.models.core.module import CompanyModule, Module
 from app.modules.settings.application.modules_catalog import (
     AVAILABLE_MODULES,
+    canonicalize_module_id,
     get_available_modules,
 )
 from app.schemas.settings import ModuleSettingsUpdate
@@ -21,6 +22,27 @@ from app.schemas.settings import ModuleSettingsUpdate
 # NOTE: main.py already mounts this router with prefix="/api/v1".
 # Using only "/settings" here avoids a double "/api/v1/api/v1" prefix that causes 404s.
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+
+def _canonical_module_or_404(module: str) -> str:
+    canonical = canonicalize_module_id(module)
+    if not canonical or canonical not in AVAILABLE_MODULES:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module '{module}' not found",
+        )
+    return canonical
+
+
+def _canonical_enabled_list(values: list[str] | None) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values or []:
+        canonical = canonicalize_module_id(value)
+        if canonical and canonical not in seen:
+            seen.add(canonical)
+            result.append(canonical)
+    return result
 
 
 @router.get("", response_model=dict, status_code=status.HTTP_200_OK)
@@ -33,7 +55,9 @@ def get_all_settings(
     settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
     config = base.get("config", {}) if isinstance(base, dict) else {}
-    enabled_modules = base.get("enabled_modules", []) if isinstance(base, dict) else []
+    enabled_modules = _canonical_enabled_list(
+        base.get("enabled_modules", []) if isinstance(base, dict) else []
+    )
 
     return {
         "tenant_id": str(tenant_id),
@@ -53,11 +77,7 @@ def get_module_settings(
     """Get configuration for a specific module"""
     tenant_id = UUID(tenant_id)
 
-    if module not in AVAILABLE_MODULES:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Module '{module}' not found",
-        )
+    module = _canonical_module_or_404(module)
 
     settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
 
@@ -70,7 +90,10 @@ def get_module_settings(
 
     return {
         "module": module,
-        "enabled": module in (base.get("enabled_modules", []) if isinstance(base, dict) else []),
+        "enabled": module
+        in _canonical_enabled_list(
+            base.get("enabled_modules", []) if isinstance(base, dict) else []
+        ),
         "config": module_config,
     }
 
@@ -85,11 +108,7 @@ def update_module_settings(
     """Update module configuration"""
     tenant_id = UUID(tenant_id)
 
-    if module not in AVAILABLE_MODULES:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Module '{module}' not found",
-        )
+    module = _canonical_module_or_404(module)
 
     settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     if not settings:
@@ -97,6 +116,9 @@ def update_module_settings(
 
     base = settings.settings if isinstance(settings.settings, dict) else {}
     config = base.get("config", {}) if isinstance(base, dict) else {}
+    enabled_modules = _canonical_enabled_list(
+        base.get("enabled_modules", []) if isinstance(base, dict) else []
+    )
 
     update_data = settings_in.model_dump(exclude_unset=True)
     config[module] = update_data
@@ -108,7 +130,7 @@ def update_module_settings(
 
     return {
         "module": module,
-        "enabled": module in (base.get("enabled_modules", []) if isinstance(base, dict) else []),
+        "enabled": module in enabled_modules,
         "config": config[module],
         "message": "Configuration updated successfully",
     }
@@ -125,18 +147,16 @@ def enable_module(
     """Enable a module"""
     tenant_id = UUID(tenant_id)
 
-    if module not in AVAILABLE_MODULES:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Module '{module}' not found",
-        )
+    module = _canonical_module_or_404(module)
 
     settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     if not settings:
         raise HTTPException(status_code=404, detail="company_settings_missing")
 
     base = settings.settings if isinstance(settings.settings, dict) else {}
-    enabled_modules = list(base.get("enabled_modules", [])) if isinstance(base, dict) else []
+    enabled_modules = _canonical_enabled_list(
+        list(base.get("enabled_modules", [])) if isinstance(base, dict) else []
+    )
 
     if module not in enabled_modules:
         enabled_modules.append(module)
@@ -163,15 +183,13 @@ def disable_module(
     """Disable a module"""
     tenant_id = UUID(tenant_id)
 
-    if module not in AVAILABLE_MODULES:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Module '{module}' not found",
-        )
+    module = _canonical_module_or_404(module)
 
     settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
-    enabled_modules = list(base.get("enabled_modules", [])) if isinstance(base, dict) else []
+    enabled_modules = _canonical_enabled_list(
+        list(base.get("enabled_modules", [])) if isinstance(base, dict) else []
+    )
 
     if not settings or not enabled_modules:
         return {
@@ -208,7 +226,11 @@ def list_modules(
         db.query(CompanySettings).filter(CompanySettings.tenant_id == UUID(tenant_id)).first()
     )
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
-    enabled_modules = set(base.get("enabled_modules", []) if isinstance(base, dict) else [])
+    enabled_modules = {
+        canonical
+        for module_name in (base.get("enabled_modules", []) if isinstance(base, dict) else [])
+        if (canonical := canonicalize_module_id(module_name))
+    }
 
     # Fallback: when company_settings has not been synchronized yet, derive enabled
     # modules from real tenant assignments (company_modules -> modules).
@@ -220,8 +242,9 @@ def list_modules(
             .all()
         )
         for (name,) in assigned_names:
-            if name:
-                enabled_modules.add(str(name).strip().lower())
+            canonical = canonicalize_module_id(name)
+            if canonical:
+                enabled_modules.add(canonical)
 
     # Use the official catalog to keep names/icons/deps aligned
     modules_catalog = get_available_modules()

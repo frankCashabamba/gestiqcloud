@@ -18,6 +18,25 @@ from app.models.recipes import Recipe, RecipeIngredient
 # CÁLCULO DE COSTOS
 # ============================================================================
 
+_HOUR_LIKE_DRIVER_UNITS = {"h", "hh", "hr", "hrs", "hora", "horas", "hour", "hours"}
+
+
+def _normalize_cost_driver_unit(unit: str | None) -> str:
+    return "".join(ch for ch in str(unit or "").strip().lower() if ch.isalpha())
+
+
+def _is_labor_driver(driver: ProductionCostDriver | None) -> bool:
+    if not driver:
+        return False
+
+    code_upper = (driver.code or "").upper()
+    if code_upper.startswith("LABOR"):
+        return True
+
+    return _normalize_cost_driver_unit(
+        driver.unit
+    ) in _HOUR_LIKE_DRIVER_UNITS and not code_upper.startswith(("ENERGY", "DIESEL", "FUEL", "OVEN"))
+
 
 def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bool = True) -> dict:
     """
@@ -287,12 +306,7 @@ def calculate_recipe_full_cost(
         code_upper = (driver.code or "").upper()
 
         # Clasificar tipo de costo
-        is_labor = code_upper.startswith("LABOR") or (
-            (driver.unit or "").lower() == "hour"
-            and not code_upper.startswith("ENERGY")
-            and not code_upper.startswith("DIESEL")
-            and not code_upper.startswith("OVEN")
-        )
+        is_labor = _is_labor_driver(driver)
         is_diesel = code_upper.startswith("DIESEL") or code_upper.startswith("FUEL")
         is_electricity = code_upper.startswith("ENERGY") or code_upper.startswith("ELECTRICITY")
 

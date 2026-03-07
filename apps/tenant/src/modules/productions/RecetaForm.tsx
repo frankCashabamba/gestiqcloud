@@ -39,6 +39,22 @@ const normalizeRecipeUnit = (unit?: string | null): string => {
   return 'uds';
 };
 
+const getRecipeRequestErrorMessage = (err: any): string => {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail
+      .map((item: any) => {
+        const loc = Array.isArray(item?.loc)
+          ? item.loc.filter((part: string) => part !== 'body').join('.')
+          : 'payload';
+        return `${loc || 'payload'}: ${item?.msg || 'valor invalido'}`;
+      })
+      .join('; ');
+  }
+  return err?.message || 'Error saving recipe';
+};
+
 const formDialogPaperSx = {
   borderRadius: 4,
   border: '1px solid #e2e8f0',
@@ -139,10 +155,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
           product_id: ing.product_id,
           qty: ing.qty,
           unit: normalizeRecipeUnit(ing.unit),
-          purchase_packaging: ing.purchase_packaging,
-          qty_per_package: ing.qty_per_package,
+          purchase_packaging: ing.purchase_packaging ?? '',
+          qty_per_package: ing.qty_per_package ?? 1,
           package_unit: normalizeRecipeUnit(ing.package_unit),
-          package_cost: ing.package_cost,
+          package_cost: ing.package_cost ?? 0,
           notes: ing.notes,
           line_order: ing.line_order || 0
         })));
@@ -284,11 +300,61 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
       setProductId(resolvedProductId);
 
+      if (traysPerBatch != null && traysPerBatch < 1) {
+        setError('Bandejas por lote debe ser 1 o mayor');
+        return;
+      }
+
+      if (unitsPerTray != null && unitsPerTray < 1) {
+        setError('Unidades por bandeja debe ser 1 o mayor');
+        return;
+      }
+
+      const normalizedIngredients = ingredientes
+        .filter((ing) => ing.product_id && Number(ing.qty || 0) > 0)
+        .map((ing, index) => ({
+          product_id: ing.product_id,
+          qty: Number(ing.qty || 0),
+          unit: normalizeRecipeUnit(ing.unit),
+          purchase_packaging: String(ing.purchase_packaging || '-'),
+          qty_per_package: Number(ing.qty_per_package || 0),
+          package_unit: normalizeRecipeUnit(ing.package_unit || ing.unit),
+          package_cost: Number(ing.package_cost || 0),
+          notes: ing.notes || undefined,
+          line_order: index,
+        }));
+
+      for (const ingredient of normalizedIngredients) {
+        if (ingredient.qty_per_package <= 0) {
+          const productName = products.find((item) => item.id === ingredient.product_id)?.name;
+          setError(
+            productName
+              ? `La cantidad por presentacion de ${productName} debe ser mayor que 0`
+              : 'La cantidad por presentacion debe ser mayor que 0'
+          );
+          return;
+        }
+      }
+
+      const seenProducts = new Set<string>();
+      for (const ingredient of normalizedIngredients) {
+        if (seenProducts.has(ingredient.product_id)) {
+          const productName = products.find((item) => item.id === ingredient.product_id)?.name;
+          setError(
+            productName
+              ? `El ingrediente ${productName} ya existe en la receta.`
+              : 'El ingrediente ya existe en la receta.'
+          );
+          return;
+        }
+        seenProducts.add(ingredient.product_id);
+      }
+
       const data = {
-        name,
+        name: name.trim(),
         product_id: resolvedProductId,
         yield_qty: yieldQty,
-        prep_time_minutes: prepTimeMinutes || undefined,
+        prep_time_minutes: prepTimeMinutes ?? undefined,
         baking_time_minutes: bakingTimeMinutes ?? undefined,
         oven_temp_celsius: ovenTempCelsius ?? undefined,
         rest_time_minutes: restTimeMinutes ?? undefined,
@@ -296,10 +362,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         oven_minutes_standard: ovenMinutesStandard ?? undefined,
         process_minutes: Math.max((prepTimeMinutes || 0) - (touchMinutesStandard || 0), 0) || undefined,
         waste_pct: wastePct ?? undefined,
-        trays_per_batch: traysPerBatch ?? undefined,
-        units_per_tray: unitsPerTray ?? undefined,
-        instructions: instructions || undefined,
-        ingredients: ingredientes.filter(ing => ing.product_id && ing.qty > 0)
+        trays_per_batch: traysPerBatch && traysPerBatch >= 1 ? traysPerBatch : undefined,
+        units_per_tray: unitsPerTray && unitsPerTray >= 1 ? unitsPerTray : undefined,
+        instructions: instructions.trim() || undefined,
+        ingredients: normalizedIngredients,
       };
 
       if (recipe) {
@@ -312,7 +378,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Error saving recipe');
+      setError(getRecipeRequestErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -539,7 +605,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 label="Bandejas por lote"
                 value={traysPerBatch ?? ''}
                 onChange={(e) => setTraysPerBatch(e.target.value ? Number(e.target.value) : null)}
-                inputProps={{ min: 0 }}
+                inputProps={{ min: 1, step: 1 }}
               />
             </Grid>
             <Grid item xs={12} sm={4}>
@@ -549,7 +615,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 label={t('productions:recipeForm.unitsPerTray')}
                 value={unitsPerTray ?? ''}
                 onChange={(e) => setUnitsPerTray(e.target.value ? Number(e.target.value) : null)}
-                inputProps={{ min: 0 }}
+                inputProps={{ min: 1, step: 1 }}
               />
             </Grid>
           </Grid>
@@ -593,6 +659,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     label="Quantity"
                     value={ing.qty}
                     onChange={(e) => handleIngredientChange(index, 'qty', Number(e.target.value))}
+                    inputProps={{ min: 0.0001, step: 0.01 }}
                   />
                 </Grid>
 
@@ -624,6 +691,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     label="Cant. Present."
                     value={ing.qty_per_package}
                     onChange={(e) => handleIngredientChange(index, 'qty_per_package', Number(e.target.value))}
+                    inputProps={{ min: 0.0001, step: 0.01 }}
                   />
                 </Grid>
 

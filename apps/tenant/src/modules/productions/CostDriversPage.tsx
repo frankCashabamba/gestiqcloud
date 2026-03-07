@@ -7,13 +7,14 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   listCostDrivers,
+  listCostDriverUnitTypes,
   createCostDriver,
   updateCostDriver,
   deleteCostDriver,
   type CostDriver,
   type CostDriverCreate,
+  type CostDriverUnitType,
 } from '../../services/api/productionCosts';
-import { useUnits } from '../../hooks/useGlobalCatalogs';
 
 interface EditForm {
   code: string;
@@ -23,7 +24,15 @@ interface EditForm {
   consumption_rate: string;
 }
 
-const emptyForm: EditForm = { code: '', name: '', unit: 'HORA', default_rate: '', consumption_rate: '' };
+const DEFAULT_COST_DRIVER_UNIT = 'hour';
+
+const createEmptyForm = (unit: string = DEFAULT_COST_DRIVER_UNIT): EditForm => ({
+  code: '',
+  name: '',
+  unit,
+  default_rate: '',
+  consumption_rate: '',
+});
 
 export default function CostDriversPage() {
   const { t } = useTranslation(['productions', 'common']);
@@ -32,14 +41,14 @@ export default function CostDriversPage() {
   const basePath = `${empresa ? `/${empresa}` : ''}/produccion`;
 
   const [drivers, setDrivers] = useState<CostDriver[]>([]);
-  const { items: unitTypes } = useUnits();
+  const [unitTypes, setUnitTypes] = useState<CostDriverUnitType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<EditForm>(emptyForm);
+  const [form, setForm] = useState<EditForm>(createEmptyForm());
 
   useEffect(() => {
     loadDrivers();
@@ -48,8 +57,20 @@ export default function CostDriversPage() {
   const loadDrivers = async () => {
     try {
       setLoading(true);
-      const data = await listCostDrivers();
+      const [driversData, unitTypesData] = await Promise.all([
+        listCostDrivers(),
+        listCostDriverUnitTypes().catch(() => []),
+      ]);
+      const normalizedUnitTypes = Array.isArray(unitTypesData) ? unitTypesData : [];
+      const defaultUnit = normalizedUnitTypes[0]?.code || DEFAULT_COST_DRIVER_UNIT;
+      const data = Array.isArray(driversData) ? driversData : [];
       setDrivers(Array.isArray(data) ? data : []);
+      setUnitTypes(normalizedUnitTypes);
+      setForm((current) => (
+        current.code || current.name || current.default_rate || current.consumption_rate || current.unit !== DEFAULT_COST_DRIVER_UNIT
+          ? current
+          : createEmptyForm(defaultUnit)
+      ));
       setError(null);
     } catch (err: any) {
       setError(err?.message || t('productions:costDrivers.errorLoading'));
@@ -61,7 +82,7 @@ export default function CostDriversPage() {
   const getUnitLabel = (code: string) => {
     const ut = unitTypes.find((u) => u.code === code);
     if (!ut) return code;
-    return ut.name;
+    return ut.name_es || ut.name_en || ut.code;
   };
 
   const handleSave = async () => {
@@ -85,7 +106,7 @@ export default function CostDriversPage() {
       }
       setShowForm(false);
       setEditingId(null);
-      setForm(emptyForm);
+      setForm(createEmptyForm(unitTypes[0]?.code || DEFAULT_COST_DRIVER_UNIT));
       await loadDrivers();
     } catch (err: any) {
       setError(err?.message || t('productions:costDrivers.errorSaving'));
@@ -119,7 +140,7 @@ export default function CostDriversPage() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(createEmptyForm(unitTypes[0]?.code || DEFAULT_COST_DRIVER_UNIT));
   };
 
   return (
@@ -144,7 +165,7 @@ export default function CostDriversPage() {
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
             onClick={() => {
               setEditingId(null);
-              setForm(emptyForm);
+              setForm(createEmptyForm(unitTypes[0]?.code || DEFAULT_COST_DRIVER_UNIT));
               setShowForm(true);
             }}
           >
@@ -204,7 +225,7 @@ export default function CostDriversPage() {
               >
                 {unitTypes.map((o) => (
                   <option key={o.code} value={o.code}>
-                    {o.name} ({o.abbreviation})
+                    {(o.name_es || o.name_en || o.code)} ({o.code})
                   </option>
                 ))}
                 {unitTypes.length === 0 && <option value={form.unit}>{form.unit}</option>}
@@ -273,7 +294,7 @@ export default function CostDriversPage() {
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
             onClick={() => {
               setEditingId(null);
-              setForm(emptyForm);
+              setForm(createEmptyForm(unitTypes[0]?.code || DEFAULT_COST_DRIVER_UNIT));
               setShowForm(true);
             }}
           >

@@ -16,10 +16,15 @@ from uuid import UUID
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.production._cost_drivers import ProductionCostDriver
+from app.models.production._cost_drivers import (
+    CostDriverUnitType,
+    ProductionCostDriver,
+    RecipeCostLine,
+)
 from app.models.production._cost_periods import CostPeriod
 from app.models.production._recipe_steps import RecipeStep
 from app.models.recipes import Recipe
+from app.modules.production.interface.http.tenant import _resolve_cost_driver_unit_code
 from app.services.cost_periods_service import CostPeriodsService
 from app.services.recipe_calculator import calculate_recipe_full_cost
 
@@ -274,6 +279,60 @@ class TestCostCalculation:
         for key in required_keys:
             assert key in breakdown
             assert isinstance(breakdown[key], (int, float))
+
+    def test_labor_driver_with_short_hour_unit_autocalculates(
+        self, db: Session, test_recipe: Recipe
+    ):
+        """Unidad 'H' debe tratarse como hora para auto-cálculo de mano de obra."""
+        labor_driver = ProductionCostDriver(
+            tenant_id=test_recipe.tenant_id,
+            code="PANADERO",
+            name="Panadero",
+            unit="H",
+            default_rate=Decimal("4.00"),
+            is_active=True,
+        )
+        db.add(labor_driver)
+        db.flush()
+
+        db.add(
+            RecipeCostLine(
+                recipe_id=test_recipe.id,
+                driver_id=labor_driver.id,
+                qty_standard=Decimal("1.00"),
+                headcount=1,
+                line_order=0,
+            )
+        )
+        db.commit()
+
+        result = calculate_recipe_full_cost(db, test_recipe.id, period_month=None)
+
+        assert result["cost_lines"]
+        assert result["cost_lines"][0]["driver_unit"] == "H"
+        assert result["cost_lines"][0]["cost_category"] == "labor"
+        assert result["cost_lines"][0]["qty_standard"] == pytest.approx(65 / 60, rel=0.001)
+        assert result["labor_total"] == pytest.approx((65 / 60) * 4, rel=0.001)
+
+    def test_cost_driver_unit_is_normalized_to_catalog_code(
+        self, db: Session, test_tenant_id: UUID
+    ):
+        """Create/update debe guardar el code canónico del catálogo del tenant."""
+        db.add(
+            CostDriverUnitType(
+                tenant_id=test_tenant_id,
+                code="hour",
+                name_en="Hour",
+                name_es="hora",
+                is_active=True,
+                sort_order=1,
+            )
+        )
+        db.commit()
+
+        assert _resolve_cost_driver_unit_code(db, test_tenant_id, "H") == "hour"
+        assert _resolve_cost_driver_unit_code(db, test_tenant_id, "hora") == "hour"
+        assert _resolve_cost_driver_unit_code(db, test_tenant_id, "hour") == "hour"
 
 
 class TestCostPeriodService:

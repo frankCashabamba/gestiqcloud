@@ -118,6 +118,65 @@ logger = logging.getLogger(__name__)
 
 
 # HELPERS
+_COST_DRIVER_UNIT_FAMILIES = {
+    "hour": {"h", "hh", "hr", "hrs", "hora", "horas", "hour", "hours"},
+    "liter": {"l", "lt", "ltr", "litro", "litros", "liter", "liters", "litre", "litres"},
+    "kwh": {"kwh", "kwhr", "kilowatthora", "kilowatthour", "kilowatthours"},
+    "unit": {"u", "un", "und", "unidad", "unidades", "unit", "units", "uds", "ud"},
+    "flat": {"flat", "fijo", "fixed"},
+}
+
+
+def _normalize_cost_driver_unit_token(value: str | None) -> str:
+    return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
+
+
+def _cost_driver_unit_family(value: str | None) -> str | None:
+    token = _normalize_cost_driver_unit_token(value)
+    for family, aliases in _COST_DRIVER_UNIT_FAMILIES.items():
+        if token in aliases:
+            return family
+    return None
+
+
+def _resolve_cost_driver_unit_code(db: Session, tenant_id: UUID, raw_unit: str | None) -> str:
+    unit = str(raw_unit or "").strip()
+    if not unit:
+        return unit
+
+    unit_types = (
+        db.query(CostDriverUnitType)
+        .filter(CostDriverUnitType.tenant_id == tenant_id, CostDriverUnitType.is_active)
+        .all()
+    )
+    if not unit_types:
+        return unit
+
+    normalized_unit = _normalize_cost_driver_unit_token(unit)
+    requested_family = _cost_driver_unit_family(unit)
+
+    for unit_type in unit_types:
+        aliases = {
+            _normalize_cost_driver_unit_token(unit_type.code),
+            _normalize_cost_driver_unit_token(unit_type.name_en),
+            _normalize_cost_driver_unit_token(unit_type.name_es),
+        }
+        aliases.discard("")
+        if normalized_unit in aliases:
+            return unit_type.code
+
+    if requested_family:
+        for unit_type in unit_types:
+            if requested_family in {
+                _cost_driver_unit_family(unit_type.code),
+                _cost_driver_unit_family(unit_type.name_en),
+                _cost_driver_unit_family(unit_type.name_es),
+            }:
+                return unit_type.code
+
+    raise HTTPException(status_code=400, detail=f"Unidad de costo no válida: {unit}")
+
+
 def _ensure_order_costs_indexes_and_rls(db: Session) -> None:
     if IS_SQLITE:
         return
@@ -1687,7 +1746,9 @@ def create_cost_driver(
     )
     if existing:
         raise HTTPException(status_code=400, detail=f"Ya existe un driver con código '{data.code}'")
-    driver = ProductionCostDriver(tenant_id=tenant_id, **data.model_dump())
+    payload = data.model_dump()
+    payload["unit"] = _resolve_cost_driver_unit_code(db, tenant_id, payload.get("unit"))
+    driver = ProductionCostDriver(tenant_id=tenant_id, **payload)
     db.add(driver)
     db.commit()
     db.refresh(driver)
@@ -1709,7 +1770,10 @@ def update_cost_driver(
     )
     if not driver:
         raise HTTPException(status_code=404, detail="Cost driver no encontrado")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if "unit" in payload:
+        payload["unit"] = _resolve_cost_driver_unit_code(db, tenant_id, payload.get("unit"))
+    for key, value in payload.items():
         setattr(driver, key, value)
     db.commit()
     db.refresh(driver)

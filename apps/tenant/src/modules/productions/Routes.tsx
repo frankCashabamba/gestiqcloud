@@ -4,7 +4,6 @@ import OrdersList from './OrdersList'
 import OrderForm from './OrderForm'
 import RecetasList from './RecetasList'
 import RecetaCreatePage from './RecetaCreatePage'
-import RecetaEditPage from './RecetaEditPage'
 import RecetaShowPage from './RecetaShowPage'
 import CostDriversPage from './CostDriversPage'
 
@@ -18,7 +17,7 @@ export default function ProduccionRoutes() {
             <Route path="recetas" element={<RecetasList />} />
             <Route path="recetas/nueva" element={<RecetaCreatePage />} />
             <Route path="recetas/:rid" element={<RecetaShowPage />} />
-            <Route path="recetas/:rid/editar" element={<RecetaEditPage />} />
+            <Route path="recetas/:rid/editar" element={<RecetaShowPage />} />
             <Route path="costos" element={<CostDriversPage />} />
             <Route path="*" element={<Navigate to="recetas" replace />} />
         </Routes>

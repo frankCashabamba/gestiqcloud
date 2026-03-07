@@ -8,7 +8,7 @@ import {
   Box, Typography, Button, IconButton, Tabs, Tab,
   Card, CardContent, CardActions, Grid, Chip, Alert
 } from '@mui/material';
-import { Add, Edit, Delete, ContentCopy, Calculate } from '@mui/icons-material';
+import { Add, Delete, Calculate } from '@mui/icons-material';
 import { listRecipes, deleteRecipe, type Recipe } from '../../services/api/recetas';
 import RecetaForm from './RecetaForm';
 import RecetaDetail from './RecetaDetail';
@@ -45,7 +45,6 @@ export default function RecetasPanel() {
 
   // Selección
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
-  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
 
   // Cargar recetas
   useEffect(() => {
@@ -67,12 +66,6 @@ export default function RecetasPanel() {
   };
 
   const handleCreate = () => {
-    setEditingRecipe(null);
-    setFormOpen(true);
-  };
-
-  const handleEdit = (recipe: Recipe) => {
-    setEditingRecipe(recipe);
     setFormOpen(true);
   };
 
@@ -99,7 +92,6 @@ export default function RecetasPanel() {
 
   const handleFormClose = () => {
     setFormOpen(false);
-    setEditingRecipe(null);
     loadRecipes();
   };
 
@@ -181,9 +173,6 @@ export default function RecetasPanel() {
                     <Button size="small" onClick={() => handleViewDetail(recipe)}>
                       Ver
                     </Button>
-                    <IconButton size="small" onClick={() => handleEdit(recipe)}>
-                      <Edit fontSize="small" />
-                    </IconButton>
                     <IconButton size="small" onClick={() => handleCalculate(recipe)}>
                       <Calculate fontSize="small" />
                     </IconButton>
@@ -202,7 +191,7 @@ export default function RecetasPanel() {
       {formOpen && (
         <RecetaForm
           open={formOpen}
-          recipe={editingRecipe}
+          recipe={null}
           onClose={handleFormClose}
         />
       )}

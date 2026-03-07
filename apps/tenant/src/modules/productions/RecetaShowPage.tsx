@@ -11,7 +11,6 @@ export default function RecetaShowPage() {
       open={true}
       recipeId={rid}
       onClose={() => nav('..', { replace: true })}
-      onEdit={(recipe) => nav(`../${encodeURIComponent(recipe.id)}/editar`)}
       onCreateOrder={(recipe, options) => {
         const params = new URLSearchParams({
           recipeId: String(recipe.id),

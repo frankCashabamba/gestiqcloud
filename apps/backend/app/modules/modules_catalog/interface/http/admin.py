@@ -7,6 +7,7 @@ from pathlib import Path
 
 from apps.backend.app.shared.utils import ping_ok
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -18,7 +19,11 @@ from app.modules import crud as mod_crud
 from app.modules import schemas as mod_schemas
 from app.modules import services as mod_services
 from app.modules.modules_catalog.interface.http.schemas import ModuloOutSchema
-from app.modules.settings.application.modules_catalog import get_available_modules
+from app.modules.settings.application.modules_catalog import (
+    canonicalize_module_id,
+    get_available_modules,
+    get_module_aliases,
+)
 
 router = APIRouter(
     prefix="/admin/modules",
@@ -318,6 +323,80 @@ def _update_existing_module(existing: Module, payload: dict) -> None:
     existing.active = bool(payload.get("active", True))  # type: ignore[assignment]
 
 
+def _normalize_module_name(folder_name: str) -> str:
+    canonical = canonicalize_module_id(folder_name)
+    if canonical:
+        return canonical
+    return folder_name.strip().lower()
+
+
+def _find_existing_module(db: Session, canonical_name: str) -> Module | None:
+    aliases = [alias.lower() for alias in get_module_aliases(canonical_name)]
+    rows = db.query(Module).filter(func.lower(Module.name).in_(aliases)).all()
+    if not rows:
+        return None
+    for row in rows:
+        if str(getattr(row, "name", "")).strip().lower() == canonical_name:
+            return row
+    return rows[0]
+
+
+def _module_payload_needs_sync(existing: Module, payload: dict, *, sync_active: bool) -> bool:
+    current_name = str(getattr(existing, "name", "")).strip().lower()
+    if current_name != payload["name"]:
+        return True
+
+    expected_url = payload.get("url") or existing.url or payload["name"]
+    if getattr(existing, "url", None) != expected_url:
+        return True
+
+    comparable_fields = (
+        "icon",
+        "category",
+        "description",
+        "initial_template",
+        "context_type",
+        "target_model",
+    )
+    for field in comparable_fields:
+        incoming = payload.get(field)
+        if incoming is not None and getattr(existing, field, None) != incoming:
+            return True
+
+    current_filters = getattr(existing, "context_filters", None) or {}
+    incoming_filters = payload.get("context_filters")
+    if incoming_filters is not None and current_filters != (incoming_filters or {}):
+        return True
+
+    if sync_active and bool(getattr(existing, "active", True)) != bool(payload.get("active", True)):
+        return True
+
+    return False
+
+
+def _update_existing_module(existing: Module, payload: dict, *, sync_active: bool = True) -> None:
+    existing.name = payload["name"]  # type: ignore[assignment]
+    existing.url = payload.get("url") or existing.url or payload["name"]  # type: ignore[assignment]
+
+    if payload.get("icon") is not None:
+        existing.icon = payload.get("icon")  # type: ignore[assignment]
+    if payload.get("category") is not None:
+        existing.category = payload.get("category")  # type: ignore[assignment]
+    if payload.get("description") is not None:
+        existing.description = payload.get("description")  # type: ignore[assignment]
+    if payload.get("initial_template"):
+        existing.initial_template = payload["initial_template"]  # type: ignore[assignment]
+    if payload.get("context_type"):
+        existing.context_type = payload["context_type"]  # type: ignore[assignment]
+    if payload.get("target_model") is not None:
+        existing.target_model = payload.get("target_model")  # type: ignore[assignment]
+    if payload.get("context_filters") is not None:
+        existing.context_filters = payload.get("context_filters") or {}  # type: ignore[assignment]
+
+    if sync_active:
+        existing.active = bool(payload.get("active", True))  # type: ignore[assignment]
+
+
 @router.get("/ping")
 def ping_admin_modules():
     return ping_ok()
@@ -436,19 +515,35 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
         for entry in entries:
             name = entry["name"]
             module_payload = entry["payload"]
-            existing = db.query(Module).filter_by(name=name).first()
+            existing = _find_existing_module(db, name)
 
             if existing:
-                if not reactivate_existing:
-                    already_existing.append(name)
-                    continue
-
                 try:
-                    _update_existing_module(existing, module_payload)
+                    needs_sync = _module_payload_needs_sync(
+                        existing,
+                        module_payload,
+                        sync_active=reactivate_existing,
+                    )
+
+                    if not needs_sync:
+                        already_existing.append(name)
+                        continue
+
+                    was_inactive = not bool(getattr(existing, "active", True))
+                    _update_existing_module(
+                        existing,
+                        module_payload,
+                        sync_active=reactivate_existing,
+                    )
                     db.add(existing)
                     db.commit()
                     updated.append(name)
-                    reactivated.append(name)
+                    if (
+                        reactivate_existing
+                        and was_inactive
+                        and bool(getattr(existing, "active", True))
+                    ):
+                        reactivated.append(name)
                 except Exception as exc:
                     db.rollback()
                     errors.append({"module": name, "error": f"could not update: {exc}"})
