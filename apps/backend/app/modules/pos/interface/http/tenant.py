@@ -1947,8 +1947,13 @@ def checkout(
                     bindparam("wid", type_=PGUUID(as_uuid=True)),
                     bindparam("pid", type_=PGUUID(as_uuid=True)),
                 ),
-                {"tid": tenant_id, "wid": warehouse_uuid, "pid": product_id,
-                 "q": float(current_qty), "avg": float(fallback_cost)},
+                {
+                    "tid": tenant_id,
+                    "wid": warehouse_uuid,
+                    "pid": product_id,
+                    "q": float(current_qty),
+                    "avg": float(fallback_cost),
+                },
             )
 
             state = costing.apply_outbound(

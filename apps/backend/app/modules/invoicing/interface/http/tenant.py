@@ -553,7 +553,11 @@ def descargar_pdf(
 def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Marca una venta a crédito (PENDING_PAYMENT) como cobrada (ISSUED)."""
     tenant_id = _tenant_uuid(request)
-    doc = db.query(Document).filter(Document.id == factura_id, Document.tenant_id == tenant_id).first()
+    doc = (
+        db.query(Document)
+        .filter(Document.id == factura_id, Document.tenant_id == tenant_id)
+        .first()
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     if doc.status != "PENDING_PAYMENT":
