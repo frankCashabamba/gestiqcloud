@@ -41,9 +41,9 @@ export default function ModuleManagement() {
                 const res = await registrarModulosFS()
                 const data = await listModulos()
                 setModulos(data)
-                const reg = res.registrados?.length || 0
-                const dup = res.ya_existentes?.length || 0
-                const ign = res.ignorados?.length || 0
+                const reg = res.registered?.length || 0
+                const dup = res.already_existing?.length || 0
+                const ign = res.ignored?.length || 0
                 success(`Registrados: ${reg}, existentes: ${dup}, ignorados: ${ign}`)
               } catch(e:any) {
                 toastError(getErrorMessage(e))

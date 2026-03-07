@@ -65,9 +65,14 @@ export async function toggleModulo(id: number | string, activar: boolean): Promi
 }
 
 export type RegistrarRespuesta = {
-  registrados: string[]
-  ya_existentes?: string[]
-  ignorados?: string[]
+  source: 'filesystem' | 'backend_catalog'
+  registered: string[]
+  already_existing?: string[]
+  reactivated?: string[]
+  updated?: string[]
+  ignored?: string[]
+  errors?: Array<{ module: string; error: string }>
+  warnings?: string[]
 }
 
 export async function registrarModulosFS(): Promise<RegistrarRespuesta> {

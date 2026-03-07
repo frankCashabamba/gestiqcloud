@@ -77,9 +77,9 @@ class ImpDocumento(Base):
 
     # Metadata
     proveedor_detectado: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    ruc_detectado: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    ruc_detectado: Mapped[str | None] = mapped_column(String(100), nullable=True)
     monto_total: Mapped[float | None] = mapped_column(Float, nullable=True)
-    moneda: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    moneda: Mapped[str | None] = mapped_column(String(10), nullable=True)
     fecha_documento: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     usuario_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -96,7 +96,7 @@ class ImpDocumento(Base):
         ForeignKey("icu_recipe_snapshot.id", ondelete="SET NULL"), nullable=True
     )
     llm_model: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="Modelo AI usado: gpt-4o, llama3.1, etc"
+        String(100), nullable=True, comment="Modelo AI usado: gpt-4o, llama3.1, etc"
     )
     raw_ai_json: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, comment="Prompt + respuesta cruda AI para trazabilidad"

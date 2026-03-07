@@ -18,6 +18,7 @@ from app.modules import crud as mod_crud
 from app.modules import schemas as mod_schemas
 from app.modules import services as mod_services
 from app.modules.modules_catalog.interface.http.schemas import ModuloOutSchema
+from app.modules.settings.application.modules_catalog import get_available_modules
 
 router = APIRouter(
     prefix="/admin/modules",
@@ -150,6 +151,173 @@ def _guess_defaults(_slug: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _load_module_manifest(manifest_path: Path, module_name: str, errors: list[dict]) -> dict | None:
+    if not manifest_path.is_file():
+        return None
+
+    try:
+        with manifest_path.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception as exc:
+        errors.append({"module": module_name, "error": f"invalid manifest: {exc}"})
+        return None
+
+    if isinstance(data, dict):
+        return data
+
+    errors.append({"module": module_name, "error": "invalid manifest: expected object"})
+    return None
+
+
+def _manifest_value(manifest: dict | None, *keys: str, default=None):
+    if not manifest:
+        return default
+
+    for key in keys:
+        if key in manifest and manifest[key] is not None:
+            return manifest[key]
+
+    return default
+
+
+def _detect_initial_template(panel_path: Path, routes_path: Path, fallback: str) -> str:
+    if panel_path.exists():
+        return "Panel"
+    if routes_path.exists():
+        return "Routes"
+    return fallback
+
+
+def _build_module_payload(
+    name: str,
+    *,
+    manifest: dict | None,
+    initial_template: str,
+    default_icon: str | None = None,
+    default_category: str | None = None,
+) -> dict:
+    return {
+        "name": name,
+        "url": _manifest_value(manifest, "url", default=name) or name,
+        "icon": _manifest_value(manifest, "icon", "icono", default=default_icon),
+        "active": bool(_manifest_value(manifest, "active", "activo", default=True)),
+        "initial_template": (
+            _manifest_value(
+                manifest,
+                "initial_template",
+                "plantilla_inicial",
+                default=initial_template,
+            )
+            or initial_template
+        ),
+        "context_type": _manifest_value(manifest, "context_type", default="none") or "none",
+        "context_filters": _manifest_value(
+            manifest, "context_filters", "filtros_contexto", default={}
+        )
+        or {},
+        "description": _manifest_value(manifest, "description", "descripcion"),
+        "target_model": _manifest_value(manifest, "target_model", "modelo_objetivo"),
+        "category": _manifest_value(
+            manifest,
+            "category",
+            "categoria",
+            default=default_category,
+        ),
+    }
+
+
+def _collect_filesystem_module_entries(
+    modules_dir: str,
+) -> tuple[list[dict], list[str], list[dict]]:
+    entries: list[dict] = []
+    ignored: list[str] = []
+    errors: list[dict] = []
+
+    for module_dir in sorted(Path(modules_dir).iterdir()):
+        if not module_dir.is_dir():
+            continue
+
+        folder_name = module_dir.name
+        if folder_name.startswith(".") or folder_name.startswith("_"):
+            ignored.append(folder_name)
+            continue
+
+        panel_path = module_dir / "Panel.tsx"
+        routes_path = module_dir / "Routes.tsx"
+        if not (panel_path.exists() or routes_path.exists()):
+            ignored.append(folder_name)
+            continue
+
+        name = _normalize_module_name(folder_name)
+        manifest = _load_module_manifest(module_dir / "module.json", name, errors)
+        default_icon, default_category = _guess_defaults(name)
+        initial_template = _detect_initial_template(panel_path, routes_path, name)
+        payload = _build_module_payload(
+            name,
+            manifest=manifest,
+            initial_template=initial_template,
+            default_icon=default_icon,
+            default_category=default_category,
+        )
+        entries.append({"name": name, "payload": payload})
+
+    return entries, ignored, errors
+
+
+def _collect_catalog_module_entries() -> tuple[list[dict], list[str], list[dict]]:
+    entries: list[dict] = []
+    ignored: list[str] = []
+    seen: set[str] = set()
+
+    for item in get_available_modules():
+        raw_id = str(item.get("id") or "").strip()
+        if not raw_id:
+            ignored.append(str(item))
+            continue
+
+        name = _normalize_module_name(raw_id)
+        if name in seen:
+            continue
+        seen.add(name)
+
+        payload = {
+            "name": name,
+            "url": raw_id,
+            "icon": item.get("icon"),
+            "active": True,
+            "initial_template": name,
+            "context_type": "none",
+            "context_filters": {},
+            "description": item.get("description"),
+            "target_model": None,
+            "category": item.get("category"),
+        }
+        entries.append({"name": name, "payload": payload})
+
+    return entries, ignored, []
+
+
+def _update_existing_module(existing: Module, payload: dict) -> None:
+    existing.url = payload.get("url") or existing.url or payload["name"]  # type: ignore[assignment]
+
+    if payload.get("icon") is not None:
+        existing.icon = payload.get("icon")  # type: ignore[assignment]
+    if payload.get("category") is not None:
+        existing.category = payload.get("category")  # type: ignore[assignment]
+    if payload.get("description") is not None:
+        existing.description = payload.get("description")  # type: ignore[assignment]
+    if payload.get("initial_template"):
+        existing.initial_template = payload["initial_template"]  # type: ignore[assignment]
+    if payload.get("context_type"):
+        existing.context_type = payload["context_type"]  # type: ignore[assignment]
+    if payload.get("target_model") is not None:
+        existing.target_model = payload.get("target_model")  # type: ignore[assignment]
+    if payload.get("context_filters") is not None:
+        existing.context_filters = payload.get("context_filters") or {}  # type: ignore[assignment]
+
+    existing.active = bool(payload.get("active", True))  # type: ignore[assignment]
+
+
 @router.get("/ping")
 def ping_admin_modules():
     return ping_ok()
@@ -222,257 +390,92 @@ def get_public_modules(db: Session = Depends(get_db)):
 
 @router.post("/register-modules")
 def register_modules(payload: dict | None = None, db: Session = Depends(get_db)):
-    """Register modules from the filesystem.
+    """Register modules from the frontend filesystem or backend catalog.
 
-    Optionally accepts JSON body { "dir": "/path/to/modules" } to force a specific directory during development. If missing, it resolves automatically with _resolve_modules_dir().
+    If a readable frontend modules directory is available, it is used as the source of truth.
+    Otherwise, the endpoint falls back to the backend catalog so split deployments
+    (backend on VPS, frontend elsewhere) can still register modules.
     """
 
-    try:
-        override_dir = None
+    override_dir = payload.get("dir") if isinstance(payload, dict) else None
+    reactivate_existing = False
+    if isinstance(payload, dict):
+        reactivate_existing = bool(
+            payload.get("reactivar_si_existe") or payload.get("upsert") or payload.get("reactivar")
+        )
 
-        if isinstance(payload, dict):
-            override_dir = payload.get("dir")
+    source = "filesystem"
+    warnings: list[str] = []
+    modules_dir: str | None = None
 
-        # Permitir modo upsert: reactivar y actualizar m├│dulos existentes
-
-        reactivate_existing = False
-
-        if isinstance(payload, dict):
-            reactivate_existing = bool(
-                payload.get("reactivar_si_existe")
-                or payload.get("upsert")
-                or payload.get("reactivar")
+    if override_dir:
+        if os.path.isdir(override_dir):
+            modules_dir = override_dir
+        else:
+            warnings.append(
+                "Override modules_dir is not readable; falling back to backend catalog."
             )
+    else:
+        try:
+            modules_dir = _resolve_modules_dir()
+        except HTTPException as exc:
+            warnings.append(str(exc.detail))
 
-        modules_dir = override_dir or _resolve_modules_dir()
+    if modules_dir and os.path.isdir(modules_dir):
+        entries, ignored, errors = _collect_filesystem_module_entries(modules_dir)
+    else:
+        source = "backend_catalog"
+        entries, ignored, errors = _collect_catalog_module_entries()
 
-    except HTTPException as e:
-        return {
-            "status": "skipped",
-            "reason": str(e.detail),
-            "hint": "Set FRONTEND_MODULES_PATH in apps/backend/.env (e.g. apps/tenant/src/modules)",
-        }
-
-    # Graceful fallback: evitar 500 si no est├í configurado
-
-    if not modules_dir:
-        return {
-            "status": "skipped",
-            "reason": "FRONTEND_MODULES_PATH not configured",
-            "hint": "Define FRONTEND_MODULES_PATH en apps/backend/.env (ruta absoluta, p.ej. C:\\Users\\...\\apps\\tenant\\src\\modules)",
-        }
-
-    # Si el path no es v├ílido, evitar 500 y dar pista
-
-    if modules_dir and not os.path.isdir(modules_dir):
-        return {
-            "status": "skipped",
-            "reason": f"Invalid modules_dir: {modules_dir}",
-            "hint": "Ensure the backend can access the path (mount a volume in Docker)",
-        }
+    registered: list[str] = []
+    already_existing: list[str] = []
+    reactivated: list[str] = []
+    updated: list[str] = []
 
     try:
-        carpetas = [
-            name
-            for name in os.listdir(modules_dir)
-            if os.path.isdir(os.path.join(modules_dir, name))
-        ]
+        for entry in entries:
+            name = entry["name"]
+            module_payload = entry["payload"]
+            existing = db.query(Module).filter_by(name=name).first()
 
-        registered: list[str] = []
-
-        already_existing: list[str] = []
-
-        reactivated: list[str] = []
-
-        updated: list[str] = []
-
-        ignored: list[str] = []
-
-        errors: list[dict] = []
-
-        for carpeta in carpetas:
-            # ignorar carpetas especiales
-
-            if carpeta.startswith(".") or carpeta.startswith("_"):
-                ignored.append(carpeta)
-
-                continue
-
-            # Aceptar m├│dulos con Panel.tsx o Routes.tsx para el loader din├ímico
-
-            panel_path = os.path.join(modules_dir, carpeta, "Panel.tsx")
-
-            routes_path = os.path.join(modules_dir, carpeta, "Routes.tsx")
-
-            # Aceptar si existe cualquier archivo .tsx en la carpeta (adem├ís de Panel/Routes)
-
-            if not (os.path.exists(panel_path) or os.path.exists(routes_path)):
-                ignored.append(carpeta)
-
-                continue
-
-            # Normalize folder name to English (e.g., "compras" -> "purchases")
-            name = _normalize_module_name(carpeta)
-
-            existente = db.query(Module).filter_by(name=name).first()
-
-            if existente:
-                if reactivate_existing:
-                    # Intentar leer manifest (si existe) para actualizar campos b├ísicos
-
-                    manifest_path = os.path.join(modules_dir, carpeta, "module.json")
-
-                    manifest: dict | None = None
-
-                    if os.path.exists(manifest_path):
-                        try:
-                            with open(manifest_path, encoding="utf-8") as fh:
-                                manifest = json.load(fh)
-
-                        except Exception as me:
-                            errors.append({"module": name, "error": f"invalid manifest: {me}"})
-
-                    # Defaults v2
-
-                    default_icon, default_cat = _guess_defaults(name)
-
-                    # Deducir una plantilla_inicial si hace falta
-
-                    plantilla_detectada = None
-
-                    try:
-                        if os.path.exists(panel_path):
-                            plantilla_detectada = "Panel"
-                        elif os.path.exists(routes_path):
-                            plantilla_detectada = "Routes"
-
-                    except Exception:
-                        pass
-
-                    # Actualizar campos no cr├¡ticos y reactivar
-
-                    try:
-                        if manifest and manifest.get("url"):
-                            existente.url = manifest.get("url")  # type: ignore[assignment]
-
-                        elif not existente.url:
-                            existente.url = name  # type: ignore[assignment]
-
-                        if manifest and manifest.get("icono") is not None:
-                            existente.icono = manifest.get("icono")  # type: ignore[assignment]
-
-                        elif not existente.icono and default_icon is not None:
-                            existente.icono = default_icon  # type: ignore[assignment]
-
-                        if manifest and manifest.get("categoria") is not None:
-                            existente.categoria = manifest.get("categoria")  # type: ignore[assignment]
-
-                        elif not existente.categoria and default_cat is not None:
-                            existente.categoria = default_cat  # type: ignore[assignment]
-
-                        if (
-                            not getattr(existente, "plantilla_inicial", None)
-                            and plantilla_detectada
-                        ):
-                            existente.plantilla_inicial = plantilla_detectada  # type: ignore[assignment]
-
-                        existente.active = True  # type: ignore[assignment]
-
-                        db.add(existente)
-
-                        db.commit()
-
-                        updated.append(name)
-
-                        reactivated.append(name)
-
-                    except Exception as ue:
-                        db.rollback()
-
-                        errors.append({"module": name, "error": f"could not update: {ue}"})
-
-                    continue
-
-                else:
+            if existing:
+                if not reactivate_existing:
                     already_existing.append(name)
-
                     continue
 
-            # Intentar leer manifest opcional (module.json)
-
-            manifest_path = os.path.join(modules_dir, carpeta, "module.json")
-
-            manifest: dict | None = None
-
-            if os.path.exists(manifest_path):
                 try:
-                    with open(manifest_path, encoding="utf-8") as fh:
-                        manifest = json.load(fh)
-
-                except Exception as me:
-                    errors.append({"module": name, "error": f"invalid manifest: {me}"})
-
-            # Construir payload combinando defaults + manifest
-
-            # Use v2 defaults (emoji + categories) when no manifest is present
-
-            default_icon, default_cat = _guess_defaults(name)
-
-            # Si no hay manifest, intente usar como plantilla el primer .tsx encontrado
-
-            plantilla_detectada = None
+                    _update_existing_module(existing, module_payload)
+                    db.add(existing)
+                    db.commit()
+                    updated.append(name)
+                    reactivated.append(name)
+                except Exception as exc:
+                    db.rollback()
+                    errors.append({"module": name, "error": f"could not update: {exc}"})
+                continue
 
             try:
-                if os.path.exists(panel_path):
-                    plantilla_detectada = "Panel"
-                elif os.path.exists(routes_path):
-                    plantilla_detectada = "Routes"
-
-            except Exception:
-                pass
-
-            payload = {
-                "name": name,
-                "url": (manifest.get("url") if manifest else name) or name,
-                "icon": (manifest.get("icon") if manifest else None),
-                "active": manifest.get("active", True) if manifest else True,
-                "initial_template": (
-                    manifest.get("initial_template", plantilla_detectada or name)
-                    if manifest
-                    else (plantilla_detectada or name)
-                ),
-                "context_type": manifest.get("context_type", "none") if manifest else "none",
-                "context_filters": manifest.get("context_filters", {}) if manifest else {},
-                "description": manifest.get("description") if manifest else None,
-                "target_model": manifest.get("target_model") if manifest else None,
-                "category": manifest.get("category", default_cat) if manifest else default_cat,
-            }
-
-            try:
-                module = mod_schemas.ModuloCreate(**payload)  # type: ignore[arg-type]
-
-                # Solo crear en BD; no crear archivos/estructura desde detecci├│n FS
-
+                module = mod_schemas.ModuloCreate(**module_payload)  # type: ignore[arg-type]
                 mod_crud.crear_modulo_db_only(db, module)
-
                 registered.append(name)
-
-            except Exception as ce:
-                errors.append({"module": name, "error": str(ce)})
+            except Exception as exc:
+                errors.append({"module": name, "error": str(exc)})
 
         return {
+            "source": source,
             "registered": registered,
             "already_existing": already_existing,
             "reactivated": reactivated,
             "updated": updated,
             "ignored": ignored,
             "errors": errors,
+            "warnings": warnings,
         }
 
     except Exception as e:
         db.rollback()
 
-        raise HTTPException(status_code=500, detail=f"Error al registrar m├│dulos: {e}")
+        raise HTTPException(status_code=500, detail=f"Error registering modules: {e}")
 
 
 @router.post("/company/{tenant_id}", response_model=mod_schemas.EmpresaModuloOut)
