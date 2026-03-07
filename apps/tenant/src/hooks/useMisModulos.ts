@@ -35,6 +35,7 @@ const SLUG_CANONICAL: Record<string, string> = {
   expenses: 'expenses',
   rrhh: 'hr',
   hr: 'hr',
+  importador: 'importer',
   importer: 'importer',
   imports: 'importer',
   importaciones: 'importer',
@@ -78,7 +79,6 @@ function toSlug(m: Modulo): string {
 }
 
 const MODULE_NAME_KEYS: Record<string, string> = {
-  // Core nav modules
   dashboard: 'nav.dashboard',
   ventas: 'nav.sales',
   sales: 'nav.sales',
@@ -103,7 +103,6 @@ const MODULE_NAME_KEYS: Record<string, string> = {
   pos: 'nav.pos',
   tpv: 'nav.pos',
 
-  // Others
   contabilidad: 'modules.accounting',
   accounting: 'modules.accounting',
   compras: 'modules.purchases',
@@ -112,6 +111,7 @@ const MODULE_NAME_KEYS: Record<string, string> = {
   expenses: 'modules.expenses',
   rrhh: 'modules.hr',
   hr: 'modules.hr',
+  importador: 'modules.importer',
   importer: 'modules.importer',
   imports: 'modules.importer',
   importaciones: 'modules.importer',
@@ -147,7 +147,7 @@ function dedupeModules(mods: Modulo[]): Modulo[] {
       bySlug.set(slug, m)
       continue
     }
-    // Prefer active and entries with url when duplicates exist.
+
     const existingActive = existing.active !== false
     const currentActive = m.active !== false
     if (currentActive && !existingActive) {
@@ -178,55 +178,39 @@ export function useMisModulos() {
 
   useEffect(() => {
     let cancelled = false
+
     ;(async () => {
       try {
         let mods: Modulo[] = []
         if (empresa) {
           if (token) {
-            // Autenticado: solo modulos asignados al usuario
             mods = await listMisModulos(token)
           } else {
-            // Sin token, usamos el listado publico por empresa
             mods = await listModulosSeleccionablesPorEmpresa(empresa)
           }
         } else if (token) {
-          // Autenticado por usuario (modulos asignados al usuario)
           mods = await listMisModulos(token)
         } else {
           mods = []
         }
-        // Asegura siempre un array aunque el backend devuelva null/objeto
+
         const list = Array.isArray(mods)
           ? mods
           : (mods && Array.isArray((mods as any).items))
           ? (mods as any).items
           : []
-        // Fallback: asegúrate de que el importador exista al menos como entrada UI
-        const withImporter = (() => {
-          const hasImporter = list.some((m) => toSlug(m) === 'importer' || toSlug(m) === 'imports')
-          if (hasImporter) return list
-          return [
-            ...list,
-            {
-              id: 'importer',
-              name: 'Importador',
-              slug: 'importer',
-              url: '/imports',
-              icon: '📤',
-              active: true,
-              description: 'Importa archivos y mapea columnas.',
-            } as Modulo,
-          ]
-        })()
 
-        if (!cancelled) setModules(dedupeModules(withImporter).map(localizeModule))
+        if (!cancelled) setModules(dedupeModules(list).map(localizeModule))
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Error')
       } finally {
         if (!cancelled) setLoading(false)
       }
     })()
-    return () => { cancelled = true }
+
+    return () => {
+      cancelled = true
+    }
   }, [token, empresa])
 
   const allowedSlugs = useMemo(() => {
