@@ -1,18 +1,51 @@
 {
   "actionsLabel": "Actions",
+  "actions": "Actions",
   "edit": "Edit",
   "delete": "Delete",
   "search": "Search",
   "loadingText": "Loading...",
+  "loading": "Loading...",
+  "loadingModule": "Loading module...",
   "perPage": "Per page:",
   "exportCsv": "Export CSV",
-  "loading": {
-    "module": "Loading module..."
-  },
+  "yes": "Yes",
+  "no": "No",
+  "save": "Save",
+  "saving": "Saving...",
+  "cancel": "Cancel",
+  "create": "Create",
+  "new": "+ New",
+  "back": "Back",
+  "close": "Close",
+  "view": "View",
+  "readonly": "Read-only",
+  "date": "Date",
+  "status": "Status",
+  "name": "Name",
+  "type": "Type",
+  "description": "Description",
+  "category": "Category",
+  "account": "Account",
+  "select": "Select",
+  "product": "Product",
+  "quantity": "Quantity",
+  "price": "Price",
+  "total": "Total",
+  "notes": "Notes",
+  "notesPlaceholder": "Write your notes here...",
+  "optional": "Optional",
+  "from": "From",
+  "to": "To",
+  "all": "All",
+  "active": "Active",
+  "inactive": "Inactive",
+  "info": "Info",
+  "noRecords": "No records found",
   "table": {
     "movimientos": "Accounting movements"
   },
-  "actions": {
+  "actionButtons": {
     "+create": "+ Create",
     "save": "Save",
     "cancel": "Cancel"
@@ -38,5 +71,147 @@
     "invalidCredentials": "Invalid username or password",
     "serverError": "Server error. Please try again later.",
     "tooManyAttempts": "Too many attempts. Please wait {{wait}} seconds."
+  },
+  "accounting": {
+    "loadingTransactions": "Loading transactions...",
+    "movimientos": "Accounting movements",
+    "errors": {
+      "loadTransactions": "Error loading transactions"
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "transactions": "Transactions",
+      "journal": "Journal",
+      "generalLedger": "General Ledger",
+      "profitLoss": "Profit & Loss",
+      "chartOfAccounts": "Chart of Accounts",
+      "posConfig": "POS Config",
+      "paymentMethods": "Payment Methods",
+      "bankReconciliation": "Bank Reconciliation"
+    },
+    "pl": {
+      "loading": "Loading profit report...",
+      "noData": "No data available",
+      "title": "Income Statement",
+      "totalSales": "Total Sales",
+      "cogs": "Cost of Goods Sold",
+      "grossProfit": "Gross Profit",
+      "expenses": "Expenses",
+      "netResult": "Net Result",
+      "netMargin": "Net Margin"
+    },
+    "dashboard": {
+      "totalIncome": "Total Income",
+      "totalExpenses": "Total Expenses",
+      "result": "Result"
+    },
+    "generalLedger": {
+      "loading": "Loading ledger...",
+      "title": "General Ledger",
+      "columns": {
+        "balance": "Balance"
+      }
+    },
+    "journalEntries": {
+      "title": "Journal Entries",
+      "new": "+ New Entry",
+      "searchPlaceholder": "Search entries...",
+      "deleteConfirm": "Delete entry {{number}}?",
+      "deleted": "Entry deleted",
+      "postConfirm": "Post entry {{number}}?",
+      "posted": "Entry posted",
+      "columns": {
+        "number": "Number",
+        "debit": "Debit",
+        "credit": "Credit"
+      }
+    },
+    "journalEntryForm": {
+      "newTitle": "New Journal Entry",
+      "editTitle": "Edit Journal Entry",
+      "saved": "Entry saved",
+      "linesTitle": "Lines",
+      "addLine": "+ Add Line",
+      "fields": {
+        "number": "Number",
+        "numberPlaceholder": "e.g. AST-001"
+      },
+      "errors": {
+        "numberDateRequired": "Number and date are required",
+        "atLeastOneLine": "At least one line is required",
+        "unbalanced": "Entry is unbalanced: Debit {{debit}} ≠ Credit {{credit}}"
+      }
+    },
+    "chartOfAccounts": {
+      "title": "Chart of Accounts",
+      "new": "+ New Account",
+      "searchPlaceholder": "Search accounts...",
+      "deleteConfirm": "Delete account {{name}}?",
+      "deleted": "Account deleted",
+      "empty": "No accounts found.",
+      "createFirst": "Create the first one.",
+      "placeholder": "Manage your chart of accounts here.",
+      "saved": "Account saved",
+      "columns": {
+        "code": "Code",
+        "level": "Level"
+      },
+      "form": {
+        "newTitle": "New Account",
+        "editTitle": "Edit Account",
+        "code": "Code",
+        "codePlaceholder": "e.g. 1.1.01",
+        "errors": {
+          "codeNameRequired": "Code and name are required"
+        }
+      }
+    },
+    "accountTypes": {
+      "ACTIVO": "Asset",
+      "PASIVO": "Liability",
+      "PATRIMONIO": "Equity",
+      "INGRESO": "Income",
+      "GASTO": "Expense"
+    },
+    "paymentMethods": {
+      "title": "Payment Methods",
+      "help": "Configure the payment methods available for POS.",
+      "namePlaceholder": "Method name",
+      "account": "Account",
+      "empty": "No payment methods configured.",
+      "deleteConfirm": "Delete this payment method?",
+      "errors": {
+        "load": "Error loading payment methods",
+        "save": "Error saving payment method",
+        "delete": "Error deleting payment method",
+        "nameAccountRequired": "Name and account are required"
+      }
+    },
+    "posConfig": {
+      "sectorFallback": "Default",
+      "salesAccount": "Sales Account",
+      "salesAccountWithSector": "Sales Account ({{sector}})",
+      "fields": {
+        "cashAccount": "Cash Account",
+        "bankAccount": "Bank Account",
+        "vatOutputAccount": "VAT Output Account"
+      },
+      "messages": {
+        "saved": "POS accounting config saved"
+      },
+      "errors": {
+        "load": "Error loading POS config",
+        "save": "Error saving POS config",
+        "missingConfig": "Missing required fields: {{fields}}"
+      }
+    }
+  },
+  "shell": {
+    "goToPanel": "Go to main panel",
+    "goToHome": "Go to tenant home",
+    "adminPanel": "Admin Panel",
+    "logout": "Log out",
+    "copyright": "GestiqCloud {{year}}. All rights reserved.",
+    "tagline": "ERP | CRM | Modular Platform"
   }
 }

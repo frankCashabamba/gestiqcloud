@@ -3,7 +3,6 @@ import React from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
-import { env } from '../env'
 
 export interface LayoutProps {
   title?: string
@@ -19,7 +18,6 @@ export const LayoutAdmin: React.FC<LayoutProps> = ({
   children,
   empresaNombre,
   logoUrl,
-  colorPrimario = '#2563eb',
   showBackButton = true,
 }) => {
   const navigate = useNavigate()
@@ -42,60 +40,49 @@ export const LayoutAdmin: React.FC<LayoutProps> = ({
   const empresa = empresaNombre || brand || 'GestiqCloud'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f6f7fb', color: '#0f172a', display: 'flex', flexDirection: 'column' }}>
-      <header className="admin-header">
-        <div className="admin-header__inner">
-          <div className="admin-brand-wrap">
-            <div className="admin-brand">
-              {logoUrl ? (
-                <img src={logoUrl} alt={empresa} width={40} height={40} style={{ borderRadius: 10, background: '#f1f5f9', objectFit: 'cover' }} />
-              ) : (
-                <div className="admin-logo">GC</div>
-              )}
-              <div className="admin-brand__text">
-                <span className="admin-brand__name" style={{ color: colorPrimario }}>{empresa}</span>
-                <span className="admin-brand__sub">Panel administrativo</span>
-              </div>
+    <div className="admin-shell-root">
+      <header className="admin-topbar">
+        <div className="admin-topbar__inner">
+          <div className="admin-topbar__brand">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={empresa}
+                className="admin-topbar__logo admin-topbar__logo--img"
+              />
+            ) : (
+              <div className="admin-topbar__logo">GC</div>
+            )}
+            <div className="admin-topbar__brand-text">
+              <span className="admin-topbar__brand-name">{empresa}</span>
+              <span className="admin-topbar__brand-sub">Admin Panel</span>
             </div>
           </div>
 
-          <div className="admin-nav-wrap">
-            <nav className="admin-nav">
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  className="admin-btn"
-                  title="Ir al panel principal"
-                >
-                  Panel Admin
-                </Link>
-              )}
-              <button
-                onClick={handleLogout}
-                className="admin-btn logout"
-              >
-                Cerrar sesion
-              </button>
-            </nav>
-          </div>
+          <nav className="admin-topbar__nav">
+            {isAdmin && (
+              <Link to="/admin" className="admin-topbar__btn">
+                Panel Admin
+              </Link>
+            )}
+            <button onClick={handleLogout} className="admin-topbar__btn admin-topbar__btn--logout">
+              Cerrar sesión
+            </button>
+          </nav>
         </div>
       </header>
 
-      <main className="admin-main">
+      <main className="admin-main-content">
         {showBackButton && (
-          <button
-            onClick={handleBack}
-            className="admin-back"
-            style={{ color: colorPrimario }}
-          >
-            Volver
+          <button onClick={handleBack} className="admin-back-btn">
+            ← Volver
           </button>
         )}
         {children}
       </main>
 
       <footer className="admin-footer">
-        {new Date().getFullYear()} GestiqCloud. Todos los derechos reservados.
+        © {new Date().getFullYear()} GestiqCloud. Todos los derechos reservados.
       </footer>
     </div>
   )

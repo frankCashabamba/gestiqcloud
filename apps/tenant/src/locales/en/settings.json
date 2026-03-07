@@ -102,9 +102,30 @@
   "notifications": {
     "provider": "Provider"
   },
+  "layout": {
+    "title": "Settings",
+    "subtitle": "Configure your tenant by area. Some sections may be hidden based on your role.",
+    "summary": "Summary",
+    "planWarning": "Your plan does not include multiple users. Only an admin can manage full settings.",
+    "loadingPermissions": "Loading permissions..."
+  },
   "nav": {
     "operative": "Operational",
-    "operativeDesc": "POS and inventory"
+    "operativeDesc": "POS and inventory",
+    "general": "General",
+    "generalDesc": "Basic business data",
+    "branding": "Branding",
+    "brandingDesc": "Logo and primary color",
+    "fiscal": "Fiscal",
+    "fiscalDesc": "Tax ID and regime",
+    "horarios": "Hours",
+    "horariosDesc": "Opening and closing",
+    "notificaciones": "Notifications",
+    "notificacionesDesc": "Channels and alerts",
+    "modulos": "Modules",
+    "modulosDesc": "Enable or disable",
+    "avanzado": "Advanced",
+    "avanzadoDesc": "JSON and fine tuning"
   },
   "fiscal": {
     "title": "Fiscal Configuration",

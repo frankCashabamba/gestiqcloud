@@ -1,22 +1,22 @@
 :root {
-  --font: "Segoe UI", "Inter", system-ui, -apple-system, sans-serif;
-  --bg: #f5f7fb;
-  --surface: #ffffff;
+  --font: 'Inter', 'SF Pro Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --bg: var(--gc-bg, #f5f7fb);
+  --surface: var(--gc-surface, #ffffff);
   --surface2: #f7fafc;
-  --text: #0f172a;
-  --muted: #64748b;
-  --border: #dbe3ee;
-  --primary: #0f766e;
-  --on-primary: #ffffff;
-  --focus: #14b8a6;
-  --ok: #16a34a;
-  --warn: #f59e0b;
-  --err: #ef4444;
+  --text: var(--gc-foreground, #0f172a);
+  --muted: var(--gc-muted, #64748b);
+  --border: var(--gc-border, #dbe3ee);
+  --primary: var(--gc-primary, #2563eb);
+  --on-primary: var(--gc-on-primary, #ffffff);
+  --focus: var(--gc-secondary, #1e293b);
+  --ok: var(--gc-success, #16a34a);
+  --warn: var(--gc-warning, #f59e0b);
+  --err: var(--gc-danger, #ef4444);
   --pad: 24px;
   --gap: 24px;
   --r: 18px;
   --ctl: 44px;
-  --shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+  --shadow: var(--gc-shadow-md, 0 10px 30px rgba(15, 23, 42, 0.07));
 }
 
 .dark-theme {
@@ -36,14 +36,14 @@
 }
 
 .light-theme {
-  --bg: #f5f7fb;
-  --surface: #ffffff;
+  --bg: var(--gc-bg, #f5f7fb);
+  --surface: var(--gc-surface, #ffffff);
   --surface2: #f7fafc;
-  --text: #0f172a;
-  --muted: #64748b;
-  --border: #dbe3ee;
-  --on-primary: #ffffff;
-  --shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+  --text: var(--gc-foreground, #0f172a);
+  --muted: var(--gc-muted, #64748b);
+  --border: var(--gc-border, #dbe3ee);
+  --on-primary: var(--gc-on-primary, #ffffff);
+  --shadow: var(--gc-shadow-md, 0 10px 30px rgba(15, 23, 42, 0.07));
 }
 
 * {

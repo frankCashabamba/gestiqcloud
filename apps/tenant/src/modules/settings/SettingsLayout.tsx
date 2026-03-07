@@ -1,31 +1,31 @@
 import React, { useMemo } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useSettingsAccess, type SettingsSection } from './useSettingsAccess'
 
 type NavItem = {
   key: SettingsSection
-  label?: string
-  labelKey?: string
-  desc?: string
-  descKey?: string
+  labelKey: string
+  descKey: string
   path: string
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'general', label: 'General', desc: 'Datos base de la empresa', path: 'general' },
-  { key: 'branding', label: 'Branding', desc: 'Logo y color primario', path: 'branding' },
-  { key: 'fiscal', label: 'Fiscal', desc: 'RUC y regimen', path: 'fiscal' },
+  { key: 'general', labelKey: 'settings:nav.general', descKey: 'settings:nav.generalDesc', path: 'general' },
+  { key: 'branding', labelKey: 'settings:nav.branding', descKey: 'settings:nav.brandingDesc', path: 'branding' },
+  { key: 'fiscal', labelKey: 'settings:nav.fiscal', descKey: 'settings:nav.fiscalDesc', path: 'fiscal' },
   { key: 'operativo', labelKey: 'settings:nav.operative', descKey: 'settings:nav.operativeDesc', path: 'operativo' },
-  { key: 'horarios', label: 'Horarios', desc: 'Apertura y cierre', path: 'horarios' },
-  { key: 'notificaciones', label: 'Notificaciones', desc: 'Canales y alertas', path: 'notificaciones' },
-  { key: 'modulos', label: 'Modulos', desc: 'Activar o desactivar', path: 'modulos' },
-  { key: 'avanzado', label: 'Avanzado', desc: 'JSON y ajustes finos', path: 'avanzado' },
+  { key: 'horarios', labelKey: 'settings:nav.horarios', descKey: 'settings:nav.horariosDesc', path: 'horarios' },
+  { key: 'notificaciones', labelKey: 'settings:nav.notificaciones', descKey: 'settings:nav.notificacionesDesc', path: 'notificaciones' },
+  { key: 'modulos', labelKey: 'settings:nav.modulos', descKey: 'settings:nav.modulosDesc', path: 'modulos' },
+  { key: 'avanzado', labelKey: 'settings:nav.avanzado', descKey: 'settings:nav.avanzadoDesc', path: 'avanzado' },
 ]
 
 export default function SettingsLayout() {
   const { t } = useTranslation(['settings', 'common'])
+  const { empresa } = useParams()
   const { canAccessSection, limitsLoading, isCompanyAdmin, multiUserPlan } = useSettingsAccess()
+  const base = `/${empresa}/settings`
 
   const items = useMemo(
     () => NAV_ITEMS.filter((item) => canAccessSection(item.key)),
@@ -35,42 +35,42 @@ export default function SettingsLayout() {
   return (
     <div className="p-4 md:p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Configuracion</h1>
+        <h1 className="text-2xl font-semibold">{t('settings:layout.title')}</h1>
         <p className="text-sm text-slate-600">
-          Configura el tenant por areas. Algunas secciones pueden estar ocultas segun tu rol.
+          {t('settings:layout.subtitle')}
         </p>
         {!isCompanyAdmin && !limitsLoading && !multiUserPlan && (
           <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded">
-            Tu plan no tiene multiples usuarios. Solo un admin puede gestionar settings completos.
+            {t('settings:layout.planWarning')}
           </div>
         )}
       </div>
 
       {limitsLoading ? (
-        <div className="text-sm text-slate-500">Loading permissions...</div>
+        <div className="text-sm text-slate-500">{t('settings:layout.loadingPermissions')}</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
           <aside className="border rounded-lg bg-white">
             <nav className="p-3 space-y-1">
               <NavLink
-                to="."
+                to={base}
                 end
                 className={({ isActive }) =>
                   `block rounded px-3 py-2 text-sm ${isActive ? 'bg-slate-100 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`
                 }
               >
-                Resumen
+                {t('settings:layout.summary')}
               </NavLink>
               {items.map((item) => (
                 <NavLink
                   key={item.key}
-                  to={item.path}
+                  to={`${base}/${item.path}`}
                   className={({ isActive }) =>
                     `block rounded px-3 py-2 text-sm ${isActive ? 'bg-slate-100 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`
                   }
                 >
-                  <div>{item.labelKey ? t(item.labelKey) : item.label}</div>
-                  <div className="text-xs text-slate-500">{item.descKey ? t(item.descKey) : item.desc}</div>
+                  <div>{t(item.labelKey)}</div>
+                  <div className="text-xs text-slate-500">{t(item.descKey)}</div>
                 </NavLink>
               ))}
             </nav>

@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 DocumentType = Literal["TICKET_NO_FISCAL", "FACTURA", "NOTA_VENTA"]
-DocumentStatus = Literal["DRAFT", "ISSUED", "VOIDED"]
+DocumentStatus = Literal["DRAFT", "ISSUED", "VOIDED", "PENDING_PAYMENT"]
 RenderFormat = Literal["THERMAL_80MM", "A4_PDF"]
 
 

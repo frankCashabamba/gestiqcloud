@@ -89,10 +89,10 @@ export default function ClienteForm() {
   }
 
   return (
-    <div className="p-4">
+    <div className="gc-container py-6">
       <h3 className="text-xl font-semibold mb-3">{id ? t('customers:form.edit') : t('customers:form.new')}</h3>
-      <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
-        {loadingCfg && <div className="text-sm text-gray-500">{t('customers:form.loadingFields')}</div>}
+      <form onSubmit={onSubmit} className="space-y-4 max-w-xl">
+        {loadingCfg && <div className="text-sm text-slate-500">{t('customers:form.loadingFields')}</div>}
         {fieldList.map((f) => {
           const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
           const value = (form as any)[f.field] ?? ''
@@ -102,25 +102,25 @@ export default function ClienteForm() {
           return (
             <div key={f.field}>
               {fieldType !== 'boolean' && (
-                <label className="block mb-1">
+                <label className="gc-label">
                   {label}
                   {isRequired ? (
                     <span className="text-red-600 ml-1" aria-label={t('customers:form.required')}>*</span>
                   ) : (
-                    <span className="text-gray-500 ml-1 text-xs">({t('customers:form.optional')})</span>
+                    <span className="text-slate-500 ml-1 text-xs">({t('customers:form.optional')})</span>
                   )}
                 </label>
               )}
               {fieldType === 'boolean' && (
-                <label className="block mb-1">{label}</label>
+                <label className="gc-label">{label}</label>
               )}
               {renderDynamicField(f, value, handleFieldChange)}
             </div>
           )
         })}
         <div className="pt-2">
-          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('customers:form.save')}</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>{t('customers:form.cancel')}</button>
+          <button type="submit" className="gc-btn gc-btn--primary">{t('customers:form.save')}</button>
+          <button type="button" className="gc-btn gc-btn--ghost" onClick={() => nav('..')}>{t('customers:form.cancel')}</button>
         </div>
       </form>
     </div>

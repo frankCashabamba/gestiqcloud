@@ -18,7 +18,7 @@ function toAbsoluteAssetUrl(url?: string) {
 export default function BrandingSettings() {
   const { empresa } = useParams()
   const { t } = useTranslation(['settings', 'common'])
-  const [form, setForm] = useState<SettingsBranding>({ colorPrimario: '#0f172a', logoUrl: '' })
+  const [form, setForm] = useState<SettingsBranding>({ colorPrimario: '#2563eb', colorSecundario: '#1e293b', logoUrl: '' })
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [saving, setSaving] = useState(false)
   const { success, error } = useToast()
@@ -57,46 +57,117 @@ export default function BrandingSettings() {
   }
 
   return (
-    <div className="p-4" style={{ maxWidth: 640 }}>
-      <h2 className="font-semibold text-lg mb-3">{t('settings:branding.title')}</h2>
-      <div className="space-y-3">
-        <div>
-          <label className="block mb-1">{t('settings:branding.primaryColor')}</label>
-          <input
-            type="color"
-            className="border px-2 py-1 rounded"
-            value={form.colorPrimario || '#0f172a'}
-            onChange={(e) => setForm({ ...form, colorPrimario: e.target.value })}
-          />
+    <div className="gc-container py-6" style={{ maxWidth: 640 }}>
+      <div className="gc-page-header mb-6">
+        <div className="gc-page-header__text">
+          <h1 className="gc-page-header__title">{t('settings:branding.title')}</h1>
+          <p className="gc-page-header__subtitle">{t('settings:branding.subtitle', { defaultValue: 'Personaliza la apariencia de tu empresa' })}</p>
         </div>
+      </div>
+
+      <div className="gc-card space-y-6">
+        {/* Color pickers */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="gc-field">
+            <label className="gc-label">{t('settings:branding.primaryColor')}</label>
+            <div className="flex items-center gap-3 mt-1">
+              <input
+                type="color"
+                className="h-11 w-14 cursor-pointer rounded-lg border border-[var(--gc-border)]"
+                value={form.colorPrimario || '#2563eb'}
+                onChange={(e) => setForm({ ...form, colorPrimario: e.target.value })}
+              />
+              <input
+                type="text"
+                className="gc-input flex-1 font-mono text-sm"
+                value={form.colorPrimario || '#2563eb'}
+                onChange={(e) => setForm({ ...form, colorPrimario: e.target.value })}
+                placeholder="#2563eb"
+              />
+            </div>
+            <p className="gc-field-hint">{t('settings:branding.primaryColorHint', { defaultValue: 'Topbar, botones principales y links' })}</p>
+          </div>
+
+          <div className="gc-field">
+            <label className="gc-label">{t('settings:branding.secondaryColor', { defaultValue: 'Color secundario' })}</label>
+            <div className="flex items-center gap-3 mt-1">
+              <input
+                type="color"
+                className="h-11 w-14 cursor-pointer rounded-lg border border-[var(--gc-border)]"
+                value={form.colorSecundario || '#1e293b'}
+                onChange={(e) => setForm({ ...form, colorSecundario: e.target.value })}
+              />
+              <input
+                type="text"
+                className="gc-input flex-1 font-mono text-sm"
+                value={form.colorSecundario || '#1e293b'}
+                onChange={(e) => setForm({ ...form, colorSecundario: e.target.value })}
+                placeholder="#1e293b"
+              />
+            </div>
+            <p className="gc-field-hint">{t('settings:branding.secondaryColorHint', { defaultValue: 'Acentos, gradientes y hovers' })}</p>
+          </div>
+        </div>
+
+        {/* Live preview */}
         <div>
-          <label className="block mb-1">{t('settings:branding.logo')}</label>
+          <label className="gc-label mb-2">{t('settings:branding.preview', { defaultValue: 'Vista previa' })}</label>
+          <div className="overflow-hidden rounded-xl border border-[var(--gc-border)]">
+            <div
+              className="flex h-14 items-center gap-3 px-4"
+              style={{
+                background: `linear-gradient(120deg, ${form.colorPrimario || '#2563eb'} 0%, ${form.colorSecundario || '#1e293b'} 100%)`,
+                color: '#fff',
+              }}
+            >
+              {logoPreview ? (
+                <img src={logoPreview} alt="Logo" className="h-8 w-8 rounded-lg bg-white/20 object-contain" />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">GC</div>
+              )}
+              <span className="text-sm font-semibold">{empresa || 'Mi Empresa'}</span>
+              <div className="ml-auto flex gap-2">
+                <span className="rounded-lg bg-white/15 px-3 py-1 text-xs font-medium">Módulo</span>
+                <span className="rounded-lg bg-white px-3 py-1 text-xs font-semibold" style={{ color: form.colorPrimario || '#2563eb' }}>Acción</span>
+              </div>
+            </div>
+            <div className="bg-[var(--gc-bg)] p-4">
+              <div className="flex gap-3">
+                <div className="h-4 w-24 rounded" style={{ background: form.colorPrimario || '#2563eb', opacity: 0.2 }} />
+                <div className="h-4 w-16 rounded" style={{ background: form.colorSecundario || '#1e293b', opacity: 0.15 }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Logo */}
+        <div className="gc-field">
+          <label className="gc-label">{t('settings:branding.logo')}</label>
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            className="border px-2 py-1 w-full rounded bg-white"
+            className="gc-input mt-1"
             onChange={(e) => onSelectLogo(e.target.files?.[0])}
             disabled={uploadingLogo}
           />
-          <p className="mt-1 text-xs text-slate-500">{t('settings:branding.formats')}</p>
+          <p className="gc-field-hint">{t('settings:branding.formats')}</p>
           {logoPreview ? (
-            <div className="mt-3 rounded-lg border bg-white p-3">
-              <p className="mb-2 text-sm font-medium text-slate-700">{t('settings:branding.preview')}</p>
+            <div className="mt-3 gc-card flex items-center gap-4">
               <img src={logoPreview} alt="Logo empresa" className="h-12 w-auto object-contain" />
+              <button
+                type="button"
+                className="text-sm font-medium text-[var(--gc-danger)] hover:underline"
+                onClick={() => setForm((prev) => ({ ...prev, logoUrl: '' }))}
+              >
+                {t('settings:branding.removeLogo')}
+              </button>
             </div>
           ) : null}
-          {form.logoUrl ? (
-            <button
-              type="button"
-              className="mt-2 text-sm text-red-600 hover:text-red-700"
-              onClick={() => setForm((prev) => ({ ...prev, logoUrl: '' }))}
-            >
-              {t('settings:branding.removeLogo')}
-            </button>
-          ) : null}
         </div>
+
+        {/* Save */}
         <button
-          className="bg-blue-600 text-white px-3 py-2 rounded disabled:opacity-60"
+          className="gc-btn gc-btn--primary"
           onClick={onSave}
           disabled={saving || uploadingLogo}
         >

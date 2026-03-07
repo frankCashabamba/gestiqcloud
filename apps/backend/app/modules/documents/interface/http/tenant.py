@@ -142,6 +142,12 @@ def _issue_document(payload: SaleDraft, request: Request, db: Session = Depends(
         else:
             detail = exc.args[0] if exc.args else (str(exc) or "validation_error")
         raise HTTPException(status_code=400, detail=detail)
+
+    # Venta a crédito: marcar documento como pendiente de cobro
+    if (payload.meta or {}).get("credit_sale"):
+        doc = doc.model_copy(deep=True)
+        doc.document = doc.document.model_copy(update={"status": "PENDING_PAYMENT"})
+
     save_document(
         db,
         tenant_id=payload.tenantId,
@@ -162,6 +168,15 @@ legacy_router.add_api_route(
 )
 
 
+def _ensure_absolute_logo(doc: DocumentModel, request: Request) -> DocumentModel:
+    logo = doc.seller.logo
+    if logo and logo.startswith("/"):
+        base = str(request.base_url).rstrip("/")
+        doc = doc.model_copy(deep=True)
+        doc.seller.logo = f"{base}{logo}"
+    return doc
+
+
 @documents_router.get("/{document_id}/render")
 def render_document(
     document_id: str,
@@ -176,6 +191,7 @@ def render_document(
     if format:
         doc = doc.model_copy(deep=True)
         doc.render.format = format  # type: ignore[assignment]
+    doc = _ensure_absolute_logo(doc, request)
     engine = TemplateEngine()
     return HTMLResponse(content=engine.render(doc))
 
@@ -194,5 +210,6 @@ def print_document(
     if format:
         doc = doc.model_copy(deep=True)
         doc.render.format = format  # type: ignore[assignment]
+    doc = _ensure_absolute_logo(doc, request)
     engine = TemplateEngine()
     return HTMLResponse(content=engine.render(doc))

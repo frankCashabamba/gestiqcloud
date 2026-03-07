@@ -110,24 +110,24 @@ export default function VentaForm() {
             <button className="mb-3 underline text-sm" onClick={() => nav('..')}>? {t('common.back')}</button>
             <h3 className="text-xl font-semibold mb-3">{id ? t('sales.editSale') : t('sales.newSale')}</h3>
 
-            <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 920 }}>
+            <form onSubmit={onSubmit} className="space-y-4 max-w-4xl">
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block mb-1 text-sm font-medium">{t('sales.saleNumber')}</label>
+                        <label className="gc-label">{t('sales.saleNumber')}</label>
                         <input
                             value={form.numero}
                             onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                            className="border px-2 py-1 w-full rounded"
+                            className="gc-input"
                             placeholder={t('sales.numberPlaceholder')}
                         />
                     </div>
                     <div>
-                        <label className="block mb-1 text-sm font-medium">{t('common.date')}</label>
+                        <label className="gc-label">{t('common.date')}</label>
                         <input
                             type="date"
                             value={form.fecha}
                             onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-                            className="border px-2 py-1 w-full rounded"
+                            className="gc-input"
                             required
                         />
                     </div>
@@ -135,22 +135,22 @@ export default function VentaForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block mb-1 text-sm font-medium">{t('sales.customerId')}</label>
+                        <label className="gc-label">{t('sales.customerId')}</label>
                         <input
                             type="number"
                             value={form.cliente_id ?? ''}
                             onChange={(e) => setForm({ ...form, cliente_id: e.target.value ? Number(e.target.value) : undefined })}
-                            className="border px-2 py-1 w-full rounded"
+                            className="gc-input"
                             placeholder={t('common.optional')}
                         />
-                        <small className="text-gray-500">{t('sales.integrateCustomerSelector')}</small>
+                        <small className="text-slate-500">{t('sales.integrateCustomerSelector')}</small>
                     </div>
                     <div>
-                        <label className="block mb-1 text-sm font-medium">{t('common.status')}</label>
+                        <label className="gc-label">{t('common.status')}</label>
                         <select
                             value={form.estado || 'borrador'}
                             onChange={(e) => setForm({ ...form, estado: e.target.value })}
-                            className="border px-2 py-1 w-full rounded"
+                            className="gc-input"
                         >
                             <option value="borrador">{t('sales.draft')}</option>
                             <option value="emitida">{t('sales.issued')}</option>
@@ -160,11 +160,11 @@ export default function VentaForm() {
                 </div>
 
                 <div>
-                    <label className="block mb-1 text-sm font-medium">{t('common.notes')}</label>
+                    <label className="gc-label">{t('common.notes')}</label>
                     <textarea
                         value={form.notas || ''}
                         onChange={(e) => setForm({ ...form, notas: e.target.value })}
-                        className="border px-2 py-1 w-full rounded"
+                        className="gc-input"
                         rows={3}
                         placeholder={t('common.notesPlaceholder')}
                     />
@@ -186,18 +186,18 @@ export default function VentaForm() {
                     </div>
 
                     {lineas.length === 0 && (
-                        <p className="text-sm text-gray-500">{t('sales.noLines')}</p>
+                        <p className="text-sm text-slate-500">{t('sales.noLines')}</p>
                     )}
 
                     {lineas.map((linea, idx) => (
-                        <div key={idx} className="border rounded p-3 mb-3 bg-gray-50">
+                        <div key={idx} className="border rounded p-3 mb-3 bg-slate-50">
                             <div className="grid grid-cols-5 gap-2 mb-2">
                                 <div>
                                     <label className="text-xs">{t('sales.fields.productId')}</label>
                                     <input
                                         value={linea.producto_id}
                                         onChange={(e) => updateLinea(idx, 'producto_id', e.target.value)}
-                                        className="border px-2 py-1 w-full rounded text-sm"
+                                        className="gc-input"
                                     />
                                 </div>
                                 <div>
@@ -207,7 +207,7 @@ export default function VentaForm() {
                                         step="0.01"
                                         value={linea.cantidad}
                                         onChange={(e) => updateLinea(idx, 'cantidad', Number(e.target.value))}
-                                        className="border px-2 py-1 w-full rounded text-sm"
+                                        className="gc-input"
                                     />
                                 </div>
                                 <div>
@@ -217,7 +217,7 @@ export default function VentaForm() {
                                         step="0.01"
                                         value={linea.precio_unitario}
                                         onChange={(e) => updateLinea(idx, 'precio_unitario', Number(e.target.value))}
-                                        className="border px-2 py-1 w-full rounded text-sm"
+                                        className="gc-input"
                                     />
                                 </div>
                                 <div>
@@ -227,7 +227,7 @@ export default function VentaForm() {
                                         step="0.01"
                                         value={linea.impuesto_tasa || 0}
                                         onChange={(e) => updateLinea(idx, 'impuesto_tasa', Number(e.target.value))}
-                                        className="border px-2 py-1 w-full rounded text-sm"
+                                        className="gc-input"
                                     />
                                 </div>
                                 <div>
@@ -237,7 +237,7 @@ export default function VentaForm() {
                                         step="0.01"
                                         value={linea.descuento || 0}
                                         onChange={(e) => updateLinea(idx, 'descuento', Number(e.target.value))}
-                                        className="border px-2 py-1 w-full rounded text-sm"
+                                        className="gc-input"
                                     />
                                 </div>
                             </div>
@@ -261,7 +261,7 @@ export default function VentaForm() {
                     ))}
                 </div>
 
-                <div className="border-t pt-4 bg-gray-100 p-3 rounded">
+                <div className="border-t pt-4 bg-slate-100 p-3 rounded">
                     <div className="flex justify-between text-sm mb-1">
                         <span>{t('sales.subtotal')}:</span>
                         <span className="font-semibold">${(form.subtotal ?? 0).toFixed(2)}</span>
@@ -287,7 +287,7 @@ export default function VentaForm() {
                             {t('common.save')}
                         </ProtectedButton>
                     )}
-                    <button type="button" className="bg-gray-200 px-4 py-2 rounded" onClick={() => nav('..')}>
+                    <button type="button" className="bg-slate-200 px-4 py-2 rounded" onClick={() => nav('..')}>
                         {t('common.cancel')}
                     </button>
                 </div>

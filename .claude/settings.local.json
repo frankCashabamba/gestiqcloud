@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python -c \":*)",
       "Bash(python3 -c \":*)",
-      "Bash(xargs grep -l \"imp_documento\\\\|icu_recipe\\\\|raw_ai_json\")"
+      "Bash(xargs grep -l \"imp_documento\\\\|icu_recipe\\\\|raw_ai_json\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([k for k in d if k in [''yes'',''no'',''edit'',''delete'',''actions'',''perPage'']]\\)\")"
     ]
   }
 }

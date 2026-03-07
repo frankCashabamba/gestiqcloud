@@ -56,7 +56,8 @@ function normalizeEstado(raw: any): string | undefined {
 function normalizeInvoice(raw: any): Invoice {
     const id = raw?.id ?? raw?.invoice_id
     const numero = raw?.numero ?? raw?.number ?? raw?.invoice_number ?? raw?.sequential
-    const fecha = raw?.fecha ?? raw?.date ?? raw?.invoice_date ?? raw?.created_at ?? raw?.fecha_emision
+    const rawFecha = raw?.fecha ?? raw?.date ?? raw?.invoice_date ?? raw?.created_at ?? raw?.fecha_emision
+    const fecha = rawFecha ? String(rawFecha).slice(0, 10) : undefined
     const total = raw?.total ?? raw?.grand_total ?? raw?.amount_total
     const subtotal = raw?.subtotal ?? raw?.sub_total ?? raw?.amount_subtotal
     const iva = raw?.iva ?? raw?.tax ?? raw?.impuesto ?? raw?.tax_total
@@ -310,6 +311,10 @@ export async function updateFactura(id: number | string, invoice: Partial<Factur
 
 export async function removeFactura(id: number | string): Promise<void> {
     return deleteInvoice(id)
+}
+
+export async function marcarCobrada(id: number | string): Promise<void> {
+    await tenantApi.patch(TENANT_INVOICING.byId(String(id)) + '/marcar-cobrada')
 }
 
 // Stub for Facturae export (downloads XML); adjust endpoint when backend is ready

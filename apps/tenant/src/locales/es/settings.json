@@ -102,9 +102,30 @@
   "notifications": {
     "provider": "Proveedor"
   },
+  "layout": {
+    "title": "Configuración",
+    "subtitle": "Configura el tenant por áreas. Algunas secciones pueden estar ocultas según tu rol.",
+    "summary": "Resumen",
+    "planWarning": "Tu plan no tiene múltiples usuarios. Solo un admin puede gestionar settings completos.",
+    "loadingPermissions": "Cargando permisos..."
+  },
   "nav": {
     "operative": "Operativo",
-    "operativeDesc": "POS e inventario"
+    "operativeDesc": "POS e inventario",
+    "general": "General",
+    "generalDesc": "Datos base de la empresa",
+    "branding": "Branding",
+    "brandingDesc": "Logo y color primario",
+    "fiscal": "Fiscal",
+    "fiscalDesc": "RUC y régimen",
+    "horarios": "Horarios",
+    "horariosDesc": "Apertura y cierre",
+    "notificaciones": "Notificaciones",
+    "notificacionesDesc": "Canales y alertas",
+    "modulos": "Módulos",
+    "modulosDesc": "Activar o desactivar",
+    "avanzado": "Avanzado",
+    "avanzadoDesc": "JSON y ajustes finos"
   },
   "fiscal": {
     "title": "Configuración Fiscal",

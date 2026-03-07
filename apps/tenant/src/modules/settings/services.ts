@@ -21,13 +21,15 @@ export async function saveGeneral(payload: SettingsGeneral) {
 export async function getBranding(): Promise<SettingsBranding> {
   const { data } = await tenantApi.get<any>(TENANT_SETTINGS.branding)
   return {
-    colorPrimario: data?.colorPrimario || data?.primary_color || '#0f172a',
+    colorPrimario: data?.colorPrimario || data?.primary_color || '#2563eb',
+    colorSecundario: data?.colorSecundario || data?.secondary_color || '#1e293b',
     logoUrl: data?.logoUrl || data?.company_logo || '',
   }
 }
 export async function saveBranding(payload: SettingsBranding) {
   await tenantApi.put(TENANT_SETTINGS.branding, {
     primary_color: payload.colorPrimario,
+    secondary_color: payload.colorSecundario,
     company_logo: payload.logoUrl || null,
   })
 }

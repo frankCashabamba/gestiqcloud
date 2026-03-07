@@ -96,24 +96,24 @@ export default function EmpleadoForm() {
   }
 
   return (
-    <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">
+    <div className="gc-container py-6">
+      <h3 className="gc-page-header__title mb-4">
         {id ? t('hr:employees.edit') : t('hr:employees.new')}
       </h3>
 
-      <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 900 }}>
+      <form onSubmit={onSubmit} className="space-y-6 max-w-4xl">
         {/* Personal Data */}
-        <fieldset className="border rounded p-4">
-          <legend className="font-semibold text-gray-700 px-2">{t('hr:form.personalData')}</legend>
+        <fieldset className="gc-card">
+          <legend className="gc-section-title px-2">{t('hr:form.personalData')}</legend>
 
           <div className="grid grid-cols-2 gap-4 mt-2">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:employees.code')}</label>
+              <label className="gc-label">{t('hr:employees.code')}</label>
               <input
                 type="text"
                 value={form.sku}
                 onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 placeholder="EMP001"
                 disabled={loading}
               />
@@ -123,23 +123,23 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-2 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:employees.name')} *</label>
+              <label className="gc-label">{t('hr:employees.name')} *</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.lastName')} *</label>
+              <label className="gc-label">{t('hr:form.lastName')} *</label>
               <input
                 type="text"
                 value={form.apellidos}
                 onChange={(e) => setForm({ ...form, apellidos: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               />
@@ -148,11 +148,11 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-3 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.docType')} *</label>
+              <label className="gc-label">{t('hr:form.docType')} *</label>
               <select
                 value={form.tipo_documento}
                 onChange={(e) => setForm({ ...form, tipo_documento: e.target.value as any })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               >
@@ -163,23 +163,23 @@ export default function EmpleadoForm() {
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.docNumber')} *</label>
+              <label className="gc-label">{t('hr:form.docNumber')} *</label>
               <input
                 type="text"
                 value={form.numero_documento}
                 onChange={(e) => setForm({ ...form, numero_documento: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.birthDate')}</label>
+              <label className="gc-label">{t('hr:form.birthDate')}</label>
               <input
                 type="date"
                 value={form.fecha_nacimiento}
                 onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 disabled={loading}
               />
             </div>
@@ -187,22 +187,22 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-2 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.email')}</label>
+              <label className="gc-label">{t('hr:form.email')}</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.phone')}</label>
+              <label className="gc-label">{t('hr:form.phone')}</label>
               <input
                 type="tel"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 disabled={loading}
               />
             </div>
@@ -210,39 +210,39 @@ export default function EmpleadoForm() {
         </fieldset>
 
         {/* Employment Data */}
-        <fieldset className="border rounded p-4">
-          <legend className="font-semibold text-gray-700 px-2">{t('hr:form.employmentData')}</legend>
+        <fieldset className="gc-card">
+          <legend className="gc-section-title px-2">{t('hr:form.employmentData')}</legend>
 
           <div className="grid grid-cols-3 gap-4 mt-2">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:employees.startDate')} *</label>
+              <label className="gc-label">{t('hr:employees.startDate')} *</label>
               <input
                 type="date"
                 value={form.fecha_ingreso}
                 onChange={(e) => setForm({ ...form, fecha_ingreso: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.department')}</label>
+              <label className="gc-label">{t('hr:form.department')}</label>
               <input
                 type="text"
                 value={form.departamento_id}
                 onChange={(e) => setForm({ ...form, departamento_id: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 placeholder={t('hr:form.departmentPlaceholder')}
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.position')}</label>
+              <label className="gc-label">{t('hr:form.position')}</label>
               <input
                 type="text"
                 value={form.puesto}
                 onChange={(e) => setForm({ ...form, puesto: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 placeholder={t('hr:form.positionPlaceholder')}
                 disabled={loading}
               />
@@ -251,11 +251,11 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-3 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.contractType')} *</label>
+              <label className="gc-label">{t('hr:form.contractType')} *</label>
               <select
                 value={form.tipo_contrato}
                 onChange={(e) => setForm({ ...form, tipo_contrato: e.target.value as any })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               >
@@ -267,11 +267,11 @@ export default function EmpleadoForm() {
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.workSchedule')} *</label>
+              <label className="gc-label">{t('hr:form.workSchedule')} *</label>
               <select
                 value={form.jornada}
                 onChange={(e) => setForm({ ...form, jornada: e.target.value as any })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               >
@@ -281,14 +281,14 @@ export default function EmpleadoForm() {
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.baseSalary')} *</label>
+              <label className="gc-label">{t('hr:form.baseSalary')} *</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 value={form.salario_base}
                 onChange={(e) => setForm({ ...form, salario_base: Number(e.target.value) })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               />
@@ -297,22 +297,22 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-2 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.bank')}</label>
+              <label className="gc-label">{t('hr:form.bank')}</label>
               <input
                 type="text"
                 value={form.banco}
                 onChange={(e) => setForm({ ...form, banco: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.accountNumber')}</label>
+              <label className="gc-label">{t('hr:form.accountNumber')}</label>
               <input
                 type="text"
                 value={form.numero_cuenta}
                 onChange={(e) => setForm({ ...form, numero_cuenta: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 placeholder="ES00 0000 0000 0000 0000 0000"
                 disabled={loading}
               />
@@ -321,21 +321,21 @@ export default function EmpleadoForm() {
 
           <div className="grid grid-cols-3 gap-4 mt-3">
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:form.socialSecurity')}</label>
+              <label className="gc-label">{t('hr:form.socialSecurity')}</label>
               <input
                 type="text"
                 value={form.seguridad_social}
                 onChange={(e) => setForm({ ...form, seguridad_social: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">{t('hr:employees.status')} *</label>
+              <label className="gc-label">{t('hr:employees.status')} *</label>
               <select
                 value={form.estado}
                 onChange={(e) => setForm({ ...form, estado: e.target.value as any })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 required
                 disabled={loading}
               >
@@ -349,11 +349,11 @@ export default function EmpleadoForm() {
 
         {/* Notes */}
         <div>
-          <label className="block mb-1 font-medium text-sm">{t('hr:form.notes')}</label>
+          <label className="gc-label">{t('hr:form.notes')}</label>
           <textarea
             value={form.notas}
             onChange={(e) => setForm({ ...form, notas: e.target.value })}
-            className="border px-2 py-1 w-full rounded"
+            className="gc-input"
             rows={3}
             disabled={loading}
           />
@@ -363,14 +363,14 @@ export default function EmpleadoForm() {
         <div className="flex gap-2">
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="gc-btn gc-btn--primary"
             disabled={loading}
           >
             {loading ? t('hr:form.saving') : t('hr:form.save')}
           </button>
           <button
             type="button"
-            className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+            className="gc-btn gc-btn--ghost"
             onClick={() => nav('..')}
             disabled={loading}
           >

@@ -376,7 +376,7 @@ export default function DocumentDetail() {
                 {savingDailyLog ? t('docDetail.buttons.savingDailyLog') : dailyLogResult ? t('docDetail.buttons.resaveDailyLog') : t('docDetail.buttons.saveDailyLog')}
               </button>
               <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280' }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280' }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -397,7 +397,7 @@ export default function DocumentDetail() {
                 {syncing ? '...' : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
               </button>
               <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -414,7 +414,7 @@ export default function DocumentDetail() {
                   <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -431,7 +431,7 @@ export default function DocumentDetail() {
                   <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -454,7 +454,7 @@ export default function DocumentDetail() {
                 </>
               )}
               <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate('../upload?reimport=clean')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
         </div>

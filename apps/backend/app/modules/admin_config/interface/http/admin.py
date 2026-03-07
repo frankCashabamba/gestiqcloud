@@ -3,9 +3,11 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel as PydanticModel
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.models.core.country_catalogs import CountryIdType
 from app.modules.admin_config.application.categorias_gasto.dto import CategoriaGastoIn
 from app.modules.admin_config.application.categorias_gasto.use_cases import (
     CreateExpenseCategory,
@@ -1220,4 +1222,88 @@ def delete_payment_template(id: int, db: Session = Depends(get_db)):
         DeletePaymentTemplate(_payment_template_repo(db)).execute(id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Payment template not found")
+    return {"ok": True}
+
+
+# ====================================================================
+# Document ID Types (catálogo global por país — sin tenant_id)
+# ====================================================================
+
+
+class DocumentIdTypeCreate(PydanticModel):
+    country_code: str
+    code: str
+    label: str
+    active: bool = True
+
+
+class DocumentIdTypeUpdate(PydanticModel):
+    country_code: str | None = None
+    code: str | None = None
+    label: str | None = None
+    active: bool | None = None
+
+
+class DocumentIdTypeRead(PydanticModel):
+    id: str
+    country_code: str
+    code: str
+    label: str
+    active: bool
+
+    model_config = {"from_attributes": True}
+
+
+def _doc_id_type_serialize(obj: CountryIdType) -> DocumentIdTypeRead:
+    return DocumentIdTypeRead(
+        id=str(obj.id),
+        country_code=obj.country_code,
+        code=obj.code,
+        label=obj.label,
+        active=obj.active,
+    )
+
+
+@router.get("/document-id-type", response_model=list[DocumentIdTypeRead])
+def list_document_id_types(db: Session = Depends(get_db)):
+    rows = db.query(CountryIdType).order_by(CountryIdType.country_code, CountryIdType.code).all()
+    return [_doc_id_type_serialize(r) for r in rows]
+
+
+@router.post("/document-id-type", response_model=DocumentIdTypeRead, status_code=201)
+def create_document_id_type(data: DocumentIdTypeCreate, db: Session = Depends(get_db)):
+    obj = CountryIdType(**data.model_dump())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return _doc_id_type_serialize(obj)
+
+
+@router.get("/document-id-type/{id}", response_model=DocumentIdTypeRead)
+def get_document_id_type(id: str, db: Session = Depends(get_db)):
+    obj = db.query(CountryIdType).filter(CountryIdType.id == id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Tipo de identificación no encontrado")
+    return _doc_id_type_serialize(obj)
+
+
+@router.put("/document-id-type/{id}", response_model=DocumentIdTypeRead)
+def update_document_id_type(id: str, data: DocumentIdTypeUpdate, db: Session = Depends(get_db)):
+    obj = db.query(CountryIdType).filter(CountryIdType.id == id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Tipo de identificación no encontrado")
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(obj, field, val)
+    db.commit()
+    db.refresh(obj)
+    return _doc_id_type_serialize(obj)
+
+
+@router.delete("/document-id-type/{id}")
+def delete_document_id_type(id: str, db: Session = Depends(get_db)):
+    obj = db.query(CountryIdType).filter(CountryIdType.id == id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Tipo de identificación no encontrado")
+    db.delete(obj)
+    db.commit()
     return {"ok": True}

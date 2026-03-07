@@ -164,18 +164,25 @@ def list_expenses(db: Session = Depends(get_db), claims: dict = Depends(with_acc
 @router.get("/stats")
 def get_expense_stats(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
     """Get expense statistics (must come before /{expense_id})"""
-    from sqlalchemy import case, func as sqlfunc
+    from sqlalchemy import case
+    from sqlalchemy import func as sqlfunc
 
     tenant_id = UUID(claims["tenant_id"])
     row = (
         db.query(
             sqlfunc.coalesce(sqlfunc.sum(Expense.total), 0).label("total"),
             sqlfunc.coalesce(
-                sqlfunc.sum(case(
-                    (Expense.status == "pending", Expense.total),
-                    (Expense.status == "partial", sqlfunc.coalesce(Expense.pending_amount, Expense.total)),
-                    else_=0,
-                )), 0
+                sqlfunc.sum(
+                    case(
+                        (Expense.status == "pending", Expense.total),
+                        (
+                            Expense.status == "partial",
+                            sqlfunc.coalesce(Expense.pending_amount, Expense.total),
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
             ).label("pending"),
         )
         .filter(Expense.tenant_id == tenant_id)

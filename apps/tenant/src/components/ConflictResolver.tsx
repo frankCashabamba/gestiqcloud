@@ -117,10 +117,10 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
       }}>
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
-          <h2 style={{ margin: '0 0 0.5rem', color: '#e74c3c', fontSize: '1.5rem' }}>
+          <h2 style={{ margin: '0 0 0.5rem', color: 'var(--gc-danger)', fontSize: '1.5rem' }}>
             ⚠️ {t('conflictResolver.title')}
           </h2>
-          <p style={{ margin: 0, color: '#666', fontSize: '0.95rem' }}>
+          <p style={{ margin: 0, color: 'var(--gc-muted)', fontSize: '0.95rem' }}>
             {t('conflictResolver.detected', { count: conflicts.length })}
           </p>
         </div>
@@ -136,28 +136,28 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
                   style={{
                     width: '100%',
                     padding: '1rem',
-                    border: '1px solid #ddd',
+                    border: '1px solid var(--gc-border)',
                     borderRadius: 8,
                     marginBottom: '0.5rem',
-                    background: '#f9f9f9',
+                    background: 'var(--gc-bg)',
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'all 0.2s',
                     fontSize: '0.95rem'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#f0f0f0'
-                    e.currentTarget.style.borderColor = '#999'
+                    e.currentTarget.style.background = 'var(--gc-border)'
+                    e.currentTarget.style.borderColor = 'var(--gc-muted)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#f9f9f9'
-                    e.currentTarget.style.borderColor = '#ddd'
+                    e.currentTarget.style.background = 'var(--gc-bg)'
+                    e.currentTarget.style.borderColor = 'var(--gc-border)'
                   }}
                 >
                   <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
                     {c.entity.toUpperCase()} • {c.id}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#999' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--gc-muted)' }}>
                     Local v{c.localVersion} vs Servidor v{c.remoteVersion}
                   </div>
                 </button>

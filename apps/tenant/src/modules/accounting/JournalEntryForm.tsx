@@ -87,40 +87,40 @@ export default function AsientoForm() {
     const totales = calcularTotales()
 
     return (
-        <div className="p-4">
+        <div className="gc-container py-6">
             <h3 className="text-xl font-semibold mb-3">{id ? t('accounting.journalEntryForm.editTitle') : t('accounting.journalEntryForm.newTitle')}</h3>
             <form onSubmit={onSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block mb-1">{t('accounting.journalEntryForm.fields.number')}</label>
+                        <label className="gc-label">{t('accounting.journalEntryForm.fields.number')}</label>
                         <input
                             type="text"
                             value={form.numero || ''}
                             onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                            className="border px-2 py-1 w-full rounded"
+                            className="gc-input"
                             required
                             placeholder={t('accounting.journalEntryForm.fields.numberPlaceholder')}
                         />
                     </div>
 
                     <div>
-                        <label className="block mb-1">{t('common.date')}</label>
+                        <label className="gc-label">{t('common.date')}</label>
                         <input
                             type="date"
                             value={form.fecha || ''}
                             onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-                            className="border px-2 py-1 w-full rounded"
+                            className="gc-input"
                             required
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block mb-1">{t('common.description')}</label>
+                    <label className="gc-label">{t('common.description')}</label>
                     <textarea
                         value={form.descripcion || ''}
                         onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-                        className="border px-2 py-1 w-full rounded"
+                        className="gc-input"
                         rows={2}
                     />
                 </div>
@@ -131,14 +131,14 @@ export default function AsientoForm() {
                         <button
                             type="button"
                             onClick={addLinea}
-                            className="bg-green-600 text-white px-3 py-1 rounded text-sm"
+                            className="gc-btn gc-btn--primary gc-btn--sm"
                         >
                             {t('accounting.journalEntryForm.addLine')}
                         </button>
                     </div>
 
                     <table className="w-full border">
-                        <thead className="bg-gray-100">
+                        <thead className="bg-slate-100">
                             <tr>
                                 <th className="border px-2 py-1 text-left">{t('common.account')}</th>
                                 <th className="border px-2 py-1 text-right">{t('accounting.journalEntries.columns.debit')}</th>
@@ -154,7 +154,7 @@ export default function AsientoForm() {
                                         <select
                                             value={linea.cuenta_id || ''}
                                             onChange={(e) => updateLinea(idx, 'cuenta_id', e.target.value)}
-                                            className="w-full border px-1 py-1 rounded"
+                                            className="gc-input gc-select"
                                             required
                                         >
                                             <option value="">{t('common.select')}</option>
@@ -171,7 +171,7 @@ export default function AsientoForm() {
                                             step="0.01"
                                             value={linea.debe || 0}
                                             onChange={(e) => updateLinea(idx, 'debe', parseFloat(e.target.value) || 0)}
-                                            className="w-full border px-1 py-1 rounded text-right"
+                                            className="gc-input gc-select text-right"
                                         />
                                     </td>
                                     <td className="border px-2 py-1">
@@ -180,7 +180,7 @@ export default function AsientoForm() {
                                             step="0.01"
                                             value={linea.haber || 0}
                                             onChange={(e) => updateLinea(idx, 'haber', parseFloat(e.target.value) || 0)}
-                                            className="w-full border px-1 py-1 rounded text-right"
+                                            className="gc-input gc-select text-right"
                                         />
                                     </td>
                                     <td className="border px-2 py-1">
@@ -188,7 +188,7 @@ export default function AsientoForm() {
                                             type="text"
                                             value={linea.descripcion || ''}
                                             onChange={(e) => updateLinea(idx, 'descripcion', e.target.value)}
-                                            className="w-full border px-1 py-1 rounded"
+                                            className="gc-input gc-select"
                                         />
                                     </td>
                                     <td className="border px-2 py-1 text-center">
@@ -203,7 +203,7 @@ export default function AsientoForm() {
                                 </tr>
                             ))}
                         </tbody>
-                        <tfoot className="bg-gray-100 font-semibold">
+                        <tfoot className="bg-slate-100 font-semibold">
                             <tr>
                                 <td className="border px-2 py-2 text-right">{t('accounting.journalEntryForm.totals')}</td>
                                 <td className="border px-2 py-2 text-right">{totales.debe.toFixed(2)}</td>
@@ -221,7 +221,7 @@ export default function AsientoForm() {
                 </div>
 
                 <div className="pt-4 flex gap-2">
-                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+                    <button type="submit" className="gc-btn gc-btn--primary">
                         {t('accounting.journalEntryForm.save')}
                     </button>
                     <button type="button" className="px-4 py-2 border rounded" onClick={() => nav('..')}>

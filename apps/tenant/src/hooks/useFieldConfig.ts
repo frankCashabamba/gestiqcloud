@@ -54,7 +54,7 @@ export function renderDynamicField(
 ): React.ReactNode {
   const fieldType = getFieldType(f)
   const strValue = value != null ? String(value) : ''
-  const inputClass = 'border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+  const inputClass = 'gc-input'
   const pattern = f.validation_pattern || undefined
 
   switch (fieldType) {
@@ -85,9 +85,9 @@ export function renderDynamicField(
           type: 'checkbox',
           checked: !!value,
           onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(f.field, e.target.checked),
-          className: 'w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500',
+          className: 'w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-[var(--gc-primary)]',
         }),
-        React.createElement('span', { className: 'text-sm text-gray-600' }, f.help || 'Sí/No'),
+        React.createElement('span', { className: 'text-sm text-slate-600' }, f.help || 'Sí/No'),
       )
 
     case 'select':

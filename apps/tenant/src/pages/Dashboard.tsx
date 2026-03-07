@@ -1,50 +1,66 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/AuthContext'
 import { useMisModulos } from '../hooks/useMisModulos'
-import { useEffect, useState } from 'react'
 import { getMiEmpresa, type Empresa } from '../services/empresa'
 
 export default function Dashboard() {
   const { t } = useTranslation()
-  const { logout, brand, profile } = useAuth()
+  const { profile } = useAuth()
   const { modules, loading, error } = useMisModulos()
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
   const [empresaInfo, setEmpresaInfo] = useState<Empresa | null>(null)
   useEffect(() => { getMiEmpresa().then(arr => setEmpresaInfo(arr[0] || null)).catch(()=>{}) }, [])
+
   return (
-    <div>
-      {/* General header with Home/Logout is in CompanyShell */}
-      <div style={{ maxWidth: 960, margin: '0 auto 1rem', color: 'var(--color-muted)', fontSize: 14, display: 'flex', gap: 16 }}>
-        <span>{t('pages.dashboard.companyLabel')} <strong>{empresaInfo?.name || empresa || '—'}</strong></span>
-        <span>{t('pages.dashboard.userLabel')} <strong>{profile?.username || profile?.user_id || '—'}</strong></span>
+    <div className="gc-container py-8">
+      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-[var(--gc-muted)]">
+        <span>{t('pages.dashboard.companyLabel')} <strong className="font-semibold text-[var(--gc-foreground)]">{empresaInfo?.name || empresa || '—'}</strong></span>
+        <span>{t('pages.dashboard.userLabel')} <strong className="font-semibold text-[var(--gc-foreground)]">{profile?.username || profile?.user_id || '—'}</strong></span>
       </div>
-      <div style={{ maxWidth: 960, margin: '1rem auto' }}>
-        <h3 style={{ marginTop: 0 }}>{t('pages.dashboard.contractedModules')} {(!loading && modules.length > 0) ? `(${modules.length})` : ''}</h3>
-        {loading && <div style={{ color: 'var(--color-muted)' }}>{t('pages.dashboard.loadingModules')}</div>}
-        {!loading && modules.length === 0 && (
-          <div style={{ color: 'var(--color-muted)' }}>{t('pages.dashboard.noModules')}</div>
-        )}
-        {!loading && modules.length > 0 && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 12
-          }}>
-          {[...modules].sort((a,b) => (a.name || '').localeCompare(b.name || '')).map((m) => {
+
+      <header className="gc-page-header mb-8">
+        <div className="gc-page-header__text">
+          <h1 className="gc-page-header__title">
+            {t('pages.dashboard.contractedModules')} {(!loading && modules.length > 0) ? `(${modules.length})` : ''}
+          </h1>
+        </div>
+      </header>
+
+      {loading && (
+        <div className="gc-empty">
+          <div className="gc-empty__icon">⏳</div>
+          <p className="gc-empty__text">{t('pages.dashboard.loadingModules')}</p>
+        </div>
+      )}
+
+      {!loading && modules.length === 0 && (
+        <div className="gc-empty">
+          <div className="gc-empty__icon">📦</div>
+          <p className="gc-empty__title">{t('pages.dashboard.noModules')}</p>
+        </div>
+      )}
+
+      {!loading && modules.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {[...modules].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((m) => {
             const to = prefix + (m.url || `/${(m.name || '').toLowerCase()}`)
             return (
-              <Link key={m.id} to={to} style={{ display: 'block', padding: 16, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)', textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ fontWeight: 600 }}>{m.name}</div>
-                <div style={{ color: 'var(--color-muted)', fontSize: 13 }}>{m.categoria || t('dashboard.moduleFallback')}</div>
+              <Link key={m.id} to={to} className="gc-module-card">
+                <div className="gc-module-card__icon">
+                  {(m.name || '?')[0].toUpperCase()}
+                </div>
+                <div className="gc-module-card__text">
+                  <div className="gc-module-card__name">{m.name}</div>
+                  <div className="gc-module-card__desc">{m.categoria || t('dashboard.moduleFallback')}</div>
+                </div>
               </Link>
             )
           })}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

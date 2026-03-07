@@ -116,34 +116,34 @@ export default function GastoForm() {
   const subcategorias = form.category ? (SUBCATEGORIAS[form.category] || []) : []
 
   return (
-    <div className="p-4">
+    <div className="gc-container py-6">
       <h3 className="text-xl font-semibold mb-3">
          {id ? 'Edit expense' : 'New expense'}
        </h3>
 
-      <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 700 }}>
+      <form onSubmit={onSubmit} className="space-y-4 max-w-3xl">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 font-medium">Date *</label>
+            <label className="gc-label">Date *</label>
             <input
               type="date"
               value={form.date}
               onChange={(e) => setForm({ ...form, date: e.target.value })}
-              className="border px-2 py-1 w-full rounded"
+              className="gc-input"
               required
               disabled={loading}
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-medium">Amount *</label>
+            <label className="gc-label">Amount *</label>
             <input
               type="number"
               step="0.01"
               min="0.01"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
-              className="border px-2 py-1 w-full rounded"
+              className="gc-input"
               required
               disabled={loading}
             />
@@ -152,11 +152,11 @@ export default function GastoForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 font-medium">Category *</label>
+            <label className="gc-label">Category *</label>
             <select
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value, subcategory: '' })}
-              className="border px-2 py-1 w-full rounded"
+              className="gc-input"
               required
               disabled={loading}
             >
@@ -169,11 +169,11 @@ export default function GastoForm() {
 
           {subcategorias.length > 0 && (
             <div>
-              <label className="block mb-1 font-medium">Subcategory</label>
+              <label className="gc-label">Subcategory</label>
               <select
                 value={form.subcategory || ''}
                 onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
-                className="border px-2 py-1 w-full rounded"
+                className="gc-input"
                 disabled={loading}
               >
                 <option value="">Select...</option>
@@ -186,13 +186,13 @@ export default function GastoForm() {
         </div>
 
         <div>
-          <label className="block mb-1 font-medium">Concept *</label>
+          <label className="gc-label">Concept *</label>
           <input
             type="text"
             placeholder="Expense description"
             value={form.concept}
             onChange={(e) => setForm({ ...form, concept: e.target.value })}
-            className="border px-2 py-1 w-full rounded"
+            className="gc-input"
             required
             disabled={loading}
           />
@@ -200,11 +200,11 @@ export default function GastoForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 font-medium">Payment Method *</label>
+            <label className="gc-label">Payment Method *</label>
             <select
               value={form.payment_method}
               onChange={(e) => setForm({ ...form, payment_method: e.target.value as any })}
-              className="border px-2 py-1 w-full rounded"
+              className="gc-input"
               required
               disabled={loading}
             >
@@ -216,11 +216,11 @@ export default function GastoForm() {
           </div>
 
           <div>
-            <label className="block mb-1 font-medium">Status *</label>
+            <label className="gc-label">Status *</label>
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value as any })}
-              className="border px-2 py-1 w-full rounded"
+              className="gc-input"
               required
               disabled={loading}
             >
@@ -233,48 +233,48 @@ export default function GastoForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 font-medium">Supplier ID</label>
+            <label className="gc-label">Supplier ID</label>
             <input
               type="text"
               placeholder="Supplier ID"
               value={form.supplier_id || ''}
               onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
-              className="border px-2 py-1 w-full rounded"
+              className="gc-input"
               disabled={loading}
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-medium">Supplier Name</label>
+            <label className="gc-label">Supplier Name</label>
             <input
               type="text"
               placeholder="Supplier name"
               value={form.supplier_name || ''}
               onChange={(e) => setForm({ ...form, supplier_name: e.target.value })}
-              className="border px-2 py-1 w-full rounded"
+              className="gc-input"
               disabled={loading}
             />
           </div>
         </div>
 
         <div>
-          <label className="block mb-1 font-medium">Invoice Number</label>
+          <label className="gc-label">Invoice Number</label>
            <input
              type="text"
              placeholder={getFieldPlaceholder(placeholders, 'invoice_number', 'E.g: INV-2025-001')}
              value={form.invoice_number || ''}
              onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
-             className="border px-2 py-1 w-full rounded"
+             className="gc-input"
              disabled={loading}
            />
         </div>
 
         <div>
-          <label className="block mb-1 font-medium">Notes</label>
+          <label className="gc-label">Notes</label>
           <textarea
             value={form.notes || ''}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="border px-2 py-1 w-full rounded"
+            className="gc-input"
             rows={3}
             placeholder="Additional notes..."
             disabled={loading}
@@ -284,14 +284,14 @@ export default function GastoForm() {
         <div className="pt-2 flex gap-3">
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="gc-btn gc-btn--primary disabled:opacity-50"
             disabled={loading}
           >
             {loading ? 'Saving...' : 'Save'}
           </button>
           <button
             type="button"
-            className="px-4 py-2 border rounded hover:bg-gray-50"
+            className="gc-btn gc-btn--ghost"
             onClick={() => nav('..')}
             disabled={loading}
           >

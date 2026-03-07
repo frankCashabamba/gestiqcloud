@@ -18,7 +18,7 @@ export default function ProtectedLink({
   const can = usePermission()
 
   if (!can(permission, action)) {
-    return fallback ? <>{fallback}</> : <span style={{ color: '#999' }}>{children}</span>
+    return fallback ? <>{fallback}</> : <span style={{ color: 'var(--gc-muted)' }}>{children}</span>
   }
 
   return <Link {...rest}>{children}</Link>

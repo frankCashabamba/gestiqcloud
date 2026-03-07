@@ -61,15 +61,15 @@ function UnauthorizedDefault({ permission, action }: { permission: string; actio
         padding: '2rem',
         textAlign: 'center',
         borderRadius: '0.5rem',
-        backgroundColor: '#fee2e2',
-        border: '1px solid #fca5a5',
+        backgroundColor: 'color-mix(in srgb, var(--gc-danger) 10%, white)',
+        border: '1px solid color-mix(in srgb, var(--gc-danger) 30%, white)',
       }}
     >
-      <h2 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Unauthorized</h2>
-      <p style={{ color: '#7f1d1d', marginBottom: '0.5rem' }}>
+      <h2 style={{ color: 'var(--gc-danger)', marginBottom: '0.5rem' }}>Unauthorized</h2>
+      <p style={{ color: 'var(--gc-foreground)', marginBottom: '0.5rem' }}>
         You do not have permission to access: <code>{displayPerm}</code>
       </p>
-      <p style={{ color: '#7f1d1d', fontSize: '0.875rem' }}>
+      <p style={{ color: 'var(--gc-foreground)', fontSize: '0.875rem' }}>
         Contact your administrator if you believe you should have access.
       </p>
     </div>

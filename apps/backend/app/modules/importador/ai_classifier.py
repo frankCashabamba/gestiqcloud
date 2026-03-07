@@ -71,6 +71,44 @@ def _clean_vision_fields(fields: dict) -> None:
                         pass
 
 
+def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1600) -> bytes:
+    """Resize image so its longest side is at most max_dim pixels.
+
+    Vision models don't need full-resolution photos — resizing a 4K WhatsApp
+    image to 1600px reduces the base64 payload ~6x and avoids ReadTimeout
+    while preserving enough detail to read invoice line items.
+    """
+    import io as _io
+
+    from PIL import Image as _Image
+
+    img = _Image.open(_io.BytesIO(image_bytes))
+    w, h = img.size
+    if max(w, h) <= max_dim:
+        return image_bytes
+
+    scale = max_dim / max(w, h)
+    new_size = (int(w * scale), int(h * scale))
+    img = img.resize(new_size, _Image.LANCZOS)
+
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+
+    buf = _io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    resized = buf.getvalue()
+    logger.debug(
+        "Vision image resized %dx%d→%dx%d (%d→%d bytes)",
+        w,
+        h,
+        new_size[0],
+        new_size[1],
+        len(image_bytes),
+        len(resized),
+    )
+    return resized
+
+
 async def _analyze_with_vision(
     image_bytes: bytes,
     filename: str,
@@ -123,7 +161,7 @@ async def _analyze_with_vision(
         "Respond ONLY with valid JSON:\n"
         "{\n"
         '  "doc_type": "INVOICE, RECEIPT, TICKET, CREDIT_NOTE, PURCHASE_ORDER, QUOTE, '
-        'DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, BANK_STATEMENT, '
+        "DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, BANK_STATEMENT, "
         'BANK_MOVEMENTS, or any descriptive label",\n'
         '  "confidence": 0.0-1.0,\n'
         '  "reasoning": "brief explanation",\n'
@@ -146,7 +184,7 @@ async def _analyze_with_vision(
         "  }\n"
         "}\n"
         "CRITICAL RULES:\n"
-        "- ALL amounts MUST be plain numbers with dot decimal (2145.00 NOT \"2,145.00\").\n"
+        '- ALL amounts MUST be plain numbers with dot decimal (2145.00 NOT "2,145.00").\n'
         "- Dates MUST be YYYY-MM-DD only (no time, no timezone). Read the year VERY carefully.\n"
         f"- YEAR: We are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100}). Double-check!\n"
         "- doc_number: use the FULL number with series/sequence as printed.\n"
@@ -160,7 +198,7 @@ async def _analyze_with_vision(
     if custom_user:
         user_prompt += f"\n\nAdditional instructions:\n{custom_user}"
 
-    img_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    img_b64 = base64.b64encode(_resize_image_for_vision(image_bytes)).decode("utf-8")
 
     payload = {
         "model": vision_model,
@@ -188,8 +226,10 @@ async def _analyze_with_vision(
 
         parsed = _parse_json_response(raw_content)
         if parsed and parsed.get("doc_type"):
-            parsed.setdefault("is_table", False)
-            parsed.setdefault("columns", [])
+            # Images are never tabular structured data — force is_table=False
+            # so fields are stored as invoice/receipt fields, not as row data.
+            parsed["is_table"] = False
+            parsed["columns"] = []
             parsed.setdefault("fields", {})
             parsed.setdefault("confidence", 0.8)
             parsed.setdefault("reasoning", "Vision model analysis")
@@ -204,7 +244,7 @@ async def _analyze_with_vision(
         return None
 
     except Exception as exc:
-        logger.warning("Vision analysis failed for %s: %s", filename, exc)
+        logger.warning("Vision analysis failed for %s: %s", filename, exc, exc_info=True)
         return None
 
 

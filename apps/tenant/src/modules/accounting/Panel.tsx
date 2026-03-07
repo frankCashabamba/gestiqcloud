@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { MovimientoTable } from './components/MovimientoTable'
 import { useMovimientos } from './hooks/useMovimientos'
@@ -27,6 +27,8 @@ export function MovimientosPage() {
 
 export default function ContabilidadPanel() {
   const { t } = useTranslation()
+  const { empresa, mod } = useParams()
+  const base = `/${empresa}/${mod}`
   return (
     <div className="contabilidad-panel md:flex gap-6 p-4">
       <nav className="md:w-64 mb-4 md:mb-0">
@@ -35,7 +37,7 @@ export default function ContabilidadPanel() {
           {NAV_LINKS.map((link) => (
             <li key={link.to}>
               <NavLink
-                to={link.to}
+                to={`${base}/${link.to}`}
                 className={({ isActive }) =>
                   `block px-3 py-2 rounded ${isActive ? 'bg-blue-100 text-blue-800 font-medium' : 'hover:bg-gray-100'}`
                 }

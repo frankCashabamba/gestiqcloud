@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listFacturas, removeFactura, clearInvoicesCache, type Factura } from './services'
+import { listFacturas, removeFactura, marcarCobrada, clearInvoicesCache, type Factura } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import FacturaStatusBadge from './components/FacturaStatusBadge'
@@ -117,6 +117,7 @@ export default function FacturasList() {
             <option value="">{t('common.all')}</option>
             <option value="borrador">{t('billing.status.draft')}</option>
             <option value="emitida">{t('billing.status.issued')}</option>
+            <option value="pending_payment">Pdte. cobro</option>
             <option value="anulada">{t('billing.status.voided')}</option>
           </select>
         </div>
@@ -142,7 +143,7 @@ export default function FacturasList() {
       <tbody>
       {view.map((v) => (
       <tr key={v.id} className="border-b">
-      <td>{v.fecha || '-'}</td>
+      <td>{v.fecha ? new Date(v.fecha).toLocaleDateString() : '-'}</td>
       <td>
         {typeof v.total === 'number' && !Number.isNaN(v.total)
           ? formatCurrency(v.total)
@@ -157,8 +158,33 @@ export default function FacturasList() {
             enabled={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
             />
           </td>
-            <td className="flex gap-2">
-              {['emitida','issued','posted','confirmed'].includes((v.estado||'').toLowerCase()) ? (
+            <td className="flex gap-2 items-center">
+              {(v.estado||'').toLowerCase() === 'pending_payment' ? (
+                <>
+                  {can('billing:read') && (
+                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline">
+                      {t('common.view') || 'Ver'}
+                    </Link>
+                  )}
+                  {can('billing:update') && (
+                    <ProtectedButton
+                      permission="billing:update"
+                      variant="ghost"
+                      onClick={async () => {
+                        if (!confirm('¿Marcar esta venta como cobrada?')) return
+                        try {
+                          await marcarCobrada(v.id)
+                          clearInvoicesCache()
+                          setItems(prev => prev.map(x => x.id === v.id ? { ...x, estado: 'issued' } : x))
+                          success('Marcada como cobrada')
+                        } catch (e: any) { toastError(getErrorMessage(e)) }
+                      }}
+                    >
+                      💰 Cobrar
+                    </ProtectedButton>
+                  )}
+                </>
+              ) : ['emitida','issued','posted','confirmed'].includes((v.estado||'').toLowerCase()) ? (
                 <>
                   {can('billing:read') && (
                     <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline">

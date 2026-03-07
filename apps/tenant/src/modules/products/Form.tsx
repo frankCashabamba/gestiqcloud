@@ -290,13 +290,13 @@ export default function ProductoForm() {
                         type="text"
                         value={value}
                         onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="gc-input"
                         placeholder={f.help || t('products:form.codePlaceholder')}
                     />
                     <button
                         type="button"
                         onClick={generateSKU}
-                        className="px-4 py-2 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 transition-colors whitespace-nowrap"
+                        className="px-4 py-2 bg-gray-100 border border-slate-200 rounded hover:bg-gray-200 transition-colors whitespace-nowrap"
                         title="Generar código automático"
                     >
                         ⚡ Auto
@@ -311,7 +311,7 @@ export default function ProductoForm() {
                 <select
                     value={value}
                     onChange={(e) => setForm({ ...form, categoria: e.target.value })}
-                    className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="gc-input"
                 >
                     <option value="">Sin categoría</option>
                     {categorias.map((cat) => (
@@ -330,23 +330,23 @@ export default function ProductoForm() {
                     {aliases.map((alias, idx) => (
                         <div key={idx} className="flex gap-2 mb-2 items-end">
                             <div className="flex-1">
-                                {idx === 0 && <label className="block text-xs text-gray-600 mb-1">{t('products:form.aliasName', 'Nombre en factura')}</label>}
+                                {idx === 0 && <label className="block text-xs text-slate-600 mb-1">{t('products:form.aliasName', 'Nombre en factura')}</label>}
                                 <input type="text" value={alias.name}
                                     onChange={(e) => { const a = [...aliases]; a[idx] = { ...a[idx], name: e.target.value }; setForm((p) => ({ ...p, import_aliases: a })) }}
-                                    className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    className="gc-input"
                                     placeholder="Ej: HARINA TRADICION PREMIUM 50 KG" />
                             </div>
                             <div className="w-24">
-                                {idx === 0 && <label className="block text-xs text-gray-600 mb-1">{t('products:form.aliasFactor', 'Factor')}</label>}
+                                {idx === 0 && <label className="block text-xs text-slate-600 mb-1">{t('products:form.aliasFactor', 'Factor')}</label>}
                                 <input type="number" min="0.001" step="any" value={alias.factor}
                                     onChange={(e) => { const a = [...aliases]; a[idx] = { ...a[idx], factor: Number(e.target.value) || 1 }; setForm((p) => ({ ...p, import_aliases: a })) }}
-                                    className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                                    className="gc-input" />
                             </div>
                             <div className="w-20">
-                                {idx === 0 && <label className="block text-xs text-gray-600 mb-1">{t('products:form.aliasUnit', 'Unidad')}</label>}
+                                {idx === 0 && <label className="block text-xs text-slate-600 mb-1">{t('products:form.aliasUnit', 'Unidad')}</label>}
                                 <input type="text" value={alias.unit || ''}
                                     onChange={(e) => { const a = [...aliases]; a[idx] = { ...a[idx], unit: e.target.value }; setForm((p) => ({ ...p, import_aliases: a })) }}
-                                    className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="kg" />
+                                    className="gc-input" placeholder="kg" />
                             </div>
                             <button type="button"
                                 onClick={() => { const a = aliases.filter((_, i) => i !== idx); setForm((p) => ({ ...p, import_aliases: a.length ? a : null })) }}
@@ -370,7 +370,7 @@ export default function ProductoForm() {
                         step="0.01"
                         value={value}
                         onChange={(e) => setForm({ ...form, [f.field]: parseFloat(e.target.value) || 0 })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="gc-input"
                         required={!!f.required}
                         placeholder={f.help || ''}
                     />
@@ -383,9 +383,9 @@ export default function ProductoForm() {
                             type="checkbox"
                             checked={!!value}
                             onChange={(e) => setForm({ ...form, [f.field]: e.target.checked })}
-                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="w-4 h-4 rounded border-slate-200 text-blue-600 focus:ring-[var(--gc-primary)]"
                         />
-                        <span className="text-sm text-gray-600">{f.help || 'Sí/No'}</span>
+                        <span className="text-sm text-slate-600">{f.help || 'Sí/No'}</span>
                     </label>
                 )
 
@@ -394,7 +394,7 @@ export default function ProductoForm() {
                     <textarea
                         value={value}
                         onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="gc-input"
                         rows={3}
                         required={!!f.required}
                         placeholder={f.help || ''}
@@ -406,7 +406,7 @@ export default function ProductoForm() {
                     <select
                         value={value}
                         onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="gc-input"
                         required={!!f.required}
                     >
                         <option value="">Seleccionar...</option>
@@ -424,7 +424,7 @@ export default function ProductoForm() {
                         type="text"
                         value={value}
                         onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="gc-input"
                         required={!!f.required}
                         placeholder={f.help || ''}
                     />
@@ -444,17 +444,17 @@ export default function ProductoForm() {
     const stockBelowGlobalMin = minStockGlobal > 0 && stockValue < minStockGlobal
 
     return (
-        <div className="p-6 max-w-4xl mx-auto">
+        <div className="gc-container py-6 max-w-4xl">
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">{id ? t('products:form.editProduct') : t('products:form.newProduct')}</h1>
-                <p className="mt-1 text-sm text-gray-500">
+                <h1 className="text-2xl font-bold text-slate-900">{id ? t('products:form.editProduct') : t('products:form.newProduct')}</h1>
+                <p className="mt-1 text-sm text-slate-500">
                     {id ? t('products:form.editDescription') : t('products:form.newDescription')}
                 </p>
             </div>
 
-            <form onSubmit={onSubmit} className="space-y-6 bg-white shadow-sm rounded-lg p-6">
+            <form onSubmit={onSubmit} className="gc-card space-y-6">
                 {loadingCfg && (
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
                         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -466,40 +466,40 @@ export default function ProductoForm() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {fieldList.map((f) => (
                         <div key={f.field} className={f.type === 'textarea' ? 'md:col-span-2' : ''}>
-                            <label className="block mb-2 font-medium text-gray-700 text-sm">
+                            <label className="block mb-2 font-medium text-slate-700 text-sm">
                                 {f.label || f.field.replace(/_/g, ' ')}
                                 {f.required && <span className="text-red-600 ml-1">*</span>}
                             </label>
                             {renderField(f)}
-                            {f.help && <p className="text-xs text-gray-500 mt-1">{f.help}</p>}
+                            {f.help && <p className="text-xs text-slate-500 mt-1">{f.help}</p>}
                         </div>
                     ))}
                 </div>
 
                 <div className="border-t pt-4">
-                  <h2 className="text-lg font-semibold text-gray-900">{t('products:form.suggestedPriceTitle')}</h2>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <h2 className="text-lg font-semibold text-slate-900">{t('products:form.suggestedPriceTitle')}</h2>
+                  <p className="text-sm text-slate-500 mt-1">
                     {t('products:form.suggestedPriceHint')}
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                     <div>
-                      <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.suggestedPrice')}</label>
+                      <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.suggestedPrice')}</label>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
                           step="0.01"
                           value={suggestedPrice}
                           disabled
-                          className="border px-3 py-2 flex-1 rounded bg-gray-100 text-gray-600"
+                          className="gc-input flex-1 bg-slate-50 text-slate-600"
                           placeholder={t('products:form.suggestedPricePlaceholder')}
                         />
-                        <span className="text-gray-600">{currencySymbol}</span>
+                        <span className="text-slate-600">{currencySymbol}</span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">{t('products:form.suggestedPriceHelp')}</p>
+                      <p className="text-xs text-slate-500 mt-1">{t('products:form.suggestedPriceHelp')}</p>
                     </div>
                     {suggestedPrice > 0 && (
                       <div>
-                        <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.useSuggestedPriceLabel')}</label>
+                        <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.useSuggestedPriceLabel')}</label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
@@ -510,11 +510,11 @@ export default function ProductoForm() {
                                 setForm((prev) => ({ ...prev, price: suggestedPrice }))
                               }
                             }}
-                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="w-4 h-4 rounded border-slate-200 text-blue-600 focus:ring-[var(--gc-primary)]"
                           />
-                          <span className="text-sm text-gray-600">{t('products:form.useSuggestedPriceCheckbox')}</span>
+                          <span className="text-sm text-slate-600">{t('products:form.useSuggestedPriceCheckbox')}</span>
                         </label>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-slate-500 mt-1">
                           {t('products:form.useSuggestedPriceHelp')}
                         </p>
                       </div>
@@ -523,25 +523,25 @@ export default function ProductoForm() {
                 </div>
 
                 <div className="border-t pt-4">
-                    <h2 className="text-lg font-semibold text-gray-900">{t('products:form.wholesaleTitle')}</h2>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <h2 className="text-lg font-semibold text-slate-900">{t('products:form.wholesaleTitle')}</h2>
+                    <p className="text-sm text-slate-500 mt-1">
                         {t('products:form.wholesaleHint')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                         <div>
-                            <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesaleEnable')}</label>
+                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesaleEnable')}</label>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
                                     checked={wholesaleEnabled}
                                     onChange={(e) => updateWholesale({ enabled: e.target.checked })}
                                     disabled={stockBelowGlobalMin && !wholesaleEnabled}
-                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    className="w-4 h-4 rounded border-slate-200 text-blue-600 focus:ring-[var(--gc-primary)]"
                                 />
-                                <span className="text-sm text-gray-600">{t('products:form.wholesaleApply')}</span>
+                                <span className="text-sm text-slate-600">{t('products:form.wholesaleApply')}</span>
                             </label>
                             {minStockGlobal > 0 && (
-                                <p className="text-xs text-gray-500 mt-2">
+                                <p className="text-xs text-slate-500 mt-2">
                                     {t('products:form.stockGlobal', { value: minStockGlobal })}
                                 </p>
                             )}
@@ -552,62 +552,62 @@ export default function ProductoForm() {
                             )}
                         </div>
                         <div>
-                            <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesalePrice')}</label>
+                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesalePrice')}</label>
                             <input
                                 type="number"
                                 step="0.01"
                                 value={wholesalePrice}
                                 onChange={(e) => updateWholesale({ price: Number(e.target.value) || 0 })}
-                                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="gc-input"
                                 placeholder={t('products:form.wholesalePricePlaceholder', { currency: currencySymbol })}
                             />
                         </div>
                         <div>
-                            <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesaleMinUnits')}</label>
+                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesaleMinUnits')}</label>
                             <input
                                 type="number"
                                 step="1"
                                 min="0"
                                 value={wholesaleMinUnits}
                                 onChange={(e) => updateWholesale({ min_qty_units: Number(e.target.value) || 0 })}
-                                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="gc-input"
                                 placeholder={t('products:form.wholesaleMinUnitsPlaceholder')}
                             />
                         </div>
                         <div>
-                            <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesaleApplyMode')}</label>
+                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesaleApplyMode')}</label>
                             <select
                                 value={wholesaleApplyMode}
                                 onChange={(e) => updateWholesale({ apply_mode: e.target.value })}
-                                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="gc-input"
                             >
                                 <option value="all">{t('products:form.wholesaleModeAll')}</option>
                                 <option value="excess">{t('products:form.wholesaleModeExcess')}</option>
                             </select>
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.packs')}</label>
+                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.packs')}</label>
                             <input
                                 type="text"
                                 value={packsInput}
                                 onChange={(e) => updatePacks(parseKeyValueNumberMap(e.target.value))}
-                                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="gc-input"
                                 placeholder={t('products:form.packsPlaceholder')}
                             />
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                                 {t('products:form.packsHelp')}
                             </p>
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.minByPack')}</label>
+                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.minByPack')}</label>
                             <input
                                 type="text"
                                 value={wholesaleMinByPackInput}
                                 onChange={(e) => updateWholesaleMinByPack(parseKeyValueNumberMap(e.target.value))}
-                                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="gc-input"
                                 placeholder={t('products:form.minByPackPlaceholder')}
                             />
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                                 {t('products:form.minByPackHelp')}
                             </p>
                         </div>
@@ -618,13 +618,13 @@ export default function ProductoForm() {
                     <ProtectedButton
                         permission={requiredPerm}
                         type="submit"
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium"
+                        className="gc-btn gc-btn--primary"
                     >
                         {t('products:form.save')}
                     </ProtectedButton>
                     <button
                         type="button"
-                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700"
+                        className="gc-btn gc-btn--secondary"
                         onClick={() => nav('..')}
                     >
                         {t('products:form.cancel')}

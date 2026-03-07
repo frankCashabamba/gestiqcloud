@@ -173,7 +173,7 @@ class ExpenseRepo:
             paid_amount=paid_amount,
             pending_amount=pending_amount,
             notes=notes,
-            vat=vat,
+            vat=vat_value,
             total=float(total) if total is not None else (amount_value + vat_value),
         )
         obj = self.crud.update(self.db, expense_id, dto)

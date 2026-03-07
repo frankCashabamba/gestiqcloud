@@ -47,7 +47,7 @@ class EcuadorPack:
                     )
                 )
         if input.buyer.mode == "CONSUMER_FINAL":
-            max_total = Decimal(str(policy.get("consumerFinalMaxTotal", "0")))
+            max_total = Decimal(str(policy.get("consumerFinalMaxTotal") or "0"))
             require = bool(policy.get("requireBuyerAboveAmount", False))
             if require and max_total > 0:
                 total = sum((item.qty * item.unitPrice) - item.discount for item in input.items)

@@ -71,37 +71,37 @@ export function BusinessCategorySelector({
         .business-category-selector label {
           font-weight: 600;
           font-size: 14px;
-          color: #333;
+          color: var(--gc-foreground);
         }
 
         .business-category-selector select {
           padding: 8px 12px;
-          border: 1px solid #ddd;
+          border: 1px solid var(--gc-border);
           border-radius: 4px;
           font-size: 14px;
-          background-color: white;
+          background-color: var(--gc-surface);
           cursor: pointer;
           transition: border-color 0.2s;
         }
 
         .business-category-selector select:hover:not(:disabled) {
-          border-color: #4f46e5;
+          border-color: var(--gc-primary);
         }
 
         .business-category-selector select:focus:not(:disabled) {
           outline: none;
-          border-color: #4f46e5;
-          box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+          border-color: var(--gc-primary);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--gc-primary) 10%, transparent);
         }
 
         .business-category-selector select:disabled {
-          background-color: #f5f5f5;
+          background-color: var(--gc-bg);
           cursor: not-allowed;
           opacity: 0.6;
         }
 
         .business-category-selector select.error {
-          border-color: #dc2626;
+          border-color: var(--gc-danger);
         }
 
         .business-category-selector small {
@@ -110,11 +110,11 @@ export function BusinessCategorySelector({
         }
 
         .text-muted {
-          color: #666;
+          color: var(--gc-muted);
         }
 
         .text-danger {
-          color: #dc2626;
+          color: var(--gc-danger);
         }
       `}</style>
     </div>

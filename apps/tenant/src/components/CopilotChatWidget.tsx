@@ -113,15 +113,15 @@ export default function CopilotChatWidget() {
             borderRadius: '16px',
             overflow: 'hidden',
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-            background: '#fff',
-            border: '1px solid #e2e8f0',
+            background: 'var(--gc-surface)',
+            border: '1px solid var(--gc-border)',
           }}
         >
           {/* Header */}
           <div
             style={{
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              color: '#fff',
+              background: 'linear-gradient(135deg, var(--gc-primary), var(--gc-primary-dark))',
+              color: 'var(--gc-on-primary)',
               padding: '14px 16px',
               display: 'flex',
               alignItems: 'center',
@@ -141,7 +141,7 @@ export default function CopilotChatWidget() {
               style={{
                 background: 'rgba(255,255,255,0.2)',
                 border: 'none',
-                color: '#fff',
+                color: 'var(--gc-on-primary)',
                 borderRadius: '50%',
                 width: '28px',
                 height: '28px',
@@ -167,11 +167,11 @@ export default function CopilotChatWidget() {
               gap: '8px',
               minHeight: '200px',
               maxHeight: '320px',
-              background: '#f8fafc',
+              background: 'var(--gc-bg)',
             }}
           >
             {messages.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 12px', fontSize: '13px' }}>
+              <div style={{ textAlign: 'center', color: 'var(--gc-muted)', padding: '24px 12px', fontSize: '13px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
                 <p style={{ fontWeight: 500, marginBottom: '4px' }}>{t('components.copilot.greeting')}</p>
                 <p>{t('components.copilot.helpText')}</p>
@@ -191,8 +191,8 @@ export default function CopilotChatWidget() {
                     maxWidth: '80%',
                     padding: '8px 12px',
                     borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                    background: msg.role === 'user' ? '#6366f1' : '#fff',
-                    color: msg.role === 'user' ? '#fff' : '#1e293b',
+                    background: msg.role === 'user' ? 'var(--gc-primary)' : 'var(--gc-surface)',
+                    color: msg.role === 'user' ? 'var(--gc-on-primary)' : 'var(--gc-foreground)',
                     fontSize: '13px',
                     lineHeight: '1.5',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
@@ -211,9 +211,9 @@ export default function CopilotChatWidget() {
                   style={{
                     padding: '8px 16px',
                     borderRadius: '12px 12px 12px 2px',
-                    background: '#fff',
+                    background: 'var(--gc-surface)',
                     fontSize: '13px',
-                    color: '#94a3b8',
+                    color: 'var(--gc-muted)',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                   }}
                 >
@@ -237,9 +237,9 @@ export default function CopilotChatWidget() {
                 gap: '6px',
                 padding: '8px 12px',
                 overflowX: 'auto',
-                borderTop: '1px solid #f1f5f9',
+                borderTop: '1px solid var(--gc-bg)',
                 flexShrink: 0,
-                background: '#fff',
+                background: 'var(--gc-surface)',
               }}
             >
               {suggestions.map((s, idx) => (
@@ -249,9 +249,9 @@ export default function CopilotChatWidget() {
                   style={{
                     padding: '4px 10px',
                     borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    background: '#f8fafc',
-                    color: '#6366f1',
+                    border: '1px solid var(--gc-border)',
+                    background: 'var(--gc-bg)',
+                    color: 'var(--gc-primary)',
                     fontSize: '11px',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
@@ -270,8 +270,8 @@ export default function CopilotChatWidget() {
               display: 'flex',
               gap: '8px',
               padding: '10px 12px',
-              borderTop: '1px solid #e2e8f0',
-              background: '#fff',
+              borderTop: '1px solid var(--gc-border)',
+              background: 'var(--gc-surface)',
               flexShrink: 0,
             }}
           >
@@ -287,7 +287,7 @@ export default function CopilotChatWidget() {
                 flex: 1,
                 padding: '8px 12px',
                 borderRadius: '8px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--gc-border)',
                 fontSize: '13px',
                 outline: 'none',
               }}
@@ -299,8 +299,8 @@ export default function CopilotChatWidget() {
                 padding: '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
-                background: input.trim() && !loading ? '#6366f1' : '#e2e8f0',
-                color: input.trim() && !loading ? '#fff' : '#94a3b8',
+                background: input.trim() && !loading ? 'var(--gc-primary)' : 'var(--gc-border)',
+                color: input.trim() && !loading ? 'var(--gc-on-primary)' : 'var(--gc-muted)',
                 cursor: input.trim() && !loading ? 'pointer' : 'default',
                 fontSize: '14px',
                 fontWeight: 600,
@@ -323,11 +323,11 @@ export default function CopilotChatWidget() {
           height: '56px',
           borderRadius: '50%',
           border: 'none',
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-          color: '#fff',
+          background: 'linear-gradient(135deg, var(--gc-primary), var(--gc-primary-dark))',
+          color: 'var(--gc-on-primary)',
           fontSize: '24px',
           cursor: 'pointer',
-          boxShadow: '0 4px 16px rgba(99,102,241,0.4)',
+          boxShadow: '0 4px 16px color-mix(in srgb, var(--gc-primary) 40%, transparent)',
           zIndex: 10000,
           display: 'flex',
           alignItems: 'center',
@@ -336,11 +336,11 @@ export default function CopilotChatWidget() {
         }}
         onMouseEnter={e => {
           e.currentTarget.style.transform = 'scale(1.1)'
-          e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.5)'
+          e.currentTarget.style.boxShadow = '0 6px 24px color-mix(in srgb, var(--gc-primary) 50%, transparent)'
         }}
         onMouseLeave={e => {
           e.currentTarget.style.transform = 'scale(1)'
-          e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.4)'
+          e.currentTarget.style.boxShadow = '0 4px 16px color-mix(in srgb, var(--gc-primary) 40%, transparent)'
         }}
         title={t('components.copilot.buttonTitle')}
       >
@@ -354,8 +354,8 @@ export default function CopilotChatWidget() {
               width: '12px',
               height: '12px',
               borderRadius: '50%',
-              background: '#ef4444',
-              border: '2px solid #fff',
+              background: 'var(--gc-danger)',
+              border: '2px solid var(--gc-surface)',
             }}
           />
         )}

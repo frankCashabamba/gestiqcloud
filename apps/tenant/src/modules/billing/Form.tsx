@@ -59,9 +59,11 @@ export default function FacturaForm() {
         .then((x: any) => {
           console.log('Invoice loaded from API:', x)
           console.log('Lines from API:', x?.lineas)
+          const rawFecha = x?.fecha || ''
+          const fechaVal = rawFecha ? rawFecha.slice(0, 10) : today
           setForm({
             numero: x?.numero || '',
-            fecha: x?.fecha || today,
+            fecha: fechaVal,
             cliente_id: x?.cliente_id,
             cliente_nombre: x?.cliente_nombre || '',
             descripcion: x?.descripcion || '',
@@ -162,7 +164,7 @@ export default function FacturaForm() {
   }
 
   return (
-    <div className="p-4">
+    <div className="gc-container py-6">
       <h3 className="text-xl font-semibold mb-4">{id ? t('billing.editTitle') : t('billing.newTitle')}</h3>
 
       {isLocked && (
@@ -172,44 +174,44 @@ export default function FacturaForm() {
       )}
 
       {loading ? (
-        <div className="text-gray-500">{t('common.loading')}</div>
+        <div className="text-slate-500">{t('common.loading')}</div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-6">
           {/* Header Section */}
           <div className="border-b pb-4 grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">{t('common.date')}</label>
+              <label className="gc-label">{t('common.date')}</label>
               <input
                 type="date"
                 value={form.fecha}
                 onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-                className="border px-2 py-1 w-full rounded text-sm"
+                className="gc-input"
                 disabled={isLocked}
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">{t('billing.invoiceNumber')}</label>
+              <label className="gc-label">{t('billing.invoiceNumber')}</label>
               <input
                 type="text"
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
                 placeholder={isNew ? '' : t('billing.numberPlaceholder')}
-                className="border px-2 py-1 w-full rounded text-sm"
+                className="gc-input"
                 disabled={isLocked || isNew}
               />
               {isNew && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   {t('billing.numberAutoPlaceholder')}
                 </p>
               )}
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">{t('common.status')}</label>
+              <label className="gc-label">{t('common.status')}</label>
               <select
                 value={form.estado}
                 onChange={(e) => setForm({ ...form, estado: e.target.value })}
-                className="border px-2 py-1 w-full rounded text-sm"
+                className="gc-input"
                 disabled={isLocked}
               >
                 <option value="draft">{t('billing.status.draft')}</option>
@@ -222,33 +224,33 @@ export default function FacturaForm() {
           {/* Customer Section */}
           <div className="border-b pb-4 grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">{t('common.category')} ID</label>
+              <label className="gc-label">{t('common.category')} ID</label>
               <input
                 type="number"
                 value={form.cliente_id || ''}
                 onChange={(e) => setForm({ ...form, cliente_id: e.target.value ? Number(e.target.value) : undefined })}
-                className="border px-2 py-1 w-full rounded text-sm"
+                className="gc-input"
                 disabled={isLocked}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">{t('common.category')} {t('common.name')}</label>
+              <label className="gc-label">{t('common.category')} {t('common.name')}</label>
               <input
                 type="text"
                 value={form.cliente_nombre}
                 onChange={(e) => setForm({ ...form, cliente_nombre: e.target.value })}
                 placeholder={t('billing.customerNamePlaceholder')}
-                className="border px-2 py-1 w-full rounded text-sm"
+                className="gc-input"
                 disabled={isLocked}
               />
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">{t('common.description')}</label>
+              <label className="gc-label">{t('common.description')}</label>
               <textarea
                 value={form.descripcion}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                 rows={2}
-                className="border px-2 py-1 w-full rounded text-sm"
+                className="gc-input"
                 disabled={isLocked}
               />
             </div>
@@ -261,7 +263,7 @@ export default function FacturaForm() {
               <button
                 type="button"
                 onClick={addLine}
-                className={`px-3 py-1 rounded text-sm ${isLocked ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 text-white'}`}
+                className={`px-3 py-1 rounded text-sm ${isLocked ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-green-600 text-white'}`}
                 disabled={isLocked}
               >
                 {isLocked ? t('common.readonly') : t('billing.sectorInvoice.addLine')}
@@ -271,7 +273,7 @@ export default function FacturaForm() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm border">
                 <thead>
-                  <tr className="bg-gray-100">
+                  <tr className="bg-slate-100">
                     <th className="border p-2 text-left">{t('billing.sectorInvoice.fields.description')}</th>
                     <th className="border p-2 text-center w-20">{t('billing.sectorInvoice.fields.quantity')}</th>
                     <th className="border p-2 text-right w-24">{t('billing.sectorInvoice.fields.unitPrice')}</th>
@@ -289,7 +291,7 @@ export default function FacturaForm() {
                       onChange={(e) =>
                         updateLineTotal(idx, { ...linea, description: e.target.value })
                       }
-                      className="border px-2 py-1 w-full rounded text-sm"
+                      className="gc-input"
                       disabled={isLocked}
                       required
                     />
@@ -303,7 +305,7 @@ export default function FacturaForm() {
                       onChange={(e) =>
                         updateLineTotal(idx, { ...linea, cantidad: Number(e.target.value) })
                       }
-                      className="border px-2 py-1 w-full rounded text-sm text-center"
+                      className="gc-input text-center"
                       disabled={isLocked}
                       required
                     />
@@ -317,7 +319,7 @@ export default function FacturaForm() {
                       onChange={(e) =>
                         updateLineTotal(idx, { ...linea, precio_unitario: Number(e.target.value) })
                       }
-                      className="border px-2 py-1 w-full rounded text-sm text-right"
+                      className="gc-input text-right"
                       disabled={isLocked}
                       required
                     />
@@ -368,7 +370,7 @@ export default function FacturaForm() {
                         total: form.subtotal + newIva,
                       })
                     }}
-                    className="border px-2 py-1 w-16 rounded text-sm text-right"
+                    className="gc-input w-16 text-right"
                     disabled={isLocked}
                   />
                 </label>
@@ -383,13 +385,13 @@ export default function FacturaForm() {
 
           {/* Notes Section */}
           <div>
-            <label className="block text-sm font-medium mb-1">{t('common.notes')}</label>
+            <label className="gc-label">{t('common.notes')}</label>
             <textarea
               value={form.notas}
               onChange={(e) => setForm({ ...form, notas: e.target.value })}
               rows={3}
               placeholder={t('billing.notesPlaceholder')}
-              className="border px-2 py-1 w-full rounded text-sm"
+              className="gc-input"
               disabled={isLocked}
             />
           </div>
@@ -407,7 +409,7 @@ export default function FacturaForm() {
             <button
               type="button"
               onClick={() => nav('..')}
-              className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+              className="bg-slate-300 px-4 py-2 rounded hover:bg-slate-400"
             >
               {t('common.cancel')}
             </button>

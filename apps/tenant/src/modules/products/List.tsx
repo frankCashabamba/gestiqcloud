@@ -775,7 +775,7 @@ export default function ProductosList() {
             </select>
           </div>
           <div className="text-gray-600">
-            <span className="font-medium">{filtered.length}</span> {t('products:found', { count: filtered.length })}
+            {t('products:found', { count: filtered.length })}
           </div>
         </div>
       </div>

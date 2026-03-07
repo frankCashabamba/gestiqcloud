@@ -93,6 +93,10 @@ export const ADMIN_CONFIG = {
     base: '/v1/admin/config/payment-template',
     byId: (id: number | string) => `/v1/admin/config/payment-template/${id}`,
   },
+  identificationTypes: {
+    base: '/v1/admin/config/document-id-type',
+    byId: (id: string) => `/v1/admin/config/document-id-type/${id}`,
+  },
 }
 
 export const ADMIN_USERS = {

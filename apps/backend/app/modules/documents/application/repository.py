@@ -20,8 +20,8 @@ def save_document(
 ) -> None:
     try:
         record = Document(
-            id=doc.document.id,
-            tenant_id=tenant_id,
+            id=uuid.UUID(doc.document.id),
+            tenant_id=uuid.UUID(str(tenant_id)),
             doc_type=doc.document.type,
             status=doc.document.status,
             country=doc.document.country,

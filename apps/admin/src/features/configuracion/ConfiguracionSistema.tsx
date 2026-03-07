@@ -28,6 +28,8 @@ import TipoNegocioList from './tipo-negocio/TipoNegocioList'
 import PermisoForm from './permisos/PermisoForm'
 import TipoDocumentoForm from './tipos-documento/TipoDocumentoForm'
 import TipoDocumentoList from './tipos-documento/TipoDocumentoList'
+import TipoIdentificacionForm from './tipos-identificacion/TipoIdentificacionForm'
+import TipoIdentificacionList from './tipos-identificacion/TipoIdentificacionList'
 import TipoImpuestoForm from './tipos-impuesto/TipoImpuestoForm'
 import TipoImpuestoList from './tipos-impuesto/TipoImpuestoList'
 import UnidadMedidaForm from './unidades-medida/UnidadMedidaForm'
@@ -159,6 +161,13 @@ function Index() {
             description="Gestiona las unidades de medida disponibles (kg, lb, etc.)."
             iconSize="sm"
           />
+          <AdminCard
+            href="tipos-identificacion"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Tipos de identificación"
+            description="Catálogo global de tipos de documento de identidad por país (CEDULA, RUC, DNI, etc.)."
+            iconSize="sm"
+          />
         </div>
       </section>
 
@@ -244,6 +253,9 @@ export default function ConfiguracionSistema() {
       <Route path="tipos-impuesto" element={<TipoImpuestoList />} />
       <Route path="tipos-impuesto/nuevo" element={<TipoImpuestoForm />} />
       <Route path="tipos-impuesto/:id/editar" element={<TipoImpuestoForm />} />
+      <Route path="tipos-identificacion" element={<TipoIdentificacionList />} />
+      <Route path="tipos-identificacion/nuevo" element={<TipoIdentificacionForm />} />
+      <Route path="tipos-identificacion/:id/editar" element={<TipoIdentificacionForm />} />
       <Route path="unidades-medida" element={<UnidadMedidaList />} />
       <Route path="unidades-medida/nuevo" element={<UnidadMedidaForm />} />
       <Route path="unidades-medida/:id/editar" element={<UnidadMedidaForm />} />

@@ -99,6 +99,10 @@ export async function removeCuenta(id: string): Promise<void> {
     await apiFetch(`/api/v1/tenant/accounting/chart-of-accounts/${id}`, { method: 'DELETE' })
 }
 
+export async function seedCuentas(force = false): Promise<{ created: number; skipped: number; message: string }> {
+    return apiFetch(`/api/v1/tenant/accounting/chart-of-accounts/seed?force=${force}`, { method: 'POST' })
+}
+
 export async function listAsientos(): Promise<AsientoContable[]> {
     return apiFetch<AsientoContable[]>('/api/v1/tenant/accounting/transactions')
 }

@@ -136,6 +136,11 @@
 </head>
 <body>
     <div class="header">
+        {% if empresa.logo %}
+        <div style="margin-bottom:2mm;">
+            <img src="{{ empresa.logo }}" alt="{{ empresa.nombre }}" style="max-height:40px; max-width:40mm;" />
+        </div>
+        {% endif %}
         <h1>{{ empresa.nombre }}</h1>
         <div class="ruc">RUC/NIF: {{ empresa.ruc }}</div>
     </div>

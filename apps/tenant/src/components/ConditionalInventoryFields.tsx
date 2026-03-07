@@ -205,7 +205,7 @@ export function ConditionalInventoryFields({
           gap: 8px;
           font-size: 13px;
           font-weight: 600;
-          color: #1f2937;
+          color: var(--gc-foreground);
           margin-bottom: 6px;
         }
 
@@ -229,15 +229,15 @@ export function ConditionalInventoryFields({
         }
 
         .label-badge.location {
-          background: #e5e7eb;
-          color: #374151;
+          background: var(--gc-border);
+          color: var(--gc-foreground);
         }
 
         .field-input,
         .field-textarea {
           width: 100%;
           padding: 9px 12px;
-          border: 1px solid #d1d5db;
+          border: 1px solid var(--gc-border);
           border-radius: 6px;
           font-size: 14px;
           font-family: inherit;
@@ -247,8 +247,8 @@ export function ConditionalInventoryFields({
         .field-input:focus,
         .field-textarea:focus {
           outline: none;
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          border-color: var(--gc-primary);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--gc-primary) 10%, transparent);
         }
 
         .field-textarea {
@@ -259,13 +259,13 @@ export function ConditionalInventoryFields({
         .field-help {
           display: block;
           font-size: 12px;
-          color: #6b7280;
+          color: var(--gc-muted);
           margin-top: 4px;
           line-height: 1.4;
         }
 
         .field-help.warning {
-          color: #d97706;
+          color: var(--gc-warning);
           font-weight: 500;
         }
 

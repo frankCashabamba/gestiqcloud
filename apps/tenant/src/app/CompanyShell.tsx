@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/AuthContext'
 import SessionKeepAlive from '@shared/ui'
 import { fetchCompanyTheme, invalidateCompanyThemeCache } from '../services/theme'
@@ -11,6 +12,7 @@ const SESSION_RESPONSE_WINDOW_MS = 60_000
 
 export default function CompanyShell() {
   const { logout } = useAuth()
+  const { t } = useTranslation('common')
   const useAuthHook = useAuth
   const { empresa } = useParams()
   const location = useLocation()
@@ -51,8 +53,12 @@ export default function CompanyShell() {
       {!isPosRoute && (
         <header className="gc-topbar">
           <div className="gc-container gc-topbar-inner">
-            <Link to={prefix || '/'} className="gc-brand" title="Ir al panel principal">
-              {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.name || 'Logo'} className="h-7 w-auto" /> : null}
+            <Link to={prefix || '/'} className="gc-brand" title={t('shell.goToPanel')}>
+              {brand.logoUrl ? (
+                <img src={brand.logoUrl} alt={brand.name || 'Logo'} className="gc-brand__logo-img" />
+              ) : (
+                <span className="gc-brand__logo">{(brand.name || 'G').charAt(0).toUpperCase()}</span>
+              )}
               <span className="gc-brand__name" title={brand.name || 'GestiqCloud'}>
                 {brand.name || 'GestiqCloud'}
               </span>
@@ -61,12 +67,12 @@ export default function CompanyShell() {
               <Link
                 to={prefix || '/'}
                 className="gc-button gc-button--ghost hidden lg:inline-flex"
-                title="Ir al inicio del tenant"
+                title={t('shell.goToHome')}
               >
-                Panel Admin
+                {t('shell.adminPanel')}
               </Link>
               <button type="button" onClick={logout} className="gc-button gc-button--primary">
-                Cerrar sesion
+                {t('shell.logout')}
               </button>
             </nav>
           </div>
@@ -80,8 +86,8 @@ export default function CompanyShell() {
       {!isPosRoute && (
         <footer className="border-t border-slate-200 bg-white/90">
           <div className="gc-container flex h-14 flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-            <span>GestiqCloud {year}. Todos los derechos reservados.</span>
-            <span className="font-medium text-slate-400">ERP | CRM | Plataforma modular</span>
+            <span>{t('shell.copyright', { year })}</span>
+            <span className="font-medium text-slate-400">{t('shell.tagline')}</span>
           </div>
         </footer>
       )}

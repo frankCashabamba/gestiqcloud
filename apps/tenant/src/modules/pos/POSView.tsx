@@ -599,8 +599,8 @@ export default function POSView() {
     useEffect(() => {
         if (showBuyerModal) return
         setClientQuery('')
-        setSelectedClient(null)
         setClientsLoadError(null)
+        setClients([])
         clientsLoadAttemptedRef.current = false
     }, [showBuyerModal])
 
@@ -1563,12 +1563,14 @@ export default function POSView() {
 
             let docPrinted = false
             const baseDraft = pendingSaleRef.current || buildSaleDraft([])
+            const isCreditSale = payments.some(p => p.ref === 'credit_sale')
             const saleDraft = {
                 ...baseDraft,
                 payments: payments.map((payment) => ({
                     method: mapPaymentMethod(payment.method),
                     amount: payment.amount,
                 })),
+                meta: isCreditSale ? { ...(baseDraft.meta || {}), credit_sale: true } : baseDraft.meta,
             }
 
             if (isOnline) {
@@ -2362,9 +2364,16 @@ export default function POSView() {
                                                     }}
                                                     onClick={() => handleSelectClient(c)}
                                                 >
-                                                    <span>{c.name}</span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        {c.name}
+                                                        {c.is_wholesale && (
+                                                            <span style={{ fontSize: 10, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>
+                                                                Mayorista
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                     <span style={{ fontSize: 11, color: '#6b7280' }}>
-                                                        {(c.identificacion || c.tax_id || '').toString()}
+                                                        {(c.identificacion || (c as any).tax_id || '').toString()}
                                                     </span>
                                                 </ProtectedButton>
                                             ))}
@@ -2423,7 +2432,7 @@ export default function POSView() {
                                     value={buyerIdType}
                                     onChange={(e) => setBuyerIdType(e.target.value)}
                                     className="pos-modal-select"
-                                    disabled={documentIdTypesLoading}
+                                    disabled={documentIdTypesLoading || !!selectedClient}
                                 >
                                     {allowedIdTypes.length === 0 && (
                                         <option value="" disabled>
@@ -2444,6 +2453,8 @@ export default function POSView() {
                                     value={buyerIdNumber}
                                     onChange={(e) => setBuyerIdNumber(e.target.value)}
                                     className="pos-modal-input"
+                                    readOnly={!!selectedClient}
+                                    style={selectedClient ? { background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' } : undefined}
                                 />
                                 <input
                                     type="text"
@@ -2451,6 +2462,8 @@ export default function POSView() {
                                     value={buyerName}
                                     onChange={(e) => setBuyerName(e.target.value)}
                                     className="pos-modal-input"
+                                    readOnly={!!selectedClient}
+                                    style={selectedClient ? { background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' } : undefined}
                                 />
                                 <input
                                     type="email"
@@ -2458,6 +2471,8 @@ export default function POSView() {
                                     value={buyerEmail}
                                     onChange={(e) => setBuyerEmail(e.target.value)}
                                     className="pos-modal-input"
+                                    readOnly={!!selectedClient}
+                                    style={selectedClient ? { background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' } : undefined}
                                 />
                             </div>
                         )}
@@ -2480,6 +2495,7 @@ export default function POSView() {
                     warehouseId={headerWarehouseId || undefined}
                     onSuccess={handlePaymentSuccess}
                     onCancel={() => setShowPaymentModal(false)}
+                    isWholesaleCustomer={isWholesaleCustomer}
                 />
             )}
 

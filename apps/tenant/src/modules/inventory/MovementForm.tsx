@@ -86,11 +86,11 @@ export default function MovimientoForm() {
 
             <form onSubmit={onSubmit} className="bg-white shadow-sm rounded-lg p-6 space-y-4">
                 <div>
-                    <label className="block mb-2 font-medium">{t('inventory:form.movementType')} <span className="text-red-600">*</span></label>
+                    <label className="gc-label">{t('inventory:form.movementType')} <span className="text-red-600">*</span></label>
                     <select
                         value={form.kind}
                         onChange={(e) => setForm({ ...form, kind: e.target.value as any })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
+                        className="gc-input"
                         required
                     >
                         <option value="purchase">📦 {t('inventory:movements.purchase')}</option>
@@ -103,11 +103,11 @@ export default function MovimientoForm() {
                 </div>
 
                 <div>
-                    <label className="block mb-2 font-medium">{t('common.product')} <span className="text-red-600">*</span></label>
+                    <label className="gc-label">{t('common.product')} <span className="text-red-600">*</span></label>
                     <select
                         value={form.product_id}
                         onChange={(e) => setForm({ ...form, product_id: e.target.value })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
+                        className="gc-input"
                         required
                     >
                         <option value="">{t('inventory:form.selectProduct')}</option>
@@ -120,11 +120,11 @@ export default function MovimientoForm() {
                 </div>
 
                 <div>
-                    <label className="block mb-2 font-medium">{t('inventory:table.warehouse')} <span className="text-red-600">*</span></label>
+                    <label className="gc-label">{t('inventory:table.warehouse')} <span className="text-red-600">*</span></label>
                     <select
                         value={form.warehouse_id}
                         onChange={(e) => setForm({ ...form, warehouse_id: e.target.value })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
+                        className="gc-input"
                         required
                     >
                         <option value="">{t('inventory:form.selectWarehouse')}</option>
@@ -137,7 +137,7 @@ export default function MovimientoForm() {
                 </div>
 
                 <div>
-                    <label className="block mb-2 font-medium">
+                    <label className="gc-label">
                         {t('inventory:form.quantity')} {form.kind === 'sale' || form.kind === 'loss' ? `(${t('inventory:form.outbound')})` : `(${t('inventory:form.inbound')})`} <span className="text-red-600">*</span>
                     </label>
                     <input
@@ -145,7 +145,7 @@ export default function MovimientoForm() {
                         step="0.01"
                         value={form.qty}
                         onChange={(e) => setForm({ ...form, qty: parseFloat(e.target.value) || 0 })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
+                        className="gc-input"
                         required
                         placeholder={form.kind === 'sale' || form.kind === 'loss' ? t('inventory:form.placeholderOutbound') : t('inventory:form.placeholderInbound')}
                     />
@@ -153,43 +153,43 @@ export default function MovimientoForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block mb-2 font-medium">{t('inventory:form.batch')}</label>
+                        <label className="gc-label">{t('inventory:form.batch')}</label>
                         <input
                             type="text"
                             value={form.lote}
                             onChange={(e) => setForm({ ...form, lote: e.target.value })}
-                            className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
+                            className="gc-input"
                             placeholder={getFieldPlaceholder(placeholders, 'lote', 'LOT-2025-001')}
                         />
                     </div>
 
                     <div>
-                        <label className="block mb-2 font-medium">{t('inventory:form.expiry')}</label>
+                        <label className="gc-label">{t('inventory:form.expiry')}</label>
                         <input
                             type="date"
                             value={form.expires_at}
                             onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
-                            className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
+                            className="gc-input"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block mb-2 font-medium">{t('inventory:form.notes')}</label>
+                    <label className="gc-label">{t('inventory:form.notes')}</label>
                     <textarea
                         value={form.notes}
                         onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                        className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
+                        className="gc-input"
                         rows={3}
                         placeholder={t('inventory:form.notesPlaceholder')}
                     />
                 </div>
 
                 <div className="pt-4 flex gap-3 border-t">
-                    <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                    <button type="submit" className="gc-btn gc-btn--primary font-medium">
                         {t('inventory:form.registerMovement')}
                     </button>
-                    <button type="button" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium" onClick={() => nav('/inventory')}>
+                    <button type="button" className="gc-btn gc-btn--ghost font-medium" onClick={() => nav('/inventory')}>
                         {t('common.cancel')}
                     </button>
                 </div>

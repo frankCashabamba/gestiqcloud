@@ -14,13 +14,14 @@ export default function UploadPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
   const reimportRequested = searchParams.get('reimport') === 'clean'
+  const forceRequested = reimportRequested || searchParams.get('reimport') === 'force'
   const [mode, setMode] = useState<ImportMode>('files')
   const [dragging, setDragging] = useState(false)
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [processing, setProcessing] = useState(false)
   const [results, setResults] = useState<RunResult[]>([])
   const [error, setError] = useState('')
-  const [forceReprocess, setForceReprocess] = useState(reimportRequested)
+  const [forceReprocess, setForceReprocess] = useState(forceRequested)
 
   // Recipe selector (RB-01: optional, never blocks)
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -35,8 +36,8 @@ export default function UploadPage() {
   }, [])
 
   useEffect(() => {
-    if (reimportRequested) setForceReprocess(true)
-  }, [reimportRequested])
+    if (forceRequested) setForceReprocess(true)
+  }, [forceRequested])
 
   useEffect(() => {
     if (!selectedRecipeId) { setSnapshots([]); setSelectedSnapshotId(''); return }

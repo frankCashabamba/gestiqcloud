@@ -11,8 +11,10 @@ export const DashboardContable: React.FC = () => {
     let gas = 0
     for (const a of asientos) {
       for (const ap of a.apuntes) {
-        if (ap.cuenta.startsWith('7')) inc += ap.haber ?? 0
-        if (ap.cuenta.startsWith('6')) gas += ap.debe ?? 0
+        // Ingresos: cuentas 4.x (INCOME) — créditos
+        if (ap.cuenta.startsWith('4') || ap.cuenta.startsWith('7')) inc += ap.haber ?? 0
+        // Gastos: cuentas 5.x (EXPENSE) — débitos
+        if (ap.cuenta.startsWith('5') || ap.cuenta.startsWith('6')) gas += ap.debe ?? 0
       }
     }
     return { ingresos: inc, gastos: gas, resultado: inc - gas }

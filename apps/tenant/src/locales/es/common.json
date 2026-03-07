@@ -1,18 +1,51 @@
 {
   "actionsLabel": "Acciones",
+  "actions": "Acciones",
   "edit": "Editar",
   "delete": "Eliminar",
   "search": "Buscar",
   "loadingText": "Cargando...",
-  "perPage": "Por pagina:",
+  "loading": "Cargando...",
+  "loadingModule": "Cargando módulo...",
+  "perPage": "Por página:",
   "exportCsv": "Exportar CSV",
-  "loading": {
-    "module": "Cargando modulo..."
-  },
+  "yes": "Sí",
+  "no": "No",
+  "save": "Guardar",
+  "saving": "Guardando...",
+  "cancel": "Cancelar",
+  "create": "Crear",
+  "new": "+ Nuevo",
+  "back": "Volver",
+  "close": "Cerrar",
+  "view": "Ver",
+  "readonly": "Solo lectura",
+  "date": "Fecha",
+  "status": "Estado",
+  "name": "Nombre",
+  "type": "Tipo",
+  "description": "Descripción",
+  "category": "Categoría",
+  "account": "Cuenta",
+  "select": "Seleccionar",
+  "product": "Producto",
+  "quantity": "Cantidad",
+  "price": "Precio",
+  "total": "Total",
+  "notes": "Notas",
+  "notesPlaceholder": "Escriba sus notas aquí...",
+  "optional": "Opcional",
+  "from": "Desde",
+  "to": "Hasta",
+  "all": "Todos",
+  "active": "Activo",
+  "inactive": "Inactivo",
+  "info": "Información",
+  "noRecords": "No se encontraron registros",
   "table": {
     "movimientos": "Movimientos contables"
   },
-  "actions": {
+  "actionButtons": {
     "+create": "+ Crear",
     "save": "Guardar",
     "cancel": "Cancelar"
@@ -38,6 +71,148 @@
     "invalidCredentials": "Usuario o contraseña incorrectos",
     "serverError": "Error del servidor. Intenta de nuevo más tarde.",
     "tooManyAttempts": "Demasiados intentos. Espera {{wait}} segundos."
+  },
+  "accounting": {
+    "loadingTransactions": "Cargando movimientos...",
+    "movimientos": "Movimientos contables",
+    "errors": {
+      "loadTransactions": "Error al cargar movimientos"
+    },
+    "nav": {
+      "dashboard": "Panel",
+      "transactions": "Movimientos",
+      "journal": "Libro Diario",
+      "generalLedger": "Libro Mayor",
+      "profitLoss": "Pérdidas y Ganancias",
+      "chartOfAccounts": "Plan Contable",
+      "posConfig": "Config POS",
+      "paymentMethods": "Métodos de Pago",
+      "bankReconciliation": "Conciliación Bancaria"
+    },
+    "pl": {
+      "loading": "Cargando estado de resultados...",
+      "noData": "Sin datos disponibles",
+      "title": "Estado de Resultados",
+      "totalSales": "Ventas Totales",
+      "cogs": "Costo de Ventas",
+      "grossProfit": "Utilidad Bruta",
+      "expenses": "Gastos",
+      "netResult": "Resultado Neto",
+      "netMargin": "Margen Neto"
+    },
+    "dashboard": {
+      "totalIncome": "Ingresos Totales",
+      "totalExpenses": "Gastos Totales",
+      "result": "Resultado"
+    },
+    "generalLedger": {
+      "loading": "Cargando libro mayor...",
+      "title": "Libro Mayor",
+      "columns": {
+        "balance": "Saldo"
+      }
+    },
+    "journalEntries": {
+      "title": "Asientos Contables",
+      "new": "+ Nuevo Asiento",
+      "searchPlaceholder": "Buscar asientos...",
+      "deleteConfirm": "¿Eliminar asiento {{number}}?",
+      "deleted": "Asiento eliminado",
+      "postConfirm": "¿Contabilizar asiento {{number}}?",
+      "posted": "Asiento contabilizado",
+      "columns": {
+        "number": "Número",
+        "debit": "Debe",
+        "credit": "Haber"
+      }
+    },
+    "journalEntryForm": {
+      "newTitle": "Nuevo Asiento",
+      "editTitle": "Editar Asiento",
+      "saved": "Asiento guardado",
+      "linesTitle": "Líneas",
+      "addLine": "+ Agregar Línea",
+      "fields": {
+        "number": "Número",
+        "numberPlaceholder": "Ej. AST-001"
+      },
+      "errors": {
+        "numberDateRequired": "Número y fecha son requeridos",
+        "atLeastOneLine": "Se requiere al menos una línea",
+        "unbalanced": "Asiento descuadrado: Debe {{debit}} ≠ Haber {{credit}}"
+      }
+    },
+    "chartOfAccounts": {
+      "title": "Plan Contable",
+      "new": "+ Nueva Cuenta",
+      "searchPlaceholder": "Buscar cuentas...",
+      "deleteConfirm": "¿Eliminar cuenta {{name}}?",
+      "deleted": "Cuenta eliminada",
+      "empty": "No se encontraron cuentas.",
+      "createFirst": "Crea la primera.",
+      "placeholder": "Gestiona tu plan contable aquí.",
+      "saved": "Cuenta guardada",
+      "columns": {
+        "code": "Código",
+        "level": "Nivel"
+      },
+      "form": {
+        "newTitle": "Nueva Cuenta",
+        "editTitle": "Editar Cuenta",
+        "code": "Código",
+        "codePlaceholder": "Ej. 1.1.01",
+        "errors": {
+          "codeNameRequired": "Código y nombre son requeridos"
+        }
+      }
+    },
+    "accountTypes": {
+      "ACTIVO": "Activo",
+      "PASIVO": "Pasivo",
+      "PATRIMONIO": "Patrimonio",
+      "INGRESO": "Ingreso",
+      "GASTO": "Gasto"
+    },
+    "paymentMethods": {
+      "title": "Métodos de Pago",
+      "help": "Configura los métodos de pago disponibles para POS.",
+      "namePlaceholder": "Nombre del método",
+      "account": "Cuenta",
+      "empty": "No hay métodos de pago configurados.",
+      "deleteConfirm": "¿Eliminar este método de pago?",
+      "errors": {
+        "load": "Error al cargar métodos de pago",
+        "save": "Error al guardar método de pago",
+        "delete": "Error al eliminar método de pago",
+        "nameAccountRequired": "Nombre y cuenta son requeridos"
+      }
+    },
+    "posConfig": {
+      "sectorFallback": "Por defecto",
+      "salesAccount": "Cuenta de Ventas",
+      "salesAccountWithSector": "Cuenta de Ventas ({{sector}})",
+      "fields": {
+        "cashAccount": "Cuenta de Caja",
+        "bankAccount": "Cuenta de Banco",
+        "vatOutputAccount": "Cuenta de IVA por Pagar"
+      },
+      "messages": {
+        "saved": "Configuración contable POS guardada"
+      },
+      "errors": {
+        "load": "Error al cargar configuración POS",
+        "save": "Error al guardar configuración POS",
+        "missingConfig": "Faltan campos requeridos: {{fields}}"
+      }
+    }
+  },
+  "shell": {
+    "goToPanel": "Ir al panel principal",
+    "goToHome": "Ir al inicio del tenant",
+    "adminPanel": "Panel Admin",
+    "logout": "Cerrar sesión",
+    "copyright": "GestiqCloud {{year}}. Todos los derechos reservados.",
+    "tagline": "ERP | CRM | Plataforma modular"
   },
   "availableModules": {
     "proveedores": {

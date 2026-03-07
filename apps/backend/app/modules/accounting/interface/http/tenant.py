@@ -294,6 +294,165 @@ async def create_cuenta(
     return _serialize_cuenta(cuenta)
 
 
+_SEED_ACCOUNTS = [
+    # (codigo, nombre, tipo_en, nivel, parent_codigo, can_post)
+    ("1", "Activo", "ASSET", 1, None, False),
+    ("1.1", "Activo Corriente", "ASSET", 2, "1", False),
+    ("1.1.1", "Efectivo y equivalentes", "ASSET", 3, "1.1", False),
+    ("1.1.1.01", "Caja", "ASSET", 4, "1.1.1", True),
+    ("1.1.1.02", "Bancos", "ASSET", 4, "1.1.1", True),
+    ("1.1.2", "Cuentas por cobrar", "ASSET", 3, "1.1", False),
+    ("1.1.2.01", "Clientes", "ASSET", 4, "1.1.2", True),
+    ("1.1.3", "Inventarios", "ASSET", 3, "1.1", False),
+    ("1.1.3.01", "Mercadería", "ASSET", 4, "1.1.3", True),
+    ("1.1.3.02", "Materias primas", "ASSET", 4, "1.1.3", True),
+    ("1.2", "Activo No Corriente", "ASSET", 2, "1", False),
+    ("1.2.1", "Propiedad, planta y equipo", "ASSET", 3, "1.2", False),
+    ("1.2.1.01", "Muebles y enseres", "ASSET", 4, "1.2.1", True),
+    ("1.2.1.02", "Equipo de computación", "ASSET", 4, "1.2.1", True),
+    ("2", "Pasivo", "LIABILITY", 1, None, False),
+    ("2.1", "Pasivo Corriente", "LIABILITY", 2, "2", False),
+    ("2.1.1", "Cuentas por pagar", "LIABILITY", 3, "2.1", False),
+    ("2.1.1.01", "Proveedores", "LIABILITY", 4, "2.1.1", True),
+    ("2.1.2", "Impuestos por pagar", "LIABILITY", 3, "2.1", False),
+    ("2.1.2.01", "IVA por pagar", "LIABILITY", 4, "2.1.2", True),
+    ("3", "Patrimonio", "EQUITY", 1, None, False),
+    ("3.1", "Capital", "EQUITY", 2, "3", False),
+    ("3.1.1", "Capital social", "EQUITY", 3, "3.1", False),
+    ("3.1.1.01", "Capital social", "EQUITY", 4, "3.1.1", True),
+    ("3.2", "Resultados", "EQUITY", 2, "3", False),
+    ("3.2.1", "Resultados del ejercicio", "EQUITY", 3, "3.2", False),
+    ("3.2.1.01", "Utilidad del ejercicio", "EQUITY", 4, "3.2.1", True),
+    ("4", "Ingresos", "INCOME", 1, None, False),
+    ("4.1", "Ingresos operativos", "INCOME", 2, "4", False),
+    ("4.1.1", "Ventas", "INCOME", 3, "4.1", False),
+    ("4.1.1.01", "Ventas", "INCOME", 4, "4.1.1", True),
+    ("4.1.1.02", "Ventas panadería", "INCOME", 4, "4.1.1", True),
+    ("5", "Gastos", "EXPENSE", 1, None, False),
+    ("5.1", "Costo de ventas", "EXPENSE", 2, "5", False),
+    ("5.1.1", "Costos operativos", "EXPENSE", 3, "5.1", False),
+    ("5.1.1.01", "Costo de ventas", "EXPENSE", 4, "5.1.1", True),
+    ("5.2", "Gastos operativos", "EXPENSE", 2, "5", False),
+    ("5.2.1", "Gastos administrativos", "EXPENSE", 3, "5.2", False),
+    ("5.2.1.01", "Sueldos y salarios", "EXPENSE", 4, "5.2.1", True),
+    ("5.2.1.02", "Pérdidas y mermas", "EXPENSE", 4, "5.2.1", True),
+    ("5.2.1.03", "Servicios básicos", "EXPENSE", 4, "5.2.1", True),
+    ("5.2.1.04", "Arriendo", "EXPENSE", 4, "5.2.1", True),
+]
+
+
+@router.post("/chart-of-accounts/seed", status_code=200)
+async def seed_chart_of_accounts(
+    force: bool = Query(default=False, description="Crear cuentas aunque ya existan algunas"),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Genera un plan de cuentas estándar (Ecuador/España).
+
+    Omite cuentas cuyo código ya exista. Con force=True crea igualmente las que falten.
+    Devuelve los totales creados/omitidos.
+    """
+    tenant_id = claims["tenant_id"]
+
+    existing_codes = {
+        row[0]
+        for row in db.execute(
+            select(PlanCuentas.code).where(PlanCuentas.tenant_id == tenant_id)
+        ).all()
+    }
+
+    if existing_codes and not force:
+        return {
+            "created": 0,
+            "skipped": len(existing_codes),
+            "message": f"Ya existen {len(existing_codes)} cuentas. Usa force=true para añadir las que falten.",
+        }
+
+    id_by_code: dict[str, UUID] = {}
+    created = 0
+    skipped = 0
+
+    for codigo, nombre, tipo_en, nivel, parent_codigo, can_post in _SEED_ACCOUNTS:
+        if codigo in existing_codes:
+            row = db.execute(
+                select(PlanCuentas.id).where(
+                    PlanCuentas.tenant_id == tenant_id, PlanCuentas.code == codigo
+                )
+            ).one_or_none()
+            if row:
+                id_by_code[codigo] = row[0]
+            skipped += 1
+            continue
+
+        parent_id = id_by_code.get(parent_codigo) if parent_codigo else None
+        cuenta = PlanCuentas(
+            tenant_id=tenant_id,
+            code=codigo,
+            name=nombre,
+            type=tipo_en,
+            level=nivel,
+            parent_id=parent_id,
+            can_post=can_post,
+            active=True,
+        )
+        db.add(cuenta)
+        db.flush()
+        id_by_code[codigo] = cuenta.id
+        created += 1
+
+    db.commit()
+
+    # Auto-configurar POS settings si no existe configuración previa
+    pos_cfg = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
+    pos_configured = False
+    if not pos_cfg:
+        # Mapeo de códigos clave a campos POS
+        _POS_MAP = {
+            "cash_account_id": "1.1.1.01",  # Caja
+            "bank_account_id": "1.1.1.02",  # Bancos
+            "sales_bakery_account_id": "4.1.1.02",  # Ventas panadería
+            "vat_output_account_id": "2.1.2.01",  # IVA por pagar
+            "loss_account_id": "5.2.1.02",  # Pérdidas y mermas
+            "ap_account_id": "2.1.1.01",  # Proveedores
+            "default_expense_account_id": "5.1.1.01",  # Costo de ventas
+        }
+        mapped = {}
+        for field, codigo in _POS_MAP.items():
+            uid = id_by_code.get(codigo)
+            if uid is None:
+                # Buscar en BD por si la cuenta ya existía antes del seed
+                row = db.execute(
+                    select(PlanCuentas.id).where(
+                        PlanCuentas.tenant_id == tenant_id, PlanCuentas.code == codigo
+                    )
+                ).one_or_none()
+                uid = row[0] if row else None
+            mapped[field] = uid
+
+        # Solo crear si tenemos las cuentas obligatorias (non-nullable en el modelo)
+        required = [
+            "cash_account_id",
+            "bank_account_id",
+            "sales_bakery_account_id",
+            "vat_output_account_id",
+        ]
+        if all(mapped.get(f) for f in required):
+            pos_cfg = TenantAccountingSettings(tenant_id=tenant_id, **mapped)
+            db.add(pos_cfg)
+            db.commit()
+            pos_configured = True
+
+    msg = f"Plan de cuentas generado: {created} cuentas creadas, {skipped} ya existían."
+    if pos_configured:
+        msg += " Configuración contable POS creada automáticamente."
+    return {
+        "created": created,
+        "skipped": skipped,
+        "message": msg,
+        "pos_configured": pos_configured,
+    }
+
+
 @router.get("/chart-of-accounts/{cuenta_id}", response_model=PlanCuentasResponse)
 async def get_cuenta(
     cuenta_id: UUID,

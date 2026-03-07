@@ -164,21 +164,21 @@ export default function ProveedorForm() {
   }
 
   return (
-    <div className="p-4 max-w-5xl">
-      <h3 className="text-xl font-semibold text-slate-900 mb-4">
+    <div className="gc-container py-6 max-w-5xl">
+      <h3 className="gc-page-header__title mb-4">
         {editMode ? 'Edit supplier' : 'New supplier'}
       </h3>
       <form onSubmit={onSubmit} className="space-y-6">
         {/* Datos Generales */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h4 className="text-base font-semibold text-slate-700 mb-4">General Information</h4>
+        <div className="gc-card">
+          <h4 className="gc-section-title mb-4">General Information</h4>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">
                 Name / Legal Name <span className="text-rose-500">*</span>
               </span>
               <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
@@ -187,7 +187,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Trade Name</span>
               <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.nombre_comercial || ''}
                 onChange={(e) => setForm({ ...form, nombre_comercial: e.target.value || null })}
               />
@@ -195,7 +195,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">NIF / Tax ID</span>
               <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.nif || ''}
                 onChange={(e) => setForm({ ...form, nif: e.target.value || null })}
               />
@@ -203,7 +203,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Country</span>
               <select
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.pais || 'ES'}
                 onChange={(e) => setForm({ ...form, pais: e.target.value || null })}
               >
@@ -217,7 +217,7 @@ export default function ProveedorForm() {
               <span className="font-medium text-slate-600">Email</span>
               <input
                 type="email"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.email || ''}
                 onChange={(e) => setForm({ ...form, email: e.target.value || null })}
               />
@@ -225,7 +225,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Phone</span>
               <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.phone || ''}
                 onChange={(e) => setForm({ ...form, phone: e.target.value || null })}
               />
@@ -234,7 +234,7 @@ export default function ProveedorForm() {
               <span className="font-medium text-slate-600">Web</span>
               <input
                 type="url"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 placeholder="https://"
                 value={form.web || ''}
                 onChange={(e) => setForm({ ...form, web: e.target.value || null })}
@@ -244,13 +244,13 @@ export default function ProveedorForm() {
         </div>
 
         {/* Configuración Fiscal */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h4 className="text-base font-semibold text-slate-700 mb-4">Tax and Payment Settings</h4>
+        <div className="gc-card">
+          <h4 className="gc-section-title mb-4">Tax and Payment Settings</h4>
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Tax Type</span>
               <select
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.tipo_impuesto || 'IVA'}
                 onChange={(e) => setForm({ ...form, tipo_impuesto: e.target.value || null })}
               >
@@ -265,7 +265,7 @@ export default function ProveedorForm() {
               <input
                 type="number"
                 step="0.01"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.retencion_irpf || ''}
                 onChange={(e) => setForm({ ...form, retencion_irpf: e.target.value ? parseFloat(e.target.value) : null })}
               />
@@ -282,7 +282,7 @@ export default function ProveedorForm() {
               <span className="font-medium text-slate-600">Payment Term (days)</span>
               <input
                 type="number"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.plazo_pago_dias || ''}
                 onChange={(e) => setForm({ ...form, plazo_pago_dias: e.target.value ? parseInt(e.target.value) : null })}
               />
@@ -290,7 +290,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Currency</span>
               <select
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.divisa || ''}
                 onChange={(e) => setForm({ ...form, divisa: e.target.value || null })}
               >
@@ -302,7 +302,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Payment Method</span>
               <select
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="gc-input"
                 value={form.metodo_pago || ''}
                 onChange={(e) => setForm({ ...form, metodo_pago: e.target.value || null })}
               >
@@ -319,7 +319,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">IBAN</span>
               <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono"
+                className="gc-input font-mono"
                 value={form.iban || ''}
                 onChange={(e) => setForm({ ...form, iban: e.target.value || null })}
                 placeholder="ES00 0000 0000 0000 0000 0000"
@@ -328,7 +328,7 @@ export default function ProveedorForm() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Confirm IBAN</span>
               <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono"
+                className="gc-input font-mono"
                 value={form.iban_confirmacion || ''}
                 onChange={(e) => setForm({ ...form, iban_confirmacion: e.target.value || null })}
                 placeholder="ES00 0000 0000 0000 0000 0000"
@@ -338,9 +338,9 @@ export default function ProveedorForm() {
         </div>
 
         {/* Contactos */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="gc-card">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-base font-semibold text-slate-700">Contacts</h4>
+            <h4 className="gc-section-title">Contacts</h4>
             <button
               type="button"
               className="text-sm font-medium text-blue-600 hover:text-blue-500"
@@ -417,9 +417,9 @@ export default function ProveedorForm() {
         </div>
 
         {/* Direcciones */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="gc-card">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-base font-semibold text-slate-700">Addresses</h4>
+            <h4 className="gc-section-title">Addresses</h4>
             <button
               type="button"
               className="text-sm font-medium text-blue-600 hover:text-blue-500"

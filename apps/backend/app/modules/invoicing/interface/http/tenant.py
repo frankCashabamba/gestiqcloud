@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC
 from pathlib import Path
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from app.core.access_guard import with_access_claims
 from app.core.audit_events import audit_event
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.core.document import Document
 from app.models.core.facturacion import Invoice
 from app.modules.invoicing import schemas
 from app.modules.invoicing.crud import factura_crud
@@ -37,7 +39,7 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=list[schemas.InvoiceOut])
+@router.get("")
 def listar_facturas_principales(
     request: Request,
     db: Session = Depends(get_db),
@@ -46,15 +48,177 @@ def listar_facturas_principales(
     desde: str | None = Query(None),
     hasta: str | None = Query(None),
 ):
+    from datetime import datetime
+
     tenant_id = _tenant_uuid(request)
-    return factura_crud.obtener_facturas_principales(
-        db=db,
-        tenant_id=tenant_id,
-        estado=estado,
-        q=q,
-        desde=desde,
-        hasta=hasta,
+
+    # ── 1. Facturas del módulo clásico (Invoice) ──────────────────────────────
+    old_invoices = factura_crud.obtener_facturas_principales(
+        db=db, tenant_id=tenant_id, estado=estado, q=q, desde=desde, hasta=hasta
     )
+
+    def _iso(d) -> str | None:
+        if d is None:
+            return None
+        if isinstance(d, str):
+            return d
+        if hasattr(d, "isoformat"):
+            return d.isoformat()
+        return str(d)
+
+    result: list[dict] = []
+    for inv in old_invoices:
+        result.append(
+            {
+                "id": str(inv.id),
+                "numero": inv.number,
+                "fecha_emision": _iso(inv.issue_date),
+                "estado": inv.status,
+                "subtotal": float(inv.subtotal) if inv.subtotal is not None else None,
+                "iva": float(inv.vat) if inv.vat is not None else None,
+                "total": (
+                    float(inv.total)
+                    if inv.total is not None
+                    else (float(inv.amount) if getattr(inv, "amount", None) is not None else None)
+                ),
+                "customer_name": inv.customer.name if inv.customer else None,
+                "source": "invoice",
+                "_sort_key": inv.issue_date,
+            }
+        )
+
+    # ── 2. Documentos del módulo POS (Document con doc_type=FACTURA) ──────────
+    from app.modules.documents.application.store import store as _doc_store
+
+    doc_q = db.query(Document).filter(
+        Document.tenant_id == tenant_id,
+        Document.doc_type == "FACTURA",
+    )
+
+    if estado:
+        doc_q = doc_q.filter(Document.status == estado.upper())
+    if desde:
+        try:
+            doc_q = doc_q.filter(
+                Document.issued_at >= datetime.strptime(desde, "%Y-%m-%d").replace(tzinfo=UTC)
+            )
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            doc_q = doc_q.filter(
+                Document.issued_at <= datetime.strptime(hasta, "%Y-%m-%d").replace(tzinfo=UTC)
+            )
+        except ValueError:
+            pass
+
+    for doc in doc_q.all():
+        payload = doc.payload or {}
+        totals = payload.get("totals") or {}
+        buyer = payload.get("buyer") or {}
+        doc_info = payload.get("document") or {}
+        series = doc.series or doc_info.get("series", "")
+        sequential = doc.sequential or doc_info.get("sequential", "")
+        numero = (
+            f"{series}-{sequential}"
+            if series and sequential
+            else (series or sequential or str(doc.id)[:8])
+        )
+        buyer_name = buyer.get("name") or buyer.get("businessName") or ""
+        buyer_id = buyer.get("idNumber", "")
+        # Filtro de búsqueda sobre documentos
+        if q:
+            qlow = q.lower()
+            if not any(qlow in s.lower() for s in [numero, buyer_name, buyer_id] if s):
+                continue
+        result.append(
+            {
+                "id": str(doc.id),
+                "numero": numero,
+                "fecha_emision": _iso(doc.issued_at),
+                "date": _iso(doc.issued_at),
+                "estado": doc.status.lower(),
+                "subtotal": (
+                    float(totals["subtotal"]) if totals.get("subtotal") is not None else None
+                ),
+                "iva": float(totals["taxTotal"]) if totals.get("taxTotal") is not None else None,
+                "total": (
+                    float(totals["grandTotal"]) if totals.get("grandTotal") is not None else None
+                ),
+                "customer_name": buyer_name,
+                "buyer_id": buyer_id,
+                "source": "document",
+                "_sort_key": doc.issued_at,
+            }
+        )
+
+    # ── 2b. Fallback: documentos en store en memoria (antes del fix UUID) ────
+    db_ids = {item["id"] for item in result if item.get("source") == "document"}
+    for mem_doc in _doc_store.list_for_tenant(str(tenant_id), doc_type="FACTURA"):
+        if str(mem_doc.document.id) in db_ids:
+            continue  # ya está en DB
+        totals = mem_doc.totals
+        buyer = mem_doc.buyer
+        doc_info = mem_doc.document
+        series = doc_info.series or ""
+        sequential = doc_info.sequential or ""
+        numero = (
+            f"{series}-{sequential}"
+            if series and sequential
+            else (series or sequential or str(doc_info.id)[:8])
+        )
+        buyer_name = buyer.name or ""
+        if q:
+            qlow = q.lower()
+            if not any(qlow in s.lower() for s in [numero, buyer_name] if s):
+                continue
+        if estado and doc_info.status.lower() != estado.lower():
+            continue
+        issued_at = doc_info.issuedAt
+        result.append(
+            {
+                "id": str(doc_info.id),
+                "numero": numero,
+                "fecha_emision": _iso(issued_at),
+                "date": _iso(issued_at),
+                "estado": doc_info.status.lower(),
+                "subtotal": float(totals.subtotal),
+                "iva": float(totals.taxTotal),
+                "total": float(totals.grandTotal),
+                "customer_name": buyer_name,
+                "source": "document_store",
+                "_sort_key": issued_at,
+            }
+        )
+
+    # ── 3. Ordenar por fecha descendente ─────────────────────────────────────
+    def _sort_key(item):
+        from datetime import date as date_type
+
+        k = item.get("_sort_key")
+        if k is None:
+            return datetime.min.replace(tzinfo=UTC)
+        if isinstance(k, str):
+            try:
+                dt = datetime.fromisoformat(k)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                return dt
+            except ValueError:
+                return datetime.min.replace(tzinfo=UTC)
+        if isinstance(k, datetime):
+            if k.tzinfo is None:
+                return k.replace(tzinfo=UTC)
+            return k
+        if isinstance(k, date_type):
+            return datetime(k.year, k.month, k.day, tzinfo=UTC)
+        return datetime.min.replace(tzinfo=UTC)
+
+    result.sort(key=_sort_key, reverse=True)
+    for item in result:
+        item.pop("_sort_key", None)
+
+    return result
 
 
 @router.post("", response_model=schemas.InvoiceCreate)
@@ -225,7 +389,7 @@ def emitir_factura(
     return issued
 
 
-@router.get("/{factura_id}", response_model=schemas.InvoiceOut)
+@router.get("/{factura_id}")
 def obtener_factura_por_id(
     factura_id: UUID,
     request: Request,
@@ -243,6 +407,65 @@ def obtener_factura_por_id(
         .filter_by(id=factura_id, tenant_id=tenant_id)
         .first()
     )
+
+    # Si no está en Invoice, buscar en Document (POS)
+    if not factura:
+        from app.modules.documents.application.store import store as _doc_store
+
+        doc_row = (
+            db.query(Document)
+            .filter(Document.id == factura_id, Document.tenant_id == tenant_id)
+            .first()
+        )
+        if doc_row:
+            payload = doc_row.payload or {}
+            doc_model_data = payload
+        else:
+            mem = _doc_store.get(str(factura_id))
+            if mem:
+                doc_model_data = mem.model_dump()
+            else:
+                raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+        # Serializar desde payload del documento POS
+        totals = doc_model_data.get("totals") or {}
+        buyer = doc_model_data.get("buyer") or {}
+        doc_info = doc_model_data.get("document") or {}
+        lines_raw = doc_model_data.get("lines") or []
+        series = doc_info.get("series") or ""
+        sequential = doc_info.get("sequential") or ""
+        numero = (
+            f"{series}-{sequential}"
+            if series and sequential
+            else (series or sequential or str(factura_id)[:8])
+        )
+        lineas = [
+            {
+                "description": ln.get("name", ""),
+                "cantidad": float(ln.get("qty", 0) or 0),
+                "precio_unitario": float(ln.get("unitPrice", 0) or 0),
+                "iva": float(sum(t.get("amount", 0) for t in (ln.get("taxLines") or []))),
+            }
+            for ln in lines_raw
+        ]
+        return {
+            "id": str(factura_id),
+            "numero": numero,
+            "fecha_emision": doc_info.get("issuedAt"),
+            "estado": (doc_info.get("status") or "").lower(),
+            "subtotal": float(totals.get("subtotal") or 0),
+            "iva": float(totals.get("taxTotal") or 0),
+            "total": float(totals.get("grandTotal") or 0),
+            "cliente": {
+                "name": buyer.get("name") or buyer.get("businessName") or "",
+                "identificacion": buyer.get("idNumber") or "",
+                "email": "",
+            },
+            "lineas": lineas,
+            "lines": lineas,
+            "source": "document",
+        }
+
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
@@ -324,3 +547,17 @@ def descargar_pdf(
             status_code=501,
             detail="Renderizador PDF/plantilla no disponible (instala WeasyPrint/Jinja2)",
         )
+
+
+@router.patch("/{factura_id}/marcar-cobrada")
+def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
+    """Marca una venta a crédito (PENDING_PAYMENT) como cobrada (ISSUED)."""
+    tenant_id = _tenant_uuid(request)
+    doc = db.query(Document).filter(Document.id == factura_id, Document.tenant_id == tenant_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    if doc.status != "PENDING_PAYMENT":
+        raise HTTPException(status_code=400, detail="El documento no está pendiente de cobro")
+    doc.status = "ISSUED"
+    db.commit()
+    return {"ok": True, "id": str(factura_id), "status": "ISSUED"}

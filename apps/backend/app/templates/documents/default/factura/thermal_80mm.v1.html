@@ -20,6 +20,11 @@
   </style>
 </head>
 <body>
+  {% if seller.logo %}
+  <div class="center" style="margin-bottom:3mm;">
+    <img src="{{ seller.logo }}" alt="{{ seller.tradeName }}" style="max-height:40px; max-width:60mm;" />
+  </div>
+  {% endif %}
   <div class="center bold">{{ seller.tradeName }}</div>
   <div class="center">RUC: {{ seller.taxId }}</div>
   {% if seller.address %}<div class="center">{{ seller.address }}</div>{% endif %}

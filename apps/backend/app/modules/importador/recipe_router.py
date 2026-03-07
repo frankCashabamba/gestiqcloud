@@ -845,7 +845,7 @@ def get_save_capabilities(request: Request, db: Session = Depends(get_db)):
     rows = (
         db.query(Module.name)
         .join(CompanyModule, CompanyModule.module_id == Module.id)
-        .filter(CompanyModule.tenant_id == tenant_id, CompanyModule.active == True)
+        .filter(CompanyModule.tenant_id == tenant_id, CompanyModule.active.is_(True))
         .all()
     )
     active_names = {name.lower().strip() for (name,) in rows}
@@ -855,10 +855,7 @@ def get_save_capabilities(request: Request, db: Session = Depends(get_db)):
         resolved.add(name)
         if name in _es_to_en:
             resolved.update(_es_to_en[name])
-    return {
-        mod: mod in resolved or any(mod in n for n in resolved)
-        for mod in relevant
-    }
+    return {mod: mod in resolved or any(mod in n for n in resolved) for mod in relevant}
 
 
 def _safe_float(val) -> float | None:

@@ -40,6 +40,12 @@ export function applyTheme(t: ThemeConfig) {
     set('--color-on-primary', onPrimary)
     set('--gc-on-primary', onPrimary)
   }
+  set('--gc-secondary', c['secondary'])
+  set('--color-secondary', c['secondary'])
+  set('--gc-secondary-dark', c['secondaryDark'] || c['secondary'])
+  // Legacy template tokens
+  set('--focus', c['secondary'] || c['accent'])
+
   set('--color-bg', c['bg'])
   set('--color-fg', c['fg'])
   set('--color-muted', c['muted'])

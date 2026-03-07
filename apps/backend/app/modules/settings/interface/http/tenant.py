@@ -125,7 +125,12 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
             company_settings.primary_color if company_settings else None,
             getattr(cfg, "color_primario", None),
             getattr(emp, "primary_color", None),
-            "#0ea5e9",
+            "#2563eb",
+        )
+        color_secondary = _first_non_empty(
+            company_settings.secondary_color if company_settings else None,
+            getattr(cfg, "color_secundario", None),
+            "#1e293b",
         )
 
         raw_sector = getattr(emp, "sector_template_name", None)
@@ -135,6 +140,7 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
             "brand": {"name": brand_name, "logoUrl": logo_url, "faviconUrl": None},
             "colors": {
                 "primary": color_primary,
+                "secondary": color_secondary,
                 "onPrimary": "#ffffff",
                 "bg": "#ffffff",
                 "fg": "#0f172a",
@@ -161,7 +167,8 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
     return {
         "brand": {"name": "", "logoUrl": None, "faviconUrl": None},
         "colors": {
-            "primary": "#0ea5e9",
+            "primary": "#2563eb",
+            "secondary": "#1e293b",
             "onPrimary": "#ffffff",
             "bg": "#ffffff",
             "fg": "#0f172a",

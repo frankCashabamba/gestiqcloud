@@ -53,10 +53,10 @@ export default function ClientesList() {
         )}
       </div>
       <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder={t('customers:searchPlaceholder')} className="mb-3 w-full px-3 py-2 border rounded text-sm" />
-      {loading && <div className="text-sm text-gray-500">{t('common.loading')}</div>}
+      {loading && <div className="text-sm text-gray-500">{t('common:loading')}</div>}
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
       <div className="flex items-center gap-3 mb-2 text-sm">
-        <label>{t('common.perPage')}</label>
+        <label>{t('common:perPage')}</label>
         <select value={per} onChange={(e)=> setPer(Number(e.target.value))} className="border px-2 py-1 rounded">
           <option value={10}>10</option>
           <option value={25}>25</option>
@@ -70,7 +70,7 @@ export default function ClientesList() {
               <th><button className="underline" onClick={()=> { setSortKey('email'); setSortDir(d=> d==='asc'?'desc':'asc') }}>{t('customers:table.email')} {sortKey==='email' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
               <th>{t('customers:table.phone')}</th>
               <th>{t('customers:table.wholesale')}</th>
-              <th>{t('common.actions')}</th>
+              <th>{t('common:actions')}</th>
             </tr>
           </thead>
         <tbody>
@@ -79,13 +79,13 @@ export default function ClientesList() {
               <td>{c.name}</td>
               <td>{c.email || '-'}</td>
               <td>{c.phone || '-'}</td>
-              <td>{c.is_wholesale ? t('common.yes') : t('common.no')}</td>
+              <td>{c.is_wholesale ? t('common:yes') : t('common:no')}</td>
                 <td>
                   {can('customers:update') && (
-                    <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('common.edit')}</Link>
+                    <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('common:edit')}</Link>
                   )}
                   {can('customers:delete') && (
-                    <button className="text-red-700" onClick={async () => { if (!confirm(t('customers:confirmDelete'))) return; try { await removeCliente(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success(t('customers:messages.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('common.delete')}</button>
+                    <button className="text-red-700" onClick={async () => { if (!confirm(t('customers:confirmDelete'))) return; try { await removeCliente(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success(t('customers:messages.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('common:delete')}</button>
                   )}
                 </td>
             </tr>

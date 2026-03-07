@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listCuentas, removeCuenta, type PlanCuenta } from './services'
+import { listCuentas, removeCuenta, seedCuentas, type PlanCuenta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 
 export default function PlanCuentasList() {
@@ -9,6 +9,7 @@ export default function PlanCuentasList() {
     const nav = useNavigate()
     const [items, setItems] = useState<PlanCuenta[]>([])
     const [loading, setLoading] = useState(false)
+    const [seeding, setSeeding] = useState(false)
     const [filter, setFilter] = useState('')
     const { success, error } = useToast()
 
@@ -27,6 +28,23 @@ export default function PlanCuentasList() {
     useEffect(() => {
         load()
     }, [])
+
+    const onSeed = async (force = false) => {
+        if (!confirm(force
+            ? 'Se añadirán las cuentas estándar que aún no existan. ¿Continuar?'
+            : 'Se generará un plan de cuentas estándar. ¿Continuar?'
+        )) return
+        try {
+            setSeeding(true)
+            const res = await seedCuentas(force)
+            success(res.message)
+            load()
+        } catch (e: any) {
+            error(getErrorMessage(e))
+        } finally {
+            setSeeding(false)
+        }
+    }
 
     const onDelete = async (id: string, nombre: string) => {
         if (!confirm(t('accounting.chartOfAccounts.deleteConfirm', { name: nombre }))) return
@@ -49,12 +67,32 @@ export default function PlanCuentasList() {
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-semibold">{t('accounting.chartOfAccounts.title')}</h3>
-                <button
-                    onClick={() => nav('../plan-cuentas/nuevo')}
-                    className="bg-blue-600 text-white px-3 py-2 rounded"
-                >
-                    {t('accounting.chartOfAccounts.new')}
-                </button>
+                <div className="flex gap-2">
+                    {items.length === 0 ? (
+                        <button
+                            onClick={() => onSeed(false)}
+                            disabled={seeding}
+                            className="bg-green-600 text-white px-3 py-2 rounded font-medium"
+                        >
+                            {seeding ? 'Generando...' : '⚡ Generar plan de cuentas'}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => onSeed(true)}
+                            disabled={seeding}
+                            className="bg-gray-100 text-gray-700 border px-3 py-2 rounded text-sm"
+                            title="Añade las cuentas estándar que falten sin borrar las existentes"
+                        >
+                            {seeding ? '...' : '+ Completar con estándar'}
+                        </button>
+                    )}
+                    <button
+                        onClick={() => nav('../plan-cuentas/nuevo')}
+                        className="bg-blue-600 text-white px-3 py-2 rounded"
+                    >
+                        {t('accounting.chartOfAccounts.new')}
+                    </button>
+                </div>
             </div>
 
             <div className="mb-4">
@@ -116,10 +154,23 @@ export default function PlanCuentasList() {
                         {!loading && filtered.length === 0 && (
                             <tr>
                                 <td colSpan={6} className="border px-3 py-8 text-center text-gray-500">
-                                    {t('accounting.chartOfAccounts.empty')}{' '}
-                                    <button onClick={() => nav('../plan-cuentas/nuevo')} className="text-blue-600 hover:underline">
-                                        {t('accounting.chartOfAccounts.createFirst')}
-                                    </button>
+                                    {items.length === 0 ? (
+                                        <div>
+                                            <p className="mb-3">No hay cuentas.</p>
+                                            <button
+                                                onClick={() => onSeed(false)}
+                                                disabled={seeding}
+                                                className="bg-green-600 text-white px-4 py-2 rounded font-medium mr-2"
+                                            >
+                                                {seeding ? 'Generando...' : '⚡ Generar plan de cuentas estándar'}
+                                            </button>
+                                            <button onClick={() => nav('../plan-cuentas/nuevo')} className="text-blue-600 hover:underline text-sm">
+                                                {t('accounting.chartOfAccounts.createFirst')}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <span>No hay resultados para esa búsqueda.</span>
+                                    )}
                                 </td>
                             </tr>
                         )}

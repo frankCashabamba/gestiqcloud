@@ -198,11 +198,11 @@ export function ExpiryWarnings({
 
       <style>{`
         .expiry-warnings {
-          background: #fff;
-          border: 2px solid #fbbf24;
+          background: var(--gc-surface);
+          border: 2px solid var(--gc-warning);
           border-radius: 12px;
           overflow: hidden;
-          box-shadow: 0 2px 8px rgba(251, 191, 36, 0.15);
+          box-shadow: 0 2px 8px color-mix(in srgb, var(--gc-warning) 15%, transparent);
         }
 
         .expiry-warnings.loading,
@@ -215,14 +215,14 @@ export function ExpiryWarnings({
         }
 
         .expiry-warnings.error {
-          border-color: #ef4444;
-          background: #fef2f2;
+          border-color: var(--gc-danger);
+          background: color-mix(in srgb, var(--gc-danger) 8%, white);
         }
 
         .loading-spinner {
           width: 20px;
           height: 20px;
-          border: 2px solid #fbbf24;
+          border: 2px solid var(--gc-warning);
           border-top-color: transparent;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
@@ -234,7 +234,7 @@ export function ExpiryWarnings({
 
         .retry-btn {
           padding: 4px 12px;
-          background: #ef4444;
+          background: var(--gc-danger);
           color: white;
           border: none;
           border-radius: 6px;
@@ -244,7 +244,7 @@ export function ExpiryWarnings({
         }
 
         .retry-btn:hover {
-          background: #dc2626;
+          background: color-mix(in srgb, var(--gc-danger) 85%, black);
         }
 
         /* Header */
@@ -253,14 +253,14 @@ export function ExpiryWarnings({
           align-items: center;
           justify-content: space-between;
           padding: 14px 16px;
-          background: #fffbeb;
-          border-bottom: 1px solid #fbbf24;
+          background: color-mix(in srgb, var(--gc-warning) 6%, white);
+          border-bottom: 1px solid var(--gc-warning);
           cursor: pointer;
           user-select: none;
         }
 
         .warnings-header:hover {
-          background: #fef3c7;
+          background: color-mix(in srgb, var(--gc-warning) 15%, white);
         }
 
         .header-left {
@@ -291,7 +291,7 @@ export function ExpiryWarnings({
           min-width: 24px;
           height: 24px;
           padding: 0 6px;
-          background: #f59e0b;
+          background: var(--gc-warning);
           color: white;
           border-radius: 12px;
           font-size: 12px;
@@ -339,18 +339,18 @@ export function ExpiryWarnings({
 
         /* Niveles de urgencia */
         .urgency-critical {
-          background: #fee2e2;
-          border-left: 4px solid #dc2626;
+          background: color-mix(in srgb, var(--gc-danger) 10%, white);
+          border-left: 4px solid var(--gc-danger);
         }
 
         .urgency-warning {
-          background: #fef3c7;
-          border-left: 4px solid #f59e0b;
+          background: color-mix(in srgb, var(--gc-warning) 15%, white);
+          border-left: 4px solid var(--gc-warning);
         }
 
         .urgency-info {
-          background: #e0f2fe;
-          border-left: 4px solid #0ea5e9;
+          background: color-mix(in srgb, var(--gc-primary) 8%, white);
+          border-left: 4px solid var(--gc-primary);
         }
 
         .item-left {
@@ -370,17 +370,17 @@ export function ExpiryWarnings({
         }
 
         .urgency-critical .urgency-badge {
-          background: #dc2626;
+          background: var(--gc-danger);
           color: white;
         }
 
         .urgency-warning .urgency-badge {
-          background: #f59e0b;
+          background: var(--gc-warning);
           color: white;
         }
 
         .urgency-info .urgency-badge {
-          background: #0ea5e9;
+          background: var(--gc-primary);
           color: white;
         }
 
@@ -391,20 +391,20 @@ export function ExpiryWarnings({
         .product-name {
           font-size: 14px;
           font-weight: 600;
-          color: #1f2937;
+          color: var(--gc-foreground);
           margin-bottom: 2px;
         }
 
         .product-meta {
           font-size: 12px;
-          color: #6b7280;
+          color: var(--gc-muted);
           display: flex;
           align-items: center;
           gap: 6px;
         }
 
         .separator {
-          color: #d1d5db;
+          color: var(--gc-border);
         }
 
         .item-right {
@@ -417,22 +417,22 @@ export function ExpiryWarnings({
         .qty-badge {
           font-size: 13px;
           font-weight: 600;
-          color: #374151;
+          color: var(--gc-foreground);
         }
 
         .expiry-date {
           font-size: 12px;
-          color: #6b7280;
+          color: var(--gc-muted);
         }
 
         .view-all-btn {
           width: 100%;
           padding: 10px;
           margin-top: 8px;
-          background: #f3f4f6;
-          border: 1px dashed #d1d5db;
+          background: var(--gc-bg);
+          border: 1px dashed var(--gc-border);
           border-radius: 6px;
-          color: #4b5563;
+          color: var(--gc-muted);
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
@@ -440,9 +440,9 @@ export function ExpiryWarnings({
         }
 
         .view-all-btn:hover {
-          background: #e5e7eb;
-          border-color: #9ca3af;
-          color: #1f2937;
+          background: var(--gc-border);
+          border-color: var(--gc-muted);
+          color: var(--gc-foreground);
         }
 
         /* Responsive */

@@ -1934,6 +1934,23 @@ def checkout(
             ).scalar()
             fallback_cost = _to_decimal_q(float(cost_price or 0), "0.000001")
 
+            # Sync inventory_cost_state with stock_items (source of truth for qty)
+            # Prevents false insufficient_stock when stock was adjusted manually
+            db.execute(
+                text(
+                    "INSERT INTO inventory_cost_state(tenant_id, warehouse_id, product_id, on_hand_qty, avg_cost) "
+                    "VALUES (:tid, :wid, :pid, :q, :avg) "
+                    "ON CONFLICT (tenant_id, warehouse_id, product_id) "
+                    "DO UPDATE SET on_hand_qty = EXCLUDED.on_hand_qty"
+                ).bindparams(
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                    bindparam("wid", type_=PGUUID(as_uuid=True)),
+                    bindparam("pid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"tid": tenant_id, "wid": warehouse_uuid, "pid": product_id,
+                 "q": float(current_qty), "avg": float(fallback_cost)},
+            )
+
             state = costing.apply_outbound(
                 str(tenant_id),
                 str(warehouse_uuid),

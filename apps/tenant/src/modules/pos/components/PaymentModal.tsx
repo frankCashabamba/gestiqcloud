@@ -14,6 +14,7 @@ interface PaymentModalProps {
   onSuccess: (payments: POSPayment[], checkoutResponse?: CheckoutResponse) => void
   onCancel: () => void
   warehouseId?: string
+  isWholesaleCustomer?: boolean
 }
 
 export default function PaymentModal({
@@ -22,12 +23,13 @@ export default function PaymentModal({
   onSuccess,
   onCancel,
   warehouseId,
+  isWholesaleCustomer = false,
 }: PaymentModalProps) {
   const { t } = useTranslation(['pos', 'common'])
   const { symbol: currencySymbol, currency } = useCurrency()
   const toast = useToast()
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'store_credit' | 'link'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'store_credit' | 'link' | 'credit'>('cash')
   const [cashAmount, setCashAmount] = useState(totalAmount.toFixed(2))
   const [splitEnabled, setSplitEnabled] = useState(false)
   const [splitCashAmount, setSplitCashAmount] = useState(totalAmount.toFixed(2))
@@ -155,6 +157,9 @@ export default function PaymentModal({
           amount: totalAmount,
           ref: code,
         })
+      } else if (paymentMethod === 'credit') {
+        // Venta a crédito: registrar como OTHER con ref 'credit_sale'
+        payments.push({ receipt_id: receiptId, method: 'other', amount: totalAmount, ref: 'credit_sale' })
       } else if (paymentMethod === 'link') {
         const result = await createPaymentLink({
           amount: totalAmount,
@@ -220,14 +225,28 @@ export default function PaymentModal({
           </p>
         </div>
 
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className={`mb-4 grid gap-2 ${isWholesaleCustomer ? 'grid-cols-3' : 'grid-cols-3'}`}>
           <button onClick={() => { setSplitEnabled(false); setPaymentMethod('cash') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'cash' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.cash')}</button>
           <button onClick={() => { setSplitEnabled(false); setPaymentMethod('card') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'card' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.cardMethod')}</button>
           <button onClick={() => { setSplitEnabled(false); setPaymentMethod('transfer') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'transfer' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.transfer')}</button>
           <button onClick={() => { setSplitEnabled(false); setPaymentMethod('store_credit') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'store_credit' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.creditVoucher')}</button>
           <button onClick={() => { setSplitEnabled(false); setPaymentMethod('link') }} className={`p-3 border-2 rounded font-semibold ${!splitEnabled && paymentMethod === 'link' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.link')}</button>
           <button onClick={() => setSplitEnabled((v) => !v)} className={`p-3 border-2 rounded font-semibold ${splitEnabled ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{t('pos:payment.split')}</button>
+          {isWholesaleCustomer && (
+            <button
+              onClick={() => { setSplitEnabled(false); setPaymentMethod('credit') }}
+              className={`p-3 border-2 rounded font-semibold col-span-3 ${!splitEnabled && paymentMethod === 'credit' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+            >
+              💳 {t('pos:payment.creditSale', { defaultValue: 'Crédito / Cuenta corriente' })}
+            </button>
+          )}
         </div>
+        {paymentMethod === 'credit' && !splitEnabled && (
+          <div className="mb-4 p-3 rounded border border-amber-300 bg-amber-50 text-amber-800 text-sm">
+            <strong>{t('pos:payment.creditSaleWarning', { defaultValue: 'Venta a crédito' })}</strong>
+            {' — '}{t('pos:payment.creditSaleInfo', { defaultValue: 'El pago quedará pendiente de cobro. Se generará la factura y se registrará en cuentas por cobrar.' })}
+          </div>
+        )}
 
         {splitEnabled && (
           <div className="mb-4 grid grid-cols-2 gap-3">

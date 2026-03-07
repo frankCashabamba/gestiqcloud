@@ -502,7 +502,10 @@ def _save_document_to_purchase(
 
     logger.info(
         "save_purchase: tenant=%s update_stock=%s line_items=%d warehouse_id=%s",
-        tenant_id, update_stock, len(line_items), warehouse_id,
+        tenant_id,
+        update_stock,
+        len(line_items),
+        warehouse_id,
     )
 
     # Warehouse resolution
@@ -514,7 +517,7 @@ def _save_document_to_purchase(
                 .filter(
                     Warehouse.tenant_id == str(tenant_id),
                     Warehouse.id == str(warehouse_id),
-                    Warehouse.is_active == True,
+                    Warehouse.is_active.is_(True),
                 )
                 .first()
             )
@@ -523,7 +526,7 @@ def _save_document_to_purchase(
                 db.query(Warehouse)
                 .filter(
                     Warehouse.tenant_id == str(tenant_id),
-                    Warehouse.is_active == True,
+                    Warehouse.is_active.is_(True),
                 )
                 .first()
             )
@@ -547,19 +550,21 @@ def _save_document_to_purchase(
         subtotal = max(total - vat, 0.0)
 
     # Idempotency: check for existing purchase
-    existing = (
-        db.query(Purchase)
-        .filter(
-            Purchase.tenant_id == tenant_id,
-            Purchase.number == doc_number,
-            Purchase.total == float(total),
-        )
+    existing = db.query(Purchase).filter(
+        Purchase.tenant_id == tenant_id,
+        Purchase.number == doc_number,
+        Purchase.total == float(total),
     )
     if supplier_id:
         existing = existing.filter(Purchase.supplier_id == supplier_id)
     existing = existing.first()
     stock_only = False
-    logger.info("save_purchase: existing=%s update_stock=%s warehouse=%s", existing.id if existing else None, update_stock, warehouse.id if warehouse else None)
+    logger.info(
+        "save_purchase: existing=%s update_stock=%s warehouse=%s",
+        existing.id if existing else None,
+        update_stock,
+        warehouse.id if warehouse else None,
+    )
     if existing:
         # If stock update requested but no moves exist yet, allow stock-only pass
         if update_stock and warehouse:
@@ -603,7 +608,7 @@ def _save_document_to_purchase(
     lines_matched = 0
     unmatched: list[str] = []
 
-    def _dec(v) -> "Decimal":
+    def _dec(v) -> Decimal:
         return Decimal(str(v or 0)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
 
     for item in line_items:
@@ -620,7 +625,11 @@ def _save_document_to_purchase(
         stock_qty = qty * conv_factor  # convert invoice qty to inventory units
         logger.info(
             "save_purchase line: desc='%s' qty=%s matched=%s conv=%s stock_only=%s",
-            description, qty, product.name if product else None, conv_factor, stock_only,
+            description,
+            qty,
+            product.name if product else None,
+            conv_factor,
+            stock_only,
         )
 
         if product and warehouse and costing and update_stock:
@@ -698,7 +707,10 @@ def _save_document_to_purchase(
     db.flush()
     logger.info(
         "save_purchase RESULT: stock_only=%s lines_created=%d lines_matched=%d unmatched=%s",
-        stock_only, lines_created, lines_matched, unmatched,
+        stock_only,
+        lines_created,
+        lines_matched,
+        unmatched,
     )
     return {
         "purchase_id": purchase.id,
@@ -1050,9 +1062,7 @@ class SyncRecipesRequest(BaseModel):
     force: bool = False
 
 
-def _learn_from_confirmation(
-    db: Session, doc, datos_confirmados: dict, user_id: str
-) -> None:
+def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id: str) -> None:
     """Update the associated recipe snapshot's field_descriptions based on user corrections.
 
     Compares datos_extraidos vs datos_confirmados to detect which fields the user
@@ -1066,15 +1076,26 @@ def _learn_from_confirmation(
     if not isinstance(datos_extraidos, dict) or not isinstance(datos_confirmados, dict):
         return
 
-    skip_keys = {"filas", "total_filas", "columnas", "columnas_norm", "hojas",
-                 "sheet_usada", "metadata", "filas_por_hoja", "filas_por_hoja_count"}
+    skip_keys = {
+        "filas",
+        "total_filas",
+        "columnas",
+        "columnas_norm",
+        "hojas",
+        "sheet_usada",
+        "metadata",
+        "filas_por_hoja",
+        "filas_por_hoja_count",
+    }
     corrections: dict[str, str] = {}
     for key, confirmed_val in datos_confirmados.items():
         if key in skip_keys or key.startswith("_"):
             continue
         original_val = datos_extraidos.get(key)
         if confirmed_val != original_val and confirmed_val is not None:
-            corrections[key] = f"User corrected '{key}': expected '{confirmed_val}' (was '{original_val}')"
+            corrections[key] = (
+                f"User corrected '{key}': expected '{confirmed_val}' (was '{original_val}')"
+            )
 
     if not corrections:
         return
@@ -1373,9 +1394,11 @@ def save_document(
             status=purchase_result["status"],
             record_id=str(purchase_result["purchase_id"]),
             record_ids=record_ids,
-            message=f"Compra registrada y gasto creado ({body.payment_status})."
-            if expense_result.status == "created"
-            else purchase_result.get("message", "Compra registrada."),
+            message=(
+                f"Compra registrada y gasto creado ({body.payment_status})."
+                if expense_result.status == "created"
+                else purchase_result.get("message", "Compra registrada.")
+            ),
         )
     else:
         result = _save_document_to_expense(

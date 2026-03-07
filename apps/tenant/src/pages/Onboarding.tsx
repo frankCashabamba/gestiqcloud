@@ -45,7 +45,7 @@ const INITIAL_STATE: FormData = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   currency: 'USD',
   logo: null,
-  primary_color: '#4f46e5',
+  primary_color: '#2563eb',
   secondary_color: '#ffffff',
 }
 
@@ -250,12 +250,12 @@ export default function Onboarding() {
         : formData.default_language
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 py-8 px-4">
+    <div className="min-h-screen bg-[var(--gc-bg)] py-8 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">GestiqCloud</h1>
-          <p className="text-gray-600 mt-2">{t('pages.onboarding.subtitle')}</p>
+          <h1 className="text-3xl font-bold text-slate-900">GestiqCloud</h1>
+          <p className="text-slate-600 mt-2">{t('pages.onboarding.subtitle')}</p>
         </div>
 
         {/* Progress Bar */}
@@ -266,19 +266,19 @@ export default function Onboarding() {
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition ${
                     step === s
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-[var(--gc-primary)] text-white'
                       : idx < ['info', 'regional', 'branding', 'review'].indexOf(step)
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-200 text-gray-600'
+                        ? 'bg-[var(--gc-primary)] text-white'
+                        : 'bg-slate-200 text-slate-600'
                   }`}
                 >
                   {idx + 1}
                 </div>
-                {idx < 3 && <div className={`h-1 flex-1 mx-2 ${idx < ['info', 'regional', 'branding', 'review'].indexOf(step) ? 'bg-indigo-600' : 'bg-gray-200'}`}></div>}
+                {idx < 3 && <div className={`h-1 flex-1 mx-2 ${idx < ['info', 'regional', 'branding', 'review'].indexOf(step) ? 'bg-[var(--gc-primary)]' : 'bg-slate-200'}`}></div>}
               </div>
             ))}
           </div>
-          <div className="text-sm text-gray-600 text-center">
+          <div className="text-sm text-slate-600 text-center">
             {t('pages.onboarding.stepOf', { current: getStepNumber(step), total: 4 })}
           </div>
         </div>
@@ -289,13 +289,13 @@ export default function Onboarding() {
           {step === 'info' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.info.title')}</h2>
-                <p className="text-gray-600">{t('pages.onboarding.steps.info.subtitle')}</p>
+                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.info.title')}</h2>
+                <p className="text-slate-600">{t('pages.onboarding.steps.info.subtitle')}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="gc-label">
                     {t('pages.onboarding.steps.info.companyName')}
                   </label>
                   <input
@@ -303,17 +303,17 @@ export default function Onboarding() {
                     value={formData.company_name}
                     onChange={(e) => handleInputChange('company_name', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.companyNamePlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.country')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.country')}</label>
                   <select
                     value={formData.country_code}
                     onChange={(e) => handleInputChange('country_code', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                     required
                   >
                     <option value="">{t('pages.onboarding.steps.info.selectCountry')}</option>
@@ -324,79 +324,79 @@ export default function Onboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.taxId')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.taxId')}</label>
                   <input
                     type="text"
                     value={formData.tax_id}
                     onChange={(e) => handleInputChange('tax_id', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.taxIdPlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.phone')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.phone')}</label>
                   <input
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.phonePlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.address')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.address')}</label>
                   <input
                     type="text"
                     value={formData.address}
                     onChange={(e) => handleInputChange('address', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.addressPlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.city')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.city')}</label>
                   <input
                     type="text"
                     value={formData.city}
                     onChange={(e) => handleInputChange('city', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.cityPlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.stateProvince')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.stateProvince')}</label>
                   <input
                     type="text"
                     value={formData.state}
                     onChange={(e) => handleInputChange('state', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.statePlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.postalCode')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.postalCode')}</label>
                   <input
                     type="text"
                     value={formData.postal_code}
                     onChange={(e) => handleInputChange('postal_code', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.postalCodePlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.info.website')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.info.website')}</label>
                   <input
                     type="url"
                     value={formData.website}
                     onChange={(e) => handleInputChange('website', e.target.value)}
                     placeholder={t('pages.onboarding.steps.info.websitePlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                   />
                 </div>
               </div>
@@ -407,17 +407,17 @@ export default function Onboarding() {
           {step === 'regional' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.regional.title')}</h2>
-                <p className="text-gray-600">{t('pages.onboarding.steps.regional.subtitle')}</p>
+                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.regional.title')}</h2>
+                <p className="text-slate-600">{t('pages.onboarding.steps.regional.subtitle')}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.regional.language')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.regional.language')}</label>
                   <select
                     value={formData.default_language}
                     onChange={(e) => handleInputChange('default_language', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                     required
                   >
                     {LANGUAGES.map(l => (
@@ -427,23 +427,23 @@ export default function Onboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.regional.timezone')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.regional.timezone')}</label>
                   <input
                     type="text"
                     value={formData.timezone}
                     onChange={(e) => handleInputChange('timezone', e.target.value)}
                     placeholder={t('pages.onboarding.steps.regional.timezonePlaceholder')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('pages.onboarding.steps.regional.currency')}</label>
+                  <label className="gc-label">{t('pages.onboarding.steps.regional.currency')}</label>
                   <select
                     value={formData.currency}
                     onChange={(e) => handleInputChange('currency', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="gc-input"
                     required
                   >
                     {CURRENCIES.map(c => (
@@ -453,8 +453,8 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
+              <div className="gc-alert gc-alert--info">
+                <p>
                   <strong>💡 Tip:</strong> {t('pages.onboarding.steps.regional.tip')}
                 </p>
               </div>
@@ -465,14 +465,14 @@ export default function Onboarding() {
           {step === 'branding' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.branding.title')}</h2>
-                <p className="text-gray-600">{t('pages.onboarding.steps.branding.subtitle')}</p>
+                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.branding.title')}</h2>
+                <p className="text-slate-600">{t('pages.onboarding.steps.branding.subtitle')}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('pages.onboarding.steps.branding.logoOptional')}</label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <label className="gc-label">{t('pages.onboarding.steps.branding.logoOptional')}</label>
+                  <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center">
                     {logoPreview ? (
                       <div className="space-y-4">
                         <img src={logoPreview} alt="Logo preview" className="h-24 mx-auto object-contain" />
@@ -491,8 +491,8 @@ export default function Onboarding() {
                       <label className="cursor-pointer">
                         <div className="space-y-2">
                           <p className="text-2xl">📤</p>
-                          <p className="text-sm font-medium text-gray-700">{t('pages.onboarding.steps.branding.uploadPrompt')}</p>
-                          <p className="text-xs text-gray-500">{t('pages.onboarding.steps.branding.uploadHint')}</p>
+                          <p className="text-sm font-medium text-slate-700">{t('pages.onboarding.steps.branding.uploadPrompt')}</p>
+                          <p className="text-xs text-slate-500">{t('pages.onboarding.steps.branding.uploadHint')}</p>
                         </div>
                         <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                       </label>
@@ -502,37 +502,37 @@ export default function Onboarding() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('pages.onboarding.steps.branding.primaryColor')}</label>
+                    <label className="gc-label">{t('pages.onboarding.steps.branding.primaryColor')}</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={formData.primary_color}
                         onChange={(e) => handleColorChange('primary_color', e.target.value)}
-                        className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
+                        className="w-12 h-12 border border-slate-200 rounded-lg cursor-pointer"
                       />
                       <input
                         type="text"
                         value={formData.primary_color}
                         onChange={(e) => handleColorChange('primary_color', e.target.value)}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                        className="gc-input flex-1 font-mono text-sm"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('pages.onboarding.steps.branding.secondaryColor')}</label>
+                    <label className="gc-label">{t('pages.onboarding.steps.branding.secondaryColor')}</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={formData.secondary_color}
                         onChange={(e) => handleColorChange('secondary_color', e.target.value)}
-                        className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
+                        className="w-12 h-12 border border-slate-200 rounded-lg cursor-pointer"
                       />
                       <input
                         type="text"
                         value={formData.secondary_color}
                         onChange={(e) => handleColorChange('secondary_color', e.target.value)}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                        className="gc-input flex-1 font-mono text-sm"
                       />
                     </div>
                   </div>
@@ -549,21 +549,21 @@ export default function Onboarding() {
           {step === 'review' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.onboarding.steps.review.title')}</h2>
-                <p className="text-gray-600">{t('pages.onboarding.steps.review.subtitle')}</p>
+                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.review.title')}</h2>
+                <p className="text-slate-600">{t('pages.onboarding.steps.review.subtitle')}</p>
               </div>
 
               <div className="space-y-4">
                 <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">📋 {t('pages.onboarding.steps.review.companyInfo')}</h3>
+                  <h3 className="font-semibold text-slate-900 mb-3">📋 {t('pages.onboarding.steps.review.companyInfo')}</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <p className="text-gray-600">{t('pages.onboarding.steps.review.company')}</p>
+                    <p className="text-slate-600">{t('pages.onboarding.steps.review.company')}</p>
                     <p className="font-medium">{formData.company_name}</p>
-                    <p className="text-gray-600">{t('pages.onboarding.steps.review.countryLabel')}</p>
+                    <p className="text-slate-600">{t('pages.onboarding.steps.review.countryLabel')}</p>
                     <p className="font-medium">{formData.country_code}</p>
                     {formData.tax_id && (
                       <>
-                        <p className="text-gray-600">{t('pages.onboarding.steps.review.taxIdLabel')}</p>
+                        <p className="text-slate-600">{t('pages.onboarding.steps.review.taxIdLabel')}</p>
                         <p className="font-medium">{formData.tax_id}</p>
                       </>
                     )}
@@ -571,19 +571,19 @@ export default function Onboarding() {
                 </div>
 
                 <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">🌍 {t('pages.onboarding.steps.review.regionalConfig')}</h3>
+                  <h3 className="font-semibold text-slate-900 mb-3">🌍 {t('pages.onboarding.steps.review.regionalConfig')}</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <p className="text-gray-600">{t('pages.onboarding.steps.review.languageLabel')}</p>
+                    <p className="text-slate-600">{t('pages.onboarding.steps.review.languageLabel')}</p>
                     <p className="font-medium">{languageLabel}</p>
-                    <p className="text-gray-600">{t('pages.onboarding.steps.review.timezoneLabel')}</p>
+                    <p className="text-slate-600">{t('pages.onboarding.steps.review.timezoneLabel')}</p>
                     <p className="font-medium">{formData.timezone}</p>
-                    <p className="text-gray-600">{t('pages.onboarding.steps.review.currencyLabel')}</p>
+                    <p className="text-slate-600">{t('pages.onboarding.steps.review.currencyLabel')}</p>
                     <p className="font-medium">{formData.currency}</p>
                   </div>
                 </div>
 
                 <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">🎨 {t('pages.onboarding.steps.review.brandingSection')}</h3>
+                  <h3 className="font-semibold text-slate-900 mb-3">🎨 {t('pages.onboarding.steps.review.brandingSection')}</h3>
                   <div className="space-y-2 text-sm">
                     {logoPreview && <p>✓ {t('pages.onboarding.steps.review.logoLoaded')}</p>}
                     <div className="flex items-center gap-2">
@@ -595,7 +595,7 @@ export default function Onboarding() {
                     </div>
                     <div className="flex items-center gap-2">
                       <div
-                        className="w-6 h-6 rounded border border-gray-300"
+                        className="w-6 h-6 rounded border border-slate-200"
                         style={{ backgroundColor: formData.secondary_color }}
                       ></div>
                       <p>{t('pages.onboarding.steps.review.secondaryColorLabel')} {formData.secondary_color}</p>
@@ -603,8 +603,8 @@ export default function Onboarding() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-800">
+                <div className="gc-alert gc-alert--success">
+                  <p>
                     <strong>✓</strong> {t('pages.onboarding.steps.review.allReady')}
                   </p>
                 </div>
@@ -617,7 +617,7 @@ export default function Onboarding() {
             <button
               onClick={prevStep}
               disabled={step === 'info' || saving}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="gc-btn gc-btn--secondary"
             >
               {t('pages.onboarding.back')}
             </button>
@@ -626,7 +626,7 @@ export default function Onboarding() {
               <button
                 onClick={nextStep}
                 disabled={saving}
-                className="ml-auto px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="gc-btn gc-btn--primary ml-auto"
               >
                 {t('pages.onboarding.next')}
               </button>
@@ -634,7 +634,7 @@ export default function Onboarding() {
               <button
                 onClick={onSubmit}
                 disabled={saving}
-                className="ml-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="gc-btn gc-btn--primary ml-auto"
               >
                 {saving ? t('pages.onboarding.saving') : t('pages.onboarding.saveConfig')}
               </button>
