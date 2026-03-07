@@ -56,8 +56,10 @@ class Expense(Base):
         nullable=False,
         default="pending",
         index=True,
-        # pending, paid, cancelled
+        # pending, partial, paid, cancelled
     )
+    paid_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    pending_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     user_id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)

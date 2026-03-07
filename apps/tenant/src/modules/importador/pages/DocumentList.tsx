@@ -175,7 +175,7 @@ export default function DocumentList() {
               )}
 
               {activeDocs.map((doc) => {
-                const saveEnabled = canSaveDocument(doc)
+                const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && doc.estado !== 'REJECTED'
                 return (
                   <tr
                     key={doc.id}

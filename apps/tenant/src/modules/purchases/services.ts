@@ -40,10 +40,20 @@ const normalizeEstado = (estado?: string | null): Compra['estado'] => {
   return 'draft'
 }
 
-const normalizeCompra = (compra: Compra): Compra => ({
-  ...compra,
-  estado: normalizeEstado((compra as any).estado),
-})
+const normalizeCompra = (compra: Compra): Compra => {
+  const raw = compra as any
+  return {
+    ...compra,
+    numero: compra.numero || raw.number,
+    fecha: compra.fecha || raw.date,
+    proveedor_nombre: compra.proveedor_nombre || raw.supplier_name,
+    subtotal: compra.subtotal ?? raw.subtotal ?? 0,
+    impuesto: compra.impuesto ?? raw.taxes ?? 0,
+    total: compra.total ?? raw.total ?? 0,
+    notas: compra.notas || raw.notes,
+    estado: normalizeEstado(raw.estado || raw.status),
+  }
+}
 
 export async function listCompras(): Promise<Compra[]> {
   const { data } = await tenantApi.get<Compra[] | { items?: Compra[] }>(TENANT_PURCHASES.base)

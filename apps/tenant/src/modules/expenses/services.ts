@@ -14,6 +14,8 @@ export type Gasto = {
   supplier_id?: string
   supplier_name?: string
   status?: string
+  paid_amount?: number | null
+  pending_amount?: number | null
   invoice_number?: string
   notes?: string
   created_at?: string

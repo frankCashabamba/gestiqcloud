@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   canSaveDocument,
+  fetchSaveCapabilities,
   saveDocument,
   suggestSaveDestination,
   type DocumentPaymentStatus,
@@ -94,6 +95,17 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
+  const [updateStock, setUpdateStock] = useState(false)
+
+  const lineItems = useMemo(() => {
+    const data = getDocumentData(doc)
+    const items = (data.line_items || data.lineas) as Array<Record<string, unknown>> | undefined
+    return Array.isArray(items) ? items.filter(it => it && (it.quantity || it.cantidad)) : []
+  }, [doc])
+
+  const hasStockItems = lineItems.length > 0
+  const canUpdateStock = hasStockItems && capabilities.inventory
 
   const totalAmount = useMemo(() => {
     if (!doc) return null
@@ -119,7 +131,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
     const paidFromText = parseMoney(rawPayments)
     const paidAtValue = typeof saveMeta.paid_at === 'string' && saveMeta.paid_at.trim()
       ? saveMeta.paid_at.slice(0, 10)
-      : (doc?.fecha_documento ? String(doc.fecha_documento).slice(0, 10) : new Date().toISOString().slice(0, 10))
+      : new Date().toISOString().slice(0, 10)
 
     let paymentStatus: DocumentPaymentStatus = savedStatus || 'pending'
     let paid = savedPaid
@@ -159,6 +171,8 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
 
   useEffect(() => {
     if (!open || !doc) return
+    fetchSaveCapabilities().then(setCapabilities).catch(() => {})
+    setUpdateStock(false)
     const suggested = suggestSaveDestination(doc)
     setDestination(suggested)
     setPaymentStatus(inferredDefaults.paymentStatus)
@@ -179,6 +193,9 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
 
   if (!open || !doc) return null
   if (!canSaveDocument(doc)) return null
+
+  const canSaveInvoice = capabilities.purchases || capabilities.invoicing
+  const canSaveExpense = capabilities.expenses !== false
 
   const handlePaymentStatusChange = (nextStatus: DocumentPaymentStatus) => {
     setPaymentStatus(nextStatus)
@@ -233,7 +250,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
     setError('')
 
     try {
-      const payload: SaveDocumentPayload = { destination }
+      const payload: SaveDocumentPayload = { destination, update_stock: updateStock && canUpdateStock }
 
       if (destination !== 'recipe') {
         payload.payment_status = paymentStatus
@@ -283,22 +300,26 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
           <div>
             <div style={label}>Guardar como</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => handleDestinationChange('supplier_invoice')}
-                style={{ ...choiceBtn, ...(destination === 'supplier_invoice' ? choiceBtnActive : null) }}
-                disabled={saving}
-              >
-                Factura proveedor
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDestinationChange('expense')}
-                style={{ ...choiceBtn, ...(destination === 'expense' ? choiceBtnActive : null) }}
-                disabled={saving}
-              >
-                Gasto
-              </button>
+              {canSaveInvoice && (
+                <button
+                  type="button"
+                  onClick={() => handleDestinationChange('supplier_invoice')}
+                  style={{ ...choiceBtn, ...(destination === 'supplier_invoice' ? choiceBtnActive : null) }}
+                  disabled={saving}
+                >
+                  Factura proveedor
+                </button>
+              )}
+              {canSaveExpense && (
+                <button
+                  type="button"
+                  onClick={() => handleDestinationChange('expense')}
+                  style={{ ...choiceBtn, ...(destination === 'expense' ? choiceBtnActive : null) }}
+                  disabled={saving}
+                >
+                  Gasto
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => handleDestinationChange('recipe')}
@@ -309,9 +330,37 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
               </button>
             </div>
             {destination === 'supplier_invoice' && (
-              <div style={hintBox}>Se guardara en gastos/cuentas por pagar como factura de proveedor.</div>
+              <div style={hintBox}>Se guardará en compras/cuentas por pagar como factura de proveedor.</div>
+            )}
+            {destination === 'expense' && (
+              <div style={hintBox}>Se registrará como gasto en el módulo de gastos.</div>
             )}
           </div>
+
+          {canUpdateStock && destination !== 'recipe' && (
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={updateStock}
+                onChange={(e) => setUpdateStock(e.target.checked)}
+                disabled={saving}
+                style={{ width: 16, height: 16, marginTop: 2, cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
+                  Actualizar stock ({lineItems.length} producto{lineItems.length > 1 ? 's' : ''})
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  {lineItems.map((it, i) => (
+                    <span key={i}>
+                      {i > 0 && ', '}
+                      +{String(it.quantity ?? it.cantidad)} {String(it.description ?? it.descripcion ?? '').slice(0, 40)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </label>
+          )}
 
           {destination !== 'recipe' && (
             <>
@@ -344,16 +393,18 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                   </select>
                 </label>
 
-                <label style={field}>
-                  <span style={label}>Fecha de pago</span>
-                  <input
-                    type="date"
-                    value={paidAt}
-                    onChange={(e) => setPaidAt(e.target.value)}
-                    style={input}
-                    disabled={saving || paymentStatus !== 'paid'}
-                  />
-                </label>
+                {paymentStatus === 'paid' && (
+                  <label style={field}>
+                    <span style={label}>Fecha de pago</span>
+                    <input
+                      type="date"
+                      value={paidAt}
+                      onChange={(e) => setPaidAt(e.target.value)}
+                      style={input}
+                      disabled={saving}
+                    />
+                  </label>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
@@ -496,7 +547,7 @@ const choiceBtn: React.CSSProperties = {
 }
 
 const choiceBtnActive: React.CSSProperties = {
-  borderColor: '#2563eb',
+  border: '1px solid #2563eb',
   background: '#eff6ff',
   color: '#1d4ed8',
 }

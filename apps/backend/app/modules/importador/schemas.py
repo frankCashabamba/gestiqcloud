@@ -126,12 +126,14 @@ class SaveDocumentRequest(BaseModel):
     payment_method: str | None = Field(default=None, max_length=32)
     paid_at: str | None = None
     notes: str | None = None
+    update_stock: bool = False
+    warehouse_id: UUID | None = None
 
 
 class SaveDocumentResponse(BaseModel):
-    target: Literal["recipes", "expenses"]
+    target: Literal["recipes", "expenses", "purchases"]
     destination: Literal["recipe", "expense", "supplier_invoice"]
-    status: Literal["created", "updated", "skipped"]
+    status: Literal["created", "updated", "skipped", "stock_updated"]
     record_id: str | None = None
     record_ids: list[str] = Field(default_factory=list)
     message: str | None = None
@@ -173,7 +175,7 @@ class SaveAsPurchaseRequest(BaseModel):
 
 class SaveAsPurchaseResponse(BaseModel):
     purchase_id: UUID
-    status: Literal["created", "skipped"]
+    status: Literal["created", "skipped", "stock_updated"]
     lines_created: int = 0
     lines_matched: int = 0
     unmatched_descriptions: list[str] = Field(default_factory=list)

@@ -333,12 +333,15 @@ async def run_import(
                 llm_content = text[:6000] if text else ""
 
             # En reimportación limpia, no reutilizar auto-plantillas para sesgar la clasificación.
+            is_image_doc = tipo_archivo in ("JPG", "PNG", "IMG")
+            is_scanned_pdf = tipo_archivo == "PDF" and extraction.get("format") == "PDF_OCR"
             analysis = await analyze_document(
                 llm_content,
                 filename,
                 extraction.get("format", tipo_archivo),
                 has_structured_rows=has_structured,
                 recipe_config=local_recipe_config,
+                image_bytes=file_bytes if (is_image_doc or is_scanned_pdf) else None,
             )
             normalized_analysis = _normalize_analysis_output(analysis)
 
@@ -406,6 +409,17 @@ async def run_import(
                     filas_por_hoja.setdefault(str(sheet_name), []).append(row)
                 filas_count = {k: len(v) for k, v in filas_por_hoja.items()}
 
+                # Build per-sheet profiles with headers for all sheets
+                perfiles_hojas: dict[str, dict] = {}
+                for sn in sheet_names:
+                    prof_s = sheet_profiles.get(sn) if sheet_profiles else None
+                    if prof_s:
+                        perfiles_hojas[sn] = {
+                            "columnas": prof_s.get("headers") or prof_s.get("headers_norm") or [],
+                            "columnas_norm": prof_s.get("headers_norm") or [],
+                            "total_filas": len(filas_por_hoja.get(sn, [])),
+                        }
+
                 datos_extraidos = {
                     "filas": structured_rows[:200],
                     "total_filas": len(structured_rows),
@@ -414,6 +428,7 @@ async def run_import(
                     "nombre_receta": recipe_name_detected,
                     "sheet_usada": sheet_used,
                     "hojas": sheet_names,
+                    "perfiles_hojas": perfiles_hojas,
                 }
                 if meta_for_sheet:
                     datos_extraidos["metadata"] = meta_for_sheet
@@ -429,7 +444,7 @@ async def run_import(
             # Para PDF/XML/imagen/TXT: crear fingerprint post-extracción para futuros imports similares
             auto_recipe_created = local_auto_created
             auto_recipe_name: str | None = local_auto_name
-            if not sheet_profiles and tipo_doc != "OTHER":
+            if not sheet_profiles and tipo_doc != "OTHER" and not explicit_recipe_context:
                 auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = (
                     resolve_auto_recipe_from_text(
                         db,
@@ -774,6 +789,12 @@ def create_snapshot(
         "prompt_user": draft.prompt_user,
         "model_config": draft.model_config,
     }
+    prev = recipe_crud.get_latest_snapshot(db, draft.recipe_id)
+    if prev and prev.content_json:
+        if prev.content_json.get("fingerprint_hash"):
+            content["fingerprint_hash"] = prev.content_json["fingerprint_hash"]
+        if prev.content_json.get("fingerprint"):
+            content["fingerprint"] = prev.content_json["fingerprint"]
     snap = recipe_crud.create_snapshot(
         db,
         {
@@ -802,6 +823,42 @@ def get_snapshot(snapshot_id: UUID, request: Request, db: Session = Depends(get_
     if not snap:
         raise HTTPException(404, "Snapshot no encontrado")
     return snap
+
+
+@router.get("/save-capabilities", dependencies=protected)
+def get_save_capabilities(request: Request, db: Session = Depends(get_db)):
+    """Return which modules are active for the tenant, for save button visibility."""
+    from app.models.core.module import CompanyModule, Module
+
+    tenant_id = _tenant_id(request)
+    relevant = {"purchases", "expenses", "inventory", "invoicing", "accounting", "suppliers"}
+    # Map Spanish module names to English capability keys
+    _es_to_en: dict[str, list[str]] = {
+        "compras": ["purchases"],
+        "gastos": ["expenses"],
+        "inventario": ["inventory"],
+        "facturación": ["invoicing"],
+        "facturacion": ["invoicing"],
+        "contabilidad": ["accounting"],
+        "proveedores": ["suppliers"],
+    }
+    rows = (
+        db.query(Module.name)
+        .join(CompanyModule, CompanyModule.module_id == Module.id)
+        .filter(CompanyModule.tenant_id == tenant_id, CompanyModule.active == True)
+        .all()
+    )
+    active_names = {name.lower().strip() for (name,) in rows}
+    # Resolve Spanish names to English capability keys
+    resolved: set[str] = set()
+    for name in active_names:
+        resolved.add(name)
+        if name in _es_to_en:
+            resolved.update(_es_to_en[name])
+    return {
+        mod: mod in resolved or any(mod in n for n in resolved)
+        for mod in relevant
+    }
 
 
 def _safe_float(val) -> float | None:

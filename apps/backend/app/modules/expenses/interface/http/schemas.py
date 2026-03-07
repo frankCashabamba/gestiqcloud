@@ -29,5 +29,7 @@ class ExpenseOut(ExpenseBase):
     id: UUID
     vat: float | None = None
     total: float | None = None
+    paid_amount: float | None = None
+    pending_amount: float | None = None
 
     model_config = ConfigDict(from_attributes=True)

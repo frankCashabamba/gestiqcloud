@@ -277,6 +277,7 @@ export default function GastosList() {
               </th>
               <th className="py-2 px-2">{t('expenses:table.concept')}</th>
               <th className="py-2 px-2">{t('expenses:table.source')}</th>
+              <th className="py-2 px-2">{t('expenses:table.paymentStatus', 'Estado pago')}</th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('amount')}>
                   {t('expenses:table.amount')} {sortKey === 'amount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
@@ -314,6 +315,25 @@ export default function GastosList() {
                     </span>
                   )}
                 </td>
+                <td className="py-2 px-2">
+                  {v.status === 'paid' ? (
+                    <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                      {t('expenses:paymentStatus.paid', 'Pagado')}
+                    </span>
+                  ) : v.status === 'partial' ? (
+                    <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200">
+                      {t('expenses:paymentStatus.partial', 'Parcial')} — ${(v.pending_amount ?? v.amount).toFixed(2)} pdte
+                    </span>
+                  ) : v.status === 'cancelled' ? (
+                    <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                      {t('expenses:paymentStatus.cancelled', 'Anulado')}
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                      {t('expenses:paymentStatus.pending', 'Pdt. pago')}
+                    </span>
+                  )}
+                </td>
                 <td className="py-2 px-2 font-medium">${v.amount.toFixed(2)}</td>
                 <td className="py-2 px-2">
                   {!isProductionExpense(v) && can('expenses:update') && (
@@ -342,7 +362,7 @@ export default function GastosList() {
               </tr>
               {expandedId === v.id && isProductionExpense(v) && (
                 <tr className="bg-blue-50">
-                  <td colSpan={5} className="py-3 px-4">
+                  <td colSpan={6} className="py-3 px-4">
                     {detailLoading ? (
                       <div className="text-sm text-gray-500">{t('expenses:detail.loadingDetail')}</div>
                     ) : detailData ? (

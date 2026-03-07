@@ -40,6 +40,7 @@ class Product(Base):
     suggested_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     use_suggested_price: Mapped[bool] = mapped_column(Boolean, default=False)
     product_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    import_aliases: Mapped[list | None] = mapped_column(JSON, nullable=True)
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("product_categories.id", ondelete="SET NULL"), nullable=True
     )

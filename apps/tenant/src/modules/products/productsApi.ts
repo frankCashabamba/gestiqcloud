@@ -51,6 +51,7 @@ export type Producto = {
   suggested_price?: number | null
   use_suggested_price?: boolean
   product_metadata?: Record<string, any> | null
+  import_aliases?: Array<{ name: string; factor: number; unit?: string }> | null
   category_id?: string | null
   created_at: string
   updated_at?: string

@@ -35,7 +35,7 @@ def list_purchases(db: Session = Depends(get_db), claims: dict = Depends(with_ac
 
 @router.get("/{cid}", response_model=PurchaseOut)
 def get_purchase(
-    cid: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
+    cid: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
     obj = PurchaseRepo(db).get(tenant_id, cid)
@@ -56,7 +56,7 @@ def create_purchase(
 
 @router.put("/{cid}", response_model=PurchaseOut)
 def update_purchase(
-    cid: int,
+    cid: UUID,
     payload: PurchaseUpdate,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
@@ -70,7 +70,7 @@ def update_purchase(
 
 @router.delete("/{cid}")
 def delete_purchase(
-    cid: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
+    cid: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
     try:
@@ -99,7 +99,7 @@ class PurchaseReceiveIn(BaseModel):
 
 @router.post("/{cid}/receive", response_model=dict)
 def receive_purchase(
-    cid: int,
+    cid: UUID,
     payload: PurchaseReceiveIn,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),

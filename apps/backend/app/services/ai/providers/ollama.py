@@ -182,13 +182,40 @@ class OllamaProvider(BaseAIProvider):
     def get_default_model(self, task: AITask) -> str:
         """Modelo por defecto para Ollama.
 
-        Priorizamos el modelo configurado por entorno porque la instalacion
-        de modelos varia por maquina.
+        Para tareas de extracción, intenta usar un modelo más capaz si está disponible.
+        Para otras tareas, usa el modelo configurado por entorno.
         """
         configured = model_name(self.default_model)
+        if task == AITask.EXTRACTION:
+            extraction_model = self._best_extraction_model()
+            if extraction_model:
+                return extraction_model
         if configured:
             return configured
         return AIModel.QWEN2_5_3B.value
+
+    def _best_extraction_model(self) -> str | None:
+        """Find the best locally available model for document extraction."""
+        preferred = [
+            "qwen3:8b",
+            "qwen2.5-coder:14b",
+            "qwen2.5-coder:7b",
+            "llama3:8b",
+            "qwen3-coder",
+        ]
+        try:
+            resp = httpx.get(f"{self.base_url}/api/tags", timeout=3.0)
+            if resp.status_code != 200:
+                return None
+            available = {m["name"].split(":")[0]: m["name"] for m in resp.json().get("models", [])}
+            for pref in preferred:
+                base = pref.split(":")[0]
+                if base in available:
+                    logger.info("Using %s for extraction (better than default)", available[base])
+                    return available[base]
+        except Exception:
+            pass
+        return None
 
     def get_supported_models(self) -> list[AIModel]:
         """Modelos soportados historicamente por esta app para Ollama."""

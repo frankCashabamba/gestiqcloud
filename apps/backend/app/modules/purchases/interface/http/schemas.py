@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -6,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 class PurchaseBase(BaseModel):
     date: date
     total: float
-    supplier_id: int | None = None
+    supplier_id: UUID | None = None
     status: str | None = None
 
 
@@ -19,6 +20,11 @@ class PurchaseUpdate(PurchaseBase):
 
 
 class PurchaseOut(PurchaseBase):
-    id: int
+    id: UUID
+    number: str | None = None
+    subtotal: float | None = None
+    taxes: float | None = None
+    notes: str | None = None
+    supplier_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

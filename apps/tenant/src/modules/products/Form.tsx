@@ -107,6 +107,7 @@ export default function ProductoForm() {
             { field: 'stock', visible: true, required: false, ord: 35, label: t('products:form.stock'), type: 'number' },
             { field: 'iva_tasa', visible: true, required: false, ord: 40, label: t('products:form.tax'), type: 'number' },
             { field: 'activo', visible: true, required: false, ord: 50, label: t('products:form.active'), type: 'boolean' },
+            { field: 'import_aliases', visible: false, required: false, ord: 90, label: t('products:form.importAliases', 'Alias de importación'), type: 'import_aliases', help: t('products:form.importAliasesHelp', 'Nombres alternativos en facturas de proveedor con factor de conversión.') },
         ]
 
         const map = new Map(base.map((cfg) => [cfg.field, cfg]))
@@ -319,6 +320,45 @@ export default function ProductoForm() {
                         </option>
                     ))}
                 </select>
+            )
+        }
+
+        if (f.field === 'import_aliases') {
+            const aliases: Array<{ name: string; factor: number; unit?: string }> = form.import_aliases || []
+            return (
+                <div className="md:col-span-2">
+                    {aliases.map((alias, idx) => (
+                        <div key={idx} className="flex gap-2 mb-2 items-end">
+                            <div className="flex-1">
+                                {idx === 0 && <label className="block text-xs text-gray-600 mb-1">{t('products:form.aliasName', 'Nombre en factura')}</label>}
+                                <input type="text" value={alias.name}
+                                    onChange={(e) => { const a = [...aliases]; a[idx] = { ...a[idx], name: e.target.value }; setForm((p) => ({ ...p, import_aliases: a })) }}
+                                    className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="Ej: HARINA TRADICION PREMIUM 50 KG" />
+                            </div>
+                            <div className="w-24">
+                                {idx === 0 && <label className="block text-xs text-gray-600 mb-1">{t('products:form.aliasFactor', 'Factor')}</label>}
+                                <input type="number" min="0.001" step="any" value={alias.factor}
+                                    onChange={(e) => { const a = [...aliases]; a[idx] = { ...a[idx], factor: Number(e.target.value) || 1 }; setForm((p) => ({ ...p, import_aliases: a })) }}
+                                    className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                            </div>
+                            <div className="w-20">
+                                {idx === 0 && <label className="block text-xs text-gray-600 mb-1">{t('products:form.aliasUnit', 'Unidad')}</label>}
+                                <input type="text" value={alias.unit || ''}
+                                    onChange={(e) => { const a = [...aliases]; a[idx] = { ...a[idx], unit: e.target.value }; setForm((p) => ({ ...p, import_aliases: a })) }}
+                                    className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="kg" />
+                            </div>
+                            <button type="button"
+                                onClick={() => { const a = aliases.filter((_, i) => i !== idx); setForm((p) => ({ ...p, import_aliases: a.length ? a : null })) }}
+                                className="px-2 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title={t('common:delete', 'Eliminar')}>✕</button>
+                        </div>
+                    ))}
+                    <button type="button"
+                        onClick={() => setForm((p) => ({ ...p, import_aliases: [...(p.import_aliases || []), { name: '', factor: 1, unit: '' }] }))}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                        + {t('products:form.addAlias', 'Agregar alias')}
+                    </button>
+                </div>
             )
         }
 

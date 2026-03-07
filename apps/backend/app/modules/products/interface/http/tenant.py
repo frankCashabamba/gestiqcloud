@@ -78,6 +78,7 @@ class ProductCreate(BaseModel):
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool = False
     product_metadata: dict | None = None
+    import_aliases: list | None = None
 
 
 class ProductUpdate(BaseModel):
@@ -100,6 +101,7 @@ class ProductUpdate(BaseModel):
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool | None = None
     product_metadata: dict | None = None
+    import_aliases: list | None = None
 
 
 class ProductOut(BaseModel):
@@ -123,6 +125,7 @@ class ProductOut(BaseModel):
     suggested_price: float | None = None
     use_suggested_price: bool = False
     product_metadata: dict | None = None
+    import_aliases: list | None = None
 
     model_config = {"from_attributes": True}
 
@@ -210,6 +213,7 @@ def _to_product_out_row(row: Product, real_stock: float | None = None) -> Produc
             bool(row.use_suggested_price) if row.use_suggested_price is not None else False
         ),
         product_metadata=row.product_metadata,
+        import_aliases=row.import_aliases,
     )
 
 
@@ -737,6 +741,7 @@ def create_product(payload: ProductCreate, request: Request, db: Session = Depen
         suggested_price=payload.suggested_price,
         use_suggested_price=payload.use_suggested_price,
         product_metadata=payload.product_metadata,
+        import_aliases=payload.import_aliases,
         tenant_id=tenant_id,
     )
     db.add(obj)
@@ -811,6 +816,8 @@ def update_product(
             obj.price = obj.suggested_price
     if payload.product_metadata is not None:
         obj.product_metadata = payload.product_metadata
+    if payload.import_aliases is not None:
+        obj.import_aliases = payload.import_aliases
 
     db.add(obj)
     db.commit()

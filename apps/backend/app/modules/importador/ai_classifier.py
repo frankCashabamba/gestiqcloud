@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import logging
 from typing import Any
@@ -31,12 +32,189 @@ _EMERGENCY_PATTERNS: dict[str, list[str]] = {
 }
 
 
+def _clean_vision_fields(fields: dict) -> None:
+    """Post-process vision model output to fix common mistakes in-place."""
+    import re
+
+    for key in ("total_amount", "subtotal", "tax_amount"):
+        val = fields.get(key)
+        if isinstance(val, str):
+            cleaned = val.replace(",", "").replace(" ", "").strip()
+            try:
+                fields[key] = float(cleaned)
+            except (ValueError, TypeError):
+                pass
+
+    for key in ("vendor_tax_id", "customer_tax_id"):
+        val = fields.get(key)
+        if isinstance(val, str):
+            fields[key] = re.sub(r"[^0-9]", "", val) or None
+
+    date_val = fields.get("issue_date")
+    if isinstance(date_val, str):
+        if "T" in date_val:
+            date_val = date_val.split("T")[0]
+        date_val = date_val.strip()[:10]
+        fields["issue_date"] = date_val if re.match(r"^\d{4}-\d{2}-\d{2}$", date_val) else date_val
+
+    items = fields.get("line_items")
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for k in ("quantity", "unit_price", "total_price"):
+                v = item.get(k)
+                if isinstance(v, str):
+                    try:
+                        item[k] = float(v.replace(",", "").strip())
+                    except (ValueError, TypeError):
+                        pass
+
+
+async def _analyze_with_vision(
+    image_bytes: bytes,
+    filename: str,
+    format_hint: str,
+    recipe_config: dict | None = None,
+) -> dict[str, Any] | None:
+    """Try to analyze a document image using a vision-capable model via Ollama.
+
+    Returns None if no vision model is available, letting the caller fall back
+    to the text-based OCR path.
+    """
+    import base64
+    import os
+
+    import httpx
+
+    ollama_url = (
+        os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434"
+    ).rstrip("/")
+    vision_model = os.getenv("OLLAMA_VISION_MODEL", "minicpm-v")
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            tags_resp = await client.get(f"{ollama_url}/api/tags")
+            if tags_resp.status_code != 200:
+                return None
+            available = [m["name"].split(":")[0] for m in tags_resp.json().get("models", [])]
+            if vision_model.split(":")[0] not in available:
+                logger.info("Vision model '%s' not available, falling back to OCR", vision_model)
+                return None
+    except Exception:
+        return None
+
+    rc = recipe_config or {}
+    system_prompt = rc.get("prompt_system") or (
+        "You are a universal accounting document analyzer with vision capabilities. "
+        "You can read documents in ANY language. Extract all visible information accurately."
+    )
+
+    _fd = rc.get("field_descriptions") or {}
+    _f_subtotal = _fd.get("subtotal") or "taxable base before tax. Number or null"
+    _f_tax = _fd.get("tax_amount") or "total tax (VAT/IVA/IGV/GST). Number or null if absent"
+
+    current_year = datetime.datetime.now().year
+
+    user_prompt = (
+        f"File: {filename} | Format: {format_hint}\n"
+        f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n\n"
+        "Read this document image VERY carefully, character by character. "
+        "Respond ONLY with valid JSON:\n"
+        "{\n"
+        '  "doc_type": "INVOICE, RECEIPT, TICKET, CREDIT_NOTE, PURCHASE_ORDER, QUOTE, '
+        'DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, BANK_STATEMENT, '
+        'BANK_MOVEMENTS, or any descriptive label",\n'
+        '  "confidence": 0.0-1.0,\n'
+        '  "reasoning": "brief explanation",\n'
+        '  "is_table": false,\n'
+        '  "columns": [],\n'
+        '  "fields": {\n'
+        '    "vendor": "issuing/selling party company name",\n'
+        '    "vendor_tax_id": "RUC/NIT/CIF/tax ID of the ISSUER — digits only, no slashes",\n'
+        '    "customer": "receiving/buying party FULL name as printed",\n'
+        '    "customer_tax_id": "RUC/CI/tax ID of the BUYER — digits only, no slashes",\n'
+        '    "doc_number": "full document/invoice number including series (e.g. 001-001-000120085)",\n'
+        '    "issue_date": "YYYY-MM-DD — read the YEAR very carefully (20XX not 201X)",\n'
+        '    "total_amount": 2145.00,\n'
+        f'    "subtotal": {_f_subtotal},\n'
+        f'    "tax_amount": {_f_tax},\n'
+        '    "currency": "ISO 4217 — Ecuador=USD, Peru=PEN, Chile=CLP, Colombia=COP, Spain=EUR",\n'
+        '    "line_items": [\n'
+        '      {"description": "product name only", "quantity": 50.00, "unit_price": 42.90, "total_price": 2145.00}\n'
+        "    ]\n"
+        "  }\n"
+        "}\n"
+        "CRITICAL RULES:\n"
+        "- ALL amounts MUST be plain numbers with dot decimal (2145.00 NOT \"2,145.00\").\n"
+        "- Dates MUST be YYYY-MM-DD only (no time, no timezone). Read the year VERY carefully.\n"
+        f"- YEAR: We are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100}). Double-check!\n"
+        "- doc_number: use the FULL number with series/sequence as printed.\n"
+        "- customer: read the ACTUAL customer name, not the field label.\n"
+        "- line_items: only list actual PRODUCTS, not the customer name.\n"
+        "- Tax IDs: digits only, no slashes or special characters.\n"
+        "- Do NOT invent data absent from the document. Use null for missing fields."
+    )
+
+    custom_user = rc.get("prompt_user")
+    if custom_user:
+        user_prompt += f"\n\nAdditional instructions:\n{custom_user}"
+
+    img_b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    payload = {
+        "model": vision_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": user_prompt,
+                "images": [img_b64],
+            },
+        ],
+        "stream": False,
+        "options": {"temperature": 0.1, "num_predict": 2000},
+    }
+
+    try:
+        timeout = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(f"{ollama_url}/api/chat", json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+
+        raw_content = (data.get("message") or {}).get("content", "")
+        model_used = data.get("model") or vision_model
+
+        parsed = _parse_json_response(raw_content)
+        if parsed and parsed.get("doc_type"):
+            parsed.setdefault("is_table", False)
+            parsed.setdefault("columns", [])
+            parsed.setdefault("fields", {})
+            parsed.setdefault("confidence", 0.8)
+            parsed.setdefault("reasoning", "Vision model analysis")
+            _clean_vision_fields(parsed.get("fields") or {})
+            parsed["raw_response"] = raw_content
+            parsed["model_used"] = model_used
+            parsed["prompt_sent"] = (system_prompt + "\n\n" + user_prompt)[:500]
+            logger.info("Vision analysis succeeded with %s for %s", model_used, filename)
+            return parsed
+
+        logger.warning("Vision model returned unparseable response for %s", filename)
+        return None
+
+    except Exception as exc:
+        logger.warning("Vision analysis failed for %s: %s", filename, exc)
+        return None
+
+
 async def analyze_document(
     content: str,
     filename: str = "",
     format_hint: str = "",
     has_structured_rows: bool = False,
     recipe_config: dict | None = None,
+    image_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -64,6 +242,13 @@ async def analyze_document(
         "prompt_sent": str,
     }
     """
+    if image_bytes and not has_structured_rows:
+        vision_result = await _analyze_with_vision(
+            image_bytes, filename, format_hint, recipe_config
+        )
+        if vision_result:
+            return vision_result
+
     rc = recipe_config or {}
 
     system_prompt = rc.get("prompt_system") or (
@@ -94,9 +279,12 @@ async def analyze_document(
 
     content_limit = 4000 if has_structured_rows else 7000
 
+    current_year = datetime.datetime.now().year
+
     user_prompt = (
         f"{tabular_note}"
-        f"File: {filename} | Format: {format_hint}\n\n"
+        f"File: {filename} | Format: {format_hint}\n"
+        f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n\n"
         f"Content:\n{content[:content_limit]}\n\n"
         "Analyze the document and respond ONLY with valid JSON:\n"
         "{\n"
@@ -132,8 +320,13 @@ async def analyze_document(
         "- vendor = the entity that ISSUES/SIGNS the document.\n"
         "- If is_table=true: only fill 'columns'; in 'fields' include issue_date and total_amount if visible.\n"
         "- Dates: YYYY-MM-DD. Amounts: number with dot decimal (e.g. 2145.00). Missing fields: null.\n"
+        f"- YEAR: We are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100}). Double-check!\n"
         "- Do NOT invent data absent from the document."
     )
+
+    custom_user_prompt = rc.get("prompt_user")
+    if custom_user_prompt:
+        user_prompt += f"\n\nAdditional extraction instructions:\n{custom_user_prompt}"
 
     full_prompt = system_prompt.rstrip() + "\n\n" + user_prompt
 

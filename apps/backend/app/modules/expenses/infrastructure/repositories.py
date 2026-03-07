@@ -18,6 +18,8 @@ class ExpenseCreateDTO:
     payment_method: str | None = None
     invoice_number: str | None = None
     status: str | None = None
+    paid_amount: float | None = None
+    pending_amount: float | None = None
     notes: str | None = None
     vat: float | None = None
     total: float | None = None
@@ -34,6 +36,8 @@ class ExpenseCreateDTO:
             "payment_method": self.payment_method,
             "invoice_number": self.invoice_number,
             "status": self.status,
+            "paid_amount": self.paid_amount,
+            "pending_amount": self.pending_amount,
             "notes": self.notes,
             "vat": self.vat,
             "total": self.total,
@@ -52,6 +56,8 @@ class ExpenseUpdateDTO:
     payment_method: str | None = None
     invoice_number: str | None = None
     status: str | None = None
+    paid_amount: float | None = None
+    pending_amount: float | None = None
     notes: str | None = None
     vat: float | None = None
     total: float | None = None
@@ -67,6 +73,8 @@ class ExpenseUpdateDTO:
             "payment_method": self.payment_method,
             "invoice_number": self.invoice_number,
             "status": self.status,
+            "paid_amount": self.paid_amount,
+            "pending_amount": self.pending_amount,
             "notes": self.notes,
             "vat": self.vat,
             "total": self.total,
@@ -102,6 +110,8 @@ class ExpenseRepo:
         payment_method: str | None = None,
         invoice_number: str | None = None,
         status: str | None = None,
+        paid_amount: float | None = None,
+        pending_amount: float | None = None,
         notes: str | None = None,
         vat: float | None = None,
         total: float | None = None,
@@ -119,6 +129,8 @@ class ExpenseRepo:
             payment_method=payment_method,
             invoice_number=invoice_number,
             status=status or "pending",
+            paid_amount=paid_amount,
+            pending_amount=pending_amount,
             notes=notes,
             vat=vat_value,
             total=float(total) if total is not None else (amount_value + vat_value),
@@ -140,6 +152,8 @@ class ExpenseRepo:
         payment_method: str | None = None,
         invoice_number: str | None = None,
         status: str | None = None,
+        paid_amount: float | None = None,
+        pending_amount: float | None = None,
         notes: str | None = None,
         vat: float | None = None,
         total: float | None = None,
@@ -156,6 +170,8 @@ class ExpenseRepo:
             payment_method=payment_method,
             invoice_number=invoice_number,
             status=status,
+            paid_amount=paid_amount,
+            pending_amount=pending_amount,
             notes=notes,
             vat=vat,
             total=float(total) if total is not None else (amount_value + vat_value),

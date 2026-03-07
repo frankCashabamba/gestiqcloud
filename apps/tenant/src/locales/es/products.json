@@ -90,7 +90,13 @@
     "editProduct": "Editar producto",
     "newProduct": "Nuevo producto",
     "editDescription": "Modifica los datos del producto",
-    "newDescription": "Completa el formulario para registrar un nuevo producto"
+    "newDescription": "Completa el formulario para registrar un nuevo producto",
+    "importAliases": "Alias de importación",
+    "importAliasesHelp": "Nombres alternativos para reconocer este producto en facturas de proveedor. El factor indica cuántas unidades de inventario equivale 1 unidad de la factura.",
+    "aliasName": "Nombre en factura",
+    "aliasFactor": "Factor",
+    "aliasUnit": "Unidad",
+    "addAlias": "Agregar alias"
     },
   "list": {
     "errorSavingConfig": "Error guardando la configuración",

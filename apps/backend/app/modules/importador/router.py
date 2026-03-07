@@ -274,6 +274,16 @@ def _lookup_supplier(
             .first()
         )
 
+    if not supplier and supplier_name:
+        supplier = Supplier(
+            tenant_id=tenant_id,
+            name=str(supplier_name).strip(),
+            tax_id=str(supplier_tax_id).strip() if supplier_tax_id else None,
+        )
+        db.add(supplier)
+        db.flush()
+        logger.info("Auto-created supplier '%s' for tenant %s", supplier.name, tenant_id)
+
     return (
         supplier.id if supplier else None,
         str(supplier_name).strip() if supplier_name else None,
@@ -449,7 +459,9 @@ def _save_document_to_expense(
         category=category,
         payment_method=payment_method,
         invoice_number=str(invoice_number) if invoice_number else None,
-        status="paid" if payment["status"] == "paid" else "pending",
+        status=payment["status"],
+        paid_amount=payment.get("paid_amount"),
+        pending_amount=payment.get("pending_amount"),
         notes=notes,
         vat=float(vat),
         total=float(total),
@@ -463,6 +475,245 @@ def _save_document_to_expense(
         record_id=str(expense.id),
         message="Documento guardado en gastos.",
     )
+
+
+def _save_document_to_purchase(
+    db: Session,
+    tenant_id: UUID,
+    user_id: str,
+    doc,
+    *,
+    warehouse_id: UUID | None = None,
+    notes: str | None = None,
+    update_stock: bool = True,
+) -> dict:
+    """Core purchase creation logic shared by /save and /save-as-purchase."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    from app.models.inventory.stock import StockItem, StockMove
+    from app.models.inventory.warehouse import Warehouse
+    from app.models.purchases.purchase import Purchase, PurchaseLine
+    from app.services.inventory_costing import InventoryCostingService
+
+    data = _get_doc_import_data(doc)
+    line_items = data.get("line_items") or []
+    if not line_items or not isinstance(line_items, list):
+        line_items = []
+
+    logger.info(
+        "save_purchase: tenant=%s update_stock=%s line_items=%d warehouse_id=%s",
+        tenant_id, update_stock, len(line_items), warehouse_id,
+    )
+
+    # Warehouse resolution
+    warehouse = None
+    if update_stock:
+        if warehouse_id:
+            warehouse = (
+                db.query(Warehouse)
+                .filter(
+                    Warehouse.tenant_id == str(tenant_id),
+                    Warehouse.id == str(warehouse_id),
+                    Warehouse.is_active == True,
+                )
+                .first()
+            )
+        else:
+            warehouse = (
+                db.query(Warehouse)
+                .filter(
+                    Warehouse.tenant_id == str(tenant_id),
+                    Warehouse.is_active == True,
+                )
+                .first()
+            )
+
+    logger.info("save_purchase: warehouse=%s", warehouse.id if warehouse else None)
+
+    doc_number = str(
+        _first_non_empty(
+            get_data_value(data, "doc_number", "numero_factura", "invoice_number", "invoice_no")
+        )
+        or doc.nombre_archivo
+    )[:50]
+    purchase_date = _parse_document_date(
+        _first_non_empty(doc.fecha_documento, detect_document_date(data))
+    )
+    supplier_id, supplier_name = _lookup_supplier(db, tenant_id, doc, data)
+    total = _get_document_total(doc) or 0.0
+    vat = detect_document_tax(data) or 0.0
+    subtotal = detect_document_subtotal(data)
+    if subtotal is None:
+        subtotal = max(total - vat, 0.0)
+
+    # Idempotency: check for existing purchase
+    existing = (
+        db.query(Purchase)
+        .filter(
+            Purchase.tenant_id == tenant_id,
+            Purchase.number == doc_number,
+            Purchase.total == float(total),
+        )
+    )
+    if supplier_id:
+        existing = existing.filter(Purchase.supplier_id == supplier_id)
+    existing = existing.first()
+    stock_only = False
+    logger.info("save_purchase: existing=%s update_stock=%s warehouse=%s", existing.id if existing else None, update_stock, warehouse.id if warehouse else None)
+    if existing:
+        # If stock update requested but no moves exist yet, allow stock-only pass
+        if update_stock and warehouse:
+            has_moves = (
+                db.query(StockMove)
+                .filter(StockMove.ref_type == "purchase", StockMove.ref_id == str(existing.id))
+                .first()
+            )
+            if not has_moves:
+                stock_only = True
+                purchase = existing
+        if not stock_only:
+            return {
+                "purchase_id": existing.id,
+                "status": "skipped",
+                "lines_created": 0,
+                "lines_matched": 0,
+                "unmatched_descriptions": [],
+                "warehouse_id": None,
+                "message": "La compra ya existía y no se duplicó.",
+            }
+
+    if not stock_only:
+        purchase = Purchase(
+            tenant_id=tenant_id,
+            number=doc_number,
+            supplier_id=supplier_id,
+            date=purchase_date,
+            subtotal=float(subtotal),
+            taxes=float(vat),
+            total=float(total),
+            status="received",
+            notes=notes or f"Importado desde: {doc.nombre_archivo}",
+            user_id=_coerce_user_uuid(user_id),
+        )
+        db.add(purchase)
+        db.flush()
+
+    costing = InventoryCostingService(db) if warehouse else None
+    lines_created = 0
+    lines_matched = 0
+    unmatched: list[str] = []
+
+    def _dec(v) -> "Decimal":
+        return Decimal(str(v or 0)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+    for item in line_items:
+        if not isinstance(item, dict):
+            continue
+        description = str(item.get("description") or "").strip()
+        qty = float(item.get("quantity") or 0)
+        unit_price = float(item.get("unit_price") or 0)
+        total_price = float(item.get("total_price") or qty * unit_price)
+        if not description or qty <= 0:
+            continue
+
+        product, conv_factor = _match_product(db, tenant_id, description)
+        stock_qty = qty * conv_factor  # convert invoice qty to inventory units
+        logger.info(
+            "save_purchase line: desc='%s' qty=%s matched=%s conv=%s stock_only=%s",
+            description, qty, product.name if product else None, conv_factor, stock_only,
+        )
+
+        if product and warehouse and costing and update_stock:
+            qty_dec = _dec(stock_qty)
+            cost_dec = _dec(unit_price / conv_factor if conv_factor else unit_price)
+
+            stock_row = (
+                db.query(StockItem)
+                .filter(
+                    StockItem.warehouse_id == str(warehouse.id),
+                    StockItem.product_id == str(product.id),
+                )
+                .with_for_update()
+                .first()
+            )
+            if not stock_row:
+                stock_row = StockItem(
+                    tenant_id=str(tenant_id),
+                    warehouse_id=str(warehouse.id),
+                    product_id=str(product.id),
+                    qty=0,
+                )
+                db.add(stock_row)
+                db.flush()
+
+            costing.apply_inbound(
+                str(tenant_id),
+                str(warehouse.id),
+                str(product.id),
+                qty=qty_dec,
+                unit_cost=cost_dec,
+                initial_qty=_dec(stock_row.qty),
+                initial_avg_cost=cost_dec,
+            )
+            stock_row.qty = float(stock_row.qty or 0) + float(qty_dec)
+            db.add(stock_row)
+
+            product.stock = float(product.stock or 0) + float(qty_dec)
+            db.add(product)
+
+            db.add(
+                StockMove(
+                    tenant_id=str(tenant_id),
+                    product_id=str(product.id),
+                    warehouse_id=str(warehouse.id),
+                    qty=float(qty_dec),
+                    kind="receipt",
+                    tentative=False,
+                    posted=True,
+                    ref_type="purchase",
+                    ref_id=str(purchase.id),
+                    unit_cost=float(cost_dec),
+                    total_cost=float(cost_dec * qty_dec),
+                )
+            )
+            lines_matched += 1
+        else:
+            if description and product is None:
+                unmatched.append(description)
+
+        if not stock_only:
+            db.add(
+                PurchaseLine(
+                    purchase_id=purchase.id,
+                    product_id=product.id if product else None,
+                    description=description,
+                    quantity=qty,
+                    unit_price=unit_price,
+                    tax_rate=0,
+                    total=total_price,
+                )
+            )
+            lines_created += 1
+
+    db.flush()
+    logger.info(
+        "save_purchase RESULT: stock_only=%s lines_created=%d lines_matched=%d unmatched=%s",
+        stock_only, lines_created, lines_matched, unmatched,
+    )
+    return {
+        "purchase_id": purchase.id,
+        "status": "stock_updated" if stock_only else "created",
+        "lines_created": lines_created,
+        "lines_matched": lines_matched,
+        "unmatched_descriptions": unmatched,
+        "warehouse_id": str(warehouse.id) if warehouse else None,
+        "message": (
+            f"Stock actualizado para compra existente. {lines_matched} producto(s) actualizados."
+            if stock_only
+            else f"Compra registrada. {lines_matched} producto(s) actualizados en stock."
+        )
+        + (f" Sin match: {unmatched}" if unmatched else ""),
+    }
 
 
 @router.post("/upload", response_model=list[UploadResponse], dependencies=protected)
@@ -799,6 +1050,54 @@ class SyncRecipesRequest(BaseModel):
     force: bool = False
 
 
+def _learn_from_confirmation(
+    db: Session, doc, datos_confirmados: dict, user_id: str
+) -> None:
+    """Update the associated recipe snapshot's field_descriptions based on user corrections.
+
+    Compares datos_extraidos vs datos_confirmados to detect which fields the user
+    corrected, then stores those hints so future extractions improve.
+    """
+    from . import recipe_crud
+
+    if not doc.recipe_snapshot_id:
+        return
+    datos_extraidos = doc.datos_extraidos or {}
+    if not isinstance(datos_extraidos, dict) or not isinstance(datos_confirmados, dict):
+        return
+
+    skip_keys = {"filas", "total_filas", "columnas", "columnas_norm", "hojas",
+                 "sheet_usada", "metadata", "filas_por_hoja", "filas_por_hoja_count"}
+    corrections: dict[str, str] = {}
+    for key, confirmed_val in datos_confirmados.items():
+        if key in skip_keys or key.startswith("_"):
+            continue
+        original_val = datos_extraidos.get(key)
+        if confirmed_val != original_val and confirmed_val is not None:
+            corrections[key] = f"User corrected '{key}': expected '{confirmed_val}' (was '{original_val}')"
+
+    if not corrections:
+        return
+
+    snap = recipe_crud.get_snapshot(db, doc.recipe_snapshot_id)
+    if not snap or not snap.content_json:
+        return
+
+    content = dict(snap.content_json)
+    fd = dict(content.get("field_descriptions") or {})
+    fd.update(corrections)
+    content["field_descriptions"] = fd
+    snap.content_json = content
+
+    crud.add_log(
+        db,
+        doc.id,
+        "LEARN",
+        user_id,
+        {"corrections": corrections, "snapshot_id": str(snap.id)},
+    )
+
+
 @router.post("/documents/{doc_id}/confirm", response_model=DocumentoOut, dependencies=protected)
 def confirm_document(
     doc_id: UUID, body: ConfirmRequest, request: Request, db: Session = Depends(get_db)
@@ -814,6 +1113,9 @@ def confirm_document(
         db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"}
     )
     crud.add_log(db, doc.id, "CONFIRM", user_id, {"datos_confirmados": body.datos_confirmados})
+
+    _learn_from_confirmation(db, doc, body.datos_confirmados, user_id)
+
     db.commit()
     return doc
 
@@ -1036,6 +1338,45 @@ def save_document(
                 record_ids=[str(sync_result.recipe_id)],
                 message=f"Receta guardada: {sync_result.recipe_name}",
             )
+    elif destination == "supplier_invoice":
+        purchase_result = _save_document_to_purchase(
+            db=db,
+            tenant_id=doc.tenant_id,
+            user_id=user_id,
+            doc=doc,
+            warehouse_id=body.warehouse_id,
+            notes=body.notes,
+            update_stock=body.update_stock,
+        )
+        # Also create expense record for payment tracking
+        expense_result = _save_document_to_expense(
+            db=db,
+            tenant_id=doc.tenant_id,
+            user_id=user_id,
+            doc=doc,
+            body=SaveDocumentRequest(
+                destination="supplier_invoice",
+                payment_status=body.payment_status,
+                paid_amount=body.paid_amount,
+                pending_amount=body.pending_amount,
+                payment_method=body.payment_method,
+                paid_at=body.paid_at,
+                notes=body.notes,
+            ),
+        )
+        record_ids = [str(purchase_result["purchase_id"])]
+        if expense_result.record_id:
+            record_ids.append(expense_result.record_id)
+        result = SaveDocumentResponse(
+            target="purchases",
+            destination="supplier_invoice",
+            status=purchase_result["status"],
+            record_id=str(purchase_result["purchase_id"]),
+            record_ids=record_ids,
+            message=f"Compra registrada y gasto creado ({body.payment_status})."
+            if expense_result.status == "created"
+            else purchase_result.get("message", "Compra registrada."),
+        )
     else:
         result = _save_document_to_expense(
             db=db,
@@ -1319,7 +1660,12 @@ async def save_as_daily_log(
 
 
 def _match_product(db: Session, tenant_id: UUID, description: str):
-    """Fuzzy product lookup by description → Product or None."""
+    """Fuzzy product lookup by description → (Product, conversion_factor) or (None, 1).
+
+    import_aliases format on Product:
+      [{"name": "HARINA TRADICION PREMIUM 50 KG", "factor": 50, "unit": "kg"}, ...]
+    factor = how many inventory-units per 1 invoice-unit.
+    """
     import re
     import unicodedata
 
@@ -1333,21 +1679,41 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
 
     desc_norm = _norm(description)
     if not desc_norm:
-        return None
+        return None, 1.0
 
     products = (
         db.query(Product)
         .filter(Product.tenant_id == str(tenant_id), Product.active == True)  # noqa: E712
         .all()
     )
+
+    # 1) Check import_aliases first (exact or substring)
+    for p in products:
+        aliases = p.import_aliases or []
+        if not isinstance(aliases, list):
+            continue
+        for alias in aliases:
+            if not isinstance(alias, dict):
+                continue
+            alias_name = _norm(str(alias.get("name") or ""))
+            if not alias_name:
+                continue
+            if alias_name == desc_norm or alias_name in desc_norm or desc_norm in alias_name:
+                factor = float(alias.get("factor") or 1)
+                return p, factor
+
+    # 2) Exact name match
     for p in products:
         if _norm(p.name) == desc_norm:
-            return p
+            return p, 1.0
+
+    # 3) Substring match
     for p in products:
         pn = _norm(p.name)
         if desc_norm in pn or pn in desc_norm:
-            return p
-    return None
+            return p, 1.0
+
+    return None, 1.0
 
 
 @router.post(
@@ -1362,13 +1728,6 @@ def save_document_as_purchase(
     db: Session = Depends(get_db),
 ):
     """Registra la factura de proveedor como Purchase, crea PurchaseLines y actualiza stock."""
-    from decimal import ROUND_HALF_UP, Decimal
-
-    from app.models.inventory.stock import StockItem, StockMove
-    from app.models.inventory.warehouse import Warehouse
-    from app.models.purchases.purchase import Purchase, PurchaseLine
-    from app.services.inventory_costing import InventoryCostingService
-
     tenant_id = _tenant_id(request)
     user_id = _user_id(request)
 
@@ -1384,149 +1743,15 @@ def save_document_as_purchase(
             detail="El documento no tiene line_items extraídos. Usa 'Reimportar limpio' para que el modelo extraiga los ítems de la factura.",
         )
 
-    # Warehouse: usar el indicado o el primero activo del tenant
-    if body.warehouse_id:
-        warehouse = (
-            db.query(Warehouse)
-            .filter(
-                Warehouse.tenant_id == str(tenant_id),
-                Warehouse.id == str(body.warehouse_id),
-                Warehouse.is_active == True,  # noqa: E712
-            )
-            .first()
-        )
-        if not warehouse:
-            raise HTTPException(status_code=404, detail="Almacén no encontrado")
-    else:
-        warehouse = (
-            db.query(Warehouse)
-            .filter(
-                Warehouse.tenant_id == str(tenant_id),
-                Warehouse.is_active == True,  # noqa: E712
-            )
-            .first()
-        )
-
-    doc_number = str(
-        _first_non_empty(
-            get_data_value(data, "doc_number", "numero_factura", "invoice_number", "invoice_no")
-        )
-        or doc.nombre_archivo
-    )[:50]
-    purchase_date = _parse_document_date(
-        _first_non_empty(doc.fecha_documento, detect_document_date(data))
-    )
-    supplier_id, _ = _lookup_supplier(db, tenant_id, doc, data)
-    total = _get_document_total(doc) or 0.0
-    vat = detect_document_tax(data) or 0.0
-    subtotal = detect_document_subtotal(data)
-    if subtotal is None:
-        subtotal = max(total - vat, 0.0)
-
-    purchase = Purchase(
+    result = _save_document_to_purchase(
+        db=db,
         tenant_id=tenant_id,
-        number=doc_number,
-        supplier_id=supplier_id,
-        date=purchase_date,
-        subtotal=float(subtotal),
-        taxes=float(vat),
-        total=float(total),
-        status="received",
-        notes=body.notes or f"Importado desde: {doc.nombre_archivo}",
-        user_id=_coerce_user_uuid(user_id),
+        user_id=user_id,
+        doc=doc,
+        warehouse_id=body.warehouse_id,
+        notes=body.notes,
+        update_stock=True,
     )
-    db.add(purchase)
-    db.flush()
-
-    costing = InventoryCostingService(db) if warehouse else None
-    lines_created = 0
-    lines_matched = 0
-    unmatched: list[str] = []
-
-    def _dec(v) -> Decimal:
-        return Decimal(str(v or 0)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
-
-    for item in line_items:
-        if not isinstance(item, dict):
-            continue
-        description = str(item.get("description") or "").strip()
-        qty = float(item.get("quantity") or 0)
-        unit_price = float(item.get("unit_price") or 0)
-        total_price = float(item.get("total_price") or qty * unit_price)
-        if not description or qty <= 0:
-            continue
-
-        product = _match_product(db, tenant_id, description)
-
-        if product and warehouse and costing:
-            qty_dec = _dec(qty)
-            cost_dec = _dec(unit_price)
-
-            stock_row = (
-                db.query(StockItem)
-                .filter(
-                    StockItem.warehouse_id == str(warehouse.id),
-                    StockItem.product_id == str(product.id),
-                )
-                .with_for_update()
-                .first()
-            )
-            if not stock_row:
-                stock_row = StockItem(
-                    tenant_id=str(tenant_id),
-                    warehouse_id=str(warehouse.id),
-                    product_id=str(product.id),
-                    qty=0,
-                )
-                db.add(stock_row)
-                db.flush()
-
-            costing.apply_inbound(
-                str(tenant_id),
-                str(warehouse.id),
-                str(product.id),
-                qty=qty_dec,
-                unit_cost=cost_dec,
-                initial_qty=_dec(stock_row.qty),
-                initial_avg_cost=cost_dec,
-            )
-            stock_row.qty = (stock_row.qty or 0) + float(qty_dec)
-            db.add(stock_row)
-
-            product.stock = (product.stock or 0) + float(qty_dec)
-            db.add(product)
-
-            db.add(
-                StockMove(
-                    tenant_id=str(tenant_id),
-                    product_id=str(product.id),
-                    warehouse_id=str(warehouse.id),
-                    qty=float(qty_dec),
-                    kind="receipt",
-                    tentative=False,
-                    posted=True,
-                    ref_type="purchase",
-                    ref_id=str(purchase.id),
-                    unit_cost=float(cost_dec),
-                    total_cost=float(cost_dec * qty_dec),
-                )
-            )
-            lines_matched += 1
-        else:
-            unmatched.append(description)
-
-        db.add(
-            PurchaseLine(
-                purchase_id=purchase.id,
-                product_id=product.id if product else None,
-                description=description,
-                quantity=qty,
-                unit_price=unit_price,
-                tax_rate=0,
-                total=total_price,
-            )
-        )
-        lines_created += 1
 
     crud.add_log(
         db,
@@ -1534,32 +1759,31 @@ def save_document_as_purchase(
         "SAVE_PURCHASE",
         user_id,
         {
-            "purchase_id": str(purchase.id),
-            "lines_created": lines_created,
-            "lines_matched": lines_matched,
-            "unmatched": unmatched,
-            "warehouse_id": str(warehouse.id) if warehouse else None,
+            "purchase_id": str(result["purchase_id"]),
+            "lines_created": result["lines_created"],
+            "lines_matched": result["lines_matched"],
+            "unmatched": result["unmatched_descriptions"],
+            "warehouse_id": result.get("warehouse_id"),
         },
     )
     confirmed = dict(data)
     confirmed["_save"] = {
-        "destination": "purchase",
+        "destination": "supplier_invoice",
         "target": "purchases",
-        "status": "created",
-        "record_id": str(purchase.id),
+        "status": result["status"],
+        "record_id": str(result["purchase_id"]),
         "saved_at": datetime.datetime.utcnow().isoformat(),
     }
     crud.update_documento(db, doc, {"datos_confirmados": confirmed, "estado": "CONFIRMED"})
     db.commit()
 
     return SaveAsPurchaseResponse(
-        purchase_id=purchase.id,
-        status="created",
-        lines_created=lines_created,
-        lines_matched=lines_matched,
-        unmatched_descriptions=unmatched,
-        message=f"Compra registrada. {lines_matched} producto(s) actualizados en stock."
-        + (f" Sin match: {unmatched}" if unmatched else ""),
+        purchase_id=result["purchase_id"],
+        status=result["status"],
+        lines_created=result["lines_created"],
+        lines_matched=result["lines_matched"],
+        unmatched_descriptions=result["unmatched_descriptions"],
+        message=result.get("message"),
     )
 
 

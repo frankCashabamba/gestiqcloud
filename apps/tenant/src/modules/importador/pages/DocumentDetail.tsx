@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
-import { canSaveDocument, canSaveProductsSheet, fetchDocument, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
 export default function DocumentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -32,6 +32,9 @@ export default function DocumentDetail() {
       }
     : null
   const [activeSheet, setActiveSheet] = useState<string | null>(null)
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
+
+  useEffect(() => { fetchSaveCapabilities().then(setCapabilities).catch(() => {}) }, [])
 
   const load = async () => {
     if (!id) return
@@ -187,7 +190,8 @@ export default function DocumentDetail() {
   const unsyncedSheets = sheets.filter(sheet => !syncedSheets[sheet]?.recipeId)
   const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
   const isSynced = syncedCount > 0
-  const saveEnabled = canSaveDocument(doc)
+  const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
+  const saveEnabled = canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && doc.estado !== 'REJECTED'
   const saveDestination = suggestSaveDestination(doc)
   const docCategory = getDocCategory(doc, sheets)
   const activeSheetRows = (() => {
@@ -404,6 +408,9 @@ export default function DocumentDetail() {
               {doc.estado === 'REVIEW' && (
                 <>
                   <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
+                  <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
+                    {saving ? t('docDetail.buttons.confirming') : t('docDetail.buttons.confirm')}
+                  </button>
                   <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
@@ -418,6 +425,9 @@ export default function DocumentDetail() {
               {doc.estado === 'REVIEW' && (
                 <>
                   <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
+                  <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
+                    {saving ? t('docDetail.buttons.confirming') : t('docDetail.buttons.confirm')}
+                  </button>
                   <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
@@ -613,31 +623,35 @@ export default function DocumentDetail() {
                         )}
                       </tbody>
                     </table>
-                    {Array.isArray((datos as any).lineas) && (datos as any).lineas.length > 0 && (
-                      <div style={{ marginTop: '0.75rem' }}>
-                        <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 4 }}>Line items</div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                          <thead>
-                            <tr style={{ background: '#f9fafb' }}>
-                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Description</th>
-                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Qty</th>
-                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Unit price</th>
-                              <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {((datos as any).lineas as Array<Record<string, unknown>>).map((line, i) => (
-                              <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                <td style={{ padding: '0.3rem 0.5rem' }}>{String(line.descripcion ?? line.description ?? line.producto ?? '—')}</td>
-                                <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{String(line.cantidad ?? line.qty ?? line.quantity ?? '—')}</td>
-                                <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{line.precio_unitario != null ? `$${Number(line.precio_unitario).toFixed(2)}` : '—'}</td>
-                                <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{line.precio_total != null ? `$${Number(line.precio_total).toFixed(2)}` : '—'}</td>
+                    {(() => {
+                      const items = (datos as any).lineas || (datos as any).line_items
+                      if (!Array.isArray(items) || items.length === 0) return null
+                      return (
+                        <div style={{ marginTop: '0.75rem' }}>
+                          <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 4 }}>Line items ({items.length})</div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                            <thead>
+                              <tr style={{ background: '#f9fafb' }}>
+                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Descripción</th>
+                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Cant.</th>
+                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>P. Unit.</th>
+                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Total</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                            </thead>
+                            <tbody>
+                              {(items as Array<Record<string, unknown>>).map((line, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                  <td style={{ padding: '0.3rem 0.5rem' }}>{String(line.descripcion ?? line.description ?? line.producto ?? '—')}</td>
+                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{String(line.cantidad ?? line.qty ?? line.quantity ?? '—')}</td>
+                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{(line.precio_unitario ?? line.unit_price) != null ? Number(line.precio_unitario ?? line.unit_price).toFixed(2) : '—'}</td>
+                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{(line.precio_total ?? line.total_price) != null ? Number(line.precio_total ?? line.total_price).toFixed(2) : '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
+                    })()}
                   </>
                 )}
               </>

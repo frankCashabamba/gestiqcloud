@@ -57,6 +57,10 @@ class Purchase(Base):
         "PurchaseLine", back_populates="purchase", cascade="all, delete-orphan"
     )
 
+    @property
+    def supplier_name(self) -> str | None:
+        return self.supplier.name if self.supplier else None
+
     def __repr__(self):
         return f"<Purchase {self.number} - {self.total}>"
 

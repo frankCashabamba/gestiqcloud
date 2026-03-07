@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.crud_base import CRUDBase
 from app.models.purchases import Purchase
@@ -54,6 +54,7 @@ class PurchaseRepo:
         return (
             self.db.query(Purchase)
             .filter(Purchase.tenant_id == tenant_id)
+            .options(joinedload(Purchase.supplier))
             .order_by(Purchase.date.desc())
             .all()
         )

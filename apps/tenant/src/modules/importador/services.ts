@@ -246,10 +246,11 @@ export type SaveDocumentPayload = {
   payment_method?: 'cash' | 'bank' | 'card' | 'transfer' | 'direct_debit' | 'check' | 'other'
   paid_at?: string
   notes?: string
+  update_stock?: boolean
 }
 
 export type SaveDocumentResult = {
-  target: 'recipes' | 'expenses'
+  target: 'recipes' | 'purchases' | 'expenses'
   destination: DocumentSaveDestination
   status: 'created' | 'updated' | 'skipped'
   record_id?: string
@@ -502,7 +503,7 @@ export async function saveDocument(id: string, payload: SaveDocumentPayload): Pr
     statusRaw === 'updated' || statusRaw === 'skipped' ? statusRaw : 'created'
 
   return {
-    target: raw.target === 'recipes' ? 'recipes' : 'expenses',
+    target: raw.target === 'recipes' ? 'recipes' : raw.target === 'purchases' ? 'purchases' : 'expenses',
     destination: destination === 'recipe' || destination === 'supplier_invoice' ? destination : 'expense',
     status,
     record_id: raw.record_id ? String(raw.record_id) : undefined,
@@ -643,4 +644,9 @@ export async function saveProductsFromDocument(
 export async function purgeAllImportador(): Promise<{ deleted_total: number; tables: Record<string, number> }> {
   const { data } = await api.delete(TENANT_IMPORTADOR.purgeAll)
   return data as { deleted_total: number; tables: Record<string, number> }
+}
+
+export async function fetchSaveCapabilities(): Promise<Record<string, boolean>> {
+  const { data } = await api.get('/api/v1/importador/save-capabilities')
+  return data
 }

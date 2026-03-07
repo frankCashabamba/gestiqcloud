@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from typing import Generic, TypeVar
+from uuid import UUID as _UUID
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -40,7 +41,7 @@ class CRUDBase(_BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDT
 
     # Backwards name maintained
     def update(self, db: Session, id_or_obj, dto: UpdateDTO):  # type: ignore[override]
-        if isinstance(id_or_obj, int | str):
+        if isinstance(id_or_obj, (int, str, _UUID)):
             return self.update_by_id(db, id_or_obj, dto)
         # Fallback to BaseCRUD signature (db_obj provided)
         return super().update(db, id_or_obj, dto)

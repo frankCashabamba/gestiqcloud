@@ -89,4 +89,9 @@ def detect_document_currency(data: dict[str, Any] | None) -> str | None:
 
 def detect_document_date(data: dict[str, Any] | None) -> str | None:
     value = get_data_value(data, "issue_date", "fecha", "date", "invoice_date", "expense_date")
-    return str(value).strip() if value is not None else None
+    if value is None:
+        return None
+    s = str(value).strip()[:20]
+    if "T" in s:
+        s = s.split("T")[0]
+    return s or None

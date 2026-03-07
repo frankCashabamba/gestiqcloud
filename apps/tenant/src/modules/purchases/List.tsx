@@ -6,12 +6,18 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import StatusBadge from '../sales/components/StatusBadge'
 import { usePermission } from '../../hooks/usePermission'
+import { useAuth } from '../../auth/AuthContext'
 import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
 
 export default function ComprasList() {
   const { t } = useTranslation(['purchases', 'common'])
   const can = usePermission()
+  const { profile } = useAuth()
+  const isAdminEmpresa =
+    Boolean((profile as any)?.es_admin_empresa) ||
+    Boolean((profile as any)?.is_company_admin) ||
+    Boolean(profile?.roles?.includes('admin'))
   const [items, setItems] = useState<Compra[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -234,7 +240,7 @@ export default function ComprasList() {
                       {t('purchases:edit')}
                     </Link>
                   )}
-                  {v.estado === 'draft' && can('purchases:delete') && (
+                  {(v.estado === 'draft' || isAdminEmpresa) && can('purchases:delete') && (
                     <ProtectedButton
                       permission="purchases:delete"
                       variant="ghost"
