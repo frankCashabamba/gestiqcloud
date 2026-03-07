@@ -24,7 +24,7 @@ interface EditForm {
   consumption_rate: string;
 }
 
-const DEFAULT_COST_DRIVER_UNIT = 'hour';
+const DEFAULT_COST_DRIVER_UNIT = '';
 
 const createEmptyForm = (unit: string = DEFAULT_COST_DRIVER_UNIT): EditForm => ({
   code: '',
@@ -265,7 +265,7 @@ export default function CostDriversPage() {
             <button
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               onClick={handleSave}
-              disabled={saving || !form.code.trim() || !form.name.trim()}
+              disabled={saving || !form.code.trim() || !form.name.trim() || !form.unit.trim()}
             >
               {saving ? t('productions:costDrivers.saving') : t('productions:costDrivers.save')}
             </button>

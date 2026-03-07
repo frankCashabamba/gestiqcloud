@@ -31,6 +31,7 @@ from app.config.database import IS_SQLITE, PG_SCHEMA_NAME, get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls, tenant_id_guc_expr_text
+from app.models.core.global_catalogs import UnitOfMeasure
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
@@ -118,25 +119,68 @@ logger = logging.getLogger(__name__)
 
 
 # HELPERS
-_COST_DRIVER_UNIT_FAMILIES = {
-    "hour": {"h", "hh", "hr", "hrs", "hora", "horas", "hour", "hours"},
-    "liter": {"l", "lt", "ltr", "litro", "litros", "liter", "liters", "litre", "litres"},
-    "kwh": {"kwh", "kwhr", "kilowatthora", "kilowatthour", "kilowatthours"},
-    "unit": {"u", "un", "und", "unidad", "unidades", "unit", "units", "uds", "ud"},
-    "flat": {"flat", "fijo", "fixed"},
-}
-
-
 def _normalize_cost_driver_unit_token(value: str | None) -> str:
     return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
 
 
-def _cost_driver_unit_family(value: str | None) -> str | None:
-    token = _normalize_cost_driver_unit_token(value)
-    for family, aliases in _COST_DRIVER_UNIT_FAMILIES.items():
-        if token in aliases:
-            return family
-    return None
+def _list_cost_driver_unit_options(db: Session, tenant_id: UUID) -> list[object]:
+    unit_types = (
+        db.query(CostDriverUnitType)
+        .filter(CostDriverUnitType.tenant_id == tenant_id, CostDriverUnitType.is_active)
+        .order_by(CostDriverUnitType.sort_order, CostDriverUnitType.code)
+        .all()
+    )
+    if unit_types:
+        return unit_types
+
+    return (
+        db.query(UnitOfMeasure)
+        .filter(UnitOfMeasure.active.is_(True))
+        .order_by(UnitOfMeasure.code)
+        .all()
+    )
+
+
+def _cost_driver_unit_option_code(unit_option: object) -> str:
+    return str(getattr(unit_option, "code", "") or "").strip()
+
+
+def _cost_driver_unit_option_name_en(unit_option: object) -> str:
+    return str(
+        getattr(unit_option, "name_en", None) or getattr(unit_option, "name", None) or ""
+    ).strip()
+
+
+def _cost_driver_unit_option_name_es(unit_option: object) -> str:
+    return str(
+        getattr(unit_option, "name_es", None) or getattr(unit_option, "name", None) or ""
+    ).strip()
+
+
+def _cost_driver_unit_option_abbreviation(unit_option: object) -> str:
+    return str(getattr(unit_option, "abbreviation", "") or "").strip()
+
+
+def _serialize_cost_driver_unit_option(unit_option: object) -> dict[str, object]:
+    return {
+        "id": str(getattr(unit_option, "id", "") or ""),
+        "code": _cost_driver_unit_option_code(unit_option),
+        "name_en": _cost_driver_unit_option_name_en(unit_option),
+        "name_es": _cost_driver_unit_option_name_es(unit_option) or None,
+        "is_active": bool(getattr(unit_option, "is_active", getattr(unit_option, "active", True))),
+        "sort_order": int(getattr(unit_option, "sort_order", 0) or 0),
+    }
+
+
+def _cost_driver_unit_option_aliases(unit_option: object) -> set[str]:
+    aliases = {
+        _normalize_cost_driver_unit_token(_cost_driver_unit_option_code(unit_option)),
+        _normalize_cost_driver_unit_token(_cost_driver_unit_option_name_en(unit_option)),
+        _normalize_cost_driver_unit_token(_cost_driver_unit_option_name_es(unit_option)),
+        _normalize_cost_driver_unit_token(_cost_driver_unit_option_abbreviation(unit_option)),
+    }
+    aliases.discard("")
+    return aliases
 
 
 def _resolve_cost_driver_unit_code(db: Session, tenant_id: UUID, raw_unit: str | None) -> str:
@@ -144,35 +188,15 @@ def _resolve_cost_driver_unit_code(db: Session, tenant_id: UUID, raw_unit: str |
     if not unit:
         return unit
 
-    unit_types = (
-        db.query(CostDriverUnitType)
-        .filter(CostDriverUnitType.tenant_id == tenant_id, CostDriverUnitType.is_active)
-        .all()
-    )
+    unit_types = _list_cost_driver_unit_options(db, tenant_id)
     if not unit_types:
         return unit
 
     normalized_unit = _normalize_cost_driver_unit_token(unit)
-    requested_family = _cost_driver_unit_family(unit)
 
     for unit_type in unit_types:
-        aliases = {
-            _normalize_cost_driver_unit_token(unit_type.code),
-            _normalize_cost_driver_unit_token(unit_type.name_en),
-            _normalize_cost_driver_unit_token(unit_type.name_es),
-        }
-        aliases.discard("")
-        if normalized_unit in aliases:
-            return unit_type.code
-
-    if requested_family:
-        for unit_type in unit_types:
-            if requested_family in {
-                _cost_driver_unit_family(unit_type.code),
-                _cost_driver_unit_family(unit_type.name_en),
-                _cost_driver_unit_family(unit_type.name_es),
-            }:
-                return unit_type.code
+        if normalized_unit in _cost_driver_unit_option_aliases(unit_type):
+            return _cost_driver_unit_option_code(unit_type)
 
     raise HTTPException(status_code=400, detail=f"Unidad de costo no válida: {unit}")
 
@@ -1698,17 +1722,16 @@ def list_cost_driver_unit_types(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    """List available unit types for cost drivers (from DB, not hardcoded)."""
+    """List available unit types for cost drivers.
+
+    Falls back to the global units catalog when the tenant does not yet have a
+    dedicated cost-driver unit catalog.
+    """
     tenant_id = UUID(claims["tenant_id"])
-    return (
-        db.query(CostDriverUnitType)
-        .filter(
-            CostDriverUnitType.tenant_id == tenant_id,
-            CostDriverUnitType.is_active,
-        )
-        .order_by(CostDriverUnitType.sort_order)
-        .all()
-    )
+    return [
+        _serialize_cost_driver_unit_option(unit_option)
+        for unit_option in _list_cost_driver_unit_options(db, tenant_id)
+    ]
 
 
 # ============================================================================

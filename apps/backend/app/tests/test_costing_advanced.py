@@ -14,8 +14,10 @@ from decimal import Decimal
 from uuid import UUID
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.models.core.global_catalogs import UnitOfMeasure
 from app.models.production._cost_drivers import (
     CostDriverUnitType,
     ProductionCostDriver,
@@ -314,6 +316,43 @@ class TestCostCalculation:
         assert result["cost_lines"][0]["qty_standard"] == pytest.approx(65 / 60, rel=0.001)
         assert result["labor_total"] == pytest.approx((65 / 60) * 4, rel=0.001)
 
+    def test_kwh_driver_is_classified_as_electricity_without_code_prefix(
+        self, db: Session, test_recipe: Recipe
+    ):
+        """KWH debe clasificarse como electricidad aunque el código sea genérico."""
+        electricity_driver = ProductionCostDriver(
+            tenant_id=test_recipe.tenant_id,
+            code="ELEC",
+            name="Electricidad",
+            unit="KWH",
+            default_rate=Decimal("0.94"),
+            consumption_rate=Decimal("4.00"),
+            is_active=True,
+        )
+        db.add(electricity_driver)
+        db.flush()
+
+        db.add(
+            RecipeCostLine(
+                recipe_id=test_recipe.id,
+                driver_id=electricity_driver.id,
+                qty_standard=Decimal("1.3333"),
+                headcount=1,
+                line_order=0,
+            )
+        )
+        db.commit()
+
+        result = calculate_recipe_full_cost(db, test_recipe.id, period_month=None)
+        electricity_line = next(
+            line for line in result["cost_lines"] if line["driver_code"] == "ELEC"
+        )
+
+        assert electricity_line["driver_unit"] == "KWH"
+        assert electricity_line["cost_category"] == "electricity"
+        assert result["electricity_total"] == pytest.approx(1.3333 * 0.94, rel=0.001)
+        assert result["other_indirect_total"] == pytest.approx(0, abs=0.001)
+
     def test_cost_driver_unit_is_normalized_to_catalog_code(
         self, db: Session, test_tenant_id: UUID
     ):
@@ -330,9 +369,43 @@ class TestCostCalculation:
         )
         db.commit()
 
-        assert _resolve_cost_driver_unit_code(db, test_tenant_id, "H") == "hour"
         assert _resolve_cost_driver_unit_code(db, test_tenant_id, "hora") == "hour"
         assert _resolve_cost_driver_unit_code(db, test_tenant_id, "hour") == "hour"
+
+    def test_cost_driver_unit_falls_back_to_global_units_catalog(
+        self, db: Session, test_tenant_id: UUID
+    ):
+        """Si el tenant no tiene catálogo propio, usar units_of_measure."""
+        db.query(CostDriverUnitType).filter(CostDriverUnitType.tenant_id == test_tenant_id).delete()
+        existing = db.query(UnitOfMeasure).filter(UnitOfMeasure.code == "HORA").first()
+        if not existing:
+            db.add(
+                UnitOfMeasure(
+                    code="HORA",
+                    name="Hora",
+                    abbreviation="h",
+                    active=True,
+                )
+            )
+        existing_lot = db.query(UnitOfMeasure).filter(UnitOfMeasure.code == "LOTE").first()
+        if not existing_lot:
+            db.add(
+                UnitOfMeasure(
+                    code="LOTE",
+                    name="Fijo por lote",
+                    abbreviation="lote",
+                    active=True,
+                )
+            )
+        db.commit()
+
+        assert _resolve_cost_driver_unit_code(db, test_tenant_id, "h") == "HORA"
+        assert _resolve_cost_driver_unit_code(db, test_tenant_id, "hora") == "HORA"
+        assert _resolve_cost_driver_unit_code(db, test_tenant_id, "lote") == "LOTE"
+        with pytest.raises(HTTPException):
+            _resolve_cost_driver_unit_code(db, test_tenant_id, "hour")
+        with pytest.raises(HTTPException):
+            _resolve_cost_driver_unit_code(db, test_tenant_id, "flat")
 
 
 class TestCostPeriodService:

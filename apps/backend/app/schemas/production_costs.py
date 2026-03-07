@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class CostDriverBase(BaseModel):
     code: str = Field(..., min_length=1, max_length=30, description="Unique code per tenant")
     name: str = Field(..., min_length=1, max_length=100, description="Display name")
-    unit: str = Field(default="hour", max_length=20, description="hour, kwh, unit, flat")
+    unit: str = Field(..., min_length=1, max_length=20, description="Unit code from catalog")
     default_rate: Decimal = Field(default=Decimal("0"), ge=0, description="Default cost per unit")
     consumption_rate: Decimal | None = Field(
         None, ge=0, description="Auto-calc consumption (L/hr, kWh/hr, etc.)"

@@ -25,7 +25,7 @@ export interface CostDriver {
 export interface CostDriverCreate {
   code: string;
   name: string;
-  unit?: string;
+  unit: string;
   default_rate?: number;
   consumption_rate?: number | null;
   is_active?: boolean;

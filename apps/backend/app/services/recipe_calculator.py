@@ -19,6 +19,30 @@ from app.models.recipes import Recipe, RecipeIngredient
 # ============================================================================
 
 _HOUR_LIKE_DRIVER_UNITS = {"h", "hh", "hr", "hrs", "hora", "horas", "hour", "hours"}
+_KWH_LIKE_DRIVER_UNITS = {"kwh", "kwhr", "kilowatthora", "kilowatthour", "kilowatthours"}
+_LITER_LIKE_DRIVER_UNITS = {
+    "l",
+    "lt",
+    "ltr",
+    "litro",
+    "litros",
+    "liter",
+    "liters",
+    "litre",
+    "litres",
+}
+
+
+def _driver_code_upper(driver: ProductionCostDriver | None) -> str:
+    return (driver.code or "").upper() if driver else ""
+
+
+def _driver_unit_normalized(driver: ProductionCostDriver | None) -> str:
+    return _normalize_cost_driver_unit(driver.unit if driver else None)
+
+
+def _driver_has_consumption_rate(driver: ProductionCostDriver | None) -> bool:
+    return bool(driver and (driver.consumption_rate or 0) > 0)
 
 
 def _normalize_cost_driver_unit(unit: str | None) -> str:
@@ -29,13 +53,38 @@ def _is_labor_driver(driver: ProductionCostDriver | None) -> bool:
     if not driver:
         return False
 
-    code_upper = (driver.code or "").upper()
+    code_upper = _driver_code_upper(driver)
     if code_upper.startswith("LABOR"):
         return True
 
-    return _normalize_cost_driver_unit(
-        driver.unit
-    ) in _HOUR_LIKE_DRIVER_UNITS and not code_upper.startswith(("ENERGY", "DIESEL", "FUEL", "OVEN"))
+    return _driver_unit_normalized(driver) in _HOUR_LIKE_DRIVER_UNITS and not code_upper.startswith(
+        ("ENERGY", "ELECTRICITY", "ELEC", "POWER", "DIESEL", "FUEL", "OVEN")
+    )
+
+
+def _is_electricity_driver(driver: ProductionCostDriver | None) -> bool:
+    if not driver or _is_labor_driver(driver):
+        return False
+
+    unit_norm = _driver_unit_normalized(driver)
+    if unit_norm in _KWH_LIKE_DRIVER_UNITS:
+        return True
+
+    code_upper = _driver_code_upper(driver)
+    return code_upper.startswith(("ENERGY", "ELECTRICITY", "ELEC", "POWER", "OVEN"))
+
+
+def _is_diesel_driver(driver: ProductionCostDriver | None) -> bool:
+    if not driver or _is_labor_driver(driver) or _is_electricity_driver(driver):
+        return False
+
+    code_upper = _driver_code_upper(driver)
+    if code_upper.startswith(("DIESEL", "FUEL", "GAS")):
+        return True
+
+    return _driver_unit_normalized(
+        driver
+    ) in _LITER_LIKE_DRIVER_UNITS and _driver_has_consumption_rate(driver)
 
 
 def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bool = True) -> dict:
@@ -303,12 +352,11 @@ def calculate_recipe_full_cost(
         effective_rate = (
             line.rate_override if line.rate_override is not None else driver.default_rate
         )
-        code_upper = (driver.code or "").upper()
 
         # Clasificar tipo de costo
         is_labor = _is_labor_driver(driver)
-        is_diesel = code_upper.startswith("DIESEL") or code_upper.startswith("FUEL")
-        is_electricity = code_upper.startswith("ENERGY") or code_upper.startswith("ELECTRICITY")
+        is_electricity = _is_electricity_driver(driver)
+        is_diesel = _is_diesel_driver(driver)
 
         # Determinar cantidad a usar
         qty = Decimal(str(line.qty_standard))
@@ -399,18 +447,18 @@ def calculate_recipe_full_cost(
     # Energy: auto-calculated from recipe oven_time × oven driver rate (fallback si no hay period)
     if not cost_period:
         baking_minutes = oven_minutes or 0
-        if baking_minutes > 0:
-            # Find oven/energy driver for this tenant
-            oven_driver = (
+        if baking_minutes > 0 and electricity_total == 0:
+            # Find an electricity/oven driver for this tenant without relying on code prefixes only.
+            active_drivers = (
                 db.query(ProductionCostDriver)
                 .filter(
                     ProductionCostDriver.tenant_id == recipe.tenant_id,
                     ProductionCostDriver.is_active.is_(True),
-                    ProductionCostDriver.code.ilike("ENERGY%")
-                    | ProductionCostDriver.code.ilike("OVEN%"),
                 )
-                .first()
+                .order_by(ProductionCostDriver.code)
+                .all()
             )
+            oven_driver = next((d for d in active_drivers if _is_electricity_driver(d)), None)
             if oven_driver:
                 oven_rate = Decimal(str(oven_driver.default_rate or 0))
                 baking_hours = Decimal(str(baking_minutes)) / Decimal("60")
