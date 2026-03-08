@@ -162,6 +162,7 @@ class SaveProductsFromDocumentResponse(BaseModel):
     sheet_name: str | None = None
     category_name: str | None = None
     created: int = 0
+    updated: int = 0
     skipped_existing: int = 0
     skipped_invalid: int = 0
     product_ids: list[str] = Field(default_factory=list)

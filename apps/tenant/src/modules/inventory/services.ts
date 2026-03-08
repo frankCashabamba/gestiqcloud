@@ -175,6 +175,10 @@ export async function createStockMove(data: {
   }
 }
 
+export async function syncFromProducts(): Promise<{ ok: boolean; created: number; updated: number; warehouse: string }> {
+  return apiFetch(`${INVENTORY_BASE}/sync-from-products`, { method: 'POST' })
+}
+
 export async function adjustStock(data: { warehouse_id: string | number; product_id: string | number; delta: number; reason?: string }): Promise<any> {
   // Implementado sobre createStockMove con kind=adjustment
   return createStockMove({

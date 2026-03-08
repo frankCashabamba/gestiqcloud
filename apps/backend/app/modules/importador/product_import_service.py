@@ -10,6 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.core.products import Product
+from app.models.inventory.stock import StockItem
+from app.models.inventory.warehouse import Warehouse
 from app.modules.products.interface.http.tenant import (
     _generate_next_sku,
     _normalize_category_name,
@@ -85,8 +87,8 @@ SHEET_HINT_KEYWORDS = (
 class ProductCandidate:
     row_index: int
     name: str
-    price: float
-    stock: float
+    price: float | None
+    stock: float | None
     unit: str
     sku: str | None = None
     category_name: str | None = None
@@ -196,6 +198,12 @@ def _infer_stock_key(keys: list[str]) -> str | None:
     explicit = _pick_key(keys, EXPLICIT_STOCK_KEYWORDS)
     if explicit:
         return explicit
+
+    # Si "cantidad" aparece como columna exacta, usarla siempre como stock
+    # independientemente de otras columnas operacionales
+    for key in keys:
+        if key == "cantidad":
+            return key
 
     has_operational_columns = any(
         keyword in key for key in keys for keyword in OPERATIONAL_KEYWORDS
@@ -325,8 +333,8 @@ def build_product_candidates(
             ProductCandidate(
                 row_index=index,
                 name=raw_name,
-                price=price if price is not None else 0.0,
-                stock=stock if stock is not None else 0.0,
+                price=price,
+                stock=stock,
                 unit="unit",
                 sku=sku_value or None,
                 category_name=category_name,
@@ -346,6 +354,47 @@ def build_product_candidates(
     return candidates, resolved_sheet
 
 
+def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float) -> None:
+    """Sincroniza stock_items con el primer almacén activo del tenant."""
+    warehouse = (
+        db.execute(
+            select(Warehouse)
+            .where(Warehouse.tenant_id == str(tenant_id), Warehouse.is_active.is_(True))
+            .order_by(Warehouse.id)
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if not warehouse:
+        return
+
+    stock_item = (
+        db.execute(
+            select(StockItem).where(
+                StockItem.tenant_id == str(tenant_id),
+                StockItem.warehouse_id == str(warehouse.id),
+                StockItem.product_id == product_id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    if stock_item:
+        stock_item.qty = qty
+        db.add(stock_item)
+    else:
+        db.add(
+            StockItem(
+                tenant_id=str(tenant_id),
+                warehouse_id=str(warehouse.id),
+                product_id=product_id,
+                qty=qty,
+            )
+        )
+
+
 def save_product_candidates(
     db: Session,
     tenant_id: UUID,
@@ -363,7 +412,7 @@ def save_product_candidates(
     }
 
     created_ids: list[str] = []
-    skipped_existing: list[str] = []
+    updated_ids: list[str] = []
     skipped_invalid: list[str] = []
 
     for candidate in candidates:
@@ -371,8 +420,20 @@ def save_product_candidates(
         if not normalized_name:
             skipped_invalid.append(candidate.name)
             continue
+
         if normalized_name in existing_names:
-            skipped_existing.append(candidate.name)
+            # Producto existe — actualizar precio y stock siempre que el Excel traiga un valor
+            existing = existing_names[normalized_name]
+            if candidate.price is not None:
+                existing.price = candidate.price
+            if candidate.stock is not None:
+                existing.stock = candidate.stock
+                _upsert_stock_item(db, tenant_id, str(existing.id), candidate.stock)
+            if candidate.cost_price is not None:
+                existing.cost_price = candidate.cost_price
+            db.add(existing)
+            db.flush()
+            updated_ids.append(str(existing.id))
             continue
 
         category_name = _normalize_category_name(candidate.category_name)
@@ -391,8 +452,8 @@ def save_product_candidates(
         product = Product(
             tenant_id=tenant_id,
             name=candidate.name,
-            price=candidate.price,
-            stock=candidate.stock,
+            price=candidate.price if candidate.price is not None else 0.0,
+            stock=candidate.stock if candidate.stock is not None else 0.0,
             unit=candidate.unit or "unit",
             sku=sku,
             category_id=category_id,
@@ -404,14 +465,19 @@ def save_product_candidates(
         db.add(product)
         db.flush()
 
+        # Sincronizar stock en stock_items con el almacén principal
+        stock_qty = candidate.stock if candidate.stock is not None else 0.0
+        _upsert_stock_item(db, tenant_id, str(product.id), stock_qty)
+
         existing_names[normalized_name] = product
         used_skus.add(str(product.sku).strip().upper())
         created_ids.append(str(product.id))
 
     return {
         "created": len(created_ids),
-        "skipped_existing": len(skipped_existing),
+        "updated": len(updated_ids),
+        "skipped_existing": 0,
         "skipped_invalid": len(skipped_invalid),
-        "product_ids": created_ids,
-        "skipped_names": skipped_existing[:20],
+        "product_ids": created_ids + updated_ids,
+        "skipped_names": [],
     }

@@ -115,8 +115,7 @@ export default function SaveProductsModal({
 
         <div style={body}>
           <div style={hintBox}>
-            Crea productos desde las filas seleccionadas. Si no existe una columna de stock clara,
-            se guardaran con stock `0`.
+            Si el producto ya existe se actualizará su precio y stock. Si no existe, se creará con código SKU automático.
           </div>
 
           <label style={field}>

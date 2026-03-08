@@ -68,7 +68,7 @@ export interface POSReceipt {
 export interface POSPayment {
   id?: string
   receipt_id: string
-  method: 'cash' | 'card' | 'store_credit' | 'link'
+  method: 'cash' | 'card' | 'store_credit' | 'link' | 'other'
   amount: number
   ref?: string
   paid_at?: string

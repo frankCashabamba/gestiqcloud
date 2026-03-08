@@ -940,3 +940,72 @@ def list_alert_history(
         )
         for r in rows
     ]
+
+
+@router.post("/sync-from-products")
+def sync_stock_from_products(request: Request, db: Session = Depends(get_db)):
+    """Sincroniza stock_items desde products.stock para todos los productos del tenant.
+    Crea o actualiza la fila en stock_items usando el primer almacén activo.
+    Solo actúa sobre productos con stock > 0 que no tengan fila en stock_items,
+    o cuya fila esté desactualizada respecto a products.stock.
+    """
+    tid = _require_tenant_id(request)
+
+    warehouse = (
+        db.execute(
+            select(Warehouse)
+            .where(Warehouse.tenant_id == tid, Warehouse.is_active.is_(True))
+            .order_by(Warehouse.id)
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+
+    if not warehouse:
+        raise HTTPException(status_code=400, detail="No hay almacén activo. Crea uno primero.")
+
+    products = (
+        db.execute(select(Product).where(Product.tenant_id == tid, Product.active.is_(True)))
+        .scalars()
+        .all()
+    )
+
+    created = 0
+    updated = 0
+
+    for product in products:
+        product_stock = float(product.stock or 0)
+        if product_stock <= 0:
+            continue  # no sincronizar productos sin stock inicial
+
+        existing = (
+            db.execute(
+                select(StockItem).where(
+                    StockItem.tenant_id == tid,
+                    StockItem.warehouse_id == str(warehouse.id),
+                    StockItem.product_id == str(product.id),
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+        if existing:
+            if float(existing.qty) != product_stock:
+                existing.qty = product_stock
+                db.add(existing)
+                updated += 1
+        else:
+            db.add(
+                StockItem(
+                    tenant_id=tid,
+                    warehouse_id=str(warehouse.id),
+                    product_id=str(product.id),
+                    qty=product_stock,
+                )
+            )
+            created += 1
+
+    db.commit()
+    return {"ok": True, "created": created, "updated": updated, "warehouse": warehouse.name}

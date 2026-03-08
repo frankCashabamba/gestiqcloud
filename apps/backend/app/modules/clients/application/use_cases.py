@@ -18,6 +18,7 @@ class CrearCliente(BaseUseCase[ClienteRepo]):
             id=created.id or 0,
             nombre=created.nombre,
             identificacion=created.identificacion,
+            identificacion_tipo=created.identificacion_tipo,
             email=created.email,
             telefono=created.telefono,
             direccion=created.direccion,

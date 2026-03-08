@@ -504,7 +504,7 @@ export default function POSView() {
 
     const loadProducts = async () => {
         try {
-            const data = await listProducts(false) // mostrar todos los productos activos sin importar stock
+            const data = await listProducts(true) // ocultar productos sin stock en POS
             setProducts(data)
         } catch (error) {
             console.error('Error loading products:', error)

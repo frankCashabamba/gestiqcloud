@@ -15,6 +15,7 @@ class ClienteCreateDTO:
     name: str
     email: str | None = None
     tax_id: str | None = None
+    tax_id_type: str | None = None
     phone: str | None = None
     address: str | None = None
     city: str | None = None
@@ -29,6 +30,7 @@ class ClienteCreateDTO:
             "name": self.name,
             "email": self.email,
             "tax_id": self.tax_id,
+            "tax_id_type": self.tax_id_type,
             "phone": self.phone,
             "address": self.address,
             "city": self.city,
@@ -45,6 +47,7 @@ class ClienteUpdateDTO:
     name: str | None = None
     email: str | None = None
     tax_id: str | None = None
+    tax_id_type: str | None = None
     phone: str | None = None
     address: str | None = None
     city: str | None = None
@@ -58,6 +61,7 @@ class ClienteUpdateDTO:
             "name": self.name,
             "email": self.email,
             "tax_id": self.tax_id,
+            "tax_id_type": self.tax_id_type,
             "phone": self.phone,
             "address": self.address,
             "city": self.city,
@@ -79,6 +83,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             id=m.id,
             nombre=m.name,
             identificacion=getattr(m, "identificacion", None) or m.tax_id,
+            identificacion_tipo=getattr(m, "tax_id_type", None),
             email=m.email,
             telefono=getattr(m, "telefono", None) or m.phone,
             direccion=getattr(m, "direccion", None) or m.address,
@@ -108,6 +113,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             name=c.nombre,
             email=c.email,
             tax_id=c.identificacion,
+            tax_id_type=c.identificacion_tipo,
             phone=c.telefono,
             address=c.direccion,
             city=c.localidad,
@@ -128,6 +134,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             name=c.nombre,
             email=c.email,
             tax_id=c.identificacion,
+            tax_id_type=c.identificacion_tipo,
             phone=c.telefono,
             address=c.direccion,
             city=c.localidad,

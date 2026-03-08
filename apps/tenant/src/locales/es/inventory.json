@@ -133,7 +133,11 @@
     "lowStock": "Stock bajo",
     "ok": "OK",
     "warehouseExists": "El almacén ALM-1 ya existe",
-    "warehouseCreated": "Almacén creado: ALM-1"
+    "warehouseCreated": "Almacén creado: ALM-1",
+    "syncFromProducts": "Sincronizar stock",
+    "syncing": "Sincronizando…",
+    "syncSuccess": "Sincronizado: {{created}} creados, {{updated}} actualizados (almacén: {{warehouse}})",
+    "syncNoWarehouse": "Crea un almacén primero antes de sincronizar"
   },
   "errors": {
     "selectProduct": "Selecciona un producto",

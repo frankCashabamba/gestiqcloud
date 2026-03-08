@@ -182,9 +182,8 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bo
         product = db.query(Product).filter(Product.id == recipe.product_id).first()
         if product:
             product.suggested_price = suggested_price
-            # Actualizar precio si use_suggested_price está activo
-            if product.use_suggested_price:
-                product.price = suggested_price
+            # El precio de venta (product.price) nunca se sobreescribe automáticamente.
+            # suggested_price es solo informativo.
             db.add(product)
             db.commit()
             db.refresh(product)

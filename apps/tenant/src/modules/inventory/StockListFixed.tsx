@@ -7,6 +7,7 @@ import {
   listWarehouses,
   createWarehouse,
   adjustStock,
+  syncFromProducts,
   type StockItem,
   type Warehouse,
 } from './services'
@@ -30,6 +31,8 @@ export default function StockList() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [per, setPer] = useState(25)
   const [defaultReorderPoint, setDefaultReorderPoint] = useState(0)
+  const [showZeroStock, setShowZeroStock] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -103,9 +106,30 @@ export default function StockList() {
     }
   }
 
+  const handleSync = async () => {
+    try {
+      setSyncing(true)
+      const res = await syncFromProducts()
+      success(t('inventory:stock.syncSuccess', { created: res.created, updated: res.updated, warehouse: res.warehouse }))
+      const refreshed = await listStockItems()
+      setItems(refreshed)
+    } catch (e: any) {
+      const msg = getErrorMessage(e)
+      if (msg.includes('almacén') || msg.includes('warehouse')) {
+        toastError(t('inventory:stock.syncNoWarehouse'))
+      } else {
+        toastError(msg)
+      }
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const filtered = useMemo(() => {
     const ql = q.toLowerCase()
     return items.filter((item) => {
+      if (!showZeroStock && item.qty <= 0) return false
+
       const matchesSearch =
         (item.product?.name || '').toLowerCase().includes(ql) ||
         (item.product?.sku || '').toLowerCase().includes(ql)
@@ -126,7 +150,7 @@ export default function StockList() {
 
       return true
     })
-  }, [items, q, filterWarehouse, filterAlerta, defaultReorderPoint])
+  }, [items, q, filterWarehouse, filterAlerta, defaultReorderPoint, showZeroStock])
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -186,7 +210,12 @@ export default function StockList() {
   }, [items])
 
   const totalProductosUnicos = useMemo(() => {
-    const set = new Set(items.map((i) => String(i.product_id)))
+    const set = new Set(items.filter(i => i.qty > 0).map((i) => String(i.product_id)))
+    return set.size
+  }, [items])
+
+  const totalProductosConStock0 = useMemo(() => {
+    const set = new Set(items.filter(i => i.qty <= 0).map((i) => String(i.product_id)))
     return set.size
   }, [items])
 
@@ -200,7 +229,15 @@ export default function StockList() {
             <p className="mt-1 text-xs text-gray-500">{t('inventory:stock.globalMin')}: {defaultReorderPoint}</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors font-medium disabled:opacity-50"
+            onClick={handleSync}
+            disabled={syncing}
+            title="Sincronizar stock desde productos"
+          >
+            🔄 {syncing ? t('inventory:stock.syncing') : t('inventory:stock.syncFromProducts')}
+          </button>
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={exportCSV}>
             {t('inventory:stock.exportCsv')}
           </button>
@@ -221,6 +258,9 @@ export default function StockList() {
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="text-sm text-gray-600">{t('inventory:stock.totalProducts')}</div>
           <div className="text-2xl font-bold text-gray-900">{totalProductosUnicos}</div>
+          {totalProductosConStock0 > 0 && (
+            <div className="text-xs text-red-500 mt-1">+{totalProductosConStock0} sin stock</div>
+          )}
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="text-sm text-gray-600">{t('inventory:stock.totalStockValue')}</div>
@@ -273,6 +313,15 @@ export default function StockList() {
             <option value="sobre">{t('inventory:stock.overstockOnly')}</option>
           </select>
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showZeroStock}
+            onChange={(e) => setShowZeroStock(e.target.checked)}
+            className="rounded"
+          />
+          Mostrar productos sin stock (qty ≤ 0)
+        </label>
       </div>
 
       {loading && (
@@ -358,7 +407,7 @@ export default function StockList() {
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right">
-                        <span className={`text-lg font-bold ${item.qty < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                        <span className={`text-lg font-bold ${item.qty <= 0 ? 'text-red-600' : 'text-gray-900'}`}>
                           {item.qty.toFixed(2)}
                         </span>
                       </td>

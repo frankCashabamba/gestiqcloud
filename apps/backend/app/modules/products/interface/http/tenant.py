@@ -811,9 +811,6 @@ def update_product(
         obj.suggested_price = payload.suggested_price
     if payload.use_suggested_price is not None:
         obj.use_suggested_price = payload.use_suggested_price
-        # Si se habilita usar precio sugerido y hay precio sugerido, actualizar el precio
-        if payload.use_suggested_price and obj.suggested_price:
-            obj.price = obj.suggested_price
     if payload.product_metadata is not None:
         obj.product_metadata = payload.product_metadata
     if payload.import_aliases is not None:

@@ -28,6 +28,7 @@ def _schema_to_dto(payload: ClienteInSchema) -> ClienteIn:
     return ClienteIn(
         nombre=nombre or "",
         identificacion=data.get("identificacion"),
+        identificacion_tipo=data.get("identificacion_tipo"),
         email=data.get("email"),
         telefono=data.get("phone") or data.get("telefono"),
         direccion=data.get("address") or data.get("direccion"),
@@ -45,6 +46,7 @@ def _dto_to_schema(data: ClienteOut) -> ClienteOutSchema:
         id=str(data.id),
         name=data.nombre,
         identificacion=data.identificacion,
+        identificacion_tipo=getattr(data, "identificacion_tipo", None),
         email=data.email,
         phone=data.telefono,
         address=data.direccion,

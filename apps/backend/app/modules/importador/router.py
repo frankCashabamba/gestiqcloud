@@ -1546,7 +1546,11 @@ def save_document_as_products(
     save_meta = {
         "destination": "products",
         "target": "products",
-        "status": "created" if result["created"] > 0 else "skipped",
+        "status": (
+            "created"
+            if result["created"] > 0
+            else ("updated" if result.get("updated", 0) > 0 else "skipped")
+        ),
         "record_ids": result["product_ids"],
         "sheet_name": resolved_sheet,
         "category_name": body.category_name,
@@ -1574,6 +1578,7 @@ def save_document_as_products(
         {
             **save_meta,
             "created": result["created"],
+            "updated": result.get("updated", 0),
             "skipped_existing": result["skipped_existing"],
             "skipped_invalid": result["skipped_invalid"],
             "skipped_names": result["skipped_names"],
@@ -1586,6 +1591,7 @@ def save_document_as_products(
         sheet_name=resolved_sheet,
         category_name=body.category_name,
         created=result["created"],
+        updated=result.get("updated", 0),
         skipped_existing=result["skipped_existing"],
         skipped_invalid=result["skipped_invalid"],
         product_ids=result["product_ids"],

@@ -673,6 +673,40 @@ export default function ProductosList() {
             {can('products:update') && (
               <ProtectedButton
                 permission="products:update"
+                className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
+                onClick={async () => {
+                  const withoutSku = items.filter(p => selectedIds.includes(p.id) && !p.sku?.trim())
+                  if (withoutSku.length === 0) {
+                    success(t('products:bulkSkuAllHave', { defaultValue: 'Todos los seleccionados ya tienen código SKU' }))
+                    return
+                  }
+                  if (!confirm(`¿Generar SKU automático para ${withoutSku.length} producto(s) sin código?`)) return
+                  try {
+                    const usedSkus = new Set(items.map(p => p.sku).filter(Boolean))
+                    const updates: Promise<any>[] = withoutSku.map(p => {
+                      const prefix = p.categoria ? p.categoria.substring(0, 3).toUpperCase() : 'PRO'
+                      let sku: string
+                      do {
+                        sku = `${prefix}-${Math.floor(Math.random() * 90000 + 10000)}`
+                      } while (usedSkus.has(sku))
+                      usedSkus.add(sku)
+                      return updateProducto(p.id, { sku })
+                    })
+                    await Promise.all(updates)
+                    setItems(await listProductos())
+                    setSelectedIds([])
+                    success(`SKU generado para ${withoutSku.length} producto(s)`)
+                  } catch (e: any) {
+                    toastError(getErrorMessage(e))
+                  }
+                }}
+              >
+                # {t('products:bulkGenerateSku', { defaultValue: 'Generar SKU' })}
+              </ProtectedButton>
+            )}
+            {can('products:update') && (
+              <ProtectedButton
+                permission="products:update"
                 className="bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm"
                 onClick={async () => {
                   const categoryName = prompt(t('products:bulkAssignCategoryPrompt'))

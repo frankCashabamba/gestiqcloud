@@ -25,6 +25,7 @@ class Client(Base):
     )
     name: Mapped[str] = mapped_column("name", String, nullable=False)
     tax_id: Mapped[str] = mapped_column("tax_id", String, nullable=True)
+    tax_id_type: Mapped[str] = mapped_column("tax_id_type", String(30), nullable=True)
     email: Mapped[str] = mapped_column(String, nullable=True)
     phone: Mapped[str] = mapped_column("phone", String, nullable=True)
     address: Mapped[str] = mapped_column("address", String, nullable=True)

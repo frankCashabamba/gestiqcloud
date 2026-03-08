@@ -327,7 +327,7 @@ export default function DocumentDetail() {
           <div>
             <strong style={{ color: '#047857' }}>Productos guardados</strong>
             <span style={{ marginLeft: 12, color: '#374151' }}>
-              {saveProductsResult.created} creados · {saveProductsResult.skipped_existing} omitidos por existentes · {saveProductsResult.skipped_invalid} omitidos por invalidos
+              {saveProductsResult.created} creados · {(saveProductsResult as any).updated ?? 0} actualizados · {saveProductsResult.skipped_invalid} omitidos por inválidos
             </span>
             {(saveProductsResult.sheet_name || saveProductsResult.category_name) && (
               <div style={{ marginTop: 4, fontSize: 12, color: '#065f46' }}>
