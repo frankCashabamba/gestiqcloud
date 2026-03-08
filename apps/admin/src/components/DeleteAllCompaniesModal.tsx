@@ -44,7 +44,14 @@ export const DeleteAllCompaniesModal: React.FC<Props> = ({ companyCount, onClose
 
   if (result) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        role="button"
+        tabIndex={0}
+        onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') onClose() }}
+        aria-label="Close modal"
+      >
         <div
           className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
           onClick={(e) => e.stopPropagation()}
@@ -110,7 +117,14 @@ export const DeleteAllCompaniesModal: React.FC<Props> = ({ companyCount, onClose
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      role="button"
+      tabIndex={0}
+      onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') onClose() }}
+      aria-label="Close modal"
+    >
       <div
         className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}

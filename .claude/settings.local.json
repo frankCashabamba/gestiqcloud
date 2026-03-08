@@ -19,7 +19,10 @@
       "Bash(set +a)",
       "Bash(DATABASE_URL=\"postgresql://gestiqcloud:password@localhost:5432/gestiqcloud\" python ops/scripts/migrate_all_migrations_idempotent.py)",
       "Bash(PGPASSWORD=password psql -h localhost -U gestiqcloud -d gestiqcloud -c \"ALTER TABLE recipes ADD COLUMN IF NOT EXISTS overhead_pct NUMERIC\\(5, 2\\) DEFAULT 5;\")",
-      "Bash(npx tsc --noEmit)"
+      "Bash(npx tsc --noEmit)",
+      "Read(//c/gestiqcloud/**)",
+      "Bash(ls -la c:/gestiqcloud/apps/tenant/src/modules/*/offlineSync.ts)",
+      "Bash(bash /tmp/check_offline.sh)"
     ]
   }
 }

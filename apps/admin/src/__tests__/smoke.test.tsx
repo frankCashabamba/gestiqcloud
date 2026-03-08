@@ -34,6 +34,28 @@ vi.mock('@ui/env', () => ({
   useEnv: () => ({ apiUrl: 'http://localhost', tenantOrigin: 'http://localhost' }),
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const map: Record<string, string> = {
+        'login.title': 'Iniciar sesión',
+        'login.identifier': 'Usuario o email',
+        'login.password': 'Contraseña',
+        'login.submit': 'Entrar',
+        'login.submitting': 'Entrando...',
+        'login.invalidCredentials': 'Credenciales inválidas',
+        'login.adminSubtitle': 'Panel de administración',
+        'login.tenantPrompt': '¿Eres usuario de empresa?',
+        'login.tenantLink': 'Ir al login de empresa',
+      }
+      return map[key] ?? key
+    },
+    i18n: { changeLanguage: vi.fn() },
+  }),
+  Trans: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+}))
+
 vi.mock('../lib/http', () => ({
   registerAuthHandlers: vi.fn(),
 }))

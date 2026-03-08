@@ -55,13 +55,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         return () => window.removeEventListener('auth-expired', handler as EventListener)
     }, [])
 
-    async function loadMeProfile(token: string): Promise<MeAdmin> {
-        try {
-            const r = await api.get<MeAdmin>('/v1/me/admin')
-            return r.data
-        } catch (e: any) {
-            throw e
-        }
+    async function loadMeProfile(_token?: string): Promise<MeAdmin> {
+        const r = await api.get<MeAdmin>('/v1/me/admin')
+        return r.data
     }
 
     const isUnauthorized = (e: any) => e?.status === 401 || e?.response?.status === 401
@@ -98,7 +94,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
                     return tHash
                 }
             }
-        } catch { }
+        } catch { /* noop: no refresh_token cookie */ }
         return null
     }
 
@@ -110,7 +106,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
      * 4. Si nada funciona, usuario debe iniciar sesión
      */
     useEffect(() => {
-        (async () => {
+        void (async () => {
             try {
                 // Paso 1: Extraer token de URL hash (OAuth/SSO)
                 let token = extractHashToken() ?? tokenRef.current
@@ -155,7 +151,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
 
     const login = async (body: LoginBody) => {
-          try { await api.get('/v1/admin/auth/csrf') } catch { }
+          try { await api.get('/v1/admin/auth/csrf') } catch { /* noop: best-effort CSRF prefetch */ }
            const r = await api.post<LoginResponse>('/v1/admin/auth/login', { identificador: body.identificador.trim(), password: body.password })
            const data = r.data
            // ✅ Actualizar tokenRef INMEDIATAMENTE para evitar race condition en remount
@@ -167,7 +163,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
        }
 
     const logout = async () => {
-        try { await api.post('/v1/admin/auth/logout') } catch { }
+        try { await api.post('/v1/admin/auth/logout') } catch { /* noop: best-effort logout */ }
         clear()
     }
 
@@ -183,7 +179,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     const value = useMemo(
         () => ({ token, loading, profile, login, logout, brand: 'Admin', refresh }),
-        [token, loading, profile, logout, refresh] as any
+        [token, loading, profile, login, logout, refresh]
     )
 
     // Bridge tokens into legacy apiFetch helper used by some services (ops.ts)

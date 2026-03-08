@@ -137,14 +137,14 @@ describe('MODULES export validation', () => {
     expect(posModule).toBeDefined()
   })
 
-  it('should have ventas module', () => {
-    const ventasModule = MODULES.find(m => m.id === 'ventas')
-    expect(ventasModule).toBeDefined()
+  it('should have sales module', () => {
+    const salesModule = MODULES.find(m => m.id === 'sales')
+    expect(salesModule).toBeDefined()
   })
 
-  it('should have inventario module', () => {
-    const inventarioModule = MODULES.find(m => m.id === 'inventario')
-    expect(inventarioModule).toBeDefined()
+  it('should have inventory module', () => {
+    const inventoryModule = MODULES.find(m => m.id === 'inventory')
+    expect(inventoryModule).toBeDefined()
   })
 
   it('all modules should have name property', () => {

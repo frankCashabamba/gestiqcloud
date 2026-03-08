@@ -6,6 +6,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const map: Record<string, string> = {
+        'components.unitSelector.label': 'Unidad de Medida',
+        'components.unitSelector.placeholder': 'Selecciona unidad',
+        'components.unitSelector.loading': 'Cargando...',
+      }
+      return map[key] ?? key
+    },
+    i18n: { changeLanguage: vi.fn() },
+  }),
+}))
+
 vi.mock('../contexts/CompanyConfigContext', () => ({
   useCompanySector: () => ({
     plantilla: 'restaurante',

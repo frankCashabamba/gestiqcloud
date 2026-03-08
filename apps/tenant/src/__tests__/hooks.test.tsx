@@ -4,6 +4,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 
+vi.mock('../env', () => ({
+  env: {
+    apiUrl: 'http://localhost',
+    basePath: '/',
+    tenantOrigin: 'http://localhost',
+    adminOrigin: 'http://localhost',
+    mode: 'test',
+    dev: false,
+    prod: false,
+  },
+}))
+
+vi.mock('../lib/http', () => ({
+  apiFetch: vi.fn(),
+  HttpError: class HttpError extends Error {},
+}))
+
 describe('useCurrency hook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
