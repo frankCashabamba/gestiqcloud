@@ -34,6 +34,7 @@ export interface RecipeCreate {
   oven_minutes_standard?: number;
   process_minutes?: number;
   waste_pct?: number;
+  overhead_pct?: number;
   trays_per_batch?: number;
   units_per_tray?: number;
   instructions?: string;
@@ -53,6 +54,7 @@ export interface RecipeUpdate {
   oven_minutes_standard?: number;
   process_minutes?: number;
   waste_pct?: number;
+  overhead_pct?: number;
   trays_per_batch?: number;
   units_per_tray?: number;
   instructions?: string;
@@ -76,6 +78,7 @@ export interface Recipe {
   oven_minutes_standard?: number;
   process_minutes?: number;
   waste_pct?: number;
+  overhead_pct?: number;
   trays_per_batch?: number;
   units_per_tray?: number;
   instructions?: string;

@@ -269,7 +269,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         oven_minutes_standard: recipeData.oven_minutes_standard ?? null,
         process_minutes: recipeData.process_minutes ?? null,
         waste_pct: recipeData.waste_pct ?? null,
-        overhead_pct: (recipeData as any).overhead_pct ?? 5,
+        overhead_pct: recipeData.overhead_pct ?? 5,
         trays_per_batch: recipeData.trays_per_batch ?? null,
         units_per_tray: recipeData.units_per_tray ?? null,
         instructions: recipeData.instructions || '',
@@ -921,8 +921,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
             {recipe.waste_pct != null && recipe.waste_pct > 0 && (
               <Chip label={`📉 ${t('productions:recipe.wasteLabel')}: ${recipe.waste_pct}%`} color="error" size="small" />
             )}
-            {(recipe as any).overhead_pct != null && (recipe as any).overhead_pct > 0 && (
-              <Chip label={`🔧 Depreciación: ${(recipe as any).overhead_pct}%`} color="warning" size="small" />
+            {recipe.overhead_pct != null && recipe.overhead_pct > 0 && (
+              <Chip label={`🔧 Depreciación: ${recipe.overhead_pct}%`} color="warning" size="small" />
             )}
             {recipe.trays_per_batch != null && (
               <Chip label={`🍞 ${recipe.trays_per_batch} ${t('productions:recipe.traysLabel')}`} color="default" size="small" />
