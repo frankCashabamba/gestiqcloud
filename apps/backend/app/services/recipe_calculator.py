@@ -486,13 +486,22 @@ def calculate_recipe_full_cost(
     # Aplicar burden factor al labor total
     labor_with_burden = labor_total * labor_burden_factor
 
+    # ========== MERMA Y DEPRECIACIÓN ==========
+    # Merma: pérdida de materiales durante el proceso (% sobre costo de materiales)
+    waste_pct_val = float(getattr(recipe, "waste_pct", None) or 0)
+    waste_cost = materials_total * Decimal(str(waste_pct_val / 100))
+
+    # Overhead/Depreciación: amortización de equipos y maquinaria (% sobre materiales)
+    overhead_pct_val = float(getattr(recipe, "overhead_pct", None) or 0)
+    overhead_cost = materials_total * Decimal(str(overhead_pct_val / 100))
+
     # Tray info for reference
     trays = getattr(recipe, "trays_per_batch", None)
     units_tray = getattr(recipe, "units_per_tray", None)
 
-    # Totales indirectos
+    # Totales
     indirect_total = labor_with_burden + diesel_total + electricity_total + other_total
-    full_cost_total = materials_total + indirect_total
+    full_cost_total = materials_total + waste_cost + overhead_cost + indirect_total
     full_cost_unit = full_cost_total / yield_qty if yield_qty > 0 else Decimal("0")
 
     return {
@@ -503,6 +512,13 @@ def calculate_recipe_full_cost(
         "period_id": str(cost_period.id) if cost_period else None,
         "materials_total": round(float(materials_total), 4),
         "materials_unit": round(float(materials_unit), 4),
+        # Merma
+        "waste_pct": waste_pct_val,
+        "waste_cost": round(float(waste_cost), 4),
+        # Depreciación / overhead
+        "overhead_pct": overhead_pct_val,
+        "overhead_cost": round(float(overhead_cost), 4),
+        # Mano de obra e indirectos
         "labor_total": round(float(labor_total), 4),
         "labor_with_burden_factor": round(float(labor_with_burden), 4),
         "labor_burden_factor": round(float(labor_burden_factor), 4),
@@ -518,6 +534,8 @@ def calculate_recipe_full_cost(
         "units_per_tray": units_tray,
         "breakdown": {
             "materials": round(float(materials_total), 4),
+            "waste": round(float(waste_cost), 4),
+            "overhead": round(float(overhead_cost), 4),
             "labor": round(float(labor_with_burden), 4),
             "diesel": round(float(diesel_total), 4),
             "electricity": round(float(electricity_total), 4),

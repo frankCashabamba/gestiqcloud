@@ -4,7 +4,21 @@
       "Bash(python -c \":*)",
       "Bash(python3 -c \":*)",
       "Bash(xargs grep -l \"imp_documento\\\\|icu_recipe\\\\|raw_ai_json\")",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([k for k in d if k in [''yes'',''no'',''edit'',''delete'',''actions'',''perPage'']]\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([k for k in d if k in [''yes'',''no'',''edit'',''delete'',''actions'',''perPage'']]\\)\")",
+      "Bash(xargs grep -l \"Depreciaci\\\\|depreci\\\\|waste_pct\\\\|merma\")",
+      "Bash(xargs grep -l \"Aporte\\\\|depreciaci\")",
+      "Bash(xargs grep -l \"depreciaci\\\\|Depreciaci\\\\|depreciation\")",
+      "Bash(xargs grep -l \"deprecia\\\\|Deprecia\")",
+      "Bash(xargs grep -l \"overhead_pct\\\\|services_pct\\\\|depreciation_pct\\\\|overhead_cost\\\\|full_cost_breakdown\")",
+      "Bash(xargs grep -l \"pvp\\\\|PVP\\\\|suggested_price\\\\|precio.*suger\\\\|Precio.*suger\")",
+      "Bash(xargs grep -l \"Resumen\\\\|resumen.*costo\\\\|costo.*resumen\\\\|Desglose.*costo\")",
+      "Bash(xargs grep -l \"depreciaci\\\\|Deprecia\\\\|overhead_pct\\\\|services_pct\")",
+      "Bash(python ops/scripts/migrate_all_migrations_idempotent.py)",
+      "Bash(set -a)",
+      "Bash(source .env)",
+      "Bash(set +a)",
+      "Bash(DATABASE_URL=\"postgresql://gestiqcloud:password@localhost:5432/gestiqcloud\" python ops/scripts/migrate_all_migrations_idempotent.py)",
+      "Bash(PGPASSWORD=password psql -h localhost -U gestiqcloud -d gestiqcloud -c \"ALTER TABLE recipes ADD COLUMN IF NOT EXISTS overhead_pct NUMERIC\\(5, 2\\) DEFAULT 5;\")"
     ]
   }
 }

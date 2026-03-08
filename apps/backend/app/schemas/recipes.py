@@ -129,6 +129,12 @@ class RecipeBase(BaseModel):
     )
 
     waste_pct: float | None = Field(None, ge=0, le=100, description="Waste percentage 0-100")
+    overhead_pct: float | None = Field(
+        None,
+        ge=0,
+        le=100,
+        description="% sobre materiales para depreciación de equipos (default 5%)",
+    )
     trays_per_batch: int | None = Field(None, ge=1, description="Trays per oven batch")
     units_per_tray: int | None = Field(None, ge=1, description="Units per tray")
     instructions: str | None = None
@@ -171,6 +177,7 @@ class RecipeUpdate(BaseModel):
     oven_minutes_standard: int | None = Field(None, ge=0)
     process_minutes: int | None = Field(None, ge=0)
     waste_pct: float | None = Field(None, ge=0, le=100)
+    overhead_pct: float | None = Field(None, ge=0, le=100)
     trays_per_batch: int | None = Field(None, ge=1)
     units_per_tray: int | None = Field(None, ge=1)
     instructions: str | None = None

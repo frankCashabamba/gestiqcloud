@@ -91,8 +91,15 @@ export interface FullCostSummary {
   oven_minutes?: number;
   trays_per_batch?: number | null;
   units_per_tray?: number | null;
+  // Merma y depreciación
+  waste_pct?: number;
+  waste_cost?: number;
+  overhead_pct?: number;
+  overhead_cost?: number;
   breakdown?: {
     materials: number;
+    waste: number;
+    overhead: number;
     labor: number;
     diesel: number;
     electricity: number;

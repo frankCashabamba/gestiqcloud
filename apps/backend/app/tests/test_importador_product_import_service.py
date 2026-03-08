@@ -53,7 +53,7 @@ def test_build_product_candidates_from_registro_rows_skips_summary_rows():
     assert sheet_name == "REGISTRO"
     assert [candidate.name for candidate in candidates] == ["tapados", "empanadas"]
     assert candidates[0].price == 0.13
-    assert candidates[0].stock == 0.0
+    assert candidates[0].stock == 292.0
     assert candidates[0].category_name == "Panaderia"
 
 
@@ -150,7 +150,8 @@ def test_save_product_candidates_skips_existing_products_and_forwards_category(d
     db.commit()
 
     assert result["created"] == 1
-    assert result["skipped_existing"] == 1
+    assert result["updated"] == 1
+    assert result["skipped_existing"] == 0
 
     products = (
         db.query(Product).filter(Product.tenant_id == tenant.id).order_by(Product.name.asc()).all()

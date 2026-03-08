@@ -199,6 +199,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
     oven_minutes_standard: null as number | null,
     process_minutes: null as number | null,
     waste_pct: null as number | null,
+    overhead_pct: null as number | null,
     trays_per_batch: null as number | null,
     units_per_tray: null as number | null,
     instructions: '' as string,
@@ -268,6 +269,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         oven_minutes_standard: recipeData.oven_minutes_standard ?? null,
         process_minutes: recipeData.process_minutes ?? null,
         waste_pct: recipeData.waste_pct ?? null,
+        overhead_pct: (recipeData as any).overhead_pct ?? 5,
         trays_per_batch: recipeData.trays_per_batch ?? null,
         units_per_tray: recipeData.units_per_tray ?? null,
         instructions: recipeData.instructions || '',
@@ -406,6 +408,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         oven_minutes_standard: prodParams.oven_minutes_standard ?? 0,
         process_minutes: Math.max((prodParams.prep_time_minutes || 0) - (prodParams.touch_minutes_standard || 0), 0) || undefined,
         waste_pct: prodParams.waste_pct ?? undefined,
+        overhead_pct: prodParams.overhead_pct ?? undefined,
         trays_per_batch: (prodParams.trays_per_batch && prodParams.trays_per_batch >= 1) ? prodParams.trays_per_batch : undefined,
         units_per_tray: (prodParams.units_per_tray && prodParams.units_per_tray >= 1) ? prodParams.units_per_tray : undefined,
         instructions: prodParams.instructions || undefined,
@@ -514,7 +517,11 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const breakdownRows = Array.isArray(breakdown.desglose) ? breakdown.desglose : [];
 
   const fc = fullCost;
-  const hasIndirect = fc && Number(fc.indirect_total || 0) > 0;
+  const hasIndirect = fc && (
+    Number(fc.indirect_total || 0) > 0 ||
+    Number(fc.waste_cost || 0) > 0 ||
+    Number(fc.overhead_cost || 0) > 0
+  );
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth PaperProps={{ sx: dialogPaperSx }}>
@@ -605,15 +612,13 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                 <Grid item xs={6} sm={3}>
                   <Box sx={metricCardSx}>
                     <Typography variant="caption" color="text.secondary">
-                      {t('productions:recipe.indirectCosts')}
+                      Costo total (lote)
                     </Typography>
-                    <Typography variant="h6" color="warning.main" sx={{ mt: 0.5, fontWeight: 700 }}>
-                      ${Number(fc.indirect_total).toFixed(2)}
+                    <Typography variant="h6" color="error.main" sx={{ mt: 0.5, fontWeight: 700 }}>
+                      ${Number(fc.full_cost_total).toFixed(2)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {Number(fc.labor_total) > 0 && `${t('productions:recipe.labor')}: $${Number(fc.labor_with_burden_factor || fc.labor_total).toFixed(2)} `}
-                      {Number(fc.diesel_total) > 0 && `${t('productions:recipe.diesel')}: $${Number(fc.diesel_total).toFixed(2)} `}
-                      {Number(fc.electricity_total) > 0 && `${t('productions:recipe.electricity')}: $${Number(fc.electricity_total).toFixed(2)}`}
+                      materiales + merma + deprec. + M.O.
                     </Typography>
                   </Box>
                 </Grid>
@@ -626,8 +631,91 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                       ${Number(fc.full_cost_unit).toFixed(4)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {t('productions:recipe.total')}: ${Number(fc.full_cost_total).toFixed(2)}
+                      por unidad producida
                     </Typography>
+                  </Box>
+                </Grid>
+                {/* Desglose detallado de costos */}
+                <Grid item xs={12}>
+                  <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden', mt: 0.5 }}>
+                    <Box sx={{ px: 2, py: 1, background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: '#475569', letterSpacing: 0.8 }}>
+                        DESGLOSE DE COSTO — {recipe.yield_qty} unidades
+                      </Typography>
+                    </Box>
+                    {/* Materiales */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 0.75, borderBottom: '1px solid #f1f5f9' }}>
+                      <Typography variant="body2" color="text.secondary">Costo de materiales</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>${Number(fc.materials_total).toFixed(2)}</Typography>
+                    </Box>
+                    {/* Merma */}
+                    {Number(fc.waste_cost || 0) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 0.75, borderBottom: '1px solid #f1f5f9', background: '#fff7ed' }}>
+                        <Typography variant="body2" color="warning.dark">
+                          Merma ({fc.waste_pct}%)
+                        </Typography>
+                        <Typography variant="body2" color="warning.dark" sx={{ fontWeight: 600 }}>
+                          ${Number(fc.waste_cost).toFixed(2)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {/* Depreciación */}
+                    {Number(fc.overhead_cost || 0) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 0.75, borderBottom: '1px solid #f1f5f9', background: '#f0fdf4' }}>
+                        <Typography variant="body2" color="success.dark">
+                          Depreciación de equipos ({fc.overhead_pct}%)
+                        </Typography>
+                        <Typography variant="body2" color="success.dark" sx={{ fontWeight: 600 }}>
+                          ${Number(fc.overhead_cost).toFixed(2)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {/* Mano de obra */}
+                    {Number(fc.labor_with_burden_factor || fc.labor_total || 0) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 0.75, borderBottom: '1px solid #f1f5f9' }}>
+                        <Typography variant="body2" color="text.secondary">Mano de obra</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          ${Number(fc.labor_with_burden_factor || fc.labor_total).toFixed(2)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {/* Energía / Diesel */}
+                    {(Number(fc.electricity_total || 0) + Number(fc.diesel_total || 0)) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 0.75, borderBottom: '1px solid #f1f5f9' }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Energía / Combustible
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          ${(Number(fc.electricity_total || 0) + Number(fc.diesel_total || 0)).toFixed(2)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {/* Otros indirectos */}
+                    {Number(fc.other_indirect_total || 0) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 0.75, borderBottom: '1px solid #f1f5f9' }}>
+                        <Typography variant="body2" color="text.secondary">Otros costos indirectos</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          ${Number(fc.other_indirect_total).toFixed(2)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {/* Total */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, background: '#1e293b' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: '#f8fafc' }}>
+                        COSTO TOTAL ({recipe.yield_qty} uds)
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: '#fbbf24' }}>
+                        ${Number(fc.full_cost_total).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 0.75, background: '#0f172a' }}>
+                      <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                        Costo por unidad
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: '#34d399' }}>
+                        ${Number(fc.full_cost_unit).toFixed(4)} / u
+                      </Typography>
+                    </Box>
                   </Box>
                 </Grid>
               </>
@@ -749,6 +837,19 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                   value={prodParams.waste_pct ?? ''}
                   onChange={(e) => setProdParams((p) => ({ ...p, waste_pct: e.target.value ? Number(e.target.value) : null }))}
                   inputProps={{ min: 0, max: 100, step: 0.1 }}
+                  helperText="Pérdida de materiales en proceso"
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label="% Depreciación equipos"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.overhead_pct ?? 5}
+                  onChange={(e) => setProdParams((p) => ({ ...p, overhead_pct: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 0, max: 100, step: 0.1 }}
+                  helperText="Amortización de maquinaria (default 5%)"
                 />
               </Grid>
               <Grid item xs={6} sm={3}>
@@ -819,6 +920,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
             )}
             {recipe.waste_pct != null && recipe.waste_pct > 0 && (
               <Chip label={`📉 ${t('productions:recipe.wasteLabel')}: ${recipe.waste_pct}%`} color="error" size="small" />
+            )}
+            {(recipe as any).overhead_pct != null && (recipe as any).overhead_pct > 0 && (
+              <Chip label={`🔧 Depreciación: ${(recipe as any).overhead_pct}%`} color="warning" size="small" />
             )}
             {recipe.trays_per_batch != null && (
               <Chip label={`🍞 ${recipe.trays_per_batch} ${t('productions:recipe.traysLabel')}`} color="default" size="small" />

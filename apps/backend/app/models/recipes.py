@@ -70,6 +70,11 @@ class Recipe(BaseModel):
     )
 
     waste_pct = Column(Numeric(5, 2), default=0)  # waste percentage 0-100
+    overhead_pct = Column(
+        Numeric(5, 2),
+        default=5,
+        comment="% sobre costo de materiales para depreciación de equipos (default 5%)",
+    )
     trays_per_batch = Column(Integer)  # trays per oven load
     units_per_tray = Column(Integer)  # units per tray (varies by product)
     instructions = Column(Text)

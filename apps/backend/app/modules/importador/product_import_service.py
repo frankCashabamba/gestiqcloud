@@ -359,7 +359,7 @@ def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float
     warehouse = (
         db.execute(
             select(Warehouse)
-            .where(Warehouse.tenant_id == str(tenant_id), Warehouse.is_active.is_(True))
+            .where(Warehouse.tenant_id == tenant_id, Warehouse.is_active.is_(True))
             .order_by(Warehouse.id)
             .limit(1)
         )
@@ -372,8 +372,8 @@ def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float
     stock_item = (
         db.execute(
             select(StockItem).where(
-                StockItem.tenant_id == str(tenant_id),
-                StockItem.warehouse_id == str(warehouse.id),
+                StockItem.tenant_id == tenant_id,
+                StockItem.warehouse_id == warehouse.id,
                 StockItem.product_id == product_id,
             )
         )
@@ -387,8 +387,8 @@ def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float
     else:
         db.add(
             StockItem(
-                tenant_id=str(tenant_id),
-                warehouse_id=str(warehouse.id),
+                tenant_id=tenant_id,
+                warehouse_id=warehouse.id,
                 product_id=product_id,
                 qty=qty,
             )
