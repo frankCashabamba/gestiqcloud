@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchDashboard, type DashboardStats, fetchRecipes, fetchSnapshots, runImport, type Recipe, type RecipeSnapshot, type RunResult } from '../services'
+import { fetchDashboard, type DashboardStats, fetchRecipes, fetchSnapshots, runImportAsync, pollDocument, type Recipe, type RecipeSnapshot } from '../services'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -51,7 +51,7 @@ const btn: React.CSSProperties = { padding: '0.5rem 1rem', border: '1px solid #d
 // Inline uploader con progreso en tiempo real
 type ImportMode = 'files' | 'folder'
 type FileStatus = 'pending' | 'processing' | 'done' | 'error'
-type FileEntry = { file: File; status: FileStatus; result?: RunResult }
+type FileEntry = { file: File; status: FileStatus; docId?: string; result?: { id: string; estado: string; tipo_documento_detectado?: string } }
 type DirectoryInputProps = React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory?: string }
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.xlsx,.xls,.csv,.xml,.txt'
 const ACCEPTED_EXTENSIONS = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.xlsx', '.xls', '.csv', '.xml', '.txt'])
@@ -139,41 +139,68 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
     if (e.target.files?.length) addFiles(e.target.files); e.target.value = ''
   }
 
-  // Procesa de a 1 para mostrar progreso exacto por archivo
+  // Encola todos via Celery y hace polling por archivo en paralelo
   const handleRun = async () => {
     const pending = entries.filter(e => e.status === 'pending')
     if (!pending.length) return
     setProcessing(true)
     setError('')
     setDoneCount(0)
-    const opts = {
-      ...(selectedSnapshotId ? { recipe_snapshot_id: selectedSnapshotId } : {}),
-      force: forceReprocess,
-    }
 
-    let completed = 0
-    for (const entry of pending) {
-      // Marcar como "procesando"
-      setEntries(prev => prev.map(e =>
-        e.file === entry.file ? { ...e, status: 'processing' } : e
-      ))
-      try {
-        const [result] = await runImport([entry.file], opts)
-        const finalStatus: FileStatus = result?.estado === 'FAILED' ? 'error' : 'done'
-        setEntries(prev => prev.map(e =>
-          e.file === entry.file ? { ...e, status: finalStatus, result } : e
-        ))
-        completed++
-        setDoneCount(completed)
-        onImported?.()
-      } catch (err: any) {
-        setEntries(prev => prev.map(e =>
-          e.file === entry.file ? { ...e, status: 'error' } : e
-        ))
-        setError(err?.response?.data?.detail || `Error procesando "${entry.file.name}"`)
-      }
+    // Marcar todos como "procesando" antes de enviar
+    setEntries(prev => prev.map(e => e.status === 'pending' ? { ...e, status: 'processing' } : e))
+
+    try {
+      // Enviar todos al backend async (retorna PENDING de inmediato)
+      const asyncResults = await runImportAsync(
+        pending.map(e => e.file),
+        { force: forceReprocess, recipe_snapshot_id: selectedSnapshotId || undefined },
+      )
+
+      // Mapear nombre → resultado
+      const byName = new Map(asyncResults.map(r => [r.nombre_archivo, r]))
+
+      // Poll cada archivo concurrentemente
+      await Promise.all(pending.map(async (entry) => {
+        const asyncResult = byName.get(entry.file.name)
+        if (!asyncResult) {
+          setEntries(prev => prev.map(e => e.file === entry.file ? { ...e, status: 'error' } : e))
+          return
+        }
+
+        // Si ya estaba procesado (duplicado reutilizado)
+        if (asyncResult.estado !== 'PENDING' && asyncResult.estado !== 'PROCESSING') {
+          setEntries(prev => prev.map(e =>
+            e.file === entry.file
+              ? { ...e, status: asyncResult.estado === 'FAILED' ? 'error' : 'done', docId: asyncResult.id, result: asyncResult }
+              : e
+          ))
+          setDoneCount(c => c + 1)
+          onImported?.()
+          return
+        }
+
+        // Polling hasta que el worker lo resuelva
+        try {
+          const finalDoc = await pollDocument(asyncResult.id)
+          setEntries(prev => prev.map(e =>
+            e.file === entry.file
+              ? { ...e, status: finalDoc.estado === 'FAILED' ? 'error' : 'done', docId: finalDoc.id, result: finalDoc }
+              : e
+          ))
+          setDoneCount(c => c + 1)
+          onImported?.()
+        } catch (err: any) {
+          setEntries(prev => prev.map(e => e.file === entry.file ? { ...e, status: 'error' } : e))
+          setError(prev => prev || (err?.message || `Error procesando "${entry.file.name}"`))
+        }
+      }))
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Error al encolar archivos')
+      setEntries(prev => prev.map(e => e.status === 'processing' ? { ...e, status: 'pending' } : e))
+    } finally {
+      setProcessing(false)
     }
-    setProcessing(false)
   }
 
   const pendingCount = entries.filter(e => e.status === 'pending').length
@@ -292,9 +319,9 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
                   )}
 
                   {/* Botón revisar */}
-                  {entry.status === 'done' && entry.result?.id && (
+                  {entry.status === 'done' && (entry.docId || entry.result?.id) && (
                     <button
-                      onClick={() => navigate(`documents/${entry.result!.id}`)}
+                      onClick={() => navigate(`documents/${entry.docId || entry.result!.id}`)}
                       style={{ padding: '2px 8px', border: '1px solid #6366F1', borderRadius: 5, background: '#fff', color: '#6366F1', cursor: 'pointer', fontSize: 11, flexShrink: 0 }}
                     >
                       Ver

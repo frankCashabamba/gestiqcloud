@@ -77,6 +77,8 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
     username = None
     company_slug = None
     is_company_admin = None
+    onboarding_complete = False
+    sector_nombre = None
     try:
         uid = user_id
     except Exception:
@@ -101,15 +103,27 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
             except Exception:
                 is_company_admin = None
             try:
-                from app.models.company.company_settings import CompanySettings
-                cs = db.query(CompanySettings).filter(CompanySettings.tenant_id == u.tenant_id).first()
-                onboarding_complete = bool((cs and cs.settings or {}).get("onboarding_complete", False))
-            except Exception:
-                onboarding_complete = False
-            try:
                 sector_nombre = getattr(tenant, "sector_template_name", None) if tenant else None
             except Exception:
                 sector_nombre = None
+
+    # Verificar onboarding usando tenant_id del JWT
+    try:
+        import uuid as _uuid
+        from app.models.company.company_settings import CompanySettings
+        from app.models.tenant import Tenant as _Tenant
+        _tid = _uuid.UUID(str(tenant_id))
+        cs = db.query(CompanySettings).filter(CompanySettings.tenant_id == _tid).first()
+        flag = bool((cs.settings if cs and cs.settings else {}).get("onboarding_complete", False))
+        has_cs_name = bool(cs and cs.company_name)
+        # Fallback: el tenant tiene nombre propio (siempre se actualiza en onboarding)
+        _t = db.query(_Tenant).filter(_Tenant.id == _tid).first()
+        has_tenant_name = bool(_t and _t.name and _t.slug and _t.slug not in ("default", "tenant", "empresa", ""))
+        onboarding_complete = flag or has_cs_name or has_tenant_name
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).warning("onboarding_complete check failed: %s", _e)
+        onboarding_complete = False
 
     return {
         "tenant_id": str(tenant_id),

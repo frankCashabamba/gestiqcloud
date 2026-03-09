@@ -522,6 +522,51 @@ export async function fetchDashboard(): Promise<DashboardStats> {
   return data
 }
 
+export type AsyncRunResult = {
+  id: string
+  estado: string
+  nombre_archivo: string
+}
+
+// --- /run-async: encola via Celery, retorna PENDING inmediatamente ---
+export async function runImportAsync(
+  files: File[],
+  opts?: { force?: boolean; recipe_snapshot_id?: string }
+): Promise<AsyncRunResult[]> {
+  const form = new FormData()
+  files.forEach(f => form.append('files', f))
+  const params: Record<string, string> = {}
+  if (opts?.force) params.force = 'true'
+  if (opts?.recipe_snapshot_id) params.recipe_snapshot_id = opts.recipe_snapshot_id
+  const { data } = await api.post(TENANT_IMPORTADOR.runAsync, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params,
+  })
+  return data
+}
+
+/** Hace polling a GET /documents/{id} hasta que estado != PENDING|PROCESSING.
+ *  Resuelve con el documento final. Rechaza si supera maxWaitMs (default 5 min). */
+export async function pollDocument(
+  id: string,
+  opts?: { intervalMs?: number; maxWaitMs?: number }
+): Promise<Documento> {
+  const interval = opts?.intervalMs ?? 2000
+  const maxWait = opts?.maxWaitMs ?? 300_000
+  const start = Date.now()
+
+  while (true) {
+    const doc = await fetchDocument(id)
+    if (doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING') {
+      return doc
+    }
+    if (Date.now() - start >= maxWait) {
+      throw new Error(`Timeout esperando documento ${id}`)
+    }
+    await new Promise(resolve => setTimeout(resolve, interval))
+  }
+}
+
 // --- /run (RB-01: recipe never required) ---
 export async function runImport(
   files: File[],

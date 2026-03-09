@@ -65,6 +65,25 @@ async def onboarding_init(
             raise HTTPException(status_code=404, detail="Tenant not found")
 
         tenant.name = payload.company_name
+        # Actualizar slug si es genérico ("default", vacío) para reflejar el nombre real
+        if not tenant.slug or tenant.slug in ("default", "tenant", "empresa"):
+            import re
+            import unicodedata
+            def _slugify(text: str) -> str:
+                text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+                text = re.sub(r"[^\w\s-]", "", text.lower()).strip()
+                text = re.sub(r"[\s_-]+", "-", text)
+                return text[:60] or "empresa"
+            new_slug = _slugify(payload.company_name)
+            # Verificar unicidad; si ya existe agregar sufijo numérico
+            from sqlalchemy import func as _func
+            existing = db.query(Tenant).filter(Tenant.slug == new_slug, Tenant.id != tenant_id).first()
+            if existing:
+                count = db.query(_func.count(Tenant.id)).filter(
+                    Tenant.slug.like(f"{new_slug}%"), Tenant.id != tenant_id
+                ).scalar() or 0
+                new_slug = f"{new_slug}-{count + 1}"
+            tenant.slug = new_slug
         tenant.country_code = payload.country_code
         tenant.tax_id = payload.tax_id
         tenant.phone = payload.phone
@@ -86,6 +105,8 @@ async def onboarding_init(
             settings.company_logo = payload.logo_empresa
             settings.primary_color = payload.primary_color
             settings.secondary_color = payload.secondary_color
+            settings.company_name = payload.company_name
+            settings.tax_id = payload.tax_id
         else:
             # Create new settings
             settings = CompanySettings(
@@ -116,6 +137,7 @@ async def onboarding_init(
             "ok": True,
             "message": "Onboarding configuration saved successfully",
             "tenant_id": str(tenant_id),
+            "empresa_slug": getattr(tenant, "slug", None),
         }
 
     except ValueError as e:

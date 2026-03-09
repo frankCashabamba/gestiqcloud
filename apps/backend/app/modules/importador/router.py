@@ -1817,6 +1817,99 @@ def save_document_as_purchase(
 
 
 # ---------------------------------------------------------------------------
+# Async upload via Celery (run-async)
+# ---------------------------------------------------------------------------
+
+class RunAsyncResponse(BaseModel):
+    id: UUID
+    estado: str
+    nombre_archivo: str
+
+
+@router.post("/run-async", response_model=list[RunAsyncResponse], dependencies=protected)
+async def run_async(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    force: bool = Query(default=False),
+    recipe_snapshot_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Encola los archivos para procesamiento asíncrono via Celery.
+
+    Retorna inmediatamente con {id, estado='PENDING'}.
+    El cliente hace polling a GET /documents/{id} hasta estado != PENDING|PROCESSING.
+    """
+    from .tasks import process_document_task, store_payload
+
+    tenant_id = _tenant_id(request)
+    user_id = _user_id(request)
+    results: list[RunAsyncResponse] = []
+
+    for file in files:
+        file_bytes = await file.read()
+        filename = file.filename or "unknown"
+        tipo_archivo = detect_file_type(filename)
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+        # Reutilizar si ya existe y está procesado
+        if not force:
+            existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+            if existing and existing.estado in ("CONFIRMED", "REVIEW"):
+                results.append(RunAsyncResponse(id=existing.id, estado=existing.estado, nombre_archivo=filename))
+                continue
+
+        doc = crud.create_documento(
+            db,
+            {
+                "tenant_id": tenant_id,
+                "nombre_archivo": filename,
+                "tipo_archivo": tipo_archivo,
+                "tamanio_bytes": len(file_bytes),
+                "hash_sha256": file_hash,
+                "estado": "PENDING",
+                "usuario_id": user_id,
+            },
+        )
+        crud.add_log(db, doc.id, "UPLOAD", user_id, {"filename": filename, "size": len(file_bytes), "mode": "async"})
+        db.commit()
+
+        # Guardar bytes en Redis y encolar tarea Celery
+        store_payload(str(doc.id), file_bytes)
+        if process_document_task:
+            process_document_task.delay(
+                doc_id=str(doc.id),
+                tenant_id=str(tenant_id),
+                user_id=user_id,
+                filename=filename,
+                tipo_archivo=tipo_archivo,
+                recipe_snapshot_id=recipe_snapshot_id,
+                force=force,
+            )
+        else:
+            # Celery no disponible — procesar sincrónicamente como fallback
+            logger.warning("Celery no disponible, procesando %s sincrónicamente", filename)
+            from .tasks import _run_processing
+            import asyncio as _asyncio
+            from uuid import UUID as _UUID
+            try:
+                _asyncio.create_task(_run_processing(
+                    doc_id=_UUID(str(doc.id)),
+                    tenant_id=_UUID(str(tenant_id)),
+                    user_id=user_id,
+                    file_bytes=file_bytes,
+                    filename=filename,
+                    tipo_archivo=tipo_archivo,
+                    force=force,
+                ))
+            except Exception:
+                pass
+
+        results.append(RunAsyncResponse(id=doc.id, estado="PENDING", nombre_archivo=filename))
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Purge all importador history (tenant-scoped)
 # ---------------------------------------------------------------------------
 @router.delete("/purge-all", dependencies=protected)

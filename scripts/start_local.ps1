@@ -211,7 +211,18 @@ $backendJob = Start-Job -ScriptBlock {
     & $pythonExe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 *>> $logPath
 } -Name backend -ArgumentList $backendEnvVars, $backendLog, $venvPython, $backendPath
 
-Write-Host "[6/7] Iniciando frontends..." -ForegroundColor Green
+Write-Host "[6/7] Iniciando Celery worker (cola importador)..." -ForegroundColor Green
+$celeryLog = Join-Path $repoRoot "celery.log"
+$null = Start-Job -ScriptBlock {
+    param($envVars, $logPath, $pythonExe, $workDir)
+    foreach ($entry in $envVars.GetEnumerator()) {
+        [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
+    }
+    Set-Location $workDir
+    & $pythonExe -m celery -A celery_app worker --queues=importador,default --loglevel=info --concurrency=2 *>> $logPath
+} -Name celery -ArgumentList $backendEnvVars, $celeryLog, $venvPython, $backendPath
+
+Write-Host "[6.5/7] Iniciando frontends..." -ForegroundColor Green
 $adminJob = Start-Job -ScriptBlock {
     param($path, $envVars, $port)
     [Environment]::SetEnvironmentVariable("NODE_ENV", "development", "Process")
@@ -245,8 +256,8 @@ if (-not ($okBackend -and $okAdmin -and $okTenant)) {
         Write-Host "`nbackend.log (ultimas 80 lineas):" -ForegroundColor Yellow
         Get-Content $backendLog -Tail 80 | Out-Host
     }
-    Stop-Job -Name backend,admin,tenant -ErrorAction SilentlyContinue
-    Remove-Job -Name backend,admin,tenant -Force -ErrorAction SilentlyContinue
+    Stop-Job -Name backend,celery,admin,tenant -ErrorAction SilentlyContinue
+    Remove-Job -Name backend,celery,admin,tenant -Force -ErrorAction SilentlyContinue
     exit 1
 }
 
@@ -256,7 +267,7 @@ Write-Host "Admin: $frontendUrl" -ForegroundColor White
 Write-Host "Tenant: $tenantOrigin" -ForegroundColor White
 Write-Host ""
 Write-Host "Tips: Usa 'Get-Job' y 'Receive-Job -Name backend|admin|tenant -Keep' para ver logs." -ForegroundColor DarkGray
-Write-Host "Para detener: Stop-Job -Name backend,admin,tenant; Remove-Job -Name backend,admin,tenant" -ForegroundColor DarkGray
+Write-Host "Para detener: Stop-Job -Name backend,celery,admin,tenant; Remove-Job -Name backend,celery,admin,tenant" -ForegroundColor DarkGray
 Write-Host "Redis (opcional): docker stop redis; docker rm redis" -ForegroundColor DarkGray
 Write-Host "`nLos servicios quedan ejecutandose en segundo plano en esta sesion." -ForegroundColor Green
 

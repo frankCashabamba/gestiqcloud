@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import tenantApi from '../shared/api/client'
 import { TENANT_ONBOARDING } from '@shared/endpoints'
 import { useToast, getErrorMessage } from '../shared/toast'
-import { resolveTenantPath } from '../lib/tenantNavigation'
 
 type Step = 'info' | 'regional' | 'branding' | 'review'
 
@@ -232,7 +231,7 @@ export default function Onboarding() {
   const onSubmit = async () => {
     try {
       setSaving(true)
-      await tenantApi.post(TENANT_ONBOARDING.init, {
+      const result = await tenantApi.post(TENANT_ONBOARDING.init, {
         company_name: formData.company_name,
         tax_id: formData.tax_id || null,
         country_code: formData.country_code,
@@ -254,8 +253,8 @@ export default function Onboarding() {
       if (token) {
         navigate(`/set-password?token=${token}`)
       } else {
-        const target = await resolveTenantPath()
-        navigate(target)
+        const slug = result?.data?.empresa_slug
+        navigate(slug ? `/${slug}` : '/')
       }
     } catch (e: any) {
       error(getErrorMessage(e))

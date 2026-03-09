@@ -1,6 +1,7 @@
 export const TENANT_IMPORTADOR = {
   upload: '/api/v1/importador/upload',
   run: '/api/v1/importador/run',
+  runAsync: '/api/v1/importador/run-async',
   documents: '/api/v1/importador/documents',
   documentById: (id: string) => `/api/v1/importador/documents/${id}`,
   confirm: (id: string) => `/api/v1/importador/documents/${id}/confirm`,
