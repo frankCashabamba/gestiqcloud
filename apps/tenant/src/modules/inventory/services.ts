@@ -19,6 +19,10 @@ export type StockItem = {
   product_id: string | number
   warehouse_id: string | number
   qty: number
+  unit?: string | null        // Product.unit, e.g. "kg", "uds", "g"
+  pack_size?: number | null   // qty per package (e.g. 30 eggs/Cubeta)
+  pack_label?: string | null  // package label (e.g. "Cubeta", "bloque")
+  pack_unit?: string | null   // package unit (e.g. "uds", "g")
   location?: string | null
   lot?: string | null
   expires_at?: string | null
@@ -57,6 +61,10 @@ function mapStockItem(x: any): StockItem {
     product_id: x.product_id ?? product.id ?? x.pid,
     warehouse_id: x.warehouse_id ?? wh.id ?? x.wid,
     qty: Number(x.qty ?? x.quantity ?? x.cantidad ?? 0),
+    unit: x.unit ?? null,
+    pack_size: x.pack_size != null ? Number(x.pack_size) : null,
+    pack_label: x.pack_label ?? null,
+    pack_unit: x.pack_unit ?? null,
     location: x.location ?? x.ubicacion ?? null,
     lot: x.lot ?? x.lote ?? null,
     expires_at: x.expires_at ?? x.caducidad ?? null,

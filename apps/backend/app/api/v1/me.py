@@ -100,6 +100,16 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
                 is_company_admin = bool(getattr(u, "is_company_admin", None))
             except Exception:
                 is_company_admin = None
+            try:
+                from app.models.company.company_settings import CompanySettings
+                cs = db.query(CompanySettings).filter(CompanySettings.tenant_id == u.tenant_id).first()
+                onboarding_complete = bool((cs and cs.settings or {}).get("onboarding_complete", False))
+            except Exception:
+                onboarding_complete = False
+            try:
+                sector_nombre = getattr(tenant, "sector_template_name", None) if tenant else None
+            except Exception:
+                sector_nombre = None
 
     return {
         "tenant_id": str(tenant_id),
@@ -107,6 +117,8 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
         "username": username,
         "empresa_slug": company_slug,
         "is_company_admin": is_company_admin,
+        "onboarding_complete": onboarding_complete,
+        "sector_nombre": sector_nombre,
         "scope": "tenant",
     }
 

@@ -92,41 +92,29 @@
                 <a class="btn" href="{{ enlace }}">Establecer Contraseña</a>
               </div>
 
-              <!-- Next Steps -->
-              <div class="next-steps">
-                <div class="next-steps-title">📋 Próximos pasos recomendados:</div>
-                <ul class="next-steps-list">
-                  <li><strong>Configurar perfil:</strong> Completa la información de tu empresa</li>
-                  <li><strong>Invitar usuarios:</strong> Añade miembros del equipo a tu empresa</li>
-                  <li><strong>Activar módulos:</strong> Habilita las funcionalidades que necesitas</li>
-                  <li><strong>Personalizar ajustes:</strong> Configura impuestos, monedas y localizaciones</li>
-                </ul>
+              <!-- Sector badge (si aplica) -->
+              {% if sector_nombre %}
+              <div style="margin-bottom: 20px;">
+                <span style="display:inline-block; background-color:#f0fdf4; color:#166534; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; border:1px solid #bbf7d0;">
+                  {{ sector_icono }} {{ sector_nombre }}
+                </span>
               </div>
+              {% endif %}
 
-              <div class="section-title">Funcionalidades principales</div>
-
-              <!-- Features -->
-              <div class="feature-list">
-                <div class="feature-item">
-                  <div class="feature-icon">📊</div>
-                  <div class="feature-text"><strong>Dashboard analítico:</strong> Visualiza métricas clave de tu negocio en tiempo real</div>
-                </div>
-                <div class="feature-item">
-                  <div class="feature-icon">👥</div>
-                  <div class="feature-text"><strong>Gestión de usuarios:</strong> Crea roles personalizados y asigna permisos granulares</div>
-                </div>
-                <div class="feature-item">
-                  <div class="feature-icon">⚙️</div>
-                  <div class="feature-text"><strong>Módulos flexibles:</strong> Activa solo las funcionalidades que tu negocio necesita</div>
-                </div>
-                <div class="feature-item">
-                  <div class="feature-icon">📱</div>
-                  <div class="feature-text"><strong>Acceso multiplataforma:</strong> Gestiona desde web, tablet o móvil</div>
-                </div>
-                <div class="feature-item">
-                  <div class="feature-icon">🔒</div>
-                  <div class="feature-text"><strong>Seguridad empresarial:</strong> Encriptación end-to-end y backups automáticos</div>
-                </div>
+              <!-- Next Steps dinámicos por sector -->
+              <div class="next-steps">
+                <div class="next-steps-title">📋 Por dónde empezar:</div>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;">
+                  {% for paso in pasos %}
+                  <tr>
+                    <td style="width:32px; vertical-align:top; padding:6px 10px 6px 0; font-size:18px;">{{ paso.icon }}</td>
+                    <td style="vertical-align:top; padding:6px 0; border-bottom:1px solid #fde68a;">
+                      <span style="font-weight:600; color:#92400e; font-size:13px;">{{ paso.titulo }}</span><br>
+                      <span style="color:#78350f; font-size:12px; line-height:1.5;">{{ paso.detalle }}</span>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </table>
               </div>
 
               <div class="divider"></div>

@@ -101,6 +101,11 @@ async def onboarding_init(
             )
             db.add(settings)
 
+        # Marcar onboarding como completado en settings JSON
+        current_settings = settings.settings or {}
+        current_settings["onboarding_complete"] = True
+        settings.settings = current_settings
+
         # Save changes
         db.add(tenant)
         db.commit()

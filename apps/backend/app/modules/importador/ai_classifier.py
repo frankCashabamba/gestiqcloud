@@ -84,29 +84,30 @@ def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1600) -> bytes:
 
     img = _Image.open(_io.BytesIO(image_bytes))
     w, h = img.size
-    if max(w, h) <= max_dim:
-        return image_bytes
 
-    scale = max_dim / max(w, h)
-    new_size = (int(w * scale), int(h * scale))
-    img = img.resize(new_size, _Image.LANCZOS)
+    if max(w, h) > max_dim:
+        scale = max_dim / max(w, h)
+        new_size = (int(w * scale), int(h * scale))
+        img = img.resize(new_size, _Image.LANCZOS)
+    else:
+        new_size = (w, h)
 
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
 
     buf = _io.BytesIO()
-    img.save(buf, format="JPEG", quality=85)
-    resized = buf.getvalue()
+    img.save(buf, format="JPEG", quality=75)
+    result = buf.getvalue()
     logger.debug(
-        "Vision image resized %dx%d→%dx%d (%d→%d bytes)",
+        "Vision image %dx%d→%dx%d (%d→%d bytes)",
         w,
         h,
         new_size[0],
         new_size[1],
         len(image_bytes),
-        len(resized),
+        len(result),
     )
-    return resized
+    return result
 
 
 async def _analyze_with_vision(
@@ -211,11 +212,12 @@ async def _analyze_with_vision(
             },
         ],
         "stream": False,
-        "options": {"temperature": 0.1, "num_predict": 2000},
+        "options": {"temperature": 0.1, "num_predict": 600},
     }
 
     try:
-        timeout = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+        timeout_secs = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+        timeout = httpx.Timeout(timeout_secs, read=timeout_secs)
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(f"{ollama_url}/api/chat", json=payload)
             resp.raise_for_status()

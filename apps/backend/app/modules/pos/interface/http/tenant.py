@@ -938,10 +938,13 @@ def close_shift(
             account_id = pm_map.get(mkey)
             if not account_id:
                 # Fallback básico
-                if mkey == "cash" or mkey == "efectivo":
+                if mkey in ("cash", "efectivo"):
                     account_id = settings.cash_account_id
                 elif mkey in ("card", "tarjeta", "debit", "credit", "link"):
                     account_id = settings.bank_account_id
+                else:
+                    # Cualquier otro método (other, transferencia, etc.) → caja
+                    account_id = settings.cash_account_id
             if not account_id:
                 raise HTTPException(
                     status_code=400,
@@ -1213,6 +1216,9 @@ def generate_accounting_for_closed_shift(
                     account_id = settings.cash_account_id
                 elif mkey in ("card", "tarjeta", "debit", "credit", "link"):
                     account_id = settings.bank_account_id
+                else:
+                    # Cualquier otro método (other, transferencia, etc.) → caja
+                    account_id = settings.cash_account_id
             if not account_id:
                 raise HTTPException(
                     status_code=400,

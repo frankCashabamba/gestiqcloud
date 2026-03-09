@@ -1069,6 +1069,12 @@ async def create_company_full_json(
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
+        sector_nombre = None
+        if payload.sector_template_id:
+            from app.models.company.company import SectorTemplate
+            st = db.query(SectorTemplate).filter(SectorTemplate.id == str(payload.sector_template_id)).first()
+            if st:
+                sector_nombre = st.name
         enviar_correo_bienvenida(
             user_email=user.email,
             username=user.username,
@@ -1076,6 +1082,7 @@ async def create_company_full_json(
             background_tasks=background_tasks,
             nombre_usuario=f"{payload.admin.first_name} {payload.admin.last_name}".strip(),
             is_admin_company=user.is_company_admin,
+            sector_nombre=sector_nombre,
         )
     except Exception as e:
         # Do not interrupt the flow on SMTP failure, but log for diagnosis

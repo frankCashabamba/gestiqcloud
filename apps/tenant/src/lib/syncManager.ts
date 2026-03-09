@@ -44,9 +44,14 @@ export interface SyncResult {
   duration: number
 }
 
+interface RetryEntry {
+  attempts: number
+  nextAttemptAt: number
+}
+
 class SyncManager {
   private adapters: Map<string, SyncAdapter> = new Map()
-  private retryQueue: Map<string, number> = new Map() // key -> attempts
+  private retryQueue: Map<string, RetryEntry> = new Map()
   private maxRetries = 3
   private baseDelay = 1000 // ms
 
@@ -62,7 +67,7 @@ class SyncManager {
       if (!adapter.canSyncOffline) continue
 
       try {
-        const result = await this.syncEntity(adapter.entity)
+        const result = await this.syncEntity(adapter.entity, false)
         results.push(result)
       } catch (error) {
         console.error(`[offline] Sync failed for ${adapter.entity}:`, error)
@@ -76,10 +81,11 @@ class SyncManager {
       }
     }
 
+    window.dispatchEvent(new CustomEvent('offline:sync-complete', { detail: { results } }))
     return results
   }
 
-  async syncEntity(entity: EntityType): Promise<SyncResult> {
+  async syncEntity(entity: EntityType, emitComplete = true): Promise<SyncResult> {
     const startTime = Date.now()
     const adapter = this.adapters.get(entity)
 
@@ -99,10 +105,17 @@ class SyncManager {
     for (const item of pendingItems) {
       try {
         const key = `${entity}:${item.id}`
-        const attempts = this.retryQueue.get(key) || 0
+        const entry = this.retryQueue.get(key)
+        const attempts = entry?.attempts ?? 0
 
         if (attempts >= this.maxRetries) {
           await markFailed(entity, item.id, 'Max retries exceeded')
+          this.retryQueue.delete(key)
+          failed++
+          continue
+        }
+
+        if (entry && Date.now() < entry.nextAttemptAt) {
           failed++
           continue
         }
@@ -140,18 +153,18 @@ class SyncManager {
         }
 
         synced++
-        this.retryQueue.delete(key)
+        this.retryQueue.delete(`${entity}:${item.id}`)
 
       } catch (error) {
         console.error(`[offline] Sync failed for ${entity}:${item.id}:`, error)
         failed++
 
         const key = `${entity}:${item.id}`
-        const attempts = (this.retryQueue.get(key) || 0) + 1
-        this.retryQueue.set(key, attempts)
-
-        // Schedule retry with exponential backoff
+        const prevAttempts = this.retryQueue.get(key)?.attempts ?? 0
+        const attempts = prevAttempts + 1
         const delay = Math.min(this.baseDelay * Math.pow(2, attempts - 1), 5 * 60 * 1000)
+        this.retryQueue.set(key, { attempts, nextAttemptAt: Date.now() + delay })
+
         await markFailed(entity, item.id, error instanceof Error ? error.message : 'Unknown error')
       }
     }
@@ -160,13 +173,11 @@ class SyncManager {
 
     console.log(`[offline] Sync complete for ${entity}: ${synced} synced, ${failed} failed, ${conflicts} conflicts in ${duration}ms`)
 
-    return {
-      entity,
-      synced,
-      failed,
-      conflicts,
-      duration,
+    const result: SyncResult = { entity, synced, failed, conflicts, duration }
+    if (emitComplete) {
+      window.dispatchEvent(new CustomEvent('offline:sync-complete', { detail: { results: [result] } }))
     }
+    return result
   }
 
   async getConflicts(): Promise<ConflictInfo[]> {
@@ -227,6 +238,7 @@ class SyncManager {
 
 // Singleton instance
 let syncManagerInstance: SyncManager | null = null
+let syncListenerRegistered = false
 
 export function getSyncManager(): SyncManager {
   if (!syncManagerInstance) {
@@ -241,6 +253,9 @@ export function resetSyncManager() {
 
 // Global event listener for sync requests
 export function initSyncEventListener() {
+  if (syncListenerRegistered) return
+  syncListenerRegistered = true
+
   window.addEventListener('offline:sync-requested', async (event: Event) => {
     const customEvent = event as CustomEvent
     const entity = customEvent.detail?.entity
@@ -257,4 +272,8 @@ export function initSyncEventListener() {
       console.error('Sync failed:', error)
     }
   })
+}
+
+export function resetSyncListener() {
+  syncListenerRegistered = false
 }

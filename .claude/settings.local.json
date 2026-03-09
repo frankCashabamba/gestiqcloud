@@ -22,7 +22,31 @@
       "Bash(npx tsc --noEmit)",
       "Read(//c/gestiqcloud/**)",
       "Bash(ls -la c:/gestiqcloud/apps/tenant/src/modules/*/offlineSync.ts)",
-      "Bash(bash /tmp/check_offline.sh)"
+      "Bash(bash /tmp/check_offline.sh)",
+      "Bash(npx vitest run apps/tenant/src/__tests__/offline-online.integration.test.tsx --reporter=verbose)",
+      "Bash(npx vitest run src/__tests__/offline-online.integration.test.tsx --reporter=verbose)",
+      "Bash(pnpm --filter @gestiqcloud/tenant test:run -- src/__tests__/offline-online.integration.test.tsx --reporter=verbose)",
+      "Bash(pnpm --filter tenant-app test:run -- src/__tests__/offline-online.integration.test.tsx --reporter=verbose)",
+      "Bash(ls c:/gestiqcloud/node_modules/.bin/vitest*)",
+      "Bash(npm run test:run)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''packageManager'',''none''\\)\\)\")",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const d=JSON.parse\\(fs.readFileSync\\(''c:/gestiqcloud/apps/tenant/package.json''\\)\\); console.log\\(JSON.stringify\\(d.scripts\\)\\)\")",
+      "Bash(node c:/gestiqcloud/apps/tenant/node_modules/vitest/dist/node/cli.mjs --version)",
+      "Read(//c/Users/frank/.claude/projects/c--gestiqcloud/memory/**)",
+      "Bash(xargs grep -l \"quickProduction\\\\|quick.*production\\\\|producción.*rápida\")",
+      "Bash(xargs grep -l \"updateStock\\\\|completeProduction\\\\|inventory.*update\")",
+      "Bash(npx tsc --noEmit -p tsconfig.json)",
+      "Bash(xargs grep -l \"qty_per_package\\\\|pack_size\\\\|conversion_factor\\\\|bultos\\\\|unit_of_measure\")",
+      "Bash(xargs grep -l \"purchase.*unit\\\\|UOM\\\\|unit.*purchase\")",
+      "Bash(ollama list)",
+      "Bash(xargs grep -l \"closing\\\\|Closing\")",
+      "Bash(xargs grep -l \"shift\\\\|Shift\")",
+      "Bash(xargs grep -l \"class InventoryCostingService\")",
+      "Bash(xargs grep -l \"def calculate_recipe_cost\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\frank\\.claude\\projects\\c--gestiqcloud"
     ]
   }
 }

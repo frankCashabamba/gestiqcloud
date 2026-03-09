@@ -409,7 +409,24 @@ export default function StockList() {
                       <td className="px-4 py-3 whitespace-nowrap text-right">
                         <span className={`text-lg font-bold ${item.qty <= 0 ? 'text-red-600' : 'text-gray-900'}`}>
                           {item.qty.toFixed(2)}
+                          {item.unit && item.unit !== 'unit' && (
+                            <span className="ml-1 text-sm font-normal text-gray-500">{item.unit}</span>
+                          )}
                         </span>
+                        {(() => {
+                          const METRIC = new Set(['kg','g','lb','oz','ton','mg','L','ml','gal','uds','unidades','pcs'])
+                          const stockUnit = item.unit ?? ''
+                          const pu = item.pack_unit ?? ''
+                          const showEquiv = item.pack_size && item.pack_size > 0 && pu
+                            && METRIC.has(pu)
+                            && !METRIC.has(stockUnit)
+                          if (!showEquiv) return null
+                          return (
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              = {(item.qty * item.pack_size!).toFixed(0)} {pu}
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{item.location || '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">

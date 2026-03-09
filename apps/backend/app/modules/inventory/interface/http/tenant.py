@@ -15,6 +15,7 @@ from app.core.authz import require_scope
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
+from app.models.recipes import RecipeIngredient
 from app.services.inventory_costing import InventoryCostingService
 
 router = APIRouter(
@@ -156,6 +157,10 @@ class StockItemOut(BaseModel):
     warehouse_id: str
     product_id: str
     qty: float
+    unit: str | None = None        # Product.unit, e.g. "kg", "uds", "g"
+    pack_size: float | None = None  # qty_per_package from recipe (e.g. 30 eggs/Cubeta, 500 g/bloque)
+    pack_label: str | None = None   # purchase_packaging label (e.g. "Cubeta", "bloque")
+    pack_unit: str | None = None    # package_unit (e.g. "uds", "g")
     ubicacion: str | None = None
     lote: str | None = None
     expires_at: str | None = None
@@ -170,8 +175,24 @@ def get_stock(
     warehouse_id: str | None = Query(default=None),
     product_id: str | None = Query(default=None),
 ):
+    from sqlalchemy import func as _func
+
     tid = _require_tenant_id(request)
-    # Join to enrich with product and warehouse info
+
+    # Subquery: pick one pack_info per product from recipe_ingredients
+    # (uses MAX to aggregate — most products appear in ≤1 recipe)
+    pack_subq = (
+        select(
+            RecipeIngredient.product_id.label("ri_product_id"),
+            _func.max(RecipeIngredient.qty_per_package).label("pack_size"),
+            _func.max(RecipeIngredient.purchase_packaging).label("pack_label"),
+            _func.max(RecipeIngredient.package_unit).label("pack_unit"),
+        )
+        .where(RecipeIngredient.qty_per_package > 0)
+        .group_by(RecipeIngredient.product_id)
+        .subquery("pack_info")
+    )
+
     q = (
         select(
             StockItem.id,
@@ -182,11 +203,16 @@ def get_stock(
             Product.name.label("p_name"),
             Product.price.label("p_price"),
             Product.product_metadata.label("p_meta"),
+            Product.unit.label("p_unit"),
             Warehouse.code.label("w_code"),
             Warehouse.name.label("w_name"),
+            pack_subq.c.pack_size,
+            pack_subq.c.pack_label,
+            pack_subq.c.pack_unit,
         )
         .join(Product, Product.id == StockItem.product_id)
         .join(Warehouse, Warehouse.id == StockItem.warehouse_id)
+        .outerjoin(pack_subq, pack_subq.c.ri_product_id == StockItem.product_id)
     )
     if tid is not None:
         q = q.where(StockItem.tenant_id == tid)
@@ -198,30 +224,29 @@ def get_stock(
     rows = db.execute(q).all()
     out: list[StockItemOut] = []
     for r in rows:
+        meta = r[7] or {}
         out.append(
             StockItemOut(
                 id=str(r[0]),
                 product_id=str(r[1]),
                 warehouse_id=str(r[2]),
                 qty=float(r[3] or 0),
+                unit=r[8] or "unit",
+                pack_size=float(r[11]) if r[11] is not None else None,
+                pack_label=r[12] or None,
+                pack_unit=r[13] or None,
                 product={
                     "codigo": r[4],
                     "nombre": r[5],
                     "precio": float(r[6] or 0),
-                    **(
-                        {}
-                        if r[7] is None
-                        else {
-                            "product_metadata": r[7],
-                            "metadata": r[7],
-                            "stock_minimo": (r[7] or {}).get("stock_minimo"),
-                            "reorder_point": (r[7] or {}).get("reorder_point"),
-                        }
-                    ),
+                    "product_metadata": meta,
+                    "metadata": meta,
+                    "stock_minimo": meta.get("stock_minimo"),
+                    "reorder_point": meta.get("reorder_point"),
                 },
                 warehouse={
-                    "code": r[8],
-                    "name": r[9],
+                    "code": r[9],
+                    "name": r[10],
                 },
             )
         )

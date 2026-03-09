@@ -214,6 +214,7 @@ $backendJob = Start-Job -ScriptBlock {
 Write-Host "[6/7] Iniciando frontends..." -ForegroundColor Green
 $adminJob = Start-Job -ScriptBlock {
     param($path, $envVars, $port)
+    [Environment]::SetEnvironmentVariable("NODE_ENV", "development", "Process")
     foreach ($entry in $envVars.GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
     }
@@ -222,6 +223,7 @@ $adminJob = Start-Job -ScriptBlock {
 } -Name admin -ArgumentList $adminPath, $adminEnvVars, $adminPort
 $tenantJob = Start-Job -ScriptBlock {
     param($path, $envVars, $port)
+    [Environment]::SetEnvironmentVariable("NODE_ENV", "development", "Process")
     foreach ($entry in $envVars.GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
     }

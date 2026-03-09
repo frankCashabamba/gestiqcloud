@@ -9,7 +9,6 @@ import { resolveTenantPath } from '../lib/tenantNavigation'
 type Step = 'info' | 'regional' | 'branding' | 'review'
 
 interface FormData {
-  // Tenant info (step 1)
   company_name: string
   tax_id: string
   country_code: string
@@ -19,34 +18,81 @@ interface FormData {
   state: string
   postal_code: string
   website: string
-
-  // Regional (step 2)
   default_language: string
   timezone: string
   currency: string
-
-  // Branding (step 3)
   logo: string | null
   primary_color: string
   secondary_color: string
 }
 
-const INITIAL_STATE: FormData = {
-  company_name: '',
-  tax_id: '',
-  country_code: '',
-  phone: '',
-  address: '',
-  city: '',
-  state: '',
-  postal_code: '',
-  website: '',
-  default_language: 'es',
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  currency: 'USD',
-  logo: null,
-  primary_color: '#2563eb',
-  secondary_color: '#ffffff',
+interface SectorConfig {
+  key: string
+  nombre: string
+  icono: string
+  color: string
+  mensaje: string
+  tipRegional: string
+  placeholderEmpresa: string
+}
+
+const SECTOR_CONFIGS: Record<string, SectorConfig> = {
+  panaderia: {
+    key: 'panaderia',
+    nombre: 'Panadería',
+    icono: '🥐',
+    color: '#92400e',
+    mensaje: 'Configurá tu panadería en minutos. Luego podrás cargar ingredientes, recetas y empezar a producir.',
+    tipRegional: 'Para panaderías en Ecuador recomendamos USD como moneda y America/Guayaquil como zona horaria.',
+    placeholderEmpresa: 'Ej: Panadería El Trigo Dorado',
+  },
+  restaurante: {
+    key: 'restaurante',
+    nombre: 'Restaurante',
+    icono: '🍴',
+    color: '#dc2626',
+    mensaje: 'Configurá tu restaurante. Después podrás crear tu menú, registrar insumos y gestionar mesas.',
+    tipRegional: 'Recomendamos configurar bien la zona horaria para que los reportes diarios coincidan con tus turnos.',
+    placeholderEmpresa: 'Ej: Restaurante La Buena Mesa',
+  },
+  retail: {
+    key: 'retail',
+    nombre: 'Retail / Tienda',
+    icono: '🛍️',
+    color: '#2563eb',
+    mensaje: 'Configurá tu tienda. Luego cargarás tu catálogo de productos y empezarás a vender desde el POS.',
+    tipRegional: 'Si vendés en múltiples monedas, podés configurarlas después desde Configuración.',
+    placeholderEmpresa: 'Ej: Tienda Ferretería Central',
+  },
+  taller: {
+    key: 'taller',
+    nombre: 'Taller Mecánico',
+    icono: '🔧',
+    color: '#1e40af',
+    mensaje: 'Configurá tu taller. Podrás registrar servicios, repuestos, clientes y órdenes de trabajo.',
+    tipRegional: 'El idioma y zona horaria correctos son clave para que las órdenes de trabajo tengan la fecha exacta.',
+    placeholderEmpresa: 'Ej: Taller Mecánico Don Pedro',
+  },
+}
+
+const DEFAULT_SECTOR: SectorConfig = {
+  key: 'general',
+  nombre: 'Tu empresa',
+  icono: '🏢',
+  color: '#4f46e5',
+  mensaje: 'Configurá tu empresa en pocos pasos. Podrás ajustar todo esto más adelante desde Configuración.',
+  tipRegional: 'Podés cambiar el idioma y zona horaria después desde Configuración de empresa.',
+  placeholderEmpresa: 'Ej: Mi Empresa S.A.',
+}
+
+function getSectorConfig(sectorNombre: string | null): SectorConfig {
+  if (!sectorNombre) return DEFAULT_SECTOR
+  const s = sectorNombre.toLowerCase()
+  if (s.includes('panaderia') || s.includes('panadería') || s.includes('bakery')) return SECTOR_CONFIGS.panaderia
+  if (s.includes('restaurante') || s.includes('restaurant')) return SECTOR_CONFIGS.restaurante
+  if (s.includes('retail') || s.includes('tienda')) return SECTOR_CONFIGS.retail
+  if (s.includes('taller') || s.includes('mecanic')) return SECTOR_CONFIGS.taller
+  return DEFAULT_SECTOR
 }
 
 const COUNTRIES = [
@@ -66,6 +112,15 @@ const LANGUAGES = [
 
 const CURRENCIES = ['USD', 'EUR', 'PEN', 'CLP', 'COP', 'ARS', 'MXN']
 
+const STEPS: Step[] = ['info', 'regional', 'branding', 'review']
+
+const STEP_LABELS: Record<Step, string> = {
+  info: 'Empresa',
+  regional: 'Regional',
+  branding: 'Marca',
+  review: 'Revisar',
+}
+
 const normalizeLanguage = (value?: string | null) => {
   const v = (value || '').trim().toLowerCase()
   if (v.startsWith('es')) return 'es'
@@ -76,28 +131,45 @@ const normalizeLanguage = (value?: string | null) => {
 export default function Onboarding() {
   const { t } = useTranslation()
   const [step, setStep] = useState<Step>('info')
-  const [formData, setFormData] = useState<FormData>(INITIAL_STATE)
+  const [sector, setSector] = useState<SectorConfig>(DEFAULT_SECTOR)
+  const [formData, setFormData] = useState<FormData>({
+    company_name: '',
+    tax_id: '',
+    country_code: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    website: '',
+    default_language: 'es',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    currency: 'USD',
+    logo: null,
+    primary_color: DEFAULT_SECTOR.color,
+    secondary_color: '#ffffff',
+  })
   const [saving, setSaving] = useState(false)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
   const { success, error } = useToast()
   const navigate = useNavigate()
 
-  // Auto-detect language
-  useEffect(() => {
-    const lang = navigator.language?.startsWith('es') ? 'es' : 'en'
-    setFormData(prev => ({ ...prev, default_language: lang }))
-  }, [])
-
+  // Cargar sector y datos existentes
   useEffect(() => {
     let active = true
-    const loadExisting = async () => {
+    const load = async () => {
       try {
-        const [{ data: general }, { data: branding }] = await Promise.all([
+        const [{ data: me }, { data: general }, { data: branding }] = await Promise.all([
+          tenantApi.get('/api/v1/me/tenant'),
           tenantApi.get('/api/v1/company/settings/general'),
           tenantApi.get('/api/v1/company/settings/branding'),
         ])
         if (!active) return
+
+        const cfg = getSectorConfig((me as any)?.sector_nombre)
+        setSector(cfg)
+
         setFormData(prev => ({
           ...prev,
           company_name: prev.company_name || general?.company_name || '',
@@ -109,44 +181,26 @@ export default function Onboarding() {
           state: prev.state || general?.state || '',
           postal_code: prev.postal_code || general?.postal_code || '',
           website: prev.website || general?.website || '',
-          default_language:
-            prev.default_language === INITIAL_STATE.default_language
-              ? normalizeLanguage(general?.default_language) || prev.default_language
-              : prev.default_language,
-          timezone:
-            prev.timezone === INITIAL_STATE.timezone
-              ? general?.timezone || prev.timezone
-              : prev.timezone,
-          currency:
-            prev.currency === INITIAL_STATE.currency
-              ? general?.currency || prev.currency
-              : prev.currency,
+          default_language: normalizeLanguage(general?.default_language) || prev.default_language,
+          timezone: general?.timezone || prev.timezone,
+          currency: general?.currency || prev.currency,
           logo: prev.logo || branding?.company_logo || null,
-          primary_color:
-            prev.primary_color === INITIAL_STATE.primary_color
-              ? branding?.primary_color || prev.primary_color
-              : prev.primary_color,
-          secondary_color:
-            prev.secondary_color === INITIAL_STATE.secondary_color
-              ? branding?.secondary_color || prev.secondary_color
-              : prev.secondary_color,
+          primary_color: branding?.primary_color || cfg.color,
+          secondary_color: branding?.secondary_color || prev.secondary_color,
         }))
         if (branding?.company_logo) setLogoPreview(branding.company_logo)
-      } catch (e) {
-        // Best-effort: onboarding should still work without prefills.
+      } catch {
+        // continuar con defaults
       }
     }
-    loadExisting()
-    return () => {
-      active = false
-    }
+    load()
+    return () => { active = false }
   }, [])
 
-  const handleInputChange = (field: keyof FormData, value: string) => {
+  const handleInput = (field: keyof FormData, value: string) =>
     setFormData(prev => ({ ...prev, [field]: value }))
-  }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
@@ -157,50 +211,28 @@ export default function Onboarding() {
     reader.readAsDataURL(file)
   }
 
-  const handleColorChange = (field: 'primary_color' | 'secondary_color', value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
-
-  const validateStep = (currentStep: Step): boolean => {
-    switch (currentStep) {
-      case 'info':
-        return !!(formData.company_name && formData.country_code)
-      case 'regional':
-        return !!(formData.default_language && formData.timezone && formData.currency)
-      case 'branding':
-        return !!(formData.primary_color && formData.secondary_color)
-      case 'review':
-        return true
-      default:
-        return false
-    }
+  const validateStep = (s: Step) => {
+    if (s === 'info') return !!(formData.company_name && formData.country_code)
+    if (s === 'regional') return !!(formData.default_language && formData.timezone && formData.currency)
+    if (s === 'branding') return !!(formData.primary_color)
+    return true
   }
 
   const nextStep = () => {
-    if (!validateStep(step)) {
-      error(t('pages.onboarding.requiredFields'))
-      return
-    }
-    const steps: Step[] = ['info', 'regional', 'branding', 'review']
-    const currentIndex = steps.indexOf(step)
-    if (currentIndex < steps.length - 1) {
-      setStep(steps[currentIndex + 1])
-    }
+    if (!validateStep(step)) { error(t('pages.onboarding.requiredFields')); return }
+    const idx = STEPS.indexOf(step)
+    if (idx < STEPS.length - 1) setStep(STEPS[idx + 1])
   }
 
   const prevStep = () => {
-    const steps: Step[] = ['info', 'regional', 'branding', 'review']
-    const currentIndex = steps.indexOf(step)
-    if (currentIndex > 0) {
-      setStep(steps[currentIndex - 1])
-    }
+    const idx = STEPS.indexOf(step)
+    if (idx > 0) setStep(STEPS[idx - 1])
   }
 
   const onSubmit = async () => {
     try {
       setSaving(true)
       await tenantApi.post(TENANT_ONBOARDING.init, {
-        // Tenant info
         company_name: formData.company_name,
         tax_id: formData.tax_id || null,
         country_code: formData.country_code,
@@ -210,8 +242,6 @@ export default function Onboarding() {
         state: formData.state || null,
         postal_code: formData.postal_code || null,
         website: formData.website || null,
-
-        // Settings
         default_language: formData.default_language,
         timezone: formData.timezone,
         currency: formData.currency,
@@ -220,8 +250,6 @@ export default function Onboarding() {
         secondary_color: formData.secondary_color,
       })
       success(t('pages.onboarding.savedSuccess'))
-
-      // Redirect to set-password if token present
       const token = searchParams.get('token')
       if (token) {
         navigate(`/set-password?token=${token}`)
@@ -236,407 +264,277 @@ export default function Onboarding() {
     }
   }
 
-  const getStepNumber = (s: Step) => {
-    const steps: Step[] = ['info', 'regional', 'branding', 'review']
-    return steps.indexOf(s) + 1
-  }
-
-  const normalizedLanguage = normalizeLanguage(formData.default_language)
-  const languageLabel =
-    normalizedLanguage === 'es'
-      ? 'Español'
-      : normalizedLanguage === 'en'
-        ? 'English'
-        : formData.default_language
+  const stepIdx = STEPS.indexOf(step)
+  const languageLabel = normalizeLanguage(formData.default_language) === 'es' ? 'Español' : 'English'
 
   return (
-    <div className="min-h-screen bg-[var(--gc-bg)] py-8 px-4">
+    <div className="min-h-screen bg-slate-50 py-8 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
+
+        {/* Header con sector */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">GestiqCloud</h1>
-          <p className="text-slate-600 mt-2">{t('pages.onboarding.subtitle')}</p>
+          <div
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-semibold mb-4"
+            style={{ backgroundColor: sector.color }}
+          >
+            <span className="text-lg">{sector.icono}</span>
+            <span>{sector.nombre}</span>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">Configuración inicial</h1>
+          <p className="text-slate-500 mt-1 text-sm max-w-md mx-auto">{sector.mensaje}</p>
         </div>
 
-        {/* Progress Bar */}
+        {/* Barra de progreso */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            {['info', 'regional', 'branding', 'review'].map((s: any, idx) => (
-              <div key={s} className="flex items-center">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition ${
-                    step === s
-                      ? 'bg-[var(--gc-primary)] text-white'
-                      : idx < ['info', 'regional', 'branding', 'review'].indexOf(step)
-                        ? 'bg-[var(--gc-primary)] text-white'
-                        : 'bg-slate-200 text-slate-600'
-                  }`}
-                >
-                  {idx + 1}
+          <div className="flex items-center">
+            {STEPS.map((s, idx) => (
+              <React.Fragment key={s}>
+                <div className="flex flex-col items-center">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all"
+                    style={{
+                      backgroundColor: idx <= stepIdx ? sector.color : '#e2e8f0',
+                      color: idx <= stepIdx ? '#fff' : '#94a3b8',
+                    }}
+                  >
+                    {idx < stepIdx ? '✓' : idx + 1}
+                  </div>
+                  <span className="text-xs mt-1 text-slate-500 hidden sm:block">{STEP_LABELS[s]}</span>
                 </div>
-                {idx < 3 && <div className={`h-1 flex-1 mx-2 ${idx < ['info', 'regional', 'branding', 'review'].indexOf(step) ? 'bg-[var(--gc-primary)]' : 'bg-slate-200'}`}></div>}
-              </div>
+                {idx < STEPS.length - 1 && (
+                  <div
+                    className="flex-1 h-1 mx-2 rounded transition-all"
+                    style={{ backgroundColor: idx < stepIdx ? sector.color : '#e2e8f0' }}
+                  />
+                )}
+              </React.Fragment>
             ))}
           </div>
-          <div className="text-sm text-slate-600 text-center">
-            {t('pages.onboarding.stepOf', { current: getStepNumber(step), total: 4 })}
-          </div>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-8">
-          {/* Step 1: Company Info */}
-          {step === 'info' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.info.title')}</h2>
-                <p className="text-slate-600">{t('pages.onboarding.steps.info.subtitle')}</p>
-              </div>
+        {/* Tarjeta del formulario */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
 
+          {/* Step 1: Empresa */}
+          {step === 'info' && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Tu empresa</h2>
+                <p className="text-slate-500 text-sm mt-1">Información básica de tu negocio</p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="gc-label">
-                    {t('pages.onboarding.steps.info.companyName')}
-                  </label>
+                <div className="md:col-span-2">
+                  <label className="gc-label">Nombre de la empresa *</label>
                   <input
                     type="text"
                     value={formData.company_name}
-                    onChange={(e) => handleInputChange('company_name', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.companyNamePlaceholder')}
+                    onChange={e => handleInput('company_name', e.target.value)}
+                    placeholder={sector.placeholderEmpresa}
                     className="gc-input"
                     required
                   />
                 </div>
-
                 <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.info.country')}</label>
-                  <select
-                    value={formData.country_code}
-                    onChange={(e) => handleInputChange('country_code', e.target.value)}
-                    className="gc-input"
-                    required
-                  >
-                    <option value="">{t('pages.onboarding.steps.info.selectCountry')}</option>
-                    {COUNTRIES.map(c => (
-                      <option key={c.code} value={c.code}>{c.name}</option>
-                    ))}
+                  <label className="gc-label">País *</label>
+                  <select value={formData.country_code} onChange={e => handleInput('country_code', e.target.value)} className="gc-input" required>
+                    <option value="">Seleccionar país...</option>
+                    {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.info.taxId')}</label>
-                  <input
-                    type="text"
-                    value={formData.tax_id}
-                    onChange={(e) => handleInputChange('tax_id', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.taxIdPlaceholder')}
-                    className="gc-input"
-                  />
+                  <label className="gc-label">RUC / NIT / CIF</label>
+                  <input type="text" value={formData.tax_id} onChange={e => handleInput('tax_id', e.target.value)} placeholder="Ej: 1234567890001" className="gc-input" />
                 </div>
-
                 <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.info.phone')}</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.phonePlaceholder')}
-                    className="gc-input"
-                  />
+                  <label className="gc-label">Teléfono</label>
+                  <input type="tel" value={formData.phone} onChange={e => handleInput('phone', e.target.value)} placeholder="Ej: +593 99 123 4567" className="gc-input" />
                 </div>
-
+                <div>
+                  <label className="gc-label">Ciudad</label>
+                  <input type="text" value={formData.city} onChange={e => handleInput('city', e.target.value)} placeholder="Ej: Cuenca" className="gc-input" />
+                </div>
                 <div className="md:col-span-2">
-                  <label className="gc-label">{t('pages.onboarding.steps.info.address')}</label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => handleInputChange('address', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.addressPlaceholder')}
-                    className="gc-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.info.city')}</label>
-                  <input
-                    type="text"
-                    value={formData.city}
-                    onChange={(e) => handleInputChange('city', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.cityPlaceholder')}
-                    className="gc-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.info.stateProvince')}</label>
-                  <input
-                    type="text"
-                    value={formData.state}
-                    onChange={(e) => handleInputChange('state', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.statePlaceholder')}
-                    className="gc-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.info.postalCode')}</label>
-                  <input
-                    type="text"
-                    value={formData.postal_code}
-                    onChange={(e) => handleInputChange('postal_code', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.postalCodePlaceholder')}
-                    className="gc-input"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="gc-label">{t('pages.onboarding.steps.info.website')}</label>
-                  <input
-                    type="url"
-                    value={formData.website}
-                    onChange={(e) => handleInputChange('website', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.info.websitePlaceholder')}
-                    className="gc-input"
-                  />
+                  <label className="gc-label">Dirección</label>
+                  <input type="text" value={formData.address} onChange={e => handleInput('address', e.target.value)} placeholder="Ej: Av. Solano y Av. 12 de Abril" className="gc-input" />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 2: Regional Config */}
+          {/* Step 2: Regional */}
           {step === 'regional' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.regional.title')}</h2>
-                <p className="text-slate-600">{t('pages.onboarding.steps.regional.subtitle')}</p>
+                <h2 className="text-xl font-bold text-slate-900">Configuración regional</h2>
+                <p className="text-slate-500 text-sm mt-1">Idioma, zona horaria y moneda de tu operación</p>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.regional.language')}</label>
-                  <select
-                    value={formData.default_language}
-                    onChange={(e) => handleInputChange('default_language', e.target.value)}
-                    className="gc-input"
-                    required
-                  >
-                    {LANGUAGES.map(l => (
-                      <option key={l.code} value={l.code}>{l.name}</option>
-                    ))}
+                  <label className="gc-label">Idioma</label>
+                  <select value={formData.default_language} onChange={e => handleInput('default_language', e.target.value)} className="gc-input">
+                    {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.regional.timezone')}</label>
-                  <input
-                    type="text"
-                    value={formData.timezone}
-                    onChange={(e) => handleInputChange('timezone', e.target.value)}
-                    placeholder={t('pages.onboarding.steps.regional.timezonePlaceholder')}
-                    className="gc-input"
-                    required
-                  />
+                  <label className="gc-label">Zona horaria</label>
+                  <input type="text" value={formData.timezone} onChange={e => handleInput('timezone', e.target.value)} placeholder="America/Guayaquil" className="gc-input" />
                 </div>
-
                 <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.regional.currency')}</label>
-                  <select
-                    value={formData.currency}
-                    onChange={(e) => handleInputChange('currency', e.target.value)}
-                    className="gc-input"
-                    required
-                  >
-                    {CURRENCIES.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
+                  <label className="gc-label">Moneda</label>
+                  <select value={formData.currency} onChange={e => handleInput('currency', e.target.value)} className="gc-input">
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
-
-              <div className="gc-alert gc-alert--info">
-                <p>
-                  <strong>💡 Tip:</strong> {t('pages.onboarding.steps.regional.tip')}
-                </p>
+              {/* Tip por sector */}
+              <div
+                className="flex gap-3 p-4 rounded-lg text-sm"
+                style={{ backgroundColor: `${sector.color}15`, borderLeft: `4px solid ${sector.color}` }}
+              >
+                <span className="text-lg">{sector.icono}</span>
+                <p style={{ color: sector.color }}><strong>Tip para {sector.nombre}:</strong> {sector.tipRegional}</p>
               </div>
             </div>
           )}
 
           {/* Step 3: Branding */}
           {step === 'branding' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.branding.title')}</h2>
-                <p className="text-slate-600">{t('pages.onboarding.steps.branding.subtitle')}</p>
+                <h2 className="text-xl font-bold text-slate-900">Identidad visual</h2>
+                <p className="text-slate-500 text-sm mt-1">Logo y colores de tu marca</p>
               </div>
 
-              <div className="space-y-4">
+              {/* Sugerencia de color por sector */}
+              <div
+                className="flex items-center gap-3 p-3 rounded-lg text-sm cursor-pointer border-2 transition-all"
+                style={{ borderColor: sector.color, backgroundColor: `${sector.color}10` }}
+                onClick={() => setFormData(prev => ({ ...prev, primary_color: sector.color }))}
+              >
+                <div className="w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
                 <div>
-                  <label className="gc-label">{t('pages.onboarding.steps.branding.logoOptional')}</label>
-                  <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center">
-                    {logoPreview ? (
-                      <div className="space-y-4">
-                        <img src={logoPreview} alt="Logo preview" className="h-24 mx-auto object-contain" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLogoPreview(null)
-                            setFormData(prev => ({ ...prev, logo: null }))
-                          }}
-                          className="text-sm text-red-600 hover:text-red-700"
-                        >
-                          {t('pages.onboarding.steps.branding.changeLogo')}
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="cursor-pointer">
-                        <div className="space-y-2">
-                          <p className="text-2xl">📤</p>
-                          <p className="text-sm font-medium text-slate-700">{t('pages.onboarding.steps.branding.uploadPrompt')}</p>
-                          <p className="text-xs text-slate-500">{t('pages.onboarding.steps.branding.uploadHint')}</p>
-                        </div>
-                        <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                      </label>
-                    )}
+                  <p className="font-medium" style={{ color: sector.color }}>Color sugerido para {sector.nombre}</p>
+                  <p className="text-xs text-slate-500">Clic para aplicar {sector.color}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="gc-label">Color principal</label>
+                  <div className="flex items-center gap-3">
+                    <input type="color" value={formData.primary_color} onChange={e => handleInput('primary_color', e.target.value)} className="w-12 h-12 border border-slate-200 rounded-lg cursor-pointer" />
+                    <input type="text" value={formData.primary_color} onChange={e => handleInput('primary_color', e.target.value)} className="gc-input flex-1 font-mono text-sm" />
                   </div>
                 </div>
+                <div>
+                  <label className="gc-label">Color secundario</label>
+                  <div className="flex items-center gap-3">
+                    <input type="color" value={formData.secondary_color} onChange={e => handleInput('secondary_color', e.target.value)} className="w-12 h-12 border border-slate-200 rounded-lg cursor-pointer" />
+                    <input type="text" value={formData.secondary_color} onChange={e => handleInput('secondary_color', e.target.value)} className="gc-input flex-1 font-mono text-sm" />
+                  </div>
+                </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="gc-label">{t('pages.onboarding.steps.branding.primaryColor')}</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={formData.primary_color}
-                        onChange={(e) => handleColorChange('primary_color', e.target.value)}
-                        className="w-12 h-12 border border-slate-200 rounded-lg cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={formData.primary_color}
-                        onChange={(e) => handleColorChange('primary_color', e.target.value)}
-                        className="gc-input flex-1 font-mono text-sm"
-                      />
+              <div>
+                <label className="gc-label">Logo (opcional)</label>
+                <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center">
+                  {logoPreview ? (
+                    <div className="space-y-3">
+                      <img src={logoPreview} alt="Logo preview" className="h-20 mx-auto object-contain" />
+                      <button type="button" onClick={() => { setLogoPreview(null); setFormData(prev => ({ ...prev, logo: null })) }} className="text-sm text-red-500 hover:text-red-600">
+                        Cambiar logo
+                      </button>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="gc-label">{t('pages.onboarding.steps.branding.secondaryColor')}</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={formData.secondary_color}
-                        onChange={(e) => handleColorChange('secondary_color', e.target.value)}
-                        className="w-12 h-12 border border-slate-200 rounded-lg cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={formData.secondary_color}
-                        onChange={(e) => handleColorChange('secondary_color', e.target.value)}
-                        className="gc-input flex-1 font-mono text-sm"
-                      />
-                    </div>
-                  </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <p className="text-2xl mb-1">📤</p>
+                      <p className="text-sm font-medium text-slate-700">Subir logo</p>
+                      <p className="text-xs text-slate-400 mt-1">PNG, JPG o SVG recomendado</p>
+                      <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
+                    </label>
+                  )}
                 </div>
+              </div>
 
-                <div className="p-4 rounded-lg" style={{ backgroundColor: formData.primary_color }}>
-                  <p className="text-white text-center font-medium">{t('pages.onboarding.steps.branding.colorPreview')}</p>
-                </div>
+              {/* Preview */}
+              <div className="rounded-lg p-4 flex items-center gap-3" style={{ backgroundColor: formData.primary_color }}>
+                {logoPreview && <img src={logoPreview} alt="" className="h-8 w-8 rounded object-contain bg-white" />}
+                <p className="text-white font-semibold">{formData.company_name || 'Tu empresa'}</p>
               </div>
             </div>
           )}
 
           {/* Step 4: Review */}
           {step === 'review' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="gc-page-header__title mb-2">{t('pages.onboarding.steps.review.title')}</h2>
-                <p className="text-slate-600">{t('pages.onboarding.steps.review.subtitle')}</p>
+                <h2 className="text-xl font-bold text-slate-900">Todo listo para empezar</h2>
+                <p className="text-slate-500 text-sm mt-1">Revisá los datos antes de guardar</p>
               </div>
 
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">📋 {t('pages.onboarding.steps.review.companyInfo')}</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <p className="text-slate-600">{t('pages.onboarding.steps.review.company')}</p>
-                    <p className="font-medium">{formData.company_name}</p>
-                    <p className="text-slate-600">{t('pages.onboarding.steps.review.countryLabel')}</p>
-                    <p className="font-medium">{formData.country_code}</p>
-                    {formData.tax_id && (
-                      <>
-                        <p className="text-slate-600">{t('pages.onboarding.steps.review.taxIdLabel')}</p>
-                        <p className="font-medium">{formData.tax_id}</p>
-                      </>
-                    )}
-                  </div>
+              {/* Banner sector */}
+              <div className="flex items-center gap-3 p-4 rounded-xl text-white" style={{ backgroundColor: sector.color }}>
+                <span className="text-3xl">{sector.icono}</span>
+                <div>
+                  <p className="font-bold text-lg">{formData.company_name}</p>
+                  <p className="text-sm opacity-90">{sector.nombre} · {formData.country_code} · {formData.currency}</p>
                 </div>
+              </div>
 
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">🌍 {t('pages.onboarding.steps.review.regionalConfig')}</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <p className="text-slate-600">{t('pages.onboarding.steps.review.languageLabel')}</p>
-                    <p className="font-medium">{languageLabel}</p>
-                    <p className="text-slate-600">{t('pages.onboarding.steps.review.timezoneLabel')}</p>
-                    <p className="font-medium">{formData.timezone}</p>
-                    <p className="text-slate-600">{t('pages.onboarding.steps.review.currencyLabel')}</p>
-                    <p className="font-medium">{formData.currency}</p>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="border rounded-lg p-4 space-y-2">
+                  <p className="font-semibold text-slate-700 text-sm">📋 Empresa</p>
+                  {formData.tax_id && <p className="text-xs text-slate-500">RUC: {formData.tax_id}</p>}
+                  {formData.phone && <p className="text-xs text-slate-500">Tel: {formData.phone}</p>}
+                  {formData.city && <p className="text-xs text-slate-500">Ciudad: {formData.city}</p>}
+                  {formData.address && <p className="text-xs text-slate-500">{formData.address}</p>}
                 </div>
+                <div className="border rounded-lg p-4 space-y-2">
+                  <p className="font-semibold text-slate-700 text-sm">🌍 Regional</p>
+                  <p className="text-xs text-slate-500">Idioma: {languageLabel}</p>
+                  <p className="text-xs text-slate-500">Zona: {formData.timezone}</p>
+                  <p className="text-xs text-slate-500">Moneda: {formData.currency}</p>
+                </div>
+              </div>
 
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">🎨 {t('pages.onboarding.steps.review.brandingSection')}</h3>
-                  <div className="space-y-2 text-sm">
-                    {logoPreview && <p>✓ {t('pages.onboarding.steps.review.logoLoaded')}</p>}
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-6 h-6 rounded"
-                        style={{ backgroundColor: formData.primary_color }}
-                      ></div>
-                      <p>{t('pages.onboarding.steps.review.primaryColorLabel')} {formData.primary_color}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-6 h-6 rounded border border-slate-200"
-                        style={{ backgroundColor: formData.secondary_color }}
-                      ></div>
-                      <p>{t('pages.onboarding.steps.review.secondaryColorLabel')} {formData.secondary_color}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="gc-alert gc-alert--success">
-                  <p>
-                    <strong>✓</strong> {t('pages.onboarding.steps.review.allReady')}
-                  </p>
-                </div>
+              <div
+                className="flex gap-3 p-4 rounded-lg text-sm"
+                style={{ backgroundColor: `${sector.color}15`, borderLeft: `4px solid ${sector.color}` }}
+              >
+                <span>✅</span>
+                <p style={{ color: sector.color }}>
+                  <strong>¡Listo!</strong> Después del guardado podés cargar tus productos y empezar a operar.
+                </p>
               </div>
             </div>
           )}
 
-          {/* Navigation Buttons */}
-          <div className="flex gap-3 mt-8">
+          {/* Botones de navegación */}
+          <div className="flex gap-3 mt-8 pt-6 border-t border-slate-100">
             <button
               onClick={prevStep}
               disabled={step === 'info' || saving}
               className="gc-btn gc-btn--secondary"
             >
-              {t('pages.onboarding.back')}
+              ← Atrás
             </button>
-
             {step !== 'review' ? (
               <button
                 onClick={nextStep}
                 disabled={saving}
                 className="gc-btn gc-btn--primary ml-auto"
+                style={{ backgroundColor: sector.color, borderColor: sector.color }}
               >
-                {t('pages.onboarding.next')}
+                Siguiente →
               </button>
             ) : (
               <button
                 onClick={onSubmit}
                 disabled={saving}
                 className="gc-btn gc-btn--primary ml-auto"
+                style={{ backgroundColor: sector.color, borderColor: sector.color }}
               >
-                {saving ? t('pages.onboarding.saving') : t('pages.onboarding.saveConfig')}
+                {saving ? 'Guardando...' : `Comenzar con ${sector.nombre} →`}
               </button>
             )}
           </div>

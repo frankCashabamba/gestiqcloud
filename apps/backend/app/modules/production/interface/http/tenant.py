@@ -445,13 +445,68 @@ async def _create_stock_moves_for_ingredients(
 ) -> list[UUID]:
     if not warehouse_id:
         raise ValueError("Warehouse is required to consume ingredients")
+
+    from app.models.core.products import Product as _Product
+    from app.models.recipes import RecipeIngredient as _RecipeIngredient
+    from app.utils.unit_converter import are_compatible_units, convert
+
     stock_move_ids = []
     for line in order.lines:
+        qty_consumed_raw = abs(float(line.qty_consumed))
+        line_unit = (line.unit or "unit").strip()
+
+        # Load product to get its base unit for unit conversion
+        prod = (
+            db.query(_Product)
+            .filter(
+                _Product.id == line.ingredient_product_id,
+                _Product.tenant_id == order.tenant_id,
+            )
+            .first()
+        )
+        product_unit = (prod.unit if prod else None) or "unit"
+
+        # Convert qty from recipe unit to product's stock unit.
+        # Strategy 1: standard metric conversion (e.g. g → kg, lb → oz).
+        # Strategy 2: package-based conversion for non-metric units (e.g. g → bloque,
+        #   uds → Cubeta) using RecipeIngredient.qty_per_package as conversion factor.
+        stock_qty = qty_consumed_raw
+        if line_unit == product_unit:
+            pass  # same unit, nothing to convert
+        elif are_compatible_units(line_unit, product_unit):
+            try:
+                stock_qty = convert(qty_consumed_raw, line_unit, product_unit)
+            except ValueError:
+                pass  # fallback to raw qty
+        else:
+            # Non-metric units: use qty_per_package from recipe ingredient.
+            # Example: levadura 170 g, qty_per_package=500 g/bloque → 0.34 bloques
+            # Example: huevos 12 uds, qty_per_package=30 uds/Cubeta → 0.4 Cubetas
+            ingredient = (
+                db.query(_RecipeIngredient)
+                .filter(
+                    _RecipeIngredient.recipe_id == order.recipe_id,
+                    _RecipeIngredient.product_id == line.ingredient_product_id,
+                )
+                .first()
+            )
+            if ingredient and float(ingredient.qty_per_package or 0) > 0:
+                pkg_unit = (ingredient.package_unit or "").strip()
+                pkg_qty = float(ingredient.qty_per_package)
+                # Convert recipe qty to the package_unit first if needed
+                qty_in_pkg_unit = qty_consumed_raw
+                if pkg_unit and pkg_unit != line_unit and are_compatible_units(line_unit, pkg_unit):
+                    try:
+                        qty_in_pkg_unit = convert(qty_consumed_raw, line_unit, pkg_unit)
+                    except ValueError:
+                        pass
+                stock_qty = qty_in_pkg_unit / pkg_qty
+
         stock_move = StockMove(
             tenant_id=order.tenant_id,
             kind="production_consume",
             product_id=line.ingredient_product_id,
-            qty=-abs(float(line.qty_consumed)),
+            qty=-stock_qty,
             warehouse_id=warehouse_id,
             ref_type="production_order",
             ref_id=str(order.id),
@@ -470,13 +525,13 @@ async def _create_stock_moves_for_ingredients(
         result = db.execute(stmt)
         stock_item = result.scalar_one_or_none()
         if stock_item:
-            stock_item.qty = float(stock_item.qty or 0) - abs(float(line.qty_consumed))
+            stock_item.qty = float(stock_item.qty or 0) - stock_qty
         else:
             new_stock_item = StockItem(
                 tenant_id=order.tenant_id,
                 product_id=line.ingredient_product_id,
                 warehouse_id=warehouse_id,
-                qty=-abs(float(line.qty_consumed)),
+                qty=-stock_qty,
             )
             db.add(new_stock_item)
         db.flush()
@@ -492,15 +547,6 @@ async def _create_stock_moves_for_ingredients(
                 )
                 .scalar()
             ) or 0.0
-            from app.models.core.products import Product as _Product
-
-            prod = (
-                db.query(_Product)
-                .filter(
-                    _Product.id == line.ingredient_product_id, _Product.tenant_id == order.tenant_id
-                )
-                .first()
-            )
             if prod:
                 prod.stock = float(total_qty)
                 db.add(prod)

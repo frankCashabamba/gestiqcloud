@@ -136,16 +136,25 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
 
     setSyncing(true)
     try {
-      if (entity) {
-        console.log(`Syncing entity: ${entity}`)
-        window.dispatchEvent(new CustomEvent('offline:sync-requested', { detail: { entity } }))
-      } else {
-        console.log('Syncing all entities')
-        window.dispatchEvent(new CustomEvent('offline:sync-requested'))
-      }
+      await new Promise<void>((resolve) => {
+        const handler = () => {
+          window.removeEventListener('offline:sync-complete', handler)
+          resolve()
+        }
+        window.addEventListener('offline:sync-complete', handler)
 
-      // Wait a bit for sync to complete
-      await new Promise(resolve => setTimeout(resolve, 1000))
+        if (entity) {
+          window.dispatchEvent(new CustomEvent('offline:sync-requested', { detail: { entity } }))
+        } else {
+          window.dispatchEvent(new CustomEvent('offline:sync-requested'))
+        }
+
+        // Safety timeout: resolve after 30s if the event never fires
+        setTimeout(() => {
+          window.removeEventListener('offline:sync-complete', handler)
+          resolve()
+        }, 30_000)
+      })
 
       setLastSyncAt(new Date())
       const pending = await getTotalPendingCount()
@@ -158,10 +167,6 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
   }, [isOnline, syncing])
 
   const clearPending = useCallback(async () => {
-    if (!confirm('Limpiar todos los cambios pendientes? Esta accion no se puede deshacer.')) {
-      return
-    }
-
     try {
       await clearAllOfflineData()
       setTotalPending(0)

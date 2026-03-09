@@ -12,7 +12,7 @@ import {
   replaceProductionOrderCosts,
   type ProductionOrderCostInput,
 } from '../modules/productions/services'
-import { listWarehouses } from '../modules/inventory/services'
+import { listWarehouses, listStockItems } from '../modules/inventory/services'
 import './dashboard_pro.css'
 
 interface KPIData {
@@ -143,6 +143,9 @@ const PanaderiaDashboard: React.FC = () => {
   const [quickDrivers, setQuickDrivers] = useState<CostDriver[]>([])
   const [quickCostLines, setQuickCostLines] = useState<QuickCostDraft[]>([])
   const [quickAdvancedOpen, setQuickAdvancedOpen] = useState(false)
+  const [ingredientStock, setIngredientStock] = useState<number | null>(null)
+  const [stockLoading, setStockLoading] = useState(false)
+  const [quickWasteQty, setQuickWasteQty] = useState<string>('0')
 
   const isModuleEnabled = (moduleName: string) => {
     return modules.some(
@@ -180,6 +183,15 @@ const PanaderiaDashboard: React.FC = () => {
     const lb = grams / 453.592
     const kg = grams / 1000
     return `${grams.toFixed(0)} g (${lb.toFixed(2)} lb / ${kg.toFixed(2)} kg)`
+  }
+
+  const convertFromGrams = (grams: number, unit: string): number => {
+    switch ((unit || '').toLowerCase()) {
+      case 'kg': return grams / 1000
+      case 'lb': return grams / 453.592
+      case 'oz': return grams / 28.3495
+      default: return grams
+    }
   }
 
   const prefix = empresa ? `/${empresa}` : ''
@@ -242,6 +254,26 @@ const PanaderiaDashboard: React.FC = () => {
     return () => { cancelled = true }
   }, [selectedRecipeId, quickOpen])
 
+  // Fetch stock for the selected ingredient when in "Por ingrediente" mode
+  useEffect(() => {
+    if (!quickOpen || qtyMode !== 'ingrediente' || !selectedIngredientId) {
+      setIngredientStock(null)
+      return
+    }
+    const ing = (recipeDetail?.ingredients || []).find((i) => i.id === selectedIngredientId)
+    if (!ing) return
+    let cancelled = false
+    setStockLoading(true)
+    listStockItems({ product_id: ing.product_id })
+      .then((items) => {
+        if (cancelled) return
+        setIngredientStock(items.reduce((sum, item) => sum + item.qty, 0))
+      })
+      .catch(() => { if (!cancelled) setIngredientStock(null) })
+      .finally(() => { if (!cancelled) setStockLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedIngredientId, qtyMode, quickOpen, recipeDetail])
+
   const selectedRecipe = useMemo(
     () => recipes.find((r) => r.id === selectedRecipeId) || null,
     [recipes, selectedRecipeId]
@@ -273,7 +305,9 @@ const PanaderiaDashboard: React.FC = () => {
       } else {
         ratio = inputAmount / selectedIngredient.qty
       }
-      return Math.floor(ratio * (selectedRecipe.yield_qty || 0))
+      // Round to 6 decimal places before floor to avoid floating point errors
+      // e.g. 10lb/15lb × 192 = 127.9999... → should be 128
+      return Math.floor(Math.round(ratio * (selectedRecipe.yield_qty || 0) * 1e6) / 1e6)
     }
     return 0
   }, [selectedRecipe, qtyMode, otherQty, selectedIngredient, ingredientAmount, ingredientInputUnit])
@@ -334,6 +368,17 @@ const PanaderiaDashboard: React.FC = () => {
     setQuickCostLines((prev) => prev.filter((line) => line.key !== key))
   }
 
+  // Fill "Cantidad disponible" with actual stock, converting to the current input unit
+  const handleUseAllStock = () => {
+    if (ingredientStock === null || !selectedIngredient) return
+    if (isWeightUnit(selectedIngredient.unit) && isWeightUnit(ingredientInputUnit)) {
+      const stockGrams = convertToGrams(ingredientStock, selectedIngredient.unit)
+      setIngredientAmount(convertFromGrams(stockGrams, ingredientInputUnit).toFixed(2))
+    } else {
+      setIngredientAmount(String(ingredientStock))
+    }
+  }
+
   const handleQuickProduction = async () => {
     if (!selectedRecipe) {
       setQuickError('Seleccione una receta')
@@ -381,7 +426,7 @@ const PanaderiaDashboard: React.FC = () => {
       }
 
       await startProductionOrder(order.id)
-      await completeProductionOrder(order.id, { qty_produced: effectiveQty, waste_qty: 0 })
+      await completeProductionOrder(order.id, { qty_produced: effectiveQty, waste_qty: Math.max(toNumber(quickWasteQty), 0) })
 
       setQuickSuccess(
         `Producción completada. ${effectiveQty} uds producidas con costo estimado ${formatMoney(quickEstimatedTotal)}.`
@@ -445,6 +490,8 @@ const PanaderiaDashboard: React.FC = () => {
                   setQuickFullCost(null)
                   setQuickCostLines([])
                   setQuickAdvancedOpen(false)
+                  setQuickWasteQty('0')
+                  setIngredientStock(null)
                   setQuickOpen(true)
                 }}
               >
@@ -789,9 +836,33 @@ const PanaderiaDashboard: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
-                              Receta usa <strong>{selectedIngredient.qty} {selectedIngredient.unit}</strong>{' -> '}{selectedRecipe?.yield_qty || 0} uds
-                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                              <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                                Receta usa <strong>{selectedIngredient.qty} {selectedIngredient.unit}</strong>{' → '}{selectedRecipe?.yield_qty || 0} uds
+                              </p>
+                              {stockLoading ? (
+                                <span style={{ fontSize: 12, color: '#94a3b8' }}>Verificando stock...</span>
+                              ) : ingredientStock !== null ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{
+                                    fontSize: 12,
+                                    color: ingredientStock < toNumber(selectedIngredient.qty) ? '#b91c1c' : '#166534',
+                                    fontWeight: 600,
+                                  }}>
+                                    Stock: {ingredientStock.toFixed(2)} {selectedIngredient.unit}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="link"
+                                    style={{ fontSize: 12 }}
+                                    onClick={handleUseAllStock}
+                                    disabled={quickSaving}
+                                  >
+                                    Usar todo
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
                           </>
                         )}
                       </>
@@ -827,6 +898,37 @@ const PanaderiaDashboard: React.FC = () => {
                     <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a' }}>{formatMoney(quickUnitEstimated)}</div>
                     <div style={{ fontSize: 12, color: '#1d4ed8' }}>{formatMoney(quickEstimatedTotal)} total</div>
                   </div>
+                </div>
+
+                {/* Stock insuficiente — advertencia visible */}
+                {qtyMode === 'ingrediente' && ingredientStock !== null && selectedIngredient && (() => {
+                  const inputGrams = isWeightUnit(selectedIngredient.unit)
+                    ? convertToGrams(Number(ingredientAmount || 0), ingredientInputUnit)
+                    : Number(ingredientAmount || 0)
+                  const stockGrams = isWeightUnit(selectedIngredient.unit)
+                    ? convertToGrams(ingredientStock, selectedIngredient.unit)
+                    : ingredientStock
+                  return inputGrams > stockGrams && inputGrams > 0 ? (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#b91c1c' }}>
+                      ⚠️ La cantidad ingresada supera el stock disponible ({ingredientStock.toFixed(2)} {selectedIngredient.unit}). La producción podría fallar por falta de ingredientes.
+                    </div>
+                  ) : null
+                })()}
+
+                {/* Campo de merma — simple y opcional */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <label style={{ fontSize: 13, color: '#475569', whiteSpace: 'nowrap' }}>Merma (uds):</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={quickWasteQty}
+                    onChange={(e) => setQuickWasteQty(e.target.value)}
+                    disabled={quickSaving}
+                    placeholder="0"
+                    style={{ width: 80, padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14 }}
+                  />
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>unidades que no salieron bien (opcional)</span>
                 </div>
 
                 <div

@@ -197,11 +197,9 @@ class OllamaProvider(BaseAIProvider):
     def _best_extraction_model(self) -> str | None:
         """Find the best locally available model for document extraction."""
         preferred = [
-            "qwen3:8b",
-            "qwen2.5-coder:14b",
-            "qwen2.5-coder:7b",
-            "llama3:8b",
-            "qwen3-coder",
+            "qwen2.5-coder:3b",
+            "qwen2.5-coder:1.5b",
+            "qwen2.5-coder:0.5b",
         ]
         try:
             resp = httpx.get(f"{self.base_url}/api/tags", timeout=3.0)

@@ -169,8 +169,12 @@ export async function markSynced(entity: EntityType, id: string, remoteVersion?:
   if (remoteVersion !== undefined) {
     stored.remoteVersion = remoteVersion
   }
+  stored.lastModified = Date.now()
 
-  await storeEntity(entity, id, stored.data, 'synced')
+  const store = await getStore()
+  const key = `${entity}:${id}`
+  await set(key, stored, store)
+  await updateMetadata(entity)
 }
 
 export async function markFailed(entity: EntityType, id: string, error?: string): Promise<void> {
