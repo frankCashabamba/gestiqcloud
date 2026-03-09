@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.crud_base import CRUDBase
@@ -91,11 +92,20 @@ class ExpenseRepo:
         self.db = db
         self.crud = ExpenseCRUD(Expense)
 
-    def list(self, tenant_id: int) -> list[Expense]:
-        return list(self.crud.list(self.db))
+    def list(self, tenant_id: int | UUID) -> list[Expense]:
+        stmt = (
+            select(Expense)
+            .where(Expense.tenant_id == tenant_id)
+            .order_by(Expense.date.desc(), Expense.created_at.desc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
 
     def get(self, tenant_id: int | UUID, expense_id: UUID) -> Expense | None:
-        return self.crud.get(self.db, expense_id)
+        stmt = select(Expense).where(
+            Expense.id == expense_id,
+            Expense.tenant_id == tenant_id,
+        )
+        return self.db.execute(stmt).scalars().first()
 
     def create(
         self,
@@ -176,12 +186,18 @@ class ExpenseRepo:
             vat=vat_value,
             total=float(total) if total is not None else (amount_value + vat_value),
         )
-        obj = self.crud.update(self.db, expense_id, dto)
+        obj = self.get(tenant_id, expense_id)
+        if not obj:
+            raise ValueError("Expense not found")
+        obj = self.crud.update(self.db, obj, dto)
         if not obj:
             raise ValueError("Expense not found")
         return obj
 
     def delete(self, tenant_id: int | UUID, expense_id: UUID) -> None:
+        obj = self.get(tenant_id, expense_id)
+        if not obj:
+            raise ValueError("Expense not found")
         ok = self.crud.delete(self.db, expense_id)
         if not ok:
             raise ValueError("Expense not found")

@@ -1910,6 +1910,123 @@ async def run_async(
 
 
 # ---------------------------------------------------------------------------
+# SSE: stream de estado — reemplaza el polling masivo del frontend
+# ---------------------------------------------------------------------------
+@router.get("/documents/{doc_id}/stream")
+async def document_status_stream(
+    doc_id: UUID,
+    request: Request,
+    token: str = Query(..., description="JWT de acceso (EventSource no soporta headers)"),
+):
+    """Server-Sent Events: emite **un solo evento** cuando el documento sale de
+    PENDING/PROCESSING y luego cierra la conexión.
+
+    Flujo sin race condition:
+      1. Valida JWT y extrae tenant_id del claim.
+      2. Suscribe al canal Redis ``imp:status:{doc_id}`` ANTES de leer la BD.
+      3. Consulta estado actual en BD con sesión fresca:
+         - Si ya es terminal → responde inmediatamente y cierra.
+         - Si sigue PENDING/PROCESSING → espera el pub/sub (max 390 s).
+      4. Al recibir el mensaje de la task Celery → pushea el evento y cierra.
+
+    Con N archivos en vuelo se crean N conexiones SSE persistentes pero
+    cero consultas a BD por segundo (vs N × 1 query/2 s con polling HTTP).
+    """
+    import asyncio
+    import json
+    import os
+
+    from fastapi.responses import StreamingResponse
+
+    # --- Auth manual (EventSource no puede enviar Authorization header) ---
+    from app.core.jwt_provider import get_token_service
+
+    try:
+        claims = get_token_service().decode_and_validate(token, expected_type="access")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    tid_raw = claims.get("tenant_id")
+    if not tid_raw:
+        raise HTTPException(status_code=401, detail="tenant_id ausente en token")
+    tenant_id = UUID(str(tid_raw))
+
+    # Verificar que el documento pertenece a este tenant (primera lectura rápida)
+    db_check = next(get_db(request))
+    try:
+        doc_check = crud.get_documento(db_check, doc_id)
+    finally:
+        db_check.close()
+
+    if doc_check is None or str(doc_check.tenant_id) != str(tenant_id):
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    TERMINAL = {"REVIEW", "CONFIRMED", "FAILED", "REJECTED"}
+    channel = f"imp:status:{doc_id}"
+    redis_url = (
+        os.getenv("REDIS_URL") or os.getenv("DEV_REDIS_URL") or "redis://localhost:6379/0"
+    )
+
+    async def event_generator():
+        import redis.asyncio as aioredis  # type: ignore
+
+        r = aioredis.from_url(redis_url, decode_responses=True)
+        pubsub = r.pubsub()
+        try:
+            # 1. Suscribir ANTES de leer BD → evita race condition
+            await pubsub.subscribe(channel)
+
+            # 2. Estado fresco desde BD (la task puede haber terminado entre
+            #    el momento del subscribe y ahora, pero ya tenemos el canal)
+            from app.config.database import SessionLocal
+            from app.models.importador import ImpDocumento
+
+            with SessionLocal() as fresh_db:
+                fresh_doc = (
+                    fresh_db.query(ImpDocumento)
+                    .filter(ImpDocumento.id == doc_id)
+                    .first()
+                )
+                current_estado = fresh_doc.estado if fresh_doc else "FAILED"
+
+            if current_estado in TERMINAL:
+                yield f"data: {json.dumps({'estado': current_estado})}\n\n"
+                return
+
+            # 3. Esperar el pub/sub de la task Celery
+            #    timeout = soft_time_limit (390 s) + 30 s de margen
+            async def _wait_message() -> str:
+                async for msg in pubsub.listen():
+                    if msg["type"] == "message":
+                        return msg["data"]
+                return json.dumps({"estado": "FAILED"})
+
+            try:
+                data = await asyncio.wait_for(_wait_message(), timeout=420.0)
+            except asyncio.TimeoutError:
+                data = json.dumps({"estado": "TIMEOUT"})
+
+            yield f"data: {data}\n\n"
+
+        finally:
+            try:
+                await pubsub.unsubscribe(channel)
+                await r.aclose()
+            except Exception:
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # desactiva buffer en Nginx/proxies
+            "Connection": "keep-alive",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Purge all importador history (tenant-scoped)
 # ---------------------------------------------------------------------------
 @router.delete("/purge-all", dependencies=protected)

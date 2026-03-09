@@ -51,6 +51,22 @@ def delete_payload(doc_id: str) -> None:
     r.delete(f"{REDIS_KEY_PREFIX}{doc_id}")
 
 
+def publish_status(doc_id: str, estado: str) -> None:
+    """Publica el estado final en Redis pub/sub.
+
+    El endpoint SSE /documents/{id}/stream suscribe a este canal y pushea
+    el evento al cliente, eliminando el polling HTTP masivo.
+    Canal: imp:status:{doc_id}
+    """
+    import json
+
+    try:
+        r = _get_redis()
+        r.publish(f"imp:status:{doc_id}", json.dumps({"estado": estado}))
+    except Exception as exc:  # Redis no disponible → no es crítico
+        logger.warning("pub/sub no disponible para doc %s: %s", doc_id, exc)
+
+
 # ---------------------------------------------------------------------------
 # Lógica de procesamiento (async) — mismas funciones que router.py
 # ---------------------------------------------------------------------------
@@ -222,6 +238,7 @@ async def _run_processing(
                 "recipe_snapshot_id": resolved_snapshot_id,
             })
             db.commit()
+            publish_status(str(doc_id), "REVIEW")
             logger.info("Documento %s procesado correctamente → REVIEW", doc_id)
 
         except Exception as exc:
@@ -229,6 +246,7 @@ async def _run_processing(
             crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": str(exc)})
             crud.add_log(db, doc.id, "EXTRACT", user_id, {"error": str(exc)})
             db.commit()
+            publish_status(str(doc_id), "FAILED")
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +299,7 @@ def _make_task():
                         from app.modules.importador import crud
                         crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": msg})
                         db.commit()
+                        publish_status(doc_id, "FAILED")
             except Exception as e:
                 logger.error("No se pudo marcar FAILED doc %s: %s", doc_id, e)
             return {"ok": False, "error": msg}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchDashboard, type DashboardStats, fetchRecipes, fetchSnapshots, runImportAsync, pollDocument, type Recipe, type RecipeSnapshot } from '../services'
+import { fetchDashboard, type DashboardStats, fetchRecipes, fetchSnapshots, runImportAsync, streamDocumentStatus, type Recipe, type RecipeSnapshot } from '../services'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -182,7 +182,7 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
 
         // Polling hasta que el worker lo resuelva
         try {
-          const finalDoc = await pollDocument(asyncResult.id)
+          const finalDoc = await streamDocumentStatus(asyncResult.id)
           setEntries(prev => prev.map(e =>
             e.file === entry.file
               ? { ...e, status: finalDoc.estado === 'FAILED' ? 'error' : 'done', docId: finalDoc.id, result: finalDoc }

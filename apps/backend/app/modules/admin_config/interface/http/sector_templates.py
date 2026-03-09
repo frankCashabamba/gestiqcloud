@@ -1,13 +1,8 @@
 """
 Router for sector template management.
 
-CONSOLIDATION IN PROGRESS:
-- Configuration endpoints (/{code}/config, /{code}/full-config, /{code}/features, /{code}/fields/{module})
-  are being consolidated in app/routers/sectors.py per PLAN_ELIMINACION_HARDCODING_COMPLETO.md
-- This file maintains endpoints for template application and UI template management
-- Backward compatibility: get_sector_config still works but is deprecated
-
-See: app/routers/sectors.py for consolidated endpoints (PHASE 1)
+Configuration reads now live only in app/routers/sectors.py.
+This router keeps template application and UI template management.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,8 +13,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.core.ui_template import UiTemplate
-from app.schemas.sector_plantilla import ApplySectorTemplateRequest, SectorConfigJSON
-from app.services.sector_service import get_sector_or_404
+from app.schemas.sector_plantilla import ApplySectorTemplateRequest
 from app.services.sector_templates import (
     apply_sector_template,
     get_available_templates,
@@ -27,45 +21,6 @@ from app.services.sector_templates import (
 )
 
 router = APIRouter(prefix="/api/v1/sectors", tags=["Sector Templates"])
-
-
-@router.get("/{code}/config", summary="Get sector branding (DEPRECATED)")
-async def get_sector_config_deprecated(code: str, db: Session = Depends(get_db)):
-    """
-    DEPRECATED - Use GET /api/v1/sectors/{code}/config instead.
-
-    This endpoint maintains backward compatibility but returns branding only.
-    Use the consolidated endpoint in app/routers/sectors.py which returns
-    full configuration per PLAN_ELIMINACION_HARDCODING_COMPLETO.md
-
-    Gets only the sector branding configuration.
-
-    Args:
-        code: Sector code (bakery, workshop, retail, etc.)
-
-    Returns:
-        Sector branding configuration
-
-    Example:
-        GET /api/v1/sectors/bakery/config
-    """
-    try:
-        sector = get_sector_or_404(code, db)
-
-        config = SectorConfigJSON(**sector.template_config)
-        return {
-            "ok": True,
-            "code": code.lower(),
-            "sector_name": sector.name,
-            "branding": config.branding.model_dump(),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error in sector configuration: {str(e)}"
-        ) from e
-
 
 @router.get("/", summary="List available sector templates")
 async def list_sector_templates(db: Session = Depends(get_db)):

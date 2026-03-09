@@ -19,8 +19,6 @@ from fastapi.openapi.docs import (
 )
 from fastapi.staticfiles import StaticFiles
 
-from app.routers.tenant import roles as tenant_roles_router
-
 from .platform.http.router import build_api_router
 from .telemetry.otel import init_fastapi
 from .telemetry.sentry import init_sentry
@@ -577,15 +575,6 @@ except Exception as e:
 # Ver app/platform/http/router.py:253-315 para montaje automático
 # ============================================================================
 
-# Dashboard KPIs
-try:
-    from app.routers.dashboard_kpis import router as dashboard_kpis_router
-
-    app.include_router(dashboard_kpis_router, prefix="/api/v1")
-    _router_logger.info("Dashboard KPIs router mounted at /api/v1/dashboard/kpis")
-except Exception as e:
-    _router_logger.error(f"Error mounting Dashboard KPIs router: {e}")
-
 # Dashboard Stats - PENDIENTE DE MIGRACIÓN A MÓDULO MODERNO
 
 # Admin Stats
@@ -685,40 +674,6 @@ try:
 except Exception as e:
     _router_logger.warning(f"Importador recipe router mount failed: {e}")
 
-# Ensure admin routes
-try:
-    from backend.app.api.v1.admin import auth as _admin_auth
-
-    app.include_router(_admin_auth.router, prefix="/api/v1/admin")
-except Exception:
-    _router_logger.debug("Admin auth router not available", exc_info=True)
-try:
-    from backend.app.routers.admin import ops as _admin_ops
-
-    app.include_router(_admin_ops.router, prefix="/api/v1/admin")
-except Exception:
-    _router_logger.debug("Admin ops router not available", exc_info=True)
-try:
-    from app.routers.admin_scripts import router as _admin_scripts_router
-
-    app.include_router(_admin_scripts_router, prefix="")
-except Exception:
-    _router_logger.debug("Admin scripts router not available", exc_info=True)
-try:
-    from app.api.v1 import auth as _generic_auth
-
-    app.include_router(_generic_auth.router, prefix="/api/v1")
-except Exception:
-    _router_logger.debug("Generic auth router not available", exc_info=True)
-try:
-    from app.api.v1.tenant import auth as _tenant_auth
-
-    app.include_router(_tenant_auth.router, prefix="/api/v1/tenant")
-    app.include_router(tenant_roles_router.router, prefix="/api/v1")
-except Exception:
-    _router_logger.debug("Tenant auth router not available", exc_info=True)
-
-
 # Document Storage
 try:
     from app.modules.documents.interface.http.document_storage import router as doc_storage_router
@@ -727,21 +682,6 @@ try:
     _router_logger.info("Document Storage router mounted at /api/v1/documents/storage")
 except Exception as e:
     _router_logger.warning(f"Document Storage router mount failed: {e}")
-
-# ============================================================================
-# SPRINT 1: NEW ROUTERS (Identity, POS, Invoicing, Inventory, Sales)
-# ============================================================================
-
-# Identity (Auth)
-try:
-    from app.modules.identity.interface.http.tenant_auth import router as identity_router
-
-    app.include_router(identity_router, prefix="/api/v1/tenant")
-    _router_logger.info("Identity router mounted at /api/v1/tenant/auth")
-except Exception as e:
-    _router_logger.warning(f"Identity router mount failed: {e}")
-
-# Sprint 1 placeholder routers removed — real routers registered via build_api_router()
 
 if __name__ == "__main__":
     import uvicorn

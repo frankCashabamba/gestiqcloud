@@ -72,8 +72,8 @@ class ListarClientes(BaseUseCase[ClienteRepo]):
 
 
 class ObtenerCliente(BaseUseCase[ClienteRepo]):
-    def execute(self, *, id: Any) -> ClienteOut:
-        item = self.repo.get(id)
+    def execute(self, *, id: Any, tenant_id: Any) -> ClienteOut:
+        item = self.repo.get(id=id, tenant_id=tenant_id)
         if not item:
             raise ValueError("cliente no encontrado")
         return ClienteOut(
@@ -92,5 +92,5 @@ class ObtenerCliente(BaseUseCase[ClienteRepo]):
 
 
 class EliminarCliente(BaseUseCase[ClienteRepo]):
-    def execute(self, *, id: Any) -> None:
-        self.repo.delete(id)
+    def execute(self, *, id: Any, tenant_id: Any) -> None:
+        self.repo.delete(id=id, tenant_id=tenant_id)

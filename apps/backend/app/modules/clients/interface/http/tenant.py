@@ -90,10 +90,12 @@ def crear_cliente(payload: ClienteInSchema, request: Request, db: Session = Depe
 
 
 @router.get("/{cliente_id}", response_model=ClienteOutSchema)
-def obtener_cliente(cliente_id: UUID, db: Session = Depends(get_db)):
+def obtener_cliente(cliente_id: UUID, request: Request, db: Session = Depends(get_db)):
+    claims = request.state.access_claims
+    tenant_id = claims.get("tenant_id")
     use = ObtenerCliente(SqlAlchemyClienteRepo(db))
     try:
-        item = use.execute(id=cliente_id)
+        item = use.execute(id=cliente_id, tenant_id=tenant_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     return _dto_to_schema(item)
@@ -117,7 +119,9 @@ def actualizar_cliente(
 
 
 @router.delete("/{cliente_id}")
-def eliminar_cliente(cliente_id: UUID, db: Session = Depends(get_db)):
+def eliminar_cliente(cliente_id: UUID, request: Request, db: Session = Depends(get_db)):
+    claims = request.state.access_claims
+    tenant_id = claims.get("tenant_id")
     use = EliminarCliente(SqlAlchemyClienteRepo(db))
-    use.execute(id=cliente_id)
+    use.execute(id=cliente_id, tenant_id=tenant_id)
     return {"ok": True}

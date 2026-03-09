@@ -178,43 +178,14 @@ export async function payReceipt(
     payments: any[],
     opts?: { warehouse_id?: string }
 ): Promise<CheckoutResponse> {
-    // Checkout unificado: pagos + descuento de stock + documentos por backend
     const payload: any = { payments }
     if (opts?.warehouse_id) payload.warehouse_id = opts.warehouse_id
-    try {
-        const { data } = await tenantApi.post<CheckoutResponse>(`${BASE_URL}/receipts/${receiptId}/checkout`, payload, { headers: authHeaders() })
-        return data
-    } catch (err: any) {
-        // Fallback para entornos donde /checkout aún no está disponible
-        const status = err?.response?.status
-        if (status === 404) {
-            try {
-                // 1) Registrar pagos con endpoint legacy
-                await tenantApi.post(`${BASE_URL}/receipts/${receiptId}/take_payment`, { payments }, { headers: authHeaders() })
-                // 2) Confirmar/postear el recibo (aplica descuento de stock)
-                const altBody: any = {}
-                if (opts?.warehouse_id) altBody.warehouse_id = opts.warehouse_id
-                await tenantApi.post(`${BASE_URL}/receipts/${receiptId}/post`, altBody, { headers: authHeaders() })
-            } catch (legacyErr) {
-                throw err // re-lanza el 404 original si el fallback falla
-            }
-        } else {
-            throw err
-        }
-    }
-    const { data } = await tenantApi.get<POSReceipt>(`${BASE_URL}/receipts/${receiptId}`, { headers: authHeaders() })
-    return {
-        ok: true,
-        receipt_id: data.id,
-        status: data.status,
-        totals: {
-            subtotal: data.subtotal || 0,
-            tax: data.tax_total || 0,
-            total: data.gross_total || 0,
-            paid: data.gross_total || 0,
-            change: 0
-        }
-    }
+    const { data } = await tenantApi.post<CheckoutResponse>(
+        `${BASE_URL}/receipts/${receiptId}/checkout`,
+        payload,
+        { headers: authHeaders() }
+    )
+    return data
 }
 
 export async function convertToInvoice(receiptId: string, payload: ReceiptToInvoiceRequest): Promise<any> {

@@ -95,8 +95,12 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             tenant_id=m.tenant_id,
         )
 
-    def get(self, id: int) -> Cliente | None:
-        m = self.db.query(ClienteORM).filter(ClienteORM.id == id).first()
+    def get(self, *, id: int, tenant_id: int) -> Cliente | None:
+        m = (
+            self.db.query(ClienteORM)
+            .filter(ClienteORM.id == id, ClienteORM.tenant_id == tenant_id)
+            .first()
+        )
         return self._to_entity(m) if m else None
 
     def list(self, *, tenant_id: int) -> Sequence[Cliente]:
@@ -143,12 +147,30 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             postal_code=c.codigo_postal,
             is_wholesale=bool(c.is_wholesale),
         )
-        m = ClienteCRUD(ClienteORM).update(self.db, c.id, dto)
+        if c.tenant_id is None:
+            raise ValueError("tenant_id requerido para update")
+
+        m_existing = (
+            self.db.query(ClienteORM)
+            .filter(ClienteORM.id == c.id, ClienteORM.tenant_id == c.tenant_id)
+            .first()
+        )
+        if not m_existing:
+            raise ValueError("cliente no existe")
+
+        m = ClienteCRUD(ClienteORM).update(self.db, m_existing, dto)
         if not m:
             raise ValueError("cliente no existe")
         return self._to_entity(m)
 
-    def delete(self, id: int) -> None:
+    def delete(self, *, id: int, tenant_id: int) -> None:
+        m = (
+            self.db.query(ClienteORM)
+            .filter(ClienteORM.id == id, ClienteORM.tenant_id == tenant_id)
+            .first()
+        )
+        if not m:
+            return
         ok = ClienteCRUD(ClienteORM).delete(self.db, id)
         if not ok:
             return

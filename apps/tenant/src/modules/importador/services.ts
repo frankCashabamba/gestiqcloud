@@ -545,8 +545,88 @@ export async function runImportAsync(
   return data
 }
 
-/** Hace polling a GET /documents/{id} hasta que estado != PENDING|PROCESSING.
- *  Resuelve con el documento final. Rechaza si supera maxWaitMs (default 5 min). */
+/** Espera el estado final de un documento via Server-Sent Events.
+ *
+ *  El backend suscribe a Redis pub/sub y pushea exactamente 1 evento cuando
+ *  Celery termina la tarea. Cero polling HTTP → escala con cualquier volumen.
+ *
+ *  Si el navegador no soporta EventSource o la conexión falla, cae
+ *  automáticamente a pollDocument() como fallback.
+ */
+const TERMINAL_ESTADOS = new Set(['REVIEW', 'CONFIRMED', 'FAILED', 'REJECTED'])
+
+export function streamDocumentStatus(
+  id: string,
+  opts?: { maxWaitMs?: number },
+): Promise<Documento> {
+  return new Promise((resolve, reject) => {
+    if (typeof EventSource === 'undefined') {
+      // Entorno sin soporte (Node, tests) → fallback directo
+      pollDocument(id, opts).then(resolve).catch(reject)
+      return
+    }
+
+    const token =
+      sessionStorage.getItem('access_token_tenant') ||
+      sessionStorage.getItem('authToken') ||
+      localStorage.getItem('authToken') ||
+      ''
+
+    if (!token) {
+      pollDocument(id, opts).then(resolve).catch(reject)
+      return
+    }
+
+    // El worker de Celery procesa 1 documento a la vez; el SSE espera hasta
+    // que Celery publique el resultado. Si expira (cola larga), fallback a polling.
+    const sseMaxWait = opts?.maxWaitMs ?? 420_000
+    const url = `/api/v1/importador/documents/${id}/stream?token=${encodeURIComponent(token)}`
+    const es = new EventSource(url)
+    let settled = false
+
+    const cleanup = (timer: ReturnType<typeof setTimeout>) => {
+      clearTimeout(timer)
+      es.close()
+    }
+
+    // Si el estado recibido es terminal → fetch completo; si no → poll hasta que lo sea
+    const resolveOrPoll = (estado: string | null, timer: ReturnType<typeof setTimeout>) => {
+      cleanup(timer)
+      if (estado && TERMINAL_ESTADOS.has(estado)) {
+        fetchDocument(id).then(resolve).catch(reject)
+      } else {
+        // Documento aún en cola (Celery ocupado) → polling liviano cada 15 s, sin límite corto
+        pollDocument(id, { intervalMs: 15_000, maxWaitMs: 7_200_000 }).then(resolve).catch(reject)
+      }
+    }
+
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      // SSE expiró en cliente → el documento sigue en cola → polling
+      resolveOrPoll(null, timer)
+    }, sseMaxWait)
+
+    es.onmessage = (event) => {
+      if (settled) return
+      settled = true
+      let estado: string | null = null
+      try { estado = JSON.parse(event.data)?.estado ?? null } catch { /* noop */ }
+      resolveOrPoll(estado, timer)
+    }
+
+    es.onerror = () => {
+      if (settled) return
+      settled = true
+      cleanup(timer)
+      // SSE falló (ej. proxy no soporta streaming) → fallback a polling
+      pollDocument(id, opts).then(resolve).catch(reject)
+    }
+  })
+}
+
+/** Fallback: polling HTTP a GET /documents/{id} hasta estado terminal.
+ *  Usar streamDocumentStatus() en su lugar siempre que sea posible. */
 export async function pollDocument(
   id: string,
   opts?: { intervalMs?: number; maxWaitMs?: number }

@@ -53,8 +53,11 @@ export function SessionKeepAlive({
   }
 
   useEffect(() => {
-    if (!token) return
     clearAll()
+    setOpen(false)
+    setBusy(false)
+    setRemaining(Math.floor(responseWindowMs / 1000))
+    if (!token) return
     warnTimer.current = window.setTimeout(() => {
       setOpen(true)
       setBusy(false)

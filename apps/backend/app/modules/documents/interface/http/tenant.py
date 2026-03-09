@@ -60,18 +60,6 @@ router = APIRouter(
     ],
 )
 
-# Backward-compatible alias.
-# NOTE: Marked deprecated at mount time (see app/platform/http/router.py).
-legacy_router = APIRouter(
-    prefix="/sales",
-    tags=["Documents"],
-    dependencies=[
-        Depends(with_access_claims),
-        Depends(require_scope("tenant")),
-        Depends(ensure_rls),
-    ],
-)
-
 documents_router = APIRouter(
     prefix="/documents",
     tags=["Documents"],
@@ -159,13 +147,9 @@ def _issue_document(payload: SaleDraft, request: Request, db: Session = Depends(
     return doc
 
 
-# Register routes on both the new router and the legacy alias.
+# Register routes on the canonical router only.
 router.add_api_route("/draft", _create_draft, methods=["POST"], response_model=DocumentModel)
 router.add_api_route("/issue", _issue_document, methods=["POST"], response_model=DocumentModel)
-legacy_router.add_api_route("/draft", _create_draft, methods=["POST"], response_model=DocumentModel)
-legacy_router.add_api_route(
-    "/issue", _issue_document, methods=["POST"], response_model=DocumentModel
-)
 
 
 def _ensure_absolute_logo(doc: DocumentModel, request: Request) -> DocumentModel:

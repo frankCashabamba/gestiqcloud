@@ -72,6 +72,22 @@ $frontendUrl = Get-EnvValue -lines $rootEnvLines -key "FRONTEND_URL" -default "h
 $tenantOrigin = Get-EnvValue -lines $rootEnvLines -key "TENANT_URL" -default "http://localhost:8082"
 $apiUrl = Get-EnvValue -lines $rootEnvLines -key "API_URL" -default $defaultApiUrl
 if (-not $apiUrl) { $apiUrl = $defaultApiUrl }
+$redisUrl = Get-EnvValue -lines $rootEnvLines -key "REDIS_URL" -default ""
+$devRedisUrl = Get-EnvValue -lines $rootEnvLines -key "DEV_REDIS_URL" -default ""
+$celeryResultBackend = Get-EnvValue -lines $rootEnvLines -key "CELERY_RESULT_BACKEND" -default ""
+if (-not $redisUrl) {
+    if ($devRedisUrl) {
+        $redisUrl = $devRedisUrl
+    } else {
+        $redisUrl = "redis://localhost:6379/0"
+    }
+}
+if (-not $devRedisUrl) {
+    $devRedisUrl = $redisUrl
+}
+if (-not $celeryResultBackend) {
+    $celeryResultBackend = "redis://localhost:6379/1"
+}
 Write-Host ("API_URL detectado: {0}" -f $apiUrl) -ForegroundColor Cyan
 $adminPort = Get-PortFromUrl -url $frontendUrl -fallback 8081
 $tenantPort = Get-PortFromUrl -url $tenantOrigin -fallback 8082
@@ -153,7 +169,9 @@ $tenantEnvVars = @{
     "VITE_WS_URL"        = To-WebsocketUrl -httpUrl $apiUrl
 }
 $backendEnvVars = @{
-    "REDIS_RESULT_URL"     = "redis://localhost:6379/1"
+    "REDIS_URL"             = $redisUrl
+    "DEV_REDIS_URL"         = $devRedisUrl
+    "CELERY_RESULT_BACKEND" = $celeryResultBackend
     "CELERY_RESULT_EXPIRES" = "3600"
     "CELERY_IGNORE_RESULT"  = "false"
     "ENV_FILE"              = $rootEnvPath
@@ -213,14 +231,15 @@ $backendJob = Start-Job -ScriptBlock {
 
 Write-Host "[6/7] Iniciando Celery worker (cola importador)..." -ForegroundColor Green
 $celeryLog = Join-Path $repoRoot "celery.log"
+$celeryPool = if ($env:OS -eq "Windows_NT") { "solo" } else { "prefork" }
 $null = Start-Job -ScriptBlock {
-    param($envVars, $logPath, $pythonExe, $workDir)
+    param($envVars, $logPath, $pythonExe, $workDir, $pool)
     foreach ($entry in $envVars.GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
     }
     Set-Location $workDir
-    & $pythonExe -m celery -A celery_app worker --queues=importador,default --loglevel=info --concurrency=2 *>> $logPath
-} -Name celery -ArgumentList $backendEnvVars, $celeryLog, $venvPython, $backendPath
+    & $pythonExe -m celery -A celery_app worker --queues=importador,default --pool=$pool --concurrency=1 --loglevel=info *>> $logPath
+} -Name celery -ArgumentList $backendEnvVars, $celeryLog, $venvPython, $backendPath, $celeryPool
 
 Write-Host "[6.5/7] Iniciando frontends..." -ForegroundColor Green
 $adminJob = Start-Job -ScriptBlock {
@@ -246,15 +265,22 @@ Write-Host "[6.5/7] Verificando puertos..." -ForegroundColor Yellow
 $okBackend = Wait-Port -Name "backend" -Port 8000
 $okAdmin = Wait-Port -Name "admin" -Port $adminPort
 $okTenant = Wait-Port -Name "tenant" -Port $tenantPort
-if (-not ($okBackend -and $okAdmin -and $okTenant)) {
+Start-Sleep -Seconds 2
+$celeryJob = Get-Job -Name celery -ErrorAction SilentlyContinue
+$okCelery = $celeryJob -and $celeryJob.State -eq "Running"
+if (-not ($okBackend -and $okAdmin -and $okTenant -and $okCelery)) {
     Write-Host "`nAlguno de los servicios no levanto correctamente." -ForegroundColor Red
     Write-Host "Estado de jobs:" -ForegroundColor Yellow
-    Get-Job -Name backend,admin,tenant | Select-Object Id, Name, State, HasMoreData | Format-Table -AutoSize | Out-Host
+    Get-Job -Name backend,celery,admin,tenant | Select-Object Id, Name, State, HasMoreData | Format-Table -AutoSize | Out-Host
     Write-Host "`nSalida de jobs (ultimas lineas):" -ForegroundColor Yellow
-    Receive-Job -Name backend,admin,tenant -Keep | Select-Object -Last 80 | Out-Host
+    Receive-Job -Name backend,celery,admin,tenant -Keep | Select-Object -Last 80 | Out-Host
     if (Test-Path $backendLog) {
         Write-Host "`nbackend.log (ultimas 80 lineas):" -ForegroundColor Yellow
         Get-Content $backendLog -Tail 80 | Out-Host
+    }
+    if (Test-Path $celeryLog) {
+        Write-Host "`ncelery.log (ultimas 80 lineas):" -ForegroundColor Yellow
+        Get-Content $celeryLog -Tail 80 | Out-Host
     }
     Stop-Job -Name backend,celery,admin,tenant -ErrorAction SilentlyContinue
     Remove-Job -Name backend,celery,admin,tenant -Force -ErrorAction SilentlyContinue

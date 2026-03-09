@@ -529,12 +529,6 @@ def create_register(payload: RegisterIn, request: Request, db: Session = Depends
     response_model=dict,
     dependencies=[Depends(require_permission("pos.shift.open"))],
 )
-@router.post(
-    "/open_shift",
-    response_model=dict,
-    deprecated=True,
-    dependencies=[Depends(require_permission("pos.shift.open"))],
-)
 def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get_db)):
     """Abre un nuevo turno en un registro POS"""
     ensure_guc_from_request(request, db, persist=True)
@@ -1405,7 +1399,7 @@ def list_shifts(
 
 
 @router.get(
-    "/shifts/{shift_id}/summary",
+    "/shifts/{shift_id}/summary-basic",
     response_model=dict,
     dependencies=[Depends(require_permission("pos.reports.view"))],
 )
@@ -2946,12 +2940,6 @@ def print_receipt(
 # ============================================================================
 
 
-@router.post(
-    "/receipts/{receipt_id}/add_item",
-    response_model=dict,
-    deprecated=True,
-    include_in_schema=False,
-)
 def add_item(receipt_id: str, payload: ItemIn, request: Request, db: Session = Depends(get_db)):
     """
     DEPRECATED: Usa POST /receipts con lÃ­neas incluidas.
@@ -2998,12 +2986,6 @@ def add_item(receipt_id: str, payload: ItemIn, request: Request, db: Session = D
         raise HTTPException(status_code=500, detail=f"Error al agregar item: {str(e)}")
 
 
-@router.post(
-    "/receipts/{receipt_id}/remove_item",
-    response_model=dict,
-    deprecated=True,
-    include_in_schema=False,
-)
 def remove_item(
     receipt_id: str,
     payload: RemoveItemIn,
@@ -3048,12 +3030,6 @@ def remove_item(
         raise HTTPException(status_code=500, detail=f"Error al eliminar item: {str(e)}")
 
 
-@router.post(
-    "/receipts/{receipt_id}/take_payment",
-    response_model=dict,
-    deprecated=True,
-    include_in_schema=False,
-)
 def take_payment(
     receipt_id: str,
     payload: PaymentsIn,
@@ -3123,12 +3099,6 @@ def take_payment(
         raise HTTPException(status_code=500, detail=f"Error al procesar pago: {str(e)}")
 
 
-@router.post(
-    "/receipts/{receipt_id}/post",
-    response_model=dict,
-    deprecated=True,
-    include_in_schema=False,
-)
 def post_receipt(
     receipt_id: str,
     payload: PostReceiptIn,

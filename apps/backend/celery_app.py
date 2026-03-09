@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import os
+import sys
 
 from celery import Celery
 from celery.schedules import crontab
 
-from app.telemetry.otel import init_celery
+try:
+    from app.config import env_loader as _env_loader  # noqa: F401
+    from app.telemetry.otel import init_celery
+except ImportError:
+    from apps.backend.app.config import env_loader as _env_loader  # noqa: F401
+    from apps.backend.app.telemetry.otel import init_celery
 
 
 def _redis_url() -> str:
@@ -15,13 +21,10 @@ def _redis_url() -> str:
     In production, REDIS_URL is REQUIRED and must not point to localhost.
     In development, can fallback to localhost if explicitly set.
     """
+    environment = os.getenv("ENVIRONMENT", "development").lower()
     url = os.getenv("REDIS_URL", "").strip()
 
     if not url:
-        import sys
-
-        environment = os.getenv("ENVIRONMENT", "development").lower()
-
         if environment == "production":
             error_msg = (
                 "REDIS_URL is not configured. Required in production.\n"
@@ -53,11 +56,16 @@ def _redis_url() -> str:
     return url
 
 
+_REDIS_URL = _redis_url()
+
 celery_app = Celery(
     "gestiqcloud",
-    broker=_redis_url(),
-    backend=os.getenv("CELERY_RESULT_BACKEND", _redis_url()),
+    broker=_REDIS_URL,
+    backend=os.getenv("CELERY_RESULT_BACKEND", _REDIS_URL),
 )
+
+sys.modules.setdefault("app.celery_app", sys.modules[__name__])
+sys.modules.setdefault("apps.backend.celery_app", sys.modules[__name__])
 
 celery_app.conf.update(
     task_default_queue="default",
@@ -91,5 +99,16 @@ if os.getenv("ENABLE_EINVOICING_BEAT", "0").lower() in ("1", "true", "yes"):
             "schedule": crontab(minute="*/15"),
         },
     }
+
+# Import task modules after Celery app creation so task decorators register them.
+for _task_module in (
+    "app.modules.importador.tasks",
+    "apps.backend.app.modules.importador.tasks",
+):
+    try:
+        __import__(_task_module)
+        break
+    except Exception:
+        continue
 
 init_celery()

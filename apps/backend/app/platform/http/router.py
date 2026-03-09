@@ -179,9 +179,8 @@ def build_api_router() -> APIRouter:
         r,
         ("app.modules.identity.interface.http.profile", "router"),
     )
-    # Generic auth alias (/api/v1/auth/*) + me + telemetry
+    # Generic auth alias (/api/v1/auth/*) + telemetry
     include_router_safe(r, ("app.api.v1.auth", "router"))
-    include_router_safe(r, ("app.api.v1.me", "router"))
     include_router_safe(r, ("app.api.v1.telemetry", "router"))
     # Prometheus metrics
     include_router_safe(r, ("app.api.v1.metrics", "router"))
@@ -227,10 +226,6 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.modules.users.interface.http.tenant", "public_router"))
     include_router_safe(r, ("app.modules.users.interface.http.admin", "router"), prefix="/admin")
 
-    # Module registry (catalog)
-    include_router_safe(r, ("app.modules.registry.interface.http.admin", "router"), prefix="/admin")
-    include_router_safe(r, ("app.modules.registry.interface.http.tenant", "router"))
-
     # Admin config (modern)
     include_router_safe(
         r, ("app.modules.admin_config.interface.http.admin", "router"), prefix="/admin"
@@ -239,9 +234,6 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.admin_config.interface.http.tenant_catalogs", "router"), prefix="/tenant"
     )
-
-    # Me endpoints (admin/tenant helpers)
-    include_router_safe(r, ("app.api.v1.me", "router"))
 
     # Invoicing
     include_router_safe(
@@ -272,12 +264,6 @@ def build_api_router() -> APIRouter:
         r,
         ("app.modules.documents.interface.http.tenant", "router"),
         prefix="/tenant",
-    )
-    include_router_safe(
-        r,
-        ("app.modules.documents.interface.http.tenant", "legacy_router"),
-        prefix="/tenant",
-        mark_deprecated=True,
     )
     include_router_safe(
         r,

@@ -261,63 +261,6 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
     )
 
 
-@router.post("/{order_id}/invoice", response_model=OrderOut)
-def create_invoice_from_order(
-    order_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-    ),
-    request: Request = None,
-    db: Session = Depends(get_db),
-):
-    """Create an invoice from a confirmed sales order."""
-    tid = _tenant_id_str(request)
-    tenant_uuid = UUID(str(tid)) if tid else None
-    if not tenant_uuid:
-        raise HTTPException(status_code=401, detail="tenant_id invalido")
-
-    order = (
-        db.query(SalesOrder)
-        .filter(
-            SalesOrder.id == UUID(order_id),
-            SalesOrder.tenant_id == tenant_uuid,
-        )
-        .first()
-    )
-    if not order:
-        raise HTTPException(status_code=404, detail="Orden no encontrada")
-    if order.status not in ("confirmed", "draft"):
-        raise HTTPException(
-            status_code=400, detail=f"No se puede facturar orden en estado {order.status}"
-        )
-
-    # Create invoice via invoicing module
-    try:
-        from app.modules.invoicing.crud import factura_crud
-
-        factura_crud.crear_desde_orden(db=db, order=order, tenant_id=tenant_uuid)
-        order.status = "invoiced"
-        db.commit()
-        db.refresh(order)
-    except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"Error creating invoice from order: {e}")
-        raise HTTPException(status_code=500, detail="Error al crear factura desde orden")
-
-    return OrderOut(
-        id=str(order.id),
-        number=order.number,
-        order_date=order.order_date,
-        created_at=order.created_at.isoformat() if getattr(order, "created_at", None) else None,
-        status=order.status,
-        customer_id=str(order.customer_id) if order.customer_id else None,
-        currency=order.currency,
-        subtotal=float(order.subtotal or 0),
-        tax=float(order.tax or 0),
-        total=float(order.total or 0),
-    )
-
-
 class ConfirmIn(BaseModel):
     warehouse_id: str
 
