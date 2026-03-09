@@ -112,7 +112,11 @@ async def _run_processing(
     from app.config.database import SessionLocal
     from app.modules.importador import crud
     from app.modules.importador.ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-    from app.modules.importador.auto_recipe import resolve_auto_recipe
+    from app.modules.importador.auto_recipe import (
+        get_snapshot_learning,
+        remember_snapshot_learning,
+        resolve_auto_recipe,
+    )
     from app.modules.importador.document_fields import (
         detect_document_currency,
         detect_document_date,
@@ -153,7 +157,7 @@ async def _run_processing(
             resolved_snapshot_id = None
             if sheet_profiles:
                 _, resolved_snapshot_id, _, _, _ = resolve_auto_recipe(
-                    db, str(tenant_id), sheet_profiles, user_id
+                    db, tenant_id, sheet_profiles, user_id
                 )
             if recipe_snapshot_id:
                 resolved_snapshot_id = recipe_snapshot_id
@@ -168,18 +172,65 @@ async def _run_processing(
                 llm_content = "\n".join(sample_lines)
             else:
                 llm_content = text[:6000] if text else ""
+            vision_image_bytes = extraction.get("vision_image_bytes")
+            if not isinstance(vision_image_bytes, (bytes, bytearray)):
+                vision_image_bytes = file_bytes if tipo_archivo in ("JPG", "PNG", "IMG") else None
 
-            analysis = await analyze_document(
-                llm_content,
-                filename,
-                extraction.get("format", tipo_archivo),
-                has_structured_rows=has_structured,
-                recipe_config={},
-            )
+            recipe_snapshot = None
+            recipe_config = {}
+            cached_analysis = None
+            if resolved_snapshot_id:
+                from app.modules.importador import recipe_crud
+
+                recipe_snapshot = recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
+                if recipe_snapshot and isinstance(recipe_snapshot.content_json, dict):
+                    recipe_config = {
+                        "prompt_system": recipe_snapshot.content_json.get("prompt_system"),
+                        "prompt_user": recipe_snapshot.content_json.get("prompt_user"),
+                        "model": recipe_snapshot.content_json.get("model"),
+                        "field_descriptions": recipe_snapshot.content_json.get("field_descriptions"),
+                    }
+                if has_structured:
+                    cached_analysis = get_snapshot_learning(
+                        recipe_snapshot,
+                        structured_only=True,
+                    )
+
+            if cached_analysis:
+                analysis = {
+                    **cached_analysis,
+                    "fields": {},
+                    "is_table": True,
+                    "columns": [],
+                    "model_used": "snapshot-cache",
+                    "prompt_sent": "",
+                    "raw_response": "snapshot-cache",
+                }
+            else:
+                analysis = await analyze_document(
+                    llm_content,
+                    filename,
+                    extraction.get("format", tipo_archivo),
+                    has_structured_rows=has_structured,
+                    recipe_config=recipe_config,
+                    image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
+                )
 
             tipo_doc = analysis.get("doc_type", "OTHER")
             confianza = float(analysis.get("confidence", 0.0))
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
+
+            if has_structured and recipe_snapshot:
+                remember_snapshot_learning(
+                    db,
+                    recipe_snapshot,
+                    {
+                        "doc_type": tipo_doc,
+                        "confidence": confianza,
+                        "reasoning": analysis.get("reasoning", ""),
+                    },
+                    structured_only=True,
+                )
 
             crud.add_log(
                 db,

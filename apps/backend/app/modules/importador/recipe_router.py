@@ -9,9 +9,11 @@ Business Rules:
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import hashlib
 import logging
+import os
 from pathlib import Path
 from uuid import UUID
 
@@ -25,7 +27,12 @@ from app.core.authz import require_scope
 from . import crud, recipe_crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .analysis_normalizer import _normalize_analysis_output
-from .auto_recipe import resolve_auto_recipe, resolve_auto_recipe_from_text
+from .auto_recipe import (
+    get_snapshot_learning,
+    remember_snapshot_learning,
+    resolve_auto_recipe,
+    resolve_auto_recipe_from_text,
+)
 from .document_fields import (
     detect_document_currency,
     detect_document_date,
@@ -335,14 +342,38 @@ async def run_import(
             # En reimportación limpia, no reutilizar auto-plantillas para sesgar la clasificación.
             is_image_doc = tipo_archivo in ("JPG", "PNG", "IMG")
             is_scanned_pdf = tipo_archivo == "PDF" and extraction.get("format") == "PDF_OCR"
-            analysis = await analyze_document(
-                llm_content,
-                filename,
-                extraction.get("format", tipo_archivo),
-                has_structured_rows=has_structured,
-                recipe_config=local_recipe_config,
-                image_bytes=file_bytes if (is_image_doc or is_scanned_pdf) else None,
-            )
+            vision_image_bytes = extraction.get("vision_image_bytes")
+            if not isinstance(vision_image_bytes, (bytes, bytearray)):
+                vision_image_bytes = file_bytes if is_image_doc else None
+            recipe_snapshot = None
+            cached_analysis = None
+            if local_snapshot_id:
+                recipe_snapshot = recipe_crud.get_snapshot(db, UUID(str(local_snapshot_id)))
+                if has_structured:
+                    cached_analysis = get_snapshot_learning(
+                        recipe_snapshot,
+                        structured_only=True,
+                    )
+
+            if cached_analysis:
+                analysis = {
+                    **cached_analysis,
+                    "fields": {},
+                    "is_table": True,
+                    "columns": [],
+                    "model_used": "snapshot-cache",
+                    "prompt_sent": "",
+                    "raw_response": "snapshot-cache",
+                }
+            else:
+                analysis = await analyze_document(
+                    llm_content,
+                    filename,
+                    extraction.get("format", tipo_archivo),
+                    has_structured_rows=has_structured,
+                    recipe_config=local_recipe_config,
+                    image_bytes=bytes(vision_image_bytes) if (is_image_doc or is_scanned_pdf) and vision_image_bytes else None,
+                )
             normalized_analysis = _normalize_analysis_output(analysis)
 
             tipo_doc = str(normalized_analysis["doc_type"])
@@ -350,6 +381,18 @@ async def run_import(
             razonamiento = str(normalized_analysis["reasoning"])
             analysis_fields = normalized_analysis["fields"]
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
+
+            if has_structured and recipe_snapshot:
+                remember_snapshot_learning(
+                    db,
+                    recipe_snapshot,
+                    {
+                        "doc_type": tipo_doc,
+                        "confidence": confianza,
+                        "reasoning": razonamiento,
+                    },
+                    structured_only=True,
+                )
 
             # Construir datos_extraidos
             if has_structured:
@@ -607,10 +650,58 @@ async def run_import(
             db.commit()
             results.append(RunResponse(id=doc.id, estado="FAILED", recipe_used=resolution_mode))
 
+    _max_file_mb = max(1, int((os.getenv("IMPORTS_MAX_FILE_SIZE_MB") or "16").strip() or "16"))
+    _max_file_bytes = _max_file_mb * 1024 * 1024
+
+    tasks: list[tuple[bytes, str, str]] = []
+
     for file in files:
+        filename = (file.filename or "sin_nombre").strip()
+
+        # Saltar archivos temporales de Office y otros no válidos
+        if not filename or filename.startswith("~$") or filename.lower() in {"thumbs.db", ".ds_store"}:
+            logger.info("/run: saltando archivo temporal: %s", filename)
+            continue
+
         file_bytes = await file.read()
-        filename = file.filename or "sin_nombre"
+        if not file_bytes:
+            continue
+
         tipo_archivo = detect_file_type(filename)
+
+        # Excel/XLS: sin límite de tamaño — openpyxl read_only ignora imágenes
+        # embebidas y los row-limits de _extract_excel acotan la memoria real usada.
+        # PDF/imágenes/otros: el tamaño sí correlaciona con tiempo de OCR y RAM.
+        _es_excel = tipo_archivo in ("XLSX", "XLS")
+        if not _es_excel and len(file_bytes) > _max_file_bytes:
+            size_mb = len(file_bytes) / (1024 * 1024)
+            doc_err = crud.create_documento(
+                db,
+                {
+                    "tenant_id": tenant_id,
+                    "nombre_archivo": filename,
+                    "tipo_archivo": tipo_archivo,
+                    "tamanio_bytes": len(file_bytes),
+                    "hash_sha256": hashlib.sha256(file_bytes).hexdigest(),
+                    "estado": "FAILED",
+                    "usuario_id": user_id,
+                    "recipe_snapshot_id": resolved_snapshot_id,
+                    "error_detalle": (
+                        f"Archivo demasiado grande: {size_mb:.0f} MB "
+                        f"(límite: {_max_file_mb} MB)."
+                    ),
+                },
+            )
+            crud.add_log(
+                db,
+                doc_err.id,
+                "ERROR",
+                user_id,
+                {"error": "size_limit_exceeded", "size_mb": round(size_mb, 1), "limit_mb": _max_file_mb},
+            )
+            db.commit()
+            results.append(RunResponse(id=doc_err.id, estado="FAILED", recipe_used=resolution_mode))
+            continue
 
         if tipo_archivo == "ZIP":
             entries = list(iter_zip_entries(file_bytes))
@@ -649,11 +740,13 @@ async def run_import(
                 results.append(RunResponse(id=doc.id, estado="FAILED", recipe_used=resolution_mode))
                 continue
             for inner_name, inner_bytes in entries:
-                await _process_single(
-                    inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name)
-                )
+                tasks.append((inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name)))
         else:
-            await _process_single(file_bytes, filename, tipo_archivo)
+            tasks.append((file_bytes, filename, tipo_archivo))
+
+    # Procesar todos los archivos en paralelo; las llamadas AI se serializan
+    # internamente via semáforo (Ollama) o van en paralelo real (OpenAI).
+    await asyncio.gather(*(_process_single(fb, fn, ta) for fb, fn, ta in tasks))
 
     return results
 

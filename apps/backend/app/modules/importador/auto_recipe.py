@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime
 from uuid import UUID
 
@@ -147,6 +148,76 @@ def _flatten_headers(sheet_profiles: dict) -> list[str]:
             seen.add(h)
             uniq.append(h)
     return uniq
+
+
+def _learning_min_confidence() -> float:
+    raw = (os.getenv("IMPORTADOR_CACHE_MIN_CONFIDENCE") or "").strip()
+    if not raw:
+        return 0.6
+    try:
+        return max(0.0, min(1.0, float(raw)))
+    except ValueError:
+        return 0.6
+
+
+def get_snapshot_learning(
+    snapshot: IcuRecipeSnapshot | None,
+    *,
+    structured_only: bool = False,
+) -> dict | None:
+    """Return cached analysis learned for this fingerprint snapshot, if any."""
+    if snapshot is None or not isinstance(snapshot.content_json, dict):
+        return None
+
+    learned = snapshot.content_json.get("learned_analysis")
+    if not isinstance(learned, dict):
+        return None
+
+    cache_key = "structured" if structured_only else "default"
+    cached = learned.get(cache_key)
+    if not isinstance(cached, dict):
+        return None
+    try:
+        confidence = float(cached.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return cached if confidence >= _learning_min_confidence() else None
+
+
+def remember_snapshot_learning(
+    db: Session,
+    snapshot: IcuRecipeSnapshot | None,
+    analysis: dict,
+    *,
+    structured_only: bool = False,
+) -> None:
+    """Persist a successful analysis as reusable knowledge for this fingerprint."""
+    if snapshot is None:
+        return
+
+    doc_type = str(analysis.get("doc_type") or "").strip().upper()
+    if not doc_type or doc_type == "OTHER":
+        return
+
+    try:
+        confidence = float(analysis.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if confidence < _learning_min_confidence():
+        return
+
+    content = dict(snapshot.content_json or {})
+    learned = dict(content.get("learned_analysis") or {})
+    cache_key = "structured" if structured_only else "default"
+    learned[cache_key] = {
+        "doc_type": doc_type,
+        "confidence": confidence,
+        "reasoning": str(analysis.get("reasoning") or "").strip(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    content["learned_analysis"] = learned
+    snapshot.content_json = content
+    db.flush()
 
 
 def resolve_auto_recipe(

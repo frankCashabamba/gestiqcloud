@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any
 
@@ -17,7 +18,27 @@ logger = logging.getLogger(__name__)
 
 # Ollama processes one request at a time; serialize calls so queued
 # requests wait in Python instead of hitting httpx timeouts.
-_ollama_semaphore = asyncio.Semaphore(1)
+def _ollama_max_concurrency() -> int:
+    raw = (os.getenv("OLLAMA_MAX_CONCURRENCY") or "").strip()
+    try:
+        return max(1, int(raw)) if raw else 1
+    except ValueError:
+        return 1
+
+
+_ollama_semaphore = asyncio.Semaphore(_ollama_max_concurrency())
+_tags_cache: dict[str, tuple[float, list[str]]] = {}
+_health_cache: dict[str, tuple[float, bool]] = {}
+
+
+def _cache_ttl(name: str, default: float) -> float:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return default
 
 
 class OllamaProvider(BaseAIProvider):
@@ -43,6 +64,22 @@ class OllamaProvider(BaseAIProvider):
         self.default_model = config.get("model", "qwen2.5:3b")
         # Algunos modelos locales tardan bastante en la primera inferencia (carga a GPU/CPU)
         self.request_timeout = config.get("timeout", 300.0)
+
+    def _get_available_models(self, timeout: float = 3.0) -> list[str]:
+        """Cache /api/tags to avoid repeated round-trips on every request."""
+        ttl = _cache_ttl("OLLAMA_TAGS_CACHE_TTL", 30.0)
+        now = time.monotonic()
+        cached = _tags_cache.get(self.base_url)
+        if cached and now - cached[0] <= ttl:
+            return list(cached[1])
+
+        resp = httpx.get(f"{self.base_url}/api/tags", timeout=timeout)
+        resp.raise_for_status()
+        models = [str(model.get("name") or "").strip() for model in resp.json().get("models", [])]
+        models = [model for model in models if model]
+        _tags_cache[self.base_url] = (now, models)
+        _health_cache[self.base_url] = (now, True)
+        return list(models)
 
     async def call(self, request: AIRequest) -> AIResponse:
         """Llama a Ollama API."""
@@ -172,11 +209,18 @@ class OllamaProvider(BaseAIProvider):
 
     async def health_check(self) -> bool:
         """Verifica que Ollama este disponible."""
+        ttl = _cache_ttl("OLLAMA_HEALTH_CACHE_TTL", 15.0)
+        now = time.monotonic()
+        cached = _health_cache.get(self.base_url)
+        if cached and now - cached[0] <= ttl:
+            return cached[1]
+
         try:
-            async with httpx.AsyncClient(timeout=self._health_check_timeout) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
-                return response.status_code == 200
+            self._get_available_models(timeout=self._health_check_timeout)
+            _health_cache[self.base_url] = (now, True)
+            return True
         except Exception:
+            _health_cache[self.base_url] = (now, False)
             return False
 
     def get_default_model(self, task: AITask) -> str:
@@ -202,15 +246,11 @@ class OllamaProvider(BaseAIProvider):
             "qwen2.5-coder:0.5b",
         ]
         try:
-            resp = httpx.get(f"{self.base_url}/api/tags", timeout=3.0)
-            if resp.status_code != 200:
-                return None
-            available = {m["name"].split(":")[0]: m["name"] for m in resp.json().get("models", [])}
+            available = set(self._get_available_models(timeout=3.0))
             for pref in preferred:
-                base = pref.split(":")[0]
-                if base in available:
-                    logger.info("Using %s for extraction (better than default)", available[base])
-                    return available[base]
+                if pref in available:
+                    logger.info("Using %s for extraction (better than default)", pref)
+                    return pref
         except Exception:
             pass
         return None

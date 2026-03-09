@@ -45,7 +45,10 @@
       "Bash(xargs grep -l \"class InventoryCostingService\")",
       "Bash(xargs grep -l \"def calculate_recipe_cost\")",
       "Bash(grep -E \"\\\\.py$\")",
-      "Bash(xargs ls -1)"
+      "Bash(xargs ls -1)",
+      "Bash(xargs grep -l \"importador\\\\|importer\")",
+      "Bash(wc -l /c/gestiqcloud/apps/backend/app/modules/importador/*.py)",
+      "Bash(xargs wc -l)"
     ],
     "additionalDirectories": [
       "c:\\Users\\frank\\.claude\\projects\\c--gestiqcloud"

@@ -832,6 +832,9 @@ async def upload_files(
                 llm_content = "\n".join(sample_lines)
             else:
                 llm_content = text[:6000] if text else ""
+            vision_image_bytes = extraction.get("vision_image_bytes")
+            if not isinstance(vision_image_bytes, (bytes, bytearray)):
+                vision_image_bytes = file_bytes if tipo_archivo in ("JPG", "PNG", "IMG") else None
 
             # LLM con prompt genérico limpio (sin recipe_config que pueda sesgar la clasificación)
             analysis = await analyze_document(
@@ -840,6 +843,7 @@ async def upload_files(
                 extraction.get("format", tipo_archivo),
                 has_structured_rows=has_structured,
                 recipe_config={},
+                image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
             )
 
             tipo_doc = analysis.get("doc_type", "OTHER")

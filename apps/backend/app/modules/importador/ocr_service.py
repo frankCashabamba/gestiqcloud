@@ -7,6 +7,7 @@ import datetime
 import io
 import itertools
 import logging
+import os
 import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Iterable
@@ -40,6 +41,14 @@ _UBL_NS = {
     "cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
     "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
 }
+
+
+def _image_to_jpeg_bytes(img: Image.Image, *, quality: int = 80) -> bytes:
+    """Serialize a PIL image to JPEG bytes for optional vision fallback."""
+    buffer = io.BytesIO()
+    safe_img = img.convert("RGB") if img.mode != "RGB" else img
+    safe_img.save(buffer, format="JPEG", quality=quality)
+    return buffer.getvalue()
 
 
 def detect_file_type(filename: str) -> str:
@@ -185,11 +194,14 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     # Otherwise, convert pages to images and OCR
     # Strategy 1: Use PyMuPDF native rendering (no Poppler needed)
     doc2 = fitz.open(stream=file_bytes, filetype="pdf")
+    vision_image_bytes: bytes | None = None
     try:
         ocr_texts = []
         for page in doc2:
             pix = page.get_pixmap(dpi=300)
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            if vision_image_bytes is None:
+                vision_image_bytes = _image_to_jpeg_bytes(img)
             ocr_texts.append(_ocr_image(img))
         combined = "\n\n".join(t for t in ocr_texts if t)
         if combined.strip():
@@ -198,6 +210,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
                 "pages": len(doc2),
                 "structured_data": None,
                 "format": "PDF_OCR",
+                "vision_image_bytes": vision_image_bytes,
             }
     except Exception as exc:
         logger.warning("PyMuPDF OCR fallback failed: %s", exc)
@@ -210,6 +223,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
 
         images = convert_from_bytes(file_bytes, dpi=300)
         ocr_texts = []
+        vision_image_bytes = _image_to_jpeg_bytes(images[0]) if images else None
         for img in images:
             ocr_texts.append(_ocr_image(img))
         return {
@@ -217,6 +231,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             "pages": len(images),
             "structured_data": None,
             "format": "PDF_OCR",
+            "vision_image_bytes": vision_image_bytes,
         }
     except Exception as exc:
         logger.warning("pdf2image OCR fallback failed: %s", exc)
@@ -250,7 +265,13 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
     img = img.filter(ImageFilter.SHARPEN)
 
     text = _ocr_image(img)
-    return {"text": text, "pages": 1, "structured_data": None, "format": "IMAGE_OCR"}
+    return {
+        "text": text,
+        "pages": 1,
+        "structured_data": None,
+        "format": "IMAGE_OCR",
+        "vision_image_bytes": file_bytes,
+    }
 
 
 def _ocr_image(img: Image.Image) -> str:
@@ -411,7 +432,13 @@ def _extract_kv_pairs(rows_before_header: list[tuple | list]) -> dict[str, Any]:
 
 
 def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
-    """Stream Excel safely, build fingerprint and a small preview (no OOM)."""
+    """Stream Excel safely, build fingerprint and a small preview (no OOM).
+
+    No hay límite de tamaño de archivo aquí: openpyxl en read_only ignora
+    imágenes embebidas y solo lee celdas. La protección real son los límites
+    de filas (MAX_SCAN_ROWS_PER_SHEET) que acotan el uso de memoria
+    independientemente del peso del fichero.
+    """
     MAX_HEADER_SCAN = 25  # rows scanned to find the real header row
     MAX_PREVIEW_ROWS_PER_SHEET = 120
     MAX_SCAN_ROWS_PER_SHEET = MAX_PREVIEW_ROWS_PER_SHEET * 4

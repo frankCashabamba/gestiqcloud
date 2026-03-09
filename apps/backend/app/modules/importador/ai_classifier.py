@@ -5,6 +5,8 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import os
+import re
 from typing import Any
 
 from app.services.ai.base import AITask
@@ -32,10 +34,165 @@ _EMERGENCY_PATTERNS: dict[str, list[str]] = {
 }
 
 
+def _ocr_quality_threshold() -> float:
+    raw = (os.getenv("IMPORTADOR_OCR_MIN_QUALITY") or "").strip()
+    if not raw:
+        return 0.45
+    try:
+        return max(0.0, min(1.0, float(raw)))
+    except ValueError:
+        return 0.45
+
+
+def _estimate_text_quality(text: str) -> dict[str, float]:
+    """Estimate whether OCR text is good enough to avoid a vision pass."""
+    normalized = " ".join(str(text or "").split())
+    if not normalized:
+        return {"score": 0.0, "chars": 0.0, "words": 0.0}
+
+    chars = len(normalized)
+    tokens = re.findall(r"[^\W_]{2,}", normalized, flags=re.UNICODE)
+    word_count = len(tokens)
+    alpha_chars = sum(1 for ch in normalized if ch.isalpha())
+    alnum_chars = sum(1 for ch in normalized if ch.isalnum())
+    weird_chars = sum(
+        1
+        for ch in normalized
+        if not (ch.isalnum() or ch.isspace() or ch in ".,;:/-_#%()[]{}+*'\"@")
+    )
+
+    alpha_ratio = alpha_chars / max(alnum_chars, 1)
+    weird_ratio = weird_chars / max(chars, 1)
+    length_score = min(chars / 1200.0, 1.0)
+    word_score = min(word_count / 180.0, 1.0)
+    alpha_score = min(alpha_ratio / 0.6, 1.0)
+    noise_penalty = min(weird_ratio / 0.2, 1.0)
+
+    score = (length_score * 0.35) + (word_score * 0.35) + (alpha_score * 0.2) + ((1 - noise_penalty) * 0.1)
+    return {
+        "score": round(max(0.0, min(1.0, score)), 3),
+        "chars": float(chars),
+        "words": float(word_count),
+        "alpha_ratio": round(alpha_ratio, 3),
+        "weird_ratio": round(weird_ratio, 3),
+    }
+
+
+def _should_use_vision_fallback(
+    content: str,
+    format_hint: str,
+    image_bytes: bytes | None,
+) -> bool:
+    """Use vision only when OCR text is too weak and we have an image payload."""
+    if not image_bytes:
+        return False
+
+    normalized_format = str(format_hint or "").strip().upper()
+    if normalized_format not in {"IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG", "PDF"}:
+        return False
+
+    quality = _estimate_text_quality(content)
+    score = quality["score"]
+    min_quality = _ocr_quality_threshold()
+    needs_vision = score < min_quality or quality["words"] < 18
+
+    logger.info(
+        "OCR quality for %s: score=%.3f words=%s chars=%s threshold=%.2f vision=%s",
+        normalized_format or "UNKNOWN",
+        score,
+        int(quality["words"]),
+        int(quality["chars"]),
+        min_quality,
+        "yes" if needs_vision else "no",
+    )
+    return needs_vision
+
+
+def _build_structured_classification_prompt(
+    content: str,
+    filename: str,
+    format_hint: str,
+    recipe_config: dict | None,
+) -> str:
+    rc = recipe_config or {}
+    system_prefix = str(rc.get("prompt_system") or "").strip()
+    current_year = datetime.datetime.now().year
+
+    prompt = (
+        "Classify this structured accounting dataset.\n"
+        "The content contains column headers and a few sample rows, not the full file.\n"
+        "Return ONLY valid JSON with keys: doc_type, confidence, reasoning.\n"
+        f"File: {filename} | Format: {format_hint}\n"
+        f"Current year: {current_year}\n\n"
+        f"Structured preview:\n{content[:2500]}\n\n"
+        "Use concise uppercase labels such as INVOICE, RECEIPT, CREDIT_NOTE, "
+        "BANK_STATEMENT, BANK_MOVEMENTS, INVENTORY, PRICE_LIST, COSTING, PAYROLL, OTHER."
+    )
+
+    if system_prefix:
+        prompt = system_prefix + "\n\n" + prompt
+    return prompt
+
+
+async def _analyze_structured_document(
+    content: str,
+    filename: str,
+    format_hint: str,
+    recipe_config: dict | None = None,
+) -> dict[str, Any]:
+    """Cheap classification path for already structured datasets."""
+    prompt = _build_structured_classification_prompt(content, filename, format_hint, recipe_config)
+
+    try:
+        response = await AIService.query(
+            task=AITask.CLASSIFICATION,
+            prompt=prompt,
+            temperature=0.1,
+            max_tokens=220,
+            module="importador",
+            enable_recovery=True,
+        )
+        raw_content = response.content
+        model_used = response.model or "unknown"
+
+        if response.is_error:
+            fallback = _fallback_classify(content, filename)
+            fallback.update({"is_table": True, "columns": [], "fields": {}})
+            fallback["raw_response"] = response.error
+            fallback["model_used"] = model_used
+            fallback["prompt_sent"] = prompt[:500]
+            return fallback
+
+        parsed = _parse_json_response(raw_content)
+        if parsed and parsed.get("doc_type"):
+            parsed.setdefault("confidence", 0.7)
+            parsed.setdefault("reasoning", "")
+            parsed["is_table"] = True
+            parsed["columns"] = []
+            parsed["fields"] = {}
+            parsed["raw_response"] = raw_content
+            parsed["model_used"] = model_used
+            parsed["prompt_sent"] = prompt[:500]
+            return parsed
+
+        fallback = _fallback_classify(content, filename)
+        fallback.update({"is_table": True, "columns": [], "fields": {}})
+        fallback["raw_response"] = raw_content
+        fallback["model_used"] = model_used
+        fallback["prompt_sent"] = prompt[:500]
+        return fallback
+    except Exception as exc:
+        logger.error("Structured AI analysis error: %s", exc)
+        fallback = _fallback_classify(content, filename)
+        fallback.update({"is_table": True, "columns": [], "fields": {}})
+        fallback["raw_response"] = str(exc)
+        fallback["model_used"] = "fallback"
+        fallback["prompt_sent"] = prompt[:500]
+        return fallback
+
+
 def _clean_vision_fields(fields: dict) -> None:
     """Post-process vision model output to fix common mistakes in-place."""
-    import re
-
     for key in ("total_amount", "subtotal", "tax_amount"):
         val = fields.get(key)
         if isinstance(val, str):
@@ -284,7 +441,10 @@ async def analyze_document(
         "prompt_sent": str,
     }
     """
-    if image_bytes and not has_structured_rows:
+    if has_structured_rows:
+        return await _analyze_structured_document(content, filename, format_hint, recipe_config)
+
+    if not has_structured_rows and _should_use_vision_fallback(content, format_hint, image_bytes):
         vision_result = await _analyze_with_vision(
             image_bytes, filename, format_hint, recipe_config
         )
