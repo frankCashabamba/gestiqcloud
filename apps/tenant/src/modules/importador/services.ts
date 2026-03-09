@@ -524,8 +524,38 @@ export async function fetchDashboard(): Promise<DashboardStats> {
 
 export type AsyncRunResult = {
   id: string
+  batch_id: string
+  batch_item_id: string
   estado: string
   nombre_archivo: string
+}
+
+export type ImportBatchItem = {
+  id: string
+  batch_id: string
+  documento_id?: string
+  nombre_archivo: string
+  tamanio_bytes: number
+  estado: string
+  error_detalle?: string
+  created_at: string
+  updated_at: string
+}
+
+export type ImportBatch = {
+  id: string
+  estado: string
+  total_items: number
+  pending_items: number
+  processing_items: number
+  review_items: number
+  confirmed_items: number
+  failed_items: number
+  progress_pct: number
+  created_at: string
+  updated_at: string
+  completed_at?: string
+  items?: ImportBatchItem[]
 }
 
 // --- /run-async: encola via Celery, retorna PENDING inmediatamente ---
@@ -542,6 +572,19 @@ export async function runImportAsync(
     headers: { 'Content-Type': 'multipart/form-data' },
     params,
   })
+  return data
+}
+
+export async function fetchImportBatches(opts?: { active_only?: boolean; limit?: number }): Promise<ImportBatch[]> {
+  const params: Record<string, string | number | boolean> = {}
+  if (opts?.active_only != null) params.active_only = opts.active_only
+  if (opts?.limit != null) params.limit = opts.limit
+  const { data } = await api.get(TENANT_IMPORTADOR.batches, { params })
+  return Array.isArray(data) ? data : []
+}
+
+export async function fetchImportBatch(id: string): Promise<ImportBatch> {
+  const { data } = await api.get(TENANT_IMPORTADOR.batchById(id))
   return data
 }
 
@@ -577,9 +620,9 @@ export function streamDocumentStatus(
       return
     }
 
-    // El worker de Celery procesa 1 documento a la vez; el SSE espera hasta
-    // que Celery publique el resultado. Si expira (cola larga), fallback a polling.
-    const sseMaxWait = opts?.maxWaitMs ?? 420_000
+    // En local la cola puede tardar bastante porque Celery suele correr con
+    // `--pool=solo`; mantenemos SSE mucho mÃ¡s tiempo antes de caer a polling.
+    const sseMaxWait = opts?.maxWaitMs ?? 7_200_000
     const url = `/api/v1/importador/documents/${id}/stream?token=${encodeURIComponent(token)}`
     const es = new EventSource(url)
     let settled = false

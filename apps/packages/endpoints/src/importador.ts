@@ -13,6 +13,8 @@ export const TENANT_IMPORTADOR = {
   reject: (id: string) => `/api/v1/importador/documents/${id}/reject`,
   logs: (id: string) => `/api/v1/importador/documents/${id}/logs`,
   dashboard: '/api/v1/importador/dashboard',
+  batches: '/api/v1/importador/batches',
+  batchById: (id: string) => `/api/v1/importador/batches/${id}`,
   docCategories: '/api/v1/importador/doc-categories',
   // Recipes
   recipes: '/api/v1/importador/recipes',

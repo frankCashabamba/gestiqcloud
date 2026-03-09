@@ -109,6 +109,39 @@ class DashboardStats(BaseModel):
     fallidos: int = 0
 
 
+class BatchItemOut(BaseModel):
+    id: UUID
+    batch_id: UUID
+    documento_id: UUID | None = None
+    nombre_archivo: str
+    tamanio_bytes: int
+    estado: str
+    error_detalle: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BatchSummaryOut(BaseModel):
+    id: UUID
+    estado: str
+    total_items: int = 0
+    pending_items: int = 0
+    processing_items: int = 0
+    review_items: int = 0
+    confirmed_items: int = 0
+    failed_items: int = 0
+    progress_pct: int = 0
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+
+
+class BatchDetailOut(BatchSummaryOut):
+    items: list[BatchItemOut] = Field(default_factory=list)
+
+
 class UploadResponse(BaseModel):
     id: UUID
     estado: str

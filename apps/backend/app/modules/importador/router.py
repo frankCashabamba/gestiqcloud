@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import logging
+import os
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -32,6 +33,8 @@ from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entr
 from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 from .schemas import (
+    BatchDetailOut,
+    BatchSummaryOut,
     ConfirmRequest,
     DashboardStats,
     DocumentoDetailOut,
@@ -1133,6 +1136,7 @@ def confirm_document(
     crud.update_documento(
         db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"}
     )
+    _sync_batch_projection(db, doc.id, "CONFIRMED")
     crud.add_log(db, doc.id, "CONFIRM", user_id, {"datos_confirmados": body.datos_confirmados})
 
     _learn_from_confirmation(db, doc, body.datos_confirmados, user_id)
@@ -1445,6 +1449,7 @@ def save_document(
             "estado": "CONFIRMED",
         },
     )
+    _sync_batch_projection(db, doc.id, "CONFIRMED")
     crud.add_log(
         db,
         doc.id,
@@ -1502,6 +1507,7 @@ def reject_document(doc_id: UUID, request: Request, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     crud.update_documento(db, doc, {"estado": "FAILED"})
+    _sync_batch_projection(db, doc.id, "FAILED")
     crud.add_log(db, doc.id, "REJECT", user_id)
     db.commit()
     return doc
@@ -1570,6 +1576,7 @@ def save_document_as_products(
             "requiere_revision": False,
         },
     )
+    _sync_batch_projection(db, doc.id, "CONFIRMED")
     crud.add_log(
         db,
         doc.id,
@@ -1623,6 +1630,52 @@ def get_dashboard(request: Request, db: Session = Depends(get_db)):
         confirmados=counts.get("CONFIRMED", 0),
         fallidos=counts.get("FAILED", 0),
     )
+
+
+@router.get("/batches", response_model=list[BatchSummaryOut], dependencies=protected)
+def list_batches(
+    request: Request,
+    active_only: bool = Query(default=False),
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    tenant_id = _tenant_id(request)
+    batches = crud.list_batches(db, tenant_id, active_only=active_only, limit=limit)
+    return [BatchSummaryOut(**crud.summarize_batch(db, batch)) for batch in batches]
+
+
+@router.get("/batches/{batch_id}", response_model=BatchDetailOut, dependencies=protected)
+def get_batch(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
+    tenant_id = _tenant_id(request)
+    batch = crud.get_batch(db, batch_id, tenant_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch no encontrado")
+    summary = crud.summarize_batch(db, batch)
+    items = [
+        {
+            "id": item.id,
+            "batch_id": item.batch_id,
+            "documento_id": item.documento_id,
+            "nombre_archivo": item.nombre_archivo,
+            "tamanio_bytes": item.tamanio_bytes,
+            "estado": item.estado,
+            "error_detalle": item.error_detalle,
+            "created_at": item.created_at,
+            "updated_at": item.updated_at,
+        }
+        for item in sorted(batch.items, key=lambda current: current.orden)
+    ]
+    return BatchDetailOut(**summary, items=items)
+
+
+def _sync_batch_projection(db: Session, doc_id: UUID, estado: str, error_detalle: str | None = None) -> None:
+    for batch_id in crud.touch_batch_items_for_document(
+        db,
+        doc_id,
+        estado=estado,
+        error_detalle=error_detalle,
+    ):
+        crud.refresh_batch_status(db, batch_id)
 
 
 def _safe_float(val) -> float | None:
@@ -1804,6 +1857,7 @@ def save_document_as_purchase(
         "saved_at": datetime.datetime.utcnow().isoformat(),
     }
     crud.update_documento(db, doc, {"datos_confirmados": confirmed, "estado": "CONFIRMED"})
+    _sync_batch_projection(db, doc.id, "CONFIRMED")
     db.commit()
 
     return SaveAsPurchaseResponse(
@@ -1820,8 +1874,30 @@ def save_document_as_purchase(
 # Async upload via Celery (run-async)
 # ---------------------------------------------------------------------------
 
+
+def _env_int(name: str, default: int) -> int:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _should_skip_import_file(filename: str) -> bool:
+    normalized = (filename or "").strip()
+    return (
+        not normalized
+        or normalized.startswith("~$")
+        or normalized.lower() in {"thumbs.db", ".ds_store"}
+    )
+
+
 class RunAsyncResponse(BaseModel):
     id: UUID
+    batch_id: UUID
+    batch_item_id: UUID
     estado: str
     nombre_archivo: str
 
@@ -1839,24 +1915,65 @@ async def run_async(
     Retorna inmediatamente con {id, estado='PENDING'}.
     El cliente hace polling a GET /documents/{id} hasta estado != PENDING|PROCESSING.
     """
-    from .tasks import process_document_task, store_payload
+    from .batch_service import enqueue_async_batch
 
-    tenant_id = _tenant_id(request)
-    user_id = _user_id(request)
-    results: list[RunAsyncResponse] = []
+    return await enqueue_async_batch(
+        files=files,
+        tenant_id=_tenant_id(request),
+        user_id=_user_id(request),
+        force=force,
+        recipe_snapshot_id=recipe_snapshot_id,
+        db=db,
+    )
 
     for file in files:
+        filename = (file.filename or "unknown").strip()
+        if _should_skip_import_file(filename):
+            logger.info("Ignorando archivo temporal/no valido en importador: %s", filename)
+            continue
+
         file_bytes = await file.read()
-        filename = file.filename or "unknown"
+        file_size = len(file_bytes)
+        if file_size <= 0:
+            logger.info("Ignorando archivo vacio en importador: %s", filename)
+            continue
+        if file_size > max_file_size_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"Archivo '{filename}' excede el limite de {max_file_size_mb} MB "
+                    f"({round(file_size / (1024 * 1024), 1)} MB)."
+                ),
+            )
+
+        batch_size_bytes += file_size
+        if batch_size_bytes > max_batch_size_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"El lote excede el limite de {max_batch_size_mb} MB. "
+                    "Divide la importacion en bloques mas pequenos."
+                ),
+            )
+
         tipo_archivo = detect_file_type(filename)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
         # Reutilizar si ya existe y está procesado
         if not force:
-            existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
-            if existing and existing.estado in ("CONFIRMED", "REVIEW"):
-                results.append(RunAsyncResponse(id=existing.id, estado=existing.estado, nombre_archivo=filename))
+            existing = crud.find_existing_documento(db, tenant_id, filename, file_size, file_hash)
+            if existing and existing.estado in ("PENDING", "PROCESSING", "CONFIRMED", "REVIEW"):
+                results.append(
+                    RunAsyncResponse(
+                        id=existing.id,
+                        estado=existing.estado,
+                        nombre_archivo=filename,
+                    )
+                )
                 continue
+
+        staged_uploads.append((filename, file_bytes, file_size, file_hash, tipo_archivo))
+        continue
 
         doc = crud.create_documento(
             db,
@@ -1901,6 +2018,76 @@ async def run_async(
                     tipo_archivo=tipo_archivo,
                     force=force,
                 ))
+            except Exception:
+                pass
+
+        results.append(RunAsyncResponse(id=doc.id, estado="PENDING", nombre_archivo=filename))
+
+    if not staged_uploads and results:
+        return results
+    if not staged_uploads:
+        raise HTTPException(status_code=400, detail="No hay archivos validos para importar.")
+    if active_docs + len(staged_uploads) > max_queue_per_tenant:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Cola del importador llena para este tenant: {active_docs} en curso y "
+                f"{len(staged_uploads)} nuevos. Limite actual: {max_queue_per_tenant}."
+            ),
+        )
+
+    for filename, file_bytes, file_size, file_hash, tipo_archivo in staged_uploads:
+        doc = crud.create_documento(
+            db,
+            {
+                "tenant_id": tenant_id,
+                "nombre_archivo": filename,
+                "tipo_archivo": tipo_archivo,
+                "tamanio_bytes": file_size,
+                "hash_sha256": file_hash,
+                "estado": "PENDING",
+                "usuario_id": user_id,
+            },
+        )
+        crud.add_log(
+            db,
+            doc.id,
+            "UPLOAD",
+            user_id,
+            {"filename": filename, "size": file_size, "mode": "async"},
+        )
+        db.commit()
+
+        store_payload(str(doc.id), file_bytes)
+        if process_document_task:
+            process_document_task.delay(
+                doc_id=str(doc.id),
+                tenant_id=str(tenant_id),
+                user_id=user_id,
+                filename=filename,
+                tipo_archivo=tipo_archivo,
+                recipe_snapshot_id=recipe_snapshot_id,
+                force=force,
+            )
+        else:
+            logger.warning("Celery no disponible, procesando %s sincronicamente", filename)
+            from .tasks import _run_processing
+            import asyncio as _asyncio
+            from uuid import UUID as _UUID
+
+            try:
+                _asyncio.create_task(
+                    _run_processing(
+                        doc_id=_UUID(str(doc.id)),
+                        tenant_id=_UUID(str(tenant_id)),
+                        user_id=user_id,
+                        file_bytes=file_bytes,
+                        filename=filename,
+                        tipo_archivo=tipo_archivo,
+                        recipe_snapshot_id=recipe_snapshot_id,
+                        force=force,
+                    )
+                )
             except Exception:
                 pass
 
@@ -1993,20 +2180,31 @@ async def document_status_stream(
                 yield f"data: {json.dumps({'estado': current_estado})}\n\n"
                 return
 
-            # 3. Esperar el pub/sub de la task Celery
-            #    timeout = soft_time_limit (390 s) + 30 s de margen
-            async def _wait_message() -> str:
-                async for msg in pubsub.listen():
-                    if msg["type"] == "message":
-                        return msg["data"]
-                return json.dumps({"estado": "FAILED"})
+            # 3. Esperar el pub/sub de la task Celery. La espera puede ser larga
+            #    porque en Windows/local el worker suele correr con pool=solo.
+            max_wait_seconds = float(os.getenv("IMPORTADOR_STREAM_MAX_WAIT_SECONDS", "7200"))
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + max_wait_seconds
 
-            try:
-                data = await asyncio.wait_for(_wait_message(), timeout=420.0)
-            except asyncio.TimeoutError:
-                data = json.dumps({"estado": "TIMEOUT"})
+            while True:
+                if await request.is_disconnected():
+                    return
 
-            yield f"data: {data}\n\n"
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    yield f"data: {json.dumps({'estado': 'TIMEOUT'})}\n\n"
+                    return
+
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True,
+                    timeout=min(15.0, remaining),
+                )
+                if message and message.get("type") == "message":
+                    yield f"data: {message['data']}\n\n"
+                    return
+
+                # Mantiene viva la conexiÃ³n para evitar cierres por inactividad.
+                yield ": keep-alive\n\n"
 
         finally:
             try:

@@ -51,14 +51,17 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
 $flushRedis = Read-Host "¿Limpiar Redis resultados (DB 1) al iniciar? (s/N)"
 if ($flushRedis -and $flushRedis.Trim().ToLower() -in @("s", "si", "sí", "y", "yes")) {
     try {
+        $null = docker exec redis redis-cli -n 0 FLUSHDB 2>$null
+        $brokerFlushed = $LASTEXITCODE -eq 0
         $null = docker exec redis redis-cli -n 1 FLUSHDB 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "Redis DB 1 limpiada." -ForegroundColor Green
+        $resultsFlushed = $LASTEXITCODE -eq 0
+        if ($brokerFlushed -and $resultsFlushed) {
+            Write-Host "Redis DB 0 (broker/payload) y DB 1 (resultados) limpiadas." -ForegroundColor Green
         } else {
-            Write-Host "No se pudo limpiar Redis DB 1 (redis-cli no disponible o Redis no levantado)." -ForegroundColor Yellow
+            Write-Host "No se pudo limpiar Redis DB 0/1 por completo (redis-cli no disponible o Redis no levantado)." -ForegroundColor Yellow
         }
     } catch {
-        Write-Host "No se pudo limpiar Redis DB 1." -ForegroundColor Yellow
+        Write-Host "No se pudo limpiar Redis DB 0/1." -ForegroundColor Yellow
     }
 }
 $backendPath = Join-Path $repoRoot "apps/backend"
@@ -229,19 +232,7 @@ $backendJob = Start-Job -ScriptBlock {
     & $pythonExe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 *>> $logPath
 } -Name backend -ArgumentList $backendEnvVars, $backendLog, $venvPython, $backendPath
 
-Write-Host "[6/7] Iniciando Celery worker (cola importador)..." -ForegroundColor Green
-$celeryLog = Join-Path $repoRoot "celery.log"
-$celeryPool = if ($env:OS -eq "Windows_NT") { "solo" } else { "prefork" }
-$null = Start-Job -ScriptBlock {
-    param($envVars, $logPath, $pythonExe, $workDir, $pool)
-    foreach ($entry in $envVars.GetEnumerator()) {
-        [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
-    }
-    Set-Location $workDir
-    & $pythonExe -m celery -A celery_app worker --queues=importador,default --pool=$pool --concurrency=1 --loglevel=info *>> $logPath
-} -Name celery -ArgumentList $backendEnvVars, $celeryLog, $venvPython, $backendPath, $celeryPool
-
-Write-Host "[6.5/7] Iniciando frontends..." -ForegroundColor Green
+Write-Host "[6/7] Iniciando frontends..." -ForegroundColor Green
 $adminJob = Start-Job -ScriptBlock {
     param($path, $envVars, $port)
     [Environment]::SetEnvironmentVariable("NODE_ENV", "development", "Process")
@@ -266,24 +257,19 @@ $okBackend = Wait-Port -Name "backend" -Port 8000
 $okAdmin = Wait-Port -Name "admin" -Port $adminPort
 $okTenant = Wait-Port -Name "tenant" -Port $tenantPort
 Start-Sleep -Seconds 2
-$celeryJob = Get-Job -Name celery -ErrorAction SilentlyContinue
-$okCelery = $celeryJob -and $celeryJob.State -eq "Running"
-if (-not ($okBackend -and $okAdmin -and $okTenant -and $okCelery)) {
+$allJobNames = @("backend", "admin", "tenant")
+if (-not ($okBackend -and $okAdmin -and $okTenant)) {
     Write-Host "`nAlguno de los servicios no levanto correctamente." -ForegroundColor Red
     Write-Host "Estado de jobs:" -ForegroundColor Yellow
-    Get-Job -Name backend,celery,admin,tenant | Select-Object Id, Name, State, HasMoreData | Format-Table -AutoSize | Out-Host
+    Get-Job -Name $allJobNames | Select-Object Id, Name, State, HasMoreData | Format-Table -AutoSize | Out-Host
     Write-Host "`nSalida de jobs (ultimas lineas):" -ForegroundColor Yellow
-    Receive-Job -Name backend,celery,admin,tenant -Keep | Select-Object -Last 80 | Out-Host
+    Receive-Job -Name $allJobNames -Keep | Select-Object -Last 80 | Out-Host
     if (Test-Path $backendLog) {
         Write-Host "`nbackend.log (ultimas 80 lineas):" -ForegroundColor Yellow
         Get-Content $backendLog -Tail 80 | Out-Host
     }
-    if (Test-Path $celeryLog) {
-        Write-Host "`ncelery.log (ultimas 80 lineas):" -ForegroundColor Yellow
-        Get-Content $celeryLog -Tail 80 | Out-Host
-    }
-    Stop-Job -Name backend,celery,admin,tenant -ErrorAction SilentlyContinue
-    Remove-Job -Name backend,celery,admin,tenant -Force -ErrorAction SilentlyContinue
+    Stop-Job -Name $allJobNames -ErrorAction SilentlyContinue
+    Remove-Job -Name $allJobNames -Force -ErrorAction SilentlyContinue
     exit 1
 }
 
@@ -293,7 +279,8 @@ Write-Host "Admin: $frontendUrl" -ForegroundColor White
 Write-Host "Tenant: $tenantOrigin" -ForegroundColor White
 Write-Host ""
 Write-Host "Tips: Usa 'Get-Job' y 'Receive-Job -Name backend|admin|tenant -Keep' para ver logs." -ForegroundColor DarkGray
-Write-Host "Para detener: Stop-Job -Name backend,celery,admin,tenant; Remove-Job -Name backend,celery,admin,tenant" -ForegroundColor DarkGray
+Write-Host ("Para detener: Stop-Job -Name {0}; Remove-Job -Name {0}" -f ($allJobNames -join ",")) -ForegroundColor DarkGray
+Write-Host "Celery no se inicia desde este script; arrancalo aparte cuando lo necesites." -ForegroundColor DarkGray
 Write-Host "Redis (opcional): docker stop redis; docker rm redis" -ForegroundColor DarkGray
 Write-Host "`nLos servicios quedan ejecutandose en segundo plano en esta sesion." -ForegroundColor Green
 

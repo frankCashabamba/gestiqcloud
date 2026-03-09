@@ -1,32 +1,46 @@
-"""Celery tasks para el Importador Contable Universal.
+"""Celery tasks for the importador module.
 
-Flujo async:
-  1. POST /importador/run-async → guarda bytes en Redis, crea ImpDocumento(PENDING), encola task
-  2. importador.process_document (esta task) → procesa, actualiza ImpDocumento(REVIEW|FAILED)
-  3. Frontend polling GET /importador/documents/{id} hasta estado != PENDING|PROCESSING
-
-No toca la lógica existente de router.py — reutiliza las mismas funciones de OCR y AI.
+Async flow:
+  1. POST /importador/run-async stores the uploaded payload and creates
+     ImpDocumento(PENDING).
+  2. importador.process_document processes the file and updates the document to
+     REVIEW or FAILED.
+  3. The frontend waits on SSE or polls until the state becomes terminal.
 """
 
 from __future__ import annotations
 
 import asyncio
+import datetime
+import json
 import logging
 import os
+from pathlib import Path
 from uuid import UUID
 
 logger = logging.getLogger("importador.tasks")
 
-REDIS_KEY_PREFIX = "imp:payload:"
-REDIS_TTL = 3600  # 1 hora — suficiente para cualquier procesamiento
+LEGACY_REDIS_KEY_PREFIX = "imp:payload:"
 
 
-# ---------------------------------------------------------------------------
-# Helpers Redis
-# ---------------------------------------------------------------------------
+def _payload_dir() -> Path:
+    from app.config.settings import settings
+
+    raw_dir = (
+        os.getenv("IMPORTADOR_PAYLOAD_DIR")
+        or str(Path(settings.UPLOADS_DIR) / "_importador_payloads")
+    )
+    payload_dir = Path(raw_dir)
+    payload_dir.mkdir(parents=True, exist_ok=True)
+    return payload_dir
+
+
+def _payload_path(doc_id: str | UUID) -> Path:
+    return _payload_dir() / f"{doc_id}.bin"
+
 
 def _get_redis():
-    """Retorna cliente Redis síncrono (redis-py)."""
+    """Return a sync Redis client for light pub/sub usage."""
     import redis  # type: ignore
 
     url = os.getenv("REDIS_URL") or os.getenv("DEV_REDIS_URL") or "redis://localhost:6379/0"
@@ -34,42 +48,55 @@ def _get_redis():
 
 
 def store_payload(doc_id: str | UUID, file_bytes: bytes) -> None:
-    """Guarda los bytes del archivo en Redis con TTL."""
-    r = _get_redis()
-    r.set(f"{REDIS_KEY_PREFIX}{doc_id}", file_bytes, ex=REDIS_TTL)
+    """Store file bytes on local disk to avoid filling Redis memory."""
+    payload_path = _payload_path(doc_id)
+    tmp_path = payload_path.with_suffix(".tmp")
+    tmp_path.write_bytes(file_bytes)
+    tmp_path.replace(payload_path)
 
 
 def load_payload(doc_id: str) -> bytes | None:
-    """Recupera los bytes del archivo desde Redis."""
-    r = _get_redis()
-    return r.get(f"{REDIS_KEY_PREFIX}{doc_id}")
+    """Load file bytes from disk; fallback to legacy Redis payloads."""
+    payload_path = _payload_path(doc_id)
+    if payload_path.exists():
+        return payload_path.read_bytes()
+
+    try:
+        return _get_redis().get(f"{LEGACY_REDIS_KEY_PREFIX}{doc_id}")
+    except Exception:
+        return None
 
 
 def delete_payload(doc_id: str) -> None:
-    """Elimina los bytes del archivo de Redis tras procesamiento."""
-    r = _get_redis()
-    r.delete(f"{REDIS_KEY_PREFIX}{doc_id}")
+    """Delete temporary payloads from disk and clear legacy Redis payloads."""
+    try:
+        _payload_path(doc_id).unlink(missing_ok=True)
+    except Exception:
+        logger.warning("No se pudo eliminar payload local de %s", doc_id, exc_info=True)
+
+    try:
+        _get_redis().delete(f"{LEGACY_REDIS_KEY_PREFIX}{doc_id}")
+    except Exception:
+        pass
 
 
 def publish_status(doc_id: str, estado: str) -> None:
-    """Publica el estado final en Redis pub/sub.
-
-    El endpoint SSE /documents/{id}/stream suscribe a este canal y pushea
-    el evento al cliente, eliminando el polling HTTP masivo.
-    Canal: imp:status:{doc_id}
-    """
-    import json
-
+    """Publish the final state via Redis pub/sub for the SSE endpoint."""
     try:
-        r = _get_redis()
-        r.publish(f"imp:status:{doc_id}", json.dumps({"estado": estado}))
-    except Exception as exc:  # Redis no disponible → no es crítico
+        _get_redis().publish(f"imp:status:{doc_id}", json.dumps({"estado": estado}))
+    except Exception as exc:
         logger.warning("pub/sub no disponible para doc %s: %s", doc_id, exc)
 
 
-# ---------------------------------------------------------------------------
-# Lógica de procesamiento (async) — mismas funciones que router.py
-# ---------------------------------------------------------------------------
+def _json_safe(obj):
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_safe(v) for v in obj]
+    return obj
+
 
 async def _run_processing(
     doc_id: UUID,
@@ -81,10 +108,7 @@ async def _run_processing(
     recipe_snapshot_id: str | None = None,
     force: bool = False,
 ) -> None:
-    """Ejecuta OCR + clasificación AI + extracción de campos y actualiza ImpDocumento."""
-    import datetime
-    import hashlib
-
+    """Run OCR + AI classification + field extraction and update ImpDocumento."""
     from app.config.database import SessionLocal
     from app.modules.importador import crud
     from app.modules.importador.ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
@@ -97,27 +121,17 @@ async def _run_processing(
     )
     from app.modules.importador.ocr_service import extract_text_from_file
 
-    def _json_safe(obj):
-        if isinstance(obj, (datetime.datetime, datetime.date)):
-            return obj.isoformat()
-        if isinstance(obj, dict):
-            return {k: _json_safe(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [_json_safe(v) for v in obj]
-        return obj
-
     with SessionLocal() as db:
-        doc = db.get(type(crud.get_documento(db, doc_id)), doc_id)
-        if doc is None:
-            # Buscar con query directa
-            from app.models.importador import ImpDocumento
-            doc = db.query(ImpDocumento).filter(ImpDocumento.id == doc_id).first()
+        from app.models.importador import ImpDocumento
+
+        doc = db.query(ImpDocumento).filter(ImpDocumento.id == doc_id).first()
         if doc is None:
             logger.error("Documento %s no encontrado en BD", doc_id)
             return
 
-        # Marcar como procesando
         crud.update_documento(db, doc, {"estado": "PROCESSING"})
+        for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="PROCESSING"):
+            crud.refresh_batch_status(db, batch_id)
         db.commit()
 
         try:
@@ -136,17 +150,14 @@ async def _run_processing(
                     headers_display = prof.get("headers") or headers_norm
                     break
 
-            # Resolver receta automática
             resolved_snapshot_id = None
-            resolution_mode = "zero_shot"
             if sheet_profiles:
-                _, resolved_snapshot_id, resolution_mode, _, _ = resolve_auto_recipe(
+                _, resolved_snapshot_id, _, _, _ = resolve_auto_recipe(
                     db, str(tenant_id), sheet_profiles, user_id
                 )
             if recipe_snapshot_id:
                 resolved_snapshot_id = recipe_snapshot_id
 
-            # Contenido para el LLM
             if has_structured:
                 sample_lines = [f"Columnas: {headers_display}"]
                 for row in (structured[:5] if isinstance(structured, list) else []):
@@ -170,23 +181,28 @@ async def _run_processing(
             confianza = float(analysis.get("confidence", 0.0))
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
 
-            crud.add_log(db, doc.id, "CLASSIFY", user_id, {
-                "tipo_documento": tipo_doc,
-                "confianza": confianza,
-                "razonamiento": analysis.get("reasoning", ""),
-                "model_used": analysis.get("model_used"),
-            })
+            crud.add_log(
+                db,
+                doc.id,
+                "CLASSIFY",
+                user_id,
+                {
+                    "tipo_documento": tipo_doc,
+                    "confianza": confianza,
+                    "razonamiento": analysis.get("reasoning", ""),
+                    "model_used": analysis.get("model_used"),
+                },
+            )
 
-            # Datos extraídos
             if has_structured:
                 sheet_used_str = extraction.get("sheet_used")
                 sheet_metadata_raw = extraction.get("sheet_metadata") or {}
                 filas_por_hoja_raw: dict[str, list] = {}
-                for _row in structured or []:
-                    if isinstance(_row, dict):
-                        _sname = str(_row.get("_sheet") or sheet_used_str or "")
-                        if _sname:
-                            filas_por_hoja_raw.setdefault(_sname, []).append(_row)
+                for row in structured or []:
+                    if isinstance(row, dict):
+                        sheet_name = str(row.get("_sheet") or sheet_used_str or "")
+                        if sheet_name:
+                            filas_por_hoja_raw.setdefault(sheet_name, []).append(row)
                 datos_extraidos = {
                     "filas": structured[:200],
                     "total_filas": len(structured),
@@ -199,63 +215,105 @@ async def _run_processing(
             else:
                 datos_extraidos = analysis.get("fields") or {}
 
-            crud.add_log(db, doc.id, "EXTRACT", user_id, {
-                "campos_extraidos": (
-                    list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
-                )
-            })
+            crud.add_log(
+                db,
+                doc.id,
+                "EXTRACT",
+                user_id,
+                {
+                    "campos_extraidos": (
+                        list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                    )
+                },
+            )
 
-            datos_extraidos = _json_safe(datos_extraidos) if isinstance(datos_extraidos, (dict, list)) else datos_extraidos
-            sheet_profiles = _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
+            datos_extraidos = (
+                _json_safe(datos_extraidos)
+                if isinstance(datos_extraidos, (dict, list))
+                else datos_extraidos
+            )
+            sheet_profiles = (
+                _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
+            )
 
-            crud.update_documento(db, doc, {
-                "texto_ocr": text[:50000],
-                "tipo_documento_detectado": tipo_doc,
-                "confianza_clasificacion": confianza,
-                "requiere_revision": requiere_revision,
-                "datos_extraidos": datos_extraidos,
-                "estado": "REVIEW",
-                "proveedor_detectado": (
-                    get_data_value(datos_extraidos, "vendor", "proveedor", "vendor_name", "supplier", "emisor")
-                    if isinstance(datos_extraidos, dict) else None
-                ),
-                "ruc_detectado": (
-                    get_data_value(datos_extraidos, "vendor_tax_id", "ruc", "tax_id", "supplier_tax_id", "ruc_proveedor")
-                    if isinstance(datos_extraidos, dict) else None
-                ),
-                "monto_total": (
-                    detect_document_total(datos_extraidos) if isinstance(datos_extraidos, dict) else None
-                ),
-                "moneda": (
-                    detect_document_currency(datos_extraidos) if isinstance(datos_extraidos, dict) else None
-                ),
-                "fecha_documento": (
-                    detect_document_date(datos_extraidos) if isinstance(datos_extraidos, dict) else None
-                ),
-                "fingerprint_json": sheet_profiles,
-                "sheet_profiles_json": sheet_profiles,
-                "llm_model": analysis.get("model_used"),
-                "recipe_snapshot_id": resolved_snapshot_id,
-            })
+            crud.update_documento(
+                db,
+                doc,
+                {
+                    "texto_ocr": text[:50000],
+                    "tipo_documento_detectado": tipo_doc,
+                    "confianza_clasificacion": confianza,
+                    "requiere_revision": requiere_revision,
+                    "datos_extraidos": datos_extraidos,
+                    "estado": "REVIEW",
+                    "proveedor_detectado": (
+                        get_data_value(
+                            datos_extraidos,
+                            "vendor",
+                            "proveedor",
+                            "vendor_name",
+                            "supplier",
+                            "emisor",
+                        )
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "ruc_detectado": (
+                        get_data_value(
+                            datos_extraidos,
+                            "vendor_tax_id",
+                            "ruc",
+                            "tax_id",
+                            "supplier_tax_id",
+                            "ruc_proveedor",
+                        )
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "monto_total": (
+                        detect_document_total(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "moneda": (
+                        detect_document_currency(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "fecha_documento": (
+                        detect_document_date(datos_extraidos)
+                        if isinstance(datos_extraidos, dict)
+                        else None
+                    ),
+                    "fingerprint_json": sheet_profiles,
+                    "sheet_profiles_json": sheet_profiles,
+                    "llm_model": analysis.get("model_used"),
+                    "recipe_snapshot_id": resolved_snapshot_id,
+                },
+            )
+            for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="REVIEW"):
+                crud.refresh_batch_status(db, batch_id)
             db.commit()
             publish_status(str(doc_id), "REVIEW")
-            logger.info("Documento %s procesado correctamente → REVIEW", doc_id)
+            logger.info("Documento %s procesado correctamente -> REVIEW", doc_id)
 
         except Exception as exc:
             logger.error("Error procesando documento %s: %s", doc_id, exc, exc_info=True)
             crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": str(exc)})
             crud.add_log(db, doc.id, "EXTRACT", user_id, {"error": str(exc)})
+            for batch_id in crud.touch_batch_items_for_document(
+                db,
+                doc.id,
+                estado="FAILED",
+                error_detalle=str(exc),
+            ):
+                crud.refresh_batch_status(db, batch_id)
             db.commit()
             publish_status(str(doc_id), "FAILED")
 
 
-# ---------------------------------------------------------------------------
-# Celery task
-# ---------------------------------------------------------------------------
-
 def _make_task():
-    """Importa celery_app y registra la task. Importación diferida para evitar
-    errores de arranque cuando Redis no está disponible."""
+    """Register the Celery task lazily to avoid startup failures."""
     try:
         from celery_app import celery_app  # type: ignore
     except Exception:
@@ -282,47 +340,54 @@ def _make_task():
         recipe_snapshot_id: str | None = None,
         force: bool = False,
     ) -> dict:
-        """Procesa un documento importado de forma asíncrona."""
         logger.info("Iniciando procesamiento async de documento %s (%s)", doc_id, filename)
 
         file_bytes = load_payload(doc_id)
         if not file_bytes:
-            msg = f"Payload no encontrado en Redis para doc {doc_id} — puede haber expirado"
+            msg = f"Payload no encontrado para doc {doc_id}; puede haber expirado"
             logger.error(msg)
-            # Marcar como FAILED en BD
             try:
                 from app.config.database import SessionLocal
                 from app.models.importador import ImpDocumento
+                from app.modules.importador import crud
+
                 with SessionLocal() as db:
                     doc = db.query(ImpDocumento).filter(ImpDocumento.id == UUID(doc_id)).first()
                     if doc:
-                        from app.modules.importador import crud
                         crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": msg})
+                        for batch_id in crud.touch_batch_items_for_document(
+                            db,
+                            doc.id,
+                            estado="FAILED",
+                            error_detalle=msg,
+                        ):
+                            crud.refresh_batch_status(db, batch_id)
                         db.commit()
                         publish_status(doc_id, "FAILED")
-            except Exception as e:
-                logger.error("No se pudo marcar FAILED doc %s: %s", doc_id, e)
+            except Exception as exc:
+                logger.error("No se pudo marcar FAILED doc %s: %s", doc_id, exc)
             return {"ok": False, "error": msg}
 
         try:
-            asyncio.run(_run_processing(
-                doc_id=UUID(doc_id),
-                tenant_id=UUID(tenant_id),
-                user_id=user_id,
-                file_bytes=file_bytes,
-                filename=filename,
-                tipo_archivo=tipo_archivo,
-                recipe_snapshot_id=recipe_snapshot_id,
-                force=force,
-            ))
+            asyncio.run(
+                _run_processing(
+                    doc_id=UUID(doc_id),
+                    tenant_id=UUID(tenant_id),
+                    user_id=user_id,
+                    file_bytes=file_bytes,
+                    filename=filename,
+                    tipo_archivo=tipo_archivo,
+                    recipe_snapshot_id=recipe_snapshot_id,
+                    force=force,
+                )
+            )
         except Exception as exc:
-            logger.error("Task falló para doc %s: %s", doc_id, exc, exc_info=True)
+            logger.error("Task fallo para doc %s: %s", doc_id, exc, exc_info=True)
             try:
                 raise self.retry(exc=exc)
             except self.MaxRetriesExceededError:
                 return {"ok": False, "error": str(exc)}
         finally:
-            # Limpiar payload de Redis en cualquier caso
             delete_payload(doc_id)
 
         return {"ok": True, "doc_id": doc_id}
@@ -330,5 +395,4 @@ def _make_task():
     return process_document
 
 
-# Registrar la task al importar el módulo (si Celery está disponible)
 process_document_task = _make_task()

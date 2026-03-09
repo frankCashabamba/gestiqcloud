@@ -1,6 +1,8 @@
 """Modelos del Módulo Importador Contable Universal v1.3.
 
 Tablas:
+  - imp_batch_import    : lote de importacion async persistente
+  - imp_batch_item      : archivo individual dentro de un lote
   - imp_documento       : cada documento subido y procesado
   - imp_log_cambios     : auditoría de cada acción/modificación
   - icu_recipe          : recetas de importación AI
@@ -109,6 +111,85 @@ class ImpDocumento(Base):
 
     logs: Mapped[list[ImpLogCambios]] = relationship(
         "ImpLogCambios", back_populates="documento", cascade="all, delete-orphan"
+    )
+    batch_items: Mapped[list[ImpBatchItem]] = relationship(
+        "ImpBatchItem", back_populates="documento", cascade="all, delete-orphan"
+    )
+
+
+class ImpBatchImport(Base):
+    __tablename__ = "imp_batch_import"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    usuario_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    estado: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=text("'PENDING'"),
+        comment="PENDING, PROCESSING, PARTIAL, COMPLETED, FAILED",
+    )
+    total_items: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    force_reprocess: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    recipe_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("icu_recipe_snapshot.id", ondelete="SET NULL"), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    items: Mapped[list[ImpBatchItem]] = relationship(
+        "ImpBatchItem", back_populates="batch", cascade="all, delete-orphan"
+    )
+
+
+class ImpBatchItem(Base):
+    __tablename__ = "imp_batch_item"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    batch_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("imp_batch_import.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    documento_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("imp_documento.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    nombre_archivo: Mapped[str] = mapped_column(String(500), nullable=False)
+    tamanio_bytes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    hash_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text("0"))
+    estado: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=text("'PENDING'"),
+        comment="PENDING, PROCESSING, REVIEW, CONFIRMED, FAILED, REJECTED",
+    )
+    error_detalle: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    batch: Mapped[ImpBatchImport] = relationship("ImpBatchImport", back_populates="items")
+    documento: Mapped[ImpDocumento | None] = relationship(
+        "ImpDocumento", back_populates="batch_items"
     )
 
 

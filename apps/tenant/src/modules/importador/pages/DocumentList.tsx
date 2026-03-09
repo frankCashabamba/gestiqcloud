@@ -15,20 +15,31 @@ export default function DocumentList() {
   const [searchParams] = useSearchParams()
   const [docs, setDocs] = useState<Documento[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [filter, setFilter] = useState(searchParams.get('estado') || '')
   const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null)
   const [feedback, setFeedback] = useState('')
   const [purging, setPurging] = useState(false)
 
-  const loadDocuments = async () => {
-    setLoading(true)
+  const loadDocuments = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (silent) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
     try {
       const items = await fetchDocuments({ estado: filter || undefined })
       setDocs(items)
+      setLastUpdatedAt(new Date())
     } catch {
       setFeedback('No se pudieron cargar los documentos.')
     } finally {
-      setLoading(false)
+      if (silent) {
+        setRefreshing(false)
+      } else {
+        setLoading(false)
+      }
     }
   }
 
@@ -66,6 +77,19 @@ export default function DocumentList() {
   }
 
   const activeDocs = useMemo(() => docs, [docs])
+  const processingCount = useMemo(() => activeDocs.filter((doc) => doc.estado === 'PROCESSING').length, [activeDocs])
+  const pendingCount = useMemo(() => activeDocs.filter((doc) => doc.estado === 'PENDING').length, [activeDocs])
+  const backgroundActive = processingCount > 0 || pendingCount > 0
+
+  useEffect(() => {
+    if (!backgroundActive) return
+
+    const intervalId = window.setInterval(() => {
+      void loadDocuments({ silent: true })
+    }, 5000)
+
+    return () => window.clearInterval(intervalId)
+  }, [backgroundActive, filter])
 
   const handleSaved = (result: SaveDocumentResult) => {
     const targetLabel = result.target === 'recipes' ? 'recetas' : 'gastos'
@@ -145,6 +169,36 @@ export default function DocumentList() {
       {feedback && (
         <div style={{ marginBottom: '0.9rem', padding: '0.75rem 0.9rem', borderRadius: 10, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13 }}>
           {feedback}
+        </div>
+      )}
+
+      {backgroundActive && (
+        <div
+          style={{
+            marginBottom: '0.9rem',
+            padding: '0.85rem 1rem',
+            borderRadius: 12,
+            border: '1px solid #c7d2fe',
+            background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)',
+            color: '#312e81',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>El sistema sigue trabajando en segundo plano</div>
+              <div style={{ fontSize: 12, color: '#4f46e5', marginTop: 4 }}>
+                {processingCount > 0 ? `${processingCount} procesando` : 'Sin documentos procesando'}
+                {' · '}
+                {pendingCount > 0 ? `${pendingCount} en cola` : 'Sin cola pendiente'}
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: '#6366f1', textAlign: 'right' }}>
+              {refreshing ? 'Actualizando estado...' : 'Actualizacion automatica cada 5 s'}
+              <div style={{ marginTop: 4, color: '#64748b' }}>
+                Ultima actualizacion: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '-'}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

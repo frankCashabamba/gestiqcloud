@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchDashboard, type DashboardStats, fetchRecipes, fetchSnapshots, runImportAsync, streamDocumentStatus, type Recipe, type RecipeSnapshot } from '../services'
+import { fetchDashboard, type DashboardStats, fetchImportBatch, fetchImportBatches, fetchRecipes, fetchSnapshots, runImportAsync, type ImportBatch, type Recipe, type RecipeSnapshot } from '../services'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -51,10 +51,14 @@ const btn: React.CSSProperties = { padding: '0.5rem 1rem', border: '1px solid #d
 // Inline uploader con progreso en tiempo real
 type ImportMode = 'files' | 'folder'
 type FileStatus = 'pending' | 'processing' | 'done' | 'error'
-type FileEntry = { file: File; status: FileStatus; docId?: string; result?: { id: string; estado: string; tipo_documento_detectado?: string } }
+type FileEntry = { file: File; status: FileStatus; docId?: string; batchItemId?: string; errorMessage?: string; result?: { id: string; estado: string; tipo_documento_detectado?: string } }
 type DirectoryInputProps = React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory?: string }
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.xlsx,.xls,.csv,.xml,.txt'
 const ACCEPTED_EXTENSIONS = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.xlsx', '.xls', '.csv', '.xml', '.txt'])
+const MAX_IMPORT_FILE_SIZE_MB = 16
+const MAX_IMPORT_FILE_SIZE_BYTES = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024
+const TERMINAL_BATCH_STATES = new Set(['COMPLETED', 'FAILED', 'PARTIAL'])
+const TERMINAL_DOCUMENT_STATES = new Set(['REVIEW', 'CONFIRMED', 'REJECTED'])
 
 const FILE_ICONS: Record<string, string> = {
   '.pdf': '📄', '.jpg': '🖼️', '.jpeg': '🖼️', '.png': '🖼️',
@@ -88,8 +92,9 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
   const [dragging, setDragging] = useState(false)
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [processing, setProcessing] = useState(false)
-  const [doneCount, setDoneCount] = useState(0)
   const [error, setError] = useState('')
+  const [activeBatchId, setActiveBatchId] = useState('')
+  const [activeBatch, setActiveBatch] = useState<ImportBatch | null>(null)
   const [forceReprocess, setForceReprocess] = useState(false)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [snapshots, setSnapshots] = useState<RecipeSnapshot[]>([])
@@ -99,11 +104,89 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
 
   useEffect(() => { fetchRecipes().then(setRecipes).catch(() => {}) }, [])
   useEffect(() => {
+    fetchImportBatches({ active_only: true, limit: 1 })
+      .then((batches) => {
+        if (batches[0]) {
+          setActiveBatchId(batches[0].id)
+          setActiveBatch(batches[0])
+        }
+      })
+      .catch(() => {})
+  }, [])
+  useEffect(() => {
     if (!selectedRecipeId) { setSnapshots([]); setSelectedSnapshotId(''); return }
     fetchSnapshots(selectedRecipeId).then(snaps => {
       setSnapshots(snaps); setSelectedSnapshotId(snaps[0]?.id || '')
     }).catch(() => setSnapshots([]))
   }, [selectedRecipeId])
+  useEffect(() => {
+    if (!activeBatchId) return
+
+    let cancelled = false
+    let intervalId: number | null = null
+
+    const loadBatch = () => {
+      void fetchImportBatch(activeBatchId)
+        .then((batch) => {
+          if (cancelled) return
+          setActiveBatch(batch)
+          if (intervalId !== null && TERMINAL_BATCH_STATES.has(batch.estado)) {
+            window.clearInterval(intervalId)
+            intervalId = null
+          }
+        })
+        .catch(() => {})
+    }
+
+    loadBatch()
+    intervalId = window.setInterval(loadBatch, 5000)
+    return () => {
+      cancelled = true
+      if (intervalId !== null) window.clearInterval(intervalId)
+    }
+  }, [activeBatchId])
+
+  useEffect(() => {
+    const items = activeBatch?.items
+    if (!items?.length) return
+
+    setEntries(prev => {
+      let changed = false
+      const next = prev.map((entry) => {
+        const item = items.find((candidate) =>
+          (entry.batchItemId && candidate.id === entry.batchItemId)
+          || (!entry.batchItemId && entry.docId && candidate.documento_id === entry.docId)
+        )
+        if (!item) return entry
+
+        let status = entry.status
+        if (item.estado === 'PENDING' || item.estado === 'PROCESSING') status = 'processing'
+        else if (item.estado === 'FAILED') status = 'error'
+        else if (TERMINAL_DOCUMENT_STATES.has(item.estado)) status = 'done'
+
+        const nextDocId = item.documento_id || entry.docId
+        const nextErrorMessage = status === 'error' ? (item.error_detalle || entry.errorMessage) : undefined
+
+        if (
+          status === entry.status
+          && nextDocId === entry.docId
+          && nextErrorMessage === entry.errorMessage
+        ) {
+          return entry
+        }
+
+        changed = true
+        return {
+          ...entry,
+          status,
+          docId: nextDocId,
+          errorMessage: nextErrorMessage,
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [activeBatch])
 
   const addFiles = useCallback((fileList: FileList | File[]) => {
     const incoming = Array.from(fileList || []).filter(f => {
@@ -143,58 +226,63 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
   const handleRun = async () => {
     const pending = entries.filter(e => e.status === 'pending')
     if (!pending.length) return
-    setProcessing(true)
-    setError('')
-    setDoneCount(0)
 
-    // Marcar todos como "procesando" antes de enviar
-    setEntries(prev => prev.map(e => e.status === 'pending' ? { ...e, status: 'processing' } : e))
+    const oversized = pending.filter(e => e.file.size > MAX_IMPORT_FILE_SIZE_BYTES)
+    const uploadable = pending.filter(e => e.file.size <= MAX_IMPORT_FILE_SIZE_BYTES)
+
+    if (oversized.length > 0) {
+      setEntries(prev => prev.map(entry => {
+        if (!oversized.some(item => item.file === entry.file)) return entry
+        return {
+          ...entry,
+          status: 'error',
+          errorMessage: `Excede el limite de ${MAX_IMPORT_FILE_SIZE_MB} MB (${fmtSize(entry.file.size)}).`,
+        }
+      }))
+      setError(
+        oversized.length === 1
+          ? `Archivo '${oversized[0].file.name}' excede el limite de ${MAX_IMPORT_FILE_SIZE_MB} MB (${fmtSize(oversized[0].file.size)}).`
+          : `${oversized.length} archivos exceden el limite de ${MAX_IMPORT_FILE_SIZE_MB} MB y se omitieron de esta importacion.`,
+      )
+    }
+
+    if (!uploadable.length) return
+
+    setProcessing(true)
+    if (!oversized.length) setError('')
+
+    // Marcar solo los archivos validos como "procesando" antes de enviar
+    setEntries(prev => prev.map(e => uploadable.some(item => item.file === e.file) ? { ...e, status: 'processing', errorMessage: undefined } : e))
 
     try {
       // Enviar todos al backend async (retorna PENDING de inmediato)
       const asyncResults = await runImportAsync(
-        pending.map(e => e.file),
+        uploadable.map(e => e.file),
         { force: forceReprocess, recipe_snapshot_id: selectedSnapshotId || undefined },
       )
 
       // Mapear nombre → resultado
-      const byName = new Map(asyncResults.map(r => [r.nombre_archivo, r]))
+      const batchId = asyncResults[0]?.batch_id
+      if (batchId) {
+        setActiveBatchId(batchId)
+        void fetchImportBatch(batchId).then(setActiveBatch).catch(() => {})
+      }
 
-      // Poll cada archivo concurrentemente
-      await Promise.all(pending.map(async (entry) => {
-        const asyncResult = byName.get(entry.file.name)
+      setEntries(prev => prev.map((entry) => {
+        const uploadIndex = uploadable.findIndex((item) => item.file === entry.file)
+        const asyncResult = uploadIndex >= 0 ? asyncResults[uploadIndex] : undefined
         if (!asyncResult) {
-          setEntries(prev => prev.map(e => e.file === entry.file ? { ...e, status: 'error' } : e))
-          return
+          return entry.status === 'processing' ? { ...entry, status: 'error' } : entry
         }
-
-        // Si ya estaba procesado (duplicado reutilizado)
+        if (asyncResult.estado === 'FAILED') {
+          return { ...entry, status: 'error', docId: asyncResult.id, batchItemId: asyncResult.batch_item_id, result: asyncResult }
+        }
         if (asyncResult.estado !== 'PENDING' && asyncResult.estado !== 'PROCESSING') {
-          setEntries(prev => prev.map(e =>
-            e.file === entry.file
-              ? { ...e, status: asyncResult.estado === 'FAILED' ? 'error' : 'done', docId: asyncResult.id, result: asyncResult }
-              : e
-          ))
-          setDoneCount(c => c + 1)
-          onImported?.()
-          return
+          return { ...entry, status: 'done', docId: asyncResult.id, batchItemId: asyncResult.batch_item_id, result: asyncResult }
         }
-
-        // Polling hasta que el worker lo resuelva
-        try {
-          const finalDoc = await streamDocumentStatus(asyncResult.id)
-          setEntries(prev => prev.map(e =>
-            e.file === entry.file
-              ? { ...e, status: finalDoc.estado === 'FAILED' ? 'error' : 'done', docId: finalDoc.id, result: finalDoc }
-              : e
-          ))
-          setDoneCount(c => c + 1)
-          onImported?.()
-        } catch (err: any) {
-          setEntries(prev => prev.map(e => e.file === entry.file ? { ...e, status: 'error' } : e))
-          setError(prev => prev || (err?.message || `Error procesando "${entry.file.name}"`))
-        }
+        return { ...entry, status: 'processing', docId: asyncResult.id, batchItemId: asyncResult.batch_item_id, result: asyncResult }
       }))
+      onImported?.()
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Error al encolar archivos')
       setEntries(prev => prev.map(e => e.status === 'processing' ? { ...e, status: 'pending' } : e))
@@ -205,6 +293,7 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
 
   const pendingCount = entries.filter(e => e.status === 'pending').length
   const totalCount = entries.length
+  const activeCount = entries.filter(e => e.status === 'processing').length
   const errorCount = entries.filter(e => e.status === 'error').length
   const completedCount = entries.filter(e => e.status === 'done').length
   const progressPct = totalCount > 0 ? Math.round(((completedCount + errorCount) / totalCount) * 100) : 0
@@ -214,6 +303,28 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
       {/* Estilos para spinner */}
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '1rem' }}>
+        {activeBatch && (
+          <div style={{ marginBottom: '1rem', padding: '0.85rem 1rem', borderRadius: 12, border: '1px solid #c7d2fe', background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)', color: '#312e81' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  {activeBatch.estado === 'COMPLETED' ? 'Ultimo lote completado' : 'Lote en segundo plano'}
+                </div>
+                <div style={{ fontSize: 12, color: '#4f46e5', marginTop: 4 }}>
+                  {activeBatch.processing_items} procesando · {activeBatch.pending_items} en cola · {activeBatch.review_items + activeBatch.confirmed_items} resueltos · {activeBatch.failed_items} fallidos
+                </div>
+              </div>
+              <div style={{ minWidth: 160 }}>
+                <div style={{ fontSize: 12, color: '#6366f1', textAlign: 'right', marginBottom: 4 }}>
+                  {activeBatch.progress_pct}% completado
+                </div>
+                <div style={{ height: 6, background: '#dbeafe', borderRadius: 999, overflow: 'hidden' }}>
+                  <div style={{ width: `${activeBatch.progress_pct}%`, height: '100%', background: '#4f46e5' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Toggle modo */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -261,11 +372,18 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
         {/* Lista de archivos */}
         {entries.length > 0 && (
           <div style={{ marginTop: '0.75rem' }}>
+            {activeCount > 0 && (
+              <div style={{ marginBottom: '0.6rem', padding: '0.7rem 0.85rem', borderRadius: 10, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#3730a3', fontSize: 13 }}>
+                El sistema sigue trabajando en segundo plano. {activeCount} archivo{activeCount > 1 ? 's' : ''} en proceso.
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
                 {processing
-                  ? `Procesando ${completedCount + errorCount} de ${pendingCount + completedCount + errorCount}...`
-                  : `${entries.length} archivo${entries.length > 1 ? 's' : ''} seleccionado${entries.length > 1 ? 's' : ''}`}
+                  ? `Encolando ${totalCount} documento${totalCount > 1 ? 's' : ''}...`
+                  : activeCount > 0
+                    ? `Seguimiento activo: ${completedCount + errorCount} de ${totalCount} resuelto${totalCount === 1 ? '' : 's'}`
+                    : `${entries.length} archivo${entries.length > 1 ? 's' : ''} seleccionado${entries.length > 1 ? 's' : ''}`}
               </span>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 {completedCount > 0 && <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>✓ {completedCount} listo{completedCount > 1 ? 's' : ''}</span>}
@@ -279,7 +397,7 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
             </div>
 
             {/* Barra de progreso */}
-            {processing && (
+            {(processing || activeCount > 0) && (
               <div style={{ height: 4, background: '#e5e7eb', borderRadius: 4, marginBottom: '0.5rem', overflow: 'hidden' }}>
                 <div style={{
                   height: '100%', background: '#6366F1', borderRadius: 4,
@@ -310,6 +428,11 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
                     {entry.file.name}
                   </span>
                   <span style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>{fmtSize(entry.file.size)}</span>
+                  {entry.status === 'error' && entry.errorMessage && (
+                    <span style={{ color: '#b91c1c', fontSize: 11, flexShrink: 0 }}>
+                      {entry.errorMessage}
+                    </span>
+                  )}
 
                   {/* Tipo detectado */}
                   {entry.result?.tipo_documento_detectado && (
@@ -389,9 +512,11 @@ function InlineUploader({ onImported }: { onImported?: () => void }) {
           {processing ? (
             <>
               <Spinner />
-              Procesando {completedCount + errorCount} / {pendingCount + completedCount + errorCount}...
+              Encolando {totalCount} documento{totalCount > 1 ? 's' : ''}...
             </>
-          ) : pendingCount > 0
+          ) : activeCount > 0
+            ? `Procesando en segundo plano: ${completedCount + errorCount} de ${totalCount}`
+            : pendingCount > 0
             ? `Importar ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
             : entries.length > 0
               ? `✓ Todo procesado — agrega más archivos`
