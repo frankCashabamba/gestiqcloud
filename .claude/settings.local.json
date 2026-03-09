@@ -43,7 +43,9 @@
       "Bash(xargs grep -l \"closing\\\\|Closing\")",
       "Bash(xargs grep -l \"shift\\\\|Shift\")",
       "Bash(xargs grep -l \"class InventoryCostingService\")",
-      "Bash(xargs grep -l \"def calculate_recipe_cost\")"
+      "Bash(xargs grep -l \"def calculate_recipe_cost\")",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(xargs ls -1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\frank\\.claude\\projects\\c--gestiqcloud"

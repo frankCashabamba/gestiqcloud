@@ -367,7 +367,15 @@ def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float
         .first()
     )
     if not warehouse:
-        return
+        # Auto-crear almacén principal si el tenant aún no tiene ninguno
+        warehouse = Warehouse(
+            tenant_id=tenant_id,
+            code="PRINCIPAL",
+            name="Almacén Principal",
+            is_active=True,
+        )
+        db.add(warehouse)
+        db.flush()
 
     stock_item = (
         db.execute(

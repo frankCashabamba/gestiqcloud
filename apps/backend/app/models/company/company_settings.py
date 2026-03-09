@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -34,7 +34,7 @@ class CompanySettings(Base):
     timezone: Mapped[str] = mapped_column(String(50), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False)
 
-    company_logo: Mapped[str | None] = mapped_column(String(100))
+    company_logo: Mapped[str | None] = mapped_column(Text)
     secondary_color: Mapped[str] = mapped_column(String(7), nullable=False)
     primary_color: Mapped[str] = mapped_column(String(7), nullable=False)
 

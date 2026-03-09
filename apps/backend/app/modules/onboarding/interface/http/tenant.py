@@ -102,12 +102,14 @@ async def onboarding_init(
             db.add(settings)
 
         # Marcar onboarding como completado en settings JSON
-        current_settings = settings.settings or {}
-        current_settings["onboarding_complete"] = True
-        settings.settings = current_settings
+        # flag_modified es necesario para que SQLAlchemy detecte mutaciones en JSONB
+        from sqlalchemy.orm.attributes import flag_modified
+        settings.settings = {**(settings.settings or {}), "onboarding_complete": True}
+        flag_modified(settings, "settings")
 
         # Save changes
         db.add(tenant)
+        db.add(settings)
         db.commit()
 
         return {

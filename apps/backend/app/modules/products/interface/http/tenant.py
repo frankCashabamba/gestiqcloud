@@ -17,6 +17,7 @@ from app.middleware.tenant import ensure_tenant
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem
+from app.models.inventory.warehouse import Warehouse
 
 router = APIRouter(
     prefix="/products",
@@ -24,6 +25,46 @@ router = APIRouter(
 )
 
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
+
+
+def _sync_stock_item(db: Session, tenant_id: str, product_id: str, qty: float) -> None:
+    """Crea o actualiza StockItem en el almacén principal. Auto-crea el almacén si no existe."""
+    warehouse = (
+        db.execute(
+            select(Warehouse)
+            .where(Warehouse.tenant_id == tenant_id, Warehouse.is_active.is_(True))
+            .order_by(Warehouse.id)
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if not warehouse:
+        warehouse = Warehouse(
+            tenant_id=tenant_id,
+            code="PRINCIPAL",
+            name="Almacén Principal",
+            is_active=True,
+        )
+        db.add(warehouse)
+        db.flush()
+
+    item = (
+        db.execute(
+            select(StockItem).where(
+                StockItem.tenant_id == tenant_id,
+                StockItem.warehouse_id == warehouse.id,
+                StockItem.product_id == product_id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if item:
+        item.qty = qty
+        db.add(item)
+    else:
+        db.add(StockItem(tenant_id=tenant_id, warehouse_id=warehouse.id, product_id=product_id, qty=qty))
 
 
 def _empresa_id_from_request(request: Request) -> str | None:
@@ -747,6 +788,12 @@ def create_product(payload: ProductCreate, request: Request, db: Session = Depen
     db.add(obj)
     db.commit()
     db.refresh(obj)
+
+    # Sincronizar StockItem si el producto tiene stock inicial
+    if (obj.stock or 0) > 0 and tenant_id:
+        _sync_stock_item(db, str(tenant_id), str(obj.id), float(obj.stock))
+        db.commit()
+
     return _to_product_out_row(obj)
 
 
@@ -819,6 +866,12 @@ def update_product(
     db.add(obj)
     db.commit()
     db.refresh(obj)
+
+    # Sincronizar StockItem si se actualizó el stock
+    if payload.stock is not None and tenant_id:
+        _sync_stock_item(db, str(tenant_id), str(obj.id), float(obj.stock or 0))
+        db.commit()
+
     return _to_product_out_row(obj)
 
 

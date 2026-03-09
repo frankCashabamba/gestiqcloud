@@ -82,3 +82,6 @@ uploads/
 
 # --- documentación deprecada (local only) ---
 _deprecated_docs/
+
+# --- imports legacy ---
+apps/backend/app/modules/_old_imports/

@@ -71,12 +71,12 @@ def _clean_vision_fields(fields: dict) -> None:
                         pass
 
 
-def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1600) -> bytes:
+def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1024) -> bytes:
     """Resize image so its longest side is at most max_dim pixels.
 
-    Vision models don't need full-resolution photos — resizing a 4K WhatsApp
-    image to 1600px reduces the base64 payload ~6x and avoids ReadTimeout
-    while preserving enough detail to read invoice line items.
+    Vision models don't need full-resolution photos — 1024px is sufficient
+    to read invoice/receipt text. Keeping this small reduces base64 payload
+    and inference time in Ollama, avoiding ReadTimeout on large WhatsApp images.
     """
     import io as _io
 
@@ -220,8 +220,8 @@ async def _analyze_with_vision(
         timeout = httpx.Timeout(timeout_secs, read=timeout_secs)
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(f"{ollama_url}/api/chat", json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        resp.raise_for_status()
+        data = resp.json()
 
         raw_content = (data.get("message") or {}).get("content", "")
         model_used = data.get("model") or vision_model

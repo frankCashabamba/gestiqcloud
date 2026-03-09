@@ -988,7 +988,15 @@ def sync_stock_from_products(request: Request, db: Session = Depends(get_db)):
     )
 
     if not warehouse:
-        raise HTTPException(status_code=400, detail="No hay almacén activo. Crea uno primero.")
+        # Auto-crear almacén principal para nuevos tenants
+        warehouse = Warehouse(
+            tenant_id=tid,
+            code="PRINCIPAL",
+            name="Almacén Principal",
+            is_active=True,
+        )
+        db.add(warehouse)
+        db.flush()  # obtener el ID antes de usarlo
 
     products = (
         db.execute(select(Product).where(Product.tenant_id == tid, Product.active.is_(True)))
