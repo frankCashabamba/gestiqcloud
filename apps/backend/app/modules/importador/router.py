@@ -41,9 +41,6 @@ from .schemas import (
     DocumentoListOut,
     DocumentoOut,
     EditFieldsRequest,
-    LogCambioOut,
-    SaveAsPurchaseRequest,
-    SaveAsPurchaseResponse,
     SaveDailyLogRequest,
     SaveDailyLogResponse,
     SaveDocumentRequest,
@@ -74,6 +71,8 @@ SUPPORTED_PAYMENT_METHODS = {
 def _json_safe(obj):
     if isinstance(obj, (datetime.datetime, datetime.date)):
         return obj.isoformat()
+    if isinstance(obj, UUID):
+        return str(obj)
     if isinstance(obj, dict):
         return {k: _json_safe(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -490,7 +489,7 @@ def _save_document_to_purchase(
     notes: str | None = None,
     update_stock: bool = True,
 ) -> dict:
-    """Core purchase creation logic shared by /save and /save-as-purchase."""
+    """Core purchase creation logic for document saves to purchases."""
     from decimal import ROUND_HALF_UP, Decimal
 
     from app.models.inventory.stock import StockItem, StockMove
@@ -1610,11 +1609,6 @@ def save_document_as_products(
     )
 
 
-@router.get("/documents/{doc_id}/logs", response_model=list[LogCambioOut], dependencies=protected)
-def get_document_logs(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
-    return crud.get_logs(db, doc_id)
-
-
 @router.get("/doc-categories", dependencies=protected)
 def get_doc_categories(db: Session = Depends(get_db)):
     """Returns the doc_type→category keyword map from DB for client-side use."""
@@ -1654,25 +1648,115 @@ def get_batch(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     batch = crud.get_batch(db, batch_id, tenant_id)
     if not batch:
         raise HTTPException(status_code=404, detail="Batch no encontrado")
-    summary = crud.summarize_batch(db, batch)
-    items = [
-        {
-            "id": item.id,
-            "batch_id": item.batch_id,
-            "documento_id": item.documento_id,
-            "nombre_archivo": item.nombre_archivo,
-            "tamanio_bytes": item.tamanio_bytes,
-            "estado": item.estado,
-            "error_detalle": item.error_detalle,
-            "created_at": item.created_at,
-            "updated_at": item.updated_at,
-        }
-        for item in sorted(batch.items, key=lambda current: current.orden)
-    ]
-    return BatchDetailOut(**summary, items=items)
+    return BatchDetailOut(**crud.serialize_batch_detail(db, batch))
+
+
+@router.get("/batches/{batch_id}/stream")
+async def batch_status_stream(
+    batch_id: UUID,
+    request: Request,
+    token: str = Query(..., description="JWT de acceso para EventSource"),
+):
+    import asyncio
+    import json
+
+    import redis.asyncio as aioredis  # type: ignore
+    from fastapi.responses import StreamingResponse
+
+    from app.config.database import SessionLocal
+    from app.core.jwt_provider import get_token_service
+
+    try:
+        claims = get_token_service().decode_and_validate(token, expected_type="access")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token invalido o expirado")
+
+    tenant_raw = claims.get("tenant_id")
+    if not tenant_raw:
+        raise HTTPException(status_code=401, detail="tenant_id ausente en token")
+
+    tenant_id = UUID(str(tenant_raw))
+    terminal_states = {"COMPLETED", "FAILED", "PARTIAL"}
+    channel = f"imp:batch:{batch_id}"
+    redis_url = os.getenv("REDIS_URL") or os.getenv("DEV_REDIS_URL") or "redis://localhost:6379/0"
+
+    async def event_generator():
+        pubsub = None
+        redis_client = aioredis.from_url(redis_url, decode_responses=True)
+        try:
+            pubsub = redis_client.pubsub()
+            await pubsub.subscribe(channel)
+
+            with SessionLocal() as db_session:
+                batch = crud.get_batch(db_session, batch_id, tenant_id)
+                if batch is None:
+                    yield 'event: error\ndata: {"detail":"not_found"}\n\n'
+                    return
+                initial_payload = crud.serialize_batch_detail(db_session, batch)
+
+            yield f"data: {json.dumps(_json_safe(initial_payload))}\n\n"
+            if initial_payload["estado"] in terminal_states:
+                return
+
+            max_wait_seconds = float(os.getenv("IMPORTADOR_BATCH_STREAM_MAX_WAIT_SECONDS", "7200"))
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + max_wait_seconds
+
+            while True:
+                if await request.is_disconnected():
+                    return
+
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    yield 'event: timeout\ndata: {"detail":"timeout"}\n\n'
+                    return
+
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True,
+                    timeout=min(15.0, remaining),
+                )
+                if message and message.get("type") == "message":
+                    data = message.get("data")
+                    if isinstance(data, bytes):
+                        data = data.decode("utf-8", errors="ignore")
+                    yield f"data: {data}\n\n"
+                    try:
+                        parsed = json.loads(data)
+                    except Exception:
+                        parsed = None
+                    if isinstance(parsed, dict) and parsed.get("estado") in terminal_states:
+                        return
+
+                yield ": keep-alive\n\n"
+        finally:
+            if pubsub is not None:
+                try:
+                    await pubsub.unsubscribe(channel)
+                except Exception:
+                    pass
+                try:
+                    await pubsub.close()
+                except Exception:
+                    pass
+            try:
+                await redis_client.aclose()
+            except Exception:
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def _sync_batch_projection(db: Session, doc_id: UUID, estado: str, error_detalle: str | None = None) -> None:
+    from .tasks import publish_batch_update
+
     for batch_id in crud.touch_batch_items_for_document(
         db,
         doc_id,
@@ -1680,6 +1764,7 @@ def _sync_batch_projection(db: Session, doc_id: UUID, estado: str, error_detalle
         error_detalle=error_detalle,
     ):
         crud.refresh_batch_status(db, batch_id)
+        publish_batch_update(db, batch_id)
 
 
 def _safe_float(val) -> float | None:
@@ -1802,102 +1887,10 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
     return None, 1.0
 
 
-@router.post(
-    "/documents/{doc_id}/save-as-purchase",
-    response_model=SaveAsPurchaseResponse,
-    dependencies=protected,
-)
-def save_document_as_purchase(
-    doc_id: UUID,
-    body: SaveAsPurchaseRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """Registra la factura de proveedor como Purchase, crea PurchaseLines y actualiza stock."""
-    tenant_id = _tenant_id(request)
-    user_id = _user_id(request)
-
-    doc = crud.get_documento(db, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Documento no encontrado")
-
-    data = _get_doc_import_data(doc)
-    line_items = data.get("line_items") or []
-    if not line_items or not isinstance(line_items, list):
-        raise HTTPException(
-            status_code=422,
-            detail="El documento no tiene line_items extraídos. Usa 'Reimportar limpio' para que el modelo extraiga los ítems de la factura.",
-        )
-
-    result = _save_document_to_purchase(
-        db=db,
-        tenant_id=tenant_id,
-        user_id=user_id,
-        doc=doc,
-        warehouse_id=body.warehouse_id,
-        notes=body.notes,
-        update_stock=True,
-    )
-
-    crud.add_log(
-        db,
-        doc.id,
-        "SAVE_PURCHASE",
-        user_id,
-        {
-            "purchase_id": str(result["purchase_id"]),
-            "lines_created": result["lines_created"],
-            "lines_matched": result["lines_matched"],
-            "unmatched": result["unmatched_descriptions"],
-            "warehouse_id": result.get("warehouse_id"),
-        },
-    )
-    confirmed = dict(data)
-    confirmed["_save"] = {
-        "destination": "supplier_invoice",
-        "target": "purchases",
-        "status": result["status"],
-        "record_id": str(result["purchase_id"]),
-        "saved_at": datetime.datetime.utcnow().isoformat(),
-    }
-    crud.update_documento(db, doc, {"datos_confirmados": confirmed, "estado": "CONFIRMED"})
-    _sync_batch_projection(db, doc.id, "CONFIRMED")
-    db.commit()
-
-    return SaveAsPurchaseResponse(
-        purchase_id=result["purchase_id"],
-        status=result["status"],
-        lines_created=result["lines_created"],
-        lines_matched=result["lines_matched"],
-        unmatched_descriptions=result["unmatched_descriptions"],
-        message=result.get("message"),
-    )
-
 
 # ---------------------------------------------------------------------------
 # Async upload via Celery (run-async)
 # ---------------------------------------------------------------------------
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
-
-
-def _should_skip_import_file(filename: str) -> bool:
-    normalized = (filename or "").strip()
-    return (
-        not normalized
-        or normalized.startswith("~$")
-        or normalized.lower() in {"thumbs.db", ".ds_store"}
-    )
-
-
 class RunAsyncResponse(BaseModel):
     id: UUID
     batch_id: UUID
@@ -1914,11 +1907,7 @@ async def run_async(
     recipe_snapshot_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    """Encola los archivos para procesamiento asíncrono via Celery.
-
-    Retorna inmediatamente con {id, estado='PENDING'}.
-    El cliente hace polling a GET /documents/{id} hasta estado != PENDING|PROCESSING.
-    """
+    """Encola los archivos para procesamiento asincrono via Celery y batch tracking."""
     from .batch_service import enqueue_async_batch
 
     return await enqueue_async_batch(
@@ -1928,303 +1917,6 @@ async def run_async(
         force=force,
         recipe_snapshot_id=recipe_snapshot_id,
         db=db,
-    )
-
-    for file in files:
-        filename = (file.filename or "unknown").strip()
-        if _should_skip_import_file(filename):
-            logger.info("Ignorando archivo temporal/no valido en importador: %s", filename)
-            continue
-
-        file_bytes = await file.read()
-        file_size = len(file_bytes)
-        if file_size <= 0:
-            logger.info("Ignorando archivo vacio en importador: %s", filename)
-            continue
-        if file_size > max_file_size_bytes:
-            raise HTTPException(
-                status_code=413,
-                detail=(
-                    f"Archivo '{filename}' excede el limite de {max_file_size_mb} MB "
-                    f"({round(file_size / (1024 * 1024), 1)} MB)."
-                ),
-            )
-
-        batch_size_bytes += file_size
-        if batch_size_bytes > max_batch_size_bytes:
-            raise HTTPException(
-                status_code=413,
-                detail=(
-                    f"El lote excede el limite de {max_batch_size_mb} MB. "
-                    "Divide la importacion en bloques mas pequenos."
-                ),
-            )
-
-        tipo_archivo = detect_file_type(filename)
-        file_hash = hashlib.sha256(file_bytes).hexdigest()
-
-        # Reutilizar si ya existe y está procesado
-        if not force:
-            existing = crud.find_existing_documento(db, tenant_id, filename, file_size, file_hash)
-            if existing and existing.estado in ("PENDING", "PROCESSING", "CONFIRMED", "REVIEW"):
-                results.append(
-                    RunAsyncResponse(
-                        id=existing.id,
-                        estado=existing.estado,
-                        nombre_archivo=filename,
-                    )
-                )
-                continue
-
-        staged_uploads.append((filename, file_bytes, file_size, file_hash, tipo_archivo))
-        continue
-
-        doc = crud.create_documento(
-            db,
-            {
-                "tenant_id": tenant_id,
-                "nombre_archivo": filename,
-                "tipo_archivo": tipo_archivo,
-                "tamanio_bytes": len(file_bytes),
-                "hash_sha256": file_hash,
-                "estado": "PENDING",
-                "usuario_id": user_id,
-            },
-        )
-        crud.add_log(db, doc.id, "UPLOAD", user_id, {"filename": filename, "size": len(file_bytes), "mode": "async"})
-        db.commit()
-
-        # Guardar bytes en Redis y encolar tarea Celery
-        store_payload(str(doc.id), file_bytes)
-        if process_document_task:
-            process_document_task.delay(
-                doc_id=str(doc.id),
-                tenant_id=str(tenant_id),
-                user_id=user_id,
-                filename=filename,
-                tipo_archivo=tipo_archivo,
-                recipe_snapshot_id=recipe_snapshot_id,
-                force=force,
-            )
-        else:
-            # Celery no disponible — procesar sincrónicamente como fallback
-            logger.warning("Celery no disponible, procesando %s sincrónicamente", filename)
-            from .tasks import _run_processing
-            import asyncio as _asyncio
-            from uuid import UUID as _UUID
-            try:
-                _asyncio.create_task(_run_processing(
-                    doc_id=_UUID(str(doc.id)),
-                    tenant_id=_UUID(str(tenant_id)),
-                    user_id=user_id,
-                    file_bytes=file_bytes,
-                    filename=filename,
-                    tipo_archivo=tipo_archivo,
-                    force=force,
-                ))
-            except Exception:
-                pass
-
-        results.append(RunAsyncResponse(id=doc.id, estado="PENDING", nombre_archivo=filename))
-
-    if not staged_uploads and results:
-        return results
-    if not staged_uploads:
-        raise HTTPException(status_code=400, detail="No hay archivos validos para importar.")
-    if active_docs + len(staged_uploads) > max_queue_per_tenant:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                f"Cola del importador llena para este tenant: {active_docs} en curso y "
-                f"{len(staged_uploads)} nuevos. Limite actual: {max_queue_per_tenant}."
-            ),
-        )
-
-    for filename, file_bytes, file_size, file_hash, tipo_archivo in staged_uploads:
-        doc = crud.create_documento(
-            db,
-            {
-                "tenant_id": tenant_id,
-                "nombre_archivo": filename,
-                "tipo_archivo": tipo_archivo,
-                "tamanio_bytes": file_size,
-                "hash_sha256": file_hash,
-                "estado": "PENDING",
-                "usuario_id": user_id,
-            },
-        )
-        crud.add_log(
-            db,
-            doc.id,
-            "UPLOAD",
-            user_id,
-            {"filename": filename, "size": file_size, "mode": "async"},
-        )
-        db.commit()
-
-        store_payload(str(doc.id), file_bytes)
-        if process_document_task:
-            process_document_task.delay(
-                doc_id=str(doc.id),
-                tenant_id=str(tenant_id),
-                user_id=user_id,
-                filename=filename,
-                tipo_archivo=tipo_archivo,
-                recipe_snapshot_id=recipe_snapshot_id,
-                force=force,
-            )
-        else:
-            logger.warning("Celery no disponible, procesando %s sincronicamente", filename)
-            from .tasks import _run_processing
-            import asyncio as _asyncio
-            from uuid import UUID as _UUID
-
-            try:
-                _asyncio.create_task(
-                    _run_processing(
-                        doc_id=_UUID(str(doc.id)),
-                        tenant_id=_UUID(str(tenant_id)),
-                        user_id=user_id,
-                        file_bytes=file_bytes,
-                        filename=filename,
-                        tipo_archivo=tipo_archivo,
-                        recipe_snapshot_id=recipe_snapshot_id,
-                        force=force,
-                    )
-                )
-            except Exception:
-                pass
-
-        results.append(RunAsyncResponse(id=doc.id, estado="PENDING", nombre_archivo=filename))
-
-    return results
-
-
-# ---------------------------------------------------------------------------
-# SSE: stream de estado — reemplaza el polling masivo del frontend
-# ---------------------------------------------------------------------------
-@router.get("/documents/{doc_id}/stream")
-async def document_status_stream(
-    doc_id: UUID,
-    request: Request,
-    token: str = Query(..., description="JWT de acceso (EventSource no soporta headers)"),
-):
-    """Server-Sent Events: emite **un solo evento** cuando el documento sale de
-    PENDING/PROCESSING y luego cierra la conexión.
-
-    Flujo sin race condition:
-      1. Valida JWT y extrae tenant_id del claim.
-      2. Suscribe al canal Redis ``imp:status:{doc_id}`` ANTES de leer la BD.
-      3. Consulta estado actual en BD con sesión fresca:
-         - Si ya es terminal → responde inmediatamente y cierra.
-         - Si sigue PENDING/PROCESSING → espera el pub/sub (max 390 s).
-      4. Al recibir el mensaje de la task Celery → pushea el evento y cierra.
-
-    Con N archivos en vuelo se crean N conexiones SSE persistentes pero
-    cero consultas a BD por segundo (vs N × 1 query/2 s con polling HTTP).
-    """
-    import asyncio
-    import json
-    import os
-
-    from fastapi.responses import StreamingResponse
-
-    # --- Auth manual (EventSource no puede enviar Authorization header) ---
-    from app.core.jwt_provider import get_token_service
-
-    try:
-        claims = get_token_service().decode_and_validate(token, expected_type="access")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Token inválido o expirado")
-
-    tid_raw = claims.get("tenant_id")
-    if not tid_raw:
-        raise HTTPException(status_code=401, detail="tenant_id ausente en token")
-    tenant_id = UUID(str(tid_raw))
-
-    # Verificar que el documento pertenece a este tenant (primera lectura rápida)
-    db_check = next(get_db(request))
-    try:
-        doc_check = crud.get_documento(db_check, doc_id)
-    finally:
-        db_check.close()
-
-    if doc_check is None or str(doc_check.tenant_id) != str(tenant_id):
-        raise HTTPException(status_code=404, detail="Documento no encontrado")
-
-    TERMINAL = {"REVIEW", "CONFIRMED", "FAILED", "REJECTED"}
-    channel = f"imp:status:{doc_id}"
-    redis_url = (
-        os.getenv("REDIS_URL") or os.getenv("DEV_REDIS_URL") or "redis://localhost:6379/0"
-    )
-
-    async def event_generator():
-        import redis.asyncio as aioredis  # type: ignore
-
-        r = aioredis.from_url(redis_url, decode_responses=True)
-        pubsub = r.pubsub()
-        try:
-            # 1. Suscribir ANTES de leer BD → evita race condition
-            await pubsub.subscribe(channel)
-
-            # 2. Estado fresco desde BD (la task puede haber terminado entre
-            #    el momento del subscribe y ahora, pero ya tenemos el canal)
-            from app.config.database import SessionLocal
-            from app.models.importador import ImpDocumento
-
-            with SessionLocal() as fresh_db:
-                fresh_doc = (
-                    fresh_db.query(ImpDocumento)
-                    .filter(ImpDocumento.id == doc_id)
-                    .first()
-                )
-                current_estado = fresh_doc.estado if fresh_doc else "FAILED"
-
-            if current_estado in TERMINAL:
-                yield f"data: {json.dumps({'estado': current_estado})}\n\n"
-                return
-
-            # 3. Esperar el pub/sub de la task Celery. La espera puede ser larga
-            #    porque en Windows/local el worker suele correr con pool=solo.
-            max_wait_seconds = float(os.getenv("IMPORTADOR_STREAM_MAX_WAIT_SECONDS", "7200"))
-            loop = asyncio.get_running_loop()
-            deadline = loop.time() + max_wait_seconds
-
-            while True:
-                if await request.is_disconnected():
-                    return
-
-                remaining = deadline - loop.time()
-                if remaining <= 0:
-                    yield f"data: {json.dumps({'estado': 'TIMEOUT'})}\n\n"
-                    return
-
-                message = await pubsub.get_message(
-                    ignore_subscribe_messages=True,
-                    timeout=min(15.0, remaining),
-                )
-                if message and message.get("type") == "message":
-                    yield f"data: {message['data']}\n\n"
-                    return
-
-                # Mantiene viva la conexiÃ³n para evitar cierres por inactividad.
-                yield ": keep-alive\n\n"
-
-        finally:
-            try:
-                await pubsub.unsubscribe(channel)
-                await r.aclose()
-            except Exception:
-                pass
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",   # desactiva buffer en Nginx/proxies
-            "Connection": "keep-alive",
-        },
     )
 
 
@@ -2238,8 +1930,6 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
     tenant_id = _tenant_id(request)
     tid = str(tenant_id)
 
-    # Order: children first, then parents (FK constraints)
-    # Tables with tenant_id column directly
     tenant_tables = [
         "icu_recipe_snapshot",
         "icu_recipe_draft",
@@ -2253,7 +1943,6 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
         "import_mappings",
         "import_column_mappings",
     ]
-    # Tables without tenant_id — delete via FK sub-select
     fk_tables = [
         ("imp_log_cambios", "documento_id", "SELECT id FROM imp_documento WHERE tenant_id = :tid"),
         ("import_attachments", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
@@ -2267,29 +1956,31 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
 
     deleted: dict[str, int] = {}
 
-    for tname, fk_col, sub_q in fk_tables:
+    for table_name, fk_column, subquery in fk_tables:
         try:
-            r = db.execute(
-                sql_text(f"DELETE FROM {tname} WHERE {fk_col} IN ({sub_q})"),
+            result = db.execute(
+                sql_text(f"DELETE FROM {table_name} WHERE {fk_column} IN ({subquery})"),
                 {"tid": tid},
             )
-            if r.rowcount:
-                deleted[tname] = r.rowcount
+            if result.rowcount:
+                deleted[table_name] = result.rowcount
         except Exception:
-            logger.debug("purge skip %s (may not exist)", tname, exc_info=True)
+            logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
 
-    for tname in tenant_tables:
+    for table_name in tenant_tables:
         try:
-            r = db.execute(
-                sql_text(f"DELETE FROM {tname} WHERE tenant_id = :tid"),
+            result = db.execute(
+                sql_text(f"DELETE FROM {table_name} WHERE tenant_id = :tid"),
                 {"tid": tid},
             )
-            if r.rowcount:
-                deleted[tname] = r.rowcount
+            if result.rowcount:
+                deleted[table_name] = result.rowcount
         except Exception:
-            logger.debug("purge skip %s (may not exist)", tname, exc_info=True)
+            logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
 
     db.commit()
     total = sum(deleted.values())
     logger.info("purge_all_importador tenant=%s deleted=%s", tenant_id, deleted)
     return {"deleted_total": total, "tables": deleted}
+
+

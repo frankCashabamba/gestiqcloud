@@ -180,6 +180,10 @@ export function useMisModulos() {
     let cancelled = false
 
     ;(async () => {
+      if (!cancelled) {
+        setLoading(true)
+        setError(null)
+      }
       try {
         let mods: Modulo[] = []
         if (empresa) {

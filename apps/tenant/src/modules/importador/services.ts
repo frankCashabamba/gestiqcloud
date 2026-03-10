@@ -37,15 +37,6 @@ export type LogCambio = {
   created_at: string
 }
 
-export type UploadResult = {
-  id: string
-  estado: string
-  tipo_documento_detectado?: string
-  confianza_clasificacion?: number
-  requiere_revision: boolean
-  datos_extraidos?: Record<string, unknown>
-}
-
 export type DashboardStats = {
   total: number
   pendientes: number
@@ -54,19 +45,11 @@ export type DashboardStats = {
   fallidos: number
 }
 
-export type RunResult = {
-  id: string
-  estado: string
-  tipo_documento_detectado?: string
-  confianza_clasificacion?: number
-  requiere_revision: boolean
-  datos_extraidos?: Record<string, unknown>
-  llm_model?: string
-  recipe_used?: string
-  recipe_snapshot_id?: string
-  auto_recipe_created?: boolean
-  auto_recipe_name?: string
-}
+let dashboardRequest: Promise<DashboardStats> | null = null
+let recipesRequest: Promise<Recipe[]> | null = null
+let docCategoryKeywordsRequest: Promise<void> | null = null
+let docCategoryKeywordsLoaded = false
+const importBatchListRequests = new Map<string, Promise<ImportBatch[]>>()
 
 export type Recipe = {
   id: string
@@ -181,15 +164,6 @@ function normalizeDocument(raw: unknown): Documento {
       : (typeof inferredDate === 'string' ? inferredDate : undefined),
     synced_sheets: normalizeSyncedSheets(data.synced_sheets),
   }
-}
-
-export async function uploadFiles(files: File[]): Promise<UploadResult[]> {
-  const form = new FormData()
-  files.forEach(f => form.append('files', f))
-  const { data } = await api.post(TENANT_IMPORTADOR.upload, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return data
 }
 
 export async function fetchDocuments(params?: {
@@ -512,14 +486,15 @@ export async function saveDocument(id: string, payload: SaveDocumentPayload): Pr
   }
 }
 
-export async function fetchLogs(docId: string): Promise<LogCambio[]> {
-  const { data } = await api.get(TENANT_IMPORTADOR.logs(docId))
-  return data
-}
-
 export async function fetchDashboard(): Promise<DashboardStats> {
-  const { data } = await api.get(TENANT_IMPORTADOR.dashboard)
-  return data
+  if (!dashboardRequest) {
+    dashboardRequest = api.get(TENANT_IMPORTADOR.dashboard)
+      .then(({ data }) => data as DashboardStats)
+      .finally(() => {
+        dashboardRequest = null
+      })
+  }
+  return dashboardRequest
 }
 
 export type AsyncRunResult = {
@@ -558,6 +533,13 @@ export type ImportBatch = {
   items?: ImportBatchItem[]
 }
 
+function getImportadorStreamToken(): string {
+  return sessionStorage.getItem('access_token_tenant')
+    || sessionStorage.getItem('authToken')
+    || localStorage.getItem('authToken')
+    || ''
+}
+
 // --- /run-async: encola via Celery, retorna PENDING inmediatamente ---
 export async function runImportAsync(
   files: File[],
@@ -579,8 +561,18 @@ export async function fetchImportBatches(opts?: { active_only?: boolean; limit?:
   const params: Record<string, string | number | boolean> = {}
   if (opts?.active_only != null) params.active_only = opts.active_only
   if (opts?.limit != null) params.limit = opts.limit
-  const { data } = await api.get(TENANT_IMPORTADOR.batches, { params })
-  return Array.isArray(data) ? data : []
+  const key = JSON.stringify(params)
+  const existing = importBatchListRequests.get(key)
+  if (existing) return existing
+
+  const request = api.get(TENANT_IMPORTADOR.batches, { params })
+    .then(({ data }) => Array.isArray(data) ? data as ImportBatch[] : [])
+    .finally(() => {
+      importBatchListRequests.delete(key)
+    })
+
+  importBatchListRequests.set(key, request)
+  return request
 }
 
 export async function fetchImportBatch(id: string): Promise<ImportBatch> {
@@ -588,129 +580,57 @@ export async function fetchImportBatch(id: string): Promise<ImportBatch> {
   return data
 }
 
-/** Espera el estado final de un documento via Server-Sent Events.
- *
- *  El backend suscribe a Redis pub/sub y pushea exactamente 1 evento cuando
- *  Celery termina la tarea. Cero polling HTTP → escala con cualquier volumen.
- *
- *  Si el navegador no soporta EventSource o la conexión falla, cae
- *  automáticamente a pollDocument() como fallback.
- */
-const TERMINAL_ESTADOS = new Set(['REVIEW', 'CONFIRMED', 'FAILED', 'REJECTED'])
-
-export function streamDocumentStatus(
+export function streamImportBatch(
   id: string,
-  opts?: { maxWaitMs?: number },
-): Promise<Documento> {
-  return new Promise((resolve, reject) => {
-    if (typeof EventSource === 'undefined') {
-      // Entorno sin soporte (Node, tests) → fallback directo
-      pollDocument(id, opts).then(resolve).catch(reject)
-      return
-    }
-
-    const token =
-      sessionStorage.getItem('access_token_tenant') ||
-      sessionStorage.getItem('authToken') ||
-      localStorage.getItem('authToken') ||
-      ''
-
-    if (!token) {
-      pollDocument(id, opts).then(resolve).catch(reject)
-      return
-    }
-
-    // En local la cola puede tardar bastante porque Celery suele correr con
-    // `--pool=solo`; mantenemos SSE mucho mÃ¡s tiempo antes de caer a polling.
-    const sseMaxWait = opts?.maxWaitMs ?? 7_200_000
-    const url = `/api/v1/importador/documents/${id}/stream?token=${encodeURIComponent(token)}`
-    const es = new EventSource(url)
-    let settled = false
-
-    const cleanup = (timer: ReturnType<typeof setTimeout>) => {
-      clearTimeout(timer)
-      es.close()
-    }
-
-    // Si el estado recibido es terminal → fetch completo; si no → poll hasta que lo sea
-    const resolveOrPoll = (estado: string | null, timer: ReturnType<typeof setTimeout>) => {
-      cleanup(timer)
-      if (estado && TERMINAL_ESTADOS.has(estado)) {
-        fetchDocument(id).then(resolve).catch(reject)
-      } else {
-        // Documento aún en cola (Celery ocupado) → polling liviano cada 15 s, sin límite corto
-        pollDocument(id, { intervalMs: 15_000, maxWaitMs: 7_200_000 }).then(resolve).catch(reject)
-      }
-    }
-
-    const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      // SSE expiró en cliente → el documento sigue en cola → polling
-      resolveOrPoll(null, timer)
-    }, sseMaxWait)
-
-    es.onmessage = (event) => {
-      if (settled) return
-      settled = true
-      let estado: string | null = null
-      try { estado = JSON.parse(event.data)?.estado ?? null } catch { /* noop */ }
-      resolveOrPoll(estado, timer)
-    }
-
-    es.onerror = () => {
-      if (settled) return
-      settled = true
-      cleanup(timer)
-      // SSE falló (ej. proxy no soporta streaming) → fallback a polling
-      pollDocument(id, opts).then(resolve).catch(reject)
-    }
-  })
-}
-
-/** Fallback: polling HTTP a GET /documents/{id} hasta estado terminal.
- *  Usar streamDocumentStatus() en su lugar siempre que sea posible. */
-export async function pollDocument(
-  id: string,
-  opts?: { intervalMs?: number; maxWaitMs?: number }
-): Promise<Documento> {
-  const interval = opts?.intervalMs ?? 2000
-  const maxWait = opts?.maxWaitMs ?? 300_000
-  const start = Date.now()
-
-  while (true) {
-    const doc = await fetchDocument(id)
-    if (doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING') {
-      return doc
-    }
-    if (Date.now() - start >= maxWait) {
-      throw new Error(`Timeout esperando documento ${id}`)
-    }
-    await new Promise(resolve => setTimeout(resolve, interval))
+  handlers: {
+    onMessage: (batch: ImportBatch) => void
+    onError?: () => void
   }
-}
+): () => void {
+  if (typeof EventSource === 'undefined') {
+    throw new Error('eventsource_not_supported')
+  }
 
-// --- /run (RB-01: recipe never required) ---
-export async function runImport(
-  files: File[],
-  opts?: { recipe_id?: string; recipe_snapshot_id?: string; recipe_draft?: Record<string, unknown>; force?: boolean }
-): Promise<RunResult[]> {
-  const form = new FormData()
-  files.forEach(f => form.append('files', f))
-  if (opts?.recipe_id) form.append('recipe_id', opts.recipe_id)
-  if (opts?.recipe_snapshot_id) form.append('recipe_snapshot_id', opts.recipe_snapshot_id)
-  if (opts?.recipe_draft) form.append('recipe_draft', JSON.stringify(opts.recipe_draft))
-  if (opts?.force) form.append('force', 'true')
-  const { data } = await api.post(TENANT_IMPORTADOR.run, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return data
+  const token = getImportadorStreamToken()
+  if (!token) {
+    throw new Error('missing_stream_token')
+  }
+
+  const streamUrl = `${TENANT_IMPORTADOR.batchStream(id)}?token=${encodeURIComponent(token)}`
+  const source = new EventSource(streamUrl)
+  let closed = false
+
+  source.onmessage = (event) => {
+    try {
+      handlers.onMessage(event.data ? JSON.parse(event.data) as ImportBatch : { id } as ImportBatch)
+    } catch {
+      // Ignore malformed keep-alives or transient payloads.
+    }
+  }
+
+  source.onerror = () => {
+    if (closed) return
+    closed = true
+    source.close()
+    handlers.onError?.()
+  }
+
+  return () => {
+    closed = true
+    source.close()
+  }
 }
 
 // --- Recipes ---
 export async function fetchRecipes(): Promise<Recipe[]> {
-  const { data } = await api.get(TENANT_IMPORTADOR.recipes)
-  return data
+  if (!recipesRequest) {
+    recipesRequest = api.get(TENANT_IMPORTADOR.recipes)
+      .then(({ data }) => data as Recipe[])
+      .finally(() => {
+        recipesRequest = null
+      })
+  }
+  return recipesRequest
 }
 
 export async function createRecipe(body: { name: string; description?: string; is_public?: boolean }): Promise<Recipe> {
@@ -754,21 +674,31 @@ export async function createSnapshot(draftId: string, versionTag?: string): Prom
 
 // --- Doc category keywords (from DB) ---
 export async function loadDocCategoryKeywords(): Promise<void> {
-  try {
-    const { data } = await api.get(TENANT_IMPORTADOR.docCategories)
-    if (data && typeof data === 'object') {
-      setDocCategoryKeywords(
-        Object.fromEntries(
-          Object.entries(data as Record<string, unknown>).map(([k, v]) => [
-            k,
-            Array.isArray(v) ? (v as string[]).map(s => String(s).toUpperCase()) : [],
-          ])
+  if (docCategoryKeywordsLoaded) return
+  if (docCategoryKeywordsRequest) return docCategoryKeywordsRequest
+
+  docCategoryKeywordsRequest = (async () => {
+    try {
+      const { data } = await api.get(TENANT_IMPORTADOR.docCategories)
+      if (data && typeof data === 'object') {
+        setDocCategoryKeywords(
+          Object.fromEntries(
+            Object.entries(data as Record<string, unknown>).map(([k, v]) => [
+              k,
+              Array.isArray(v) ? (v as string[]).map(s => String(s).toUpperCase()) : [],
+            ])
+          )
         )
-      )
+        docCategoryKeywordsLoaded = true
+      }
+    } catch {
+      // Keep using the local snapshot for non-critical UI hints.
+    } finally {
+      docCategoryKeywordsRequest = null
     }
-  } catch {
-    // Keep using the local snapshot — non-critical
-  }
+  })()
+
+  return docCategoryKeywordsRequest
 }
 
 // --- Daily Production Log ---
@@ -818,3 +748,4 @@ export async function fetchSaveCapabilities(): Promise<Record<string, boolean>> 
   const { data } = await api.get('/api/v1/importador/save-capabilities')
   return data
 }
+

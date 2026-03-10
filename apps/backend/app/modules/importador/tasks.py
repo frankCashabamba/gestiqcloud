@@ -5,7 +5,7 @@ Async flow:
      ImpDocumento(PENDING).
   2. importador.process_document processes the file and updates the document to
      REVIEW or FAILED.
-  3. The frontend waits on SSE or polls until the state becomes terminal.
+  3. The frontend tracks batch progress until the state becomes terminal.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _payload_path(doc_id: str | UUID) -> Path:
 
 
 def _get_redis():
-    """Return a sync Redis client for light pub/sub usage."""
+    """Return a sync Redis client used for legacy payload fallback."""
     import redis  # type: ignore
 
     url = os.getenv("REDIS_URL") or os.getenv("DEV_REDIS_URL") or "redis://localhost:6379/0"
@@ -80,17 +80,25 @@ def delete_payload(doc_id: str) -> None:
         pass
 
 
-def publish_status(doc_id: str, estado: str) -> None:
-    """Publish the final state via Redis pub/sub for the SSE endpoint."""
+def publish_batch_update(db, batch_id: UUID) -> None:
+    from app.modules.importador import crud
+
+    batch = crud.get_batch_any_tenant(db, batch_id)
+    if batch is None:
+        return
+
+    payload = crud.serialize_batch_detail(db, batch)
     try:
-        _get_redis().publish(f"imp:status:{doc_id}", json.dumps({"estado": estado}))
+        _get_redis().publish(f"imp:batch:{batch_id}", json.dumps(_json_safe(payload)))
     except Exception as exc:
-        logger.warning("pub/sub no disponible para doc %s: %s", doc_id, exc)
+        logger.warning("No se pudo publicar batch %s: %s", batch_id, exc)
 
 
 def _json_safe(obj):
     if isinstance(obj, (datetime.datetime, datetime.date)):
         return obj.isoformat()
+    if isinstance(obj, UUID):
+        return str(obj)
     if isinstance(obj, dict):
         return {k: _json_safe(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -136,6 +144,7 @@ async def _run_processing(
         crud.update_documento(db, doc, {"estado": "PROCESSING"})
         for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="PROCESSING"):
             crud.refresh_batch_status(db, batch_id)
+            publish_batch_update(db, batch_id)
         db.commit()
 
         try:
@@ -344,8 +353,8 @@ async def _run_processing(
             )
             for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="REVIEW"):
                 crud.refresh_batch_status(db, batch_id)
+                publish_batch_update(db, batch_id)
             db.commit()
-            publish_status(str(doc_id), "REVIEW")
             logger.info("Documento %s procesado correctamente -> REVIEW", doc_id)
 
         except Exception as exc:
@@ -359,8 +368,8 @@ async def _run_processing(
                 error_detalle=str(exc),
             ):
                 crud.refresh_batch_status(db, batch_id)
+                publish_batch_update(db, batch_id)
             db.commit()
-            publish_status(str(doc_id), "FAILED")
 
 
 def _make_task():
@@ -413,8 +422,8 @@ def _make_task():
                             error_detalle=msg,
                         ):
                             crud.refresh_batch_status(db, batch_id)
+                            publish_batch_update(db, batch_id)
                         db.commit()
-                        publish_status(doc_id, "FAILED")
             except Exception as exc:
                 logger.error("No se pudo marcar FAILED doc %s: %s", doc_id, exc)
             return {"ok": False, "error": msg}

@@ -92,7 +92,9 @@ export function SessionKeepAlive({
     return () => events.forEach((ev) => window.removeEventListener(ev, handler as any))
   }, [token, responseWindowMs, open])
 
-  const onContinue = async () => {
+  const onContinue = async (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault()
+    event?.stopPropagation()
     setBusy(true)
     clearAll()
     const ok = await refresh()
@@ -105,7 +107,9 @@ export function SessionKeepAlive({
     setRemaining(Math.floor(responseWindowMs / 1000))
     setRev((x) => x + 1)
   }
-  const onExit = async () => {
+  const onExit = async (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault()
+    event?.stopPropagation()
     setBusy(true)
     clearAll()
     setOpen(false)
@@ -123,10 +127,10 @@ export function SessionKeepAlive({
           {t.bodyPrefix} <span className="font-semibold">{remaining}{t.secondsSuffix}</span>. {t.question}
         </p>
         <div className="mt-6 flex justify-end gap-2">
-          <button disabled={busy} onClick={onExit} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm disabled:opacity-60">
+          <button type="button" disabled={busy} onClick={onExit} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm disabled:opacity-60">
             {t.exit}
           </button>
-          <button disabled={busy} onClick={onContinue} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-60">
+          <button type="button" disabled={busy} onClick={onContinue} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-60">
             {t.stay}
           </button>
         </div>

@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -266,6 +267,45 @@ def tenant_refresh(request: Request, response: Response, db: Session = Depends(g
         )
     except Exception:
         pass
+    def build_access_payload(refresh_payload: dict[str, object]) -> dict[str, object]:
+        raw_user_id = refresh_payload.get("user_id")
+        raw_tenant_id = refresh_payload.get("tenant_id")
+        if not isinstance(raw_user_id, str) or not raw_user_id:
+            raise HTTPException(status_code=401, detail="invalid_refresh_token")
+
+        try:
+            tenant_user_id = UUID(str(raw_user_id))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=401, detail="invalid_refresh_token")
+
+        user = (
+            db.query(CompanyUser)
+            .options(joinedload(CompanyUser.tenant))
+            .filter(CompanyUser.id == tenant_user_id)
+            .first()
+        )
+        if not user or not user.tenant_id:
+            raise HTTPException(status_code=401, detail="invalid_refresh_token")
+
+        tenant_scope_id = str(raw_tenant_id or user.tenant_id)
+        s = ensure_session(request)
+        s.update({"kind": "tenant", "tenant_user_id": str(user.id), "tenant_id": tenant_scope_id})
+        request.state.session_dirty = True
+        set_tenant_scope(request, tenant_scope_id)
+
+        try:
+            from sqlalchemy import text as _text
+
+            db.execute(_text("SET LOCAL app.tenant_id = :tid"), {"tid": tenant_scope_id})
+            db.info["tenant_id"] = tenant_scope_id
+        except Exception:
+            pass
+
+        claims = build_tenant_claims(db, user)
+        if not claims:
+            raise HTTPException(status_code=401, detail="invalid_refresh_token")
+        return claims
+
     res = rotate_refresh(
         request,
         response,
@@ -273,6 +313,7 @@ def tenant_refresh(request: Request, response: Response, db: Session = Depends(g
         repo=repo,
         expected_kind="tenant",
         cookie_path=refresh_cookie_path_tenant(),
+        build_access_payload=build_access_payload,
     )
     try:
         log.debug("tenant.refresh.ok")

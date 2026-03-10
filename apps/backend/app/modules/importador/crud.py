@@ -61,6 +61,18 @@ def get_batch(db: Session, batch_id: UUID, tenant_id: UUID) -> ImpBatchImport | 
     )
 
 
+def get_batch_any_tenant(db: Session, batch_id: UUID) -> ImpBatchImport | None:
+    return (
+        db.scalars(
+            select(ImpBatchImport)
+            .options(joinedload(ImpBatchImport.items))
+            .where(ImpBatchImport.id == batch_id)
+        )
+        .unique()
+        .first()
+    )
+
+
 def list_batches(
     db: Session,
     tenant_id: UUID,
@@ -160,6 +172,30 @@ def summarize_batch(db: Session, batch: ImpBatchImport) -> dict:
         "created_at": batch.created_at,
         "updated_at": batch.updated_at,
         "completed_at": batch.completed_at,
+    }
+
+
+def serialize_batch_items(batch: ImpBatchImport) -> list[dict]:
+    return [
+        {
+            "id": item.id,
+            "batch_id": item.batch_id,
+            "documento_id": item.documento_id,
+            "nombre_archivo": item.nombre_archivo,
+            "tamanio_bytes": item.tamanio_bytes,
+            "estado": item.estado,
+            "error_detalle": item.error_detalle,
+            "created_at": item.created_at,
+            "updated_at": item.updated_at,
+        }
+        for item in sorted(batch.items, key=lambda current: current.orden)
+    ]
+
+
+def serialize_batch_detail(db: Session, batch: ImpBatchImport) -> dict:
+    return {
+        **summarize_batch(db, batch),
+        "items": serialize_batch_items(batch),
     }
 
 
@@ -275,10 +311,3 @@ def add_log(
     db.flush()
     return log
 
-
-def get_logs(db: Session, documento_id: UUID):
-    return db.scalars(
-        select(ImpLogCambios)
-        .where(ImpLogCambios.documento_id == documento_id)
-        .order_by(ImpLogCambios.created_at.asc())
-    ).all()

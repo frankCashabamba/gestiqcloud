@@ -10,6 +10,10 @@ import {
   type SaveDocumentResult,
 } from '../services'
 
+// Docs en PROCESSING/PENDING más viejos que esto son considerados atascados
+// y no activan el banner ni el polling de actualización automática.
+const STALE_THRESHOLD_MS = 30 * 60 * 1000
+
 export default function DocumentList() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -77,8 +81,18 @@ export default function DocumentList() {
   }
 
   const activeDocs = useMemo(() => docs, [docs])
-  const processingCount = useMemo(() => activeDocs.filter((doc) => doc.estado === 'PROCESSING').length, [activeDocs])
-  const pendingCount = useMemo(() => activeDocs.filter((doc) => doc.estado === 'PENDING').length, [activeDocs])
+  const processingCount = useMemo(() => {
+    const cutoff = Date.now() - STALE_THRESHOLD_MS
+    return activeDocs.filter(
+      (doc) => doc.estado === 'PROCESSING' && new Date(doc.updated_at || doc.created_at).getTime() > cutoff
+    ).length
+  }, [activeDocs])
+  const pendingCount = useMemo(() => {
+    const cutoff = Date.now() - STALE_THRESHOLD_MS
+    return activeDocs.filter(
+      (doc) => doc.estado === 'PENDING' && new Date(doc.created_at).getTime() > cutoff
+    ).length
+  }, [activeDocs])
   const backgroundActive = processingCount > 0 || pendingCount > 0
 
   useEffect(() => {

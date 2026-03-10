@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, Literal
 
 from fastapi import Request, Response
@@ -50,6 +50,7 @@ def rotate_refresh(
     repo: RefreshTokenRepo,
     expected_kind: Literal["admin", "tenant"],
     cookie_path: str,
+    build_access_payload: Callable[[Mapping[str, object]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Common refresh rotation flow shared by admin and tenant endpoints."""
     logger = logging.getLogger("app.auth.refresh")
@@ -162,7 +163,13 @@ def rotate_refresh(
         # Propaga tenant_id si venía en el refresh (para claims completos en access)
         "tenant_id": payload.get("tenant_id"),
     }
-    access = token_service.issue_access({**minimal, "kind": expected_kind})
+    access_payload = (
+        dict(build_access_payload(payload) or {})
+        if build_access_payload is not None
+        else {**minimal, "kind": expected_kind}
+    )
+    access_payload.setdefault("kind", expected_kind)
+    access = token_service.issue_access(access_payload)
     new_refresh = token_service.issue_refresh(
         {**minimal, "kind": expected_kind, "family_id": family_id},
         jti=new_jti,

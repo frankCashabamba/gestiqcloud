@@ -111,3 +111,37 @@ def test_tenant_modulos_list_returns_array(client: TestClient, seeded_modulos):
     # Debe traer al menos el módulo asignado al usuario
     assert len(data) >= 1
     assert {"id", "name"}.issubset(data[0].keys())
+
+
+def test_tenant_refresh_keeps_admin_module_visibility(client: TestClient, seeded_modulos):
+    usuario, _, _ = seeded_modulos
+
+    rlogin = client.post(
+        "/api/v1/tenant/auth/login",
+        json={"identificador": usuario.email, "password": "tenant123"},
+    )
+    assert rlogin.status_code == 200, rlogin.text
+
+    initial_token = rlogin.json().get("access_token")
+    assert initial_token
+    initial_modules = client.get(
+        "/api/v1/modules/",
+        headers={"Authorization": f"Bearer {initial_token}"},
+    )
+    assert initial_modules.status_code == 200, initial_modules.text
+    assert len(initial_modules.json()) >= 2
+
+    refresh_token = rlogin.cookies.get("refresh_token")
+    assert refresh_token
+    client.cookies.set("refresh_token", refresh_token)
+    rrefresh = client.post("/api/v1/tenant/auth/refresh")
+    assert rrefresh.status_code == 200, rrefresh.text
+
+    refreshed_token = rrefresh.json().get("access_token")
+    assert refreshed_token
+    refreshed_modules = client.get(
+        "/api/v1/modules/",
+        headers={"Authorization": f"Bearer {refreshed_token}"},
+    )
+    assert refreshed_modules.status_code == 200, refreshed_modules.text
+    assert len(refreshed_modules.json()) >= 2

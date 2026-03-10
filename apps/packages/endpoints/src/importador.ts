@@ -1,6 +1,4 @@
 export const TENANT_IMPORTADOR = {
-  upload: '/api/v1/importador/upload',
-  run: '/api/v1/importador/run',
   runAsync: '/api/v1/importador/run-async',
   documents: '/api/v1/importador/documents',
   documentById: (id: string) => `/api/v1/importador/documents/${id}`,
@@ -11,10 +9,10 @@ export const TENANT_IMPORTADOR = {
   syncRecipes: (id: string) => `/api/v1/importador/documents/${id}/sync_recipes`,
   edit: (id: string) => `/api/v1/importador/documents/${id}/edit`,
   reject: (id: string) => `/api/v1/importador/documents/${id}/reject`,
-  logs: (id: string) => `/api/v1/importador/documents/${id}/logs`,
   dashboard: '/api/v1/importador/dashboard',
   batches: '/api/v1/importador/batches',
   batchById: (id: string) => `/api/v1/importador/batches/${id}`,
+  batchStream: (id: string) => `/api/v1/importador/batches/${id}/stream`,
   docCategories: '/api/v1/importador/doc-categories',
   // Recipes
   recipes: '/api/v1/importador/recipes',

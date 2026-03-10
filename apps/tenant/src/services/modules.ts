@@ -10,7 +10,8 @@ const cache = new Map<string, CacheEntry>()
 function normalize(data: any): Modulo[] {
   if (Array.isArray(data)) return data
   if (data && Array.isArray(data.items)) return data.items
-  return []
+  if (data == null) return []
+  throw new Error("Invalid modules response")
 }
 
 function isFresh(entry?: CacheEntry) {

@@ -67,7 +67,12 @@ celery_app = Celery(
 sys.modules.setdefault("app.celery_app", sys.modules[__name__])
 sys.modules.setdefault("apps.backend.celery_app", sys.modules[__name__])
 
+_on_windows = sys.platform == "win32"
+_celery_pool = os.getenv("CELERY_POOL", "solo" if _on_windows else "prefork")
+
 celery_app.conf.update(
+    # En Windows, billiard no puede crear semáforos de sistema → usar pool solo
+    worker_pool=_celery_pool,
     task_default_queue="default",
     task_queues={
         "sri": {},
