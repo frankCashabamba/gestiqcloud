@@ -555,9 +555,97 @@ export default function ImportUploader({
 
   return (
     <>
-      <style>{'@keyframes spin { to { transform: rotate(360deg) } }'}</style>
-      <div style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f8faff 100%)', border: '1px solid #e5e7eb', borderRadius: 24, padding: '1.15rem', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.06)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg) } }
+
+        @media (max-width: 960px) {
+          .import-uploader {
+            padding: 1rem !important;
+            border-radius: 20px !important;
+          }
+          .import-uploader__dropzone-title {
+            font-size: 26px !important;
+          }
+          .import-uploader__dropzone-subtitle {
+            font-size: 14px !important;
+          }
+          .import-uploader__status-title {
+            font-size: 16px !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .import-uploader {
+            padding: 0.85rem !important;
+            border-radius: 18px !important;
+          }
+          .import-uploader__top {
+            gap: 0.85rem !important;
+            margin-bottom: 0.85rem !important;
+          }
+          .import-uploader__tabs {
+            width: 100%;
+          }
+          .import-uploader__tabs button {
+            flex: 1;
+          }
+          .import-uploader__dropzone {
+            padding: 1.3rem 0.95rem !important;
+            border-radius: 20px !important;
+          }
+          .import-uploader__dropzone-title {
+            font-size: 23px !important;
+          }
+          .import-uploader__dropzone-subtitle {
+            font-size: 13px !important;
+          }
+          .import-uploader__panel {
+            padding: 0.85rem !important;
+          }
+          .import-uploader__status {
+            padding: 0.85rem !important;
+          }
+          .import-uploader__status-progress {
+            min-width: 100% !important;
+            max-width: none !important;
+          }
+          .import-uploader__section {
+            padding: 0.8rem !important;
+          }
+          .import-uploader__entry {
+            grid-template-columns: auto minmax(0, 1fr) !important;
+            gap: 0.75rem !important;
+            padding: 0.75rem !important;
+          }
+          .import-uploader__entry-actions {
+            grid-column: 1 / -1;
+            justify-content: flex-start !important;
+            padding-left: 3rem;
+            margin-top: -0.15rem;
+          }
+          .import-uploader__controls {
+            flex-direction: column;
+            align-items: stretch !important;
+            padding: 0.75rem !important;
+          }
+          .import-uploader__controls > * {
+            width: 100%;
+          }
+          .import-uploader__select {
+            min-width: 0 !important;
+            width: 100%;
+          }
+          .import-uploader__checkbox {
+            width: 100%;
+          }
+          .import-uploader__cta {
+            min-height: 52px !important;
+            font-size: 14px !important;
+          }
+        }
+      `}</style>
+      <div className="import-uploader" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f8faff 100%)', border: '1px solid #e5e7eb', borderRadius: 24, padding: '1.15rem', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.06)', position: 'relative', overflow: 'hidden' }}>
+        <div className="import-uploader__top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: 4 }}>
               Preparar importacion
@@ -569,7 +657,7 @@ export default function ImportUploader({
               {entries.length > 0 ? 'Puedes seguir agregando archivos mientras el sistema procesa en segundo plano.' : 'Arrastra archivos, haz clic para seleccionarlos y lanza la importacion cuando este todo listo.'}
             </div>
           </div>
-          <div style={{ display: 'inline-flex', gap: '0.55rem', padding: '0.35rem', borderRadius: 16, border: '1px solid #dbeafe', background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)' }}>
+          <div className="import-uploader__tabs" style={{ display: 'inline-flex', gap: '0.55rem', padding: '0.35rem', borderRadius: 16, border: '1px solid #dbeafe', background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)' }}>
             {(['files', 'folder'] as ImportMode[]).map((itemMode) => (
               <button
                 key={itemMode}
@@ -603,6 +691,7 @@ export default function ImportUploader({
 
         {mode === 'files' && (
           <div
+            className="import-uploader__dropzone"
             onDragOver={(e) => { e.preventDefault(); if (!processing) setDragging(true) }}
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
@@ -624,8 +713,8 @@ export default function ImportUploader({
               +
             </div>
             <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#6366f1' }}>Zona de carga</p>
-            <p style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Arrastra tus archivos aqui</p>
-            <p style={{ fontSize: 15, color: '#475569', margin: '0 0 1rem' }}>o haz clic para seleccionarlos manualmente</p>
+            <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Arrastra tus archivos aqui</p>
+            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: '0 0 1rem' }}>o haz clic para seleccionarlos manualmente</p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
               {['PDF', 'JPG/PNG', 'Excel', 'CSV', 'XML', 'TXT'].map((label) => (
                 <span key={label} style={{ padding: '0.22rem 0.55rem', borderRadius: 999, background: '#fff', border: '1px solid #e5e7eb', color: '#64748b', fontSize: 11, fontWeight: 700 }}>
@@ -642,6 +731,7 @@ export default function ImportUploader({
 
         {mode === 'folder' && (
           <div
+            className="import-uploader__dropzone"
             onClick={() => !processing && folderRef.current?.click()}
             style={{
               border: '2px dashed #d1d5db',
@@ -656,20 +746,20 @@ export default function ImportUploader({
               F
             </div>
             <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#0284c7' }}>Carga por carpeta</p>
-            <p style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Importacion por carpeta</p>
-            <p style={{ fontSize: 15, color: '#475569', margin: 0 }}>Procesa todos los archivos compatibles contenidos en una misma carpeta</p>
+            <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Importacion por carpeta</p>
+            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: 0 }}>Procesa todos los archivos compatibles contenidos en una misma carpeta</p>
             <input ref={folderRef} type="file" multiple onChange={onFolderChange} style={{ display: 'none' }} {...directoryInputProps} />
           </div>
         )}
 
         {entries.length > 0 && (
-          <div style={{ marginTop: '1rem', border: '1px solid #E5E7EB', borderRadius: 18, padding: '1rem', background: 'linear-gradient(180deg, #ffffff 0%, #fafbff 100%)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '0.95rem 1rem', borderRadius: 16, border: '1px solid #c7d2fe', background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)' }}>
+          <div className="import-uploader__panel" style={{ marginTop: '1rem', border: '1px solid #E5E7EB', borderRadius: 18, padding: '1rem', background: 'linear-gradient(180deg, #ffffff 0%, #fafbff 100%)' }}>
+            <div className="import-uploader__status" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '0.95rem 1rem', borderRadius: 16, border: '1px solid #c7d2fe', background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)' }}>
               <div style={{ flex: 1, minWidth: 260 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: 4 }}>
                   Estado actual
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                <div className="import-uploader__status-title" style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
                   {headerTitle}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 12, color: '#4f46e5' }}>
@@ -685,7 +775,7 @@ export default function ImportUploader({
                   ))}
                 </div>
               </div>
-              <div style={{ minWidth: 220, maxWidth: 280, flex: '0 0 auto' }}>
+              <div className="import-uploader__status-progress" style={{ minWidth: 220, maxWidth: 280, flex: '0 0 auto' }}>
                 {(processing || activeCount > 0 || completedCount > 0 || errorCount > 0 || activeBatch) && (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12, color: '#6366f1', fontWeight: 700 }}>
@@ -713,7 +803,7 @@ export default function ImportUploader({
                 { key: 'queue', title: 'En curso', subtitle: 'Archivos procesandose o pendientes de envio', entries: queueEntries },
                 { key: 'errors', title: 'Errores', subtitle: 'Archivos que requieren una nueva subida o revision', entries: errorEntries },
               ].filter((section) => section.entries.length > 0).map((section) => (
-                <div key={section.key} style={{ border: '1px solid #E5E7EB', borderRadius: 18, background: '#fff', padding: '0.9rem', boxShadow: '0 10px 22px rgba(15, 23, 42, 0.03)' }}>
+                <div className="import-uploader__section" key={section.key} style={{ border: '1px solid #E5E7EB', borderRadius: 18, background: '#fff', padding: '0.9rem', boxShadow: '0 10px 22px rgba(15, 23, 42, 0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{section.title}</div>
@@ -734,6 +824,7 @@ export default function ImportUploader({
                             : { bg: '#eef2ff', border: '#c7d2fe', badge: '#e0e7ff', color: '#3730a3' }
                       return (
                         <div
+                          className="import-uploader__entry"
                           key={trackedEntryKey(entry)}
                           style={{
                             display: 'grid',
@@ -771,7 +862,7 @@ export default function ImportUploader({
                               {entry.status === 'done' && <span style={{ color: tone.color }}>Se retira de la bandeja al abrirlo</span>}
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          <div className="import-uploader__entry-actions" style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             {entry.status === 'done' && (entry.docId || entry.result?.id) && (
                               <button
                                 onClick={() => {
@@ -802,10 +893,11 @@ export default function ImportUploader({
           </div>
         )}
 
-        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
+        <div className="import-uploader__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
           <div>
             <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Plantilla / Receta <span style={{ color: '#d1d5db' }}>opcional</span></div>
             <select
+              className="import-uploader__select"
               value={selectedRecipeId}
               onChange={(e) => setSelectedRecipeId(e.target.value)}
               disabled={processing}
@@ -817,6 +909,7 @@ export default function ImportUploader({
           </div>
           {selectedRecipeId && snapshots.length > 0 && (
             <select
+              className="import-uploader__select"
               value={selectedSnapshotId}
               onChange={(e) => setSelectedSnapshotId(e.target.value)}
               disabled={processing}
@@ -829,7 +922,7 @@ export default function ImportUploader({
               ))}
             </select>
           )}
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: 12, color: '#6b7280', cursor: processing ? 'default' : 'pointer', userSelect: 'none', padding: '0.72rem 0.85rem', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', minHeight: 46 }}>
+          <label className="import-uploader__checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: 12, color: '#6b7280', cursor: processing ? 'default' : 'pointer', userSelect: 'none', padding: '0.72rem 0.85rem', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', minHeight: 46 }}>
             <input
               type="checkbox"
               checked={forceReprocess}
@@ -843,6 +936,7 @@ export default function ImportUploader({
         </div>
 
         <button
+          className="import-uploader__cta"
           onClick={handleRun}
           disabled={pendingCount === 0 || processing}
           style={{

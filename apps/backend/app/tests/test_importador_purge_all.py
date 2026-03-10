@@ -49,9 +49,7 @@ def test_purge_all_importador_removes_batches_and_items(db, tenant_minimal):
     db.add(batch_item)
     db.commit()
 
-    request = SimpleNamespace(
-        state=SimpleNamespace(access_claims={"tenant_id": str(tenant_id)})
-    )
+    request = SimpleNamespace(state=SimpleNamespace(access_claims={"tenant_id": str(tenant_id)}))
 
     result = purge_all_importador(request, db)
 
