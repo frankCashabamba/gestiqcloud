@@ -18,11 +18,20 @@ from PIL import Image
 
 logger = logging.getLogger("importador.ocr")
 
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except Exception:
+    logger.debug("pillow-heif no disponible; HEIC/HEIF pueden no abrirse", exc_info=True)
+
 SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".png",
     ".jpg",
     ".jpeg",
+    ".heic",
+    ".heif",
     ".tiff",
     ".bmp",
     ".gif",
@@ -33,7 +42,7 @@ SUPPORTED_EXTENSIONS = {
     ".txt",
     ".zip",
 }
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".heic", ".heif", ".tiff", ".bmp", ".gif"}
 
 # UBL 2.1 namespaces
 _UBL_NS = {
@@ -57,6 +66,8 @@ def detect_file_type(filename: str) -> str:
         ".jpg": "JPG",
         ".jpeg": "JPG",
         ".png": "PNG",
+        ".heic": "IMG",
+        ".heif": "IMG",
         ".tiff": "IMG",
         ".bmp": "IMG",
         ".gif": "IMG",

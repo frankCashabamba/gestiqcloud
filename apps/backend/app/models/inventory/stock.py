@@ -10,12 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
 
-
-def _uuid_col():
-    try:
-        return PGUUID(as_uuid=True)
-    except Exception:
-        return String
+UUID_TYPE = PGUUID(as_uuid=True)
+SQLITE_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 
 class StockItem(Base):
@@ -25,14 +21,14 @@ class StockItem(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(
-        _uuid_col(),
+        SQLITE_UUID,
         primary_key=True,
         default=lambda: uuid4(),
         server_default=sa_text("gen_random_uuid()"),
     )
-    tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
-    warehouse_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
-    product_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
+    tenant_id: Mapped[str] = mapped_column(SQLITE_UUID, index=True)
+    warehouse_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False)
+    product_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False)
     # DB column is now 'qty' (modernized)
     qty: Mapped[float] = mapped_column("qty", Numeric, default=0)
     location: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -43,16 +39,16 @@ class StockMove(Base):
     __tablename__ = "stock_moves"
 
     id: Mapped[str] = mapped_column(
-        _uuid_col(),
+        SQLITE_UUID,
         primary_key=True,
         # Python-side default for when server func isn't available (e.g., SQLite)
         default=lambda: __import__("uuid").uuid4(),
         # Server-side default for Postgres so ORM inserts don't need to pass id
         server_default=sa_text("gen_random_uuid()"),
     )
-    tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
-    product_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
-    warehouse_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
+    tenant_id: Mapped[str] = mapped_column(SQLITE_UUID, index=True)
+    product_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False)
+    warehouse_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False)
     qty: Mapped[float] = mapped_column(Numeric, nullable=False)
     kind: Mapped[str] = mapped_column(String, nullable=False)
     tentative: Mapped[bool] = mapped_column(default=False)
@@ -68,14 +64,14 @@ class InventoryCostState(Base):
     __tablename__ = "inventory_cost_state"
 
     id: Mapped[str] = mapped_column(
-        _uuid_col(),
+        SQLITE_UUID,
         primary_key=True,
         default=lambda: uuid4(),
         server_default=sa_text("gen_random_uuid()"),
     )
-    tenant_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False, index=True)
-    warehouse_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False, index=True)
-    product_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False, index=True)
+    tenant_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False, index=True)
+    warehouse_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False, index=True)
+    product_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False, index=True)
     on_hand_qty: Mapped[float] = mapped_column(Numeric, default=0)
     avg_cost: Mapped[float] = mapped_column(Numeric(12, 6), default=0)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

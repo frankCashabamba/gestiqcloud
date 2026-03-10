@@ -9,12 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
 
-
-def _uuid_col():
-    try:
-        return PGUUID(as_uuid=True)
-    except Exception:
-        return String  # SQLite/tests fallback
+UUID_TYPE = PGUUID(as_uuid=True)
+SQLITE_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 
 class Warehouse(Base):
@@ -22,7 +18,7 @@ class Warehouse(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(
-        _uuid_col(),
+        SQLITE_UUID,
         primary_key=True,
         # Python-side default for tests/SQLite and client-side generation
         default=lambda: uuid4(),
@@ -30,7 +26,7 @@ class Warehouse(Base):
         server_default=sa_text("gen_random_uuid()"),
     )
     tenant_id: Mapped[str] = mapped_column(
-        _uuid_col(), ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+        SQLITE_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), index=True
     )
     code: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)

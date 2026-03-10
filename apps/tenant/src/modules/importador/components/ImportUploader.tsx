@@ -28,9 +28,9 @@ type FileEntry = {
 type PersistedFileEntry = Omit<FileEntry, 'file'>
 type DirectoryInputProps = React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory?: string }
 
-const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.xlsx,.xls,.csv,.xml,.txt'
+const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.heic,.heif,.xlsx,.xls,.csv,.xml,.txt'
 const ACCEPTED_EXTENSIONS = new Set([
-  '.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.xlsx', '.xls', '.csv', '.xml', '.txt',
+  '.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.heic', '.heif', '.xlsx', '.xls', '.csv', '.xml', '.txt',
 ])
 const EXCEL_EXTENSIONS = new Set(['.xlsx', '.xls'])
 const MAX_IMPORT_FILE_SIZE_MB = 16
@@ -44,6 +44,8 @@ const FILE_ICONS: Record<string, string> = {
   '.jpg': 'IMG',
   '.jpeg': 'IMG',
   '.png': 'IMG',
+  '.heic': 'IMG',
+  '.heif': 'IMG',
   '.xlsx': 'XLS',
   '.xls': 'XLS',
   '.csv': 'CSV',
@@ -716,7 +718,7 @@ export default function ImportUploader({
             <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Arrastra tus archivos aqui</p>
             <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: '0 0 1rem' }}>o haz clic para seleccionarlos manualmente</p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-              {['PDF', 'JPG/PNG', 'Excel', 'CSV', 'XML', 'TXT'].map((label) => (
+              {['PDF', 'JPG/PNG', 'HEIC', 'Excel', 'CSV', 'XML', 'TXT'].map((label) => (
                 <span key={label} style={{ padding: '0.22rem 0.55rem', borderRadius: 999, background: '#fff', border: '1px solid #e5e7eb', color: '#64748b', fontSize: 11, fontWeight: 700 }}>
                   {label}
                 </span>
