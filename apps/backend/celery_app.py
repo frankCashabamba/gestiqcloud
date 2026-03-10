@@ -47,11 +47,14 @@ def _redis_url() -> str:
             print(f"❌ ERROR: {error_msg}", file=sys.stderr)
             raise RuntimeError(error_msg)
 
-    # Validate no localhost in production
+    # Validate no localhost in production (unless explicitly allowed for single-server deploys)
     if environment == "production" and ("localhost" in url or "127.0.0.1" in url):
-        error_msg = f"REDIS_URL points to localhost in production: {url}"
-        print(f"❌ CRITICAL: {error_msg}", file=sys.stderr)
-        raise RuntimeError(error_msg)
+        if os.getenv("ALLOW_LOCAL_REDIS_IN_PROD", "").lower() in ("1", "true", "yes"):
+            print("⚠️  REDIS_URL points to localhost in production (allowed via ALLOW_LOCAL_REDIS_IN_PROD)", file=sys.stderr)
+        else:
+            error_msg = f"REDIS_URL points to localhost in production: {url}"
+            print(f"❌ CRITICAL: {error_msg}", file=sys.stderr)
+            raise RuntimeError(error_msg)
 
     return url
 

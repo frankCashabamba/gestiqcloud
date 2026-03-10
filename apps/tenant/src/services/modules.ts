@@ -1,4 +1,6 @@
-import { apiFetch } from "../lib/http";
+import { apiFetch } from '../lib/http'
+import { isNetworkIssue } from '../lib/offlineHttp'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../lib/offlineResourceCache'
 
 export type Modulo = { id: string; name: string; url?: string; slug?: string; icono?: string; categoria?: string; active: boolean };
 
@@ -20,16 +22,26 @@ function isFresh(entry?: CacheEntry) {
 
 async function fetchWithCache(key: string, fn: () => Promise<any>): Promise<Modulo[]> {
   const cached = cache.get(key)
+  const persisted = readCachedResource<Modulo[]>(key)
   if (isFresh(cached)) return cached!.data
   if (cached?.inflight) return cached.inflight
+  if (!cached && persisted) {
+    cache.set(key, { ts: Date.now(), data: persisted })
+  }
 
   const inflight = fn()
     .then((res) => {
       const data = normalize(res)
       cache.set(key, { ts: Date.now(), data })
+      writeCachedResource(key, data)
       return data
     })
     .catch((err) => {
+      const fallback = cached?.data?.length ? cached.data : persisted
+      if (fallback?.length && isNetworkIssue(err)) {
+        cache.set(key, { ts: Date.now(), data: fallback })
+        return fallback
+      }
       cache.delete(key)
       throw err
     })
@@ -38,12 +50,17 @@ async function fetchWithCache(key: string, fn: () => Promise<any>): Promise<Modu
   return inflight
 }
 
+function authModulesCacheKey(authToken?: string) {
+  const tokenScope = authToken ? authToken.slice(-16) : getOfflineCacheScope()
+  return `modules:mine:${tokenScope}`
+}
+
 // Endpoint oficial: GET /api/v1/modules (lista asignada al usuario actual)
 export const listMisModulos = (authToken?: string) =>
-  fetchWithCache('auth-modulos', () => apiFetch<Modulo[]>("/api/v1/modules", { authToken }))
+  fetchWithCache(authModulesCacheKey(authToken), () => apiFetch<Modulo[]>('/api/v1/modules', { authToken }))
 
 export const listModulosSeleccionablesPorEmpresa = (empresaSlug: string) => {
-  const key = `empresa-${empresaSlug}`
+  const key = `modules:company:${getOfflineCacheScope(empresaSlug)}`
   return fetchWithCache(
     key,
     () => apiFetch<Modulo[]>(`/api/v1/modules/company/${encodeURIComponent(empresaSlug)}/selectable`)

@@ -6,6 +6,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../lib/http'
+import { isNetworkIssue } from '../lib/offlineHttp'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../lib/offlineResourceCache'
 
 export interface DashboardKPIs {
   periodo: string
@@ -254,6 +256,10 @@ const normalizeKPIs = (payload: any) => {
   return normalized
 }
 
+function dashboardCacheKey(scope: string) {
+  return `dashboard-kpis:${getOfflineCacheScope(scope)}`
+}
+
 export function useDashboardKPIs(options: UseDashboardKPIsOptions = {}) {
   const { periodo = 'today', autoRefresh = false, refreshInterval = 60000, enabled = true } = options
   const { token } = useAuth()
@@ -268,11 +274,21 @@ export function useDashboardKPIs(options: UseDashboardKPIsOptions = {}) {
       return
     }
 
+    const cacheKey = dashboardCacheKey(`default:${periodo}`)
+
     try {
       setError(null)
       const result = await apiFetch<DashboardKPIs>('/api/v1/dashboard/kpis', { authToken: token })
-      setData(normalizeKPIs(result))
+      const normalized = normalizeKPIs(result)
+      setData(normalized)
+      writeCachedResource(cacheKey, normalized)
     } catch (err) {
+      const cached = readCachedResource<DashboardKPIs>(cacheKey)
+      if (cached && isNetworkIssue(err)) {
+        setData(normalizeKPIs(cached))
+        setError(null)
+        return
+      }
       if ((err as any)?.status === 404) {
         // Endpoint podría no estar implementado en algunas instalaciones
         setData(null)
@@ -319,13 +335,23 @@ export function useTallerKPIs(options: { enabled?: boolean } = {}) {
       return
     }
 
+    const cacheKey = dashboardCacheKey('taller')
+
     const fetchTallerKPIs = async () => {
       try {
         const result = await apiFetch<TallerKPIs>('/api/v1/dashboard/kpis?sector=taller', {
           authToken: token,
         })
-        setData(normalizeKPIs(result))
+        const normalized = normalizeKPIs(result)
+        setData(normalized)
+        writeCachedResource(cacheKey, normalized)
       } catch (err) {
+        const cached = readCachedResource<TallerKPIs>(cacheKey)
+        if (cached && isNetworkIssue(err)) {
+          setData(normalizeKPIs(cached))
+          setError(null)
+          return
+        }
         setError(err instanceof Error ? err.message : 'Error al cargar KPIs de taller')
       } finally {
         setLoading(false)
@@ -354,13 +380,23 @@ export function usePanaderiaKPIs(options: { enabled?: boolean } = {}) {
       return
     }
 
+    const cacheKey = dashboardCacheKey('panaderia')
+
     const fetchPanaderiaKPIs = async () => {
       try {
         const result = await apiFetch<PanaderiaKPIs>('/api/v1/dashboard/kpis?sector=panaderia', {
           authToken: token,
         })
-        setData(normalizeKPIs(result))
+        const normalized = normalizeKPIs(result)
+        setData(normalized)
+        writeCachedResource(cacheKey, normalized)
       } catch (err) {
+        const cached = readCachedResource<PanaderiaKPIs>(cacheKey)
+        if (cached && isNetworkIssue(err)) {
+          setData(normalizeKPIs(cached))
+          setError(null)
+          return
+        }
         setError(err instanceof Error ? err.message : 'Error al cargar KPIs de panadería')
       } finally {
         setLoading(false)
