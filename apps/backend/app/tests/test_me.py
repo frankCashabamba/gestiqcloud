@@ -48,7 +48,9 @@ def test_me_tenant_ok(client: TestClient, db, usuario_empresa_factory):
     assert data.get("tenant_id") is not None
 
 
-def test_me_tenant_marks_legacy_onboarding_as_complete(client: TestClient, db, usuario_empresa_factory):
+def test_me_tenant_marks_legacy_onboarding_as_complete(
+    client: TestClient, db, usuario_empresa_factory
+):
     from app.models.company.company_settings import CompanySettings
 
     test_password = secrets.token_urlsafe(12)

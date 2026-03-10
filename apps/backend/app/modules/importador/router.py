@@ -1754,7 +1754,9 @@ async def batch_status_stream(
     )
 
 
-def _sync_batch_projection(db: Session, doc_id: UUID, estado: str, error_detalle: str | None = None) -> None:
+def _sync_batch_projection(
+    db: Session, doc_id: UUID, estado: str, error_detalle: str | None = None
+) -> None:
     from .tasks import publish_batch_update
 
     for batch_id in crud.touch_batch_items_for_document(
@@ -1887,7 +1889,6 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
     return None, 1.0
 
 
-
 # ---------------------------------------------------------------------------
 # Async upload via Celery (run-async)
 # ---------------------------------------------------------------------------
@@ -1931,6 +1932,8 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
     tid = str(tenant_id)
 
     tenant_tables = [
+        "imp_batch_item",
+        "imp_batch_import",
         "icu_recipe_snapshot",
         "icu_recipe_draft",
         "imp_documento",
@@ -1982,5 +1985,3 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
     total = sum(deleted.values())
     logger.info("purge_all_importador tenant=%s deleted=%s", tenant_id, deleted)
     return {"deleted_total": total, "tables": deleted}
-
-

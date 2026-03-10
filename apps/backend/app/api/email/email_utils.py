@@ -147,32 +147,112 @@ def verificar_token_email(token: str, max_age: int = 3600) -> str:
 
 _SECTOR_STEPS: dict[str, list[dict]] = {
     "panaderia": [
-        {"icon": "🌾", "titulo": "Cargá tus ingredientes", "detalle": "Registrá harina, azúcar, huevos, etc. con la unidad correcta (kg, L, uds)"},
-        {"icon": "📋", "titulo": "Creá tus recetas", "detalle": "Definí ingredientes, cantidades y el sistema calculará el costo y precio sugerido automáticamente"},
-        {"icon": "🛒", "titulo": "Registrá tu primera compra", "detalle": "Al recibir la compra, el stock y el costo promedio se actualizan solos"},
-        {"icon": "🏭", "titulo": "Ejecutá una orden de producción", "detalle": "El sistema descuenta los ingredientes según la receta y agrega el producto terminado al stock"},
-        {"icon": "🧾", "titulo": "Abrí tu caja y vendé", "detalle": "Usá el POS para registrar ventas. Al cerrar turno se genera el asiento contable automáticamente"},
+        {
+            "icon": "🌾",
+            "titulo": "Cargá tus ingredientes",
+            "detalle": "Registrá harina, azúcar, huevos, etc. con la unidad correcta (kg, L, uds)",
+        },
+        {
+            "icon": "📋",
+            "titulo": "Creá tus recetas",
+            "detalle": "Definí ingredientes, cantidades y el sistema calculará el costo y precio sugerido automáticamente",
+        },
+        {
+            "icon": "🛒",
+            "titulo": "Registrá tu primera compra",
+            "detalle": "Al recibir la compra, el stock y el costo promedio se actualizan solos",
+        },
+        {
+            "icon": "🏭",
+            "titulo": "Ejecutá una orden de producción",
+            "detalle": "El sistema descuenta los ingredientes según la receta y agrega el producto terminado al stock",
+        },
+        {
+            "icon": "🧾",
+            "titulo": "Abrí tu caja y vendé",
+            "detalle": "Usá el POS para registrar ventas. Al cerrar turno se genera el asiento contable automáticamente",
+        },
     ],
     "restaurante": [
-        {"icon": "🍽️", "titulo": "Cargá tu menú por categorías", "detalle": "Organizá tus platos en Entrantes, Principales, Postres, Bebidas, etc."},
-        {"icon": "📋", "titulo": "Creá recetas con costos", "detalle": "Asociá ingredientes a cada plato para conocer tu margen real por plato"},
-        {"icon": "🛒", "titulo": "Registrá compras de insumos", "detalle": "Cada compra recibida actualiza el stock y el costo promedio de tus ingredientes"},
-        {"icon": "🧾", "titulo": "Abrí tu caja y registrá servicios", "detalle": "Registrá ventas por mesa o mostrador y aceptá múltiples métodos de pago"},
-        {"icon": "📊", "titulo": "Revisá márgenes en reportes", "detalle": "Consultá qué platos generan más ganancia y ajustá precios si es necesario"},
+        {
+            "icon": "🍽️",
+            "titulo": "Cargá tu menú por categorías",
+            "detalle": "Organizá tus platos en Entrantes, Principales, Postres, Bebidas, etc.",
+        },
+        {
+            "icon": "📋",
+            "titulo": "Creá recetas con costos",
+            "detalle": "Asociá ingredientes a cada plato para conocer tu margen real por plato",
+        },
+        {
+            "icon": "🛒",
+            "titulo": "Registrá compras de insumos",
+            "detalle": "Cada compra recibida actualiza el stock y el costo promedio de tus ingredientes",
+        },
+        {
+            "icon": "🧾",
+            "titulo": "Abrí tu caja y registrá servicios",
+            "detalle": "Registrá ventas por mesa o mostrador y aceptá múltiples métodos de pago",
+        },
+        {
+            "icon": "📊",
+            "titulo": "Revisá márgenes en reportes",
+            "detalle": "Consultá qué platos generan más ganancia y ajustá precios si es necesario",
+        },
     ],
     "retail": [
-        {"icon": "📦", "titulo": "Cargá tu catálogo de productos", "detalle": "Ingresá cada producto con precio de costo, precio de venta y unidad de medida"},
-        {"icon": "🏪", "titulo": "Registrá tu stock inicial", "detalle": "Hacé un ajuste de inventario inicial para que el sistema parta con las cantidades reales"},
-        {"icon": "💳", "titulo": "Configurá métodos de pago", "detalle": "Habilitá efectivo, tarjeta, transferencia u otros según cómo opera tu tienda"},
-        {"icon": "🧾", "titulo": "Hacé tu primera venta en el POS", "detalle": "Buscá el producto, cobrá y emití el recibo. Es así de simple"},
-        {"icon": "📊", "titulo": "Revisá el reporte diario", "detalle": "Al cerrar caja verás ventas, COGS y ganancia bruta del día"},
+        {
+            "icon": "📦",
+            "titulo": "Cargá tu catálogo de productos",
+            "detalle": "Ingresá cada producto con precio de costo, precio de venta y unidad de medida",
+        },
+        {
+            "icon": "🏪",
+            "titulo": "Registrá tu stock inicial",
+            "detalle": "Hacé un ajuste de inventario inicial para que el sistema parta con las cantidades reales",
+        },
+        {
+            "icon": "💳",
+            "titulo": "Configurá métodos de pago",
+            "detalle": "Habilitá efectivo, tarjeta, transferencia u otros según cómo opera tu tienda",
+        },
+        {
+            "icon": "🧾",
+            "titulo": "Hacé tu primera venta en el POS",
+            "detalle": "Buscá el producto, cobrá y emití el recibo. Es así de simple",
+        },
+        {
+            "icon": "📊",
+            "titulo": "Revisá el reporte diario",
+            "detalle": "Al cerrar caja verás ventas, COGS y ganancia bruta del día",
+        },
     ],
     "taller": [
-        {"icon": "🔧", "titulo": "Cargá tus servicios", "detalle": "Ingresá los servicios que ofrecés (cambio de aceite, frenos, diagnóstico) con su precio"},
-        {"icon": "📦", "titulo": "Cargá tus repuestos", "detalle": "Registrá cada repuesto con stock, costo y precio de venta"},
-        {"icon": "👤", "titulo": "Creá tu primer cliente", "detalle": "Registrá el cliente con sus datos y los vehículos asociados"},
-        {"icon": "📋", "titulo": "Abrí una orden de trabajo", "detalle": "Asociá servicios y repuestos a la orden. El sistema calcula el total automáticamente"},
-        {"icon": "🧾", "titulo": "Cerrá y cobrá la orden", "detalle": "Al completar la orden se descuenta el stock de repuestos y se registra el ingreso"},
+        {
+            "icon": "🔧",
+            "titulo": "Cargá tus servicios",
+            "detalle": "Ingresá los servicios que ofrecés (cambio de aceite, frenos, diagnóstico) con su precio",
+        },
+        {
+            "icon": "📦",
+            "titulo": "Cargá tus repuestos",
+            "detalle": "Registrá cada repuesto con stock, costo y precio de venta",
+        },
+        {
+            "icon": "👤",
+            "titulo": "Creá tu primer cliente",
+            "detalle": "Registrá el cliente con sus datos y los vehículos asociados",
+        },
+        {
+            "icon": "📋",
+            "titulo": "Abrí una orden de trabajo",
+            "detalle": "Asociá servicios y repuestos a la orden. El sistema calcula el total automáticamente",
+        },
+        {
+            "icon": "🧾",
+            "titulo": "Cerrá y cobrá la orden",
+            "detalle": "Al completar la orden se descuenta el stock de repuestos y se registra el ingreso",
+        },
     ],
 }
 
@@ -184,11 +264,31 @@ _SECTOR_ICONS: dict[str, str] = {
 }
 
 _DEFAULT_STEPS = [
-    {"icon": "⚙️", "titulo": "Configurá tu empresa", "detalle": "Completá la información básica: RUC, dirección, moneda y zona horaria"},
-    {"icon": "📦", "titulo": "Cargá tus productos", "detalle": "Ingresá tu catálogo con precios y unidades de medida correctas"},
-    {"icon": "🛒", "titulo": "Registrá tus compras", "detalle": "Cada compra recibida actualiza el stock y el costo promedio automáticamente"},
-    {"icon": "🧾", "titulo": "Empezá a vender", "detalle": "Usá el POS para registrar ventas y cerrá caja al final del día"},
-    {"icon": "📊", "titulo": "Revisá tus reportes", "detalle": "Consultá ventas, gastos y ganancia neta en el módulo de reportes"},
+    {
+        "icon": "⚙️",
+        "titulo": "Configurá tu empresa",
+        "detalle": "Completá la información básica: RUC, dirección, moneda y zona horaria",
+    },
+    {
+        "icon": "📦",
+        "titulo": "Cargá tus productos",
+        "detalle": "Ingresá tu catálogo con precios y unidades de medida correctas",
+    },
+    {
+        "icon": "🛒",
+        "titulo": "Registrá tus compras",
+        "detalle": "Cada compra recibida actualiza el stock y el costo promedio automáticamente",
+    },
+    {
+        "icon": "🧾",
+        "titulo": "Empezá a vender",
+        "detalle": "Usá el POS para registrar ventas y cerrá caja al final del día",
+    },
+    {
+        "icon": "📊",
+        "titulo": "Revisá tus reportes",
+        "detalle": "Consultá ventas, gastos y ganancia neta en el módulo de reportes",
+    },
 ]
 
 

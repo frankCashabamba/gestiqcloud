@@ -285,9 +285,7 @@ def touch_batch_items_for_document(
     estado: str,
     error_detalle: str | None = None,
 ) -> list[UUID]:
-    items = db.scalars(
-        select(ImpBatchItem).where(ImpBatchItem.documento_id == documento_id)
-    ).all()
+    items = db.scalars(select(ImpBatchItem).where(ImpBatchItem.documento_id == documento_id)).all()
     batch_ids: list[UUID] = []
     for item in items:
         item.estado = estado
@@ -310,4 +308,3 @@ def add_log(
     db.add(log)
     db.flush()
     return log
-

@@ -16,6 +16,7 @@ from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIP
 
 logger = logging.getLogger(__name__)
 
+
 # Ollama processes one request at a time; serialize calls so queued
 # requests wait in Python instead of hitting httpx timeouts.
 def _ollama_max_concurrency() -> int:

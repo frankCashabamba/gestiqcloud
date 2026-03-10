@@ -202,8 +202,6 @@ class SaveProductsFromDocumentResponse(BaseModel):
     skipped_names: list[str] = Field(default_factory=list)
 
 
-
-
 # -----------  v1.3 Recipe / Run schemas  -----------
 
 

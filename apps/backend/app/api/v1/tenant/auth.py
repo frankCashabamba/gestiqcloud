@@ -267,6 +267,7 @@ def tenant_refresh(request: Request, response: Response, db: Session = Depends(g
         )
     except Exception:
         pass
+
     def build_access_payload(refresh_payload: dict[str, object]) -> dict[str, object]:
         raw_user_id = refresh_payload.get("user_id")
         raw_tenant_id = refresh_payload.get("tenant_id")

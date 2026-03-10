@@ -372,7 +372,11 @@ async def run_import(
                     extraction.get("format", tipo_archivo),
                     has_structured_rows=has_structured,
                     recipe_config=local_recipe_config,
-                    image_bytes=bytes(vision_image_bytes) if (is_image_doc or is_scanned_pdf) and vision_image_bytes else None,
+                    image_bytes=(
+                        bytes(vision_image_bytes)
+                        if (is_image_doc or is_scanned_pdf) and vision_image_bytes
+                        else None
+                    ),
                 )
             normalized_analysis = _normalize_analysis_output(analysis)
 
@@ -659,7 +663,11 @@ async def run_import(
         filename = (file.filename or "sin_nombre").strip()
 
         # Saltar archivos temporales de Office y otros no válidos
-        if not filename or filename.startswith("~$") or filename.lower() in {"thumbs.db", ".ds_store"}:
+        if (
+            not filename
+            or filename.startswith("~$")
+            or filename.lower() in {"thumbs.db", ".ds_store"}
+        ):
             logger.info("/run: saltando archivo temporal: %s", filename)
             continue
 
@@ -697,7 +705,11 @@ async def run_import(
                 doc_err.id,
                 "ERROR",
                 user_id,
-                {"error": "size_limit_exceeded", "size_mb": round(size_mb, 1), "limit_mb": _max_file_mb},
+                {
+                    "error": "size_limit_exceeded",
+                    "size_mb": round(size_mb, 1),
+                    "limit_mb": _max_file_mb,
+                },
             )
             db.commit()
             results.append(RunResponse(id=doc_err.id, estado="FAILED", recipe_used=resolution_mode))
@@ -740,7 +752,9 @@ async def run_import(
                 results.append(RunResponse(id=doc.id, estado="FAILED", recipe_used=resolution_mode))
                 continue
             for inner_name, inner_bytes in entries:
-                tasks.append((inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name)))
+                tasks.append(
+                    (inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name))
+                )
         else:
             tasks.append((file_bytes, filename, tipo_archivo))
 

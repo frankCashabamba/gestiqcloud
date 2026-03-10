@@ -22,6 +22,7 @@ from app.services.sector_templates import (
 
 router = APIRouter(prefix="/api/v1/sectors", tags=["Sector Templates"])
 
+
 @router.get("/", summary="List available sector templates")
 async def list_sector_templates(db: Session = Depends(get_db)):
     """

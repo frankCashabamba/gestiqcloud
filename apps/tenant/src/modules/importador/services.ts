@@ -50,6 +50,7 @@ let recipesRequest: Promise<Recipe[]> | null = null
 let docCategoryKeywordsRequest: Promise<void> | null = null
 let docCategoryKeywordsLoaded = false
 const importBatchListRequests = new Map<string, Promise<ImportBatch[]>>()
+const IMPORTADOR_UPLOADER_SESSION_KEY = 'importador.uploader.session.v1'
 
 export type Recipe = {
   id: string
@@ -741,6 +742,7 @@ export async function saveProductsFromDocument(
 
 export async function purgeAllImportador(): Promise<{ deleted_total: number; tables: Record<string, number> }> {
   const { data } = await api.delete(TENANT_IMPORTADOR.purgeAll)
+  sessionStorage.removeItem(IMPORTADOR_UPLOADER_SESSION_KEY)
   return data as { deleted_total: number; tables: Record<string, number> }
 }
 
@@ -748,4 +750,3 @@ export async function fetchSaveCapabilities(): Promise<Record<string, boolean>> 
   const { data } = await api.get('/api/v1/importador/save-capabilities')
   return data
 }
-

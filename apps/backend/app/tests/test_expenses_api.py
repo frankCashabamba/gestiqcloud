@@ -6,7 +6,9 @@ from fastapi.testclient import TestClient
 from app.models.expenses.expense import Expense
 
 
-def test_expenses_list_is_scoped_to_authenticated_tenant(client: TestClient, db, usuario_empresa_factory):
+def test_expenses_list_is_scoped_to_authenticated_tenant(
+    client: TestClient, db, usuario_empresa_factory
+):
     password_a = secrets.token_urlsafe(12)
     password_b = secrets.token_urlsafe(12)
 
@@ -71,7 +73,9 @@ def test_expenses_list_is_scoped_to_authenticated_tenant(client: TestClient, db,
     assert data[0]["concept"] == "Solo demo-kusi"
 
 
-def test_expense_detail_is_scoped_to_authenticated_tenant(client: TestClient, db, usuario_empresa_factory):
+def test_expense_detail_is_scoped_to_authenticated_tenant(
+    client: TestClient, db, usuario_empresa_factory
+):
     password_a = secrets.token_urlsafe(12)
     password_b = secrets.token_urlsafe(12)
 

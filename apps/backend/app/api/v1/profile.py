@@ -39,7 +39,9 @@ def _is_generic_tenant_slug(value: Any) -> bool:
     return not _has_text(value) or str(value).strip().lower() in _GENERIC_TENANT_SLUGS
 
 
-def _infer_onboarding_complete(company_settings: CompanySettings | None, tenant: Tenant | None) -> bool:
+def _infer_onboarding_complete(
+    company_settings: CompanySettings | None, tenant: Tenant | None
+) -> bool:
     settings_map = _extract_settings_map(getattr(company_settings, "settings", None))
     explicit_flag = bool(settings_map.get("onboarding_complete", False))
 
@@ -91,7 +93,9 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
         try:
             tenant_uuid = UUID(str(tenant_id))
             tenant = db.query(Tenant).filter(Tenant.id == tenant_uuid).first()
-            settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_uuid).first()
+            settings = (
+                db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_uuid).first()
+            )
             onboarding_complete = _infer_onboarding_complete(settings, tenant)
             sector_nombre = getattr(tenant, "sector_template_name", None) if tenant else None
         except Exception:

@@ -157,10 +157,12 @@ class StockItemOut(BaseModel):
     warehouse_id: str
     product_id: str
     qty: float
-    unit: str | None = None        # Product.unit, e.g. "kg", "uds", "g"
-    pack_size: float | None = None  # qty_per_package from recipe (e.g. 30 eggs/Cubeta, 500 g/bloque)
-    pack_label: str | None = None   # purchase_packaging label (e.g. "Cubeta", "bloque")
-    pack_unit: str | None = None    # package_unit (e.g. "uds", "g")
+    unit: str | None = None  # Product.unit, e.g. "kg", "uds", "g"
+    pack_size: float | None = (
+        None  # qty_per_package from recipe (e.g. 30 eggs/Cubeta, 500 g/bloque)
+    )
+    pack_label: str | None = None  # purchase_packaging label (e.g. "Cubeta", "bloque")
+    pack_unit: str | None = None  # package_unit (e.g. "uds", "g")
     ubicacion: str | None = None
     lote: str | None = None
     expires_at: str | None = None

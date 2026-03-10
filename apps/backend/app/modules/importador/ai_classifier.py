@@ -68,7 +68,12 @@ def _estimate_text_quality(text: str) -> dict[str, float]:
     alpha_score = min(alpha_ratio / 0.6, 1.0)
     noise_penalty = min(weird_ratio / 0.2, 1.0)
 
-    score = (length_score * 0.35) + (word_score * 0.35) + (alpha_score * 0.2) + ((1 - noise_penalty) * 0.1)
+    score = (
+        (length_score * 0.35)
+        + (word_score * 0.35)
+        + (alpha_score * 0.2)
+        + ((1 - noise_penalty) * 0.1)
+    )
     return {
         "score": round(max(0.0, min(1.0, score)), 3),
         "chars": float(chars),

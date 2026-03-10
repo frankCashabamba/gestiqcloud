@@ -7,7 +7,6 @@ import datetime
 import io
 import itertools
 import logging
-import os
 import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Iterable

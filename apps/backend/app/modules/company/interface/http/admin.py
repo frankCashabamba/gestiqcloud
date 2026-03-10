@@ -1072,7 +1072,12 @@ async def create_company_full_json(
         sector_nombre = None
         if payload.sector_template_id:
             from app.models.company.company import SectorTemplate
-            st = db.query(SectorTemplate).filter(SectorTemplate.id == str(payload.sector_template_id)).first()
+
+            st = (
+                db.query(SectorTemplate)
+                .filter(SectorTemplate.id == str(payload.sector_template_id))
+                .first()
+            )
             if st:
                 sector_nombre = st.name
         enviar_correo_bienvenida(

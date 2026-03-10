@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchImportBatch,
@@ -155,6 +155,10 @@ export default function ImportUploader({
   const [selectedSnapshotId, setSelectedSnapshotId] = useState('')
   const [sessionHydrated, setSessionHydrated] = useState(false)
   const directoryInputProps: DirectoryInputProps = { webkitdirectory: 'true' }
+  const clearedBatchIdsRef = useRef<Set<string>>(new Set())
+  const dismissedEntryKeysRef = useRef<Set<string>>(new Set())
+  const userClearedRef = useRef(false)
+  const sessionHadDataRef = useRef(false)
 
   useEffect(() => {
     setForceReprocess(initialForceReprocess)
@@ -168,14 +172,19 @@ export default function ImportUploader({
         activeBatchId?: string
         activeBatch?: ImportBatch | null
         entries?: PersistedFileEntry[]
+        dismissedEntryKeys?: string[]
         forceReprocess?: boolean
         selectedRecipeId?: string
         selectedSnapshotId?: string
       }
+      sessionHadDataRef.current = true
       if (saved.activeBatchId) setActiveBatchId(saved.activeBatchId)
       if (saved.activeBatch) setActiveBatch(saved.activeBatch)
       if (Array.isArray(saved.entries) && saved.entries.length > 0) {
         setEntries(saved.entries)
+      }
+      if (Array.isArray(saved.dismissedEntryKeys) && saved.dismissedEntryKeys.length > 0) {
+        dismissedEntryKeysRef.current = new Set(saved.dismissedEntryKeys)
       }
       if (typeof saved.forceReprocess === 'boolean') setForceReprocess(saved.forceReprocess)
       if (typeof saved.selectedRecipeId === 'string') setSelectedRecipeId(saved.selectedRecipeId)
@@ -192,7 +201,7 @@ export default function ImportUploader({
   }, [])
 
   useEffect(() => {
-    if (!sessionHydrated || activeBatchId) return
+    if (!sessionHydrated || activeBatchId || userClearedRef.current || !sessionHadDataRef.current) return
     fetchImportBatches({ active_only: true, limit: 1 })
       .then((batches) => {
         if (!batches[0]) return
@@ -256,6 +265,10 @@ export default function ImportUploader({
 
     const applyBatch = (batch: ImportBatch) => {
       if (cancelled) return
+      if (clearedBatchIdsRef.current.has(batch.id)) {
+        stopAll()
+        return
+      }
       setActiveBatch(batch)
       if (isBatchDone(batch)) {
         stopAll()
@@ -313,7 +326,14 @@ export default function ImportUploader({
     setEntries((prev) => {
       const prevByKey = new Map(prev.map((entry) => [trackedEntryKey(entry), entry]))
       const localPending = prev.filter((entry) => !entry.batchItemId && !entry.docId && entry.file)
-      const trackedEntries = items.map((item) => {
+      const trackedEntries = items.filter((item) => {
+        const batchKey = `batch:${item.id}`
+        const docKey = item.documento_id ? `doc:${item.documento_id}` : ''
+        const fileKey = `file:${item.nombre_archivo}:${item.tamanio_bytes}`
+        return !dismissedEntryKeysRef.current.has(batchKey)
+          && (!docKey || !dismissedEntryKeysRef.current.has(docKey))
+          && !dismissedEntryKeysRef.current.has(fileKey)
+      }).map((item) => {
         const existing = prevByKey.get(`batch:${item.id}`)
           || (item.documento_id ? prevByKey.get(`doc:${item.documento_id}`) : undefined)
           || prevByKey.get(`file:${item.nombre_archivo}:${item.tamanio_bytes}`)
@@ -342,6 +362,7 @@ export default function ImportUploader({
         activeBatchId,
         activeBatch,
         entries: recoverableEntries,
+        dismissedEntryKeys: Array.from(dismissedEntryKeysRef.current),
         forceReprocess,
         selectedRecipeId,
         selectedSnapshotId,
@@ -368,13 +389,25 @@ export default function ImportUploader({
     })
   }, [])
 
-  const removeEntry = (idx: number) => {
-    if (processing) return
-    setEntries((prev) => prev.filter((_, i) => i !== idx))
+  const dismissEntry = (entry: FileEntry) => {
+    dismissedEntryKeysRef.current.add(trackedEntryKey(entry))
+    setEntries((prev) => prev.filter((current) => trackedEntryKey(current) !== trackedEntryKey(entry)))
   }
 
   const clearAll = () => {
     if (processing) return
+    const batchIdToClear = activeBatchId || activeBatch?.id
+    userClearedRef.current = true
+    if (batchIdToClear) {
+      clearedBatchIdsRef.current.add(batchIdToClear)
+    }
+    const dismissedEntryKeys = new Set(dismissedEntryKeysRef.current)
+    activeBatch?.items?.forEach((item) => {
+      dismissedEntryKeys.add(`batch:${item.id}`)
+      if (item.documento_id) dismissedEntryKeys.add(`doc:${item.documento_id}`)
+      dismissedEntryKeys.add(`file:${item.nombre_archivo}:${item.tamanio_bytes}`)
+    })
+    dismissedEntryKeysRef.current = dismissedEntryKeys
     setEntries([])
     setError('')
     setActiveBatch(null)
@@ -382,7 +415,15 @@ export default function ImportUploader({
     sessionStorage.removeItem(UPLOADER_SESSION_KEY)
   }
 
-  const clearDone = () => setEntries((prev) => prev.filter((entry) => entry.status === 'pending'))
+  const clearDone = () => {
+    setEntries((prev) => {
+      const toRemove = prev.filter((entry) => entry.status === 'done' || entry.status === 'error')
+      toRemove.forEach((entry) => {
+        dismissedEntryKeysRef.current.add(trackedEntryKey(entry))
+      })
+      return prev.filter((entry) => entry.status !== 'done' && entry.status !== 'error')
+    })
+  }
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -495,50 +536,55 @@ export default function ImportUploader({
   const errorCount = entries.filter((entry) => entry.status === 'error').length
   const completedCount = entries.filter((entry) => entry.status === 'done').length
   const progressPct = totalCount > 0 ? Math.round(((completedCount + errorCount) / totalCount) * 100) : 0
+  const reviewEntries = entries.filter((entry) => entry.status === 'done')
+  const queueEntries = entries.filter((entry) => entry.status === 'processing' || entry.status === 'pending')
+  const errorEntries = entries.filter((entry) => entry.status === 'error')
+  const statusChips = [
+    { label: 'Por revisar', value: reviewEntries.length, color: '#10B981' },
+    { label: 'En curso', value: queueEntries.length, color: '#4F46E5' },
+    { label: 'Errores', value: errorEntries.length, color: '#EF4444' },
+  ]
+  const headerTitle = processing
+    ? `Encolando ${totalCount} documento${totalCount > 1 ? 's' : ''}...`
+    : activeCount > 0
+      ? `Procesando ${activeCount} archivo${activeCount > 1 ? 's' : ''} en segundo plano`
+      : `${entries.length} archivo${entries.length > 1 ? 's' : ''} en esta bandeja`
+  const headerMeta = activeBatch
+    ? `${activeBatch.review_items + activeBatch.confirmed_items} resueltos · ${activeBatch.pending_items} en cola · ${activeBatch.failed_items} fallidos`
+    : `Los documentos abiertos con Ver salen automaticamente de esta lista.`
 
   return (
     <>
       <style>{'@keyframes spin { to { transform: rotate(360deg) } }'}</style>
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '1rem' }}>
-        {activeBatch && (
-          <div style={{ marginBottom: '1rem', padding: '0.85rem 1rem', borderRadius: 12, border: '1px solid #c7d2fe', background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)', color: '#312e81' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  {activeBatch.estado === 'COMPLETED' ? 'Ultimo lote completado' : 'Lote en segundo plano'}
-                </div>
-                <div style={{ fontSize: 12, color: '#4f46e5', marginTop: 4 }}>
-                  {activeBatch.processing_items} procesando · {activeBatch.pending_items} en cola · {activeBatch.review_items + activeBatch.confirmed_items} resueltos · {activeBatch.failed_items} fallidos
-                </div>
-              </div>
-              <div style={{ minWidth: 160 }}>
-                <div style={{ fontSize: 12, color: '#6366f1', textAlign: 'right', marginBottom: 4 }}>
-                  {activeBatch.progress_pct}% completado
-                </div>
-                <div style={{ height: 6, background: '#dbeafe', borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{ width: `${activeBatch.progress_pct}%`, height: '100%', background: '#4f46e5' }} />
-                </div>
-              </div>
+      <div style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f8faff 100%)', border: '1px solid #e5e7eb', borderRadius: 24, padding: '1.15rem', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.06)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: 4 }}>
+              Preparar importacion
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+              {entries.length > 0 ? 'Sigue cargando documentos a esta bandeja' : 'Sube documentos sueltos o una carpeta completa'}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
+              {entries.length > 0 ? 'Puedes seguir agregando archivos mientras el sistema procesa en segundo plano.' : 'Arrastra archivos, haz clic para seleccionarlos y lanza la importacion cuando este todo listo.'}
             </div>
           </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'inline-flex', gap: '0.55rem', padding: '0.35rem', borderRadius: 16, border: '1px solid #dbeafe', background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)' }}>
             {(['files', 'folder'] as ImportMode[]).map((itemMode) => (
               <button
                 key={itemMode}
                 onClick={() => setMode(itemMode)}
                 disabled={processing}
                 style={{
-                  padding: '0.4rem 1rem',
-                  borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  padding: '0.55rem 1rem',
+                  borderRadius: 12,
+                  border: '1px solid transparent',
                   cursor: processing ? 'default' : 'pointer',
                   fontSize: 13,
-                  background: mode === itemMode ? '#6366F1' : '#fff',
+                  background: mode === itemMode ? 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)' : '#fff',
                   color: mode === itemMode ? '#fff' : '#374151',
-                  fontWeight: mode === itemMode ? 600 : 400,
+                  fontWeight: mode === itemMode ? 700 : 500,
+                  boxShadow: mode === itemMode ? '0 10px 20px rgba(79, 70, 229, 0.22)' : '0 1px 2px rgba(15, 23, 42, 0.05)',
                 }}
               >
                 {itemMode === 'files' ? 'Archivos individuales' : 'Seleccionar carpeta'}
@@ -548,7 +594,7 @@ export default function ImportUploader({
           {entries.length > 0 && !processing && (
             <button
               onClick={clearAll}
-              style={{ fontSize: 12, color: '#6b7280', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+              style={{ fontSize: 12, color: '#6b7280', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', padding: '0.45rem 0.8rem', borderRadius: 10, fontWeight: 700 }}
             >
               Limpiar todo
             </button>
@@ -563,17 +609,33 @@ export default function ImportUploader({
             onClick={() => !processing && fileRef.current?.click()}
             style={{
               border: `2px dashed ${dragging ? '#6366F1' : '#d1d5db'}`,
-              borderRadius: 12,
-              padding: '1.5rem',
+              borderRadius: 24,
+              padding: '1.7rem 1.4rem',
               textAlign: 'center',
               cursor: processing ? 'default' : 'pointer',
-              background: dragging ? '#EEF2FF' : '#f9fafb',
+              background: dragging
+                ? 'radial-gradient(circle at top, rgba(99, 102, 241, 0.18) 0%, rgba(255,255,255,0.96) 55%), linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)'
+                : 'radial-gradient(circle at top, rgba(99, 102, 241, 0.08) 0%, rgba(255,255,255,0.98) 52%), linear-gradient(180deg, #fcfcff 0%, #f8fafc 100%)',
               transition: 'all 0.2s',
+              boxShadow: dragging ? 'inset 0 0 0 1px rgba(99, 102, 241, 0.14)' : 'inset 0 0 0 1px rgba(255,255,255,0.6)',
             }}
           >
-            <div style={{ fontSize: 36, marginBottom: '0.4rem' }}>DROP</div>
-            <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 2px' }}>Arrastra archivos o haz clic para seleccionar</p>
-            <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>PDF, JPG/PNG, Excel, CSV, XML, TXT</p>
+            <div style={{ width: 54, height: 54, margin: '0 auto 0.85rem', borderRadius: 18, background: dragging ? '#6366F1' : 'linear-gradient(180deg, #E0E7FF 0%, #C7D2FE 100%)', color: dragging ? '#fff' : '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, boxShadow: '0 14px 26px rgba(99, 102, 241, 0.16)' }}>
+              +
+            </div>
+            <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#6366f1' }}>Zona de carga</p>
+            <p style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Arrastra tus archivos aqui</p>
+            <p style={{ fontSize: 15, color: '#475569', margin: '0 0 1rem' }}>o haz clic para seleccionarlos manualmente</p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+              {['PDF', 'JPG/PNG', 'Excel', 'CSV', 'XML', 'TXT'].map((label) => (
+                <span key={label} style={{ padding: '0.22rem 0.55rem', borderRadius: 999, background: '#fff', border: '1px solid #e5e7eb', color: '#64748b', fontSize: 11, fontWeight: 700 }}>
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div style={{ marginTop: '0.9rem', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
+              El sistema clasifica y prepara los documentos automaticamente.
+            </div>
             <input ref={fileRef} type="file" multiple accept={ACCEPTED} onChange={onFileChange} style={{ display: 'none' }} />
           </div>
         )}
@@ -583,111 +645,171 @@ export default function ImportUploader({
             onClick={() => !processing && folderRef.current?.click()}
             style={{
               border: '2px dashed #d1d5db',
-              borderRadius: 12,
-              padding: '1.5rem',
+              borderRadius: 24,
+              padding: '1.7rem 1.4rem',
               textAlign: 'center',
               cursor: processing ? 'default' : 'pointer',
-              background: '#f9fafb',
+              background: 'radial-gradient(circle at top, rgba(14, 165, 233, 0.09) 0%, rgba(255,255,255,0.98) 52%), linear-gradient(180deg, #fcfcff 0%, #f8fafc 100%)',
             }}
           >
-            <div style={{ fontSize: 36, marginBottom: '0.4rem' }}>FOLDER</div>
-            <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 2px' }}>Seleccionar carpeta</p>
-            <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>Procesa todos los archivos soportados dentro</p>
+            <div style={{ width: 54, height: 54, margin: '0 auto 0.85rem', borderRadius: 18, background: 'linear-gradient(180deg, #E0F2FE 0%, #BAE6FD 100%)', color: '#0369A1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, boxShadow: '0 14px 26px rgba(14, 165, 233, 0.14)' }}>
+              F
+            </div>
+            <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#0284c7' }}>Carga por carpeta</p>
+            <p style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Importacion por carpeta</p>
+            <p style={{ fontSize: 15, color: '#475569', margin: 0 }}>Procesa todos los archivos compatibles contenidos en una misma carpeta</p>
             <input ref={folderRef} type="file" multiple onChange={onFolderChange} style={{ display: 'none' }} {...directoryInputProps} />
           </div>
         )}
 
         {entries.length > 0 && (
-          <div style={{ marginTop: '0.75rem' }}>
-            {activeCount > 0 && (
-              <div style={{ marginBottom: '0.6rem', padding: '0.7rem 0.85rem', borderRadius: 10, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#3730a3', fontSize: 13 }}>
-                El sistema sigue trabajando en segundo plano. {activeCount} archivo{activeCount > 1 ? 's' : ''} en proceso.
+          <div style={{ marginTop: '1rem', border: '1px solid #E5E7EB', borderRadius: 18, padding: '1rem', background: 'linear-gradient(180deg, #ffffff 0%, #fafbff 100%)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '0.95rem 1rem', borderRadius: 16, border: '1px solid #c7d2fe', background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)' }}>
+              <div style={{ flex: 1, minWidth: 260 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: 4 }}>
+                  Estado actual
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                  {headerTitle}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: '#4f46e5' }}>
+                  {headerMeta}
+                </div>
+                <div style={{ display: 'flex', gap: '0.55rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>
+                  {statusChips.map((item) => (
+                    <div key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.65rem', borderRadius: 999, background: '#fff', border: '1px solid rgba(148, 163, 184, 0.22)' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 999, background: item.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: item.color, fontWeight: 800 }}>{item.value}</span>
+                      <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                {processing
-                  ? `Encolando ${totalCount} documento${totalCount > 1 ? 's' : ''}...`
-                  : activeCount > 0
-                    ? `Seguimiento activo: ${completedCount + errorCount} de ${totalCount} resuelto${totalCount === 1 ? '' : 's'}`
-                    : `${entries.length} archivo${entries.length > 1 ? 's' : ''} seleccionado${entries.length > 1 ? 's' : ''}`}
-              </span>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                {completedCount > 0 && <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>OK {completedCount} listo{completedCount > 1 ? 's' : ''}</span>}
-                {errorCount > 0 && <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 600 }}>ERR {errorCount} error{errorCount > 1 ? 'es' : ''}</span>}
+              <div style={{ minWidth: 220, maxWidth: 280, flex: '0 0 auto' }}>
+                {(processing || activeCount > 0 || completedCount > 0 || errorCount > 0 || activeBatch) && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12, color: '#6366f1', fontWeight: 700 }}>
+                      <span>{activeBatch?.estado === 'COMPLETED' ? 'Lote completado' : 'Progreso visible'}</span>
+                      <span>{activeBatch?.progress_pct ?? progressPct}%</span>
+                    </div>
+                    <div style={{ height: 8, background: 'rgba(79, 70, 229, 0.12)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', background: 'linear-gradient(90deg, #6366F1 0%, #22C55E 100%)', borderRadius: 999, width: `${activeBatch?.progress_pct ?? progressPct}%`, transition: 'width 0.3s ease' }} />
+                    </div>
+                  </>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {!processing && completedCount > 0 && (
-                  <button onClick={clearDone} style={{ fontSize: 11, color: '#6b7280', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
-                    Limpiar completados
+                  <button onClick={clearDone} style={{ fontSize: 12, color: '#6b7280', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', padding: '0.42rem 0.75rem', borderRadius: 10, fontWeight: 700 }}>
+                    Ocultar revisados
                   </button>
                 )}
               </div>
             </div>
 
-            {(processing || activeCount > 0) && (
-              <div style={{ height: 4, background: '#e5e7eb', borderRadius: 4, marginBottom: '0.5rem', overflow: 'hidden' }}>
-                <div style={{ height: '100%', background: '#6366F1', borderRadius: 4, width: `${progressPct}%`, transition: 'width 0.3s ease' }} />
-              </div>
-            )}
-
-            <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-              {entries.map((entry, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.45rem 0.75rem',
-                    background: entry.status === 'done' ? '#F0FDF4' : entry.status === 'error' ? '#FEF2F2' : entry.status === 'processing' ? '#EEF2FF' : '#fff',
-                    borderBottom: i < entries.length - 1 ? '1px solid #f3f4f6' : 'none',
-                    fontSize: 13,
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  <span style={{ flexShrink: 0, width: 26, display: 'flex', justifyContent: 'center', fontSize: 10, color: '#64748b', fontWeight: 700 }}>
-                    {entry.status === 'processing' ? <Spinner /> : entry.status === 'done' ? 'OK' : entry.status === 'error' ? 'ERR' : fileIcon(entry.name)}
-                  </span>
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: entry.status === 'error' ? '#991B1B' : '#374151' }}>
-                    {entry.name}
-                  </span>
-                  <span style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>{fmtSize(entry.size)}</span>
-                  {entry.status === 'error' && entry.errorMessage && (
-                    <span style={{ color: '#b91c1c', fontSize: 11, flexShrink: 0 }}>
-                      {entry.errorMessage}
-                    </span>
-                  )}
-                  {entry.result?.tipo_documento_detectado && (
-                    <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '1px 7px', borderRadius: 10, fontSize: 11, flexShrink: 0 }}>
-                      {entry.result.tipo_documento_detectado}
-                    </span>
-                  )}
-                  {entry.status === 'done' && (entry.docId || entry.result?.id) && (
-                    <button
-                      onClick={() => navigate(documentPathBuilder(entry.docId || entry.result!.id))}
-                      style={{ padding: '2px 8px', border: '1px solid #6366F1', borderRadius: 5, background: '#fff', color: '#6366F1', cursor: 'pointer', fontSize: 11, flexShrink: 0 }}
-                    >
-                      Ver
-                    </button>
-                  )}
-                  {entry.status === 'pending' && !processing && (
-                    <button onClick={() => removeEntry(i)} style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1, flexShrink: 0 }}>
-                      x
-                    </button>
-                  )}
+            <div style={{ display: 'grid', gap: '0.9rem' }}>
+              {[
+                { key: 'review', title: 'Por revisar', subtitle: 'Documentos listos para abrir y retirar de la bandeja', entries: reviewEntries },
+                { key: 'queue', title: 'En curso', subtitle: 'Archivos procesandose o pendientes de envio', entries: queueEntries },
+                { key: 'errors', title: 'Errores', subtitle: 'Archivos que requieren una nueva subida o revision', entries: errorEntries },
+              ].filter((section) => section.entries.length > 0).map((section) => (
+                <div key={section.key} style={{ border: '1px solid #E5E7EB', borderRadius: 18, background: '#fff', padding: '0.9rem', boxShadow: '0 10px 22px rgba(15, 23, 42, 0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{section.title}</div>
+                      <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>{section.subtitle}</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 700 }}>
+                      {section.entries.length} archivo{section.entries.length > 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gap: '0.7rem', maxHeight: 280, overflowY: 'auto', paddingRight: 2 }}>
+                    {section.entries.map((entry) => {
+                      const tone = entry.status === 'done'
+                        ? { bg: '#f0fdf4', border: '#bbf7d0', badge: '#dcfce7', color: '#166534' }
+                        : entry.status === 'error'
+                          ? { bg: '#fef2f2', border: '#fecaca', badge: '#fee2e2', color: '#991b1b' }
+                          : entry.status === 'pending'
+                            ? { bg: '#fafaf9', border: '#e7e5e4', badge: '#f5f5f4', color: '#57534e' }
+                            : { bg: '#eef2ff', border: '#c7d2fe', badge: '#e0e7ff', color: '#3730a3' }
+                      return (
+                        <div
+                          key={trackedEntryKey(entry)}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                            gap: '0.85rem',
+                            alignItems: 'center',
+                            padding: '0.85rem 0.95rem',
+                            border: `1px solid ${tone.border}`,
+                            borderRadius: 14,
+                            background: tone.bg,
+                          }}
+                        >
+                          <div style={{ width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: tone.badge, color: tone.color, fontSize: 11, fontWeight: 800 }}>
+                            {entry.status === 'processing' ? <Spinner /> : entry.status === 'done' ? 'OK' : entry.status === 'error' ? 'ERR' : fileIcon(entry.name)}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {entry.name}
+                              </span>
+                              <span style={{ padding: '0.15rem 0.45rem', borderRadius: 999, background: tone.badge, color: tone.color, fontSize: 10, fontWeight: 700 }}>
+                                {entry.status === 'done' ? 'Listo para revisar' : entry.status === 'error' ? 'Requiere atencion' : entry.status === 'pending' ? 'Listo para enviar' : 'Procesando'}
+                              </span>
+                              {entry.result?.tipo_documento_detectado && (
+                                <span style={{ padding: '0.15rem 0.45rem', borderRadius: 999, background: '#fff', color: '#475569', border: '1px solid rgba(148, 163, 184, 0.35)', fontSize: 10, fontWeight: 700 }}>
+                                  {entry.result.tipo_documento_detectado}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ marginTop: 4, display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: 11, color: '#64748b' }}>
+                              <span>{fmtSize(entry.size)}</span>
+                              {entry.status === 'processing' && <span style={{ color: tone.color }}>Trabajo en segundo plano</span>}
+                              {entry.status === 'pending' && <span style={{ color: tone.color }}>Pendiente de envio</span>}
+                              {entry.status === 'error' && entry.errorMessage && <span style={{ color: tone.color, fontWeight: 600 }}>{entry.errorMessage}</span>}
+                              {entry.status === 'done' && <span style={{ color: tone.color }}>Se retira de la bandeja al abrirlo</span>}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            {entry.status === 'done' && (entry.docId || entry.result?.id) && (
+                              <button
+                                onClick={() => {
+                                  dismissEntry(entry)
+                                  navigate(documentPathBuilder(entry.docId || entry.result!.id))
+                                }}
+                                style={{ padding: '0.42rem 0.8rem', border: '1px solid #4F46E5', borderRadius: 10, background: '#4F46E5', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                              >
+                                Ver
+                              </button>
+                            )}
+                            {entry.status === 'pending' && !processing && (
+                              <button
+                                onClick={() => setEntries((prev) => prev.filter((current) => trackedEntryKey(current) !== trackedEntryKey(entry)))}
+                                style={{ padding: '0.42rem 0.7rem', border: '1px solid #D6D3D1', borderRadius: 10, background: '#fff', color: '#78716C', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                              >
+                                Quitar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
           <div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Plantilla / Receta <span style={{ color: '#d1d5db' }}>opcional</span></div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Plantilla / Receta <span style={{ color: '#d1d5db' }}>opcional</span></div>
             <select
               value={selectedRecipeId}
               onChange={(e) => setSelectedRecipeId(e.target.value)}
               disabled={processing}
-              style={{ padding: '0.35rem 0.5rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, minWidth: 190 }}
+              style={{ padding: '0.55rem 0.7rem', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 13, minWidth: 220, background: '#fff' }}
             >
               <option value="">Auto-detectar (recomendado)</option>
               {recipes.map((recipe) => <option key={recipe.id} value={recipe.id}>{recipe.name}</option>)}
@@ -698,7 +820,7 @@ export default function ImportUploader({
               value={selectedSnapshotId}
               onChange={(e) => setSelectedSnapshotId(e.target.value)}
               disabled={processing}
-              style={{ padding: '0.35rem 0.5rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, minWidth: 170 }}
+              style={{ padding: '0.55rem 0.7rem', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 13, minWidth: 190, background: '#fff' }}
             >
               {snapshots.map((snapshot) => (
                 <option key={snapshot.id} value={snapshot.id}>
@@ -707,39 +829,40 @@ export default function ImportUploader({
               ))}
             </select>
           )}
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: 12, color: '#6b7280', cursor: processing ? 'default' : 'pointer', userSelect: 'none', padding: '0.72rem 0.85rem', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', minHeight: 46 }}>
+            <input
+              type="checkbox"
+              checked={forceReprocess}
+              disabled={processing}
+              onChange={(e) => setForceReprocess(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            Reimportacion limpia
+            <span style={{ color: '#d1d5db' }}>(omite dedupe)</span>
+          </label>
         </div>
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.6rem', fontSize: 12, color: '#6b7280', cursor: processing ? 'default' : 'pointer', userSelect: 'none' }}>
-          <input
-            type="checkbox"
-            checked={forceReprocess}
-            disabled={processing}
-            onChange={(e) => setForceReprocess(e.target.checked)}
-            style={{ cursor: 'pointer' }}
-          />
-          Reimportacion limpia
-          <span style={{ color: '#d1d5db' }}>(omite dedupe)</span>
-        </label>
 
         <button
           onClick={handleRun}
           disabled={pendingCount === 0 || processing}
           style={{
-            marginTop: '0.75rem',
+            marginTop: '1rem',
             width: '100%',
-            padding: '0.7rem',
-            background: pendingCount === 0 || processing ? '#e5e7eb' : '#6366F1',
-            color: pendingCount === 0 || processing ? '#9ca3af' : '#fff',
-            border: 'none',
-            borderRadius: 8,
+            padding: '0.88rem 1rem',
+            background: pendingCount === 0 || processing ? 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)' : 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+            color: pendingCount === 0 || processing ? '#94a3b8' : '#fff',
+            border: pendingCount === 0 || processing ? '1px dashed #cbd5e1' : 'none',
+            borderRadius: 16,
             fontSize: 15,
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: pendingCount === 0 || processing ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.5rem',
             transition: 'background 0.2s',
+            boxShadow: pendingCount === 0 || processing ? 'none' : '0 18px 30px rgba(79, 70, 229, 0.22)',
+            minHeight: 58,
           }}
         >
           {processing ? (
@@ -753,11 +876,11 @@ export default function ImportUploader({
               ? `Importar ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
               : entries.length > 0
                 ? 'Todo procesado - agrega mas archivos'
-                : 'Importar documentos'}
+                : 'Selecciona archivos para comenzar'}
         </button>
 
         {error && (
-          <div style={{ marginTop: '0.5rem', padding: '0.6rem 0.75rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#991B1B', fontSize: 13 }}>
+          <div style={{ marginTop: '0.75rem', padding: '0.8rem 0.9rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, color: '#991B1B', fontSize: 13 }}>
             {error}
           </div>
         )}

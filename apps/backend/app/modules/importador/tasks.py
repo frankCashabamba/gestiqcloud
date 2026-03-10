@@ -26,9 +26,8 @@ LEGACY_REDIS_KEY_PREFIX = "imp:payload:"
 def _payload_dir() -> Path:
     from app.config.settings import settings
 
-    raw_dir = (
-        os.getenv("IMPORTADOR_PAYLOAD_DIR")
-        or str(Path(settings.UPLOADS_DIR) / "_importador_payloads")
+    raw_dir = os.getenv("IMPORTADOR_PAYLOAD_DIR") or str(
+        Path(settings.UPLOADS_DIR) / "_importador_payloads"
     )
     payload_dir = Path(raw_dir)
     payload_dir.mkdir(parents=True, exist_ok=True)
@@ -173,7 +172,7 @@ async def _run_processing(
 
             if has_structured:
                 sample_lines = [f"Columnas: {headers_display}"]
-                for row in (structured[:5] if isinstance(structured, list) else []):
+                for row in structured[:5] if isinstance(structured, list) else []:
                     if isinstance(row, dict):
                         sample_lines.append(
                             str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")})
@@ -197,7 +196,9 @@ async def _run_processing(
                         "prompt_system": recipe_snapshot.content_json.get("prompt_system"),
                         "prompt_user": recipe_snapshot.content_json.get("prompt_user"),
                         "model": recipe_snapshot.content_json.get("model"),
-                        "field_descriptions": recipe_snapshot.content_json.get("field_descriptions"),
+                        "field_descriptions": recipe_snapshot.content_json.get(
+                            "field_descriptions"
+                        ),
                     }
                 if has_structured:
                     cached_analysis = get_snapshot_learning(
@@ -293,7 +294,9 @@ async def _run_processing(
                 else datos_extraidos
             )
             sheet_profiles = (
-                _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
+                _json_safe(sheet_profiles)
+                if isinstance(sheet_profiles, (dict, list))
+                else sheet_profiles
             )
 
             crud.update_documento(

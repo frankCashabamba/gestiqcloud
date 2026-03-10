@@ -64,7 +64,11 @@ def _sync_stock_item(db: Session, tenant_id: str, product_id: str, qty: float) -
         item.qty = qty
         db.add(item)
     else:
-        db.add(StockItem(tenant_id=tenant_id, warehouse_id=warehouse.id, product_id=product_id, qty=qty))
+        db.add(
+            StockItem(
+                tenant_id=tenant_id, warehouse_id=warehouse.id, product_id=product_id, qty=qty
+            )
+        )
 
 
 def _empresa_id_from_request(request: Request) -> str | None:

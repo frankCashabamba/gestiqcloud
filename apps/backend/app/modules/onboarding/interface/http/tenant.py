@@ -69,19 +69,27 @@ async def onboarding_init(
         if not tenant.slug or tenant.slug in ("default", "tenant", "empresa"):
             import re
             import unicodedata
+
             def _slugify(text: str) -> str:
                 text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
                 text = re.sub(r"[^\w\s-]", "", text.lower()).strip()
                 text = re.sub(r"[\s_-]+", "-", text)
                 return text[:60] or "empresa"
+
             new_slug = _slugify(payload.company_name)
             # Verificar unicidad; si ya existe agregar sufijo numérico
             from sqlalchemy import func as _func
-            existing = db.query(Tenant).filter(Tenant.slug == new_slug, Tenant.id != tenant_id).first()
+
+            existing = (
+                db.query(Tenant).filter(Tenant.slug == new_slug, Tenant.id != tenant_id).first()
+            )
             if existing:
-                count = db.query(_func.count(Tenant.id)).filter(
-                    Tenant.slug.like(f"{new_slug}%"), Tenant.id != tenant_id
-                ).scalar() or 0
+                count = (
+                    db.query(_func.count(Tenant.id))
+                    .filter(Tenant.slug.like(f"{new_slug}%"), Tenant.id != tenant_id)
+                    .scalar()
+                    or 0
+                )
                 new_slug = f"{new_slug}-{count + 1}"
             tenant.slug = new_slug
         tenant.country_code = payload.country_code
@@ -125,6 +133,7 @@ async def onboarding_init(
         # Marcar onboarding como completado en settings JSON
         # flag_modified es necesario para que SQLAlchemy detecte mutaciones en JSONB
         from sqlalchemy.orm.attributes import flag_modified
+
         settings.settings = {**(settings.settings or {}), "onboarding_complete": True}
         flag_modified(settings, "settings")
 
