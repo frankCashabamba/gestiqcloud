@@ -1,10 +1,44 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { CalendarRange, CheckCircle2, Clock3, Filter, Plus, XCircle } from 'lucide-react'
+import { GcPageHeader } from '@ui'
 import { listVacaciones, aprobarVacacion, rechazarVacacion } from '../../services/api/hr'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import type { Vacacion } from '../../types/hr'
-import { useTranslation } from 'react-i18next'
+import './hr.css'
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}
+
+function getStatusClass(status: Vacacion['estado']) {
+  if (status === 'aprobada') return 'hr-badge hr-badge--success'
+  if (status === 'rechazada') return 'hr-badge hr-badge--danger'
+  if (status === 'cancelada') return 'hr-badge hr-badge--neutral'
+  return 'hr-badge hr-badge--pending'
+}
+
+function getStatusLabel(t: (key: string) => string, status: Vacacion['estado']) {
+  if (status === 'aprobada') return t('hr:vacations.approvedStatus')
+  if (status === 'rechazada') return t('hr:vacations.rejectedStatus')
+  if (status === 'cancelada') return t('hr:vacations.cancelled')
+  return t('hr:vacations.pending')
+}
+
+function getTypeLabel(t: (key: string) => string, type: Vacacion['tipo']) {
+  if (type === 'vacaciones') return t('hr:vacations.vacation')
+  if (type === 'baja_medica') return t('hr:vacations.medicalLeave')
+  if (type === 'permiso') return t('hr:vacations.leave')
+  return t('hr:vacations.other')
+}
 
 export default function VacacionesList() {
   const { t } = useTranslation(['hr', 'common'])
@@ -33,14 +67,25 @@ export default function VacacionesList() {
     loadData()
   }, [])
 
-  const filtered = useMemo(() => items.filter(v => {
-    if (estadoFilter && v.estado !== estadoFilter) return false
-    if (empleadoSearch) {
-      const s = empleadoSearch.toLowerCase()
-      if (!v.empleado_id.toLowerCase().includes(s)) return false
-    }
-    return true
-  }), [items, estadoFilter, empleadoSearch])
+  const filtered = useMemo(
+    () =>
+      items.filter((v) => {
+        if (estadoFilter && v.estado !== estadoFilter) return false
+        if (empleadoSearch) {
+          const s = empleadoSearch.toLowerCase()
+          if (!v.empleado_id.toLowerCase().includes(s)) return false
+        }
+        return true
+      }),
+    [items, estadoFilter, empleadoSearch]
+  )
+
+  const stats = useMemo(() => {
+    const pending = items.filter((item) => item.estado === 'pendiente').length
+    const approved = items.filter((item) => item.estado === 'aprobada').length
+    const totalDays = items.reduce((sum, item) => sum + (item.dias || 0), 0)
+    return { pending, approved, totalDays }
+  }, [items])
 
   const { page, setPage, totalPages, view, setPerPage } = usePagination(filtered, per)
   useEffect(() => setPerPage(per), [per, setPerPage])
@@ -56,7 +101,7 @@ export default function VacacionesList() {
   }
 
   const handleRechazar = async (id: string) => {
-    const motivo = prompt(t('hr:vacations.rejectionReason'))
+    const motivo = window.prompt(t('hr:vacations.rejectionReason'))
     try {
       await rechazarVacacion(id, { motivo })
       success(t('hr:vacations.rejected'))
@@ -67,150 +112,204 @@ export default function VacacionesList() {
   }
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-semibold text-lg">{t('hr:vacations.title')}</h2>
-        <button
-          className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-          onClick={() => nav('nueva')}
-        >
-          {t('hr:vacations.newRequest')}
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white border rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">{t('hr:vacations.status')}</label>
-          <select
-            value={estadoFilter}
-            onChange={(e) => setEstadoFilter(e.target.value)}
-            className="border px-2 py-1 rounded w-full text-sm"
-          >
-            <option value="">{t('hr:employees.all')}</option>
-            <option value="pendiente">{t('hr:vacations.pending')}</option>
-            <option value="aprobada">{t('hr:vacations.approvedStatus')}</option>
-            <option value="rechazada">{t('hr:vacations.rejectedStatus')}</option>
-            <option value="cancelada">{t('hr:vacations.cancelled')}</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">{t('hr:vacations.searchEmployee')}</label>
-          <input
-            type="text"
-            placeholder={t('hr:vacations.searchPlaceholder')}
-            value={empleadoSearch}
-            onChange={(e) => setEmpleadoSearch(e.target.value)}
-            className="border px-2 py-1 rounded w-full text-sm"
+    <div className="hr-shell">
+      <section className="hr-hero">
+        <div className="hr-hero__content">
+          <GcPageHeader
+            badge="Ausencias"
+            title={t('hr:vacations.title')}
+            subtitle="Solicitudes, permisos y aprobaciones con lectura inmediata para responsables de RRHH."
+            actions={
+              <button className="gc-btn gc-btn--primary" onClick={() => nav('new')}>
+                <Plus size={16} />
+                {t('hr:vacations.newRequest')}
+              </button>
+            }
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">{t('hr:vacations.perPage')}</label>
-          <select
-            value={per}
-            onChange={(e) => setPer(Number(e.target.value))}
-            className="border px-2 py-1 rounded w-full text-sm"
-          >
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-        </div>
-      </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto bg-white border rounded">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
+        <div className="hr-kpi-grid" style={{ marginTop: '1.25rem' }}>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Solicitudes</div>
+            <div className="hr-kpi-card__value">
+              <span className="hr-kpi-card__icon">
+                <CalendarRange size={18} />
+              </span>
+              {items.length}
+            </div>
+            <div className="hr-kpi-card__hint">Total de registros disponibles en el modulo.</div>
+          </div>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Pendientes</div>
+            <div className="hr-kpi-card__value">
+              <span className="hr-kpi-card__icon">
+                <Clock3 size={18} />
+              </span>
+              {stats.pending}
+            </div>
+            <div className="hr-kpi-card__hint">Solicitudes que requieren decision del responsable.</div>
+          </div>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Aprobadas</div>
+            <div className="hr-kpi-card__value">
+              <span className="hr-kpi-card__icon">
+                <CheckCircle2 size={18} />
+              </span>
+              {stats.approved}
+            </div>
+            <div className="hr-kpi-card__hint">{stats.totalDays} dias planificados entre todos los registros.</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="hr-toolbar">
+        <div className="hr-table-meta">
+          <div className="hr-record-cell">
+            <span className="hr-record-cell__title">Filtros operativos</span>
+            <span className="hr-record-cell__meta">
+              Refina por estado, empleado y volumen para revisar el backlog real.
+            </span>
+          </div>
+          <span className="hr-badge hr-badge--info">
+            <Filter size={13} />
+            {filtered.length} visibles
+          </span>
+        </div>
+
+        <div className="hr-toolbar-grid">
+          <label className="hr-field">
+            <span className="hr-field__label">{t('hr:vacations.status')}</span>
+            <select
+              value={estadoFilter}
+              onChange={(e) => setEstadoFilter(e.target.value)}
+              className="gc-input gc-select"
+            >
+              <option value="">{t('hr:employees.all')}</option>
+              <option value="pendiente">{t('hr:vacations.pending')}</option>
+              <option value="aprobada">{t('hr:vacations.approvedStatus')}</option>
+              <option value="rechazada">{t('hr:vacations.rejectedStatus')}</option>
+              <option value="cancelada">{t('hr:vacations.cancelled')}</option>
+            </select>
+          </label>
+
+          <label className="hr-field">
+            <span className="hr-field__label">{t('hr:vacations.searchEmployee')}</span>
+            <input
+              type="text"
+              placeholder={t('hr:vacations.searchPlaceholder')}
+              value={empleadoSearch}
+              onChange={(e) => setEmpleadoSearch(e.target.value)}
+              className="gc-input"
+            />
+          </label>
+
+          <label className="hr-field">
+            <span className="hr-field__label">{t('hr:vacations.perPage')}</span>
+            <select
+              value={per}
+              onChange={(e) => setPer(Number(e.target.value))}
+              className="gc-input gc-select"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="gc-table-wrap">
+        <table className="gc-table">
+          <thead>
             <tr>
-              <th className="px-3 py-2 text-left">{t('hr:vacations.employee')}</th>
-              <th className="px-3 py-2 text-left">{t('hr:vacations.type')}</th>
-              <th className="px-3 py-2 text-left">{t('hr:vacations.from')}</th>
-              <th className="px-3 py-2 text-left">{t('hr:vacations.to')}</th>
-              <th className="px-3 py-2 text-center">{t('hr:vacations.days')}</th>
-              <th className="px-3 py-2 text-center">{t('hr:vacations.status')}</th>
-              <th className="px-3 py-2 text-center">{t('hr:vacations.actions')}</th>
+              <th>{t('hr:vacations.employee')}</th>
+              <th>{t('hr:vacations.type')}</th>
+              <th>Periodo</th>
+              <th>{t('hr:vacations.days')}</th>
+              <th>{t('hr:vacations.status')}</th>
+              <th>{t('hr:vacations.actions')}</th>
             </tr>
           </thead>
           <tbody>
-            {loading && (
+            {loading ? (
               <tr>
-                <td colSpan={7} className="text-center py-4 text-gray-500">
-                  {t('hr:vacations.loading')}
+                <td colSpan={6}>
+                  <div className="hr-empty">
+                    <div className="hr-empty__title">{t('hr:vacations.loading')}</div>
+                  </div>
                 </td>
               </tr>
-            )}
-            {!loading && view.length === 0 && (
+            ) : view.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-4 text-gray-500">
-                  {t('hr:vacations.empty')}
+                <td colSpan={6}>
+                  <div className="hr-empty">
+                    <XCircle size={30} />
+                    <div className="hr-empty__title">{t('hr:vacations.empty')}</div>
+                    <div>No hay coincidencias con los filtros actuales.</div>
+                  </div>
                 </td>
               </tr>
-            )}
-            {!loading && view.map((v) => (
-              <tr key={v.id} className="border-t hover:bg-gray-50">
-                <td className="px-3 py-2">
-                  <Link to={`/hr/employees/${v.empleado_id}`} className="text-blue-600 hover:underline">
-                    {v.empleado_id}
-                  </Link>
-                </td>
-                <td className="px-3 py-2 capitalize">{v.tipo.replace('_', ' ')}</td>
-                <td className="px-3 py-2">{v.fecha_inicio}</td>
-                <td className="px-3 py-2">{v.fecha_fin}</td>
-                <td className="px-3 py-2 text-center">{v.dias}</td>
-                <td className="px-3 py-2 text-center">
-                  <span
-                    className={`inline-block px-2 py-1 text-xs rounded ${
-                      v.estado === 'aprobada'
-                        ? 'bg-green-100 text-green-800'
-                        : v.estado === 'rechazada'
-                        ? 'bg-red-100 text-red-800'
-                        : v.estado === 'cancelada'
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
-                  >
-                    {v.estado}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-center">
-                  {v.estado === 'pendiente' && (
-                    <div className="flex gap-1 justify-center">
-                      <button
-                        onClick={() => handleAprobar(v.id)}
-                        className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
-                      >
-                        {t('hr:vacations.approve')}
-                      </button>
-                      <button
-                        onClick={() => handleRechazar(v.id)}
-                        className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
-                      >
-                        {t('hr:vacations.reject')}
-                      </button>
+            ) : (
+              view.map((v) => (
+                <tr key={v.id}>
+                  <td>
+                    <div className="hr-record-cell">
+                      <Link to={`../empleados/${v.empleado_id}`} className="hr-link-inline">
+                        <span className="hr-record-cell__title">{v.empleado_id}</span>
+                      </Link>
+                      <span className="hr-record-cell__meta">Solicitud {v.id.slice(0, 8)}</span>
                     </div>
-                  )}
-                  {v.estado !== 'pendiente' && (
-                    <span className="text-gray-400 text-xs">-</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>
+                    <div className="hr-record-cell">
+                      <span className="hr-record-cell__title">{getTypeLabel(t, v.tipo)}</span>
+                      <span className="hr-record-cell__meta">{v.motivo || 'Sin motivo detallado'}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="hr-record-cell">
+                      <span className="hr-record-cell__title">{formatDate(v.fecha_inicio)}</span>
+                      <span className="hr-record-cell__meta">Hasta {formatDate(v.fecha_fin)}</span>
+                    </div>
+                  </td>
+                  <td>{v.dias}</td>
+                  <td>
+                    <span className={getStatusClass(v.estado)}>{getStatusLabel(t, v.estado)}</span>
+                  </td>
+                  <td>
+                    {v.estado === 'pendiente' ? (
+                      <div className="hr-actions-row">
+                        <button
+                          onClick={() => handleAprobar(v.id)}
+                          className="gc-btn gc-btn--primary gc-btn--sm"
+                        >
+                          {t('hr:vacations.approve')}
+                        </button>
+                        <button
+                          onClick={() => handleRechazar(v.id)}
+                          className="gc-btn gc-btn--danger gc-btn--sm"
+                        >
+                          {t('hr:vacations.reject')}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="hr-table-note">Sin acciones pendientes</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
+      </section>
+
+      <div className="hr-table-meta">
+        <p className="hr-table-note">
+          {t('hr:vacations.showing', { current: view.length, total: filtered.length })}
+        </p>
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
-
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        onPageChange={setPage}
-        className="mt-3"
-      />
-
-      <p className="text-xs text-gray-500 mt-2">
-        {t('hr:vacations.showing', { current: view.length, total: filtered.length })}
-      </p>
     </div>
   )
 }

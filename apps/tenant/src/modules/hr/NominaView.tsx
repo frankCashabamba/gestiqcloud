@@ -1,6 +1,9 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Banknote, CheckCircle2, Coins, RefreshCcw, Users, Wallet } from 'lucide-react'
+import { GcPageHeader } from '@ui'
 import { useNomina } from './hooks/useNomina'
+import './hr.css'
 
 function endOfMonth(month: string) {
   const [year, monthNumber] = month.split('-').map(Number)
@@ -29,6 +32,13 @@ export default function NominaView() {
   const { t } = useTranslation(['hr'])
   const { recibos, loading, submitting, error, reload, generate, confirm, markPaid } = useNomina()
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7))
+  const summary = useMemo(() => {
+    const totalEmployees = recibos.reduce((sum, item) => sum + Number(item.total_employees || 0), 0)
+    const totalNet = recibos.reduce((sum, item) => sum + Number(item.total_net || 0), 0)
+    const pendingRuns = recibos.filter((item) => item.status === 'DRAFT').length
+    const paidRuns = recibos.filter((item) => item.status === 'PAID').length
+    return { totalEmployees, totalNet, pendingRuns, paidRuns }
+  }, [recibos])
 
   const onGenerate = async () => {
     const payrollDate = endOfMonth(period)
@@ -37,176 +47,147 @@ export default function NominaView() {
   }
 
   return (
-    <div style={{ padding: 16, display: 'grid', gap: 16 }}>
-      <div
-        style={{
-          background: '#fff',
-          border: '1px solid #dbe3f0',
-          borderRadius: 16,
-          padding: 16,
-          boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)',
-          display: 'grid',
-          gap: 12,
-        }}
-      >
-        <div>
-          <h2 style={{ fontWeight: 700, fontSize: 24, margin: 0 }}>{t('hr:payroll.title')}</h2>
-          <p style={{ margin: '6px 0 0', color: '#4b5563' }}>{t('hr:payroll.subtitle')}</p>
+    <div className="hr-shell">
+      <section className="hr-hero">
+        <div className="hr-hero__content">
+          <GcPageHeader
+            badge="Nomina"
+            title={t('hr:payroll.title')}
+            subtitle={t('hr:payroll.subtitle')}
+            actions={
+              <button type="button" onClick={reload} disabled={loading || submitting} className="gc-btn gc-btn--secondary">
+                <RefreshCcw size={16} />
+                {t('hr:payroll.refresh')}
+              </button>
+            }
+          />
         </div>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={{ fontSize: 13, color: '#374151' }}>{t('hr:payroll.periodToGenerate')}</span>
-            <input
-              type="month"
-              value={period}
-              onChange={(event) => setPeriod(event.target.value)}
-              style={{
-                border: '1px solid #cbd5e1',
-                borderRadius: 10,
-                padding: '10px 12px',
-                minWidth: 180,
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={submitting}
-            style={{
-              border: 0,
-              borderRadius: 10,
-              padding: '10px 16px',
-              background: '#1d4ed8',
-              color: '#fff',
-              fontWeight: 600,
-              cursor: submitting ? 'wait' : 'pointer',
-            }}
-          >
-            {submitting ? t('hr:payroll.generating') : t('hr:payroll.generate')}
-          </button>
-          <button
-            type="button"
-            onClick={reload}
-            disabled={loading || submitting}
-            style={{
-              border: '1px solid #cbd5e1',
-              borderRadius: 10,
-              padding: '10px 16px',
-              background: '#fff',
-              color: '#111827',
-              fontWeight: 600,
-              cursor: loading ? 'wait' : 'pointer',
-            }}
-          >
-            {t('hr:payroll.refresh')}
-          </button>
-        </div>
-        {error ? (
-          <div
-            style={{
-              background: '#fef2f2',
-              color: '#991b1b',
-              border: '1px solid #fecaca',
-              borderRadius: 10,
-              padding: '10px 12px',
-            }}
-          >
-            {error}
+
+        <div className="hr-toolbar" style={{ marginTop: '1.25rem', background: 'rgba(255,255,255,0.82)' }}>
+          <div className="hr-table-meta">
+            <div className="hr-record-cell">
+              <span className="hr-record-cell__title">Generacion de periodo</span>
+              <span className="hr-record-cell__meta">
+                Crea la corrida mensual y deja las acciones de confirmacion y pago listas para el cierre.
+              </span>
+            </div>
           </div>
-        ) : null}
-      </div>
+
+          <div className="hr-toolbar-grid">
+            <label className="hr-field">
+              <span className="hr-field__label">{t('hr:payroll.periodToGenerate')}</span>
+              <input
+                type="month"
+                value={period}
+                onChange={(event) => setPeriod(event.target.value)}
+                className="gc-input"
+              />
+            </label>
+
+            <div className="hr-field" style={{ alignSelf: 'end' }}>
+              <button type="button" onClick={onGenerate} disabled={submitting} className="gc-btn gc-btn--primary">
+                <Wallet size={16} />
+                {submitting ? t('hr:payroll.generating') : t('hr:payroll.generate')}
+              </button>
+            </div>
+          </div>
+
+          {error ? <div className="gc-alert--error">{error}</div> : null}
+        </div>
+
+        <div className="hr-kpi-grid" style={{ marginTop: '1.25rem' }}>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Corridas</div>
+            <div className="hr-kpi-card__value">
+              <span className="hr-kpi-card__icon">
+                <Banknote size={18} />
+              </span>
+              {recibos.length}
+            </div>
+            <div className="hr-kpi-card__hint">Periodos generados y visibles en RRHH.</div>
+          </div>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Empleados</div>
+            <div className="hr-kpi-card__value">
+              <span className="hr-kpi-card__icon">
+                <Users size={18} />
+              </span>
+              {summary.totalEmployees}
+            </div>
+            <div className="hr-kpi-card__hint">{summary.pendingRuns} corridas siguen en borrador.</div>
+          </div>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Liquido neto</div>
+            <div className="hr-kpi-card__value">
+              <span className="hr-kpi-card__icon">
+                <Coins size={18} />
+              </span>
+              {formatMoney(String(summary.totalNet))}
+            </div>
+            <div className="hr-kpi-card__hint">{summary.paidRuns} corridas ya se marcaron como pagadas.</div>
+          </div>
+        </div>
+      </section>
 
       {loading ? (
-        <div style={{ color: '#4b5563' }}>{t('hr:payroll.loading')}</div>
+        <div className="gc-card-muted">{t('hr:payroll.loading')}</div>
       ) : recibos.length === 0 ? (
-        <div
-          style={{
-            background: '#fff',
-            border: '1px dashed #cbd5e1',
-            borderRadius: 16,
-            padding: 24,
-            color: '#4b5563',
-          }}
-        >
-          <div style={{ fontWeight: 600, color: '#111827', marginBottom: 6 }}>
-            {t('hr:payroll.emptyTitle')}
-          </div>
-          <div>{t('hr:payroll.emptyHelp')}</div>
+        <div className="gc-card-muted">
+          <div className="hr-record-cell__title">{t('hr:payroll.emptyTitle')}</div>
+          <div className="hr-record-cell__meta">{t('hr:payroll.emptyHelp')}</div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <section className="hr-payroll-grid">
           {recibos.map((payroll) => {
             const tone = statusTone[payroll.status] || statusTone.DRAFT
             return (
-              <article
-                key={payroll.id}
-                style={{
-                  background: '#fff',
-                  border: '1px solid #dbe3f0',
-                  borderRadius: 16,
-                  padding: 16,
-                  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.05)',
-                  display: 'grid',
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <article key={payroll.id} className="hr-payroll-card">
+                <div className="hr-payroll-card__head">
                   <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>
-                      {payroll.payroll_month}
-                    </div>
-                    <div style={{ color: '#6b7280', fontSize: 14 }}>
+                    <h2 className="hr-payroll-card__title">{payroll.payroll_month}</h2>
+                    <p className="hr-payroll-card__subtitle">
                       {t('hr:payroll.paymentDateLabel')}: {payroll.payroll_date}
-                    </div>
+                    </p>
                   </div>
                   <span
+                    className="hr-badge"
                     style={{
                       background: tone.bg,
                       color: tone.color,
-                      borderRadius: 999,
-                      padding: '6px 10px',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      alignSelf: 'start',
+                      borderColor: tone.bg,
                     }}
                   >
+                    <CheckCircle2 size={13} />
                     {t(`hr:payroll.statuses.${payroll.status}`, { defaultValue: payroll.status })}
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{t('hr:payroll.totalEmployees')}</div>
-                    <div style={{ fontWeight: 700, color: '#111827' }}>{payroll.total_employees}</div>
+                <div className="hr-payroll-card__metrics">
+                  <div className="hr-payroll-card__metric">
+                    <div className="hr-payroll-card__metric-label">{t('hr:payroll.totalEmployees')}</div>
+                    <div className="hr-payroll-card__metric-value">{payroll.total_employees}</div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{t('hr:payroll.totalGross')}</div>
-                    <div style={{ fontWeight: 700, color: '#111827' }}>{formatMoney(payroll.total_gross)}</div>
+                  <div className="hr-payroll-card__metric">
+                    <div className="hr-payroll-card__metric-label">{t('hr:payroll.totalGross')}</div>
+                    <div className="hr-payroll-card__metric-value">{formatMoney(payroll.total_gross)}</div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{t('hr:payroll.totalDeductions')}</div>
-                    <div style={{ fontWeight: 700, color: '#111827' }}>{formatMoney(payroll.total_deductions)}</div>
+                  <div className="hr-payroll-card__metric">
+                    <div className="hr-payroll-card__metric-label">{t('hr:payroll.totalDeductions')}</div>
+                    <div className="hr-payroll-card__metric-value">{formatMoney(payroll.total_deductions)}</div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{t('hr:payroll.netTotal')}</div>
-                    <div style={{ fontWeight: 700, color: '#111827' }}>{formatMoney(payroll.total_net)}</div>
+                  <div className="hr-payroll-card__metric">
+                    <div className="hr-payroll-card__metric-label">{t('hr:payroll.netTotal')}</div>
+                    <div className="hr-payroll-card__metric-value">{formatMoney(payroll.total_net)}</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div className="hr-actions-row">
                   {payroll.status === 'DRAFT' ? (
                     <button
                       type="button"
                       disabled={submitting}
                       onClick={() => confirm(payroll.id)}
-                      style={{
-                        border: 0,
-                        borderRadius: 10,
-                        padding: '9px 14px',
-                        background: '#1d4ed8',
-                        color: '#fff',
-                        fontWeight: 600,
-                      }}
+                      className="gc-btn gc-btn--primary"
                     >
                       {t('hr:payroll.confirm')}
                     </button>
@@ -216,14 +197,7 @@ export default function NominaView() {
                       type="button"
                       disabled={submitting}
                       onClick={() => markPaid(payroll.id)}
-                      style={{
-                        border: 0,
-                        borderRadius: 10,
-                        padding: '9px 14px',
-                        background: '#059669',
-                        color: '#fff',
-                        fontWeight: 600,
-                      }}
+                      className="gc-btn gc-btn--secondary"
                     >
                       {t('hr:payroll.markPaid')}
                     </button>
@@ -232,7 +206,7 @@ export default function NominaView() {
               </article>
             )
           })}
-        </div>
+        </section>
       )}
     </div>
   )

@@ -99,11 +99,12 @@ jobs:
       - name: Lint with Ruff
         run: |
           ruff check --line-length=100 app/
-      - name: Alembic sanity
+      - name: SQL migration sanity
         run: |
-          alembic --version
-          alembic heads
-          alembic history -v | tail -n 50
+          echo "Migrations are managed via ops/migrations (no active Alembic setup in apps/backend)"
+          test -d ../../ops/migrations
+          test -f ../../ops/scripts/migrate_all_migrations_idempotent.py
+          find ../../ops/migrations -mindepth 1 -maxdepth 1 -type d | sort | tail -n 50
       - name: Static guard — forbid legacy ::uuid param casts
         run: |
           set -e
