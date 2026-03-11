@@ -4,9 +4,9 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import TIMESTAMP, Date, Uuid
+from sqlalchemy import TIMESTAMP, Date
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import ForeignKey, Integer, Numeric, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
@@ -43,9 +43,7 @@ class Payroll(Base):
     __tablename__ = "payrolls"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
@@ -141,9 +139,7 @@ class PayrollDetail(Base):
     __tablename__ = "payroll_details"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
 
     # References
     payroll_id: Mapped[uuid.UUID] = mapped_column(
@@ -220,9 +216,7 @@ class PayrollTax(Base):
     __tablename__ = "payroll_taxes"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
 
     # Reference
     payroll_id: Mapped[uuid.UUID] = mapped_column(

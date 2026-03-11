@@ -35,7 +35,6 @@ python ../..//ops/scripts/check_endpoints.py  # smoke de endpoints FE/BE
 
 ## Migrations
 - The active migration source of truth is `ops/migrations/`.
-- The revision scaffold folder `apps/backend/revision_scaffold/` is scaffold-only; `revision_scaffold/versions` may be intentionally empty.
 - Manual SQL migrations live in `ops/migrations/` (see `docs/datos-migraciones.md`).
 
 ## Endpoints clave

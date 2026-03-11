@@ -556,7 +556,7 @@ ruff check .
    - pytest (unit/integration tests)
    - pytest-cov (coverage report)
    - black, ruff (code quality)
-   - alembic (database migrations)
+   - SQL migration runner (database migrations)
 
 💰 DATOS DE TEST:
    - fixtures/accounting/ (COA, entries)

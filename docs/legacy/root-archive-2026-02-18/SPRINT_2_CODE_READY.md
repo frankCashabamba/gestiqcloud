@@ -184,7 +184,7 @@ Wednesday-Friday: E-INVOICING
 
 ---
 
-## 📝 NO ALEMBIC APPROACH
+## 📝 SQL-ONLY APPROACH
 
 ### Option A: Direct SQL (Recommended)
 ```bash
@@ -255,7 +255,7 @@ Before implementing services:
 - [ ] Seed master data (tax_regimes, payroll_parameters)
 - [ ] Test tenant isolation with RLS
 - [ ] Test models import in FastAPI app
-- [ ] Create migration docs (no Alembic, just SQL files)
+- [ ] Create migration docs (SQL files only)
 
 ---
 

@@ -13,16 +13,22 @@ Related Tables (see migrations):
   - gender_types: Dynamic gender options (MALE, FEMALE, OTHER, PREFER_NOT_TO_SAY, ...)
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import TIMESTAMP, Date, Uuid
+from sqlalchemy import TIMESTAMP, Date
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Numeric, String, Text, func
+from sqlalchemy import ForeignKey, Numeric, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
+
+if TYPE_CHECKING:
+    from app.models.hr.attendance import TimeEntry, VacationRequest
 
 MODULE_UUID = Uuid(as_uuid=True)
 TENANT_UUID = String(36)
@@ -90,9 +96,7 @@ class Employee(Base):
     __tablename__ = "employees"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
@@ -205,22 +209,22 @@ class Employee(Base):
     )
 
     # Relations
-    salaries: Mapped[list["EmployeeSalary"]] = relationship(
+    salaries: Mapped[list[EmployeeSalary]] = relationship(
         "EmployeeSalary", back_populates="employee", cascade="all, delete-orphan", lazy="selectin"
     )
-    deductions: Mapped[list["EmployeeDeduction"]] = relationship(
+    deductions: Mapped[list[EmployeeDeduction]] = relationship(
         "EmployeeDeduction",
         back_populates="employee",
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    vacations: Mapped[list["VacationRequest"]] = relationship(
+    vacations: Mapped[list[VacationRequest]] = relationship(
         "VacationRequest",
         back_populates="employee",
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    time_entries: Mapped[list["TimeEntry"]] = relationship(
+    time_entries: Mapped[list[TimeEntry]] = relationship(
         "TimeEntry",
         back_populates="employee",
         cascade="all, delete-orphan",
@@ -252,9 +256,7 @@ class EmployeeSalary(Base):
     __tablename__ = "employee_salaries"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
 
     # Reference
     employee_id: Mapped[uuid.UUID] = mapped_column(
@@ -298,9 +300,7 @@ class EmployeeSalary(Base):
     )
 
     # Relations
-    employee: Mapped["Employee"] = relationship(
-        "Employee", back_populates="salaries", lazy="select"
-    )
+    employee: Mapped[Employee] = relationship("Employee", back_populates="salaries", lazy="select")
 
 
 class EmployeeDeduction(Base):
@@ -333,9 +333,7 @@ class EmployeeDeduction(Base):
     __tablename__ = "employee_deductions"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
 
     # Reference
     employee_id: Mapped[uuid.UUID] = mapped_column(
@@ -383,6 +381,6 @@ class EmployeeDeduction(Base):
     )
 
     # Relations
-    employee: Mapped["Employee"] = relationship(
+    employee: Mapped[Employee] = relationship(
         "Employee", back_populates="deductions", lazy="select"
     )

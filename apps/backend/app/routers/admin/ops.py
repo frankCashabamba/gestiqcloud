@@ -89,24 +89,6 @@ def _idempotent_migrations_script() -> Path:
     return _repo_root() / "ops" / "scripts" / "migrate_all_migrations_idempotent.py"
 
 
-def _has_revision_files(backend_dir: Path) -> bool:
-    versions_dir = backend_dir / "revision_scaffold" / "versions"
-    if not versions_dir.exists():
-        return False
-    return any(
-        item.is_file() and item.suffix == ".py" and item.name != "__init__.py"
-        for item in versions_dir.iterdir()
-    )
-
-
-def _revision_scaffold_config(backend_dir: Path):
-    from alembic.config import Config
-
-    cfg = Config(str(backend_dir / "revision_scaffold.ini"))
-    cfg.set_main_option("script_location", str(backend_dir / "revision_scaffold"))
-    return cfg
-
-
 def _list_sql_migration_names() -> list[str]:
     migrations_dir = _repo_root() / "ops" / "migrations"
     if not migrations_dir.exists():
@@ -434,21 +416,6 @@ def migrate_status_details(db: Session = Depends(get_db)):
     # Base state
     state = dict(migration_state)
 
-    # Revision heads (best-effort)
-    info = {}
-    try:
-        from alembic.script import ScriptDirectory
-
-        backend_dir = Path(__file__).resolve().parents[3]
-        if not _has_revision_files(backend_dir):
-            raise FileNotFoundError("revision_scaffold_empty")
-        cfg = _revision_scaffold_config(backend_dir)
-        script = ScriptDirectory.from_config(cfg)
-        heads = list(script.get_heads())
-        info = {"revision_heads": {"count": len(heads), "heads": heads}}
-    except Exception:
-        info = {"revision_heads": {"count": 0, "heads": []}}
-
     # Pending tracked SQL migrations
     pending_info = {
         "pending": True,
@@ -498,7 +465,6 @@ def migrate_status_details(db: Session = Depends(get_db)):
 
     return {
         **state,
-        **info,
         **pending_info,
         "config": {
             "render_configured": False,
@@ -514,22 +480,6 @@ def migrate_status_details(db: Session = Depends(get_db)):
 @router.get("/ops/migrate/status")
 def migrate_status(db: Session = Depends(get_db)):
     state = dict(migration_state)
-    # Enrich with revision head state
-    info = {}
-    try:
-        from alembic.script import ScriptDirectory
-
-        backend_dir = Path(__file__).resolve().parents[3]
-        if not _has_revision_files(backend_dir):
-            raise FileNotFoundError("revision_scaffold_empty")
-        cfg = _revision_scaffold_config(backend_dir)
-        script = ScriptDirectory.from_config(cfg)
-        heads = list(script.get_heads())
-        info = {"revision_heads": {"count": len(heads), "heads": heads}}
-    except Exception:
-        # keep working if the revision scaffold is unavailable in this environment
-        info = {"revision_heads": {"count": 0, "heads": []}}
-
     if not state.get("running"):
         try:
             table_name = _qualified_table_name(db, "admin_migration_runs")
@@ -560,7 +510,7 @@ def migrate_status(db: Session = Depends(get_db)):
                 )
         except Exception:
             pass
-    return {**state, **info}
+    return state
 
 
 @router.get("/ops/migrate/history")
@@ -624,43 +574,3 @@ def migrate_refresh(db: Session = Depends(get_db)):
     except Exception:
         pass
     return {"ok": True, "updated": False, "status": "idle"}
-
-
-def _revision_heads_pending() -> tuple[bool, int, list[str]]:
-    """Return (pending, count, revisions[]) using revision-scaffold APIs.
-
-    Falls back to considering pending=True on error to be safe.
-    """
-    try:
-        from sqlalchemy import create_engine
-
-        from alembic.runtime.migration import MigrationContext
-        from alembic.script import ScriptDirectory
-        from app.config.database import make_db_url
-
-        backend_dir = Path(__file__).resolve().parents[3]
-        if not _has_revision_files(backend_dir):
-            return (False, 0, [])
-        cfg = _revision_scaffold_config(backend_dir)
-
-        engine = create_engine(make_db_url(), future=True)
-        with engine.connect() as conn:
-            context = MigrationContext.configure(conn)
-            current = context.get_current_revision()
-
-        script = ScriptDirectory.from_config(cfg)
-        heads = set(script.get_heads())
-        if current in heads:
-            return (False, 0, [])
-
-        # Collect revisions between current and heads (best-effort)
-        revs: list[str] = []
-        for rev in script.walk_revisions(head="heads"):
-            # walk_revisions yields from heads backward; stop at current
-            if rev.revision == current:
-                break
-            revs.append(rev.revision)
-        revs = list(reversed(revs))
-        return (len(revs) > 0, len(revs), revs)
-    except Exception:
-        return (True, -1, [])

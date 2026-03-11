@@ -8,8 +8,8 @@ Incluye:
 - Boletos
 """
 
-from .employee import Employee, EmployeeDeduction, EmployeeSalary
 from .attendance import TimeEntry, VacationRequest
+from .employee import Employee, EmployeeDeduction, EmployeeSalary
 from .payroll import Payroll, PayrollDetail, PayrollTax
 from .payslip import PaymentSlip
 

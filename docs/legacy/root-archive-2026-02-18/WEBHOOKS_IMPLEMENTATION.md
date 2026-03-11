@@ -45,7 +45,7 @@ Implementación completa y profesional del módulo de webhooks para GestiqCloud.
 
 ---
 
-### 3. **Database Schema** (`revision_scaffold/versions/012_webhook_subscriptions.py`)
+### 3. **Database Schema** (`ops/migrations/...`)
 
 #### Tables
 - `webhook_subscriptions` (id, tenant_id, event, url, secret, active, created_at, updated_at)
@@ -199,7 +199,7 @@ apps/backend/app/modules/webhooks/
 tests/
 └── test_webhooks.py                    # Unit and integration tests
 
-revision_scaffold/versions/
+ops/migrations/
 └── 012_webhook_subscriptions.py        # Database migration
 ```
 
@@ -211,7 +211,7 @@ revision_scaffold/versions/
 
 ```bash
 cd apps/backend
-alembic upgrade head
+python ../../ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ### 2. Create Subscription
@@ -400,7 +400,7 @@ ORDER BY created_at DESC LIMIT 20;
 
 ## Next Steps
 
-1. ✅ Run migration: `alembic upgrade head`
+1. ✅ Run migration: `python ops/scripts/migrate_all_migrations_idempotent.py`
 2. ✅ Test endpoints with `curl` or Postman
 3. ✅ Integrate triggers in invoice/payment/customer modules
 4. ✅ Test with webhook.site

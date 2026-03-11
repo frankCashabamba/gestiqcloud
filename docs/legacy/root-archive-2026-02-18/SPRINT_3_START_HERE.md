@@ -7,7 +7,7 @@
 ## ⚡ QUICK START (5 minutes)
 
 1. **Read this file** (you are here)
-2. **Run migrations:** `alembic upgrade head`
+2. **Run migrations:** `python ops/scripts/migrate_all_migrations_idempotent.py`
 3. **Test webhooks:** Use Postman or curl
 4. **Build next modules:** Follow Webhooks pattern
 
@@ -66,7 +66,7 @@
 ```
 1. ✅ Read SPRINT_3_START_HERE.md (you are here)
 2. ✅ Read SPRINT_3_COMPLETE_100.md (full status)
-3. 🔲 Run: alembic upgrade head
+3. 🔲 Run: python ops/scripts/migrate_all_migrations_idempotent.py
 4. 🔲 Start: apps/backend server
 5. 🔲 Test: Webhooks endpoints with Postman
 ```
@@ -120,7 +120,7 @@ apps/webhooks/
 
 ### Database
 ```
-apps/backend/revision_scaffold/versions/webhooks_initial_schema.py ✅
+ops/migrations/... ✅
 ```
 
 ---
@@ -174,7 +174,7 @@ Webhooks:
   ✅ interface/http/tenant.py
   ✅ infrastructure/delivery.py
   ✅ infrastructure/event_queue.py
-  ✅ alembic migration
+  ✅ SQL migration applied
   ✅ Routes in build_api_router()
 
 Notifications (Same pattern):
@@ -182,7 +182,7 @@ Notifications (Same pattern):
   ✅ application/*.py
   ✅ interface/http/tenant.py
   ✅ infrastructure/*.py
-  ✅ alembic migration
+  ✅ SQL migration applied
   ✅ Routes registered
 
 Reconciliation (Same pattern):
@@ -294,7 +294,7 @@ Before you start coding:
 ```bash
 # 1. Apply migrations
 cd apps/backend
-alembic upgrade head
+python ../../ops/scripts/migrate_all_migrations_idempotent.py
 
 # 2. Start server
 uvicorn app.main:app --reload
@@ -334,7 +334,7 @@ You will have:
 ## 🚀 START NOW
 
 1. **Open:** `SPRINT_3_COMPLETE_100.md`
-2. **Run:** `alembic upgrade head`
+2. **Run:** `python ops/scripts/migrate_all_migrations_idempotent.py`
 3. **Test:** Webhooks with Postman
 4. **Build:** Notifications (follow pattern)
 5. **Repeat:** For Reconciliation & Reports

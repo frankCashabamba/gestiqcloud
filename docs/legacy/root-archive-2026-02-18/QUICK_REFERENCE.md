@@ -12,7 +12,7 @@ ollama serve
 echo "OLLAMA_URL=http://localhost:11434" >> apps/backend/.env
 
 # 3. Crear tablas
-cd apps/backend && alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # 4. Usar
 curl http://localhost:8000/api/v1/health/ai
@@ -148,7 +148,7 @@ OPENAI_API_KEY=xxx
 |----------|----------|
 | "Connection refused" | Verificar `ollama serve` corre |
 | "No providers available" | Verificar OLLAMA_URL en .env |
-| "Table does not exist" | Ejecutar `alembic upgrade head` |
+| "Table does not exist" | Run `python ops/scripts/migrate_all_migrations_idempotent.py` |
 | "ImportError ai_logs" | Verificar routers importados en main.py |
 | "Slow responses" | Usar modelo más pequeño (mistral:7b) |
 

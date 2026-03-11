@@ -145,7 +145,7 @@ Si necesita migrations:
 
 Settings → "Build & Deploy"
 → Post-deploy command:
-   cd apps/backend && alembic upgrade head
+   python ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ### **3.5 Deploy!**
@@ -365,7 +365,7 @@ Soluciones:
    → Verificar requirements.txt actualizado
    → pip install -r apps/backend/requirements.txt
 
-5. Común: Alembic migration falla
+5. Common: SQL migration runner fails
    → Ver logs del post-deploy command
    → Manual fix en Render shell (si acceso)
 ```

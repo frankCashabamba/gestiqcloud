@@ -91,7 +91,7 @@ Follow Webhooks pattern. Expected implementation: 2 days
 ### Database Migrations
 
 ```
-✅ apps/backend/revision_scaffold/versions/webhooks_initial_schema.py
+✅ ops/migrations/...
    - Creates webhook_subscriptions table
    - Creates webhook_deliveries table
    - All indexes included
@@ -106,7 +106,7 @@ Follow Webhooks pattern. Expected implementation: 2 days
 ```bash
 # 1. Run migration
 cd apps/backend
-alembic upgrade head
+python ../../ops/scripts/migrate_all_migrations_idempotent.py
 
 # 2. Start server
 uvicorn app.main:app --reload
@@ -286,7 +286,7 @@ By end of SPRINT 3 (Friday):
 ```bash
 # 1. Run migration
 cd apps/backend
-alembic upgrade head
+python ../../ops/scripts/migrate_all_migrations_idempotent.py
 
 # 2. Test endpoints
 # Use Postman or curl
@@ -343,7 +343,7 @@ All modules follow the same 5-layer pattern:
 
 ### Layer 5: Migrations
 ```python
-# revision_scaffold/versions/*.py - Database schema
+# ops/migrations/* - Database schema
 ```
 
 **Workflow:**
@@ -416,4 +416,4 @@ apps/webhooks/  ← Use as template for other modules
 
 **GO BUILD IT** 🔥
 
-Next: Run `alembic upgrade head` then test webhooks endpoints
+Next: Run `python ops/scripts/migrate_all_migrations_idempotent.py` then test webhooks endpoints

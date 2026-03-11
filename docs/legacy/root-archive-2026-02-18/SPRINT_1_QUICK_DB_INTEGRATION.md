@@ -364,11 +364,10 @@ from app.models.core.sales import SalesOrder, SalesOrderLine
 cd apps/backend
 python -c "from app.models.core.pos import POSShift; print('Models OK')"
 
-# 2. If missing, create migration
-alembic revision --autogenerate -m "add sprint1 models"
+# 2. If missing, create the SQL migration under ops/migrations
 
 # 3. Apply migration
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # 4. Verify tables
 psql $DATABASE_URL -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"

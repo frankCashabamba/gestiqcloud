@@ -184,7 +184,7 @@ Webhooks: 0% coverage ❌
 
 ### 5️⃣ **Dual Migration Systems**
 ```
-Alembic (automático) + SQL manual (ops/migrations/)
+Revision scaffold + manual SQL (ops/migrations/)
 → Confuso, difícil de mantener
 → Requiere cleanup inmediato
 ```
@@ -281,7 +281,7 @@ BREAK-EVEN:             1-2 meses
 
 ⚠️ 3. Cleanup deuda técnica
      └─ Ejecutar cleanup_*.py
-     └─ Unificar migraciones (Alembic)
+     └─ Unify migrations under the SQL runner
      └─ Eliminar archivos de test internos
 
 ⚠️ 4. Entrena tu equipo

@@ -1,4 +1,4 @@
--- Add template V2 support columns (no Alembic)
+-- Add template V2 support columns (SQL runner only)
 -- Run manually in staging/prod. Compatible with Postgres and SQLite (tests).
 
 -- Import batches: file sha + parser confidence JSON

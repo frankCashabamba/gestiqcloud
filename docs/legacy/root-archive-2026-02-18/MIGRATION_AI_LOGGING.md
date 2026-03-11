@@ -7,30 +7,29 @@ Agregar tablas para logging, análisis y recuperación de IA:
 - `ai_error_analysis` - Análisis de patrones de error
 - `ai_error_recovery` - Intentos de recuperación
 
-## 🚀 Opción 1: Alembic Migration (Recomendado)
+## 🚀 Option 1: Tracked SQL Migration (Recommended)
 
 ### Paso 1: Crear la migración
 ```bash
 cd apps/backend
 
-# Generar archivo de migración
-alembic revision --autogenerate -m "Add AI logging tables"
+# Create the SQL migration directory and up.sql
 ```
 
 ### Paso 2: Verificar el archivo generado
 ```bash
-# Should create: revision_scaffold/versions/xxxx_add_ai_logging_tables.py
+# Should create: ops/migrations/xxxx_add_ai_logging_tables/
 # Revisar que incluya las 3 tablas
 ```
 
 ### Paso 3: Aplicar migración
 ```bash
 # Development
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # Production (con backup primero)
 pg_dump -U postgres database_name > backup.sql
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ### Paso 4: Verificar
@@ -48,7 +47,7 @@ psql -U postgres -d database_name -c "\dt ai_*"
 
 ## 🛠️ Opción 2: SQL Directo
 
-Si Alembic no funciona o prefieres SQL directo:
+If you want SQL-only migrations:
 
 ### Crear tablas
 ```sql
@@ -217,16 +216,13 @@ for col in columns:
 
 ## 🔄 Rollback (Si algo falla)
 
-### Con Alembic
+### With the SQL migration runner
 ```bash
-# Ver current version
-alembic current
+# Re-run tracked SQL migrations
+python ops/scripts/migrate_all_migrations_idempotent.py
 
-# Rollback a versión anterior
-alembic downgrade -1
-
-# O específico
-alembic downgrade <revision>
+# Rollback requires a prepared down.sql
+# or a manual database restore from backup
 ```
 
 ### Manual SQL

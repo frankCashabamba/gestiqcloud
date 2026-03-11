@@ -21,8 +21,8 @@
 
 - [ ] Database is clean and migrated
   ```bash
-  # Check migrations are up to date
-  alembic current
+  # Check applied SQL migrations
+  python ops/scripts/migrate_all_migrations_idempotent.py
   ```
 
 - [ ] Tests pass for Tier 1 & 2
@@ -109,7 +109,7 @@
 python -c "from app.modules.webhooks.domain.models import WebhookSubscription; print('OK')"
 
 # Run migrations
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ---

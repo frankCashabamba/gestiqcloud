@@ -39,7 +39,7 @@ CODE: WEBHOOKS MODULE (12 files - 100% COMPLETE)
      - event_queue.py      (Redis queue management)
 
   ✅ Database (1 file)
-     - alembic migration   (2 tables, 7 indexes)
+     - SQL migration       (2 tables, 7 indexes)
 
 CODE: MODULE STUBS (3 modules, 6 files)
   ✅ Notifications module  (ready to implement)
@@ -99,7 +99,7 @@ Timeline:        Fits in 2-week sprint ✅
 TODAY (1-2 hours):
   1. Read SPRINT_3_START_HERE.md
   2. Read SPRINT_3_COMPLETE_100.md
-  3. Run: alembic upgrade head
+  3. Run: python ops/scripts/migrate_all_migrations_idempotent.py
   4. Start server: uvicorn app.main:app --reload
   5. Test webhooks with Postman
 
@@ -126,7 +126,7 @@ FRIDAY (SPRINT 3 COMPLETE):
 
 Primary:        SPRINT_3_START_HERE.md     (5 min read)
 Then:           SPRINT_3_COMPLETE_100.md  (10 min read)
-Then:           apps/backend/revision_scaffold/versions/webhooks_initial_schema.py
+Then:           ops/migrations/...
 Then:           Test webhooks endpoints with Postman
 Then:           Start building Notifications following same pattern
 
@@ -167,7 +167,7 @@ Webhooks:
   ✅ apps/backend/app/modules/webhooks/interface/http/tenant.py
   ✅ apps/backend/app/modules/webhooks/infrastructure/delivery.py
   ✅ apps/backend/app/modules/webhooks/infrastructure/event_queue.py
-  ✅ apps/backend/revision_scaffold/versions/webhooks_initial_schema.py
+  ✅ ops/migrations/...
   ✅ Router registered in build_api_router()
 
 Notifications (ready):
@@ -191,7 +191,7 @@ Reports (ready):
 
 NEXT ACTION: Read SPRINT_3_START_HERE.md (5 minutes)
 
-Then: alembic upgrade head
+Then: python ops/scripts/migrate_all_migrations_idempotent.py
 
 Then: Test webhooks endpoints
 

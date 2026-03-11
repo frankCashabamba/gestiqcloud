@@ -133,7 +133,7 @@ gestiqcloud/
     ├── tests/
     │   └── test_webhooks.py            # Unit tests (197 lines)
     │
-    └── revision_scaffold/versions/
+    └── ops/migrations/
         └── 012_webhook_subscriptions.py # Database migration
 ```
 
@@ -182,7 +182,7 @@ gestiqcloud/
 ### 1. Run Migration
 ```bash
 cd apps/backend
-alembic upgrade head
+python ../../ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ### 2. Start Backend
@@ -512,7 +512,7 @@ All success criteria met:
 ## 🚦 Next Steps
 
 ### Immediate (Ready to use)
-1. ✅ Run migration: `alembic upgrade head`
+1. ✅ Run migration: `python ops/scripts/migrate_all_migrations_idempotent.py`
 2. ✅ Test endpoints with `curl`
 3. ✅ Read documentation
 

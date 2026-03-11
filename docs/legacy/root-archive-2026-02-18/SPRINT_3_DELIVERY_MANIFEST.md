@@ -77,7 +77,7 @@ Status: ✅ COMPLETE
 
 ### Database
 ```
-apps/backend/revision_scaffold/versions/webhooks_initial_schema.py
+ops/migrations/...
 
 Creates:
   - webhook_subscriptions table (13 columns, 3 indexes)
@@ -183,7 +183,7 @@ TOTAL:              68-76 hours (fits in 2-week sprint)
 
 ### Use Webhooks Immediately
 ```bash
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 # Then POST to /api/v1/tenant/webhooks
 ```
 
@@ -384,7 +384,7 @@ You can start coding RIGHT NOW ✅
 ## 📋 WHAT TO DO NEXT
 
 1. **Read:** `SPRINT_3_START_HERE.md` (5 min)
-2. **Verify:** Run `alembic upgrade head` (2 min)
+2. **Verify:** Run `python ops/scripts/migrate_all_migrations_idempotent.py` (2 min)
 3. **Test:** Webhooks with Postman (15 min)
 4. **Code:** Notifications module (2 days)
 5. **Code:** Reconciliation module (2 days)

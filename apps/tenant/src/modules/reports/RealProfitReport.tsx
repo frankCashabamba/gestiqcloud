@@ -39,7 +39,11 @@ export default function RealProfitReport() {
     }
 
     try {
-      forceRecalculation ? setRecalculating(true) : setLoading(true)
+      if (forceRecalculation) {
+        setRecalculating(true)
+      } else {
+        setLoading(true)
+      }
 
       if (forceRecalculation) {
         await triggerRecalculation(dateFrom, dateTo)
@@ -77,9 +81,7 @@ export default function RealProfitReport() {
   }, [])
 
   useEffect(() => {
-    loadReport()
-    // Initial load only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadReport()
   }, [])
 
   const summary = report?.summary

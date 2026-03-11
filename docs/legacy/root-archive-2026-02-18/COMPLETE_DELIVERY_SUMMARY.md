@@ -132,9 +132,8 @@ OLLAMA_MODEL=llama3.1:8b
 
 ### Paso 3: Crear Tablas BD
 ```bash
-cd apps/backend
-alembic revision --autogenerate -m "Add AI logging"
-alembic upgrade head
+cd c:/gestiqcloud
+python ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ### Paso 4: Importar Routers (main.py)

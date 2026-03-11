@@ -3,7 +3,6 @@ slowapi>=0.1.9
 
 itsdangerous>=2.2.0,<3.0
 passlib[bcrypt]>=1.7.4,<2.0
-alembic>=1.16.2,<2.0
 annotated-types==0.7.0
 anyio==4.9.0
 bcrypt>=4.3.0

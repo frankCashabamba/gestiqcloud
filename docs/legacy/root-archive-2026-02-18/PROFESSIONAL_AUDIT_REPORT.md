@@ -26,7 +26,7 @@
 ✓ **Stack moderno y establecido:**
 - FastAPI (async, rápido, bien tipado)
 - SQLAlchemy 2.0+ (ORM potente)
-- Alembic (migraciones automáticas)
+- Revision scaffold (legacy compatibility)
 - Pydantic v2 (validación robusta)
 - Pytest con 45+ archivos de test
 
@@ -161,7 +161,7 @@ test_imports_pipeline.py   ✅ Bulk operations
 ```
 
 #### 🗄️ **Base de Datos:**
-- Alembic con versiones automáticas
+- Revision scaffold with generated entries
 - Migraciones SQL sueltas en `ops/migrations/`
 - ⚠️ Dos sistemas de migración (confuso)
 
@@ -334,7 +334,7 @@ Documentación:     README.md breve pero claro
 - [ ] Validar `requirements.txt` (no hay vulnerabilidades conocidas)
 - [ ] Auditar variables de entorno en `.env.example`
 - [ ] Ejecutar `ruff check` y `mypy` sin warnings críticos
-- [ ] Revisar migraciones Alembic (`alembic upgrade head`)
+- [ ] Review SQL migrations (`python ops/scripts/migrate_all_migrations_idempotent.py`)
 - [ ] Setup PostgreSQL (no SQLite en producción)
 - [ ] Configurar Redis si se usa caché de sesiones
 - [ ] Validar CORS y dominios en config
@@ -370,7 +370,7 @@ Documentación:     README.md breve pero claro
 ```
 ✓ Completar docs de frontend (Tenant + Admin)
 ✓ Adicionar test fixtures para todos los módulos
-✓ Unificar sistema de migraciones (Alembic vs SQL)
+✓ Unify the migration system (revision scaffold vs SQL)
 ✓ Limpiar deuda técnica (fix_*.py, hardcoding)
 ✓ Validar módulos Tier 2 (Accounting, Finance)
 ```

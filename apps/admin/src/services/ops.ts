@@ -13,7 +13,6 @@ export type MigrationState = {
   ok: boolean | null
   error: string | null
   run_id?: string | null
-  revision_heads?: { count: number; heads: string[] }
 }
 
 export async function getMigrationStatus(): Promise<MigrationState> {

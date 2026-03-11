@@ -194,10 +194,9 @@ curl http://localhost:8000/api/v1/health/ai/providers
 
 ### 1. Crear Tablas de BD (20 min)
 ```bash
-# Opción A: Alembic migration
-cd apps/backend
-alembic revision --autogenerate -m "Add AI logging tables"
-alembic upgrade head
+# Option A: tracked SQL migration
+cd c:/gestiqcloud
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # Opción B: SQL directo (ver MIGRATION_AI_LOGGING.md)
 psql -f ai_logging_tables.sql

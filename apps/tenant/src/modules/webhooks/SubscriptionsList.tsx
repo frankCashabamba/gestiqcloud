@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
-import { listSubscriptions, deleteSubscription, testSubscription, WebhookSubscription } from './services'
+import {
+  createSubscription,
+  deleteSubscription,
+  listSubscriptions,
+  testSubscription,
+  WebhookSubscription,
+} from './services'
 
 export default function SubscriptionsList() {
   const { t } = useTranslation()
@@ -139,7 +145,6 @@ function SubscriptionForm({ onSuccess, t }: { onSuccess: () => void; t: (key: st
 
     setLoading(true)
     try {
-      const { createSubscription } = await import('./services')
       await createSubscription({ event, url, secret: secret || undefined })
       success(t('webhooks.created'))
       onSuccess()

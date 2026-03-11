@@ -230,17 +230,17 @@ gestiqcloud/
 ```bash
 cd apps/backend
 
-# Aplicar todas las migraciones
-alembic upgrade head
+# Apply all tracked migrations
+python ops/scripts/migrate_all_migrations_idempotent.py
 
-# Aplicar hasta una versión específica
-alembic upgrade 001
+# Apply up to a specific version
+# Run the corresponding SQL migration directory manually if needed
 
-# Revertir una migración
-alembic downgrade -1
+# Revert a migration
+# Execute the matching down.sql or restore from backup
 
-# Ver estado actual
-alembic current
+# View current state
+# Inspect the _migrations table
 ```
 
 ### Crear Script de Seed (Reutilizable)

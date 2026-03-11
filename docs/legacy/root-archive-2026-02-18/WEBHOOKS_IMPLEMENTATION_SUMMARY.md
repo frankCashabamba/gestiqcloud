@@ -209,7 +209,7 @@
 
 ### Deployment Steps (1 hour)
 
-- [ ] Run Alembic migration (webhook tables already created)
+- [ ] Run tracked SQL migration (webhook tables already created)
 - [ ] Deploy code changes
 - [ ] Start Celery workers: `celery -A app.celery_app worker`
 - [ ] Configure Prometheus scraping: `/metrics` endpoint

@@ -122,18 +122,6 @@ export default function Migraciones() {
           {state.error && <div className="text-red-600">Error: {state.error}</div>}
         </div>
       )}
-      {state?.revision_heads && state.revision_heads.count > 1 && (
-        <div className="mt-4 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-slate-700 text-sm">
-          <div className="font-semibold text-slate-800">Revision Diagnostic</div>
-          <div>
-            Detected {state.revision_heads.count} heads: {state.revision_heads.heads.join(', ')}.
-          </div>
-          <div className="mt-1">
-            Este aviso es solo informativo y no bloquea el runner SQL idempotente del boton.
-          </div>
-        </div>
-      )}
-
       <div className="mt-6">
         <h3 className="text-base font-semibold mb-2">Historial</h3>
         <div className="overflow-x-auto">

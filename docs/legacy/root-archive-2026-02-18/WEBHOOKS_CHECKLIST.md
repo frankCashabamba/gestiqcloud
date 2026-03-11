@@ -72,7 +72,7 @@
   - Updates delivery status in DB
   - Logs delivery attempts
 
-### Database (`revision_scaffold/versions/012_webhook_subscriptions.py`)
+### Database (`ops/migrations/...`)
 - ✅ `webhook_subscriptions` table
   - id (UUID PK)
   - tenant_id (UUID FK → empresas)
@@ -287,7 +287,7 @@
 ```bash
 # 1. Check migration
 cd apps/backend
-ls -la revision_scaffold/versions/012_webhook*.py
+ls -la ops/migrations/
 
 # 2. Check module structure
 ls -la app/modules/webhooks/
@@ -300,7 +300,7 @@ grep -n "webhooks" app/platform/http/router.py
 pytest tests/test_webhooks.py -v
 
 # 5. Run migration
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # 6. Test endpoints
 curl -X GET http://localhost:8000/api/v1/tenant/webhooks/subscriptions \

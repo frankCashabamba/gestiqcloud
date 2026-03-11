@@ -411,9 +411,8 @@ Accesibles vía API:
 
 ### 1. Crear Tablas (20 min)
 ```bash
-# Opción A: Alembic migration
-alembic revision --autogenerate -m "Add AI logging"
-alembic upgrade head
+# Option A: tracked SQL migration
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # Opción B: SQL directo
 psql -f ai_logging_tables.sql

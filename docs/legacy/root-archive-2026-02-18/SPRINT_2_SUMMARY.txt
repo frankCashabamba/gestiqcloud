@@ -104,10 +104,10 @@ AUDIT TRAIL:
 ✅ PaymentSlip tracks download/view activity
 ✅ Reconciliation tracks matched_by, resolved_by
 
-NO ALEMBIC:
+SQL-ONLY MIGRATIONS:
 ✅ Direct SQL DDL (easy to version control)
 ✅ Optional SQLAlchemy create_all() fallback
-✅ Manual migration docs instead of Alembic versions
+✅ Manual migration docs instead of revision-scaffold entries
 
 ================================================================================
 STATISTICS

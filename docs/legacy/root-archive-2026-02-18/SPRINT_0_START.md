@@ -290,7 +290,7 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
 # Database
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # Frontend
 cd ../tenant

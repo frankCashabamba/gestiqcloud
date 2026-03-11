@@ -499,18 +499,17 @@ No, la migración lo hace automáticamente:
 
 ```bash
 cd apps/backend
-alembic upgrade head
+python ../../ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ### ¿Cómo deshacer si cometo un error?
 
 ```bash
-# Ver migraciones
-alembic current
-alembic history
+# Review applied SQL migrations in `_migrations`
+# Re-run the SQL migration runner if needed
+python ../../ops/scripts/migrate_all_migrations_idempotent.py
 
-# Retroceder a versión anterior
-alembic downgrade 011_accounting_settings_ap_expense
+# Rollback requires a prepared manual SQL down migration
 ```
 
 ---

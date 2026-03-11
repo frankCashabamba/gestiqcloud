@@ -164,14 +164,14 @@ Application Readiness:
    $ pg_dump $DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql
 
 2. RUN MIGRATIONS (DEV)
-   $ alembic upgrade head  # or your migration tool
+   $ python ops/scripts/migrate_all_migrations_idempotent.py
 
    Verify:
    $ psql $DATABASE_URL -c "SELECT count(*) FROM employee_statuses;"
    Expected: n rows (n = number of statuses × tenants)
 
 3. RUN MIGRATIONS (STAGING)
-   $ alembic upgrade head --env staging
+   $ python ops/scripts/migrate_all_migrations_idempotent.py
 
    Test in UI:
    - Create new employee (should work)
@@ -179,7 +179,7 @@ Application Readiness:
    - Check no errors in logs
 
 4. RUN MIGRATIONS (PRODUCTION)
-   $ alembic upgrade head --env production
+   $ python ops/scripts/migrate_all_migrations_idempotent.py
 
    Monitor:
    - Check application logs
@@ -250,8 +250,8 @@ Step 1: STOP APPLICATION
   $ systemctl stop gestiqcloud-backend
 
 Step 2: ROLLBACK MIGRATION
-  $ alembic downgrade -1  # Rollback last migration
-  $ alembic downgrade 2026-02-17  # Or specific timestamp
+  $ psql < prepared_down.sql  # Rollback requires an explicit SQL down migration
+  $ restore_from_backup.sh    # Or restore a known-good backup
 
 Step 3: VERIFY ROLLBACK
   $ psql $DATABASE_URL -c "SELECT tablename FROM pg_tables WHERE tablename IN ('employee_statuses', 'contract_types', 'deduction_types', 'gender_types');"

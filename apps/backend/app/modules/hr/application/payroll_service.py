@@ -53,9 +53,7 @@ class PayrollService:
         if db.bind is not None and db.bind.dialect.name == "sqlite":
             return
         try:
-            from app.modules.reports.application.recalculation_service import (
-                RecalculationService,
-            )
+            from app.modules.reports.application.recalculation_service import RecalculationService
 
             RecalculationService(db).recalculate_daily(payroll.tenant_id, payroll.payroll_date)
         except Exception as exc:
@@ -88,16 +86,19 @@ class PayrollService:
         paid_amount = amount if mark_paid else Decimal("0")
         pending_amount = Decimal("0") if mark_paid else amount
         notes = (
-            f"Generado automaticamente desde la nomina {payroll.payroll_month} "
-            f"({payroll.id})"
+            f"Generado automaticamente desde la nomina {payroll.payroll_month} " f"({payroll.id})"
         )
 
-        expense = db.execute(
-            select(Expense).where(
-                Expense.tenant_id == tenant_id,
-                Expense.invoice_number == expense_ref,
+        expense = (
+            db.execute(
+                select(Expense).where(
+                    Expense.tenant_id == tenant_id,
+                    Expense.invoice_number == expense_ref,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
         if expense is None:
             expense = Expense(

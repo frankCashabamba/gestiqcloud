@@ -1,6 +1,6 @@
 # Migration: Seed Business Categories
 
-**Date:** November 29, 2025  
+**Date:** November 29, 2025
 **Purpose:** Seed example rows into `business_categories`
 
 ---
@@ -29,7 +29,7 @@ This migration was part of the hardcoding removal effort:
 
 ## Execution
 
-This repository does not rely on Alembic for `ops/migrations`.
+This repository does not rely on the backend revision scaffold for `ops/migrations`.
 Use the SQL migration runner instead.
 
 ```bash
@@ -53,7 +53,7 @@ This directory contains the repository's manual SQL migration set.
 
 ## Important
 
-- These migrations are not Alembic revisions.
+- These migrations are not backend revision-scaffold entries.
 - They are applied by the custom SQL runners in `ops/scripts/`.
 - Folder names must be in English.
 - Comments, README files, and migration notes should be written in English.

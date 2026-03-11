@@ -22,7 +22,7 @@ Track your progress through Sprint 3. Check off items as you complete them.
 #### LUNES (Monday)
 - [ ] Read SPRINT_3_START_HERE.md
 - [ ] Read SPRINT_3_COMPLETE_100.md
-- [ ] Run `alembic upgrade head`
+- [ ] Run `python ops/scripts/migrate_all_migrations_idempotent.py`
 - [ ] Test webhooks endpoints with Postman (all 7)
   - [ ] POST /webhooks (create)
   - [ ] GET /webhooks (list)
@@ -349,13 +349,13 @@ Before declaring SPRINT 3 complete:
 → Check: Are you in apps/backend directory? Path should be `app.modules.webhooks`
 
 **"Database migration fails"**
-→ Check: Do tables already exist? Run: `alembic current` then upgrade
+→ Check: Do tables already exist? Review `_migrations` and rerun the SQL migration runner
 
 **"Endpoint not found"**
 → Check: Is router registered in `platform/http/router.py`? Is prefix correct?
 
 **"Tests failing"**
-→ Check: All migrations applied? Run: `alembic upgrade head`
+→ Check: All migrations applied? Run: `python ops/scripts/migrate_all_migrations_idempotent.py`
 
 **"Type errors"**
 → Check: Are imports correct? Use: `from app.modules.webhooks.domain.models import ...`

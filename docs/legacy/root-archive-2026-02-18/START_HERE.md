@@ -153,7 +153,7 @@ gestiqcloud/
 │   │   ├── core/                      (Auth, config)
 │   │   └── main.py                    (Entry point)
 │   ├── tests/                         (45+ test files)
-│   ├── alembic/                       (Migrations)
+│   ├── ops/migrations/                (SQL migrations)
 │   ├── requirements.txt
 │   ├── pyproject.toml
 │   └── pytest.ini

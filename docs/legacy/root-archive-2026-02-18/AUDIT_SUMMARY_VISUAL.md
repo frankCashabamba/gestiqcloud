@@ -216,7 +216,7 @@ Deployment:
        Indica issues resueltos pero no limpiados
 
 4️⃣  Dual Migration Systems
-    └─ Alembic + SQL manual
+    └─ Revision scaffold + manual SQL
        Confuso, difícil de mantener
 
 5️⃣  Testing Coverage Uneven

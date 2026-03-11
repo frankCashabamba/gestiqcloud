@@ -20,7 +20,7 @@ echo ""
 
 # Step 3: Apply database migrations
 echo "STEP 3: APPLY DATABASE MIGRATIONS"
-echo "→ alembic upgrade head"
+echo "→ python ops/scripts/migrate_all_migrations_idempotent.py"
 echo ""
 
 # Step 4: Start the server
@@ -110,7 +110,7 @@ echo "╔═══════════════════════�
 echo "║                         YOU'RE READY TO GO!                               ║"
 echo "║                                                                            ║"
 echo "║  Next: Read SPRINT_3_START_HERE.md                                        ║"
-echo "║  Then:  Run alembic upgrade head                                          ║"
+echo "║  Then:  Run python ops/scripts/migrate_all_migrations_idempotent.py       ║"
 echo "║  Then:  Test webhooks with Postman                                        ║"
 echo "║  Then:  Build Notifications module (follow same pattern)                  ║"
 echo "║                                                                            ║"

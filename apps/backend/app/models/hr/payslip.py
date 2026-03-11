@@ -3,9 +3,9 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import TIMESTAMP, Date, Uuid
+from sqlalchemy import TIMESTAMP, Date
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, LargeBinary, String, Text, func
+from sqlalchemy import ForeignKey, LargeBinary, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base, schema_column, schema_table_args
@@ -43,9 +43,7 @@ class PaymentSlip(Base):
     __tablename__ = "payment_slips"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),

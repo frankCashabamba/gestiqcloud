@@ -104,7 +104,7 @@ Usuario elige CEDULA/RUC/PASSPORT (desde BD, no hardcodeado)
 ═════════════════════════════════════════════════════════════════════════════════
 
 PASO 1: MIGRACIONES (SQL, ya listas)
-  $ alembic upgrade head
+  $ python ops/scripts/migrate_all_migrations_idempotent.py
 
   Crea tablas:
     - document_id_types (nueva)

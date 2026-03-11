@@ -28,7 +28,7 @@ Backend API multi-tenant construido con FastAPI + SQLAlchemy, orientado a ERP/CR
 
 ## Base de datos y migraciones
 - Modelos: `app/db/models.py` y modelos por dominio en `app/models/*` (ventas, compras, contabilidad, etc.).
-- Migrations: manual SQL migrations in `ops/migrations/` (see `docs/datos-migraciones.md`). The revision scaffold folder `apps/backend/revision_scaffold/` is scaffold-only.
+- Migrations: manual SQL migrations in `ops/migrations/` (see `docs/datos-migraciones.md`).
 - Multi-tenant: `tenant_id` presente en tablas de negocio; preparado para RLS (ver `docs/seguridad.md`).
 
 ## Multitenancy

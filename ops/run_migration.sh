@@ -1,5 +1,5 @@
 #!/bin/bash
-# Migration runner script - Execute SQL migrations without alembic
+# Migration runner script - Execute tracked SQL migrations with the custom runner
 
 set -e
 

@@ -4,7 +4,7 @@ This directory contains the project's manual SQL migration set.
 
 ## Important
 
-- These entries are not Alembic revisions.
+- These entries are not backend revision-scaffold entries.
 - They are executed by the custom SQL runners under `ops/scripts/`.
 - Migration folder names must stay in English.
 - Comments, notes, and README files in this directory should also stay in English.

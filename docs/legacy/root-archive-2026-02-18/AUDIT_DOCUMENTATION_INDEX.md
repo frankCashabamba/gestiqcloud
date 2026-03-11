@@ -259,7 +259,7 @@ LEGAL/COMPLIANCE:
    ☐ PostgreSQL setup (NO SQLite)
    ☐ Backup/restore tested
    ☐ Migration data plan
-   ☐ Alembic migrations working
+   ☐ SQL migration runner working
 
 3. PERFORMANCE
    ☐ Load testing completed

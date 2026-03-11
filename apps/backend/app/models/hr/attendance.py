@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import uuid
 from datetime import date, datetime, time
+from typing import TYPE_CHECKING
 
 from sqlalchemy import TIMESTAMP, Date, ForeignKey, String, Time, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
+
+if TYPE_CHECKING:
+    from app.models.hr.employee import Employee
 
 MODULE_UUID = Uuid(as_uuid=True)
 TENANT_UUID = String(36)
@@ -14,9 +20,7 @@ class VacationRequest(Base):
     __tablename__ = "vacation_requests"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
@@ -49,16 +53,14 @@ class VacationRequest(Base):
         onupdate=datetime.utcnow,
     )
 
-    employee: Mapped["Employee"] = relationship("Employee", back_populates="vacations", lazy="select")
+    employee: Mapped[Employee] = relationship("Employee", back_populates="vacations", lazy="select")
 
 
 class TimeEntry(Base):
     __tablename__ = "time_entries"
     __table_args__ = schema_table_args()
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        MODULE_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
@@ -86,6 +88,6 @@ class TimeEntry(Base):
         onupdate=datetime.utcnow,
     )
 
-    employee: Mapped["Employee"] = relationship(
+    employee: Mapped[Employee] = relationship(
         "Employee", back_populates="time_entries", lazy="select"
     )

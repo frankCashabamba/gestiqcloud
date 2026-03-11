@@ -5,7 +5,7 @@
 **Timeline:** 10 semanas intenso
 **Costo:** FREE (Render free tier + GitHub)
 **Equipo:** Solo tú
-**Migraciones:** `ops/migrations/` (SQL manual, NO Alembic)
+**Migraciones:** `ops/migrations/` (SQL manual, no revision scaffold)
 **Última revisión:** 2026-02-16
 
 ---
@@ -63,7 +63,7 @@ RESULTADO: LISTO PARA DEPLOY → solo falta validar en Render
 ✅ Pyproject.toml con ruff/black/mypy/bandit
 ✅ startup_validation.py (DB, Redis, CORS, Email, SECRET_KEY, JWT_SECRET_KEY)
 ✅ CI: Ruff y Black ahora BLOQUEAN builds (--exit-zero removido)
-✅ CI: alembic check reemplazado por ops/migrations/ validation
+✅ CI: revision-scaffold check replaced by ops/migrations validation
 ⚠️ Mypy sigue --exit-zero (demasiados errores legacy) → Habilitar gradualmente
 ⚠️ Bandit skips amplios (15 reglas) → Revisar y reducir
 □ Tests 100% pass → Pendiente ejecutar suite completa

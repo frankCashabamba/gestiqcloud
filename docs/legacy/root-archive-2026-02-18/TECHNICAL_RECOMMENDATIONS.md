@@ -76,7 +76,7 @@ api_url = os.getenv("API_URL", "http://localhost:8000")
 **Estado actual:**
 
 ```
-apps/backend/revision_scaffold/       ← Revision scaffold
+ops/migrations/                       ← SQL migrations
   └─ versions/
      ├─ 001_initial_schema.py
      ├─ 005_pos_extensions.py
@@ -93,15 +93,15 @@ ops/migrations/                       ← SQL manual
 **Solución:**
 
 ```
-OPCIÓN A (Recomendado): Solo Alembic
-  1. Convertir SQL manual → Alembic revisions
-  2. Ejecutar `alembic upgrade head`
-  3. Eliminar ops/migrations/*.sql
-  4. Documentar: "Always use alembic"
+OPCIÓN A (Recomendado): Solo SQL runner
+  1. Mantener `ops/migrations/` como única fuente de cambios de esquema
+  2. Ejecutar `python ops/scripts/migrate_all_migrations_idempotent.py`
+  3. Eliminar scaffolds vacíos no usados
+  4. Documentar: "Always use the SQL migration runner"
 
 OPCIÓN B: SQL manual para schemas grandes
   1. Mantener ops/migrations/ para cambios complejos
-  2. Alembic solo para incrementos pequeños
+  2. Mantener el revision scaffold vacío o solo como compatibilidad técnica
   3. Documentar orden de ejecución
 
 Recomendado: OPCIÓN A
@@ -110,15 +110,14 @@ Recomendado: OPCIÓN A
 **Comando unificado:**
 
 ```bash
-# Generar nueva migración (siempre Alembic)
-cd apps/backend
-alembic revision --autogenerate -m "add_new_field_to_products"
+# Crear nueva migración SQL
+mkdir ops/migrations/2026-xx-xx_add_new_field_to_products
 
 # Ejecutar
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 
 # Rollback si falla
-alembic downgrade -1
+# Aplicar manualmente el correspondiente down.sql
 ```
 
 ---
@@ -440,8 +439,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
-COPY revision_scaffold/ revision_scaffold/
-COPY revision_scaffold.ini .
+COPY ops/migrations/ ops/migrations/
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 

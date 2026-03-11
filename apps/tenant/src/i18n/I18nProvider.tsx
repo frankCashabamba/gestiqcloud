@@ -11,8 +11,7 @@ type I18nContextType = {
 
 const I18nContext = createContext<I18nContextType | null>(null)
 
-// Load JSON dictionaries lazily
-const localeModules = import.meta.glob('../locales/*/*.json')
+// Template dictionaries stay lazy-loaded because they are optional per sector/theme.
 const plantillaModules = import.meta.glob('../plantillas/locales/*.json')
 
 function getNsAndKey(key: string): [string, string] {
@@ -36,16 +35,8 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
   useEffect(() => {
     let cancelled = false
     async function loadAll() {
-      const loaded: Record<string, Dict> = {}
-
-      // Namespaces bajo /i18n/locales/{lang}/ns.json  => ns
-      const entries = Object.entries(localeModules).filter(([path]) => path.includes(`/${lang}/`))
-      for (const [path, importer] of entries) {
-        try {
-          const mod: any = await (importer as any)()
-          const ns = path.split('/').slice(-1)[0].replace('.json', '')
-          loaded[ns] = mod?.default?.[ns] ?? mod?.default ?? mod
-        } catch {}
+      const loaded: Record<string, Dict> = {
+        ...(i18n.getDataByLanguage(lang) as Record<string, Dict> | undefined),
       }
 
       // Plantillas: archivos tipo retail-dashboard.es.json => ns retailDashboard, lang es

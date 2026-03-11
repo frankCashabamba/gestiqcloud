@@ -2,7 +2,6 @@
 
 ## Strategy
 - The active migration source of truth is `ops/migrations`.
-- The revision scaffold folder `apps/backend/revision_scaffold` is scaffold-only and `apps/backend/revision_scaffold/versions` may remain intentionally empty.
 - Support scripts under `ops/scripts` orchestrate idempotent SQL migrations and generate SQL from models when needed.
 
 ## SQL Migrations (Active Workflow)

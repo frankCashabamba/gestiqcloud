@@ -150,7 +150,7 @@ Campos requeridos:
 - ❌ Falta `document_version_id UUID FK` → vincular a documents layer
 - ❌ Falta `stats JSONB` con resumen (ok/warn/error)
 
-**Solución** (Alembic migration):
+**Solution** (tracked SQL migration):
 ```python
 op.add_column('import_batches', sa.Column('document_version_id', sa.UUID, nullable=True))
 op.add_column('import_batches', sa.Column('stats', sa.JSON, server_default='{}'))

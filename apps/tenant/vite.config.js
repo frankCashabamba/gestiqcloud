@@ -63,6 +63,16 @@ export default defineConfig({
                     var rewritten = path.replace(/^\/api/, '');
                     return rewritten ? rewritten : '/';
                 },
+                // SSE: desactiva buffer para rutas /stream (Server-Sent Events)
+                configure: function (proxy) {
+                    proxy.on('proxyRes', function (proxyRes, req) {
+                        var _a;
+                        if ((_a = req.url) === null || _a === void 0 ? void 0 : _a.includes('/stream')) {
+                            proxyRes.headers['cache-control'] = 'no-cache';
+                            proxyRes.headers['x-accel-buffering'] = 'no';
+                        }
+                    });
+                },
             },
         },
     },

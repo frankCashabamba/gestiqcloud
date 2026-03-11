@@ -1,6 +1,6 @@
 # 🔨 SPRINT 2 - IMPLEMENTATION GUIDE
 
-**No Alembic, No Hardcoding - Database-Driven Configuration**
+**SQL-Only Migrations, No Hardcoding - Database-Driven Configuration**
 
 ---
 
@@ -35,11 +35,11 @@ apps/backend/app/models/
 ✅ **Multi-country** - Validaciones por país (ES, EC, MX, CL, CO)
 ✅ **Audit Trail** - Todos los cambios registrados
 ✅ **Type Safety** - SQLAlchemy Mapped + Python types
-✅ **NO ALEMBIC** - Migraciones SQL directas (ver abajo)
+✅ **SQL-ONLY MIGRATIONS** - Direct SQL migrations (see below)
 
 ---
 
-## 🗄️ DATABASE SETUP (Sin Alembic)
+## 🗄️ DATABASE SETUP (SQL runner only)
 
 ### Opción 1: Crear tablas directamente (Recomendado)
 
@@ -956,4 +956,4 @@ def test_sii_endpoint_from_config(db_session, tenant_id):
 
 ---
 
-**100% DATABASE-DRIVEN. NO HARDCODING. NO ALEMBIC.**
+**100% DATABASE-DRIVEN. NO HARDCODING. SQL-ONLY MIGRATIONS.**

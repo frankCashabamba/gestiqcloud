@@ -172,15 +172,10 @@ SELECT table_name FROM information_schema.tables WHERE table_schema='public'
 
 If missing, create migrations:
 ```bash
-cd apps/backend
-alembic revision -m "add identity models"
-alembic revision -m "add pos models"
-alembic revision -m "add invoicing models"
-alembic revision -m "add inventory models"
-alembic revision -m "add sales models"
-alembic revision -m "add accounting models"
+cd c:/gestiqcloud
+# Create the SQL migration directories under ops/migrations as needed
 
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ---

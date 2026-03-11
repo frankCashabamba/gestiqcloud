@@ -274,7 +274,7 @@ api_key_encrypted: VARCHAR(500)
 password = decrypt(settings.password_encrypted)
 ```
 
-### 5. NO ALEMBIC ✅
+### 5. SQL-ONLY MIGRATIONS ✅
 ```bash
 # Use direct SQL:
 psql -h localhost -U postgres -d gestiqcloud \

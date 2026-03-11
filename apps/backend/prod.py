@@ -1,4 +1,3 @@
-# apps/backend/prod.py
 import os
 import subprocess
 import sys
@@ -7,54 +6,44 @@ from pathlib import Path
 PORT = int(os.getenv("PORT", "8000"))
 ENV = os.getenv("ENV", "development")
 
-# Rutas del monorepo
-BACKEND_DIR = Path(__file__).resolve().parent  # apps/backend
-APPS_DIR = BACKEND_DIR.parent  # apps
-ROOT = APPS_DIR.parent  # repo root (/opt/render/project/src)
+# Monorepo paths
+BACKEND_DIR = Path(__file__).resolve().parent
+APPS_DIR = BACKEND_DIR.parent
+ROOT = APPS_DIR.parent
 sys.path[:0] = [str(ROOT), str(APPS_DIR), str(BACKEND_DIR)]
 
-# Conexión y paths de scripts/migraciones legacy
 DB_DSN = os.getenv("DATABASE_URL") or os.getenv("DB_DSN")
 SCRIPTS = ROOT / "scripts" / "py"
 MIG_ROOT = ROOT / "ops" / "migrations"
-MIG_ROOT_LOCAL = (
-    BACKEND_DIR / "ops" / "migrations"
-)  # fallback when only backend subtree is deployed
+MIG_ROOT_LOCAL = BACKEND_DIR / "ops" / "migrations"
 
 
 def run_apply_rls() -> None:
-    """Ejecuta scripts/py/apply_rls.py si RUN_RLS_APPLY=1.
-
-    Variables:
-      - RUN_RLS_APPLY=[1|true]
-      - RLS_SCHEMAS=public,otra (coma separadas; default: public)
-      - RLS_SET_DEFAULT=[1|true] (default: 1)
-    Requiere DATABASE_URL/DB_DSN.
-    """
+    """Run scripts/py/apply_rls.py when RUN_RLS_APPLY=1."""
     flag = os.getenv("RUN_RLS_APPLY", "0").lower()
     if flag not in ("1", "true", "yes"):
-        print("Skipping apply_rls (RUN_RLS_APPLY desactivado)")
+        print("Skipping apply_rls (RUN_RLS_APPLY disabled)")
         return
 
     dsn = DB_DSN or os.getenv("DATABASE_URL")
     if not dsn:
-        print("DATABASE_URL/DB_DSN no seteado; no puedo ejecutar apply_rls.py")
+        print("DATABASE_URL/DB_DSN is not set; cannot execute apply_rls.py")
         return
 
     rls_py = SCRIPTS / "apply_rls.py"
     if not rls_py.exists():
-        print("scripts/py/apply_rls.py no existe; se omite.")
+        print("scripts/py/apply_rls.py does not exist; skipping.")
         return
 
-    schemas = [s.strip() for s in (os.getenv("RLS_SCHEMAS", "public").split(",")) if s.strip()]
+    schemas = [s.strip() for s in os.getenv("RLS_SCHEMAS", "public").split(",") if s.strip()]
     set_default = os.getenv("RLS_SET_DEFAULT", "1").lower() in ("1", "true", "yes")
 
     env = os.environ.copy()
     env.setdefault("DATABASE_URL", dsn)
 
     cmd = [sys.executable, str(rls_py)]
-    for sc in schemas:
-        cmd += ["--schema", sc]
+    for schema in schemas:
+        cmd += ["--schema", schema]
     if set_default:
         cmd.append("--set-default")
 
@@ -62,98 +51,47 @@ def run_apply_rls() -> None:
     subprocess.run(cmd, check=True, cwd=str(ROOT), env=env)
 
 
-def run_revision_scaffold() -> None:
-    """
-    Run the revision scaffold if it is configured.
-    Enabled by default with RUN_REVISION_SCAFFOLD=1.
-    """
-    run_flag = os.getenv("RUN_REVISION_SCAFFOLD", os.getenv("RUN_ALEMBIC", "1")).lower()
-    if run_flag not in ("1", "true", "yes"):
-        print("↩︎ Skipping revision scaffold (RUN_REVISION_SCAFFOLD disabled)")
-        return
-
-    scaffold_ini = BACKEND_DIR / "revision_scaffold.ini"
-    versions_dir = BACKEND_DIR / "revision_scaffold" / "versions"
-    if not scaffold_ini.exists():
-        print(f"ℹ️  Revision scaffold not configured (missing {scaffold_ini}), skipping.")
-        return
-    if not versions_dir.exists() or not any(
-        item.is_file() and item.suffix == ".py" and item.name != "__init__.py"
-        for item in versions_dir.iterdir()
-    ):
-        print("↩︎ Skipping revision scaffold (no revision files in apps/backend/revision_scaffold/versions)")
-        return
-
-    # Inject PYTHONPATH and DATABASE_URL into the child process.
-    env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(
-        [
-            str(ROOT),
-            str(APPS_DIR),
-            str(BACKEND_DIR),
-            env.get("PYTHONPATH", ""),
-        ]
-    )
-    if DB_DSN:
-        env.setdefault("DATABASE_URL", DB_DSN)
-
-    print("📦 Revision scaffold: upgrade head")
-    subprocess.run(
-        ["alembic", "-c", str(scaffold_ini), "upgrade", "head"],
-        check=True,
-        cwd=str(BACKEND_DIR),
-        env=env,
-    )
-
-
 def run_legacy_migrations() -> None:
-    """
-    Ejecuta migraciones SQL “handmade” en ops/migrations.
-    Por defecto DESACTIVADO (RUN_LEGACY_MIGRATIONS=0) para no romper deploys.
-    Activa con RUN_LEGACY_MIGRATIONS=1 si realmente las necesitas.
-    """
+    """Run tracked SQL migrations in ops/migrations when RUN_LEGACY_MIGRATIONS=1."""
     if os.getenv("RUN_LEGACY_MIGRATIONS", "0").lower() not in ("1", "true", "yes"):
-        print("↩︎ Skipping legacy SQL migrations (RUN_LEGACY_MIGRATIONS desactivado)")
+        print("Skipping legacy SQL migrations (RUN_LEGACY_MIGRATIONS disabled)")
         return
 
     if not DB_DSN:
-        print("❌ DATABASE_URL no seteado; no puedo ejecutar migraciones legacy")
+        print("DATABASE_URL is not set; cannot execute legacy migrations")
         sys.exit(1)
 
     apply_py = SCRIPTS / "apply_migration.py"
-    if not apply_py.exists() and not (SCRIPTS / "apply_migration.py").exists():
-        print("ℹ️  Runner de migraciones legacy no existe; se omite.")
+    if not apply_py.exists():
+        print("Legacy migration runner does not exist; skipping.")
         return
 
     env = os.environ.copy()
     env["DB_DSN"] = DB_DSN
 
-    # Recoge posibles raíces de migraciones
-    roots = []
+    roots: list[Path] = []
     if MIG_ROOT.exists():
         roots.append(MIG_ROOT)
     if MIG_ROOT_LOCAL.exists() and MIG_ROOT_LOCAL != MIG_ROOT:
         roots.append(MIG_ROOT_LOCAL)
     if not roots:
-        print("ℹ️  Carpeta de migraciones legacy no existe; se omite.")
+        print("Migration directory does not exist; skipping.")
         return
 
-    # Acumula carpetas únicas por nombre en orden lexicográfico
-    seen = set()
-    dirs = []
-    for r in roots:
-        for d in sorted(p for p in r.iterdir() if p.is_dir()):
-            if d.name in seen:
+    seen: set[str] = set()
+    dirs: list[Path] = []
+    for root in roots:
+        for migration_dir in sorted(path for path in root.iterdir() if path.is_dir()):
+            if migration_dir.name in seen:
                 continue
-            seen.add(d.name)
-            dirs.append(d)
+            seen.add(migration_dir.name)
+            dirs.append(migration_dir)
 
-    # Aplica TODAS las carpetas en orden
-    for d in dirs:
-        up = d / "up.sql"
-        py = d / "run.py"
+    for migration_dir in dirs:
+        up = migration_dir / "up.sql"
+        py = migration_dir / "run.py"
         if up.exists():
-            print(f"🚀 applying migration: {d.name} (up.sql)")
+            print(f"Applying migration: {migration_dir.name} (up.sql)")
             subprocess.run(
                 [
                     sys.executable,
@@ -161,7 +99,7 @@ def run_legacy_migrations() -> None:
                     "--dsn",
                     DB_DSN,
                     "--dir",
-                    str(d),
+                    str(migration_dir),
                     "--action",
                     "up",
                 ],
@@ -169,77 +107,69 @@ def run_legacy_migrations() -> None:
                 env=env,
             )
         elif py.exists():
-            print(f"🚀 applying migration: {d.name} (run.py)")
+            print(f"Applying migration: {migration_dir.name} (run.py)")
             subprocess.run(
                 [sys.executable, str(py)],
                 check=True,
                 env=env,
-                cwd=str(d),
+                cwd=str(migration_dir),
             )
         else:
-            print(f"⚠️  Skipping {d.name}: falta up.sql/run.py")
+            print(f"Skipping {migration_dir.name}: missing up.sql/run.py")
 
-    # Chequeo no fatal
     check_py = SCRIPTS / "check_schema.py"
     if check_py.exists():
         try:
             subprocess.run([sys.executable, str(check_py), "--dsn", DB_DSN], check=True, env=env)
-        except subprocess.CalledProcessError as e:
-            print(f"⚠️  Schema check warning: {e}")
+        except subprocess.CalledProcessError as exc:
+            print(f"Schema check warning: {exc}")
 
 
 def start_app() -> None:
     try:
-        from app.main import app  # rootDir=apps/backend
+        from app.main import app
     except ModuleNotFoundError:
         from apps.backend.app.main import app
 
     import uvicorn
 
     log_level = os.getenv("UVICORN_LOG_LEVEL", "info")
-    # Nota: Render suele gestionar la concurrencia; deja 1 worker salvo que lo controles con un proceso externo.
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level=log_level)
 
 
 if __name__ == "__main__":
     try:
-        # Recommended order: revision scaffold first if present, then legacy SQL only when enabled.
-        run_revision_scaffold()
         run_legacy_migrations()
         run_apply_rls()
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Error en migraciones: {e}")
-        sys.exit(e.returncode)
+    except subprocess.CalledProcessError as exc:
+        print(f"Migration error: {exc}")
+        sys.exit(exc.returncode)
 
-    # Fallback opcional: bootstrap ORM si la DB está vacía
     try:
         if os.getenv("ORM_BOOTSTRAP", "0").lower() in ("1", "true", "yes"):
-            print("🧰 ORM bootstrap habilitado: creando tablas si faltan…")
+            print("ORM bootstrap enabled: creating tables if needed...")
             try:
                 from app.config.database import Base, engine
             except Exception:
                 from apps.backend.app.config.database import Base, engine
             from sqlalchemy import inspect
 
-            insp = inspect(engine)
-            # Heurística: si no existe una tabla crítica, crea todo
+            inspector = inspect(engine)
             critical = [
                 "usuarios_usuarioempresa",
                 "auth_user",
             ]
-            missing = [t for t in critical if not insp.has_table(t)]
+            missing = [table for table in critical if not inspector.has_table(table)]
             if missing:
-                print(
-                    f"↪️  Tablas críticas ausentes {missing}; ejecutando Base.metadata.create_all()"
-                )
+                print(f"Missing critical tables {missing}; running Base.metadata.create_all()")
                 try:
                     Base.metadata.create_all(bind=engine)
-                    print("✅ ORM bootstrap completado")
-                except Exception as e:
-                    print(f"❌ Error en ORM bootstrap: {e}")
+                    print("ORM bootstrap completed")
+                except Exception as exc:
+                    print(f"ORM bootstrap error: {exc}")
             else:
-                print("✔️  Esquema presente; no se requiere ORM bootstrap")
-    except Exception as e:
-        print(f"⚠️  No se pudo evaluar ORM bootstrap: {e}")
+                print("Schema already present; ORM bootstrap not required")
+    except Exception as exc:
+        print(f"Could not evaluate ORM bootstrap: {exc}")
 
     start_app()
