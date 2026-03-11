@@ -111,6 +111,17 @@ export const TENANT_HR = {
     base: '/api/v1/tenant/hr/employees',
     byId: (id: number | string) => `/api/v1/tenant/hr/employees/${id}`,
   },
+  timekeeping: {
+    base: '/api/v1/tenant/hr/timekeeping',
+    byId: (id: number | string) => `/api/v1/tenant/hr/timekeeping/${id}`,
+  },
+  payroll: {
+    base: '/api/v1/tenant/hr/payroll',
+    byId: (id: number | string) => `/api/v1/tenant/hr/payroll/${id}`,
+    generate: '/api/v1/tenant/hr/payroll/generate',
+    confirm: (id: number | string) => `/api/v1/tenant/hr/payroll/${id}/confirm`,
+    markPaid: (id: number | string) => `/api/v1/tenant/hr/payroll/${id}/mark-paid`,
+  },
 }
 
 const RECIPES_BASE = '/api/v1/tenant/production/recipes'

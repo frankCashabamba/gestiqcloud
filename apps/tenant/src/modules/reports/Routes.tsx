@@ -7,6 +7,7 @@ import SalesReport from './SalesReport'
 import InventoryReport from './InventoryReport'
 import FinancialReport from './FinancialReport'
 import MarginsDashboard from './MarginsDashboard'
+import RealProfitReport from './RealProfitReport'
 
 export default function ReportesRoutes() {
   return (
@@ -19,6 +20,7 @@ export default function ReportesRoutes() {
         <Route path="ventas" element={<SalesReport />} />
         <Route path="inventario" element={<InventoryReport />} />
         <Route path="financiero" element={<FinancialReport />} />
+        <Route path="resultado-real" element={<RealProfitReport />} />
         <Route path="margenes" element={<MarginsDashboard />} />
       </RouterRoutes>
     </ProtectedRoute>

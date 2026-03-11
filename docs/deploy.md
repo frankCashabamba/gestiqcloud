@@ -3,7 +3,7 @@
 ## Backend (Render)
 1) Variables de entorno: `DATABASE_URL`, `SECRET_KEY`, `JWT_SECRET_KEY`, `CORS_ORIGINS`, `COOKIE_DOMAIN`, `IMPORTS_ENABLED`, claves de pagos/e-invoicing, `ENV=production`.
 2) Build/run command: usar `uvicorn app.main:app --host 0.0.0.0 --port $PORT` (o gunicorn con uvicorn workers si se habilita).
-3) Migraciones: aplicar antes del despliegue si son manuales (`ops/scripts/migrate_all_migrations_idempotent.py` o SQL). Alembic puede correr en release step.
+3) Migrations: apply `ops/scripts/migrate_all_migrations_idempotent.py` before deployment when schema changes are pending.
 4) Healthchecks: apuntar a `/health` y `/ready` según disponibilidad de Redis/DB.
 5) Logs: revisar startup (`app.startup`) y errores durante el deploy.
 

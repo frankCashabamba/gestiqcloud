@@ -286,7 +286,7 @@ def _order_costs_storage_available(db: Session) -> bool:
                 if available:
                     logger.warning(
                         "Auto-created missing production_order_costs table. "
-                        "Apply Alembic migration 016_production_order_costs to persist the schema history."
+                        "Apply the corresponding SQL migration in ops/migrations to persist the schema history."
                     )
             else:
                 logger.warning(

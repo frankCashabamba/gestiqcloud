@@ -8,7 +8,7 @@ GestiQCloud es un ERP/CRM multi-tenant con backend FastAPI + PostgreSQL, fronten
 - Importaciones masivas, facturación y pagos con integraciones externas.
 
 ## Componentes
-- Backend (`apps/backend`): FastAPI + SQLAlchemy, migraciones Alembic, jobs de importación (Celery/job runner), plantillas HTML/PDF para facturación.
+- Backend (`apps/backend`): FastAPI + SQLAlchemy, SQL migrations under `ops/migrations`, import jobs (Celery/job runner), and HTML/PDF templates for invoicing.
 - Frontends (`apps/admin`, `apps/tenant`): React + Vite; tenant es PWA/offline, admin para configuración global.
 - Paquetes compartidos (`apps/packages`): UI, tipos API, auth/http-core, endpoints, utils, PWA plugin, telemetry.
 - Worker (`workers/`): Cloudflare Worker que aplica CORS, endurece cookies y propaga request IDs hacia el backend.

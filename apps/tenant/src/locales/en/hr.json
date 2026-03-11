@@ -117,8 +117,9 @@
     "reasonPlaceholder": "E.g.: Annual vacation, personal matter, etc.",
     "select": "Select..."
   },
-  "payroll": {
+"payroll": {
     "title": "Payroll",
+    "subtitle": "Generate, confirm, and mark monthly payroll runs as paid from HR.",
     "new": "New",
     "edit": "Edit Payroll",
     "newPayroll": "New Payroll",
@@ -157,7 +158,26 @@
     "irpf": "IRPF",
     "otherDeductions": "Other Deductions",
     "paymentMethod": "Payment Method",
-    "paymentDate": "Payment Date"
+    "paymentDate": "Payment Date",
+    "paymentDateLabel": "Payment date",
+    "periodToGenerate": "Period to generate",
+    "generate": "Generate payroll",
+    "generating": "Generating...",
+    "refresh": "Refresh",
+    "emptyTitle": "No payroll runs have been generated yet",
+    "emptyHelp": "Generate the first payroll period to see totals, status, and actions.",
+    "totalEmployees": "Employees",
+    "totalGross": "Gross total",
+    "totalDeductions": "Deductions",
+    "confirm": "Confirm",
+    "markPaid": "Mark as paid",
+    "statuses": {
+      "DRAFT": "Draft",
+      "CONFIRMED": "Confirmed",
+      "APPROVED": "Approved",
+      "PAID": "Paid",
+      "CANCELLED": "Cancelled"
+    }
   },
   "timekeeping": {
     "title": "Timekeeping",

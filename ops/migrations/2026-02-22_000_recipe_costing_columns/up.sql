@@ -8,8 +8,8 @@ ALTER TABLE recipes
     ADD COLUMN IF NOT EXISTS oven_minutes_standard INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS process_minutes INTEGER;
 
-COMMENT ON COLUMN recipes.touch_minutes_standard IS 'Minutos de trabajo activo (pesar, amasar, bolear, cargar, descargar, empaque)';
-COMMENT ON COLUMN recipes.oven_minutes_standard IS 'Minutos de horneado (consume recurso HORNO para diésel/energía)';
-COMMENT ON COLUMN recipes.process_minutes IS 'Minutos de proceso pasivo (fermentación/reposo): solo para planificación';
+COMMENT ON COLUMN recipes.touch_minutes_standard IS 'Minutes of active work (weighing, kneading, shaping, loading, unloading, packaging)';
+COMMENT ON COLUMN recipes.oven_minutes_standard IS 'Baking minutes (consumes OVEN resource for diesel/energy)';
+COMMENT ON COLUMN recipes.process_minutes IS 'Minutes of passive process time (fermentation/resting), used for planning only';
 
 COMMIT;

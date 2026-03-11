@@ -1,8 +1,8 @@
--- Migración: Agregar placeholders dinámicos a sector_templates.template_config
--- Fase 4 Paso 4: Eliminar hardcoding de placeholders en formularios
--- Fecha: 1 Diciembre 2025
+-- Migration: add dynamic placeholders to sector_templates.template_config
+-- Phase 4 Step 4: remove hardcoded placeholders from forms
+-- Date: December 1, 2025
 
--- Actualizar PANADERÍA con placeholders
+-- Update BAKERY with placeholders
 UPDATE public.sector_templates
 SET template_config = jsonb_set(
   template_config,
@@ -43,7 +43,7 @@ SET template_config = jsonb_set(
 )
 WHERE code = 'panaderia';
 
--- Actualizar TALLER con placeholders
+-- Update WORKSHOP with placeholders
 UPDATE public.sector_templates
 SET template_config = jsonb_set(
   template_config,
@@ -84,7 +84,7 @@ SET template_config = jsonb_set(
 )
 WHERE code = 'taller';
 
--- Actualizar RETAIL con placeholders
+-- Update RETAIL with placeholders
 UPDATE public.sector_templates
 SET template_config = jsonb_set(
   template_config,
@@ -125,7 +125,7 @@ SET template_config = jsonb_set(
 )
 WHERE code = 'retail';
 
--- Agregar placeholders generales para otros módulos
+-- Add general placeholders for other modules
 UPDATE public.sector_templates
 SET template_config = jsonb_set(
   template_config,

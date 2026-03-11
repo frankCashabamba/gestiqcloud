@@ -1,7 +1,7 @@
--- Módulo Importador Contable Universal v1.3
--- Flujo: Upload → OCR/AI Auto-Classify → Preview → Confirm
--- Formatos: PDF, JPG, PNG, XLSX, XLS, CSV, XML (UBL 2.1), TXT
--- Recipe system: Recipe → Draft → Snapshot → Execution
+-- Universal accounting importer module v1.3
+-- Flow: Upload -> OCR/AI auto-classify -> Preview -> Confirm
+-- Formats: PDF, JPG, PNG, XLSX, XLS, CSV, XML (UBL 2.1), TXT
+-- Recipe system: Recipe -> Draft -> Snapshot -> Execution
 
 CREATE TABLE IF NOT EXISTS imp_documento (
     id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),

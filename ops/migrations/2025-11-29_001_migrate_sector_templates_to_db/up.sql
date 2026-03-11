@@ -1,6 +1,6 @@
--- Migración: Cargar datos de sector templates que estaban hardcodeados
--- Inserta los templates de panadería, taller y retail en la BD
--- Solo si no existen ya
+-- Migration: load sector template data that used to be hardcoded
+-- Inserts the bakery, workshop, and retail templates into the database
+-- Only if they do not already exist
 
 INSERT INTO public.sector_templates (id, code, name, description, template_config, is_active, created_at, updated_at)
 SELECT gen_random_uuid(), 'panaderia', 'Panadería', 'Sector de panadería y pastelería',

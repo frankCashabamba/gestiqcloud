@@ -1,57 +1,47 @@
-# Datos y migraciones
+# Data And Migrations
 
-## Estrategia
-- Alembic para cambios incrementales ligados a modelos SQLAlchemy (`apps/backend/alembic`).
-- Migraciones SQL manuales para operaciones puntuales o consolidaciones grandes (`ops/migrations`).
-- Scripts de soporte en `ops/scripts` para orquestar migraciones idempotentes y generar SQL a partir de modelos.
+## Strategy
+- The active migration source of truth is `ops/migrations`.
+- The revision scaffold folder `apps/backend/revision_scaffold` is scaffold-only and `apps/backend/revision_scaffold/versions` may remain intentionally empty.
+- Support scripts under `ops/scripts` orchestrate idempotent SQL migrations and generate SQL from models when needed.
 
-## Alembic (backend)
-- Config: `apps/backend/alembic.ini` y env en `apps/backend/alembic/env.py`.
-- Comandos típicos (desde `apps/backend`):
-  - `alembic revision -m "mensaje" --autogenerate`
-  - `alembic upgrade head`
-  - `alembic downgrade -1`
-- Recomendaciones: usar autogenerate revisando diffs, nombrar revisiones con prefijo incremental (`00X_descripcion`).
+## SQL Migrations (Active Workflow)
+- Main runner: `python ops/scripts/migrate_all_migrations_idempotent.py`
+- Fallback runner: `python ops/scripts/migrate_all_migrations.py`
+- Tracking table: `_migrations`
+- Consolidated example: `ops/migrations/2025-11-21_000_complete_consolidated_schema/`
 
-## SQL manual (ops/migrations)
-- Ejemplo consolidado: `ops/migrations/2025-11-21_000_complete_consolidated_schema/` con `up.sql` y `down.sql`.
-- Útil para snapshots completos o cambios no cubiertos por Alembic.
+## Recommended Order
+1. Apply base or snapshot SQL migrations first when needed.
+2. Apply pending SQL migrations with the idempotent runner.
+3. Register any new migration folders in the operational workflow and verify `_migrations`.
 
-## Orden sugerido cuando coexisten
-1) Ejecutar migraciones SQL manuales si son snapshots/base (p.ej. consolidado).
-2) Aplicar Alembic `upgrade head` para los incrementales posteriores.
-3) Si se agregan nuevas SQL manuales, registrarlas en los scripts idempotentes.
+## Support Scripts (`ops/scripts`)
+- `migrate_all_migrations_idempotent.py`: applies SQL migrations in order and skips already tracked entries. Requires `DATABASE_URL`.
+- `migrate_all_migrations.py`: simple non-idempotent runner.
+- `generate_migration_from_models.py`: generates SQL from the current models for DB comparison.
+- `check_endpoints.py`: backend/frontend smoke test used in CI.
 
-## Scripts de soporte (ops/scripts)
-- `migrate_all_migrations_idempotent.py`: aplica migraciones SQL en orden, saltando las ya aplicadas (requiere `DATABASE_URL`).
-- `migrate_all_migrations.py`: versión simple no idempotente.
-- `generate_migration_from_models.py`: genera SQL desde modelos actuales para comparar con DB.
-- `check_endpoints.py`: smoke test de endpoints FE/BE (usado en CI backend).
+## Migration Job (Render)
+- The migration UI button can trigger the Render job configured in `RENDER_MIGRATE_JOB_ID`.
+- Current usage is manual after schema changes.
+- Status may appear as unknown until a run has been triggered at least once.
 
-## Job de migraciones (Render)
-- El botón de UI de migraciones llama al backend para disparar el job de Render configurado en `RENDER_MIGRATE_JOB_ID`.
-- Uso actual: manual tras cambios de esquema; en el futuro se podrá automatizar al detectar diffs.
-- El estado puede mostrar "Desconocido" y sin historial si nunca se ha disparado; refrescar estado tras ejecutar.
-
-## Rollback y backups
-- Antes de aplicar SQL manual, sacar backup (`pg_dump`) del esquema/DB.
+## Rollback And Backups
+- Before manual SQL work, create a database backup with `pg_dump`.
   ```bash
   pg_dump "$DATABASE_URL" > backup_$(date +%Y%m%d_%H%M).sql
   ```
-- Restaurar (⚠️ sobrescribe):
+- Restore with care because it overwrites data.
   ```bash
   psql "$DATABASE_URL" < backup_20250101_1200.sql
   ```
-- Para Alembic, usar `downgrade` con cautela y validar compatibilidad con datos.
-- Los scripts manuales pueden incluir `down.sql`; úsalo solo en entornos de prueba o con restauración garantizada.
+- Use `down.sql` only when rollback is understood and safe.
+- If you revert SQL changes manually, validate data compatibility first.
 
-## Checklist post-migración
-- Healthchecks OK (`/health`, `/ready`).
-- Consultas críticas por módulo (ventas, compras, contabilidad, auth) responden sin errores.
-- Validar que tablas clave tienen datos y constraints esperados.
-- Revisión de logs de migración y app (errores/tracebacks).
-- Si se habilita RLS, probar accesos por tenant y fallos esperados en cross-tenant.
-
-## Pendientes
-- Documentar orden recomendado cuando coexistan Alembic y migraciones SQL manuales.
-- Añadir checklist de validación post-migración (health checks, consultas críticas, RLS si aplica).
+## Post-Migration Checklist
+- Health checks are green: `/health`, `/ready`
+- Critical module queries succeed
+- Key tables contain expected data and constraints
+- Application and migration logs show no unexpected errors
+- If RLS is enabled, tenant isolation behaves as expected

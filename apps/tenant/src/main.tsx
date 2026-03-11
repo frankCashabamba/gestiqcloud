@@ -15,7 +15,6 @@ import { applyTheme, OutboxIndicator } from '@shared/ui'
 import { IdleLogout } from '@ui'
 import { useAuth } from './auth/AuthContext'
 import { EnvProvider } from '@ui/env'
-import { ConflictResolver } from '@shared/ui'
 import { env } from './env'
 import { CompanyProvider } from './contexts/CompanyContext'
 import { fetchCompanyTheme } from './services/theme'
@@ -23,16 +22,6 @@ import { fetchCompanyTheme } from './services/theme'
 function IdleBridge() {
   const { logout } = useAuth()
   return <IdleLogout onLogout={logout} timeoutMs={30 * 60_000} />
-}
-
-function ConflictBridge() {
-  const handleResolve = (conflict: any, resolution: string) => {
-    console.log('Resolving conflict:', conflict, resolution)
-    // Send resolution to backend
-    // Implementation depends on ElectricSQL conflict API
-  }
-
-  return <ConflictResolver onResolve={handleResolve} />
 }
 
 // Register PWA service worker with auto updates and update prompt
@@ -60,7 +49,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <ToastProvider>
                   <App />
                   <IdleBridge />
-                  <ConflictBridge />
                   <OutboxIndicator />
                 </ToastProvider>
               </AppWithTenantLanguage>

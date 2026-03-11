@@ -44,9 +44,9 @@ fi
 echo ""
 
 # Step 3: Run migration
-echo "Step 3: Running Alembic migration..."
+echo "Step 3: Running SQL migrations..."
 cd apps/backend
-if alembic upgrade head; then
+if python ops/scripts/migrate_all_migrations_idempotent.py; then
     echo -e "${GREEN}✓ Migration successful${NC}"
 else
     echo -e "${RED}✗ Migration failed${NC}"
@@ -75,7 +75,7 @@ files=(
     "apps/backend/app/modules/webhooks/infrastructure/webhook_dispatcher.py"
     "apps/backend/app/modules/webhooks/interface/http/tenant.py"
     "apps/backend/tests/test_webhooks.py"
-    "apps/backend/alembic/versions/012_webhook_subscriptions.py"
+    "ops/migrations/"
 )
 
 all_files_exist=true

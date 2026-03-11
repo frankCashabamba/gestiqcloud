@@ -113,7 +113,7 @@ if ("backend" -notin $SkipSet) {
     Run-Step -Stage "backend" -StepName "Static guard: no legacy ::uuid casts" -WorkDir $backendDir -Command {
         $hits = Select-String -Path (Get-ChildItem -Path app -Recurse -Include *.py) `
             -Pattern ':[A-Za-z_][A-Za-z0-9_]*::uuid' -CaseSensitive |
-            Where-Object { $_.Path -notmatch 'rls\.py' -and $_.Path -notmatch 'alembic' -and $_.Path -notmatch 'tests' }
+            Where-Object { $_.Path -notmatch 'rls\.py' -and $_.Path -notmatch 'revision_scaffold' -and $_.Path -notmatch 'tests' }
         if ($hits) {
             $hits | ForEach-Object { Write-Host $_ }
             Write-Error "Found legacy ::uuid casts. Replace with CAST(:param AS uuid)."
@@ -127,7 +127,7 @@ if ("backend" -notin $SkipSet) {
     Run-Step -Stage "backend" -StepName "Static guard: no direct current_setting" -WorkDir $backendDir -Command {
         $hits = Select-String -Path (Get-ChildItem -Path app -Recurse -Include *.py) `
             -Pattern "current_setting\('app\.tenant_id'" -CaseSensitive |
-            Where-Object { $_.Path -notmatch 'rls\.py' -and $_.Path -notmatch 'alembic' -and $_.Path -notmatch 'tests' }
+            Where-Object { $_.Path -notmatch 'rls\.py' -and $_.Path -notmatch 'revision_scaffold' -and $_.Path -notmatch 'tests' }
         if ($hits) {
             $hits | ForEach-Object { Write-Host $_ }
             Write-Error "Found direct current_setting usage. Use tenant_id_sql_expr()."

@@ -4,13 +4,15 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import TIMESTAMP, Date
+from sqlalchemy import TIMESTAMP, Date, Uuid
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, Integer, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
+
+MODULE_UUID = Uuid(as_uuid=True)
+TENANT_UUID = String(36)
 
 # Enums
 payroll_status = SQLEnum(
@@ -42,10 +44,10 @@ class Payroll(Base):
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        MODULE_UUID, primary_key=True, default=uuid.uuid4
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -100,8 +102,8 @@ class Payroll(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Notas sobre la nómina")
 
     # Audit
-    created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    confirmed_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(MODULE_UUID, nullable=True)
+    confirmed_by: Mapped[uuid.UUID | None] = mapped_column(MODULE_UUID, nullable=True)
     confirmed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
@@ -140,18 +142,18 @@ class PayrollDetail(Base):
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        MODULE_UUID, primary_key=True, default=uuid.uuid4
     )
 
     # References
     payroll_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        MODULE_UUID,
         ForeignKey(schema_column("payrolls"), ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     employee_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        MODULE_UUID,
         ForeignKey(schema_column("employees"), ondelete="RESTRICT"),
         nullable=False,
         index=True,
@@ -219,12 +221,12 @@ class PayrollTax(Base):
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        MODULE_UUID, primary_key=True, default=uuid.uuid4
     )
 
     # Reference
     payroll_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        MODULE_UUID,
         ForeignKey(schema_column("payrolls"), ondelete="CASCADE"),
         nullable=False,
         index=True,

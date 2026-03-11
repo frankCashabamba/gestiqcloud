@@ -16,7 +16,7 @@ CREATE INDEX IF NOT EXISTS idx_invoices_pos_receipt_id ON invoices(pos_receipt_i
 -- Removed: legacy `sales` table no longer used
 
 -- ============================================================
--- 2b. Add pos_receipt_id column to sales_orders table (CRM/ventas)
+-- 2b. Add pos_receipt_id column to sales_orders table (CRM/sales)
 -- ============================================================
 DO $$
 BEGIN

@@ -13,7 +13,7 @@
 ## Consecuencias
 - Tests deben ser compatibles con SQLite (tipos, constraints, diferencias en JSON/UUID).
 - Validar en entornos con Postgres antes de producción; agregar tests específicos si se usan features PG.
-- Alembic no se ejecuta en CI; se crea esquema desde modelos.
+- SQL migration runners are not executed in CI; the schema is created from models for the CI test database.
 
 ## Referencias
 - `.github/workflows/ci.yml` pasos backend.

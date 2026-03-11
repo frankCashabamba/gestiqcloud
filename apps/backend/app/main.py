@@ -631,6 +631,15 @@ try:
 except Exception as e:
     _router_logger.error(f"Error mounting Notifications router: {e}")
 
+# HR payroll
+try:
+    from app.modules.hr.interface.http.tenant import router as hr_router
+
+    app.include_router(hr_router, prefix="/api/v1")
+    _router_logger.info("HR router mounted at /api/v1/hr")
+except Exception as e:
+    _router_logger.warning(f"HR router mount failed: {e}")
+
 # Profit Reports
 try:
     from app.modules.reports.interface.http.profit import router as profit_router
@@ -642,18 +651,6 @@ except Exception as e:
 
 # E-invoicing - Montado por platform/http/router.py (ver línea ~360)
 
-
-# ElectricSQL shapes
-try:
-    from app.modules.electric_shapes import router as electric_router
-
-    app.include_router(electric_router, prefix="/api/v1")
-    _router_logger.info("ElectricSQL shapes router mounted at /api/v1/electric")
-except Exception as e:
-    _router_logger.error(f"Error mounting ElectricSQL router: {e}")
-    import traceback
-
-    _router_logger.error(traceback.format_exc())
 
 # -----------------------------------------------------------
 # Módulo Importador Contable Universal v1.3

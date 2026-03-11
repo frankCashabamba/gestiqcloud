@@ -68,7 +68,7 @@ from app.models.core.ui_config import (
 )
 from app.models.expenses import Expense
 from app.models.finance import BankMovement, CashClosing, CashMovement, Payment
-from app.models.hr import Employee
+from app.models.hr import Employee, TimeEntry, VacationRequest
 from app.models.hr.payroll import Payroll, PayrollDetail, PayrollTax
 from app.models.imports import ImportColumnMapping
 
@@ -168,6 +168,8 @@ __all__ = [
     "CashMovement",
     "CashClosing",
     "Employee",
+    "VacationRequest",
+    "TimeEntry",
     # POS
     "POSRegister",
     "POSShift",

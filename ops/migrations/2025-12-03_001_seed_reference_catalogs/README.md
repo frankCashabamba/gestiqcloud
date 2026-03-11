@@ -1,1 +1,1 @@
-Seed reference catalogs (countries, locales, timezones) required by the admin Configuración Avanzada UI.
+Seed reference catalogs (countries, locales, timezones) required by the admin Advanced Configuration UI.

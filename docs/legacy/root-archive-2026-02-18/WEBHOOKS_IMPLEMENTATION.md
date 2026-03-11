@@ -45,7 +45,7 @@ Implementación completa y profesional del módulo de webhooks para GestiqCloud.
 
 ---
 
-### 3. **Database Schema** (`alembic/versions/012_webhook_subscriptions.py`)
+### 3. **Database Schema** (`revision_scaffold/versions/012_webhook_subscriptions.py`)
 
 #### Tables
 - `webhook_subscriptions` (id, tenant_id, event, url, secret, active, created_at, updated_at)
@@ -199,7 +199,7 @@ apps/backend/app/modules/webhooks/
 tests/
 └── test_webhooks.py                    # Unit and integration tests
 
-alembic/versions/
+revision_scaffold/versions/
 └── 012_webhook_subscriptions.py        # Database migration
 ```
 

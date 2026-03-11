@@ -36,7 +36,7 @@
 - Revisión de variables secretas antes de desplegar (Render/Cloudflare): claves JWT/SECRET_KEY, pagos, e-invoicing, OTEL, correo.
 - Confirmar modo sandbox/prod en pagos/e-invoicing según entorno; revisar callbacks/domino asociado.
 - Para cambios de RLS o migraciones sensibles: aplicar en ventana controlada y validar con consulta de verificación (leer conteos por tenant).
-- `alembic_version` se usa solo como marcador de migración aplicada; no se consulta en app. Verificar migraciones con el script `python ops/scripts/migrate_all_migrations_idempotent.py` y, si se necesita, con `alembic current`.
+- Verify migrations with `python ops/scripts/migrate_all_migrations_idempotent.py` and the `_migrations` table in the target database.
 
 ## Pendientes
 - Definir responsable y checklist por entorno (quién aprueba despliegue, contacto on-call).

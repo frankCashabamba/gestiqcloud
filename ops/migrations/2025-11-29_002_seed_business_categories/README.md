@@ -1,45 +1,110 @@
-# Migración: Seed Business Categories
+# Migration: Seed Business Categories
 
-**Fecha:** 29 Noviembre 2025
-**Objetivo:** Insertar datos de ejemplo en tabla `business_categories`
+**Date:** November 29, 2025  
+**Purpose:** Seed example rows into `business_categories`
 
 ---
 
-## ¿Qué hace?
+## What It Does
 
-Inserta 6 categorías de negocio en la BD:
-- `retail` - Retail / Tienda
-- `services` - Servicios
-- `manufacturing` - Manufactura
-- `food_beverage` - Alimentos y Bebidas
-- `healthcare` - Salud
-- `education` - Educación
+Adds six business categories to the database:
+- `retail` - Retail / Store
+- `services` - Services
+- `manufacturing` - Manufacturing
+- `food_beverage` - Food and Beverage
+- `healthcare` - Healthcare
+- `education` - Education
 
-## ¿Por qué?
+## Why It Exists
 
-**Eliminación de hardcoding:**
-- Antes: Categorías hardcodeadas en frontend/backend
-- Ahora: Cargadas dinámicamente desde BD vía endpoint `/api/v1/business-categories`
+This migration was part of the hardcoding removal effort:
+- Before: categories were hardcoded in frontend and backend code.
+- After: categories are loaded dynamically from the database through `/api/v1/business-categories`.
 
-## Archivos relacionados
+## Related Files
 
-- `apps/backend/app/routers/business_categories.py` - Nuevo router
-- `apps/backend/app/platform/http/router.py` - Registro del router
-- PASO 1 completado en eliminación de hardcoding
+- `apps/backend/app/routers/business_categories.py`: business categories router
+- `apps/backend/app/platform/http/router.py`: router registration
+- This was step 1 of the hardcoding removal work
 
-## Ejecución
+## Execution
+
+This repository does not rely on Alembic for `ops/migrations`.
+Use the SQL migration runner instead.
 
 ```bash
-# Ejecutar migración
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
+```
 
-# Verificar datos
+## Verification
+
+```bash
 psql -U postgres -d gestiqcloud -c "SELECT code, name FROM business_categories;"
 ```
 
 ## Rollback
 
-```bash
-# Revertir migración
-alembic downgrade -1
+Rollback depends on your local workflow and the availability of `down.sql`.
+If you need to revert manually, inspect the migration folder and apply the matching rollback SQL.
+*** Add File: ops/migrations/README.md
+# SQL Migrations
+
+This directory contains the repository's manual SQL migration set.
+
+## Important
+
+- These migrations are not Alembic revisions.
+- They are applied by the custom SQL runners in `ops/scripts/`.
+- Folder names must be in English.
+- Comments, README files, and migration notes should be written in English.
+- If a table or column already exists in Spanish because the application depends on it, do not rename it casually. Treat that as a schema refactor, not a documentation cleanup.
+
+## Layout
+
+Each migration normally lives in its own folder:
+
+```text
+YYYY-MM-DD_NNN_description/
+  up.sql
+  down.sql        # optional
+  README.md       # optional
 ```
+
+Standalone `.sql` files may still exist for older historical cases, but new work should prefer the folder layout above.
+
+## Naming Convention
+
+- Use a sortable date prefix: `YYYY-MM-DD`.
+- Use a sequence slot after the date, for example `_000`, `_001`, `_010`.
+- Use a short English slug describing the change.
+- Example: `2026-03-07_000_widen_detected_ruc`
+
+## Applying Migrations
+
+Use the idempotent runner:
+
+```bash
+python ops/scripts/migrate_all_migrations_idempotent.py
+```
+
+It reads `DATABASE_URL`, applies folders in order, and records applied entries in `_migrations`.
+
+## Authoring Rules
+
+- Prefer idempotent SQL where possible.
+- Keep `up.sql` safe to run once in a real environment.
+- Add `down.sql` only when rollback is practical and well understood.
+- Keep comments short and operational.
+- Avoid mixing schema refactors with data cleanup unless the coupling is intentional and documented.
+
+## Before Changing Old Migrations
+
+- If the migration has already been applied in a live or shared database, renaming folders or changing tracked names requires database cleanup or re-alignment.
+- For local-only cleanup, you may update `_migrations` accordingly.
+- For shared environments, treat migration renames as operational changes and coordinate them first.
+
+## Recommended Verification
+
+- Check the target objects exist after `up.sql`.
+- Confirm `_migrations` contains the expected folder name.
+- Run the application path that depends on the changed schema.

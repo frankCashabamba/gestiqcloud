@@ -137,6 +137,7 @@ def _load_all_models():
         "app.models.finance.cash",
         "app.models.finance.payment",
         "app.models.hr.employee",
+        "app.models.hr.attendance",
         "app.models.hr.payroll",
         "app.models.hr.payslip",
         # POS models

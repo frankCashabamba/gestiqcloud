@@ -1,11 +1,51 @@
+import tenantApi from '../../../shared/api/client'
+import { TENANT_HR } from '@shared/endpoints'
 import type { Fichaje } from '../types/fichaje'
 
-export async function getFichajes(): Promise<Fichaje[]> {
-  return [
-    { id: '1', empleadoId: '1', fecha: '2025-08-06', horaInicio: '08:00', horaFin: '17:00', tipo: 'trabajo' },
-  ]
+type TimeEntryApi = {
+  id: string
+  empleado_id: string
+  fecha: string
+  hora_inicio: string
+  hora_fin?: string | null
+  tipo: 'trabajo' | 'descanso' | 'otro'
+  notas?: string | null
 }
 
-export async function registrarFichaje(_tipo: 'entrada' | 'salida'): Promise<void> {
-  return
+function normalizeEntry(entry: TimeEntryApi): Fichaje {
+  return {
+    id: entry.id,
+    empleadoId: entry.empleado_id,
+    fecha: entry.fecha,
+    horaInicio: entry.hora_inicio,
+    horaFin: entry.hora_fin || undefined,
+    tipo: entry.tipo,
+  }
+}
+
+export async function getFichajes(): Promise<Fichaje[]> {
+  const { data } = await tenantApi.get<TimeEntryApi[] | { items?: TimeEntryApi[] }>(
+    TENANT_HR.timekeeping.base
+  )
+  const items = Array.isArray(data) ? data : data?.items || []
+  return items.map(normalizeEntry)
+}
+
+export async function registrarFichaje(payload: {
+  empleadoId: string
+  fecha: string
+  horaInicio: string
+  horaFin?: string
+  tipo?: 'trabajo' | 'descanso' | 'otro'
+  notas?: string
+}): Promise<Fichaje> {
+  const { data } = await tenantApi.post<TimeEntryApi>(TENANT_HR.timekeeping.base, {
+    empleado_id: payload.empleadoId,
+    fecha: payload.fecha,
+    hora_inicio: payload.horaInicio,
+    hora_fin: payload.horaFin,
+    tipo: payload.tipo || 'trabajo',
+    notas: payload.notas,
+  })
+  return normalizeEntry(data)
 }

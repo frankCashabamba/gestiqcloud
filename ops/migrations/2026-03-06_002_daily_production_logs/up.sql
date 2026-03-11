@@ -1,26 +1,26 @@
--- Historial diario de producción y ventas
--- Importado desde hojas tipo REGISTRO (PRODUCTO, CANTIDAD, PRECIO, VENTA DIARIA)
+-- Daily history of production and sales
+-- Imported from REGISTRO-style sheets (PRODUCT, QUANTITY, PRICE, DAILY_SALES)
 
 CREATE TABLE IF NOT EXISTS daily_production_logs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID NOT NULL,
     log_date        DATE NOT NULL,
 
-    -- Producto (vinculado si existe en catálogo)
+    -- Product reference, linked when it exists in the catalog
     product_name    TEXT NOT NULL,
     recipe_id       UUID REFERENCES recipes(id) ON DELETE SET NULL,
     product_id      UUID REFERENCES products(id) ON DELETE SET NULL,
 
-    -- Cantidades del día
+    -- Daily quantities
     qty_produced    NUMERIC(12, 4) NOT NULL DEFAULT 0,
     unit_price      NUMERIC(12, 4) NOT NULL DEFAULT 0,
     qty_sold        NUMERIC(12, 4) NOT NULL DEFAULT 0,
 
-    -- Calculados
+    -- Computed fields
     qty_leftover    NUMERIC(12, 4) GENERATED ALWAYS AS (qty_produced - qty_sold) STORED,
     revenue         NUMERIC(12, 4) GENERATED ALWAYS AS (qty_sold * unit_price) STORED,
 
-    -- Origen
+    -- Source metadata
     source_document_id UUID REFERENCES imp_documento(id) ON DELETE SET NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

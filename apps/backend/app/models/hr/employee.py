@@ -17,13 +17,15 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import TIMESTAMP, Date
+from sqlalchemy import TIMESTAMP, Date, Uuid
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
+
+MODULE_UUID = Uuid(as_uuid=True)
+TENANT_UUID = String(36)
 
 # Database enums (minimal, for backward compatibility)
 # Note: These will be gradually replaced by table-driven lookups
@@ -89,10 +91,10 @@ class Employee(Base):
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        MODULE_UUID, primary_key=True, default=uuid.uuid4
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -112,10 +114,16 @@ class Employee(Base):
         comment="National ID (unique per tenant, DNI/RUC/Passport)",
     )
     email: Mapped[str] = mapped_column(
-        String(255), nullable=False, index=True, comment="Work email address"
+        String(255), nullable=True, index=True, comment="Work email address"
     )
     phone: Mapped[str | None] = mapped_column(
         String(20), nullable=True, comment="Contact phone number"
+    )
+    employee_code: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True, comment="Internal employee code"
+    )
+    document_type: Mapped[str | None] = mapped_column(
+        String(30), nullable=True, comment="Document type used by the UI form"
     )
     birth_date: Mapped[date | None] = mapped_column(
         Date, nullable=True, comment="Date of birth (YYYY-MM-DD)"
@@ -154,6 +162,9 @@ class Employee(Base):
     job_title: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Job title or position"
     )
+    work_schedule: Mapped[str | None] = mapped_column(
+        String(30), nullable=True, comment="Work schedule: completa, parcial, por_horas"
+    )
 
     # Financial info
     bank_account: Mapped[str | None] = mapped_column(
@@ -172,6 +183,9 @@ class Employee(Base):
     )
     tax_id_secondary: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="Secondary tax identifier (e.g., IRPF code in Spain)"
+    )
+    social_security_number: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="Social security or employee registration number"
     )
 
     # Notes
@@ -196,6 +210,18 @@ class Employee(Base):
     )
     deductions: Mapped[list["EmployeeDeduction"]] = relationship(
         "EmployeeDeduction",
+        back_populates="employee",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    vacations: Mapped[list["VacationRequest"]] = relationship(
+        "VacationRequest",
+        back_populates="employee",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    time_entries: Mapped[list["TimeEntry"]] = relationship(
+        "TimeEntry",
         back_populates="employee",
         cascade="all, delete-orphan",
         lazy="selectin",
@@ -227,12 +253,12 @@ class EmployeeSalary(Base):
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        MODULE_UUID, primary_key=True, default=uuid.uuid4
     )
 
     # Reference
     employee_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        MODULE_UUID,
         ForeignKey(schema_column("employees"), ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -266,7 +292,7 @@ class EmployeeSalary(Base):
     )
 
     # Audit
-    created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(MODULE_UUID, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
@@ -308,12 +334,12 @@ class EmployeeDeduction(Base):
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        MODULE_UUID, primary_key=True, default=uuid.uuid4
     )
 
     # Reference
     employee_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        MODULE_UUID,
         ForeignKey(schema_column("employees"), ondelete="CASCADE"),
         nullable=False,
         index=True,

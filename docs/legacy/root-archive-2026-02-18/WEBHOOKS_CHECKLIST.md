@@ -72,7 +72,7 @@
   - Updates delivery status in DB
   - Logs delivery attempts
 
-### Database (`alembic/versions/012_webhook_subscriptions.py`)
+### Database (`revision_scaffold/versions/012_webhook_subscriptions.py`)
 - ✅ `webhook_subscriptions` table
   - id (UUID PK)
   - tenant_id (UUID FK → empresas)
@@ -287,7 +287,7 @@
 ```bash
 # 1. Check migration
 cd apps/backend
-ls -la alembic/versions/012_webhook*.py
+ls -la revision_scaffold/versions/012_webhook*.py
 
 # 2. Check module structure
 ls -la app/modules/webhooks/

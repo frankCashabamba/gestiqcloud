@@ -117,8 +117,9 @@
     "reasonPlaceholder": "Ej: Vacaciones anuales, asunto personal, etc.",
     "select": "Seleccionar..."
   },
-  "payroll": {
+"payroll": {
     "title": "Nóminas",
+    "subtitle": "Genera, confirma y marca como pagadas las nóminas mensuales desde RRHH.",
     "new": "Nueva",
     "edit": "Editar Nómina",
     "newPayroll": "Nueva Nómina",
@@ -157,7 +158,26 @@
     "irpf": "IRPF",
     "otherDeductions": "Otras Deducciones",
     "paymentMethod": "Método de Pago",
-    "paymentDate": "Fecha de Pago"
+    "paymentDate": "Fecha de Pago",
+    "paymentDateLabel": "Fecha de pago",
+    "periodToGenerate": "Periodo a generar",
+    "generate": "Generar nómina",
+    "generating": "Generando...",
+    "refresh": "Refrescar",
+    "emptyTitle": "Todavía no hay nóminas generadas",
+    "emptyHelp": "Genera la primera nómina del periodo para ver importes, estado y acciones.",
+    "totalEmployees": "Empleados",
+    "totalGross": "Bruto total",
+    "totalDeductions": "Deducciones",
+    "confirm": "Confirmar",
+    "markPaid": "Marcar pagada",
+    "statuses": {
+      "DRAFT": "Borrador",
+      "CONFIRMED": "Confirmada",
+      "APPROVED": "Aprobada",
+      "PAID": "Pagada",
+      "CANCELLED": "Cancelada"
+    }
   },
   "timekeeping": {
     "title": "Fichajes",

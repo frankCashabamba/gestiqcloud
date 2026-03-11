@@ -2,10 +2,10 @@
 
 Guías rápidas para incidentes comunes. Ajusta comandos según host y credenciales.
 
-## Migración fallida (SQL/Alembic)
+## Failed Migration (SQL)
 1) Detener tráfico/escrituras si es necesario.
-2) Revisar logs de la migración (Alembic o script SQL).
-3) Validar estado de la DB (tablas a medio crear). Si es seguro, aplicar `down.sql` o `alembic downgrade -1`.
+2) Review migration logs from the SQL runner or deploy step.
+3) Validate DB state, especially partially created tables. If safe, apply `down.sql` or restore from backup.
 4) Restaurar backup (`pg_dump` previo) si quedó inconsistente:
    ```bash
    psql "$DATABASE_URL" < backup_YYYYMMDD.sql
@@ -55,7 +55,7 @@ Guías rápidas para incidentes comunes. Ajusta comandos según host y credencia
 
 ## Recuperar acceso a DB
 - Verificar conectividad: `psql "$DATABASE_URL" -c "select 1"`.
-- Listar migraciones aplicadas (Alembic): `alembic history --verbose` o consulta a `alembic_version`.
+- List applied migrations by checking `_migrations` in the target database.
 
 ## Observabilidad
 - Logs: visor de Render/collector; filtrar por `request_id`.

@@ -22,7 +22,7 @@ Servicios por defecto:
 - Tenant: http://localhost:8082
 
 ## Estructura principal
-- `apps/backend` (FastAPI + SQLAlchemy + Alembic) - ver `apps/backend/README.md`
+- `apps/backend` (FastAPI + SQLAlchemy + SQL migrations in `ops/migrations`) - ver `apps/backend/README.md`
 - `apps/admin` (React + Vite) - ver `apps/admin/README.md`
 - `apps/tenant` (React + Vite, PWA) - ver `apps/tenant/README.md`
 - `apps/packages` (paquetes compartidos) - ver `apps/packages/README.md`
@@ -30,7 +30,7 @@ Servicios por defecto:
 - `workers` (workers/edge) - ver `workers/README.md`
 
 ## Migraciones y base de datos
-- Alembic: `apps/backend/alembic/`
+- SQL migrations: `ops/migrations/`
 - SQL sueltas: `ops/migrations/`
 
 Ejecutar migraciones idempotentes:

@@ -89,6 +89,24 @@ def _idempotent_migrations_script() -> Path:
     return _repo_root() / "ops" / "scripts" / "migrate_all_migrations_idempotent.py"
 
 
+def _has_revision_files(backend_dir: Path) -> bool:
+    versions_dir = backend_dir / "revision_scaffold" / "versions"
+    if not versions_dir.exists():
+        return False
+    return any(
+        item.is_file() and item.suffix == ".py" and item.name != "__init__.py"
+        for item in versions_dir.iterdir()
+    )
+
+
+def _revision_scaffold_config(backend_dir: Path):
+    from alembic.config import Config
+
+    cfg = Config(str(backend_dir / "revision_scaffold.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "revision_scaffold"))
+    return cfg
+
+
 def _list_sql_migration_names() -> list[str]:
     migrations_dir = _repo_root() / "ops" / "migrations"
     if not migrations_dir.exists():
@@ -416,20 +434,20 @@ def migrate_status_details(db: Session = Depends(get_db)):
     # Base state
     state = dict(migration_state)
 
-    # Alembic heads (best-effort)
+    # Revision heads (best-effort)
     info = {}
     try:
-        from alembic.config import Config
         from alembic.script import ScriptDirectory
 
         backend_dir = Path(__file__).resolve().parents[3]
-        cfg = Config(str(backend_dir / "alembic.ini"))
-        cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+        if not _has_revision_files(backend_dir):
+            raise FileNotFoundError("revision_scaffold_empty")
+        cfg = _revision_scaffold_config(backend_dir)
         script = ScriptDirectory.from_config(cfg)
         heads = list(script.get_heads())
-        info = {"alembic_heads": {"count": len(heads), "heads": heads}}
+        info = {"revision_heads": {"count": len(heads), "heads": heads}}
     except Exception:
-        info = {"alembic_heads": {"count": -1, "heads": []}}
+        info = {"revision_heads": {"count": 0, "heads": []}}
 
     # Pending tracked SQL migrations
     pending_info = {
@@ -496,21 +514,21 @@ def migrate_status_details(db: Session = Depends(get_db)):
 @router.get("/ops/migrate/status")
 def migrate_status(db: Session = Depends(get_db)):
     state = dict(migration_state)
-    # Enriquecer con estado Alembic (heads)
+    # Enrich with revision head state
     info = {}
     try:
-        from alembic.config import Config
         from alembic.script import ScriptDirectory
 
         backend_dir = Path(__file__).resolve().parents[3]
-        cfg = Config(str(backend_dir / "alembic.ini"))
-        cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+        if not _has_revision_files(backend_dir):
+            raise FileNotFoundError("revision_scaffold_empty")
+        cfg = _revision_scaffold_config(backend_dir)
         script = ScriptDirectory.from_config(cfg)
         heads = list(script.get_heads())
-        info = {"alembic_heads": {"count": len(heads), "heads": heads}}
+        info = {"revision_heads": {"count": len(heads), "heads": heads}}
     except Exception:
-        # no romper si Alembic no está disponible en este entorno
-        info = {"alembic_heads": {"count": -1, "heads": []}}
+        # keep working if the revision scaffold is unavailable in this environment
+        info = {"revision_heads": {"count": 0, "heads": []}}
 
     if not state.get("running"):
         try:
@@ -608,22 +626,22 @@ def migrate_refresh(db: Session = Depends(get_db)):
     return {"ok": True, "updated": False, "status": "idle"}
 
 
-def _alembic_has_pending() -> tuple[bool, int, list[str]]:
-    """Return (pending, count, revisions[]) using Alembic APIs.
+def _revision_heads_pending() -> tuple[bool, int, list[str]]:
+    """Return (pending, count, revisions[]) using revision-scaffold APIs.
 
     Falls back to considering pending=True on error to be safe.
     """
     try:
         from sqlalchemy import create_engine
 
-        from alembic.config import Config
         from alembic.runtime.migration import MigrationContext
         from alembic.script import ScriptDirectory
         from app.config.database import make_db_url
 
         backend_dir = Path(__file__).resolve().parents[3]
-        cfg = Config(str(backend_dir / "alembic.ini"))
-        cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+        if not _has_revision_files(backend_dir):
+            return (False, 0, [])
+        cfg = _revision_scaffold_config(backend_dir)
 
         engine = create_engine(make_db_url(), future=True)
         with engine.connect() as conn:

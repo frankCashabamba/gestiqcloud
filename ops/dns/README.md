@@ -1,13 +1,13 @@
 # DNS (Cloudflare)
 
-## Zonas
-- `gestiqcloud.com` (Cloudflare).
+## Zones
+- `gestiqcloud.com` on Cloudflare.
 
-## Registros relevantes (ver archivos .txt en este directorio)
-- CNAME/A para `admin.gestiqcloud.com` y `www.gestiqcloud.com` apuntando al Worker/Render según configuración actual.
-- Otros subdominios listados en: `gestiqcloud.com.txt`, `cloudflare_dns_records.txt`, `gestiqcloud.com.cname-flattening.txt`.
+## Relevant Records
+- `admin.gestiqcloud.com` and `www.gestiqcloud.com` CNAME/A records point to the Worker or Render target, depending on the current setup.
+- Additional subdomains are listed in `gestiqcloud.com.txt`, `cloudflare_dns_records.txt`, and `gestiqcloud.com.cname-flattening.txt`.
 
-## Operación
-- Cambios vía Cloudflare Dashboard o API.
-- Mantener alineadas las rutas del Worker con los registros.
-- Documentar TTL y proxied (orange/grey) según entorno.
+## Operations
+- Apply changes through the Cloudflare dashboard or API.
+- Keep Worker routes aligned with the published DNS records.
+- Document TTL and proxy mode settings per environment.

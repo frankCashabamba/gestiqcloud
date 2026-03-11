@@ -126,7 +126,7 @@ FRIDAY (SPRINT 3 COMPLETE):
 
 Primary:        SPRINT_3_START_HERE.md     (5 min read)
 Then:           SPRINT_3_COMPLETE_100.md  (10 min read)
-Then:           apps/backend/alembic/versions/webhooks_initial_schema.py
+Then:           apps/backend/revision_scaffold/versions/webhooks_initial_schema.py
 Then:           Test webhooks endpoints with Postman
 Then:           Start building Notifications following same pattern
 
@@ -167,7 +167,7 @@ Webhooks:
   ✅ apps/backend/app/modules/webhooks/interface/http/tenant.py
   ✅ apps/backend/app/modules/webhooks/infrastructure/delivery.py
   ✅ apps/backend/app/modules/webhooks/infrastructure/event_queue.py
-  ✅ apps/backend/alembic/versions/webhooks_initial_schema.py
+  ✅ apps/backend/revision_scaffold/versions/webhooks_initial_schema.py
   ✅ Router registered in build_api_router()
 
 Notifications (ready):

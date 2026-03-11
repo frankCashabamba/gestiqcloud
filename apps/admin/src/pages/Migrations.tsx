@@ -122,11 +122,11 @@ export default function Migraciones() {
           {state.error && <div className="text-red-600">Error: {state.error}</div>}
         </div>
       )}
-      {state?.alembic_heads && state.alembic_heads.count !== 1 && (
+      {state?.revision_heads && state.revision_heads.count > 1 && (
         <div className="mt-4 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-slate-700 text-sm">
-          <div className="font-semibold text-slate-800">Diagnostico Alembic</div>
+          <div className="font-semibold text-slate-800">Revision Diagnostic</div>
           <div>
-            Se detectaron {state.alembic_heads.count} heads: {state.alembic_heads.heads.join(', ')}.
+            Detected {state.revision_heads.count} heads: {state.revision_heads.heads.join(', ')}.
           </div>
           <div className="mt-1">
             Este aviso es solo informativo y no bloquea el runner SQL idempotente del boton.

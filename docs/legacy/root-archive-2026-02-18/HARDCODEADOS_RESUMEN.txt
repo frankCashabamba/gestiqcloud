@@ -47,8 +47,8 @@ Distribución:
    ✅ Solución: tenant_config BD por tenant
 
 6-11. URLs Hardcodeadas:
-   - Credenciales DB (alembic/.env.example)
-   - JWT Secrets (alembic/.env.example)
+   - DB credentials (revision_scaffold/.env.example)
+   - JWT secrets (revision_scaffold/.env.example)
    - Redis localhost (celery_config.py)
    - Payphone URLs (payphone_provider.py)
    - Kushki URLs (kushki_provider.py)

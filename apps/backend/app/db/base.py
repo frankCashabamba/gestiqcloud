@@ -1,13 +1,13 @@
 # isort: off
-# Muy importante: importar la Base ANTES de los modelos para evitar circular imports
-from app.config.database import Base  # la misma Base en todo el proyecto
+# Import Base before the models to avoid circular imports
+from app.config.database import Base  # shared Base for the whole project
 
-# Ahora importar el agregador para registrar TODOS los modelos
+# Import the aggregator so every model is registered
 import app.models  # noqa: F401
 
 # isort: on
 
-# Cargar modelos de módulos vertical-slice para Alembic (sin efectos secundarios)
+# Load vertical-slice module models for the revision scaffold without side effects
 try:
     import app.modules.products.infrastructure.models  # noqa: F401
 except Exception:

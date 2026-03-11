@@ -1,5 +1,5 @@
 -- Add AP/VAT-input/default-expense accounts to tenant_accounting_settings.
--- Equivalent to Alembic: apps/backend/alembic/versions/011_accounting_settings_ap_expense.py
+-- Legacy scaffold equivalent: apps/backend/revision_scaffold/versions/011_accounting_settings_ap_expense.py
 
 ALTER TABLE public.tenant_accounting_settings
     ADD COLUMN IF NOT EXISTS ap_account_id UUID NULL,

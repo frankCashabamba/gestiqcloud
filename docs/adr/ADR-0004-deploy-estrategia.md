@@ -13,7 +13,7 @@
 ## Decisión
 - Mantener Render como plataforma de API y frontends; CF Worker como gateway en prod.
 - Orden de despliegue:
-  1) Aplicar migraciones (Alembic o SQL); cron `gestiqcloud-migrate` puede ejecutarlas y aplicar RLS.
+  1) Apply SQL migrations; the `gestiqcloud-migrate` cron/job can execute them and apply RLS.
   2) Desplegar backend en Render (autodeploy filtrado por paths backend/ops/scripts).
   3) Actualizar Worker CF solo si cambia CORS/cookies/rutas.
   4) Desplegar frontends (admin/tenant) después de backend si hay cambios de contrato.

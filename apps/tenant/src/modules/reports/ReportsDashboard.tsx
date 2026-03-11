@@ -28,6 +28,12 @@ const REPORT_CARDS = [
     exportType: 'profit_loss',
   },
   {
+    key: 'resultado-real',
+    icon: 'R$',
+    titleKey: 'reportes:realResult.shortTitle',
+    description: 'Ventas reales menos costo real y gastos reales, incluyendo nomina posteada.',
+  },
+  {
     key: 'margenes',
     icon: '📈',
     title: 'Márgenes',
@@ -95,6 +101,7 @@ export default function ReportsDashboard() {
         <button onClick={() => nav('ventas')}>Ventas</button>
         <button onClick={() => nav('inventario')}>{t('reportes:dashboard.inventory')}</button>
         <button onClick={() => nav('financiero')}>Financiero</button>
+        <button onClick={() => nav('resultado-real')}>{t('reportes:realResult.shortTitle')}</button>
         <button onClick={() => nav('margenes')}>{t('reportes:dashboard.margins')}</button>
       </div>
 
@@ -112,31 +119,33 @@ export default function ReportsDashboard() {
             <span style={{ fontSize: 13, textTransform: 'none', letterSpacing: 0 }}>
               {card.description}
             </span>
-            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              {['csv', 'excel', 'pdf'].map((fmt) => (
-                <button
-                  key={fmt}
-                  className="tabs button"
-                  style={{
-                    padding: '4px 10px',
-                    fontSize: 11,
-                    borderRadius: 8,
-                    border: '1px solid rgba(16,18,19,0.12)',
-                    background: exporting === `${card.exportType}-${fmt}` ? 'var(--reports-accent)' : '#fff',
-                    color: exporting === `${card.exportType}-${fmt}` ? '#fff' : 'var(--reports-ink)',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleExport(card.exportType, fmt)
-                  }}
-                  disabled={exporting !== null}
-                >
-                  {fmt.toUpperCase()}
-                </button>
-              ))}
-            </div>
+            {'exportType' in card ? (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                {['csv', 'excel', 'pdf'].map((fmt) => (
+                  <button
+                    key={fmt}
+                    className="tabs button"
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      borderRadius: 8,
+                      border: '1px solid rgba(16,18,19,0.12)',
+                      background: exporting === `${card.exportType}-${fmt}` ? 'var(--reports-accent)' : '#fff',
+                      color: exporting === `${card.exportType}-${fmt}` ? '#fff' : 'var(--reports-ink)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleExport(card.exportType, fmt)
+                    }}
+                    disabled={exporting !== null}
+                  >
+                    {fmt.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

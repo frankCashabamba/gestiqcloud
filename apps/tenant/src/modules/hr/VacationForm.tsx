@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { createVacacion, listEmpleados } from '../../services/api/hr'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import type { VacacionCreate, Empleado } from '../../types/hr'
@@ -20,6 +20,7 @@ export default function VacacionForm() {
   const { t } = useTranslation(['hr', 'common'])
   const nav = useNavigate()
   const location = useLocation()
+  const { empresa } = useParams()
   const { success, error } = useToast()
   const { sector } = useCompany()
 
@@ -79,7 +80,7 @@ export default function VacacionForm() {
       await createVacacion(payload)
 
       success(t('hr:vacations.registered'))
-      nav('/hr/vacations')
+      nav(empresa ? `/${empresa}/hr/vacations` : '/hr/vacations')
     } catch (e: any) {
       error(getErrorMessage(e))
     } finally {
@@ -196,7 +197,7 @@ export default function VacacionForm() {
           <button
             type="button"
             className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
-            onClick={() => nav('/hr/vacations')}
+            onClick={() => nav(empresa ? `/${empresa}/hr/vacations` : '/hr/vacations')}
             disabled={loading}
           >
             {t('hr:form.cancel')}

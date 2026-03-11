@@ -59,6 +59,39 @@
   "financial": {
     "selectRange": "Selecciona un rango de fechas y presiona \"Generar\" para ver el reporte financiero."
   },
+  "realResult": {
+    "title": "Resultado real",
+    "shortTitle": "Resultado real",
+    "subtitle": "Ventas reales menos COGS real y gastos reales ya posteados, incluida la nomina convertida en gasto.",
+    "generate": "Generar",
+    "refresh": "Recalcular",
+    "recalculating": "Recalculando...",
+    "recalculated": "Resultado real recalculado",
+    "empty": "Selecciona un rango de fechas y genera el resultado real.",
+    "summaryTitle": "Resumen",
+    "notesTitle": "Como se compone",
+    "noteSales": "Las ventas salen de pedidos y POS registrados en el periodo.",
+    "noteExpenses": "Los gastos incluyen produccion y otros gastos operativos ya contabilizados.",
+    "notePayroll": "La nomina confirmada o pagada se postea como gasto de payroll automaticamente.",
+    "cards": {
+      "sales": "Ventas",
+      "cogs": "COGS",
+      "expenses": "Gastos reales",
+      "grossProfit": "Ganancia bruta",
+      "grossMargin": "Margen bruto",
+      "net": "Resultado neto",
+      "netMargin": "Margen neto",
+      "orders": "Pedidos"
+    },
+    "table": {
+      "date": "Fecha",
+      "sales": "Ventas",
+      "cogs": "COGS",
+      "expenses": "Gastos",
+      "net": "Resultado neto",
+      "orders": "Pedidos"
+    }
+  },
   "inventory": {
     "title": "📦 Reporte de Inventario",
     "inventory": "Inventario",

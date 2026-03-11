@@ -3,7 +3,7 @@
 Backend API multi-tenant construido con FastAPI + SQLAlchemy, orientado a ERP/CRM con flujos de importación masiva, facturación y módulos de negocio.
 
 ## Stack y entrypoints
-- Framework: FastAPI, Pydantic v2, SQLAlchemy (sync/async ready), Alembic para migraciones.
+- Framework: FastAPI, Pydantic v2, SQLAlchemy (sync/async ready), and manual SQL migrations under `ops/migrations`.
 - Punto de entrada: `app/main.py` (CORS, middlewares, router, docs y healthchecks).
 - Router dinámico: `app/platform/http/router.py` monta los módulos modernos (`app/modules/*/interface/http`). Legacy routers se mantienen como respaldo en `app/routers/*`.
 - Telemetría: `app/telemetry/otel.py` inicializa OpenTelemetry para FastAPI.
@@ -28,7 +28,7 @@ Backend API multi-tenant construido con FastAPI + SQLAlchemy, orientado a ERP/CR
 
 ## Base de datos y migraciones
 - Modelos: `app/db/models.py` y modelos por dominio en `app/models/*` (ventas, compras, contabilidad, etc.).
-- Migraciones: Alembic en `apps/backend/alembic/` (ver `apps/backend/alembic/README.md`). Migraciones SQL manuales en `ops/migrations/` (ver `docs/datos-migraciones.md`).
+- Migrations: manual SQL migrations in `ops/migrations/` (see `docs/datos-migraciones.md`). The revision scaffold folder `apps/backend/revision_scaffold/` is scaffold-only.
 - Multi-tenant: `tenant_id` presente en tablas de negocio; preparado para RLS (ver `docs/seguridad.md`).
 
 ## Multitenancy
@@ -144,7 +144,7 @@ Backend API multi-tenant construido con FastAPI + SQLAlchemy, orientado a ERP/CR
 
 ## Operación
 - Variables sensibles via `.env` (no commitear). Para producción usar secretos gestionados.
-- Migraciones: preferir Alembic; para snapshots completos ver `ops/migrations`. Seguir guías de `docs/datos-migraciones.md`.
+- Migrations: use `ops/migrations` and follow `docs/datos-migraciones.md`.
 - CORS/cookies: trabajar en conjunto con el Cloudflare Worker (`workers/edge-gateway.js`), que reescribe `Set-Cookie` y limita orígenes.
 - Activación opcional de RLS: ver `docs/seguridad.md` para políticas por `tenant_id`.
 

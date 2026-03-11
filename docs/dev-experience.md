@@ -18,8 +18,7 @@
 - Frontend typecheck/build:
   - Admin: `cd apps/admin && npm run typecheck && npm run build`.
   - Tenant: `cd apps/tenant && npm run typecheck && npm run build`.
-- Migraciones Alembic: `cd apps/backend && alembic upgrade head`.
-- Migraciones SQL idempotentes: `python ops/scripts/migrate_all_migrations_idempotent.py` (requiere `DATABASE_URL`).
+- SQL migrations: `python ops/scripts/migrate_all_migrations_idempotent.py` (requires `DATABASE_URL`).
 
 ## Convenciones
 - `.env` en `apps/backend` con `ENV=development`. No commitear secretos.

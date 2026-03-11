@@ -36,7 +36,7 @@ Referencias rápidas por dominio. Este índice no certifica cobertura funcional;
 - Estructura típica: `application/` (casos de uso), `infrastructure/` (repositorios/adapters), `interface/http` (routers), `domain/` (entidades) si aplica.
 - Modelos/dto: en `schemas.py` o `domain` según módulo.
 - Endpoints: `interface/http/{tenant,admin,public}.py` con prefix; montados en `app/platform/http/router.py`.
-- Migraciones: verificar `alembic/versions` para cambios del módulo.
+- Migrations: verify the corresponding SQL migration folder under `ops/migrations` for module-level schema changes.
 
 ## Qué documentar en cada módulo
 - Propósito y alcance: qué problema resuelve, qué no cubre.

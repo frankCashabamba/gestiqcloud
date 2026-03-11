@@ -25,4 +25,4 @@
 ## Notas
 - Consultar modelos concretos en `app/models` y `app/db/models.py` para campos exactos y relaciones.
 - Revisar RLS/tenant_id antes de alterar estructuras.
-- Alembic refleja cambios estructurales; migraciones manuales en `ops/migrations` pueden contener snapshots.
+- Structural changes are tracked through the SQL migrations in `ops/migrations`, which may include full snapshots.

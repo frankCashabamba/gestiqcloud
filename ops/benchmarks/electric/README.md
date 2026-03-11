@@ -1,127 +1,127 @@
 # ElectricSQL Benchmarks
 
-Benchmarks para medir rendimiento de sincronización offline-first con ElectricSQL.
+Benchmarks used to measure offline-first synchronization performance with ElectricSQL.
 
-## Objetivos P95
+## P95 Targets
 
-| Métrica | Objetivo | Descripción |
+| Metric | Target | Description |
 |---------|----------|-------------|
-| Sync inicial | < 5s | Full load de 10K registros |
-| Sync incremental | < 500ms | Cambios incrementales |
-| Shape filter | < 200ms | Filtrado por shapes |
+| Initial sync | < 5s | Full load of 10K records |
+| Incremental sync | < 500ms | Incremental changes |
+| Shape filter | < 200ms | Shape-based filtering |
 
-## Requisitos
+## Requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-O desde el directorio raíz del proyecto:
+Or from the project root:
 
 ```bash
 pip install aiohttp websockets pytest-benchmark
 ```
 
-## Ejecución
+## Execution
 
-### 1. Generar datos de prueba (100MB dataset)
+### 1. Generate test data (100MB dataset)
 
 ```bash
 python setup.py
 ```
 
-Esto crea:
-- 10,000 productos
-- 5,000 clientes
-- 20,000 recibos POS
+This creates:
+- 10,000 products
+- 5,000 clients
+- 20,000 POS receipts
 
-### 2. Ejecutar benchmarks de sincronización
+### 2. Run sync benchmarks
 
 ```bash
 python benchmark_sync.py
 ```
 
-Métricas:
-- Tiempo de sync inicial (full load)
-- Tiempo de sync incremental
-- Throughput de operaciones offline
+Metrics:
+- Initial sync time (full load)
+- Incremental sync time
+- Offline operations throughput
 
-### 3. Ejecutar benchmarks de shapes
+### 3. Run shape benchmarks
 
 ```bash
 python benchmark_shapes.py
 ```
 
-Métricas:
-- Latencia de shapes con diferentes tamaños de datos
-- Rendimiento de filtros por tenant_id
-- Rendimiento de filtros por fecha
+Metrics:
+- Shape latency across different data sizes
+- Filter performance by `tenant_id`
+- Filter performance by date
 
-## Variables de Entorno
+## Environment Variables
 
 ```bash
-# URL del servidor ElectricSQL
+# ElectricSQL server URL
 ELECTRIC_URL=ws://localhost:5133
 
-# URL del backend API (para shapes)
+# Backend API URL (for shapes)
 API_BASE_URL=http://localhost:8000
 
-# Tenant ID para pruebas
+# Tenant ID used for tests
 TEST_TENANT_ID=bench_tenant_001
 ```
 
-## Estructura de Resultados
+## Result Structure
 
-Los benchmarks generan:
-- `results/sync_benchmark.json` - Resultados de sync
-- `results/shapes_benchmark.json` - Resultados de shapes
-- `results/summary.md` - Resumen legible
+The benchmarks generate:
+- `results/sync_benchmark.json` - sync benchmark results
+- `results/shapes_benchmark.json` - shape benchmark results
+- `results/summary.md` - human-readable summary
 
-## Interpretación de Resultados
+## Result Interpretation
 
-### Sync Inicial
+### Initial Sync
 
 ```
-✅ PASS: < 5s para 10K registros
-⚠️  WARN: 5-10s (revisar índices)
-❌ FAIL: > 10s (requiere optimización)
+PASS: < 5s for 10K records
+WARN: 5-10s (review indexes)
+FAIL: > 10s (needs optimization)
 ```
 
-### Sync Incremental
+### Incremental Sync
 
 ```
 ✅ PASS: < 500ms
-⚠️  WARN: 500ms-1s (aceptable con latencia de red)
-❌ FAIL: > 1s (revisar batching)
+WARN: 500ms-1s (acceptable with network latency)
+FAIL: > 1s (review batching)
 ```
 
 ### Shape Filter
 
 ```
 ✅ PASS: < 200ms
-⚠️  WARN: 200-500ms (revisar índices de DB)
-❌ FAIL: > 500ms (requiere optimización de queries)
+WARN: 200-500ms (review DB indexes)
+FAIL: > 500ms (query optimization required)
 ```
 
 ## Troubleshooting
 
 ### "Connection refused"
 
-Verificar que ElectricSQL está corriendo:
+Verify that ElectricSQL is running:
 ```bash
 docker ps | grep electric
 ```
 
-### "Timeout en sync inicial"
+### "Initial sync timeout"
 
-Aumentar timeout o reducir dataset:
+Increase the timeout or reduce the dataset:
 ```bash
 SYNC_TIMEOUT=60 python benchmark_sync.py
 ```
 
-### Datos de prueba corruptos
+### Corrupted test data
 
-Regenerar:
+Regenerate:
 ```bash
 python setup.py --clean
 ```

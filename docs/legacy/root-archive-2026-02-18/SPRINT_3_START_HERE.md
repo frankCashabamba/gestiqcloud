@@ -120,7 +120,7 @@ apps/webhooks/
 
 ### Database
 ```
-apps/backend/alembic/versions/webhooks_initial_schema.py ✅
+apps/backend/revision_scaffold/versions/webhooks_initial_schema.py ✅
 ```
 
 ---

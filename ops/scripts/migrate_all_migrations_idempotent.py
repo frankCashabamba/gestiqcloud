@@ -61,7 +61,7 @@ def get_migrations() -> List[Tuple[Path, str]]:
         if item.is_dir() and not item.name.startswith("_"):
             up_sql = item / "up.sql"
             if up_sql.exists():
-                migrations.append((item, up_sql.name))
+                migrations.append((item, item.name))
 
     return migrations
 
@@ -115,12 +115,12 @@ def apply_migration(conn, migration_dir: Path, sql_content: str, dry_run: bool =
 
     # Check if already applied
     if is_migration_applied(conn, migration_name):
-        print(f"\n> {migration_name}")
+        print(f"\n> {migration_dir.name}")
         print("  [SKIP] Already applied")
         return True
 
     if dry_run:
-        print(f"\n[DRY RUN] {migration_name}")
+        print(f"\n[DRY RUN] {migration_dir.name}")
         print("=" * 60)
         print(sql_content[:500] + "..." if len(sql_content) > 500 else sql_content)
         print("=" * 60)
@@ -128,7 +128,7 @@ def apply_migration(conn, migration_dir: Path, sql_content: str, dry_run: bool =
 
     try:
         cursor = conn.cursor()
-        print(f"\n> {migration_name}")
+        print(f"\n> {migration_dir.name}")
 
         try:
             # Execute entire SQL file as-is (PostgreSQL handles multiple statements)

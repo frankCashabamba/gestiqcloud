@@ -3,7 +3,7 @@
 Backend API multi-tenant (FastAPI + SQLAlchemy) con sesiones por cookie y soporte de importaciones masivas.
 
 ## Stack y estructura
-- FastAPI, SQLAlchemy, Pydantic v2, Alembic.
+- FastAPI, SQLAlchemy, Pydantic v2, and manual SQL migrations under `ops/migrations`.
 - `app/main.py`: arranque, CORS, rate limiting, mounting de routers y docs.
 - `app/config/`: settings (.env), DB engine, Celery config.
 - `app/core/`: auth (JWT/cookies), permisos, sesiones server-side, logging, rate limits.
@@ -33,10 +33,10 @@ pytest -q app/tests
 python ../..//ops/scripts/check_endpoints.py  # smoke de endpoints FE/BE
 ```
 
-## Migraciones
-- Alembic en `apps/backend/alembic/`. Config en `alembic.ini`.
-- Comandos típicos: `alembic revision --autogenerate -m "msg"`, `alembic upgrade head`.
-- Migraciones SQL manuales viven en `ops/migrations/` (ver `docs/datos-migraciones.md`).
+## Migrations
+- The active migration source of truth is `ops/migrations/`.
+- The revision scaffold folder `apps/backend/revision_scaffold/` is scaffold-only; `revision_scaffold/versions` may be intentionally empty.
+- Manual SQL migrations live in `ops/migrations/` (see `docs/datos-migraciones.md`).
 
 ## Endpoints clave
 - Auth: `/api/v1/tenant/auth/login`, `/api/v1/admin/auth/login`.

@@ -1,14 +1,14 @@
-# Scripts de operaciones
+# Operations Scripts
 
-## Migraciones
-- `migrate_all_migrations_idempotent.py`: aplica migraciones SQL en orden, saltando las ya aplicadas (requiere `DATABASE_URL`).
-- `migrate_all_migrations.py`: versión simple no idempotente.
-- `generate_migration_from_models.py`: genera SQL desde modelos actuales para comparar.
+## Migrations
+- `migrate_all_migrations_idempotent.py`: applies SQL migrations in order and skips already tracked ones. Requires `DATABASE_URL`.
+- `migrate_all_migrations.py`: simple non-idempotent runner.
+- `generate_migration_from_models.py`: generates SQL from the current models for comparison.
 
 ## Checks
-- `check_endpoints.py`: smoke test de endpoints FE/BE (usado en CI backend). Ajustar URLs/env antes de ejecutar.
-- `check_db_migrations_coverage.py`: compara tablas public en DB vs migraciones (neto create/drop). Usa `DATABASE_URL`.
+- `check_endpoints.py`: backend/frontend smoke test used in CI. Adjust URLs and environment variables before running it.
+- `check_db_migrations_coverage.py`: compares `public` DB tables against the migration set after net create/drop resolution. Requires `DATABASE_URL`.
 
-## Notas
-- Ejecutar con el entorno virtual adecuado (`pip install -r ops/requirements.txt`).
-- Para backups/restauración, usar `pg_dump`/`psql` (ver `docs/datos-migraciones.md`).
+## Notes
+- Run these scripts from the correct virtual environment, for example after `pip install -r ops/requirements.txt`.
+- Use `pg_dump` and `psql` for backup and restore workflows.

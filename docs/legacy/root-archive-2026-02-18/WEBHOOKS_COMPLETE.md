@@ -133,7 +133,7 @@ gestiqcloud/
     ├── tests/
     │   └── test_webhooks.py            # Unit tests (197 lines)
     │
-    └── alembic/versions/
+    └── revision_scaffold/versions/
         └── 012_webhook_subscriptions.py # Database migration
 ```
 

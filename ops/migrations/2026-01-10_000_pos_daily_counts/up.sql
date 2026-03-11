@@ -1,5 +1,5 @@
 -- Migration: 2026-01-10_000_pos_daily_counts
--- Description: Guardar reportes diarios de turno para el módulo POS.
+-- Description: Store daily shift reports for the POS module.
 
 BEGIN;
 

@@ -1,9 +1,9 @@
 -- Seed tenant_field_configs with classification keywords for ALL existing tenants.
 -- This enables doc_type detection via DB without hardcoding.
--- Tenants can add/modify keywords via UPDATE/INSERT sin tocar código.
+-- Tenants can add or modify keywords via UPDATE/INSERT without code changes.
 
 -- ============================================================
--- INVOICES (facturas)
+-- INVOICES
 -- ============================================================
 INSERT INTO tenant_field_configs (id, tenant_id, module, field, aliases, field_type, visible, required)
 SELECT
@@ -90,7 +90,7 @@ WHERE NOT EXISTS (
 );
 
 -- ============================================================
--- PRODUCTS (productos)
+-- PRODUCTS
 -- ============================================================
 INSERT INTO tenant_field_configs (id, tenant_id, module, field, aliases, field_type, visible, required)
 SELECT
@@ -153,7 +153,7 @@ WHERE NOT EXISTS (
 );
 
 -- ============================================================
--- BANK TRANSACTIONS (movimientos bancarios)
+-- BANK TRANSACTIONS
 -- ============================================================
 INSERT INTO tenant_field_configs (id, tenant_id, module, field, aliases, field_type, visible, required)
 SELECT
@@ -204,7 +204,7 @@ WHERE NOT EXISTS (
 );
 
 -- ============================================================
--- EXPENSES (gastos)
+-- EXPENSES
 -- ============================================================
 INSERT INTO tenant_field_configs (id, tenant_id, module, field, aliases, field_type, visible, required)
 SELECT

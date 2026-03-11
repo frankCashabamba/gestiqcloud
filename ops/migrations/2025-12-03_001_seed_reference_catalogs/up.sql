@@ -1,6 +1,6 @@
--- Seed de referencias removido: usar script de seed (ops/scripts/seed_reference_catalogs.py)
+-- Reference seed removed: use the seed script instead (ops/scripts/seed_reference_catalogs.py)
 
--- No-op para mantener consistencia en el pipeline de migraciones
+-- No-op to keep the migration pipeline consistent
 DO $$
 BEGIN
     PERFORM 1;

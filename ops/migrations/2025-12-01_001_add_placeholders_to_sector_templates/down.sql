@@ -1,5 +1,5 @@
--- Reversión: Remover placeholders de sector_templates.template_config
--- Si es necesario volver atrás, elimina los placeholders agregados
+-- Rollback: remove placeholders from sector_templates.template_config
+-- If you need to revert, remove the placeholders added above
 
 UPDATE public.sector_templates
 SET template_config = jsonb_set(

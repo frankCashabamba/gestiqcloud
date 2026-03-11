@@ -337,8 +337,8 @@ def build_api_router() -> APIRouter:
         prefix="/tenant",
     )
 
-    # RRHH (Human Resources) - TODO: Create module
-    # include_router_safe(r, ("app.modules.rrhh.interface.http.tenant", "router"), prefix="/tenant")
+    # RRHH (Human Resources)
+    include_router_safe(r, ("app.modules.hr.interface.http.tenant", "router"), prefix="/tenant")
 
     # Finance
     include_router_safe(
@@ -395,6 +395,7 @@ def build_api_router() -> APIRouter:
 
     # Migrations management (admin)
     include_router_safe(r, ("app.routers.migrations", "router"))
+    include_router_safe(r, ("app.routers.admin.ops", "router"), prefix="/admin")
 
     # (removed) Tenant onboarding/configuración inicial router (legacy)
 

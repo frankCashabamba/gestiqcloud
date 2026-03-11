@@ -1,7 +1,7 @@
 # Checklist de release (backend/front + worker)
 
 1) Migraciones
-- Aplicar migraciones (Alembic/SQL) antes del deploy o via cron `gestiqcloud-migrate`.
+- Apply SQL migrations before deploy or through the `gestiqcloud-migrate` cron/job.
 - Backup si hay cambios destructivos (`pg_dump`).
 
 2) Backend (Render)

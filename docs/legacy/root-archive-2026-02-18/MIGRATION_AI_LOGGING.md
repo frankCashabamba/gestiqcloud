@@ -19,7 +19,7 @@ alembic revision --autogenerate -m "Add AI logging tables"
 
 ### Paso 2: Verificar el archivo generado
 ```bash
-# Debería crear: alembic/versions/xxxx_add_ai_logging_tables.py
+# Should create: revision_scaffold/versions/xxxx_add_ai_logging_tables.py
 # Revisar que incluya las 3 tablas
 ```
 

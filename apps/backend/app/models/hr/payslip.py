@@ -3,13 +3,15 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import TIMESTAMP, Date
+from sqlalchemy import TIMESTAMP, Date, Uuid
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, LargeBinary, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base, schema_column, schema_table_args
+
+MODULE_UUID = Uuid(as_uuid=True)
+TENANT_UUID = String(36)
 
 # Enums
 payslip_status = SQLEnum(
@@ -42,10 +44,10 @@ class PaymentSlip(Base):
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        MODULE_UUID, primary_key=True, default=uuid.uuid4
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -53,13 +55,13 @@ class PaymentSlip(Base):
 
     # References
     payroll_detail_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        MODULE_UUID,
         ForeignKey(schema_column("payroll_details"), ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     employee_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        MODULE_UUID,
         ForeignKey(schema_column("employees"), ondelete="RESTRICT"),
         nullable=False,
         index=True,

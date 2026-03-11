@@ -59,6 +59,39 @@
   "financial": {
     "selectRange": "Select a date range and press \"Generate\" to view the financial report."
   },
+  "realResult": {
+    "title": "Real result",
+    "shortTitle": "Real result",
+    "subtitle": "Real sales minus real COGS and posted operating expenses, including payroll posted as expense.",
+    "generate": "Generate",
+    "refresh": "Recalculate",
+    "recalculating": "Recalculating...",
+    "recalculated": "Real result recalculated",
+    "empty": "Select a date range and generate the real result.",
+    "summaryTitle": "Summary",
+    "notesTitle": "How it is built",
+    "noteSales": "Sales come from recorded orders and POS activity in the selected period.",
+    "noteExpenses": "Expenses include production costs and other posted operating expenses.",
+    "notePayroll": "Confirmed or paid payroll is posted automatically as a payroll expense.",
+    "cards": {
+      "sales": "Sales",
+      "cogs": "COGS",
+      "expenses": "Real expenses",
+      "grossProfit": "Gross profit",
+      "grossMargin": "Gross margin",
+      "net": "Net result",
+      "netMargin": "Net margin",
+      "orders": "Orders"
+    },
+    "table": {
+      "date": "Date",
+      "sales": "Sales",
+      "cogs": "COGS",
+      "expenses": "Expenses",
+      "net": "Net result",
+      "orders": "Orders"
+    }
+  },
   "inventory": {
     "title": "📦 Inventory Report",
     "inventory": "Inventory",

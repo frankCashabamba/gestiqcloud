@@ -1,5 +1,6 @@
 """HR Service - Payroll Generation and Management"""
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -7,13 +8,135 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.expenses.expense import Expense
 from app.models.hr.employee import Employee, EmployeeSalary
 from app.models.hr.payroll import Payroll, PayrollDetail, PayrollTax
 from app.models.hr.payslip import PaymentSlip
 
+logger = logging.getLogger(__name__)
+
+PAYROLL_EXPENSE_PREFIX = "PAYROLL-"
+
 
 class PayrollService:
     """Servicio para generar y gestionar nóminas."""
+
+    @staticmethod
+    def _db_uuid(db: Session, value: UUID | None) -> UUID | str | None:
+        if value is None:
+            return None
+        if db.bind is not None and db.bind.dialect.name == "sqlite":
+            return str(value)
+        return value
+
+    @staticmethod
+    def _db_tenant_id(db: Session, value: UUID | str | None) -> UUID | str | None:
+        if value is None:
+            return None
+        if db.bind is not None and db.bind.dialect.name == "sqlite":
+            return str(value)
+        return value
+
+    @staticmethod
+    def _payroll_expense_ref(payroll_id: UUID) -> str:
+        return f"{PAYROLL_EXPENSE_PREFIX}{payroll_id}"
+
+    @staticmethod
+    def _payroll_expense_amount(payroll: Payroll) -> Decimal:
+        gross = Decimal(str(payroll.total_gross or 0))
+        employer_ss = Decimal(str(payroll.total_social_security_employer or 0))
+        return gross + employer_ss
+
+    @staticmethod
+    def _refresh_profit_snapshot(db: Session, payroll: Payroll) -> None:
+        """Refresh the real-profit snapshot for the payroll posting date."""
+        if db.bind is not None and db.bind.dialect.name == "sqlite":
+            return
+        try:
+            from app.modules.reports.application.recalculation_service import (
+                RecalculationService,
+            )
+
+            RecalculationService(db).recalculate_daily(payroll.tenant_id, payroll.payroll_date)
+        except Exception as exc:
+            logger.warning(
+                "Failed to refresh profit snapshot for payroll %s on %s: %s",
+                payroll.id,
+                payroll.payroll_date,
+                exc,
+            )
+
+    @staticmethod
+    def _sync_payroll_expense(
+        db: Session,
+        payroll: Payroll,
+        *,
+        user_id: UUID | None = None,
+        mark_paid: bool = False,
+    ) -> Expense:
+        """Create or update the expense row that represents payroll cost."""
+        owner_id = user_id or payroll.confirmed_by or payroll.created_by
+        if owner_id is None:
+            raise ValueError("Cannot create payroll expense without user reference")
+
+        amount = PayrollService._payroll_expense_amount(payroll)
+        expense_ref = PayrollService._payroll_expense_ref(payroll.id)
+        tenant_id = PayrollService._db_tenant_id(db, payroll.tenant_id)
+        owner_id_db = PayrollService._db_uuid(db, owner_id)
+        concept = f"Nomina {payroll.payroll_month}"
+        status = "paid" if mark_paid else "pending"
+        paid_amount = amount if mark_paid else Decimal("0")
+        pending_amount = Decimal("0") if mark_paid else amount
+        notes = (
+            f"Generado automaticamente desde la nomina {payroll.payroll_month} "
+            f"({payroll.id})"
+        )
+
+        expense = db.execute(
+            select(Expense).where(
+                Expense.tenant_id == tenant_id,
+                Expense.invoice_number == expense_ref,
+            )
+        ).scalars().first()
+
+        if expense is None:
+            expense = Expense(
+                tenant_id=tenant_id,
+                date=payroll.payroll_date,
+                concept=concept,
+                category="payroll",
+                subcategory=payroll.payroll_month,
+                amount=amount,
+                vat=Decimal("0"),
+                total=amount,
+                payment_method="transfer",
+                invoice_number=expense_ref,
+                status=status,
+                paid_amount=paid_amount,
+                pending_amount=pending_amount,
+                user_id=owner_id_db,
+                notes=notes,
+            )
+            db.add(expense)
+        else:
+            expense.date = payroll.payroll_date
+            expense.concept = concept
+            expense.category = "payroll"
+            expense.subcategory = payroll.payroll_month
+            expense.amount = amount
+            expense.vat = Decimal("0")
+            expense.total = amount
+            expense.payment_method = expense.payment_method or "transfer"
+            expense.status = status
+            expense.paid_amount = paid_amount
+            expense.pending_amount = pending_amount
+            expense.notes = notes
+            if not expense.user_id:
+                expense.user_id = owner_id_db
+
+        db.flush()
+        PayrollService._refresh_profit_snapshot(db, payroll)
+        return expense
 
     @staticmethod
     def get_payroll_parameters(db: Session, tenant_id: UUID, country: str, year: int) -> dict:
@@ -100,7 +223,7 @@ class PayrollService:
         employees = (
             db.execute(
                 select(Employee).where(
-                    Employee.tenant_id == tenant_id,
+                    Employee.tenant_id == PayrollService._db_tenant_id(db, tenant_id),
                     Employee.status == "ACTIVE",
                 )
             )
@@ -113,7 +236,7 @@ class PayrollService:
 
         # 2. Crear Payroll header
         payroll = Payroll(
-            tenant_id=tenant_id,
+            tenant_id=PayrollService._db_tenant_id(db, tenant_id),
             payroll_month=payroll_month,
             payroll_date=payroll_date,
             status="DRAFT",
@@ -145,7 +268,7 @@ class PayrollService:
 
             # Crear PaymentSlip
             payslip = PaymentSlip(
-                tenant_id=tenant_id,
+                tenant_id=PayrollService._db_tenant_id(db, tenant_id),
                 payroll_detail_id=detail.id,
                 employee_id=employee.id,
                 access_token=f"slip_{detail.id}_{datetime.utcnow().timestamp()}",
@@ -258,6 +381,7 @@ class PayrollService:
         payroll.confirmed_by = confirmed_by
         payroll.confirmed_at = datetime.utcnow()
 
+        PayrollService._sync_payroll_expense(db, payroll, user_id=confirmed_by, mark_paid=False)
         db.flush()
         return payroll
 
@@ -273,5 +397,6 @@ class PayrollService:
 
         payroll.status = "PAID"
 
+        PayrollService._sync_payroll_expense(db, payroll, mark_paid=True)
         db.flush()
         return payroll

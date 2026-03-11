@@ -76,7 +76,7 @@ api_url = os.getenv("API_URL", "http://localhost:8000")
 **Estado actual:**
 
 ```
-apps/backend/alembic/                 ← Alembic (automático)
+apps/backend/revision_scaffold/       ← Revision scaffold
   └─ versions/
      ├─ 001_initial_schema.py
      ├─ 005_pos_extensions.py
@@ -440,8 +440,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
-COPY alembic/ alembic/
-COPY alembic.ini .
+COPY revision_scaffold/ revision_scaffold/
+COPY revision_scaffold.ini .
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 

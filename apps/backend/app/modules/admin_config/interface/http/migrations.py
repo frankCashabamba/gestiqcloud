@@ -48,6 +48,11 @@ class MigrationExecuteResponse(BaseModel):
     migrations_applied: int = 0
 
 
+def _migration_friendly_name(migration_dir: Path) -> str:
+    parts = migration_dir.name.split("_", 2)
+    return parts[2] if len(parts) >= 3 else migration_dir.name
+
+
 @router.get("/history", response_model=list[MigrationRecord])
 async def get_migration_history(
     limit: int = 50,
@@ -199,8 +204,7 @@ async def execute_migrations(
                             key=lambda p: p.name,
                         ):
                             version = d.name
-                            parts = version.split("_", 2)
-                            friendly = parts[2] if len(parts) >= 3 else version
+                            friendly = _migration_friendly_name(d)
                             db.execute(
                                 text(
                                     """
@@ -341,13 +345,8 @@ async def mark_migration_status(
     version = body.version
     try:
         mig_root = os.getenv("MIGRATIONS_DIR", "ops/migrations")
-        from pathlib import Path as _Path
-
-        d = _Path(mig_root) / version
-        parts = version.split("_", 2)
-        friendly = parts[2] if len(parts) >= 3 else version
-        if d.exists():
-            pass
+        d = Path(mig_root) / version
+        friendly = _migration_friendly_name(d) if d.exists() else version
     except Exception:
         friendly = version
 

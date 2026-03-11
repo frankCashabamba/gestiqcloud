@@ -1,4 +1,4 @@
--- Crear tablas de configuración contable para POS
+-- Create accounting configuration tables for POS
 CREATE TABLE IF NOT EXISTS tenant_accounting_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,

@@ -189,31 +189,8 @@ if (-not $cleanupPorts -or $cleanupPorts.Trim().ToLower() -in @("s", "si", "sí"
     Stop-ListenersOnPort -Port $tenantPort
 }
 
-Write-Host "[4/7] Aplicando migraciones..." -ForegroundColor Yellow
-Set-Location $backendPath
-# Activar venv
-if (Test-Path $venvActivate) {
-    & $venvActivate
-} else {
-    Write-Host "No se encontro .venv. Crea el entorno virtual antes de migrar." -ForegroundColor Red
-    exit 1
-}
-# Asegurar DATABASE_URL en entorno
-$envFile = Join-Path $backendPath ".env"
-if (Test-Path $envFile) {
-    $dbUrl = Get-Content $envFile | Where-Object { $_ -match "^DATABASE_URL=" } | ForEach-Object { $_.Split("=", 2)[1].Trim().Trim('"').Trim("'") }
-    if ($dbUrl) { [Environment]::SetEnvironmentVariable("DATABASE_URL", $dbUrl, "Process") }
-}
-Set-Location $repoRoot
-python .\ops\scripts\migrate_all_migrations_idempotent.py
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error aplicando migraciones" -ForegroundColor Red
-    exit $LASTEXITCODE
-}
-Set-Location $repoRoot
-
 # Build rápido para asegurar que frontend usa el código más reciente
-Write-Host "[4.5/7] Recompilando frontends (admin y tenant)..." -ForegroundColor Yellow
+Write-Host "[4/7] Recompilando frontends (admin y tenant)..." -ForegroundColor Yellow
 if (Get-Command pnpm -ErrorAction SilentlyContinue) {
     pnpm --filter admin run build 2>$null | Out-Null
     pnpm --filter tenant run build 2>$null | Out-Null
@@ -222,6 +199,13 @@ if (Get-Command pnpm -ErrorAction SilentlyContinue) {
 }
 
 Write-Host "[5/7] Iniciando backend..." -ForegroundColor Green
+# Activar venv para backend
+if (Test-Path $venvActivate) {
+    & $venvActivate
+} else {
+    Write-Host "No se encontro .venv. Crea el entorno virtual." -ForegroundColor Red
+    exit 1
+}
 $venvPython = Join-Path $repoRoot ".venv/Scripts/python.exe"
 $backendJob = Start-Job -ScriptBlock {
     param($envVars, $logPath, $pythonExe, $workDir)

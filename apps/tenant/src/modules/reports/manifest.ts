@@ -11,6 +11,7 @@ export const manifest = {
     { path: 'ventas', label: 'Ventas', component: lazy(() => import('./SalesReport')) },
     { path: 'inventario', label: 'Inventario', component: lazy(() => import('./InventoryReport')) },
     { path: 'financiero', label: 'Financiero', component: lazy(() => import('./FinancialReport')) },
+    { path: 'resultado-real', label: 'Resultado real', component: lazy(() => import('./RealProfitReport')) },
     { path: 'margenes', label: 'Márgenes', component: lazy(() => import('./MarginsDashboard')) },
   ]
 }

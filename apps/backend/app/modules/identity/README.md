@@ -32,7 +32,7 @@ Cookie: refresh_token=<jwt>
 - Tablas `auth_refresh_family`, `auth_refresh_token` (creadas en `001_initial_schema` vía metadata); guardan familia y tokens con hashes de UA/IP.
 - Nota: no existen tablas `tenant_refresh_*`; tenant y admin comparten `auth_refresh_*`.
 - Usuarios: `company_user` (tenant) y `auth_super_user` (admin) creados también en `001_initial_schema`.
-- No hay migraciones específicas posteriores; revisar `alembic/versions/005_pos_extensions.py` y siguientes para cambios generales si se añaden campos.
+- There are no later module-specific migrations here. Review the relevant SQL migrations under `ops/migrations/` if new fields are introduced.
 
 ## Flujos críticos
 - Login tenant: valida rate limit → busca usuario por email/username → verifica hash (rehash si es necesario) → session scope `tenant_id` → emite claims con `build_tenant_claims` (puede fallar si la transacción aborta) → crea familia refresh → emite JWTs → setea cookies.

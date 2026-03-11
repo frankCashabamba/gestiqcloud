@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/http'
-import { initElectric, setupOnlineSync } from '../lib/electric'
 import { TOKEN_KEY } from '../constants/storage'
 import { PermissionsProvider } from '../contexts/PermissionsContext'
 
@@ -70,15 +69,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             const me = await apiFetch<MeCompany>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
             setProfile(me)
 
-             // Initialize ElectricSQL for offline sync
-             if (me?.tenant_id) {
-               try {
-                 await initElectric(me.tenant_id)
-                 setupOnlineSync(me.tenant_id)
-               } catch (error) {
-                 console.warn('ElectricSQL init failed:', error)
-               }
-             }
+
           } else {
             clear()
           }

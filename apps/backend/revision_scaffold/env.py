@@ -1,4 +1,4 @@
-# apps/backend/alembic/env.py
+# apps/backend/revision_scaffold/env.py
 from __future__ import annotations
 
 import os
@@ -11,8 +11,8 @@ from sqlalchemy import Column, MetaData, String, Table, engine_from_config, pool
 from alembic import context
 
 # ------------------------------------------------------------
-# Bootstrap de paths (monorepo) para que Alembic encuentre `app`
-# Estructura asumida: <root>/apps/backend/alembic/env.py
+# Monorepo path bootstrap so the revision scaffold can import `app`
+# Expected layout: <root>/apps/backend/revision_scaffold/env.py
 # ------------------------------------------------------------
 BACKEND_DIR = Path(__file__).resolve().parents[1]  # apps/backend
 APPS_DIR = BACKEND_DIR.parent  # apps
@@ -24,9 +24,9 @@ for p in (ROOT, APPS_DIR, BACKEND_DIR):
         sys.path.insert(0, sp)
 
 # ------------------------------------------------------------
-# Cargar variables de entorno (.env.local/.env) antes de leer DATABASE_URL.
-# En runtime (uvicorn) esto ya ocurre al importar la app, pero Alembic se
-# ejecuta de forma aislada y necesita este bootstrap.
+# Load environment variables before reading DATABASE_URL.
+# During normal app startup this already happens, but the revision scaffold
+# runs in isolation and needs the same bootstrap.
 # ------------------------------------------------------------
 try:
     import app.config.env_loader  # noqa: F401  # type: ignore
@@ -34,16 +34,16 @@ except Exception:
     pass
 
 # ------------------------------------------------------------
-# Configuración base de Alembic
+# Base revision-scaffold configuration
 # ------------------------------------------------------------
 config = context.config
 
-# Logging desde alembic.ini si existe
+# Load logging from revision_scaffold.ini when available
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Prefiere DATABASE_URL/DB_DSN del entorno si está presente.
-# Nota: engine_from_config consume el dict de sección, así que actualizamos también la sección.
+# Prefer DATABASE_URL/DB_DSN from the environment when present.
+# engine_from_config consumes the section dict, so update that section as well.
 db_url = (
     os.getenv("DATABASE_URL")
     or os.getenv("DB_DSN")
@@ -58,28 +58,28 @@ if db_url:
         pass
 
 # ------------------------------------------------------------
-# Target metadata del modelo de la app
+# Application target metadata
 # ------------------------------------------------------------
 try:
-    # Ruta "normal" cuando `app` es paquete (apps/backend/app)
+    # Standard path when `app` is importable as a package
     from app.db.base import target_metadata  # type: ignore  # noqa: E402
 except ModuleNotFoundError:
-    # Fallback explícito por si el import absoluto falla
+    # Explicit fallback in case the absolute import fails
     import importlib
 
     target_metadata = importlib.import_module("apps.backend.app.db.base").target_metadata  # type: ignore
 
 
-_ALEMBIC_VERSION_TABLE = Table(
+_REVISION_VERSION_TABLE = Table(
     "alembic_version",
     MetaData(),
-    # Our revision IDs are descriptive and can exceed 32 chars (Alembic default).
+    # Revision IDs can exceed the historical default length.
     Column("version_num", String(128), primary_key=True),
 )
 
 
 def run_migrations_offline() -> None:
-    """Ejecuta migraciones en modo 'offline' (sin conexión)."""
+    """Run migrations in offline mode without a DB connection."""
     url = db_url or config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -87,7 +87,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         compare_type=True,
         compare_server_default=True,
-        version_table_impl=_ALEMBIC_VERSION_TABLE,
+        version_table_impl=_REVISION_VERSION_TABLE,
     )
 
     with context.begin_transaction():
@@ -95,7 +95,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Ejecuta migraciones en modo 'online' (con conexión)."""
+    """Run migrations in online mode with a DB connection."""
     section = config.get_section(config.config_ini_section) or {}
     if db_url:
         section["sqlalchemy.url"] = db_url
@@ -112,7 +112,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
-            version_table_impl=_ALEMBIC_VERSION_TABLE,
+            version_table_impl=_REVISION_VERSION_TABLE,
         )
 
         with context.begin_transaction():

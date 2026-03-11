@@ -1,9 +1,9 @@
 -- Migration: 2026-02-14_002_profit_snapshots
--- Description: Profit Snapshots — Rentabilidad diaria + márgenes por producto
+-- Description: Profit snapshots - daily profitability and per-product margins
 
 BEGIN;
 
--- profit_snapshots_daily: Dashboard rápido de rentabilidad diaria
+-- profit_snapshots_daily: fast daily profitability dashboard
 CREATE TABLE IF NOT EXISTS profit_snapshots_daily (
     id UUID DEFAULT gen_random_uuid() NOT NULL,
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS profit_snapshots_daily (
 
 CREATE INDEX IF NOT EXISTS ix_profit_snapshots_daily_tenant_date ON profit_snapshots_daily(tenant_id, date);
 
--- product_profit_snapshots: Márgenes por producto/día
+-- product_profit_snapshots: per-product, per-day margins
 CREATE TABLE IF NOT EXISTS product_profit_snapshots (
     id UUID DEFAULT gen_random_uuid() NOT NULL,
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

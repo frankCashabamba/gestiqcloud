@@ -8,7 +8,7 @@ import type { Empleado, Vacacion } from '../../types/hr'
 
 export default function EmpleadoDetail() {
   const { t } = useTranslation(['hr', 'common'])
-  const { id } = useParams()
+  const { empresa, id } = useParams()
   const nav = useNavigate()
   const { success, error } = useToast()
 
@@ -185,7 +185,7 @@ export default function EmpleadoDetail() {
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-semibold text-lg">{t('hr:vacations.title')}</h3>
           <Link
-            to="/hr/vacations/new"
+            to={empresa ? `/${empresa}/hr/vacations/new` : '/hr/vacations/new'}
             state={{ empleadoId: id }}
             className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm"
           >

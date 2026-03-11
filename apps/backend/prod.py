@@ -62,21 +62,29 @@ def run_apply_rls() -> None:
     subprocess.run(cmd, check=True, cwd=str(ROOT), env=env)
 
 
-def run_alembic() -> None:
+def run_revision_scaffold() -> None:
     """
-    Ejecuta Alembic si está configurado. Por defecto ACTIVADO (RUN_ALEMBIC=1).
-    Desactiva con RUN_ALEMBIC=0.
+    Run the revision scaffold if it is configured.
+    Enabled by default with RUN_REVISION_SCAFFOLD=1.
     """
-    if os.getenv("RUN_ALEMBIC", "1").lower() not in ("1", "true", "yes"):
-        print("↩︎ Skipping Alembic (RUN_ALEMBIC desactivado)")
+    run_flag = os.getenv("RUN_REVISION_SCAFFOLD", os.getenv("RUN_ALEMBIC", "1")).lower()
+    if run_flag not in ("1", "true", "yes"):
+        print("↩︎ Skipping revision scaffold (RUN_REVISION_SCAFFOLD disabled)")
         return
 
-    alembic_ini = BACKEND_DIR / "alembic.ini"
-    if not alembic_ini.exists():
-        print(f"ℹ️  Alembic no configurado (no existe {alembic_ini}), se omite.")
+    scaffold_ini = BACKEND_DIR / "revision_scaffold.ini"
+    versions_dir = BACKEND_DIR / "revision_scaffold" / "versions"
+    if not scaffold_ini.exists():
+        print(f"ℹ️  Revision scaffold not configured (missing {scaffold_ini}), skipping.")
+        return
+    if not versions_dir.exists() or not any(
+        item.is_file() and item.suffix == ".py" and item.name != "__init__.py"
+        for item in versions_dir.iterdir()
+    ):
+        print("↩︎ Skipping revision scaffold (no revision files in apps/backend/revision_scaffold/versions)")
         return
 
-    # Inyecta PYTHONPATH y DATABASE_URL al proceso hijo (alembic CLI)
+    # Inject PYTHONPATH and DATABASE_URL into the child process.
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
         [
@@ -89,9 +97,9 @@ def run_alembic() -> None:
     if DB_DSN:
         env.setdefault("DATABASE_URL", DB_DSN)
 
-    print("📦 Alembic: upgrade head")
+    print("📦 Revision scaffold: upgrade head")
     subprocess.run(
-        ["alembic", "upgrade", "head"],
+        ["alembic", "-c", str(scaffold_ini), "upgrade", "head"],
         check=True,
         cwd=str(BACKEND_DIR),
         env=env,
@@ -195,8 +203,8 @@ def start_app() -> None:
 
 if __name__ == "__main__":
     try:
-        # Orden recomendado: primero Alembic (si lo hay), luego legacy solo si está habilitado.
-        run_alembic()
+        # Recommended order: revision scaffold first if present, then legacy SQL only when enabled.
+        run_revision_scaffold()
         run_legacy_migrations()
         run_apply_rls()
     except subprocess.CalledProcessError as e:

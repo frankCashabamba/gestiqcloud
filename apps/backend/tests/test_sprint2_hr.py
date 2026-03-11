@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.expenses.expense import Expense
 from app.models.hr.employee import Employee, EmployeeDeduction, EmployeeSalary
 from app.models.hr.payroll import PayrollDetail, PayrollTax
 from app.models.hr.payslip import PaymentSlip
@@ -23,7 +24,7 @@ def tenant_id(db: Session):
             "VALUES (:id, :name, :slug, :active, :created_at)"
         ),
         {
-            "id": tid.hex,
+            "id": str(tid),
             "name": "Sprint2 HR",
             "slug": f"s2-hr-{tid.hex[:8]}",
             "active": True,
@@ -320,6 +321,53 @@ def test_payroll_state_transitions(db: Session, tenant_id, employee, employee_sa
     assert payroll.status == "PAID"
 
 
+def test_confirm_payroll_creates_payroll_expense(db: Session, tenant_id, employee, employee_salary):
+    """Test: confirmar nÃ³mina genera gasto operativo de payroll."""
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+    user_id = uuid4()
+
+    PayrollService.confirm_payroll(db, payroll.id, user_id)
+
+    expense = (
+        db.query(Expense)
+        .filter_by(
+            invoice_number=f"PAYROLL-{payroll.id}",
+        )
+        .first()
+    )
+
+    assert expense is not None
+    assert expense.category == "payroll"
+    assert expense.status == "pending"
+    assert expense.concept == "Nomina 2026-02"
+    assert Decimal(str(expense.amount)) == (
+        payroll.total_gross + payroll.total_social_security_employer
+    )
+
+
+def test_mark_payroll_paid_updates_existing_payroll_expense(
+    db: Session, tenant_id, employee, employee_salary
+):
+    """Test: pagar nÃ³mina actualiza el gasto existente sin duplicarlo."""
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+    PayrollService.confirm_payroll(db, payroll.id, uuid4())
+
+    PayrollService.mark_payroll_paid(db, payroll.id)
+
+    expenses = (
+        db.query(Expense)
+        .filter_by(
+            invoice_number=f"PAYROLL-{payroll.id}",
+        )
+        .all()
+    )
+
+    assert len(expenses) == 1
+    assert expenses[0].status == "paid"
+    assert Decimal(str(expenses[0].pending_amount or 0)) == Decimal("0")
+    assert Decimal(str(expenses[0].paid_amount or 0)) == Decimal(str(expenses[0].amount))
+
+
 def test_payroll_cannot_modify_after_confirm(db: Session, tenant_id, employee, employee_salary):
     """Test: no se puede modificar nómina después de confirmar."""
     payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
@@ -341,7 +389,7 @@ def test_payslip_generation(db: Session, tenant_id, employee, employee_salary):
     """Test: genera boletas de pago."""
     PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
 
-    payslips = db.query(PaymentSlip).filter_by(tenant_id=tenant_id).all()
+    payslips = db.query(PaymentSlip).filter_by(tenant_id=str(tenant_id)).all()
 
     assert len(payslips) >= 1
     assert payslips[0].status == "GENERATED"
@@ -353,7 +401,7 @@ def test_payslip_access_tracking(db: Session, tenant_id, employee, employee_sala
     """Test: registra acceso a boletas."""
     PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
 
-    payslip = db.query(PaymentSlip).filter_by(tenant_id=tenant_id).first()
+    payslip = db.query(PaymentSlip).filter_by(tenant_id=str(tenant_id)).first()
 
     # Simular descargas
     payslip.download_count += 1
@@ -386,7 +434,7 @@ def test_full_payroll_workflow(db: Session, tenant_id, employee, employee_salary
     assert payroll.status == "PAID"
 
     # Verificar boleta
-    payslip = db.query(PaymentSlip).filter_by(tenant_id=tenant_id).first()
+    payslip = db.query(PaymentSlip).filter_by(tenant_id=str(tenant_id)).first()
     assert payslip.status == "GENERATED"
 
 

@@ -165,13 +165,6 @@ def validate_feature_config(feature: str) -> bool:
             return False
         return True
 
-    elif feature == "electric":
-        electric_url = os.getenv("VITE_ELECTRIC_URL", "").strip()
-        if not electric_url:
-            logger.warning("Electric feature disabled: VITE_ELECTRIC_URL not configured")
-            return False
-        return True
-
     elif feature == "einvoicing":
         from app.config.settings import settings
 
@@ -214,9 +207,6 @@ def get_critical_config(key: str) -> str | None:
             raise ConfigValidationError(f"{key} contains localhost in production: {value}")
 
         if key == "DATABASE_URL" and _is_local_url(value) and not allow_local_db:
-            raise ConfigValidationError(f"{key} contains localhost in production: {value}")
-
-        if key == "VITE_ELECTRIC_URL" and _is_local_url(value):
             raise ConfigValidationError(f"{key} contains localhost in production: {value}")
 
     return value

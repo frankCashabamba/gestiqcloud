@@ -91,7 +91,7 @@ Follow Webhooks pattern. Expected implementation: 2 days
 ### Database Migrations
 
 ```
-✅ apps/backend/alembic/versions/webhooks_initial_schema.py
+✅ apps/backend/revision_scaffold/versions/webhooks_initial_schema.py
    - Creates webhook_subscriptions table
    - Creates webhook_deliveries table
    - All indexes included
@@ -343,7 +343,7 @@ All modules follow the same 5-layer pattern:
 
 ### Layer 5: Migrations
 ```python
-# alembic/versions/*.py - Database schema
+# revision_scaffold/versions/*.py - Database schema
 ```
 
 **Workflow:**

@@ -111,3 +111,14 @@ def test_admin_ops_migrate_returns_noop_when_sql_migrations_are_already_tracked(
         "pending_revisions": [],
         "applied_count": 7,
     }
+
+
+def test_admin_ops_router_is_mounted_under_admin_prefix(client):
+    routes = {
+        getattr(route, "path", "")
+        for route in client.app.router.routes
+        if getattr(route, "path", "")
+    }
+    assert "/api/v1/admin/ops/migrate" in routes
+    assert "/api/v1/admin/ops/migrate/status" in routes
+    assert "/api/v1/admin/ops/migrate/refresh" in routes

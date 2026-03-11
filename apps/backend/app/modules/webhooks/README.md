@@ -490,7 +490,7 @@ Ejecutar migración:
 
 ```bash
 cd apps/backend
-alembic upgrade head
+python ops/scripts/migrate_all_migrations_idempotent.py
 ```
 
 ---

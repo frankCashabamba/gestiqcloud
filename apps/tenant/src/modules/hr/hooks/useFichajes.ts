@@ -7,7 +7,16 @@ export function useFichajes() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getFichajes().then((data) => { setFichajes(data); setLoading(false) })
+    getFichajes()
+      .then((data) => {
+        setFichajes(data)
+      })
+      .catch(() => {
+        setFichajes([])
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }, [])
 
   return { fichajes, loading }

@@ -5,7 +5,7 @@
 BEGIN;
 
 -- ============ UI SECTIONS ============
--- Secciones del dashboard (ej: Dashboard, Pagos, Incidentes)
+-- Dashboard sections (for example: Dashboard, Payments, Incidents)
 CREATE TABLE IF NOT EXISTS public.ui_sections (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
@@ -29,7 +29,7 @@ CREATE INDEX IF NOT EXISTS ix_ui_sections_slug ON public.ui_sections (slug);
 CREATE INDEX IF NOT EXISTS ix_ui_sections_active ON public.ui_sections (active);
 
 -- ============ UI WIDGETS ============
--- Widgets dinámicos (stat_card, chart, table, form)
+-- Dynamic widgets (stat_card, chart, table, form)
 CREATE TABLE IF NOT EXISTS public.ui_widgets (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
@@ -54,7 +54,7 @@ CREATE INDEX IF NOT EXISTS ix_ui_widgets_section_id ON public.ui_widgets (sectio
 CREATE INDEX IF NOT EXISTS ix_ui_widgets_active ON public.ui_widgets (active);
 
 -- ============ UI TABLES ============
--- Configuración de tablas dinámicas
+-- Dynamic table configuration
 CREATE TABLE IF NOT EXISTS public.ui_tables (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
@@ -82,7 +82,7 @@ CREATE INDEX IF NOT EXISTS ix_ui_tables_slug ON public.ui_tables (slug);
 CREATE INDEX IF NOT EXISTS ix_ui_tables_active ON public.ui_tables (active);
 
 -- ============ UI COLUMNS ============
--- Configuración de columnas de tabla
+-- Table column configuration
 CREATE TABLE IF NOT EXISTS public.ui_columns (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     table_id UUID NOT NULL,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS public.ui_columns (
 CREATE INDEX IF NOT EXISTS ix_ui_columns_table_id ON public.ui_columns (table_id);
 
 -- ============ UI FILTERS ============
--- Configuración de filtros dinámicos
+-- Dynamic filter configuration
 CREATE TABLE IF NOT EXISTS public.ui_filters (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     table_id UUID NOT NULL,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS public.ui_filters (
 CREATE INDEX IF NOT EXISTS ix_ui_filters_table_id ON public.ui_filters (table_id);
 
 -- ============ UI FORMS ============
--- Formularios dinámicos
+-- Dynamic forms
 CREATE TABLE IF NOT EXISTS public.ui_forms (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
@@ -144,7 +144,7 @@ CREATE INDEX IF NOT EXISTS ix_ui_forms_slug ON public.ui_forms (slug);
 CREATE INDEX IF NOT EXISTS ix_ui_forms_active ON public.ui_forms (active);
 
 -- ============ UI FORM FIELDS ============
--- Configuración de campos de formulario
+-- Form field configuration
 CREATE TABLE IF NOT EXISTS public.ui_form_fields (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     form_id UUID NOT NULL,
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS public.ui_form_fields (
 CREATE INDEX IF NOT EXISTS ix_ui_form_fields_form_id ON public.ui_form_fields (form_id);
 
 -- ============ UI DASHBOARDS ============
--- Dashboards personalizados (agrupación de secciones)
+-- Custom dashboards (section grouping)
 CREATE TABLE IF NOT EXISTS public.ui_dashboards (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,

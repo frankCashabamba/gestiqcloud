@@ -7,6 +7,8 @@ import EmployeeForm from './EmployeeForm'
 import EmployeeDetail from './EmployeeDetail'
 import VacationsList from './VacationsList'
 import VacationForm from './VacationForm'
+import FichajesView from './FichajesView'
+import NominaView from './NominaView'
 
 export default function RRHHRoutes() {
   return (
@@ -34,15 +36,21 @@ export default function RRHHRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route path="vacaciones" element={<VacationsList />} />
+        <Route path="vacations" element={<VacationsList />} />
+        <Route path="vacaciones" element={<Navigate to="../vacations" replace />} />
         <Route
-          path="vacaciones/nueva"
+          path="vacations/new"
           element={
             <ProtectedRoute permission="hr:manage">
               <VacationForm />
             </ProtectedRoute>
           }
         />
+        <Route path="vacaciones/nueva" element={<Navigate to="../vacations/new" replace />} />
+        <Route path="fichajes" element={<Navigate to="../timekeeping" replace />} />
+        <Route path="timekeeping" element={<FichajesView />} />
+        <Route path="nomina" element={<Navigate to="../payroll" replace />} />
+        <Route path="payroll" element={<NominaView />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

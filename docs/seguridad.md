@@ -40,7 +40,7 @@
     USING (tenant_id = current_setting('app.current_tenant')::uuid);
   ```
 - Flujo operativo recomendado:
-  1) Preparar migración Alembic o SQL con `ENABLE RLS` + políticas.
+  1) Prepare an SQL migration with `ENABLE RLS` and the required policies.
   2) Asegurar que la sesión establece `app.current_tenant` al abrir conexión (middleware DB).
   3) Habilitar en staging y correr smoke tests (listados, inserts, updates) por tenant.
   4) Activar en producción por lotes y monitorear errores 403/500 en logs.
