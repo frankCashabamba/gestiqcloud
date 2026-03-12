@@ -397,7 +397,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                         <h3 className="font-semibold mb-3">Regional</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm mb-1">{t('settings.regional.locale')}</label>
+                                <label className="block text-sm mb-1">{t('settings:regional.locale')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     value={locale}
@@ -406,7 +406,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1">{t('settings.regional.timezone')}</label>
+                                <label className="block text-sm mb-1">{t('settings:regional.timezone')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     value={timezone}
@@ -415,7 +415,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1">{t('settings.regional.currency')}</label>
+                                <label className="block text-sm mb-1">{t('settings:regional.currency')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     value={currency}

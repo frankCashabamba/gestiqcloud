@@ -75,6 +75,11 @@
     "save": "Guardar",
     "saving": "Guardando..."
   },
+  "regional": {
+    "locale": "Idioma",
+    "timezone": "Zona horaria",
+    "currency": "Moneda"
+  },
   "advanced": {
     "inventory": "Inventario",
     "minForInvoice": "Minimo para exigir factura",
