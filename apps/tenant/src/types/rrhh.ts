@@ -17,6 +17,7 @@ export interface Empleado {
   puesto?: string
   tipo_contrato: 'indefinido' | 'temporal' | 'practicas' | 'formacion' | 'autonomo'
   jornada: 'completa' | 'parcial' | 'por_horas'
+  modalidad_pago: 'mensual' | 'diario' | 'por_hora'
   salario_base: number
   banco?: string
   numero_cuenta?: string
@@ -90,6 +91,7 @@ export interface EmpleadoCreate {
   puesto?: string
   tipo_contrato: 'indefinido' | 'temporal' | 'practicas' | 'formacion' | 'autonomo'
   jornada: 'completa' | 'parcial' | 'por_horas'
+  modalidad_pago?: 'mensual' | 'diario' | 'por_hora'
   salario_base: number
   banco?: string
   numero_cuenta?: string

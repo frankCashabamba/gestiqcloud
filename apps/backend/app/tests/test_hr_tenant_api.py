@@ -155,3 +155,51 @@ def test_hr_payroll_generate_and_list(client: TestClient, db):
     items = listed.json()["items"]
     assert len(items) == 1
     assert items[0]["id"] == payroll["id"]
+
+
+def test_hr_payroll_delete_draft(client: TestClient, db):
+    _ensure_test_tenant(db)
+    employee = client.post("/api/v1/tenant/hr/employees", json=_employee_payload("11223344E"))
+    assert employee.status_code == 201, employee.text
+
+    created = client.post(
+        "/api/v1/tenant/hr/payroll/generate",
+        json={
+            "payroll_month": "2026-04",
+            "payroll_date": "2026-04-30",
+        },
+    )
+    assert created.status_code == 201, created.text
+    payroll_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/v1/tenant/hr/payroll/{payroll_id}")
+    assert deleted.status_code == 204, deleted.text
+
+    listed = client.get("/api/v1/tenant/hr/payroll", params={"payrollMonth": "2026-04"})
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["items"] == []
+
+
+def test_hr_payroll_prevents_duplicate_period(client: TestClient, db):
+    _ensure_test_tenant(db)
+    employee = client.post("/api/v1/tenant/hr/employees", json=_employee_payload("66778899F"))
+    assert employee.status_code == 201, employee.text
+
+    first = client.post(
+        "/api/v1/tenant/hr/payroll/generate",
+        json={
+            "payroll_month": "2026-05",
+            "payroll_date": "2026-05-31",
+        },
+    )
+    assert first.status_code == 201, first.text
+
+    second = client.post(
+        "/api/v1/tenant/hr/payroll/generate",
+        json={
+            "payroll_month": "2026-05",
+            "payroll_date": "2026-05-31",
+        },
+    )
+    assert second.status_code == 400, second.text
+    assert "Payroll already exists" in second.text

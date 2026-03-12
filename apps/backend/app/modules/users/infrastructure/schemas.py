@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,6 +22,12 @@ class CompanyUserCreate(CompanyUserBase):
     password: str = Field(min_length=8)
     active: bool = Field(default=True)
     is_company_admin: bool = Field(default=False)
+    as_employee: bool = Field(default=False)
+    employee_hire_date: date | None = None
+    employee_department: str | None = None
+    employee_job_title: str | None = None
+    employee_salary_base: Decimal | None = None
+    employee_payment_mode: str | None = None
     modules: list[UUID] = Field(default_factory=list)
     roles: list[UUID] = Field(default_factory=list)
 
@@ -37,6 +44,12 @@ class CompanyUserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=8)
     is_company_admin: bool | None = Field(default=None)
     active: bool | None = Field(default=None)
+    as_employee: bool | None = Field(default=None)
+    employee_hire_date: date | None = None
+    employee_department: str | None = None
+    employee_job_title: str | None = None
+    employee_salary_base: Decimal | None = None
+    employee_payment_mode: str | None = None
     modules: list[UUID] | None = Field(default=None)
     roles: list[UUID] | None = None
 
@@ -48,6 +61,12 @@ class CompanyUserOut(CompanyUserBase):
     tenant_id: UUID
     is_company_admin: bool
     active: bool
+    as_employee: bool = Field(default=False)
+    employee_hire_date: date | None = None
+    employee_department: str | None = None
+    employee_job_title: str | None = None
+    employee_salary_base: Decimal | None = None
+    employee_payment_mode: str | None = None
     modules: list[UUID] = Field(default_factory=list)
     roles: list[UUID] = Field(default_factory=list)
     last_login_at: datetime | None = Field(

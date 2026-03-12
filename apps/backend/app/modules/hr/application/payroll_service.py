@@ -2,16 +2,26 @@
 
 import logging
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.models.company.company_settings import CompanySettings
 from app.models.expenses.expense import Expense
+from app.models.hr.attendance import TimeEntry
 from app.models.hr.employee import Employee, EmployeeSalary
 from app.models.hr.payroll import Payroll, PayrollDetail, PayrollTax
 from app.models.hr.payslip import PaymentSlip
+from app.models.tenant import Tenant
+from app.modules.hr.application.compensation import (
+    month_bounds,
+    normalize_payment_mode,
+    parse_salary_notes,
+    time_entry_hours,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +46,231 @@ class PayrollService:
         if db.bind is not None and db.bind.dialect.name == "sqlite":
             return str(value)
         return value
+
+    @staticmethod
+    def _country_from_locale(locale: str | None) -> str | None:
+        if not locale:
+            return None
+        normalized = str(locale).strip().replace("_", "-")
+        if "-" not in normalized:
+            return None
+        country_code = normalized.rsplit("-", 1)[-1].strip().upper()
+        return country_code if len(country_code) == 2 else None
+
+    @staticmethod
+    def _parse_decimal(value: Any) -> Decimal | None:
+        if value is None or value == "":
+            return None
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _parse_bool(value: Any, default: bool) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "si", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off"}:
+                return False
+        return default
+
+    @staticmethod
+    def _default_payroll_rules(country_code: str) -> dict[str, Any]:
+        country = (country_code or "ES").upper()
+        if country == "ES":
+            return {
+                "apply_income_tax": True,
+                "apply_social_security_employee": True,
+                "apply_social_security_employer": True,
+                "apply_mutual_insurance": True,
+                "income_tax_rate": None,
+                "social_security_employee_rate": Decimal("6.35"),
+                "social_security_employer_rate": Decimal("23.60"),
+                "mutual_insurance_rate": Decimal("1.25"),
+                "daily_without_entries_strategy": "business_days",
+            }
+        if country == "EC":
+            return {
+                "apply_income_tax": False,
+                "apply_social_security_employee": False,
+                "apply_social_security_employer": False,
+                "apply_mutual_insurance": False,
+                "income_tax_rate": None,
+                "social_security_employee_rate": None,
+                "social_security_employer_rate": None,
+                "mutual_insurance_rate": None,
+                "daily_without_entries_strategy": "single_day",
+            }
+        return {
+            "apply_income_tax": False,
+            "apply_social_security_employee": False,
+            "apply_social_security_employer": False,
+            "apply_mutual_insurance": False,
+            "income_tax_rate": None,
+            "social_security_employee_rate": None,
+            "social_security_employer_rate": None,
+            "mutual_insurance_rate": None,
+            "daily_without_entries_strategy": "none",
+        }
+
+    @staticmethod
+    def _tenant_payroll_context(db: Session, tenant_id: UUID) -> dict[str, Any]:
+        tenant_key = PayrollService._db_tenant_id(db, tenant_id)
+        tenant = db.execute(select(Tenant).where(Tenant.id == tenant_key)).scalars().first()
+        company_settings = (
+            db.execute(select(CompanySettings).where(CompanySettings.tenant_id == tenant_key))
+            .scalars()
+            .first()
+        )
+        settings_json = (
+            company_settings.settings
+            if company_settings and isinstance(company_settings.settings, dict)
+            else {}
+        )
+        hr_settings = settings_json.get("hr") if isinstance(settings_json.get("hr"), dict) else {}
+        payroll_settings = (
+            hr_settings.get("payroll") if isinstance(hr_settings.get("payroll"), dict) else {}
+        )
+        locale = company_settings.default_language if company_settings else None
+        country_code = (
+            getattr(tenant, "country_code", None)
+            or settings_json.get("pais")
+            or PayrollService._country_from_locale(locale)
+            or getattr(tenant, "country", None)
+            or "ES"
+        )
+        currency = (
+            (company_settings.currency if company_settings else None)
+            or getattr(tenant, "base_currency", None)
+            or "EUR"
+        )
+        return {
+            "country_code": str(country_code).strip().upper(),
+            "currency": str(currency).strip().upper(),
+            "payroll_settings": payroll_settings,
+        }
+
+    @staticmethod
+    def _payroll_rules(country_code: str, payroll_settings: dict[str, Any] | None) -> dict[str, Any]:
+        rules = PayrollService._default_payroll_rules(country_code)
+        settings = payroll_settings if isinstance(payroll_settings, dict) else {}
+        if not settings:
+            return rules
+
+        if "deductions_enabled" in settings and not PayrollService._parse_bool(
+            settings.get("deductions_enabled"), True
+        ):
+            rules["apply_income_tax"] = False
+            rules["apply_social_security_employee"] = False
+            rules["apply_social_security_employer"] = False
+            rules["apply_mutual_insurance"] = False
+
+        if "apply_income_tax" in settings:
+            rules["apply_income_tax"] = PayrollService._parse_bool(
+                settings.get("apply_income_tax"), rules["apply_income_tax"]
+            )
+        if "apply_social_security_employee" in settings:
+            rules["apply_social_security_employee"] = PayrollService._parse_bool(
+                settings.get("apply_social_security_employee"),
+                rules["apply_social_security_employee"],
+            )
+        if "apply_social_security_employer" in settings:
+            rules["apply_social_security_employer"] = PayrollService._parse_bool(
+                settings.get("apply_social_security_employer"),
+                rules["apply_social_security_employer"],
+            )
+        if "apply_mutual_insurance" in settings:
+            rules["apply_mutual_insurance"] = PayrollService._parse_bool(
+                settings.get("apply_mutual_insurance"), rules["apply_mutual_insurance"]
+            )
+
+        for key in (
+            "income_tax_rate",
+            "social_security_employee_rate",
+            "social_security_employer_rate",
+            "mutual_insurance_rate",
+        ):
+            if key in settings:
+                rules[key] = PayrollService._parse_decimal(settings.get(key))
+
+        strategy = str(
+            settings.get("daily_without_entries_strategy")
+            or rules["daily_without_entries_strategy"]
+        ).strip().lower()
+        if strategy not in {"business_days", "single_day", "none"}:
+            strategy = rules["daily_without_entries_strategy"]
+        rules["daily_without_entries_strategy"] = strategy
+        return rules
+
+    @staticmethod
+    def _percentage_amount(gross: Decimal, rate: Decimal | None) -> Decimal:
+        if rate is None:
+            return Decimal("0")
+        return (gross * rate) / 100
+
+    @staticmethod
+    def _income_tax_amount(
+        gross: Decimal,
+        *,
+        country_code: str,
+        year: int,
+        payroll_rules: dict[str, Any],
+    ) -> Decimal:
+        if not payroll_rules.get("apply_income_tax", False):
+            return Decimal("0")
+        rate = payroll_rules.get("income_tax_rate")
+        if rate is not None:
+            return PayrollService._percentage_amount(gross, rate)
+        if country_code == "ES":
+            return PayrollService.calculate_irpf(gross, country_code, year)
+        return Decimal("0")
+
+    @staticmethod
+    def _social_security_amount(
+        gross: Decimal,
+        *,
+        country_code: str,
+        year: int,
+        employee: bool,
+        payroll_rules: dict[str, Any],
+    ) -> Decimal:
+        apply_key = "apply_social_security_employee" if employee else "apply_social_security_employer"
+        rate_key = "social_security_employee_rate" if employee else "social_security_employer_rate"
+        if not payroll_rules.get(apply_key, False):
+            return Decimal("0")
+        rate = payroll_rules.get(rate_key)
+        if rate is not None:
+            return PayrollService._percentage_amount(gross, rate)
+        if country_code == "ES":
+            return PayrollService.calculate_social_security(
+                gross, country_code, year, employee=employee
+            )
+        return Decimal("0")
+
+    @staticmethod
+    def _mutual_insurance_amount(
+        gross: Decimal,
+        *,
+        country_code: str,
+        year: int,
+        payroll_rules: dict[str, Any],
+    ) -> Decimal:
+        if not payroll_rules.get("apply_mutual_insurance", False):
+            return Decimal("0")
+        rate = payroll_rules.get("mutual_insurance_rate")
+        if rate is not None:
+            return PayrollService._percentage_amount(gross, rate)
+        if country_code == "ES":
+            return PayrollService._percentage_amount(gross, Decimal("1.25"))
+        return Decimal("0")
 
     @staticmethod
     def _payroll_expense_ref(payroll_id: UUID) -> str:
@@ -204,6 +439,46 @@ class PayrollService:
         raise ValueError(f"SS calculation not implemented for {country}/{year}")
 
     @staticmethod
+    def _existing_payroll_for_month(db: Session, tenant_id: UUID, payroll_month: str) -> Payroll | None:
+        return (
+            db.execute(
+                select(Payroll)
+                .where(
+                    Payroll.tenant_id == PayrollService._db_tenant_id(db, tenant_id),
+                    Payroll.payroll_month == payroll_month,
+                )
+                .order_by(Payroll.created_at.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+
+    @staticmethod
+    def _count_business_days(start: date, end: date) -> int:
+        if end < start:
+            return 0
+        total = 0
+        current = start
+        while current <= end:
+            if current.weekday() < 5:
+                total += 1
+            current = date.fromordinal(current.toordinal() + 1)
+        return total
+
+    @staticmethod
+    def _daily_fallback_range(
+        employee: Employee, month_start: date, month_end: date
+    ) -> tuple[date, date] | None:
+        start = max(employee.hire_date or month_start, month_start)
+        end = month_end
+        if employee.termination_date:
+            end = min(end, employee.termination_date)
+        if end < start:
+            return None
+        return start, end
+
+    @staticmethod
     def generate_payroll(
         db: Session,
         tenant_id: UUID,
@@ -220,6 +495,12 @@ class PayrollService:
         4. Crear PayrollDetail para cada empleado
         5. Actualizar totales
         """
+        existing_payroll = PayrollService._existing_payroll_for_month(db, tenant_id, payroll_month)
+        if existing_payroll is not None:
+            raise ValueError(
+                f"Payroll already exists for {payroll_month} with status {existing_payroll.status}"
+            )
+
         # 1. Obtener empleados activos
         employees = (
             db.execute(
@@ -254,9 +535,21 @@ class PayrollService:
         total_deductions = Decimal("0")
 
         year = int(payroll_month[:4])
+        tenant_context = PayrollService._tenant_payroll_context(db, tenant_id)
+        payroll_rules = PayrollService._payroll_rules(
+            tenant_context["country_code"], tenant_context.get("payroll_settings")
+        )
 
         for employee in employees:
-            detail = PayrollService._calculate_employee_payroll(db, employee, payroll_month, year)
+            detail = PayrollService._calculate_employee_payroll(
+                db,
+                employee,
+                payroll_month,
+                year,
+                payroll_date=payroll_date,
+                country_code=tenant_context["country_code"],
+                payroll_rules=payroll_rules,
+            )
             detail.payroll_id = payroll.id
 
             total_gross += detail.gross_salary
@@ -283,8 +576,12 @@ class PayrollService:
             db.add(payslip)
 
         # Calcular SS empleador
-        total_ss_employer = PayrollService.calculate_social_security(
-            total_gross, employee.country, year, employee=False
+        total_ss_employer = PayrollService._social_security_amount(
+            total_gross,
+            country_code=tenant_context["country_code"],
+            year=year,
+            employee=False,
+            payroll_rules=payroll_rules,
         )
 
         # 4. Actualizar totales en Payroll
@@ -321,36 +618,66 @@ class PayrollService:
         employee: Employee,
         payroll_month: str,
         year: int,
+        *,
+        payroll_date: date,
+        country_code: str,
+        payroll_rules: dict[str, Any],
     ) -> PayrollDetail:
         """Calcula salario neto para un empleado."""
 
         # Obtener salary vigente
-        month_date = date(int(payroll_month[:4]), int(payroll_month[5:]), 1)
+        month_start, month_end = month_bounds(payroll_month)
+        period_end = min(month_end, payroll_date)
         salary_rec = db.execute(
             select(EmployeeSalary)
             .where(
                 EmployeeSalary.employee_id == employee.id,
-                EmployeeSalary.effective_date <= month_date,
+                EmployeeSalary.effective_date <= period_end,
             )
-            .order_by(EmployeeSalary.effective_date.desc())
+            .order_by(
+                EmployeeSalary.effective_date.desc(),
+                desc(EmployeeSalary.created_at),
+                desc(EmployeeSalary.id),
+            )
             .limit(1)
         ).scalar_one_or_none()
 
         if not salary_rec:
             raise ValueError(f"No salary found for employee {employee.id}")
 
-        gross = salary_rec.salary_amount
+        salary_amount = Decimal(str(salary_rec.salary_amount or 0))
+        payment_mode = normalize_payment_mode(parse_salary_notes(salary_rec.notes).get("payment_mode"))
+        gross = PayrollService._calculate_gross_salary(
+            db,
+            employee=employee,
+            payroll_month=payroll_month,
+            payment_mode=payment_mode,
+            rate_amount=salary_amount,
+            month_start=month_start,
+            month_end=period_end,
+            payroll_rules=payroll_rules,
+        )
 
         # Calcular deducciones
-        irpf = PayrollService.calculate_irpf(gross, employee.country, year)
-        ss_employee = PayrollService.calculate_social_security(
-            gross, employee.country, year, employee=True
+        irpf = PayrollService._income_tax_amount(
+            gross,
+            country_code=country_code,
+            year=year,
+            payroll_rules=payroll_rules,
         )
-        mutual = PayrollService.calculate_social_security(
-            gross, employee.country, year, employee=True
-        ) * Decimal(
-            "0.25"
-        )  # Promedio 1.25%
+        ss_employee = PayrollService._social_security_amount(
+            gross,
+            country_code=country_code,
+            year=year,
+            employee=True,
+            payroll_rules=payroll_rules,
+        )
+        mutual = PayrollService._mutual_insurance_amount(
+            gross,
+            country_code=country_code,
+            year=year,
+            payroll_rules=payroll_rules,
+        )
 
         total_deductions = irpf + ss_employee + mutual
         net = gross - total_deductions
@@ -364,9 +691,117 @@ class PayrollService:
             other_deductions=Decimal("0"),
             total_deductions=total_deductions,
             net_salary=net,
+            notes=PayrollService._payroll_detail_notes(
+                db,
+                employee=employee,
+                payment_mode=payment_mode,
+                rate_amount=salary_amount,
+                month_start=month_start,
+                month_end=period_end,
+                payroll_rules=payroll_rules,
+            ),
         )
 
         return detail
+
+    @staticmethod
+    def _work_entries(
+        db: Session,
+        *,
+        employee_id: UUID,
+        month_start: date,
+        month_end: date,
+    ) -> list[TimeEntry]:
+        return (
+            db.execute(
+                select(TimeEntry).where(
+                    TimeEntry.employee_id == employee_id,
+                    TimeEntry.entry_type == "trabajo",
+                    TimeEntry.entry_date >= month_start,
+                    TimeEntry.entry_date <= month_end,
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    @staticmethod
+    def _calculate_gross_salary(
+        db: Session,
+        *,
+        employee: Employee,
+        payroll_month: str,
+        payment_mode: str,
+        rate_amount: Decimal,
+        month_start: date,
+        month_end: date,
+        payroll_rules: dict[str, Any],
+    ) -> Decimal:
+        if payment_mode == "monthly":
+            return rate_amount
+
+        entries = PayrollService._work_entries(
+            db,
+            employee_id=employee.id,
+            month_start=month_start,
+            month_end=month_end,
+        )
+        if payment_mode == "daily":
+            days_worked = len({entry.entry_date for entry in entries})
+            if days_worked == 0:
+                strategy = payroll_rules.get("daily_without_entries_strategy", "none")
+                fallback_range = PayrollService._daily_fallback_range(employee, month_start, month_end)
+                if fallback_range is None:
+                    return Decimal("0")
+                if strategy == "business_days":
+                    days_worked = PayrollService._count_business_days(*fallback_range)
+                elif strategy == "single_day":
+                    days_worked = 1
+                else:
+                    return Decimal("0")
+            return rate_amount * Decimal(days_worked)
+        if payment_mode == "hourly":
+            hours_worked = sum((time_entry_hours(entry) for entry in entries), Decimal("0"))
+            return rate_amount * hours_worked
+        raise ValueError(f"Unsupported payment mode {payment_mode} for employee {employee.id}")
+
+    @staticmethod
+    def _payroll_detail_notes(
+        db: Session,
+        *,
+        employee: Employee,
+        payment_mode: str,
+        rate_amount: Decimal,
+        month_start: date,
+        month_end: date,
+        payroll_rules: dict[str, Any],
+    ) -> str | None:
+        if payment_mode == "monthly":
+            return "Modalidad mensual"
+        entries = PayrollService._work_entries(
+            db,
+            employee_id=employee.id,
+            month_start=month_start,
+            month_end=month_end,
+        )
+        if payment_mode == "daily":
+            days_worked = len({entry.entry_date for entry in entries})
+            if days_worked == 0:
+                strategy = payroll_rules.get("daily_without_entries_strategy", "none")
+                fallback_range = PayrollService._daily_fallback_range(employee, month_start, month_end)
+                if fallback_range is None:
+                    return f"Modalidad diaria: 0 dias x {rate_amount}"
+                if strategy == "business_days":
+                    days_worked = PayrollService._count_business_days(*fallback_range)
+                    return f"Modalidad diaria estimada: {days_worked} dias laborables x {rate_amount}"
+                if strategy == "single_day":
+                    return f"Modalidad diaria directa: 1 dia x {rate_amount}"
+                return f"Modalidad diaria: 0 dias x {rate_amount}"
+            return f"Modalidad diaria: {days_worked} dias x {rate_amount}"
+        if payment_mode == "hourly":
+            hours_worked = sum((time_entry_hours(entry) for entry in entries), Decimal("0"))
+            return f"Modalidad por hora: {hours_worked.normalize()} h x {rate_amount}"
+        return None
 
     @staticmethod
     def confirm_payroll(db: Session, payroll_id: UUID, confirmed_by: UUID) -> Payroll:
@@ -401,3 +836,24 @@ class PayrollService:
         PayrollService._sync_payroll_expense(db, payroll, mark_paid=True)
         db.flush()
         return payroll
+
+    @staticmethod
+    def delete_payroll(db: Session, payroll_id: UUID) -> None:
+        payroll = db.get(Payroll, payroll_id)
+        if not payroll:
+            raise ValueError(f"Payroll {payroll_id} not found")
+        if payroll.status != "DRAFT":
+            raise ValueError(f"Cannot delete payroll in status {payroll.status}")
+        detail_ids = [detail.id for detail in payroll.details]
+        if detail_ids:
+            slips = (
+                db.execute(
+                    select(PaymentSlip).where(PaymentSlip.payroll_detail_id.in_(detail_ids))
+                )
+                .scalars()
+                .all()
+            )
+            for slip in slips:
+                db.delete(slip)
+        db.delete(payroll)
+        db.flush()

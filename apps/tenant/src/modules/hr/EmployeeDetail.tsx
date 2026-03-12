@@ -156,7 +156,18 @@ export default function EmpleadoDetail() {
             <p className="font-medium capitalize">{empleado.jornada.replace('_', ' ')}</p>
           </div>
           <div>
-            <span className="text-gray-500">{t('hr:form.baseSalary')}:</span>
+            <span className="text-gray-500">{t('hr:form.paymentMode')}:</span>
+            <p className="font-medium capitalize">{empleado.modalidad_pago.replace('_', ' ')}</p>
+          </div>
+          <div>
+            <span className="text-gray-500">
+              {empleado.modalidad_pago === 'diario'
+                ? t('hr:form.dailyRate')
+                : empleado.modalidad_pago === 'por_hora'
+                ? t('hr:form.hourlyRate')
+                : t('hr:form.baseSalary')}
+              :
+            </span>
             <p className="font-medium">${empleado.salario_base.toFixed(2)}</p>
           </div>
           <div>

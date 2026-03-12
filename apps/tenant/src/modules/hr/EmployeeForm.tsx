@@ -19,6 +19,7 @@ const INITIAL_FORM: EmpleadoCreate = {
   puesto: '',
   tipo_contrato: 'indefinido',
   jornada: 'completa',
+  modalidad_pago: 'mensual',
   salario_base: 0,
   banco: '',
   numero_cuenta: '',
@@ -55,6 +56,7 @@ export default function EmpleadoForm() {
             puesto: x.puesto || '',
             tipo_contrato: x.tipo_contrato,
             jornada: x.jornada,
+            modalidad_pago: x.modalidad_pago || 'mensual',
             salario_base: x.salario_base,
             banco: x.banco || '',
             numero_cuenta: x.numero_cuenta || '',
@@ -281,7 +283,31 @@ export default function EmpleadoForm() {
               </select>
             </div>
             <div>
-              <label className="gc-label">{t('hr:form.baseSalary')} *</label>
+              <label className="gc-label">{t('hr:form.paymentMode')} *</label>
+              <select
+                value={form.modalidad_pago}
+                onChange={(e) => setForm({ ...form, modalidad_pago: e.target.value as any })}
+                className="gc-input"
+                required
+                disabled={loading}
+              >
+                <option value="mensual">{t('hr:form.monthly')}</option>
+                <option value="diario">{t('hr:form.daily')}</option>
+                <option value="por_hora">{t('hr:form.hourlyPay')}</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mt-3">
+            <div>
+              <label className="gc-label">
+                {form.modalidad_pago === 'diario'
+                  ? t('hr:form.dailyRate')
+                  : form.modalidad_pago === 'por_hora'
+                  ? t('hr:form.hourlyRate')
+                  : t('hr:form.baseSalary')}{' '}
+                *
+              </label>
               <input
                 type="number"
                 step="0.01"

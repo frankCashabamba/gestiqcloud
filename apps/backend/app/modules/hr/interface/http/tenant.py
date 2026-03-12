@@ -13,10 +13,18 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.company.company_settings import CompanySettings
 from app.models.hr.attendance import TimeEntry, VacationRequest
 from app.models.hr.employee import Employee, EmployeeSalary
 from app.models.hr.payroll import Payroll, PayrollDetail
 from app.models.hr.payslip import PaymentSlip
+from app.models.tenant import Tenant
+from app.modules.hr.application.compensation import (
+    build_salary_notes,
+    current_payment_mode,
+    current_salary_amount,
+    payment_mode_to_api,
+)
 from app.modules.hr.application.payroll_service import PayrollService
 
 router = APIRouter(
@@ -66,6 +74,7 @@ class EmployeeBaseRequest(BaseModel):
     puesto: str | None = None
     tipo_contrato: str = "indefinido"
     jornada: str = "completa"
+    modalidad_pago: str = "mensual"
     salario_base: Decimal
     banco: str | None = None
     numero_cuenta: str | None = None
@@ -94,6 +103,7 @@ class EmployeeUpdateRequest(BaseModel):
     puesto: str | None = None
     tipo_contrato: str | None = None
     jornada: str | None = None
+    modalidad_pago: str | None = None
     salario_base: Decimal | None = None
     banco: str | None = None
     numero_cuenta: str | None = None
@@ -121,6 +131,7 @@ class EmployeeResponse(BaseModel):
     puesto: str | None = None
     tipo_contrato: str
     jornada: str
+    modalidad_pago: str
     salario_base: Decimal
     banco: str | None = None
     numero_cuenta: str | None = None
@@ -284,13 +295,6 @@ def _contract_type_from_model(value: str | None) -> str:
     return CONTRACT_FROM_MODEL.get(value or "", "indefinido")
 
 
-def _current_salary(employee: Employee) -> Decimal:
-    if not employee.salaries:
-        return Decimal("0")
-    ordered = sorted(employee.salaries, key=lambda item: item.effective_date, reverse=True)
-    return Decimal(str(ordered[0].salary_amount or 0))
-
-
 def _serialize_employee(employee: Employee) -> EmployeeResponse:
     return EmployeeResponse(
         id=employee.id,
@@ -311,7 +315,8 @@ def _serialize_employee(employee: Employee) -> EmployeeResponse:
         puesto=employee.job_title,
         tipo_contrato=_contract_type_from_model(employee.contract_type),
         jornada=employee.work_schedule or "completa",
-        salario_base=_current_salary(employee),
+        modalidad_pago=payment_mode_to_api(current_payment_mode(employee)),
+        salario_base=current_salary_amount(employee),
         banco=employee.bank_name,
         numero_cuenta=employee.bank_account,
         seguridad_social=employee.social_security_number,
@@ -417,6 +422,30 @@ def _db_tenant_id(value: UUID | str | int | None) -> str | None:
     return str(parsed or value)
 
 
+def _tenant_country_code(db: Session, tenant_id: UUID) -> str:
+    tenant = db.execute(select(Tenant).where(Tenant.id == _db_tenant_id(tenant_id))).scalars().first()
+    if tenant and tenant.country_code:
+        return str(tenant.country_code).strip().upper()
+    if tenant and tenant.country:
+        raw = str(tenant.country).strip().upper()
+        return raw if len(raw) == 2 else "ES"
+    return "ES"
+
+
+def _tenant_currency(db: Session, tenant_id: UUID) -> str:
+    company_settings = (
+        db.execute(select(CompanySettings).where(CompanySettings.tenant_id == _db_tenant_id(tenant_id)))
+        .scalars()
+        .first()
+    )
+    if company_settings and company_settings.currency:
+        return str(company_settings.currency).strip().upper()
+    tenant = db.execute(select(Tenant).where(Tenant.id == _db_tenant_id(tenant_id))).scalars().first()
+    if tenant and tenant.base_currency:
+        return str(tenant.base_currency).strip().upper()
+    return "EUR"
+
+
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -474,6 +503,8 @@ async def create_employee(
 ) -> EmployeeResponse:
     tenant_id = _as_uuid(claims["tenant_id"])
     user_id = _as_uuid(claims.get("user_id"))
+    country_code = _tenant_country_code(db, tenant_id)
+    currency = _tenant_currency(db, tenant_id)
     employee = Employee(
         tenant_id=_db_tenant_id(tenant_id),
         employee_code=request.sku,
@@ -495,16 +526,18 @@ async def create_employee(
         bank_name=request.banco,
         social_security_number=request.seguridad_social,
         notes=request.notas,
-        country="ES",
+        country=country_code,
     )
     db.add(employee)
     db.flush()
     salary = EmployeeSalary(
         employee_id=employee.id,
         salary_amount=request.salario_base,
-        currency="EUR",
+        currency=currency,
         effective_date=request.fecha_ingreso,
+        notes=build_salary_notes(request.modalidad_pago),
         created_by=user_id,
+        created_at=datetime.utcnow(),
     )
     db.add(salary)
     db.commit()
@@ -521,6 +554,7 @@ async def update_employee(
 ) -> EmployeeResponse:
     tenant_id = _as_uuid(claims["tenant_id"])
     user_id = _as_uuid(claims.get("user_id"))
+    currency = _tenant_currency(db, tenant_id)
     employee = db.get(Employee, employee_id)
     if not employee or not _same_identifier(employee.tenant_id, tenant_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
@@ -565,16 +599,21 @@ async def update_employee(
     if "notas" in payload:
         employee.notes = payload["notas"]
 
-    if "salario_base" in payload and payload["salario_base"] is not None:
-        current_salary = _current_salary(employee)
-        if Decimal(str(payload["salario_base"])) != current_salary:
+    if "salario_base" in payload or "modalidad_pago" in payload:
+        current_salary = current_salary_amount(employee)
+        current_mode = payment_mode_to_api(current_payment_mode(employee))
+        next_salary = Decimal(str(payload["salario_base"])) if payload.get("salario_base") is not None else current_salary
+        next_mode = payload.get("modalidad_pago") or current_mode
+        if next_salary != current_salary or next_mode != current_mode:
             db.add(
                 EmployeeSalary(
                     employee_id=employee.id,
-                    salary_amount=payload["salario_base"],
-                    currency="EUR",
+                    salary_amount=next_salary,
+                    currency=currency,
                     effective_date=date.today(),
+                    notes=build_salary_notes(next_mode),
                     created_by=user_id,
+                    created_at=datetime.utcnow(),
                 )
             )
 
@@ -876,6 +915,33 @@ async def mark_payroll_paid(
         db.commit()
 
         return _serialize_payroll(payroll)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.delete("/payroll/{payroll_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_payroll(
+    payroll_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> None:
+    """Elimina una nómina en borrador."""
+    tenant_id = _as_uuid(claims["tenant_id"])
+
+    payroll = db.get(Payroll, payroll_id)
+    if not payroll or not _same_identifier(payroll.tenant_id, tenant_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payroll not found",
+        )
+
+    try:
+        PayrollService.delete_payroll(db, payroll_id)
+        db.commit()
     except Exception as e:
         db.rollback()
         raise HTTPException(

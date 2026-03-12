@@ -7,6 +7,12 @@ export type Usuario = {
   username?: string | null
   is_company_admin: boolean
   active: boolean
+  as_employee: boolean
+  employee_hire_date?: string | null
+  employee_department?: string | null
+  employee_job_title?: string | null
+  employee_salary_base?: number | null
+  employee_payment_mode?: 'mensual' | 'diario' | 'por_hora' | null
   modules: string[]
   roles: string[]
   last_login_at?: string | null
@@ -20,6 +26,12 @@ export type UsuarioCreatePayload = {
   password: string
   is_company_admin: boolean
   active?: boolean
+  as_employee?: boolean
+  employee_hire_date?: string | null
+  employee_department?: string | null
+  employee_job_title?: string | null
+  employee_salary_base?: number | null
+  employee_payment_mode?: 'mensual' | 'diario' | 'por_hora' | null
   modules: string[]
   roles: string[]
 }
@@ -32,6 +44,12 @@ export type UsuarioUpdatePayload = {
   password?: string | null
   is_company_admin?: boolean
   active?: boolean
+  as_employee?: boolean
+  employee_hire_date?: string | null
+  employee_department?: string | null
+  employee_job_title?: string | null
+  employee_salary_base?: number | null
+  employee_payment_mode?: 'mensual' | 'diario' | 'por_hora' | null
   modules?: string[]
   roles?: string[]
 }

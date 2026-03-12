@@ -74,12 +74,12 @@ export async function payNomina(id: string): Promise<PayrollSummary> {
   return data
 }
 
-export async function updateNomina(_id?: string, _payload?: unknown): Promise<never> {
-  throw new Error('Payroll update is not available in the current HR API')
+export async function removeNomina(id: string): Promise<void> {
+  await tenantApi.delete(TENANT_HR.payroll.delete(id))
 }
 
-export async function removeNomina(_id?: string): Promise<never> {
-  throw new Error('Payroll deletion is not available in the current HR API')
+export async function updateNomina(_id?: string, _payload?: unknown): Promise<never> {
+  throw new Error('Payroll update is not available in the current HR API')
 }
 
 export async function calculateNomina(_id?: string): Promise<never> {

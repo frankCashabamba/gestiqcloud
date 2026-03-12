@@ -14,19 +14,72 @@ import { apiFetch } from '../lib/http'
 export type PermissionDict = Record<string, Record<string, boolean>>
 
 export type PermissionsContextType = {
-  /** Permisos del usuario: {"module": {"action": true}} */
   permisos: PermissionDict
-  /** Chequea si usuario tiene permiso: "usuarios:create" o ("usuarios", "create") */
   hasPermission: (actionOrModule: string, action?: string) => boolean
-  /** Loading inicial de permisos */
   loading: boolean
-  /** Error al cargar permisos */
   error: string | null
-  /** Refetch manual de permisos */
   refetch: () => Promise<void>
 }
 
 const PermissionsContext = createContext<PermissionsContextType | null>(null)
+
+function splitPermissionKey(raw: string): { module: string; action: string } | null {
+  const key = raw.trim()
+  if (!key) return null
+
+  const colonIndex = key.lastIndexOf(':')
+  const dotIndex = key.lastIndexOf('.')
+  const splitIndex = Math.max(colonIndex, dotIndex)
+
+  if (splitIndex <= 0 || splitIndex >= key.length - 1) {
+    return null
+  }
+
+  return {
+    module: key.slice(0, splitIndex),
+    action: key.slice(splitIndex + 1),
+  }
+}
+
+function normalizePermissions(raw: unknown): PermissionDict {
+  if (!raw || typeof raw !== 'object') return {}
+
+  const normalized: PermissionDict = {}
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const nested = Object.entries(value as Record<string, unknown>).reduce(
+        (acc, [action, allowed]) => {
+          if (allowed === true) {
+            acc[action] = true
+          }
+          return acc
+        },
+        {} as Record<string, boolean>
+      )
+
+      if (Object.keys(nested).length > 0) {
+        normalized[key] = {
+          ...(normalized[key] || {}),
+          ...nested,
+        }
+      }
+      continue
+    }
+
+    if (value !== true) continue
+
+    const parts = splitPermissionKey(key)
+    if (!parts) continue
+
+    normalized[parts.module] = {
+      ...(normalized[parts.module] || {}),
+      [parts.action]: true,
+    }
+  }
+
+  return normalized
+}
 
 export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const { token, profile } = useAuth()
@@ -35,18 +88,13 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
   const [error, setError] = useState<string | null>(null)
   const refetchTimeoutRef = useRef<number | null>(null)
 
-  // Parsear permisos del JWT token (ya vienen en access_claims del backend)
   const parsePermisosFromToken = (tok: string | null): PermissionDict => {
     if (!tok) return {}
     try {
       const [, payload] = tok.split('.')
       if (!payload) return {}
       const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, any>
-      // El backend inyecta "permisos" en el token
-      if (json?.permisos && typeof json.permisos === 'object') {
-        return json.permisos as PermissionDict
-      }
-      return {}
+      return normalizePermissions(json?.permisos || json?.permissions)
     } catch {
       return {}
     }
@@ -63,7 +111,6 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
     }
   }
 
-  // Cargar permisos: primero del token, luego refetch del API si es necesario
   const loadPermisos = async () => {
     if (!token) {
       setPermisos({})
@@ -75,21 +122,16 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
       setLoading(true)
       setError(null)
 
-      // Intenta traer permisos frescos del API
-      // (si el token está actualizado, el API devuelve permisos en la respuesta)
       const meData = (await apiFetch('/api/v1/me/tenant', { retryOn401: false })) as Record<string, any>
+      const normalized = normalizePermissions(meData?.permisos || meData?.permissions)
 
-      if (meData?.permisos && typeof meData.permisos === 'object') {
-        setPermisos(meData.permisos as PermissionDict)
+      if (Object.keys(normalized).length > 0) {
+        setPermisos(normalized)
       } else {
-        // Fallback al token
-        const fromToken = parsePermisosFromToken(token)
-        setPermisos(fromToken)
+        setPermisos(parsePermisosFromToken(token))
       }
     } catch (e: any) {
-      // Si falla API, usar token como fallback
-      const fromToken = parsePermisosFromToken(token)
-      setPermisos(fromToken)
+      setPermisos(parsePermisosFromToken(token))
       if (e?.status !== 401) {
         setError(`Error cargando permisos: ${e?.message || 'desconocido'}`)
       }
@@ -98,7 +140,6 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
     }
   }
 
-  // Cargar permisos al cambiar token
   useEffect(() => {
     loadPermisos()
   }, [token])
@@ -112,7 +153,6 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
     Boolean(tokenPayload?.is_company_admin) ||
     Boolean(tokenPayload?.is_admin_empresa)
 
-  // Refetch automático cada 10 minutos (cuando hay cambios de rol)
   useEffect(() => {
     if (!token) return
 
@@ -131,14 +171,11 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
     }
   }, [token])
 
-  // Chequear permisos
   const hasPermission = (actionOrModule: string, action?: string): boolean => {
-    // Admin global de empresa: bypass total (profile o JWT)
     if (isCompanyAdmin) {
       return true
     }
 
-    // Parse: "usuarios:create" o ("usuarios", "create")
     let module: string
     let actionName: string
 
@@ -146,18 +183,16 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
       module = actionOrModule
       actionName = action
     } else {
-      const parts = actionOrModule.split(':')
-      if (parts.length === 2) {
-        module = parts[0]
-        actionName = parts[1]
+      const parts = splitPermissionKey(actionOrModule)
+      if (parts) {
+        module = parts.module
+        actionName = parts.action
       } else {
-        // Si no tiene ":", asumir que es un módulo entero
         module = actionOrModule
-        actionName = 'read' // default
+        actionName = 'read'
       }
     }
 
-    // Chequear en dict
     const modulePerms = permisos[module]
     if (!modulePerms || typeof modulePerms !== 'object') {
       return false

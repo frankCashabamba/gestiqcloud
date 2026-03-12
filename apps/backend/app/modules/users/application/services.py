@@ -3,6 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
 from app.models import CompanyUser
+from app.modules.hr.application.employee_sync_service import EmployeeSyncService
+from app.modules.hr.application.compensation import (
+    current_payment_mode,
+    current_salary_amount,
+    payment_mode_to_api,
+)
 from app.modules.users.application import validators as val
 from app.modules.users.domain.models import CompanyUserAggregate
 from app.modules.users.infrastructure import repositories as repo
@@ -13,6 +19,37 @@ from app.modules.users.infrastructure.schemas import (
     CompanyUserUpdate,
     ModuleOption,
 )
+
+def _employee_sync_kwargs(data: CompanyUserCreate | CompanyUserUpdate) -> dict:
+    return {
+        "hire_date_override": data.employee_hire_date,
+        "department": data.employee_department,
+        "job_title": data.employee_job_title,
+        "salary_base": data.employee_salary_base,
+        "payment_mode": data.employee_payment_mode,
+    }
+
+
+def _employee_profile(db: Session, user: CompanyUser) -> dict:
+    employee = EmployeeSyncService._find_employee(db, user)
+    if employee is None:
+        return {
+            "as_employee": False,
+            "employee_hire_date": None,
+            "employee_department": None,
+            "employee_job_title": None,
+            "employee_salary_base": None,
+            "employee_payment_mode": None,
+        }
+    salary = current_salary_amount(employee)
+    return {
+        "as_employee": True,
+        "employee_hire_date": employee.hire_date,
+        "employee_department": employee.department,
+        "employee_job_title": employee.job_title,
+        "employee_salary_base": salary,
+        "employee_payment_mode": payment_mode_to_api(current_payment_mode(employee)),
+    }
 
 
 def _aggregate(user: CompanyUser, modules: list[int], roles: list[int]) -> CompanyUserAggregate:
@@ -31,7 +68,7 @@ def _aggregate(user: CompanyUser, modules: list[int], roles: list[int]) -> Compa
     )
 
 
-def _to_schema(agg: CompanyUserAggregate) -> CompanyUserOut:
+def _to_schema(agg: CompanyUserAggregate, **employee_profile) -> CompanyUserOut:
     return CompanyUserOut(
         id=agg.id,
         tenant_id=agg.tenant_id,
@@ -41,6 +78,12 @@ def _to_schema(agg: CompanyUserAggregate) -> CompanyUserOut:
         username=agg.username,
         is_company_admin=agg.is_company_admin,
         active=agg.is_active,
+        as_employee=employee_profile.get("as_employee", False),
+        employee_hire_date=employee_profile.get("employee_hire_date"),
+        employee_department=employee_profile.get("employee_department"),
+        employee_job_title=employee_profile.get("employee_job_title"),
+        employee_salary_base=employee_profile.get("employee_salary_base"),
+        employee_payment_mode=employee_profile.get("employee_payment_mode"),
         modules=agg.modules,
         roles=agg.roles,
         last_login_at=agg.last_login_at,
@@ -56,7 +99,7 @@ def list_company_users(
         if not include_inactive and not usuario.is_active:
             continue
         agg = _aggregate(usuario, modulos, roles)
-        result.append(_to_schema(agg))
+        result.append(_to_schema(agg, **_employee_profile(db, usuario)))
     return result
 
 
@@ -69,7 +112,7 @@ def get_company_user(db: Session, tenant_id: int, usuario_id: int) -> CompanyUse
         repo.get_user_module_ids(db, usuario.id, tenant_id),
         repo.get_user_role_ids(db, usuario.id, tenant_id),
     )
-    return _to_schema(agg)
+    return _to_schema(agg, **_employee_profile(db, usuario))
 
 
 def create_company_user(
@@ -104,6 +147,13 @@ def create_company_user(
 
     repo.set_user_modules(db, usuario.id, tenant_id, modules)
     repo.set_user_roles(db, usuario.id, tenant_id, roles)
+    if data.as_employee:
+        EmployeeSyncService.set_employee_profile_enabled(
+            db,
+            usuario,
+            True,
+            **_employee_sync_kwargs(data),
+        )
 
     db.commit()
     db.refresh(usuario)
@@ -113,7 +163,7 @@ def create_company_user(
         repo.get_user_module_ids(db, usuario.id, tenant_id),
         repo.get_user_role_ids(db, usuario.id, tenant_id),
     )
-    return _to_schema(agg)
+    return _to_schema(agg, **_employee_profile(db, usuario))
 
 
 def update_company_user(
@@ -163,6 +213,13 @@ def update_company_user(
 
     if data.roles is not None:
         repo.set_user_roles(db, usuario.id, tenant_id, data.roles)
+    if data.as_employee is not None:
+        EmployeeSyncService.set_employee_profile_enabled(
+            db,
+            usuario,
+            data.as_employee,
+            **_employee_sync_kwargs(data),
+        )
 
     db.commit()
     db.refresh(usuario)
@@ -172,7 +229,7 @@ def update_company_user(
         repo.get_user_module_ids(db, usuario.id, tenant_id),
         repo.get_user_role_ids(db, usuario.id, tenant_id),
     )
-    return _to_schema(agg)
+    return _to_schema(agg, **_employee_profile(db, usuario))
 
 
 def toggle_user_active(

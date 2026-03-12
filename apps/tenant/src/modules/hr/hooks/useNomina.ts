@@ -4,6 +4,7 @@ import {
   createNomina,
   listNominas,
   payNomina,
+  removeNomina,
   type PayrollSummary,
 } from '../services/nomina'
 
@@ -76,6 +77,21 @@ export function useNomina() {
     }
   }
 
+  const remove = async (id: string) => {
+    setSubmitting(true)
+    setError(null)
+    try {
+      await removeNomina(id)
+      load()
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar la nÃ³mina')
+      return false
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return {
     recibos,
     loading,
@@ -85,5 +101,6 @@ export function useNomina() {
     generate,
     confirm,
     markPaid,
+    remove,
   }
 }

@@ -4,6 +4,34 @@ from collections.abc import Iterable
 from fastapi import HTTPException, Request
 
 
+def _permission_aliases(permission: str) -> list[str]:
+    aliases = [permission]
+
+    if "." not in permission:
+        return aliases
+
+    parts = permission.split(".")
+    module = parts[0]
+    action = parts[-1]
+
+    if action in {"view", "read"}:
+        aliases.append(f"{module}.read")
+        aliases.append(f"{module}:read")
+        aliases.append(f"{module}.view")
+        aliases.append(f"{module}:view")
+    elif action in {"create", "open"}:
+        aliases.append(f"{module}.create")
+        aliases.append(f"{module}:create")
+    elif action in {"update", "manage", "close", "pay", "print"}:
+        aliases.append(f"{module}.update")
+        aliases.append(f"{module}:update")
+    elif action in {"delete", "refund"}:
+        aliases.append(f"{module}.delete")
+        aliases.append(f"{module}:delete")
+
+    return list(dict.fromkeys(aliases))
+
+
 def _extract_claims(request: Request) -> dict:
     # Ajusta si usas otro lugar; asumo que ya parseas el access y lo pones en request.state
     claims = getattr(request.state, "access_claims", None)
@@ -75,7 +103,8 @@ def require_permission(permission: str):
         ):
             return claims
         perms = claims.get("permissions") or claims.get("permisos") or {}
-        if isinstance(perms, dict) and perms.get(permission):
+        aliases = _permission_aliases(permission)
+        if isinstance(perms, dict) and any(perms.get(alias) for alias in aliases):
             return claims
         available = sorted([k for k, v in perms.items() if v]) if isinstance(perms, dict) else []
         raise HTTPException(
@@ -83,6 +112,7 @@ def require_permission(permission: str):
             detail={
                 "error": "forbidden",
                 "missing_permission": permission,
+                "accepted_aliases": aliases,
                 "available_permissions": available,
             },
         )

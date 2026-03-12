@@ -64,8 +64,22 @@ export async function listModuloOptions(): Promise<ModuloOption[]> {
 }
 
 export async function listRolOptions(): Promise<RolOption[]> {
-  const { data } = await tenantApi.get<RolOption[]>(TENANT_USERS.roles)
-  return data ?? []
+  try {
+    const { data } = await tenantApi.get<RolOption[]>(TENANT_USERS.roles)
+    const options = Array.isArray(data) ? data : []
+    if (options.length > 0) {
+      return options
+    }
+  } catch {
+    // Fallback al endpoint completo de roles cuando la ruta ligera no estÃ¡ disponible.
+  }
+
+  const roles = await listRoles()
+  return roles.map((role) => ({
+    id: role.id,
+    name: role.name,
+    description: role.description ?? null,
+  }))
 }
 
 export async function checkUsernameAvailability(username: string): Promise<boolean> {

@@ -8,10 +8,13 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.company.company_settings import CompanySettings
 from app.models.expenses.expense import Expense
+from app.models.hr.attendance import TimeEntry
 from app.models.hr.employee import Employee, EmployeeDeduction, EmployeeSalary
 from app.models.hr.payroll import PayrollDetail, PayrollTax
 from app.models.hr.payslip import PaymentSlip
+from app.modules.hr.application.compensation import build_salary_notes
 from app.modules.hr.application.payroll_service import PayrollService
 
 
@@ -33,6 +36,45 @@ def tenant_id(db: Session):
     )
     db.flush()
     return tid
+
+
+def _configure_tenant_payroll(
+    db: Session,
+    tenant_id,
+    *,
+    country_code: str,
+    currency: str = "EUR",
+    payroll_settings: dict | None = None,
+):
+    db.execute(
+        text(
+            "UPDATE tenants SET country_code = :country_code, base_currency = :currency "
+            "WHERE id = :id"
+        ),
+        {"id": str(tenant_id), "country_code": country_code, "currency": currency},
+    )
+    company_settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    if company_settings is None:
+        company_settings = CompanySettings(
+            tenant_id=tenant_id,
+            default_language=f"es-{country_code}",
+            timezone="America/Guayaquil" if country_code == "EC" else "Europe/Madrid",
+            currency=currency,
+            primary_color="#2563eb",
+            secondary_color="#1e293b",
+            settings={"hr": {"payroll": payroll_settings or {}}},
+        )
+        db.add(company_settings)
+    else:
+        company_settings.default_language = f"es-{country_code}"
+        company_settings.timezone = (
+            "America/Guayaquil" if country_code == "EC" else "Europe/Madrid"
+        )
+        company_settings.currency = currency
+        company_settings.settings = {"hr": {"payroll": payroll_settings or {}}}
+    db.flush()
 
 
 @pytest.fixture
@@ -299,6 +341,131 @@ def test_payroll_multiple_employees(db: Session, tenant_id):
     assert len(details) == 3
 
 
+def test_payroll_daily_rate_uses_distinct_work_days(db: Session, tenant_id, employee, employee_salary):
+    employee_salary.salary_amount = Decimal("50.00")
+    employee_salary.notes = build_salary_notes("diario")
+    db.add_all(
+        [
+            TimeEntry(
+                tenant_id=str(tenant_id),
+                employee_id=employee.id,
+                entry_date=date(2026, 2, 7),
+                clock_in_time=datetime.strptime("08:00", "%H:%M").time(),
+                clock_out_time=datetime.strptime("12:00", "%H:%M").time(),
+                entry_type="trabajo",
+            ),
+            TimeEntry(
+                tenant_id=str(tenant_id),
+                employee_id=employee.id,
+                entry_date=date(2026, 2, 7),
+                clock_in_time=datetime.strptime("13:00", "%H:%M").time(),
+                clock_out_time=datetime.strptime("15:00", "%H:%M").time(),
+                entry_type="trabajo",
+            ),
+            TimeEntry(
+                tenant_id=str(tenant_id),
+                employee_id=employee.id,
+                entry_date=date(2026, 2, 14),
+                clock_in_time=datetime.strptime("08:00", "%H:%M").time(),
+                clock_out_time=datetime.strptime("12:00", "%H:%M").time(),
+                entry_type="trabajo",
+            ),
+        ]
+    )
+    db.flush()
+
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+
+    assert payroll.total_gross == Decimal("100.00")
+
+
+def test_payroll_daily_rate_falls_back_to_business_days_without_entries(
+    db: Session, tenant_id, employee, employee_salary
+):
+    _configure_tenant_payroll(db, tenant_id, country_code="ES", currency="EUR")
+    employee.hire_date = date(2026, 2, 11)
+    employee_salary.salary_amount = Decimal("50.00")
+    employee_salary.notes = build_salary_notes("diario")
+    db.flush()
+
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+
+    assert payroll.total_gross == Decimal("650.00")
+
+
+def test_payroll_uses_latest_salary_when_effective_date_is_the_same(
+    db: Session, tenant_id, employee, employee_salary
+):
+    _configure_tenant_payroll(db, tenant_id, country_code="ES", currency="EUR")
+    employee_salary.salary_amount = Decimal("0.00")
+    employee_salary.notes = build_salary_notes("mensual")
+    db.flush()
+
+    latest_salary = EmployeeSalary(
+        employee_id=employee.id,
+        salary_amount=Decimal("20.00"),
+        currency="EUR",
+        effective_date=date(2026, 1, 1),
+        notes=build_salary_notes("diario"),
+        created_at=datetime.utcnow(),
+    )
+    db.add(latest_salary)
+    db.flush()
+
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+
+    assert payroll.total_gross == Decimal("400.00")
+
+
+def test_payroll_hourly_rate_uses_worked_hours(db: Session, tenant_id, employee, employee_salary):
+    _configure_tenant_payroll(db, tenant_id, country_code="ES", currency="EUR")
+    employee_salary.salary_amount = Decimal("10.00")
+    employee_salary.notes = build_salary_notes("por_hora")
+    db.add_all(
+        [
+            TimeEntry(
+                tenant_id=str(tenant_id),
+                employee_id=employee.id,
+                entry_date=date(2026, 2, 8),
+                clock_in_time=datetime.strptime("08:00", "%H:%M").time(),
+                clock_out_time=datetime.strptime("12:30", "%H:%M").time(),
+                entry_type="trabajo",
+            ),
+            TimeEntry(
+                tenant_id=str(tenant_id),
+                employee_id=employee.id,
+                entry_date=date(2026, 2, 15),
+                clock_in_time=datetime.strptime("09:00", "%H:%M").time(),
+                clock_out_time=datetime.strptime("13:00", "%H:%M").time(),
+                entry_type="trabajo",
+            ),
+        ]
+    )
+    db.flush()
+
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+
+    assert payroll.total_gross == Decimal("85.00")
+
+
+def test_payroll_ec_daily_rate_without_entries_defaults_to_single_direct_day(
+    db: Session, tenant_id, employee, employee_salary
+):
+    _configure_tenant_payroll(db, tenant_id, country_code="EC", currency="USD")
+    employee.country = "ES"
+    employee.hire_date = date(2026, 3, 11)
+    employee_salary.salary_amount = Decimal("20.00")
+    employee_salary.notes = build_salary_notes("diario")
+    employee_salary.effective_date = date(2026, 3, 11)
+    db.flush()
+
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-03", date(2026, 3, 12))
+
+    assert payroll.total_gross == Decimal("20.00")
+    assert payroll.total_deductions == Decimal("0")
+    assert payroll.total_net == Decimal("20.00")
+
+
 # ============================================================================
 # TESTS: Payroll States
 # ============================================================================
@@ -378,6 +545,23 @@ def test_payroll_cannot_modify_after_confirm(db: Session, tenant_id, employee, e
     # Intentar confirmar de nuevo debe fallar
     with pytest.raises(ValueError, match="Cannot confirm payroll"):
         PayrollService.confirm_payroll(db, payroll.id, uuid4())
+
+
+def test_payroll_cannot_generate_duplicate_period(db: Session, tenant_id, employee, employee_salary):
+    PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+
+    with pytest.raises(ValueError, match="Payroll already exists"):
+        PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+
+
+def test_delete_payroll_allows_draft_only(db: Session, tenant_id, employee, employee_salary):
+    payroll = PayrollService.generate_payroll(db, tenant_id, "2026-02", date(2026, 2, 28))
+    payroll_id = payroll.id
+
+    PayrollService.delete_payroll(db, payroll_id)
+    db.flush()
+
+    assert db.get(type(payroll), payroll_id) is None
 
 
 # ============================================================================

@@ -277,6 +277,49 @@ def test_actualizar_usuario(client: TestClient, tenant_headers):
     assert data["active"] is False
 
 
+def test_actualizar_perfil_empleado_devuelve_salario_y_modalidad_actuales(
+    client: TestClient, tenant_headers
+):
+    suffix = _uuid.uuid4().hex[:8]
+    payload = {
+        "first_name": "Dario",
+        "last_name": "Caja",
+        "email": f"dario.caja.{suffix}@example.com",
+        "username": f"darioc_{suffix}",
+        "password": "Secret123!",
+        "is_company_admin": False,
+        "active": True,
+        "as_employee": True,
+        "employee_hire_date": "2026-03-11",
+        "employee_department": "panaderia",
+        "employee_job_title": "cajera",
+        "employee_salary_base": "0.00",
+        "employee_payment_mode": "mensual",
+        "modules": [],
+        "roles": [],
+    }
+    created = client.post("/api/v1/tenant/users", json=payload, headers=tenant_headers)
+    assert created.status_code == 201, f"Expected 201 on create, got {created.status_code}: {created.text}"
+    usuario_id = created.json()["id"]
+
+    update = {
+        "as_employee": True,
+        "employee_salary_base": "20.00",
+        "employee_payment_mode": "diario",
+    }
+    updated = client.patch(f"/api/v1/tenant/users/{usuario_id}", json=update, headers=tenant_headers)
+    assert updated.status_code == 200, f"Expected 200 on update, got {updated.status_code}: {updated.text}"
+    updated_body = updated.json()
+    assert updated_body["employee_salary_base"] == "20.00"
+    assert updated_body["employee_payment_mode"] == "diario"
+
+    fetched = client.get(f"/api/v1/tenant/users/{usuario_id}", headers=tenant_headers)
+    assert fetched.status_code == 200, f"Expected 200 on get, got {fetched.status_code}: {fetched.text}"
+    fetched_body = fetched.json()
+    assert fetched_body["employee_salary_base"] == "20.00"
+    assert fetched_body["employee_payment_mode"] == "diario"
+
+
 def test_no_permite_eliminar_ultimo_admin(client: TestClient, tenant_headers):
     usuarios = client.get("/api/v1/tenant/users", headers=tenant_headers).json()
     admin = next((u for u in usuarios if u["is_company_admin"]), None)

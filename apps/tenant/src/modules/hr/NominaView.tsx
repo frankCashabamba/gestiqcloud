@@ -1,23 +1,51 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Banknote, CheckCircle2, Coins, RefreshCcw, Users, Wallet } from 'lucide-react'
+import { Banknote, CheckCircle2, Coins, RefreshCcw, Trash2, Users, Wallet } from 'lucide-react'
 import { GcPageHeader } from '@ui'
+import {
+  formatCurrency,
+  getCompanySettings,
+  type CompanySettings,
+} from '../../services/companySettings'
 import { useNomina } from './hooks/useNomina'
+import { listEmpleados } from '../../services/api/hr'
 import './hr.css'
 
 function endOfMonth(month: string) {
   const [year, monthNumber] = month.split('-').map(Number)
   if (!year || !monthNumber) return ''
-  return new Date(year, monthNumber, 0).toISOString().slice(0, 10)
+  return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10)
 }
 
-function formatMoney(value: string) {
-  const amount = Number(value || 0)
-  return new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 2,
-  }).format(amount)
+function zonedDateParts(timezone?: string) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone || 'UTC',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const parts = formatter.formatToParts(new Date())
+  const lookup = (type: 'year' | 'month' | 'day') =>
+    parts.find((item) => item.type === type)?.value || ''
+  return {
+    year: lookup('year'),
+    month: lookup('month'),
+    day: lookup('day'),
+  }
+}
+
+function todayInTimezone(timezone?: string) {
+  const { year, month, day } = zonedDateParts(timezone)
+  return year && month && day ? `${year}-${month}-${day}` : new Date().toISOString().slice(0, 10)
+}
+
+function currentMonthInTimezone(timezone?: string) {
+  const { year, month } = zonedDateParts(timezone)
+  return year && month ? `${year}-${month}` : new Date().toISOString().slice(0, 7)
+}
+
+function payrollDateForPeriod(period: string, timezone?: string) {
+  return period === currentMonthInTimezone(timezone) ? todayInTimezone(timezone) : endOfMonth(period)
 }
 
 const statusTone: Record<string, { bg: string; color: string }> = {
@@ -30,18 +58,41 @@ const statusTone: Record<string, { bg: string; color: string }> = {
 
 export default function NominaView() {
   const { t } = useTranslation(['hr'])
-  const { recibos, loading, submitting, error, reload, generate, confirm, markPaid } = useNomina()
+  const { recibos, loading, submitting, error, reload, generate, confirm, markPaid, remove } = useNomina()
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7))
+  const [employeeCount, setEmployeeCount] = useState(0)
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null)
   const summary = useMemo(() => {
-    const totalEmployees = recibos.reduce((sum, item) => sum + Number(item.total_employees || 0), 0)
     const totalNet = recibos.reduce((sum, item) => sum + Number(item.total_net || 0), 0)
     const pendingRuns = recibos.filter((item) => item.status === 'DRAFT').length
     const paidRuns = recibos.filter((item) => item.status === 'PAID').length
-    return { totalEmployees, totalNet, pendingRuns, paidRuns }
+    return { totalNet, pendingRuns, paidRuns }
   }, [recibos])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const settings = await getCompanySettings()
+        if (cancelled) return
+        setCompanySettings(settings)
+        const data = await listEmpleados({ active: true })
+        if (cancelled) return
+        const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
+        setEmployeeCount(items.length)
+      } catch {
+        if (!cancelled) {
+          setEmployeeCount(0)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const onGenerate = async () => {
-    const payrollDate = endOfMonth(period)
+    const payrollDate = payrollDateForPeriod(period, companySettings?.timezone)
     if (!payrollDate) return
     await generate(period, payrollDate)
   }
@@ -112,7 +163,7 @@ export default function NominaView() {
               <span className="hr-kpi-card__icon">
                 <Users size={18} />
               </span>
-              {summary.totalEmployees}
+              {employeeCount}
             </div>
             <div className="hr-kpi-card__hint">{summary.pendingRuns} corridas siguen en borrador.</div>
           </div>
@@ -122,7 +173,7 @@ export default function NominaView() {
               <span className="hr-kpi-card__icon">
                 <Coins size={18} />
               </span>
-              {formatMoney(String(summary.totalNet))}
+              {formatCurrency(summary.totalNet, companySettings || undefined)}
             </div>
             <div className="hr-kpi-card__hint">{summary.paidRuns} corridas ya se marcaron como pagadas.</div>
           </div>
@@ -169,28 +220,48 @@ export default function NominaView() {
                   </div>
                   <div className="hr-payroll-card__metric">
                     <div className="hr-payroll-card__metric-label">{t('hr:payroll.totalGross')}</div>
-                    <div className="hr-payroll-card__metric-value">{formatMoney(payroll.total_gross)}</div>
+                    <div className="hr-payroll-card__metric-value">
+                      {formatCurrency(Number(payroll.total_gross || 0), companySettings || undefined)}
+                    </div>
                   </div>
                   <div className="hr-payroll-card__metric">
                     <div className="hr-payroll-card__metric-label">{t('hr:payroll.totalDeductions')}</div>
-                    <div className="hr-payroll-card__metric-value">{formatMoney(payroll.total_deductions)}</div>
+                    <div className="hr-payroll-card__metric-value">
+                      {formatCurrency(Number(payroll.total_deductions || 0), companySettings || undefined)}
+                    </div>
                   </div>
                   <div className="hr-payroll-card__metric">
                     <div className="hr-payroll-card__metric-label">{t('hr:payroll.netTotal')}</div>
-                    <div className="hr-payroll-card__metric-value">{formatMoney(payroll.total_net)}</div>
+                    <div className="hr-payroll-card__metric-value">
+                      {formatCurrency(Number(payroll.total_net || 0), companySettings || undefined)}
+                    </div>
                   </div>
                 </div>
 
                 <div className="hr-actions-row">
                   {payroll.status === 'DRAFT' ? (
-                    <button
-                      type="button"
-                      disabled={submitting}
-                      onClick={() => confirm(payroll.id)}
-                      className="gc-btn gc-btn--primary"
-                    >
-                      {t('hr:payroll.confirm')}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => confirm(payroll.id)}
+                        className="gc-btn gc-btn--primary"
+                      >
+                        {t('hr:payroll.confirm')}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={async () => {
+                          if (!window.confirm(t('hr:payroll.deleteConfirm'))) return
+                          await remove(payroll.id)
+                        }}
+                        className="gc-btn gc-btn--danger"
+                      >
+                        <Trash2 size={16} />
+                        {t('hr:payroll.delete')}
+                      </button>
+                    </>
                   ) : null}
                   {(payroll.status === 'CONFIRMED' || payroll.status === 'APPROVED') ? (
                     <button

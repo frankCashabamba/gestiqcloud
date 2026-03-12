@@ -121,6 +121,7 @@ export const TENANT_HR = {
     generate: '/api/v1/tenant/hr/payroll/generate',
     confirm: (id: number | string) => `/api/v1/tenant/hr/payroll/${id}/confirm`,
     markPaid: (id: number | string) => `/api/v1/tenant/hr/payroll/${id}/mark-paid`,
+    delete: (id: number | string) => `/api/v1/tenant/hr/payroll/${id}`,
   },
 }
 
