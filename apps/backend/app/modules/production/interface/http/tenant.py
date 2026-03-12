@@ -19,7 +19,8 @@ MIGRADO DE:
 """
 
 import logging
-from datetime import datetime
+import math
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -32,9 +33,11 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls, tenant_id_guc_expr_text
 from app.models.core.global_catalogs import UnitOfMeasure
+from app.models.core.products import Product
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
+from app.models.pos.receipt import POSReceipt, POSReceiptLine
 from app.models.production._cost_drivers import (
     CostDriverUnitType,
     ProductionCostDriver,
@@ -63,6 +66,7 @@ from app.schemas.production import (
     ProductionOrderStartRequest,
     ProductionOrderStats,
     ProductionOrderUpdate,
+    ProductionPlanningSuggestion,
 )
 from app.schemas.production_costs import (
     CostDriverCreate,
@@ -766,6 +770,8 @@ async def list_production_orders(
     recipe_id: UUID | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    scheduled_from: str | None = Query(None),
+    scheduled_to: str | None = Query(None),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -779,6 +785,12 @@ async def list_production_orders(
         query = query.where(ProductionOrder.created_at >= datetime.fromisoformat(date_from))
     if date_to:
         query = query.where(ProductionOrder.created_at <= datetime.fromisoformat(date_to))
+    if scheduled_from:
+        query = query.where(
+            ProductionOrder.scheduled_date >= datetime.fromisoformat(scheduled_from)
+        )
+    if scheduled_to:
+        query = query.where(ProductionOrder.scheduled_date <= datetime.fromisoformat(scheduled_to))
     query = query.order_by(ProductionOrder.created_at.desc())
     count_query = select(func.count()).select_from(query.subquery())
     total_result = db.execute(count_query)
@@ -786,6 +798,103 @@ async def list_production_orders(
     result = db.execute(query.offset(skip).limit(limit))
     orders = result.scalars().all()
     return ProductionOrderList(items=orders, total=total, skip=skip, limit=limit)
+
+
+@router.get("/planning/suggestions", response_model=list[ProductionPlanningSuggestion])
+async def list_production_planning_suggestions(
+    target_date: date | None = Query(None),
+    history_days: int = Query(14, ge=1, le=90),
+    limit: int = Query(12, ge=1, le=100),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    target_day = target_date or datetime.utcnow().date()
+    window_start = target_day - timedelta(days=history_days)
+    window_end = target_day
+
+    sales_rows = (
+        db.query(
+            POSReceiptLine.product_id.label("product_id"),
+            func.coalesce(func.sum(POSReceiptLine.qty), 0).label("qty_sold"),
+        )
+        .join(POSReceipt, POSReceipt.id == POSReceiptLine.receipt_id)
+        .filter(POSReceipt.tenant_id == tenant_id)
+        .filter(POSReceipt.status.in_(["paid", "invoiced"]))
+        .filter(func.date(POSReceipt.created_at) >= window_start)
+        .filter(func.date(POSReceipt.created_at) < window_end)
+        .group_by(POSReceiptLine.product_id)
+        .all()
+    )
+    sold_by_product = {row.product_id: Decimal(str(row.qty_sold or 0)) for row in sales_rows}
+    if not sold_by_product:
+        return []
+
+    planned_rows = (
+        db.query(
+            ProductionOrder.product_id.label("product_id"),
+            func.coalesce(func.sum(ProductionOrder.qty_planned), 0).label("qty_planned"),
+        )
+        .filter(ProductionOrder.tenant_id == tenant_id)
+        .filter(ProductionOrder.status != "CANCELLED")
+        .filter(func.date(ProductionOrder.scheduled_date) == target_day)
+        .group_by(ProductionOrder.product_id)
+        .all()
+    )
+    planned_by_product = {
+        row.product_id: Decimal(str(row.qty_planned or 0)) for row in planned_rows
+    }
+
+    stock_rows = (
+        db.query(
+            StockItem.product_id.label("product_id"),
+            func.coalesce(func.sum(StockItem.qty), 0).label("qty_on_hand"),
+        )
+        .filter(StockItem.tenant_id == tenant_id)
+        .group_by(StockItem.product_id)
+        .all()
+    )
+    stock_by_product = {row.product_id: Decimal(str(row.qty_on_hand or 0)) for row in stock_rows}
+
+    recipes = (
+        db.query(Recipe, Product)
+        .join(Product, Product.id == Recipe.product_id)
+        .filter(Recipe.tenant_id == tenant_id, Recipe.is_active.is_(True))
+        .all()
+    )
+
+    suggestions: list[ProductionPlanningSuggestion] = []
+    for recipe, product in recipes:
+        product_id = recipe.product_id
+        sold_qty = sold_by_product.get(product_id, Decimal("0"))
+        if sold_qty <= 0:
+            continue
+
+        avg_daily_sales = (sold_qty / Decimal(str(history_days))).quantize(Decimal("0.001"))
+        planned_qty = planned_by_product.get(product_id, Decimal("0"))
+        stock_on_hand = stock_by_product.get(product_id, Decimal("0"))
+        suggested_qty = Decimal(
+            str(max(math.ceil(float(avg_daily_sales - planned_qty - stock_on_hand)), 0))
+        )
+        if suggested_qty <= 0:
+            continue
+
+        suggestions.append(
+            ProductionPlanningSuggestion(
+                recipe_id=recipe.id,
+                product_id=product_id,
+                recipe_name=str(recipe.name or ""),
+                product_name=str(product.name or ""),
+                target_date=target_day.isoformat(),
+                avg_daily_sales=avg_daily_sales,
+                stock_on_hand=stock_on_hand.quantize(Decimal("0.001")),
+                already_planned_qty=planned_qty.quantize(Decimal("0.001")),
+                suggested_qty=suggested_qty,
+            )
+        )
+
+    suggestions.sort(key=lambda item: float(item.suggested_qty), reverse=True)
+    return suggestions[:limit]
 
 
 @router.post("/orders", response_model=ProductionOrderResponse, status_code=status.HTTP_201_CREATED)

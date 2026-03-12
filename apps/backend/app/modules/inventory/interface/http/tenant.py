@@ -41,6 +41,17 @@ def _require_tenant_id(request: Request) -> str:
     return tid
 
 
+def _coerce_uuid(value: str | UUID | None):
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return value
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        return value
+
+
 def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
     if value is None:
         value = 0
@@ -323,7 +334,12 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
     qty_abs = abs(payload.delta)
     qty_dec = _dec(qty_abs)
     product = (
-        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+        db.query(Product)
+        .filter(
+            Product.id == _coerce_uuid(payload.product_id),
+            Product.tenant_id == _coerce_uuid(tid),
+        )
+        .first()
     )
     fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
 
@@ -392,7 +408,10 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
         ) or 0.0
         prod = (
             db.query(Product)
-            .filter(Product.id == payload.product_id, Product.tenant_id == tid)
+            .filter(
+                Product.id == _coerce_uuid(payload.product_id),
+                Product.tenant_id == _coerce_uuid(tid),
+            )
             .first()
         )
         if prod:
@@ -405,7 +424,12 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
     db.commit()
     db.refresh(row)
     product = (
-        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+        db.query(Product)
+        .filter(
+            Product.id == _coerce_uuid(payload.product_id),
+            Product.tenant_id == _coerce_uuid(tid),
+        )
+        .first()
     )
     warehouse = db.query(Warehouse).filter(Warehouse.id == payload.warehouse_id).first()
     return _serialize_stock_item(row, product=product, warehouse=warehouse)
@@ -631,7 +655,12 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
     db.commit()
     db.refresh(item)
     product = (
-        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+        db.query(Product)
+        .filter(
+            Product.id == _coerce_uuid(payload.product_id),
+            Product.tenant_id == _coerce_uuid(tid),
+        )
+        .first()
     )
     warehouse = db.query(Warehouse).filter(Warehouse.id == payload.warehouse_id).first()
     return _serialize_stock_item(item, product=product, warehouse=warehouse)
@@ -646,7 +675,14 @@ def set_reorder_point(
     product_id: str, payload: ReorderPointIn, request: Request, db: Session = Depends(get_db)
 ):
     tid = _require_tenant_id(request)
-    product = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tid).first()
+    product = (
+        db.query(Product)
+        .filter(
+            Product.id == _coerce_uuid(product_id),
+            Product.tenant_id == _coerce_uuid(tid),
+        )
+        .first()
+    )
     if not product:
         raise HTTPException(status_code=404, detail="product_not_found")
 

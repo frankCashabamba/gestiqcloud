@@ -430,7 +430,9 @@ def _db_tenant_id(value: UUID | str | int | None) -> str | None:
 
 
 def _tenant_country_code(db: Session, tenant_id: UUID) -> str:
-    tenant = db.execute(select(Tenant).where(Tenant.id == _db_tenant_id(tenant_id))).scalars().first()
+    tenant = (
+        db.execute(select(Tenant).where(Tenant.id == _db_tenant_id(tenant_id))).scalars().first()
+    )
     if tenant and tenant.country_code:
         return str(tenant.country_code).strip().upper()
     if tenant and tenant.country:
@@ -441,13 +443,17 @@ def _tenant_country_code(db: Session, tenant_id: UUID) -> str:
 
 def _tenant_currency(db: Session, tenant_id: UUID) -> str:
     company_settings = (
-        db.execute(select(CompanySettings).where(CompanySettings.tenant_id == _db_tenant_id(tenant_id)))
+        db.execute(
+            select(CompanySettings).where(CompanySettings.tenant_id == _db_tenant_id(tenant_id))
+        )
         .scalars()
         .first()
     )
     if company_settings and company_settings.currency:
         return str(company_settings.currency).strip().upper()
-    tenant = db.execute(select(Tenant).where(Tenant.id == _db_tenant_id(tenant_id))).scalars().first()
+    tenant = (
+        db.execute(select(Tenant).where(Tenant.id == _db_tenant_id(tenant_id))).scalars().first()
+    )
     if tenant and tenant.base_currency:
         return str(tenant.base_currency).strip().upper()
     return "EUR"
@@ -609,7 +615,11 @@ async def update_employee(
     if "salario_base" in payload or "modalidad_pago" in payload:
         current_salary = current_salary_amount(employee)
         current_mode = payment_mode_to_api(current_payment_mode(employee))
-        next_salary = Decimal(str(payload["salario_base"])) if payload.get("salario_base") is not None else current_salary
+        next_salary = (
+            Decimal(str(payload["salario_base"]))
+            if payload.get("salario_base") is not None
+            else current_salary
+        )
         next_mode = payload.get("modalidad_pago") or current_mode
         if next_salary != current_salary or next_mode != current_mode:
             db.add(

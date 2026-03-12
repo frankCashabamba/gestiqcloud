@@ -196,3 +196,17 @@ class ProductionCalculatorResponse(BaseModel):
     all_ingredients: list[IngredientRequirement]
     estimated_cost: Decimal
     production_time_minutes: int | None
+
+
+class ProductionPlanningSuggestion(BaseModel):
+    """Suggested production quantity for a target day based on recent sales."""
+
+    recipe_id: UUID
+    product_id: UUID
+    recipe_name: str
+    product_name: str
+    target_date: str
+    avg_daily_sales: Decimal
+    stock_on_hand: Decimal
+    already_planned_qty: Decimal
+    suggested_qty: Decimal

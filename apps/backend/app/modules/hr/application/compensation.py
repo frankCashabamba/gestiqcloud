@@ -64,7 +64,9 @@ def parse_salary_notes(notes: str | None) -> dict:
     return {"payment_mode": payment_mode, "notes": free_notes}
 
 
-def current_salary_record(employee: Employee, effective_on: date | None = None) -> EmployeeSalary | None:
+def current_salary_record(
+    employee: Employee, effective_on: date | None = None
+) -> EmployeeSalary | None:
     if not employee.salaries:
         return None
     target = effective_on or date.today()

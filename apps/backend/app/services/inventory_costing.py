@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import NamedTuple
+from uuid import uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -32,29 +34,57 @@ class InventoryCostingService:
         initial_qty: Decimal | None = None,
         initial_avg_cost: Decimal | None = None,
     ) -> CostState:
-        self.db.execute(
-            text(
-                "INSERT INTO inventory_cost_state("
-                "tenant_id, warehouse_id, product_id, on_hand_qty, avg_cost"
-                ") VALUES (:tid, :wid, :pid, :q, :avg) "
-                "ON CONFLICT (tenant_id, warehouse_id, product_id) DO NOTHING"
-            ),
-            {
-                "tid": tenant_id,
-                "wid": warehouse_id,
-                "pid": product_id,
-                "q": float(initial_qty or Decimal("0")),
-                "avg": float(initial_avg_cost or Decimal("0")),
-            },
+        params = {
+            "tid": tenant_id,
+            "wid": warehouse_id,
+            "pid": product_id,
+            "q": float(initial_qty or Decimal("0")),
+            "avg": float(initial_avg_cost or Decimal("0")),
+        }
+
+        if getattr(self.db.get_bind().dialect, "name", "") == "sqlite":
+            existing = self.db.execute(
+                text(
+                    "SELECT 1 FROM inventory_cost_state "
+                    "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid "
+                    "LIMIT 1"
+                ),
+                params,
+            ).first()
+            if not existing:
+                self.db.execute(
+                    text(
+                        "INSERT INTO inventory_cost_state("
+                        "id, tenant_id, warehouse_id, product_id, on_hand_qty, avg_cost, updated_at"
+                        ") VALUES (:id, :tid, :wid, :pid, :q, :avg, :updated_at)"
+                    ),
+                    {
+                        **params,
+                        "id": str(uuid4()),
+                        "updated_at": datetime.utcnow(),
+                    },
+                )
+        else:
+            self.db.execute(
+                text(
+                    "INSERT INTO inventory_cost_state("
+                    "tenant_id, warehouse_id, product_id, on_hand_qty, avg_cost"
+                    ") VALUES (:tid, :wid, :pid, :q, :avg) "
+                    "ON CONFLICT (tenant_id, warehouse_id, product_id) DO NOTHING"
+                ),
+                params,
+            )
+
+        select_sql = (
+            "SELECT on_hand_qty, avg_cost "
+            "FROM inventory_cost_state "
+            "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid"
         )
+        if getattr(self.db.get_bind().dialect, "name", "") != "sqlite":
+            select_sql += " FOR UPDATE"
 
         row = self.db.execute(
-            text(
-                "SELECT on_hand_qty, avg_cost "
-                "FROM inventory_cost_state "
-                "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid "
-                "FOR UPDATE"
-            ),
+            text(select_sql),
             {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
         ).first()
 

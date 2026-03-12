@@ -67,7 +67,7 @@ def _operational_role_presets(sector: str | None) -> list[dict]:
                 "pos": {"read": True, "create": True, "update": True},
                 "inventory": {"read": True, "create": True, "update": True},
                 "produccion": {"read": True, "write": True},
-                "hr": {"read": True},
+                "hr": {"read": True, "manage": True},
                 "reportes": {"read": True},
             },
         },

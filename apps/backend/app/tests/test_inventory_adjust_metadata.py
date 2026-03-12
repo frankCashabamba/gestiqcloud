@@ -4,50 +4,48 @@ from datetime import date
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 
 def _request_for_tenant(tenant_id: str):
-    return SimpleNamespace(
-        state=SimpleNamespace(access_claims={"tenant_id": tenant_id})
-    )
+    return SimpleNamespace(state=SimpleNamespace(access_claims={"tenant_id": tenant_id}))
 
 
-def test_adjust_stock_persists_lot_and_expiry(db):
+def test_adjust_stock_persists_lot_and_expiry(db, tenant_minimal):
+    if db.get_bind().dialect.name != "postgresql":
+        pytest.skip("Postgres-specific inventory metadata test")
+
     from app.models.core.products import Product
     from app.models.inventory.stock import InventoryCostState, StockItem, StockMove
     from app.models.inventory.warehouse import Warehouse
-    from app.models.tenant import Tenant
-    from app.modules.inventory.interface.http.tenant import (
-        StockAdjustIn,
-        adjust_stock,
-        get_stock,
-    )
+    from app.modules.inventory.interface.http.tenant import StockAdjustIn, adjust_stock, get_stock
 
     bind = db.get_bind()
     StockItem.__table__.create(bind=bind, checkfirst=True)
     StockMove.__table__.create(bind=bind, checkfirst=True)
     InventoryCostState.__table__.create(bind=bind, checkfirst=True)
 
-    tenant = Tenant(id=uuid4(), name="Inventory Tenant", slug=f"inv-{uuid4().hex[:8]}")
+    tenant_id = tenant_minimal["tenant_id"]
     warehouse = Warehouse(
         id=uuid4(),
-        tenant_id=tenant.id,
+        tenant_id=tenant_id,
         code="MAIN",
         name="Main Warehouse",
         is_active=True,
     )
     product = Product(
         id=uuid4(),
-        tenant_id=tenant.id,
+        tenant_id=tenant_id,
         sku="PAN-001",
         name="Pan del dia",
         active=True,
         stock=0,
         unit="unit",
     )
-    db.add_all([tenant, warehouse, product])
+    db.add_all([warehouse, product])
     db.commit()
 
-    request = _request_for_tenant(str(tenant.id))
+    request = _request_for_tenant(str(tenant_id))
     payload = StockAdjustIn(
         warehouse_id=str(warehouse.id),
         product_id=str(product.id),
@@ -65,7 +63,7 @@ def test_adjust_stock_persists_lot_and_expiry(db):
     stock_item = (
         db.query(StockItem)
         .filter(
-            StockItem.tenant_id == str(tenant.id),
+            StockItem.tenant_id == str(tenant_id),
             StockItem.warehouse_id == str(warehouse.id),
             StockItem.product_id == str(product.id),
         )
@@ -78,7 +76,7 @@ def test_adjust_stock_persists_lot_and_expiry(db):
     stock_move = (
         db.query(StockMove)
         .filter(
-            StockMove.tenant_id == str(tenant.id),
+            StockMove.tenant_id == str(tenant_id),
             StockMove.warehouse_id == str(warehouse.id),
             StockMove.product_id == str(product.id),
             StockMove.kind == "receipt",

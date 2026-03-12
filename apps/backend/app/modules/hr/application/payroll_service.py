@@ -159,7 +159,9 @@ class PayrollService:
         }
 
     @staticmethod
-    def _payroll_rules(country_code: str, payroll_settings: dict[str, Any] | None) -> dict[str, Any]:
+    def _payroll_rules(
+        country_code: str, payroll_settings: dict[str, Any] | None
+    ) -> dict[str, Any]:
         rules = PayrollService._default_payroll_rules(country_code)
         settings = payroll_settings if isinstance(payroll_settings, dict) else {}
         if not settings:
@@ -201,10 +203,14 @@ class PayrollService:
             if key in settings:
                 rules[key] = PayrollService._parse_decimal(settings.get(key))
 
-        strategy = str(
-            settings.get("daily_without_entries_strategy")
-            or rules["daily_without_entries_strategy"]
-        ).strip().lower()
+        strategy = (
+            str(
+                settings.get("daily_without_entries_strategy")
+                or rules["daily_without_entries_strategy"]
+            )
+            .strip()
+            .lower()
+        )
         if strategy not in {"business_days", "single_day", "none"}:
             strategy = rules["daily_without_entries_strategy"]
         rules["daily_without_entries_strategy"] = strategy
@@ -242,7 +248,9 @@ class PayrollService:
         employee: bool,
         payroll_rules: dict[str, Any],
     ) -> Decimal:
-        apply_key = "apply_social_security_employee" if employee else "apply_social_security_employer"
+        apply_key = (
+            "apply_social_security_employee" if employee else "apply_social_security_employer"
+        )
         rate_key = "social_security_employee_rate" if employee else "social_security_employer_rate"
         if not payroll_rules.get(apply_key, False):
             return Decimal("0")
@@ -439,7 +447,9 @@ class PayrollService:
         raise ValueError(f"SS calculation not implemented for {country}/{year}")
 
     @staticmethod
-    def _existing_payroll_for_month(db: Session, tenant_id: UUID, payroll_month: str) -> Payroll | None:
+    def _existing_payroll_for_month(
+        db: Session, tenant_id: UUID, payroll_month: str
+    ) -> Payroll | None:
         return (
             db.execute(
                 select(Payroll)
@@ -646,7 +656,9 @@ class PayrollService:
             raise ValueError(f"No salary found for employee {employee.id}")
 
         salary_amount = Decimal(str(salary_rec.salary_amount or 0))
-        payment_mode = normalize_payment_mode(parse_salary_notes(salary_rec.notes).get("payment_mode"))
+        payment_mode = normalize_payment_mode(
+            parse_salary_notes(salary_rec.notes).get("payment_mode")
+        )
         gross = PayrollService._calculate_gross_salary(
             db,
             employee=employee,
@@ -750,7 +762,9 @@ class PayrollService:
             days_worked = len({entry.entry_date for entry in entries})
             if days_worked == 0:
                 strategy = payroll_rules.get("daily_without_entries_strategy", "none")
-                fallback_range = PayrollService._daily_fallback_range(employee, month_start, month_end)
+                fallback_range = PayrollService._daily_fallback_range(
+                    employee, month_start, month_end
+                )
                 if fallback_range is None:
                     return Decimal("0")
                 if strategy == "business_days":
@@ -788,12 +802,16 @@ class PayrollService:
             days_worked = len({entry.entry_date for entry in entries})
             if days_worked == 0:
                 strategy = payroll_rules.get("daily_without_entries_strategy", "none")
-                fallback_range = PayrollService._daily_fallback_range(employee, month_start, month_end)
+                fallback_range = PayrollService._daily_fallback_range(
+                    employee, month_start, month_end
+                )
                 if fallback_range is None:
                     return f"Modalidad diaria: 0 dias x {rate_amount}"
                 if strategy == "business_days":
                     days_worked = PayrollService._count_business_days(*fallback_range)
-                    return f"Modalidad diaria estimada: {days_worked} dias laborables x {rate_amount}"
+                    return (
+                        f"Modalidad diaria estimada: {days_worked} dias laborables x {rate_amount}"
+                    )
                 if strategy == "single_day":
                     return f"Modalidad diaria directa: 1 dia x {rate_amount}"
                 return f"Modalidad diaria: 0 dias x {rate_amount}"
@@ -847,9 +865,7 @@ class PayrollService:
         detail_ids = [detail.id for detail in payroll.details]
         if detail_ids:
             slips = (
-                db.execute(
-                    select(PaymentSlip).where(PaymentSlip.payroll_detail_id.in_(detail_ids))
-                )
+                db.execute(select(PaymentSlip).where(PaymentSlip.payroll_detail_id.in_(detail_ids)))
                 .scalars()
                 .all()
             )

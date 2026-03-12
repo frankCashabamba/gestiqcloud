@@ -70,9 +70,8 @@ class EmployeeSyncService:
                 .join(CompanyUserRole, CompanyUserRole.role_id == CompanyRole.id)
                 .where(
                     CompanyUserRole.user_id == user.id,
-                    CompanyUserRole.tenant_id == EmployeeSyncService._db_tenant_id(
-                        db, user.tenant_id
-                    ),
+                    CompanyUserRole.tenant_id
+                    == EmployeeSyncService._db_tenant_id(db, user.tenant_id),
                     CompanyUserRole.is_active.is_(True),
                 )
                 .order_by(CompanyRole.name.asc())
@@ -97,7 +96,9 @@ class EmployeeSyncService:
             .all()
         )
         for employee in employees:
-            if employee.email == user.email or EmployeeSyncService._has_marker(employee.notes, user.id):
+            if employee.email == user.email or EmployeeSyncService._has_marker(
+                employee.notes, user.id
+            ):
                 return employee
         return None
 
@@ -160,7 +161,9 @@ class EmployeeSyncService:
             db.add(employee)
             db.flush()
         else:
-            employee.first_name = (user.first_name or "").strip() or employee.first_name or "Usuario"
+            employee.first_name = (
+                (user.first_name or "").strip() or employee.first_name or "Usuario"
+            )
             employee.last_name = (user.last_name or "").strip() or employee.last_name or "-"
             employee.email = user.email
             employee.status = "ACTIVE" if user.is_active else "INACTIVE"

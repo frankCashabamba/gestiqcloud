@@ -197,11 +197,16 @@ function OrdersListContent() {
         <div className="p-4">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="font-semibold text-lg">{t('productions:title')}</h2>
-                {canWrite && (
-                    <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>
-                        {t('productions:new')}
+                <div className="flex items-center gap-2">
+                    <button className="px-3 py-1 rounded border" onClick={() => nav('../planificacion')}>
+                        {t('productions:planner.open')}
                     </button>
-                )}
+                    {canWrite && (
+                        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>
+                            {t('productions:new')}
+                        </button>
+                    )}
+                </div>
             </div>
             <input
                 value={q}

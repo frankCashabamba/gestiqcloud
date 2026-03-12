@@ -3,12 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
 from app.models import CompanyUser
-from app.modules.hr.application.employee_sync_service import EmployeeSyncService
 from app.modules.hr.application.compensation import (
     current_payment_mode,
     current_salary_amount,
     payment_mode_to_api,
 )
+from app.modules.hr.application.employee_sync_service import EmployeeSyncService
 from app.modules.users.application import validators as val
 from app.modules.users.domain.models import CompanyUserAggregate
 from app.modules.users.infrastructure import repositories as repo
@@ -19,6 +19,7 @@ from app.modules.users.infrastructure.schemas import (
     CompanyUserUpdate,
     ModuleOption,
 )
+
 
 def _employee_sync_kwargs(data: CompanyUserCreate | CompanyUserUpdate) -> dict:
     return {

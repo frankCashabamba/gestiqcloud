@@ -4,6 +4,7 @@ import ProtectedRoute from '../../auth/ProtectedRoute'
 import PermissionDenied from '../../components/PermissionDenied'
 import OrdersList from './OrdersList'
 import OrderForm from './OrderForm'
+import ProductionPlanner from './ProductionPlanner'
 import RecetasList from './RecetasList'
 import RecetaCreatePage from './RecetaCreatePage'
 import RecetaShowPage from './RecetaShowPage'
@@ -17,6 +18,8 @@ export default function ProduccionRoutes() {
         >
             <Routes>
                 <Route index element={<Navigate to="recetas" replace />} />
+                <Route path="planificacion" element={<ProductionPlanner />} />
+                <Route path="planner" element={<Navigate to="../planificacion" replace />} />
                 <Route path="ordenes" element={<OrdersList />} />
                 <Route
                     path="ordenes/nuevo"

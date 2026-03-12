@@ -224,6 +224,49 @@ def test_seed_operational_roles_is_idempotent_for_bakery(
     assert total >= 5
 
 
+def test_seed_operational_roles_assigns_expected_permissions_for_bakery(
+    client: TestClient, tenant_headers, db, seed_tenant_context
+):
+    _, tenant = seed_tenant_context
+    tenant.sector_template_name = "panaderia"
+    db.add(tenant)
+    db.commit()
+
+    response = client.post("/api/v1/tenant/roles/seed-operational", headers=tenant_headers)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+    items = response.json()["items"]
+    roles_by_name = {item["role"]["name"]: item["role"]["permissions"] for item in items}
+
+    assert roles_by_name["Cajera"]["pos"] == {"read": True, "create": True, "update": True}
+    assert roles_by_name["Panadero"]["produccion"] == {"read": True, "write": True}
+    assert roles_by_name["Panadero"]["inventory"] == {"read": True}
+    assert roles_by_name["Encargado"]["inventory"] == {
+        "read": True,
+        "create": True,
+        "update": True,
+    }
+    assert roles_by_name["Encargado"]["produccion"] == {"read": True, "write": True}
+    assert roles_by_name["Encargado"]["hr"] == {"read": True, "manage": True}
+
+
+def test_seed_operational_roles_uses_generic_operator_outside_bakery(
+    client: TestClient, tenant_headers, db, seed_tenant_context
+):
+    _, tenant = seed_tenant_context
+    tenant.sector_template_name = "retail"
+    db.add(tenant)
+    db.commit()
+
+    response = client.post("/api/v1/tenant/roles/seed-operational", headers=tenant_headers)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+    role_names = {item["role"]["name"] for item in response.json()["items"]}
+    assert "Caja" in role_names
+    assert "Operario" in role_names
+    assert "Panadero" not in role_names
+
+
 def test_check_username_public(client: TestClient, db):
     r = client.get("/api/v1/users/check-username/algunusuario")
     assert r.status_code in (200, 400)
@@ -330,7 +373,9 @@ def test_actualizar_perfil_empleado_devuelve_salario_y_modalidad_actuales(
         "roles": [],
     }
     created = client.post("/api/v1/tenant/users", json=payload, headers=tenant_headers)
-    assert created.status_code == 201, f"Expected 201 on create, got {created.status_code}: {created.text}"
+    assert (
+        created.status_code == 201
+    ), f"Expected 201 on create, got {created.status_code}: {created.text}"
     usuario_id = created.json()["id"]
 
     update = {
@@ -338,14 +383,20 @@ def test_actualizar_perfil_empleado_devuelve_salario_y_modalidad_actuales(
         "employee_salary_base": "20.00",
         "employee_payment_mode": "diario",
     }
-    updated = client.patch(f"/api/v1/tenant/users/{usuario_id}", json=update, headers=tenant_headers)
-    assert updated.status_code == 200, f"Expected 200 on update, got {updated.status_code}: {updated.text}"
+    updated = client.patch(
+        f"/api/v1/tenant/users/{usuario_id}", json=update, headers=tenant_headers
+    )
+    assert (
+        updated.status_code == 200
+    ), f"Expected 200 on update, got {updated.status_code}: {updated.text}"
     updated_body = updated.json()
     assert updated_body["employee_salary_base"] == "20.00"
     assert updated_body["employee_payment_mode"] == "diario"
 
     fetched = client.get(f"/api/v1/tenant/users/{usuario_id}", headers=tenant_headers)
-    assert fetched.status_code == 200, f"Expected 200 on get, got {fetched.status_code}: {fetched.text}"
+    assert (
+        fetched.status_code == 200
+    ), f"Expected 200 on get, got {fetched.status_code}: {fetched.text}"
     fetched_body = fetched.json()
     assert fetched_body["employee_salary_base"] == "20.00"
     assert fetched_body["employee_payment_mode"] == "diario"

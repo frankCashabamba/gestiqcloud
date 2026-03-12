@@ -409,6 +409,69 @@ Convertir este documento en backlog tecnico ejecutable, separando:
 - `BT-202` Reposicion sugerida
 - `BT-203` Hoja de produccion imprimible
 
+## Estado de ejecucion
+
+Fecha de actualizacion:
+
+- `2026-03-12`
+
+Convencion de estado:
+
+- `hecho`: desarrollado y validado en codigo
+- `parcial`: desarrollado en parte o validado solo parcialmente
+- `pendiente`: no desarrollado
+- `validacion pendiente`: requiere prueba mas fuerte en entorno completo
+
+### Estado por tarea
+
+- `BT-001` `hecho`
+  Persistencia de `lote` y `expires_at` cerrada entre frontend y backend.
+- `BT-002` `hecho`
+  Acciones operativas de orden expuestas en UI.
+- `BT-003` `hecho`
+  Flujo de completado con cantidad, merma y lote operativo en UI.
+- `BT-004` `hecho`
+  Gating por sector y tenant aplicado a inventario y produccion.
+- `BT-005` `hecho`
+  La matriz minima de `admin`, `encargado`, `cajera` y `panadero/operario` quedo sembrada y validada para el flujo operativo esperado.
+- `BT-006` `hecho`
+  Los casos minimos del documento quedaron cubiertos en backend para POS, produccion e inventario, aunque la corrida completa de test suite sigue pendiente en entorno completo.
+- `BT-101` `hecho`
+  Fichaje rapido con entrada, descanso, vuelta y salida.
+- `BT-102` `hecho`
+  Dashboard sectorial de panaderia conectado con datos reales principales.
+- `BT-103` `hecho`
+  Alertas reutilizables ampliadas con caducidad cercana y merma alta.
+- `BT-201` `hecho`
+  Planificacion diaria de produccion integrada en frontend y backend.
+- `BT-202` `hecho`
+  Sugerencias de reposicion calculadas desde ventas, stock y planificacion.
+- `BT-203` `hecho`
+  Hoja diaria de produccion imprimible integrada en el planificador.
+
+### Estado global por fase
+
+- `P0` `hecho`
+  El bloque minimo para piloto serio queda cerrado en codigo y con validacion tecnica basica; la validacion final pendiente es ejecutar la suite completa en entorno con dependencias completas.
+- `P1` `hecho`
+- `P2` `hecho`
+
+### Validacion ejecutada
+
+- `python -m py_compile` sobre los archivos backend modificados: `ok`
+- `npm --prefix apps/tenant run typecheck`: `ok`
+- `pytest` completo: `no ejecutado en este entorno`
+- `e2e` completos de regresion: `parcial`
+
+### Cierre practico
+
+El documento ya no esta en modo propuesta inicial. Ahora refleja un estado real de ejecucion:
+
+- base sectorial aplicada
+- flujo de produccion mucho mas cerrado
+- planificacion diaria y hoja imprimible listas
+- pruebas mejoradas, pero no completas al nivel de cierre final
+
 ## Tareas P0
 
 ### BT-001 Inventario: persistencia real de lote y caducidad

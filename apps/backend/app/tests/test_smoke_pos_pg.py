@@ -195,6 +195,22 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     )
     assert float(si.qty or 0) == 5.0
 
+    refund_move = (
+        db.query(StockMove)
+        .filter(
+            StockMove.tenant_id == tid_str,
+            StockMove.ref_type == "pos_receipt_refund",
+            StockMove.ref_id == str(rid),
+            StockMove.kind == "return",
+        )
+        .first()
+    )
+    assert refund_move is not None
+    assert refund_move.posted is True
+    assert float(refund_move.qty or 0) == 2.0
+    assert float(refund_move.unit_cost or 0) == 2.5
+    assert float(refund_move.total_cost or 0) == 5.0
+
     refund_line = db.execute(
         text("SELECT COUNT(*) FROM pos_receipt_lines WHERE receipt_id = :rid AND qty < 0"),
         {"rid": rid},
@@ -309,4 +325,7 @@ def test_close_shift_fails_when_pending_receipts_exist(
         )
 
     assert exc.value.status_code == 400
-    assert "sin cobrar" in str(exc.value.detail).lower() or "pendiente" in str(exc.value.detail).lower()
+    assert (
+        "sin cobrar" in str(exc.value.detail).lower()
+        or "pendiente" in str(exc.value.detail).lower()
+    )

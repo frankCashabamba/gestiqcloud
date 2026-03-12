@@ -21,6 +21,17 @@ export type ProductionOrder = {
     updated_at?: string
 }
 
+export type ListProductionOrdersParams = {
+    skip?: number
+    limit?: number
+    status?: ProductionOrder['status']
+    recipe_id?: string
+    date_from?: string
+    date_to?: string
+    scheduled_from?: string
+    scheduled_to?: string
+}
+
 export type ProductionOrderCompleteInput = {
     qty_produced: number
     waste_qty?: number
@@ -50,6 +61,18 @@ export type ProductionOrderCostInput = {
     headcount_actual?: number
     rate_applied: number
     notes?: string | null
+}
+
+export type ProductionPlanningSuggestion = {
+    recipe_id: string
+    product_id: string
+    recipe_name: string
+    product_name: string
+    target_date: string
+    avg_daily_sales: number
+    stock_on_hand: number
+    already_planned_qty: number
+    suggested_qty: number
 }
 
 export type Recipe = {
@@ -99,8 +122,18 @@ function normalizeProductionOrder(order: ProductionOrder): ProductionOrder {
     }
 }
 
-export async function listProductionOrders(): Promise<ProductionOrder[]> {
-    const { data } = await tenantApi.get<ProductionOrder[] | { items?: ProductionOrder[] }>('/api/v1/tenant/production/orders')
+function serializeProductionOrderPayload(payload: Partial<ProductionOrder>) {
+    if (!payload.status) return payload
+    return {
+        ...payload,
+        status: String(payload.status).toUpperCase(),
+    }
+}
+
+export async function listProductionOrders(params?: ListProductionOrdersParams): Promise<ProductionOrder[]> {
+    const { data } = await tenantApi.get<ProductionOrder[] | { items?: ProductionOrder[] }>('/api/v1/tenant/production/orders', {
+        params,
+    })
     return ensureArray<ProductionOrder>(data).map(normalizeProductionOrder)
 }
 
@@ -110,12 +143,18 @@ export async function getProductionOrder(id: string): Promise<ProductionOrder> {
 }
 
 export async function createProductionOrder(payload: Omit<ProductionOrder, 'id'>): Promise<ProductionOrder> {
-    const { data } = await tenantApi.post<ProductionOrder>('/api/v1/tenant/production/orders', payload)
+    const { data } = await tenantApi.post<ProductionOrder>(
+        '/api/v1/tenant/production/orders',
+        serializeProductionOrderPayload(payload)
+    )
     return normalizeProductionOrder(data)
 }
 
 export async function updateProductionOrder(id: string, payload: Partial<ProductionOrder>): Promise<ProductionOrder> {
-    const { data } = await tenantApi.put<ProductionOrder>(`/api/v1/tenant/production/orders/${id}`, payload)
+    const { data } = await tenantApi.put<ProductionOrder>(
+        `/api/v1/tenant/production/orders/${id}`,
+        serializeProductionOrderPayload(payload)
+    )
     return normalizeProductionOrder(data)
 }
 
@@ -149,6 +188,26 @@ export async function replaceProductionOrderCosts(
 export async function cancelProductionOrder(id: string): Promise<ProductionOrder> {
     const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/cancel`, {})
     return normalizeProductionOrder(data)
+}
+
+export async function listProductionPlanningSuggestions(params?: {
+    target_date?: string
+    history_days?: number
+    limit?: number
+}): Promise<ProductionPlanningSuggestion[]> {
+    const { data } = await tenantApi.get<ProductionPlanningSuggestion[]>(
+        '/api/v1/tenant/production/planning/suggestions',
+        { params }
+    )
+    return Array.isArray(data)
+        ? data.map((item) => ({
+            ...item,
+            avg_daily_sales: Number(item.avg_daily_sales || 0),
+            stock_on_hand: Number(item.stock_on_hand || 0),
+            already_planned_qty: Number(item.already_planned_qty || 0),
+            suggested_qty: Number(item.suggested_qty || 0),
+        }))
+        : []
 }
 
 export async function listRecipes(): Promise<Recipe[]> {
