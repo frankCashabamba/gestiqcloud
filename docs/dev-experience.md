@@ -10,7 +10,7 @@
 - Frontends:
   - Admin: `cd apps/admin && npm install && npm run dev -- --host --port 8081`.
   - Tenant: `cd apps/tenant && npm install && npm run dev -- --host --port 8082`.
-- Script unificado (Windows): `scripts/start_local.ps1` levanta backend + frontends con puertos 8000/8081/8082.
+- Script unificado (Windows): `scripts/start_local.ps1` levanta backend + frontends con puertos 8000/8081/8082 y valida `node_modules` de `apps/admin` y `apps/tenant`; si faltan dependencias clave o el `package-lock.json` es mas reciente, ejecuta `npm ci` automaticamente (con fallback a `npm install`).
 
 ## Comandos rápidos
 - Backend tests: `cd apps/backend && pytest -q app/tests`.

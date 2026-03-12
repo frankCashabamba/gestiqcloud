@@ -6,7 +6,11 @@ import logging
 from uuid import UUID
 
 from fastapi import HTTPException, UploadFile
+from sqlalchemy import inspect
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
+
+from app.models.importador import ImpBatchImport, ImpBatchItem
 
 from . import crud
 from .ocr_service import detect_file_type
@@ -42,6 +46,78 @@ def _env_int(name: str, default: int) -> int:
         return int(raw)
     except ValueError:
         return default
+
+
+def _batch_tracking_schema_error() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail=(
+            "importador_batch_tracking_schema_missing:"
+            "apply_ops_migration=2026-03-09_000_importer_batch_tracking"
+        ),
+    )
+
+
+def _is_missing_batch_tracking_tables(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return (
+        "imp_batch_import" in msg
+        or "imp_batch_item" in msg
+        or "undefinedtable" in msg
+        or "does not exist" in msg
+        or "no existe la relacion" in msg
+        or "no existe la relación" in msg
+    )
+
+
+def _ensure_batch_tracking_storage(db: Session) -> bool:
+    cached = db.info.get("importador_batch_tracking_ready")
+    if cached is not None:
+        return bool(cached)
+
+    available = False
+    try:
+        inspector = inspect(db.bind)
+        schema = "public" if getattr(db.bind.dialect, "name", "") == "postgresql" else None
+        has_batch = inspector.has_table("imp_batch_import", schema=schema)
+        has_item = inspector.has_table("imp_batch_item", schema=schema)
+
+        if not has_batch or not has_item:
+            dependencies = {
+                "tenants": inspector.has_table("tenants", schema=schema),
+                "imp_documento": inspector.has_table("imp_documento", schema=schema),
+                "icu_recipe_snapshot": inspector.has_table("icu_recipe_snapshot", schema=schema),
+            }
+            if all(dependencies.values()):
+                if not has_batch:
+                    ImpBatchImport.__table__.create(bind=db.bind, checkfirst=True)
+                if not has_item:
+                    ImpBatchItem.__table__.create(bind=db.bind, checkfirst=True)
+
+                inspector = inspect(db.bind)
+                has_batch = inspector.has_table("imp_batch_import", schema=schema)
+                has_item = inspector.has_table("imp_batch_item", schema=schema)
+                if has_batch and has_item:
+                    logger.warning(
+                        "Auto-created missing importador batch tracking tables. "
+                        "Apply SQL migration 2026-03-09_000_importer_batch_tracking "
+                        "to keep schema history in sync."
+                    )
+            else:
+                logger.warning(
+                    "Importador batch tracking tables are missing and cannot be auto-created "
+                    "(dependencies=%s)",
+                    dependencies,
+                )
+
+        available = has_batch and has_item
+    except Exception:
+        logger.exception("Could not ensure importador batch tracking storage")
+        db.rollback()
+        available = False
+
+    db.info["importador_batch_tracking_ready"] = available
+    return available
 
 
 async def enqueue_async_batch(
@@ -131,17 +207,26 @@ async def enqueue_async_batch(
             ),
         )
 
-    batch = crud.create_batch(
-        db,
-        {
-            "tenant_id": tenant_id,
-            "usuario_id": user_id,
-            "estado": "PENDING",
-            "total_items": len(existing_matches) + len(staged_uploads),
-            "force_reprocess": force,
-            "recipe_snapshot_id": _coerce_uuid(recipe_snapshot_id),
-        },
-    )
+    if not _ensure_batch_tracking_storage(db):
+        raise _batch_tracking_schema_error()
+
+    batch_payload = {
+        "tenant_id": tenant_id,
+        "usuario_id": user_id,
+        "estado": "PENDING",
+        "total_items": len(existing_matches) + len(staged_uploads),
+        "force_reprocess": force,
+        "recipe_snapshot_id": _coerce_uuid(recipe_snapshot_id),
+    }
+    try:
+        batch = crud.create_batch(db, batch_payload)
+    except ProgrammingError as exc:
+        db.rollback()
+        db.info.pop("importador_batch_tracking_ready", None)
+        if _is_missing_batch_tracking_tables(exc) and _ensure_batch_tracking_storage(db):
+            batch = crud.create_batch(db, batch_payload)
+        else:
+            raise _batch_tracking_schema_error() from exc
     db.commit()
 
     results: list[dict] = []

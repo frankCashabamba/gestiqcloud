@@ -71,15 +71,8 @@ ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN status SET DEFAULT 'draft
 ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN updated_at SET DEFAULT now();
 
--- Avoid trigger failures while backfilling currency
-DO $$
-DECLARE
-  prev_role text;
-BEGIN
-  SELECT current_setting('session_replication_role', true) INTO prev_role;
-  PERFORM set_config('session_replication_role', 'replica', true);
-
-  UPDATE public.sales_orders
+-- Backfill NULL values in sales_orders
+UPDATE public.sales_orders
 SET subtotal = COALESCE(subtotal, 0),
     tax = COALESCE(tax, 0),
     total = COALESCE(total, 0),
@@ -87,9 +80,14 @@ SET subtotal = COALESCE(subtotal, 0),
     status = COALESCE(status, 'draft'),
     order_date = COALESCE(order_date, now()),
     created_at = COALESCE(created_at, now()),
-    updated_at = COALESCE(updated_at, now());
-
-  PERFORM set_config('session_replication_role', COALESCE(prev_role, 'origin'), true);
-END $$;
+    updated_at = COALESCE(updated_at, now())
+WHERE subtotal IS NULL
+   OR tax IS NULL
+   OR total IS NULL
+   OR currency IS NULL
+   OR status IS NULL
+   OR order_date IS NULL
+   OR created_at IS NULL
+   OR updated_at IS NULL;
 
 COMMIT;

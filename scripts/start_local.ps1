@@ -70,6 +70,11 @@ $tenantPath = Join-Path $repoRoot "apps/tenant"
 $venvActivate = Join-Path $repoRoot ".venv/Scripts/Activate.ps1"
 $backendLog = Join-Path $repoRoot "backend.log"
 
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+    Write-Host "npm no esta disponible en PATH. Instala Node.js/npm antes de iniciar." -ForegroundColor Red
+    exit 1
+}
+
 $defaultApiUrl = "http://localhost:8000/api"
 $frontendUrl = Get-EnvValue -lines $rootEnvLines -key "FRONTEND_URL" -default "http://localhost:8081"
 $tenantOrigin = Get-EnvValue -lines $rootEnvLines -key "TENANT_URL" -default "http://localhost:8082"
@@ -158,6 +163,128 @@ function Stop-ListenersOnPort {
     }
 }
 
+function Test-RequiredNodeModules {
+    param([string]$AppPath, [string[]]$RequiredEntries)
+    $missingEntries = @()
+    $nodeModulesPath = Join-Path $AppPath "node_modules"
+    if (-not (Test-Path $nodeModulesPath)) {
+        return @("__node_modules__")
+    }
+    foreach ($entry in $RequiredEntries) {
+        $entryPath = Join-Path $nodeModulesPath $entry
+        if (-not (Test-Path $entryPath)) {
+            $missingEntries += $entry
+        }
+    }
+    return $missingEntries
+}
+
+function Invoke-NpmInApp {
+    param(
+        [string]$AppPath,
+        [string[]]$NpmArgs,
+        [hashtable]$EnvVars = @{},
+        [string]$LogPath = ""
+    )
+
+    $previousEnv = @{}
+    foreach ($entry in $EnvVars.GetEnumerator()) {
+        $previousEnv[$entry.Key] = [Environment]::GetEnvironmentVariable($entry.Key, "Process")
+        [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
+    }
+
+    Push-Location $AppPath
+    try {
+        if ($LogPath) {
+            $logDir = Split-Path -Parent $LogPath
+            if ($logDir) {
+                New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+            }
+            if (Test-Path $LogPath) {
+                Remove-Item $LogPath -Force -ErrorAction SilentlyContinue
+            }
+            $joinedArgs = ($NpmArgs | ForEach-Object {
+                if ($_ -match '\s|["]') {
+                    '"' + ($_ -replace '"', '\"') + '"'
+                } else {
+                    $_
+                }
+            }) -join ' '
+            $cmdLine = "npm $joinedArgs > `"$LogPath`" 2>&1"
+            cmd.exe /d /c $cmdLine | Out-Null
+        } else {
+            & npm @NpmArgs
+        }
+        return $LASTEXITCODE
+    } finally {
+        Pop-Location
+        foreach ($entry in $EnvVars.GetEnumerator()) {
+            [Environment]::SetEnvironmentVariable($entry.Key, $previousEnv[$entry.Key], "Process")
+        }
+    }
+}
+
+function Ensure-FrontendDependencies {
+    param(
+        [string]$AppName,
+        [string]$AppPath,
+        [string[]]$RequiredEntries
+    )
+
+    $packageLockPath = Join-Path $AppPath "package-lock.json"
+    $installedLockSnapshot = Join-Path $AppPath "node_modules/.package-lock.json"
+    $missingEntries = Test-RequiredNodeModules -AppPath $AppPath -RequiredEntries $RequiredEntries
+    $needsInstall = $missingEntries.Count -gt 0
+    $reasons = @()
+
+    if ($missingEntries -contains "__node_modules__") {
+        $reasons += "node_modules no existe"
+    } elseif ($missingEntries.Count -gt 0) {
+        $reasons += ("faltan dependencias: {0}" -f (($missingEntries | Where-Object { $_ -ne "__node_modules__" }) -join ", "))
+    }
+
+    if ((Test-Path $packageLockPath) -and (Test-Path $installedLockSnapshot)) {
+        $lockTime = (Get-Item $packageLockPath).LastWriteTimeUtc
+        $snapshotTime = (Get-Item $installedLockSnapshot).LastWriteTimeUtc
+        if ($lockTime -gt $snapshotTime) {
+            $needsInstall = $true
+            $reasons += "package-lock.json es mas reciente que la instalacion actual"
+        }
+    } elseif ((Test-Path $packageLockPath) -and (Test-Path (Join-Path $AppPath "node_modules")) -and -not (Test-Path $installedLockSnapshot)) {
+        $needsInstall = $true
+        $reasons += "node_modules no tiene snapshot de package-lock"
+    }
+
+    if (-not $needsInstall) {
+        Write-Host ("Dependencias de {0}: OK" -f $AppName) -ForegroundColor Green
+        return
+    }
+
+    Write-Host ("Preparando dependencias de {0}: {1}" -f $AppName, ($reasons -join "; ")) -ForegroundColor Yellow
+
+    $installExit = 0
+    if (Test-Path $packageLockPath) {
+        $installExit = Invoke-NpmInApp -AppPath $AppPath -NpmArgs @("ci", "--no-audit", "--no-fund")
+        if ($installExit -ne 0) {
+            Write-Host ("npm ci fallo en {0}; reintentando con npm install" -f $AppName) -ForegroundColor DarkYellow
+            $installExit = Invoke-NpmInApp -AppPath $AppPath -NpmArgs @("install", "--no-audit", "--no-fund")
+        }
+    } else {
+        $installExit = Invoke-NpmInApp -AppPath $AppPath -NpmArgs @("install", "--no-audit", "--no-fund")
+    }
+
+    if ($installExit -ne 0) {
+        Write-Host ("No se pudieron instalar dependencias para {0}" -f $AppName) -ForegroundColor Red
+        exit 1
+    }
+
+    $remainingMissing = Test-RequiredNodeModules -AppPath $AppPath -RequiredEntries $RequiredEntries
+    if ($remainingMissing.Count -gt 0) {
+        Write-Host ("La instalacion de {0} termino, pero aun faltan: {1}" -f $AppName, ($remainingMissing -join ", ")) -ForegroundColor Red
+        exit 1
+    }
+}
+
 $adminEnvVars = @{
     "VITE_API_URL"       = $apiUrl
     "VITE_ADMIN_ORIGIN"  = $frontendUrl
@@ -190,12 +317,50 @@ if (-not $cleanupPorts -or $cleanupPorts.Trim().ToLower() -in @("s", "si", "sí"
 }
 
 # Build rápido para asegurar que frontend usa el código más reciente
-Write-Host "[4/7] Recompilando frontends (admin y tenant)..." -ForegroundColor Yellow
-if (Get-Command pnpm -ErrorAction SilentlyContinue) {
-    pnpm --filter admin run build 2>$null | Out-Null
-    pnpm --filter tenant run build 2>$null | Out-Null
-} else {
-    Write-Host "pnpm no encontrado; omitiendo build previo." -ForegroundColor DarkYellow
+Write-Host "[4/7] Validando dependencias y build de frontends..." -ForegroundColor Yellow
+$adminRequiredEntries = @(
+    "vite\package.json",
+    "@vitejs\plugin-react\package.json",
+    "vite-plugin-pwa\package.json",
+    "react-router-dom\package.json",
+    "axios\package.json",
+    "idb-keyval\package.json"
+)
+$tenantRequiredEntries = @(
+    "vite\package.json",
+    "@vitejs\plugin-react\package.json",
+    "vite-plugin-pwa\package.json",
+    "react-router-dom\package.json",
+    "axios\package.json",
+    "idb-keyval\package.json",
+    "workbox-precaching\package.json"
+)
+
+Ensure-FrontendDependencies -AppName "admin" -AppPath $adminPath -RequiredEntries $adminRequiredEntries
+Ensure-FrontendDependencies -AppName "tenant" -AppPath $tenantPath -RequiredEntries $tenantRequiredEntries
+
+$buildLogsDir = Join-Path $repoRoot ".logs/start_local"
+$adminBuildLog = Join-Path $buildLogsDir "admin-build.log"
+$tenantBuildLog = Join-Path $buildLogsDir "tenant-build.log"
+
+$adminBuildExit = Invoke-NpmInApp -AppPath $adminPath -EnvVars $adminEnvVars -NpmArgs @("run", "build") -LogPath $adminBuildLog
+if ($adminBuildExit -ne 0) {
+    Write-Host "Build de admin fallo. Corrige el frontend antes de iniciar el stack." -ForegroundColor Red
+    if (Test-Path $adminBuildLog) {
+        Write-Host ("Ultimas lineas de {0}:" -f $adminBuildLog) -ForegroundColor Yellow
+        Get-Content $adminBuildLog -Tail 80 | Out-Host
+    }
+    exit 1
+}
+
+$tenantBuildExit = Invoke-NpmInApp -AppPath $tenantPath -EnvVars $tenantEnvVars -NpmArgs @("run", "build") -LogPath $tenantBuildLog
+if ($tenantBuildExit -ne 0) {
+    Write-Host "Build de tenant fallo. Corrige el frontend antes de iniciar el stack." -ForegroundColor Red
+    if (Test-Path $tenantBuildLog) {
+        Write-Host ("Ultimas lineas de {0}:" -f $tenantBuildLog) -ForegroundColor Yellow
+        Get-Content $tenantBuildLog -Tail 80 | Out-Host
+    }
+    exit 1
 }
 
 Write-Host "[5/7] Iniciando backend..." -ForegroundColor Green
@@ -224,7 +389,7 @@ $adminJob = Start-Job -ScriptBlock {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
     }
     Set-Location $path
-    npx --yes vite --host 0.0.0.0 --port $port --strictPort
+    npm run dev -- --host 0.0.0.0 --port $port --strictPort
 } -Name admin -ArgumentList $adminPath, $adminEnvVars, $adminPort
 $tenantJob = Start-Job -ScriptBlock {
     param($path, $envVars, $port)
@@ -233,7 +398,7 @@ $tenantJob = Start-Job -ScriptBlock {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
     }
     Set-Location $path
-    npx --yes vite --host 0.0.0.0 --port $port --strictPort
+    npm run dev -- --host 0.0.0.0 --port $port --strictPort
 } -Name tenant -ArgumentList $tenantPath, $tenantEnvVars, $tenantPort
 
 Write-Host "[6.5/7] Verificando puertos..." -ForegroundColor Yellow
