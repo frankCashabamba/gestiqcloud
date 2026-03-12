@@ -2,16 +2,31 @@ import React, { useEffect, useState } from 'react'
 
 import {
   runMigrations,
+  getMigrationConfig,
   getMigrationStatus,
   getMigrationHistory,
   refreshMigrations,
-  type MigrationState,
+  type MigrationConfig,
   type MigrationHistoryItem,
+  type MigrationState,
 } from '../services/ops'
+
+function formatMigrationMessage(message?: string | null) {
+  if (!message) return null
+  if (message === 'inline_migrations_disabled') {
+    return 'Las migraciones inline estan deshabilitadas en este entorno.'
+  }
+  if (message.startsWith('migration_script_missing:')) {
+    const path = message.replace('migration_script_missing:', '')
+    return `No se encontro el runner de migraciones en el servidor: ${path}`
+  }
+  return message
+}
 
 export default function Migraciones() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [config, setConfig] = useState<MigrationConfig | null>(null)
   const [state, setState] = useState<MigrationState | null>(null)
   const [history, setHistory] = useState<MigrationHistoryItem[]>([])
 
@@ -31,9 +46,10 @@ export default function Migraciones() {
       } catch {}
     } catch (e: any) {
       if (e?.status === 409) {
-        setMsg('Ya hay una migración en curso')
+        setMsg('Ya hay una migracion en curso')
       } else {
-        setMsg(`Error al ejecutar migraciones: ${e?.message || 'desconocido'}`)
+        const detail = formatMigrationMessage(e?.message || 'desconocido')
+        setMsg(`Error al ejecutar migraciones: ${detail}`)
       }
     } finally {
       setLoading(false)
@@ -41,11 +57,16 @@ export default function Migraciones() {
   }
 
   useEffect(() => {
-    let timer: any
+    let timer: ReturnType<typeof setTimeout> | undefined
+
     async function tick() {
       try {
         try {
           await refreshMigrations()
+        } catch {}
+        try {
+          const cfg = await getMigrationConfig()
+          setConfig(cfg)
         } catch {}
         const s = await getMigrationStatus()
         setState(s)
@@ -61,12 +82,14 @@ export default function Migraciones() {
         timer = setTimeout(tick, 5000)
       }
     }
-    tick()
-    getMigrationHistory(20)
+
+    void tick()
+    void getMigrationHistory(20)
       .then((r) => {
         if (r?.ok && Array.isArray(r.items)) setHistory(r.items)
       })
       .catch(() => {})
+
     return () => {
       if (timer) clearTimeout(timer)
     }
@@ -75,6 +98,10 @@ export default function Migraciones() {
   async function onRefresh() {
     try {
       await refreshMigrations()
+    } catch {}
+    try {
+      const cfg = await getMigrationConfig()
+      setConfig(cfg)
     } catch {}
     try {
       const s = await getMigrationStatus()
@@ -90,22 +117,27 @@ export default function Migraciones() {
     <div className="p-4">
       <h2 className="text-lg font-semibold mb-3">Migraciones de base de datos</h2>
       <p className="text-sm text-slate-600 mb-2">
-        Este botón ejecuta en el backend el runner SQL idempotente <code>ops/scripts/migrate_all_migrations_idempotent.py</code> y registra el resultado en el historial.
+        Este boton ejecuta en el backend el runner SQL idempotente <code>ops/scripts/migrate_all_migrations_idempotent.py</code> y registra el resultado en el historial.
       </p>
       <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 text-sm">
         Nota: el runner registra en <code>_migrations</code> las migraciones ya aplicadas y solo deja pendientes las que faltan por procesar.
       </div>
+      {config && !config.inline_enabled && (
+        <div className="mb-4 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-800 text-sm">
+          {formatMigrationMessage(config.reason) || 'Las migraciones inline no estan disponibles en este entorno.'}
+        </div>
+      )}
 
       <button
-        disabled={loading || (state?.running ?? false)}
+        disabled={loading || (state?.running ?? false) || (config ? !config.inline_enabled : false)}
         onClick={onRun}
         className={`inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm ${loading ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
       >
-        {loading ? 'Ejecutando…' : 'Ejecutar migraciones'}
+        {loading ? 'Ejecutando...' : 'Ejecutar migraciones'}
       </button>
       <button
         onClick={onRefresh}
-        className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700 border border-indigo-300 ml-2"
+        className="ml-2 inline-flex items-center rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-700"
       >
         Refrescar estado
       </button>
@@ -114,16 +146,18 @@ export default function Migraciones() {
       {state && (
         <div className="mt-3 text-sm text-slate-700">
           <div>
-            Estado: {state.running ? 'En ejecución' : state.ok === true ? 'Completado' : state.ok === false ? 'Error' : 'Desconocido'}
+            Estado: {state.running ? 'En ejecucion' : state.ok === true ? 'Completado' : state.ok === false ? 'Error' : 'Desconocido'}
           </div>
           <div>Modo: {state.mode || 'n/d'}</div>
           {state.started_at && <div>Inicio: {new Date(state.started_at).toLocaleString()}</div>}
           {state.finished_at && <div>Fin: {new Date(state.finished_at).toLocaleString()}</div>}
-          {state.error && <div className="text-red-600">Error: {state.error}</div>}
+          {state.error && (
+            <div className="text-red-600">Error: {formatMigrationMessage(state.error) || state.error}</div>
+          )}
         </div>
       )}
       <div className="mt-6">
-        <h3 className="text-base font-semibold mb-2">Historial</h3>
+        <h3 className="mb-2 text-base font-semibold">Historial</h3>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -149,9 +183,9 @@ export default function Migraciones() {
                   <td className="px-2 py-1">{new Date(h.started_at).toLocaleString()}</td>
                   <td className="px-2 py-1">{h.finished_at ? new Date(h.finished_at).toLocaleString() : '-'}</td>
                   <td className="px-2 py-1">{h.mode}</td>
-                  <td className="px-2 py-1">{h.ok === true ? '✔' : h.ok === false ? '✖' : '-'}</td>
+                  <td className="px-2 py-1">{h.ok === true ? 'OK' : h.ok === false ? 'X' : '-'}</td>
                   <td className="px-2 py-1">{h.job_id || '-'}</td>
-                  <td className="px-2 py-1 text-red-600">{h.error || '-'}</td>
+                  <td className="px-2 py-1 text-red-600">{formatMigrationMessage(h.error) || h.error || '-'}</td>
                 </tr>
               ))}
             </tbody>

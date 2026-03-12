@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import text
 
 
@@ -122,3 +122,31 @@ def test_admin_ops_router_is_mounted_under_admin_prefix(client):
     assert "/api/v1/admin/ops/migrate" in routes
     assert "/api/v1/admin/ops/migrate/status" in routes
     assert "/api/v1/admin/ops/migrate/refresh" in routes
+
+
+def test_admin_ops_migrate_respects_inline_disable_flag(db, monkeypatch):
+    admin_ops = _ops_module()
+    _reset_migration_state()
+    _reset_migration_tables(db)
+    monkeypatch.setenv("ALLOW_INLINE_MIGRATIONS", "0")
+
+    try:
+        admin_ops.trigger_migrations(background_tasks=BackgroundTasks(), db=db)
+        raise AssertionError("expected HTTPException")
+    except HTTPException as exc:
+        assert exc.status_code == 503
+        assert exc.detail == "inline_migrations_disabled"
+
+    config = admin_ops.migrate_config()
+    assert config["allow_inline"] is False
+    assert config["inline_enabled"] is False
+    assert config["reason"] == "inline_migrations_disabled"
+
+
+def test_admin_ops_runner_path_can_be_overridden_with_env(monkeypatch, tmp_path):
+    admin_ops = _ops_module()
+    override = tmp_path / "custom-runner.py"
+    override.write_text("print('ok')\n", encoding="utf-8")
+    monkeypatch.setenv("GESTIQ_MIGRATION_SCRIPT", str(override))
+
+    assert admin_ops._idempotent_migrations_script() == override.resolve()

@@ -32,8 +32,73 @@ migration_state = {
     "run_id": None,
 }
 
+_RUNNER_RELATIVE_PATH = Path("ops") / "scripts" / "migrate_all_migrations_idempotent.py"
+_MIGRATIONS_RELATIVE_PATH = Path("ops") / "migrations"
+
+
+def _env_truthy(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _inline_migrations_allowed() -> bool:
+    return _env_truthy("ALLOW_INLINE_MIGRATIONS", True)
+
+
+def _candidate_repo_roots() -> list[Path]:
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+
+    def _push(path: Path | None) -> None:
+        if path is None:
+            return
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        if resolved in seen:
+            return
+        seen.add(resolved)
+        candidates.append(resolved)
+
+    for env_name in ("GESTIQ_REPO_ROOT", "REPO_ROOT"):
+        raw = os.getenv(env_name)
+        if raw:
+            _push(Path(raw))
+
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        _push(parent)
+
+    cwd = Path.cwd()
+    _push(cwd)
+    for parent in cwd.parents:
+        _push(parent)
+
+    backend_dir = here.parents[3]
+    _push(backend_dir.parent.parent)
+    return candidates
+
+
+def _find_existing_relative_path(relative_path: Path) -> Path | None:
+    for root in _candidate_repo_roots():
+        candidate = root / relative_path
+        if candidate.exists():
+            return candidate
+    return None
+
 
 def _repo_root() -> Path:
+    script_path = _find_existing_relative_path(_RUNNER_RELATIVE_PATH)
+    if script_path is not None:
+        return script_path.parents[2]
+
+    migrations_dir = _find_existing_relative_path(_MIGRATIONS_RELATIVE_PATH)
+    if migrations_dir is not None:
+        return migrations_dir.parents[1]
+
     backend_dir = Path(__file__).resolve().parents[3]
     return backend_dir.parent.parent
 
@@ -86,7 +151,13 @@ def _ensure_admin_migration_runs_table(db: Session | None) -> None:
 
 
 def _idempotent_migrations_script() -> Path:
-    return _repo_root() / "ops" / "scripts" / "migrate_all_migrations_idempotent.py"
+    override = os.getenv("GESTIQ_MIGRATION_SCRIPT") or os.getenv("INLINE_MIGRATIONS_SCRIPT")
+    if override:
+        return Path(override).expanduser().resolve()
+    discovered = _find_existing_relative_path(_RUNNER_RELATIVE_PATH)
+    if discovered is not None:
+        return discovered
+    return _repo_root() / _RUNNER_RELATIVE_PATH
 
 
 def _list_sql_migration_names() -> list[str]:
@@ -246,6 +317,8 @@ def _log_finished(
 def _run_sql_idempotent_migrations(run_id: str | None = None) -> None:
     """Run the tracked SQL migration script in a background task."""
     try:
+        if not _inline_migrations_allowed():
+            raise RuntimeError("inline_migrations_disabled")
         root = _repo_root()
         script_path = _idempotent_migrations_script()
         if not script_path.exists():
@@ -333,6 +406,8 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
             raise HTTPException(status_code=409, detail="migration_in_progress")
     except Exception:
         pass
+    if not _inline_migrations_allowed():
+        raise HTTPException(status_code=503, detail="inline_migrations_disabled")
     script_path = _idempotent_migrations_script()
     if not script_path.exists():
         raise HTTPException(status_code=500, detail=f"migration_script_missing:{script_path}")
@@ -396,13 +471,22 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
 @router.get("/ops/migrate/config")
 def migrate_config():
     """Report migration execution capabilities for the Admin UI."""
-    inline_enabled = _idempotent_migrations_script().exists()
+    allow_inline = _inline_migrations_allowed()
+    script_path = _idempotent_migrations_script()
+    inline_enabled = allow_inline and script_path.exists()
+    reason = None
+    if not allow_inline:
+        reason = "inline_migrations_disabled"
+    elif not script_path.exists():
+        reason = f"migration_script_missing:{script_path}"
     return {
         "ok": True,
         "render_configured": False,
+        "allow_inline": allow_inline,
         "inline_enabled": inline_enabled,
         "mode": ("sql_idempotent" if inline_enabled else "unavailable"),
         "runner": "ops/scripts/migrate_all_migrations_idempotent.py",
+        "reason": reason,
     }
 
 
@@ -461,16 +545,25 @@ def migrate_status_details(db: Session = Depends(get_db)):
     except Exception:
         last_run = None
 
-    inline_enabled = _idempotent_migrations_script().exists()
+    allow_inline = _inline_migrations_allowed()
+    script_path = _idempotent_migrations_script()
+    inline_enabled = allow_inline and script_path.exists()
+    reason = None
+    if not allow_inline:
+        reason = "inline_migrations_disabled"
+    elif not script_path.exists():
+        reason = f"migration_script_missing:{script_path}"
 
     return {
         **state,
         **pending_info,
         "config": {
             "render_configured": False,
+            "allow_inline": allow_inline,
             "inline_enabled": inline_enabled,
             "mode": ("sql_idempotent" if inline_enabled else "unavailable"),
             "runner": "ops/scripts/migrate_all_migrations_idempotent.py",
+            "reason": reason,
             "last_run": last_run,
             "run_id": migration_state.get("run_id"),
         },

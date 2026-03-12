@@ -5,6 +5,16 @@ export async function runMigrations(): Promise<{ ok: boolean; job_id?: string; s
   return apiFetch('/v1/admin/ops/migrate', { method: 'POST' })
 }
 
+export type MigrationConfig = {
+  ok: boolean
+  render_configured: boolean
+  allow_inline?: boolean
+  inline_enabled: boolean
+  mode: string
+  runner: string
+  reason?: string | null
+}
+
 export type MigrationState = {
   running: boolean
   mode: 'inline' | 'inline_async' | 'render_job' | 'sql_idempotent' | 'sql_idempotent_async' | string | null
@@ -17,6 +27,10 @@ export type MigrationState = {
 
 export async function getMigrationStatus(): Promise<MigrationState> {
   return apiFetch('/v1/admin/ops/migrate/status', { method: 'GET' })
+}
+
+export async function getMigrationConfig(): Promise<MigrationConfig> {
+  return apiFetch('/v1/admin/ops/migrate/config', { method: 'GET' })
 }
 
 export type MigrationHistoryItem = {
