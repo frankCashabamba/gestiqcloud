@@ -49,3 +49,21 @@ export async function registrarFichaje(payload: {
   })
   return normalizeEntry(data)
 }
+
+export async function actualizarFichaje(
+  id: string,
+  payload: {
+    horaInicio?: string
+    horaFin?: string
+    tipo?: 'trabajo' | 'descanso' | 'otro'
+    notas?: string
+  }
+): Promise<Fichaje> {
+  const { data } = await tenantApi.patch<TimeEntryApi>(TENANT_HR.timekeeping.byId(id), {
+    hora_inicio: payload.horaInicio,
+    hora_fin: payload.horaFin,
+    tipo: payload.tipo,
+    notas: payload.notas,
+  })
+  return normalizeEntry(data)
+}

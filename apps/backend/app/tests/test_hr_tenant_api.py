@@ -133,6 +133,65 @@ def test_hr_timekeeping_create_and_list(client: TestClient, db):
     assert items[0]["empleado_id"] == employee_id
 
 
+def test_hr_timekeeping_update_closes_open_entry(client: TestClient, db):
+    _ensure_test_tenant(db)
+    employee = client.post("/api/v1/tenant/hr/employees", json=_employee_payload("44556677G"))
+    assert employee.status_code == 201, employee.text
+    employee_id = employee.json()["id"]
+
+    created = client.post(
+        "/api/v1/tenant/hr/timekeeping",
+        json={
+            "empleado_id": employee_id,
+            "fecha": "2026-03-12",
+            "hora_inicio": "06:00:00",
+            "tipo": "trabajo",
+        },
+    )
+    assert created.status_code == 201, created.text
+    entry_id = created.json()["id"]
+    assert created.json()["hora_fin"] is None
+
+    updated = client.patch(
+        f"/api/v1/tenant/hr/timekeeping/{entry_id}",
+        json={"hora_fin": "14:30:00", "notas": "Cierre de turno"},
+    )
+    assert updated.status_code == 200, updated.text
+    body = updated.json()
+    assert body["hora_fin"] == "14:30"
+    assert body["notas"] == "Cierre de turno"
+
+
+def test_hr_timekeeping_prevents_multiple_open_entries(client: TestClient, db):
+    _ensure_test_tenant(db)
+    employee = client.post("/api/v1/tenant/hr/employees", json=_employee_payload("77665544H"))
+    assert employee.status_code == 201, employee.text
+    employee_id = employee.json()["id"]
+
+    first = client.post(
+        "/api/v1/tenant/hr/timekeeping",
+        json={
+            "empleado_id": employee_id,
+            "fecha": "2026-03-12",
+            "hora_inicio": "07:30:00",
+            "tipo": "trabajo",
+        },
+    )
+    assert first.status_code == 201, first.text
+
+    duplicate = client.post(
+        "/api/v1/tenant/hr/timekeeping",
+        json={
+            "empleado_id": employee_id,
+            "fecha": "2026-03-12",
+            "hora_inicio": "08:00:00",
+            "tipo": "descanso",
+        },
+    )
+    assert duplicate.status_code == 400, duplicate.text
+    assert "open time entry" in duplicate.text
+
+
 def test_hr_payroll_generate_and_list(client: TestClient, db):
     _ensure_test_tenant(db)
     employee = client.post("/api/v1/tenant/hr/employees", json=_employee_payload("55443322D"))

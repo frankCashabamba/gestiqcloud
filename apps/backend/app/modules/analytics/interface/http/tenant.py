@@ -68,6 +68,7 @@ def _sector_kpis_payload(
     today = date.today()
     yesterday = today - timedelta(days=1)
     week_ago = today - timedelta(days=7)
+    next_week = today + timedelta(days=7)
     month_start = today.replace(day=1)
 
     if sector == "panaderia":
@@ -116,7 +117,9 @@ def _sector_kpis_payload(
                 COUNT(DISTINCT p.id) as items,
                 ARRAY_AGG(DISTINCT p.name) FILTER (WHERE p.name IS NOT NULL) as names
             FROM products p
-            LEFT JOIN stock_items si ON si.product_id = p.id
+            LEFT JOIN stock_items si
+              ON si.product_id = p.id
+             AND {tenant_clause('si.tenant_id::text')}
             WHERE {tenant_clause('p.tenant_id::text')}
             AND COALESCE(si.qty, 0) < 10
             LIMIT 10
@@ -125,22 +128,98 @@ def _sector_kpis_payload(
             tenant_params(),
         ).first()
 
-        # WASTE (stock_moves with negative 'adjustment' type for the day)
+        # WASTE (completed production orders with waste on the day)
         waste = db.execute(
             text(
                 f"""
             SELECT
-                COALESCE(SUM(ABS(qty)), 0) as total_qty,
-                COUNT(*) as count
-            FROM stock_moves
-            WHERE {tenant_clause('tenant_id::text')}
-            AND kind = 'adjustment'
-            AND qty < 0
-            AND DATE(occurred_at) = :today
+                COALESCE(SUM(po.waste_qty), 0) as total_qty,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN COALESCE(po.waste_qty, 0) <= 0 THEN 0
+                            WHEN COALESCE(order_costs.total_material_cost, 0) <= 0 THEN 0
+                            ELSE (
+                                order_costs.total_material_cost
+                                / NULLIF(COALESCE(po.qty_produced, 0) + COALESCE(po.waste_qty, 0), 0)
+                            ) * COALESCE(po.waste_qty, 0)
+                        END
+                    ),
+                    0
+                ) as estimated_value
+            FROM production_orders po
+            LEFT JOIN (
+                SELECT order_id, COALESCE(SUM(cost_total), 0) as total_material_cost
+                FROM production_order_lines
+                GROUP BY order_id
+            ) order_costs ON order_costs.order_id = po.id
+            WHERE {tenant_clause('po.tenant_id::text')}
+            AND po.status = 'COMPLETED'
+            AND DATE(po.completed_at) = :today
         """
             ),
             tenant_params(today=today),
         ).first()
+
+        production = db.execute(
+            text(
+                f"""
+            SELECT
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN status = 'COMPLETED' AND DATE(completed_at) = :today THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                ) as batches_completed,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN DATE(COALESCE(scheduled_date, created_at)) = :today
+                              AND status IN ('SCHEDULED', 'IN_PROGRESS', 'COMPLETED')
+                            THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                ) as batches_scheduled
+            FROM production_orders
+            WHERE {tenant_clause('tenant_id::text')}
+        """
+            ),
+            tenant_params(today=today),
+        ).first()
+
+        expiring_ingredients = db.execute(
+            text(
+                f"""
+            SELECT
+                p.name as name,
+                MIN(si.expires_at) as next_expiry
+            FROM stock_items si
+            JOIN products p ON p.id = si.product_id
+            WHERE {tenant_clause('si.tenant_id::text')}
+              AND COALESCE(si.qty, 0) > 0
+              AND si.expires_at IS NOT NULL
+              AND si.expires_at >= :today
+              AND si.expires_at <= :next_week
+            GROUP BY p.id, p.name
+            ORDER BY next_expiry ASC, p.name ASC
+            LIMIT 5
+        """
+            ),
+            tenant_params(today=today, next_week=next_week),
+        ).fetchall()
+
+        batches_completed = int(production[0]) if production and production[0] is not None else 0
+        batches_scheduled = int(production[1]) if production and production[1] is not None else 0
+        progress = (
+            round((batches_completed / batches_scheduled) * 100, 1)
+            if batches_scheduled > 0
+            else (100.0 if batches_completed > 0 else 0.0)
+        )
 
         # TOP PRODUCTS (best sellers of the month)
         top_products = db.execute(
@@ -178,16 +257,19 @@ def _sector_kpis_payload(
             },
             "waste": {
                 "today": float(waste[0]) if waste else 0.0,
-                "unit": "kg",
-                "estimated_value": 0.0,
+                "unit": "uds",
+                "estimated_value": float(waste[1]) if waste else 0.0,
                 "currency": currency,
             },
             "production": {
-                "batches_completed": 0,
-                "batches_scheduled": 0,
-                "progress": 0.0,
+                "batches_completed": batches_completed,
+                "batches_scheduled": batches_scheduled,
+                "progress": progress,
             },
-            "ingredients_expiring": {"next_7_days": 0, "items": []},
+            "ingredients_expiring": {
+                "next_7_days": len(expiring_ingredients or []),
+                "items": [row[0] for row in (expiring_ingredients or []) if row[0]],
+            },
             "top_products": (
                 [
                     {

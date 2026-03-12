@@ -194,6 +194,13 @@ class TimeEntryCreateRequest(BaseModel):
     notas: str | None = None
 
 
+class TimeEntryUpdateRequest(BaseModel):
+    hora_inicio: time | None = None
+    hora_fin: time | None = None
+    tipo: str | None = None
+    notas: str | None = None
+
+
 class TimeEntryResponse(BaseModel):
     id: UUID
     empleado_id: UUID
@@ -756,7 +763,17 @@ async def list_time_entries(
         query = query.where(TimeEntry.entry_date >= fromDate)
     if toDate:
         query = query.where(TimeEntry.entry_date <= toDate)
-    entries = db.execute(query.order_by(TimeEntry.entry_date.desc())).scalars().all()
+    entries = (
+        db.execute(
+            query.order_by(
+                TimeEntry.entry_date.desc(),
+                TimeEntry.clock_in_time.desc(),
+                TimeEntry.created_at.desc(),
+            )
+        )
+        .scalars()
+        .all()
+    )
     return TimeEntryListResponse(items=[_serialize_time_entry(item) for item in entries])
 
 
@@ -770,6 +787,25 @@ async def create_time_entry(
     employee = db.get(Employee, request.empleado_id)
     if not employee or not _same_identifier(employee.tenant_id, tenant_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    if request.hora_fin and request.hora_fin < request.hora_inicio:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid time range")
+    if request.hora_fin is None:
+        open_entry = (
+            db.execute(
+                select(TimeEntry).where(
+                    TimeEntry.tenant_id == _db_tenant_id(tenant_id),
+                    TimeEntry.employee_id == request.empleado_id,
+                    TimeEntry.clock_out_time.is_(None),
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if open_entry:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee already has an open time entry",
+            )
     entry = TimeEntry(
         tenant_id=_db_tenant_id(tenant_id),
         employee_id=request.empleado_id,
@@ -780,6 +816,38 @@ async def create_time_entry(
         notes=request.notas,
     )
     db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return _serialize_time_entry(entry)
+
+
+@router.patch("/timekeeping/{entry_id}", response_model=TimeEntryResponse)
+async def update_time_entry(
+    entry_id: UUID,
+    request: TimeEntryUpdateRequest,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> TimeEntryResponse:
+    tenant_id = _as_uuid(claims["tenant_id"])
+    entry = db.get(TimeEntry, entry_id)
+    if not entry or not _same_identifier(entry.tenant_id, tenant_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Time entry not found")
+
+    payload = request.model_dump(exclude_unset=True)
+    next_clock_in = payload.get("hora_inicio", entry.clock_in_time)
+    next_clock_out = payload.get("hora_fin", entry.clock_out_time)
+    if next_clock_out and next_clock_out < next_clock_in:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid time range")
+
+    if "hora_inicio" in payload:
+        entry.clock_in_time = payload["hora_inicio"]
+    if "hora_fin" in payload:
+        entry.clock_out_time = payload["hora_fin"]
+    if "tipo" in payload and payload["tipo"] is not None:
+        entry.entry_type = payload["tipo"]
+    if "notas" in payload:
+        entry.notes = payload["notas"]
+
     db.commit()
     db.refresh(entry)
     return _serialize_time_entry(entry)

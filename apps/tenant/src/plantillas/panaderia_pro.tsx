@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { usePanaderiaKPIs } from '../hooks/useDashboardKPIs'
+import { formatCurrency, usePanaderiaKPIs } from '../hooks/useDashboardKPIs'
 import { useMisModulos } from '../hooks/useMisModulos'
 import DashboardPro from './components/DashboardPro'
 import { calculateProduction, getRecipe, listRecipes, type ProductionCalculation, type Recipe, type RecipeIngredientResponse } from '../services/api/recetas'
@@ -64,6 +64,8 @@ const toNumber = (value: unknown): number => {
 }
 
 const formatMoney = (value: unknown): string => `$${toNumber(value).toFixed(2)}`
+const formatDashboardMoney = (value: unknown, currency?: string | null): string =>
+  formatCurrency(toNumber(value), currency || undefined)
 
 const buildQuickCostLines = (
   summary: FullCostSummary | null,
@@ -466,8 +468,7 @@ const PanaderiaDashboard: React.FC = () => {
               <span className="pill pill--ok">Operativo</span>
               {isModuleEnabled('ventas') && ventas.hoy && ventas.hoy > 0 && (
                 <span className="pill">
-                  Ventas hoy: {ventas.moneda || '$'}
-                  {ventas.hoy.toFixed(2)}
+                  Ventas hoy: {formatDashboardMoney(ventas.hoy, ventas.moneda)}
                 </span>
               )}
             </div>
@@ -512,11 +513,11 @@ const PanaderiaDashboard: React.FC = () => {
             <div className="kpi-grid">
               <div className="kpi">
                 <span className="kpi__label">Hoy</span>
-                <span className="kpi__value">{kpisLoading ? '...' : `$${ventas.hoy?.toFixed(2) || '0.00'}`}</span>
+                <span className="kpi__value">{kpisLoading ? '...' : formatDashboardMoney(ventas.hoy, ventas.moneda)}</span>
               </div>
               <div className="kpi">
                 <span className="kpi__label">Ayer</span>
-                <span className="kpi__value">${ventas.ayer?.toFixed(2) || '0.00'}</span>
+                <span className="kpi__value">{formatDashboardMoney(ventas.ayer, ventas.moneda)}</span>
               </div>
               <div className="kpi">
                 <span className={`kpi__value ${(ventas.variacion || 0) >= 0 ? 'positive' : 'negative'}`}>
@@ -550,11 +551,11 @@ const PanaderiaDashboard: React.FC = () => {
             <h3>Merma de hoy</h3>
             <div className="stat-large">
               <span className="stat-large__value">{mermas.hoy || 0}</span>
-              <span className="stat-large__label">kg</span>
+              <span className="stat-large__label">{mermas.unidad || 'uds'}</span>
             </div>
             <div className="kpi">
               <span className="kpi__label">Valor estimado</span>
-              <span className="kpi__value">${mermas.valor_estimado?.toFixed(2) || '0.00'}</span>
+              <span className="kpi__value">{formatDashboardMoney(mermas.valor_estimado, mermas.moneda || ventas.moneda)}</span>
             </div>
           </section>
         )}
@@ -608,7 +609,7 @@ const PanaderiaDashboard: React.FC = () => {
                       <tr key={i}>
                         <td>{prod.name}</td>
                         <td className="text-right">{prod.unidades} uds</td>
-                        <td className="text-right">${prod.ingresos?.toFixed(2)}</td>
+                        <td className="text-right">{formatDashboardMoney(prod.ingresos, ventas.moneda)}</td>
                       </tr>
                     ))}
                   </tbody>

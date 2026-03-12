@@ -214,6 +214,8 @@ export default function AlertConfigManager() {
                   >
                     <option value="low_stock">Low Stock</option>
                     <option value="out_of_stock">Out of Stock</option>
+                    <option value="expiring_stock">Expiring Stock</option>
+                    <option value="high_waste">High Waste</option>
                   </select>
                 </div>
 

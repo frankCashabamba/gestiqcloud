@@ -41,6 +41,7 @@
 
 .hr-panel-grid,
 .hr-kpi-grid,
+.hr-quick-grid,
 .hr-summary-grid,
 .hr-payroll-grid {
   display: grid;
@@ -55,6 +56,11 @@
 .hr-panel-grid,
 .hr-payroll-grid {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.hr-quick-grid {
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  align-items: start;
 }
 
 .hr-kpi-card {
@@ -98,6 +104,44 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--gc-primary) 12%, transparent);
   color: var(--gc-primary);
+}
+
+.hr-status-card {
+  display: grid;
+  gap: 0.55rem;
+  min-height: 100%;
+  padding: 1.15rem;
+  border: 1px solid var(--gc-border);
+  border-radius: 20px;
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--gc-primary) 6%, white), #ffffff 76%);
+  box-shadow: var(--gc-shadow-sm);
+}
+
+.hr-status-card__eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gc-muted);
+}
+
+.hr-status-card__value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--gc-foreground);
+}
+
+.hr-status-card__meta {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--gc-foreground);
+}
+
+.hr-status-card__hint {
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--gc-muted);
 }
 
 .hr-module-card {
@@ -215,6 +259,10 @@
 .hr-field {
   display: grid;
   gap: 0.4rem;
+}
+
+.hr-field--wide {
+  grid-column: span 2;
 }
 
 .hr-field__label {
@@ -411,6 +459,14 @@
 @media (max-width: 768px) {
   .hr-shell {
     padding: 1rem;
+  }
+
+  .hr-quick-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-field--wide {
+    grid-column: auto;
   }
 
   .hr-hero,
