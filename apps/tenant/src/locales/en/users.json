@@ -32,6 +32,8 @@
   "roleManagement": {
     "title": "Role Management",
     "createRole": "+ Create Role",
+    "seedOperational": "Load operational roles",
+    "seedSuccess": "Operational roles synced. Created: {{created}}. Already existing: {{existing}}.",
     "empty": "No roles created. Create the first role for your company.",
     "edit": "Edit",
     "delete": "Delete",

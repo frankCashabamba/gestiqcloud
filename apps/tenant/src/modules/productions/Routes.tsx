@@ -1,5 +1,7 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import ProtectedRoute from '../../auth/ProtectedRoute'
+import PermissionDenied from '../../components/PermissionDenied'
 import OrdersList from './OrdersList'
 import OrderForm from './OrderForm'
 import RecetasList from './RecetasList'
@@ -9,17 +11,57 @@ import CostDriversPage from './CostDriversPage'
 
 export default function ProduccionRoutes() {
     return (
-        <Routes>
-            <Route index element={<Navigate to="recetas" replace />} />
-            <Route path="ordenes" element={<OrdersList />} />
-            <Route path="ordenes/nuevo" element={<OrderForm />} />
-            <Route path="ordenes/:id/editar" element={<OrderForm />} />
-            <Route path="recetas" element={<RecetasList />} />
-            <Route path="recetas/nueva" element={<RecetaCreatePage />} />
-            <Route path="recetas/:rid" element={<RecetaShowPage />} />
-            <Route path="recetas/:rid/editar" element={<RecetaShowPage />} />
-            <Route path="costos" element={<CostDriversPage />} />
-            <Route path="*" element={<Navigate to="recetas" replace />} />
-        </Routes>
+        <ProtectedRoute
+            permission="produccion:read"
+            fallback={<PermissionDenied permission="produccion:read" />}
+        >
+            <Routes>
+                <Route index element={<Navigate to="recetas" replace />} />
+                <Route path="ordenes" element={<OrdersList />} />
+                <Route
+                    path="ordenes/nuevo"
+                    element={
+                        <ProtectedRoute permission="produccion:write">
+                            <OrderForm />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="ordenes/:id/editar"
+                    element={
+                        <ProtectedRoute permission="produccion:write">
+                            <OrderForm />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route path="recetas" element={<RecetasList />} />
+                <Route
+                    path="recetas/nueva"
+                    element={
+                        <ProtectedRoute permission="produccion:write">
+                            <RecetaCreatePage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route path="recetas/:rid" element={<RecetaShowPage />} />
+                <Route
+                    path="recetas/:rid/editar"
+                    element={
+                        <ProtectedRoute permission="produccion:write">
+                            <RecetaShowPage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="costos"
+                    element={
+                        <ProtectedRoute permission="produccion:write">
+                            <CostDriversPage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route path="*" element={<Navigate to="recetas" replace />} />
+            </Routes>
+        </ProtectedRoute>
     )
 }

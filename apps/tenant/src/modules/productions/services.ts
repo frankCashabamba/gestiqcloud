@@ -10,6 +10,7 @@ export type ProductionOrder = {
     qty_planned: number
     qty_produced?: number
     waste_qty?: number
+    waste_reason?: string
     scheduled_date?: string
     started_at?: string
     completed_at?: string
@@ -18,6 +19,14 @@ export type ProductionOrder = {
     notes?: string
     created_at?: string
     updated_at?: string
+}
+
+export type ProductionOrderCompleteInput = {
+    qty_produced: number
+    waste_qty?: number
+    waste_reason?: string
+    batch_number?: string
+    notes?: string
 }
 
 export type ProductionOrderCost = {
@@ -63,24 +72,51 @@ export type RecipeIngredient = {
     unidad?: string
 }
 
+function normalizeProductionStatus(
+    status?: string,
+): ProductionOrder['status'] | undefined {
+    if (!status) return undefined
+    const normalized = status.toLowerCase()
+    if (
+        normalized === 'draft' ||
+        normalized === 'scheduled' ||
+        normalized === 'in_progress' ||
+        normalized === 'completed' ||
+        normalized === 'cancelled'
+    ) {
+        return normalized
+    }
+    return undefined
+}
+
+function normalizeProductionOrder(order: ProductionOrder): ProductionOrder {
+    return {
+        ...order,
+        qty_planned: Number(order.qty_planned || 0),
+        qty_produced: order.qty_produced != null ? Number(order.qty_produced) : undefined,
+        waste_qty: order.waste_qty != null ? Number(order.waste_qty) : undefined,
+        status: normalizeProductionStatus(order.status),
+    }
+}
+
 export async function listProductionOrders(): Promise<ProductionOrder[]> {
     const { data } = await tenantApi.get<ProductionOrder[] | { items?: ProductionOrder[] }>('/api/v1/tenant/production/orders')
-    return ensureArray<ProductionOrder>(data)
+    return ensureArray<ProductionOrder>(data).map(normalizeProductionOrder)
 }
 
 export async function getProductionOrder(id: string): Promise<ProductionOrder> {
     const { data } = await tenantApi.get<ProductionOrder>(`/api/v1/tenant/production/orders/${id}`)
-    return data
+    return normalizeProductionOrder(data)
 }
 
 export async function createProductionOrder(payload: Omit<ProductionOrder, 'id'>): Promise<ProductionOrder> {
     const { data } = await tenantApi.post<ProductionOrder>('/api/v1/tenant/production/orders', payload)
-    return data
+    return normalizeProductionOrder(data)
 }
 
 export async function updateProductionOrder(id: string, payload: Partial<ProductionOrder>): Promise<ProductionOrder> {
     const { data } = await tenantApi.put<ProductionOrder>(`/api/v1/tenant/production/orders/${id}`, payload)
-    return data
+    return normalizeProductionOrder(data)
 }
 
 export async function removeProductionOrder(id: string): Promise<void> {
@@ -89,12 +125,12 @@ export async function removeProductionOrder(id: string): Promise<void> {
 
 export async function startProductionOrder(id: string): Promise<ProductionOrder> {
     const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/start`, {})
-    return data
+    return normalizeProductionOrder(data)
 }
 
-export async function completeProductionOrder(id: string, payload: { qty_produced: number; waste_qty?: number }): Promise<ProductionOrder> {
+export async function completeProductionOrder(id: string, payload: ProductionOrderCompleteInput): Promise<ProductionOrder> {
     const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/complete`, payload)
-    return data
+    return normalizeProductionOrder(data)
 }
 
 export async function listProductionOrderCosts(id: string): Promise<ProductionOrderCost[]> {
@@ -112,7 +148,7 @@ export async function replaceProductionOrderCosts(
 
 export async function cancelProductionOrder(id: string): Promise<ProductionOrder> {
     const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/cancel`, {})
-    return data
+    return normalizeProductionOrder(data)
 }
 
 export async function listRecipes(): Promise<Recipe[]> {

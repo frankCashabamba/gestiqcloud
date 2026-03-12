@@ -15,6 +15,7 @@ import {
   type CostDriverCreate,
   type CostDriverUnitType,
 } from '../../services/api/productionCosts';
+import ProductionAvailabilityGuard from './ProductionAvailabilityGuard';
 
 interface EditForm {
   code: string;
@@ -35,6 +36,14 @@ const createEmptyForm = (unit: string = DEFAULT_COST_DRIVER_UNIT): EditForm => (
 });
 
 export default function CostDriversPage() {
+  return (
+    <ProductionAvailabilityGuard>
+      <CostDriversPageContent />
+    </ProductionAvailabilityGuard>
+  );
+}
+
+function CostDriversPageContent() {
   const { t } = useTranslation(['productions', 'common']);
   const navigate = useNavigate();
   const { empresa } = useParams();

@@ -6,7 +6,10 @@ import { useTranslation } from 'react-i18next'
 import { createStockMove, listWarehouses, type Warehouse } from './services'
 import { listProductos, type Producto } from '../products/productsApi'
 import { useToast, getErrorMessage } from '../../shared/toast'
-import { useCompanySector } from '../../contexts/CompanyConfigContext'
+import {
+    useCompanySector,
+    useResolvedCompanyFeatures,
+} from '../../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
@@ -17,6 +20,7 @@ export default function MovimientoForm() {
     const nav = useNavigate()
     const { success, error } = useToast()
     const sector = useCompanySector()
+    const features = useResolvedCompanyFeatures()
     const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'inventory')
 
     const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -151,28 +155,34 @@ export default function MovimientoForm() {
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="gc-label">{t('inventory:form.batch')}</label>
-                        <input
-                            type="text"
-                            value={form.lote}
-                            onChange={(e) => setForm({ ...form, lote: e.target.value })}
-                            className="gc-input"
-                            placeholder={getFieldPlaceholder(placeholders, 'lote', 'LOT-2025-001')}
-                        />
-                    </div>
+                {(features.inventory_lot_tracking || features.inventory_expiry_tracking) && (
+                    <div className="grid grid-cols-2 gap-4">
+                        {features.inventory_lot_tracking && (
+                            <div>
+                                <label className="gc-label">{t('inventory:form.batch')}</label>
+                                <input
+                                    type="text"
+                                    value={form.lote}
+                                    onChange={(e) => setForm({ ...form, lote: e.target.value })}
+                                    className="gc-input"
+                                    placeholder={getFieldPlaceholder(placeholders, 'lote', 'LOT-2025-001')}
+                                />
+                            </div>
+                        )}
 
-                    <div>
-                        <label className="gc-label">{t('inventory:form.expiry')}</label>
-                        <input
-                            type="date"
-                            value={form.expires_at}
-                            onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
-                            className="gc-input"
-                        />
+                        {features.inventory_expiry_tracking && (
+                            <div>
+                                <label className="gc-label">{t('inventory:form.expiry')}</label>
+                                <input
+                                    type="date"
+                                    value={form.expires_at}
+                                    onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
+                                    className="gc-input"
+                                />
+                            </div>
+                        )}
                     </div>
-                </div>
+                )}
 
                 <div>
                     <label className="gc-label">{t('inventory:form.notes')}</label>

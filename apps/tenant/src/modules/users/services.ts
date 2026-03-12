@@ -7,6 +7,7 @@ import type {
   ModuloOption,
   RolOption,
   Rol,
+  RolSeedSummary,
 } from './types'
 
 // Payloads para roles
@@ -114,6 +115,11 @@ export async function updateRol(id: number | string, payload: RolUpdatePayload):
 
 export async function deleteRol(id: number | string): Promise<void> {
   await tenantApi.delete(TENANT_ROLES.byId(id))
+}
+
+export async function seedOperationalRoles(): Promise<RolSeedSummary> {
+  const { data } = await tenantApi.post<RolSeedSummary>(TENANT_ROLES.seedOperational)
+  return data
 }
 
 export async function listGlobalPermissions(force = false): Promise<GlobalPermission[]> {

@@ -78,3 +78,16 @@ export type Rol = {
   base_role_id?: string
   created_by_company: boolean
 }
+
+export type RolSeedItem = {
+  role: Rol
+  status: 'created' | 'existing'
+}
+
+export type RolSeedSummary = {
+  template: string
+  sector?: string | null
+  created: number
+  existing: number
+  items: RolSeedItem[]
+}

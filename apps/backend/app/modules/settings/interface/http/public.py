@@ -193,6 +193,32 @@ def get_tenant_config(
             if isinstance(pos_config, dict)
             else template_pos.get("enable_batch_tracking", False)
         ),
+        "production_enabled": bool(
+            settings_obj.get(
+                "production_enabled",
+                sector_features.get("production", sector_features.get("recipes", False))
+                or ("production" in enabled_modules)
+                or ("produccion" in enabled_modules),
+            )
+        ),
+        "production_batch_tracking": bool(
+            settings_obj.get(
+                "production_batch_tracking",
+                sector_features.get(
+                    "production_batch_tracking",
+                    sector_features.get("batch_tracking", False),
+                ),
+            )
+        ),
+        "production_waste_tracking": bool(
+            settings_obj.get(
+                "production_waste_tracking",
+                sector_features.get(
+                    "production_waste_tracking",
+                    sector_features.get("waste_tracking", False),
+                ),
+            )
+        ),
         "pos_receipt_width_mm": int(pos_receipt_width) if pos_receipt_width is not None else None,
         "pos_return_window_days": (
             int(pos_return_window_days) if pos_return_window_days is not None else None

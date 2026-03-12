@@ -7,6 +7,7 @@ import { getRecipe as getRecipeDetail, getCostBreakdown, listRecipes, type Recip
 import { listProducts } from '../../services/api/products'
 import { listWarehouses, type Warehouse } from '../inventory/services'
 import { useTranslation } from 'react-i18next'
+import ProductionAvailabilityGuard from './ProductionAvailabilityGuard'
 
 type FieldCfg = {
     field: string
@@ -18,6 +19,14 @@ type FieldCfg = {
 }
 
 export default function OrderForm() {
+    return (
+        <ProductionAvailabilityGuard>
+            <OrderFormContent />
+        </ProductionAvailabilityGuard>
+    )
+}
+
+function OrderFormContent() {
     const { id, empresa } = useParams()
     const [search] = useSearchParams()
     const nav = useNavigate()

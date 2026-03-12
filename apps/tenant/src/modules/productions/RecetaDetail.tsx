@@ -32,6 +32,7 @@ import {
   type FullCostSummary,
 } from '../../services/api/productionCosts';
 import tenantApi from '../../shared/api/client';
+import { usePermission } from '../../hooks/usePermission';
 
 const VALID_UNITS = new Set(['kg', 'g', 'lb', 'oz', 'ton', 'mg', 'L', 'ml', 'gal', 'qt', 'pt', 'cup', 'fl_oz', 'tbsp', 'tsp', 'uds', 'unidades', 'pcs']);
 
@@ -166,6 +167,8 @@ interface RecetaDetailProps {
 
 export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }: RecetaDetailProps) {
   const { t } = useTranslation(['productions', 'common']);
+  const can = usePermission();
+  const canWrite = can('produccion:write');
 
   const [loading, setLoading] = useState(true);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -305,7 +308,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   };
 
   const handleUpdateProductPrice = async (multiplier: number = 2.5) => {
-    if (!recipe || !breakdown) return;
+    if (!canWrite || !recipe || !breakdown) return;
 
     try {
       setUpdating(true);
@@ -363,7 +366,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   };
 
   const handleSaveIngredients = async () => {
-    if (!recipe) return;
+    if (!canWrite || !recipe) return;
     try {
       setUpdating(true);
       setError(null);
@@ -466,19 +469,21 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   };
 
   const openOrderPrompt = () => {
+    if (!canWrite) return;
     const baseQty = Number(recipe?.yield_qty || 1);
     setCustomOrderQty(String(baseQty > 0 ? baseQty : 1));
     setOrderPromptOpen(true);
   };
 
   const submitOrderWithQty = (qty: number) => {
-    if (!recipe || !onCreateOrder) return;
+    if (!canWrite || !recipe || !onCreateOrder) return;
     const safeQty = Number.isFinite(qty) && qty > 0 ? qty : Number(recipe.yield_qty || 1);
     onCreateOrder(recipe, { qty: safeQty, autoCreate: true });
     setOrderPromptOpen(false);
   };
 
   const startInlineEdit = () => {
+    if (!canWrite) return;
     if (!isEditing) setIsEditing(true);
   };
 
@@ -551,7 +556,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
           backgroundColor: '#f8fafc',
         }}
       >
-        {!isEditing && (
+        {!isEditing && canWrite && (
           <Alert severity="info" sx={{ ...infoAlertSx, mb: 3, fontWeight: 600 }}>
             Haz clic en parametros, ingredientes o costos para editar.
           </Alert>
@@ -559,14 +564,14 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
         {/* Resumen */}
         <Box
-          sx={{ ...sectionCardSx, ...(isEditing ? {} : clickableSectionSx) }}
-          onClick={isEditing ? undefined : startInlineEdit}
+          sx={{ ...sectionCardSx, ...(canWrite && !isEditing ? clickableSectionSx : {}) }}
+          onClick={canWrite && !isEditing ? startInlineEdit : undefined}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
             <Typography variant="overline" sx={{ color: '#64748b', letterSpacing: 1.2 }}>
               Resumen de receta
             </Typography>
-            {!isEditing && (
+            {!isEditing && canWrite && (
               <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600 }}>
                 Haz clic para editar rendimiento
               </Typography>
@@ -937,8 +942,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
         {/* Desglose de ingredientes */}
         <Box
-          sx={{ ...sectionCardSx, ...(isEditing ? {} : clickableSectionSx), mb: 3 }}
-          onClick={isEditing ? undefined : startInlineEdit}
+          sx={{ ...sectionCardSx, ...(canWrite && !isEditing ? clickableSectionSx : {}), mb: 3 }}
+          onClick={canWrite && !isEditing ? startInlineEdit : undefined}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
             <Box>
@@ -946,7 +951,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                 {t('productions:recipe.ingredientsBreakdown')}
               </Typography>
               <Typography variant="caption" sx={{ color: '#64748b' }}>
-                {isEditing ? 'Edita ingredientes directamente en la tabla.' : 'Haz clic en la tabla para editar ingredientes.'}
+                {isEditing ? 'Edita ingredientes directamente en la tabla.' : canWrite ? 'Haz clic en la tabla para editar ingredientes.' : 'Ingredientes en modo lectura.'}
               </Typography>
             </Box>
             {isEditing && (
@@ -1152,8 +1157,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         {/* Costos indirectos */}
         <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
         <Box
-          sx={{ ...sectionCardSx, ...(isEditing ? {} : clickableSectionSx), mb: 3 }}
-          onClick={isEditing ? undefined : startInlineEdit}
+          sx={{ ...sectionCardSx, ...(canWrite && !isEditing ? clickableSectionSx : {}), mb: 3 }}
+          onClick={canWrite && !isEditing ? startInlineEdit : undefined}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
             <Box>
@@ -1161,7 +1166,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                 {t('productions:recipe.indirectCosts')}
               </Typography>
               <Typography variant="caption" sx={{ color: '#64748b' }}>
-                {isEditing ? 'Ajusta mano de obra y costos por driver.' : 'Haz clic para editar costos indirectos.'}
+                {isEditing ? 'Ajusta mano de obra y costos por driver.' : canWrite ? 'Haz clic para editar costos indirectos.' : 'Costos indirectos en modo lectura.'}
               </Typography>
             </Box>
           </Box>
@@ -1371,16 +1376,18 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
           <>
             <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
             <Box
-              sx={{ ...sectionCardSx, ...clickableSectionSx, mb: 0 }}
-              onClick={startInlineEdit}
+              sx={{ ...sectionCardSx, ...(canWrite ? clickableSectionSx : {}), mb: 0 }}
+              onClick={canWrite ? startInlineEdit : undefined}
             >
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 1 }}>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
                   {t('productions:recipe.instructions')}
                 </Typography>
-                <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600 }}>
-                  Haz clic para editar
-                </Typography>
+                {canWrite && (
+                  <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600 }}>
+                    Haz clic para editar
+                  </Typography>
+                )}
               </Box>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#334155', lineHeight: 1.7 }}>
                 {recipe.instructions}
@@ -1415,7 +1422,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
           <Box />
         )}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', marginLeft: 'auto' }}>
-          {onCreateOrder && recipe && (
+          {canWrite && onCreateOrder && recipe && (
             <Button
               variant="contained"
               color="primary"
@@ -1430,7 +1437,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         </Box>
       </DialogActions>
 
-      <Dialog open={orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+      <Dialog open={canWrite && orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
         <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
           {t('productions:recipe.createOrder')}
         </DialogTitle>

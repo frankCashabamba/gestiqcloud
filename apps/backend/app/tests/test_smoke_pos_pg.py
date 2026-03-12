@@ -215,3 +215,98 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     assert float(line[2] or 0) == 5.0
     assert float(line[3] or 0) == 5.0
     assert float(line[4] or 0) == 0.5
+
+
+def test_close_shift_fails_when_pending_receipts_exist(
+    db: Session, tenant_minimal, superuser_factory
+):
+    from fastapi import HTTPException
+
+    from app.modules.pos.interface.http.tenant import (
+        CloseShiftIn,
+        OpenShiftIn,
+        ReceiptCreateIn,
+        ReceiptLineIn,
+        RegisterIn,
+        close_shift,
+        create_receipt,
+        create_register,
+        open_shift,
+    )
+
+    tid = tenant_minimal["tenant_id"]
+    tid_str = tenant_minimal["tenant_id_str"]
+
+    eng = db.get_bind()
+    if eng.dialect.name != "postgresql":
+        pytest.skip("Postgres-specific smoke test (RLS + SET LOCAL)")
+
+    db.execute(text(f"SET app.tenant_id = '{tid_str}'"))
+    db.execute(text("SET session_replication_role = REPLICA"))
+
+    user = superuser_factory(username="pos_shift_pending", tenant_id=tid)
+
+    class _State:
+        access_claims = {"tenant_id": tid_str, "user_id": str(user.id)}
+
+    class _Req:
+        state = _State()
+
+    product_id = _uuid.uuid4()
+    warehouse_id = _uuid.uuid4()
+    warehouse_code = f"POS-PENDING-{warehouse_id.hex[:8]}"
+
+    db.execute(
+        text(
+            "INSERT INTO products (id, tenant_id, name, sku, active, stock, unit) "
+            "VALUES (:id, :tid, :name, :sku, TRUE, 0, 'unit')"
+        ),
+        {
+            "id": product_id,
+            "tid": tid,
+            "name": "Pending Receipt Product",
+            "sku": "POS-PENDING-001",
+        },
+    )
+    db.execute(
+        text(
+            "INSERT INTO warehouses (id, tenant_id, code, name, active) "
+            "VALUES (:id, :tid, :code, :name, TRUE)"
+        ),
+        {"id": warehouse_id, "tid": tid, "code": warehouse_code, "name": "Pending Warehouse"},
+    )
+    db.commit()
+
+    reg = create_register(
+        RegisterIn(code="R2", name="Caja 2", default_warehouse_id=str(warehouse_id)), _Req(), db
+    )
+    sh = open_shift(OpenShiftIn(register_id=str(reg["id"]), opening_float=50.0), _Req(), db)
+    shift_id = sh["id"]
+
+    receipt = create_receipt(
+        ReceiptCreateIn(
+            shift_id=shift_id,
+            register_id=str(reg["id"]),
+            lines=[
+                ReceiptLineIn(
+                    product_id=str(product_id),
+                    qty=1,
+                    unit_price=4.0,
+                )
+            ],
+        ),
+        _Req(),
+        db,
+    )
+    assert receipt["id"]
+
+    with pytest.raises(HTTPException) as exc:
+        close_shift(
+            shift_id,
+            CloseShiftIn(closing_cash=50.0, loss_amount=0.0, loss_note=None),
+            _Req(),
+            db,
+        )
+
+    assert exc.value.status_code == 400
+    assert "sin cobrar" in str(exc.value.detail).lower() or "pendiente" in str(exc.value.detail).lower()

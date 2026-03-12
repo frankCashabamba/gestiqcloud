@@ -92,7 +92,7 @@ class InventoryCostingService:
         self.db.execute(
             text(
                 "UPDATE inventory_cost_state "
-                "SET on_hand_qty = :q, avg_cost = :avg, updated_at = now() "
+                "SET on_hand_qty = :q, avg_cost = :avg, updated_at = CURRENT_TIMESTAMP "
                 "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid"
             ),
             {
@@ -132,7 +132,7 @@ class InventoryCostingService:
         self.db.execute(
             text(
                 "UPDATE inventory_cost_state "
-                "SET on_hand_qty = :q, updated_at = now() "
+                "SET on_hand_qty = :q, updated_at = CURRENT_TIMESTAMP "
                 "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid"
             ),
             {
@@ -156,7 +156,7 @@ class InventoryCostingService:
                 "product_id TEXT NOT NULL, "
                 "remaining_qty NUMERIC(14,6) NOT NULL, "
                 "unit_cost NUMERIC(14,6) NOT NULL, "
-                "created_at TIMESTAMP DEFAULT NOW()"
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                 ")"
             )
         )

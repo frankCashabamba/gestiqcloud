@@ -160,6 +160,8 @@ export async function createStockMove(data: {
     product_id: data.product_id,
     delta: Number(data.qty),
     reason: data.notes || data.kind,
+    lote: data.lote || undefined,
+    expires_at: data.expires_at || undefined,
   } as any)
   try {
     const res = await apiFetch(`${INVENTORY_BASE}/stock/adjust`, {

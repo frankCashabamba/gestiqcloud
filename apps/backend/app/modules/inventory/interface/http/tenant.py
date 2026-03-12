@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
 
@@ -45,6 +45,16 @@ def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
     if value is None:
         value = 0
     return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
+
+
+def _iso_date(value: date | datetime | str | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
 
 
 class WarehouseIn(BaseModel):
@@ -150,6 +160,8 @@ class StockAdjustIn(BaseModel):
     delta: float = Field(description="positive receipt, negative issue")
     unit_cost: float | None = Field(default=None, description="optional unit cost for receipts")
     reason: str | None = None
+    lote: str | None = None
+    expires_at: date | None = None
 
 
 class StockItemOut(BaseModel):
@@ -168,6 +180,53 @@ class StockItemOut(BaseModel):
     expires_at: str | None = None
     product: dict | None = None
     warehouse: dict | None = None
+
+
+def _serialize_stock_item(
+    row: StockItem,
+    *,
+    product: Product | None = None,
+    warehouse: Warehouse | None = None,
+    pack_size: float | None = None,
+    pack_label: str | None = None,
+    pack_unit: str | None = None,
+) -> StockItemOut:
+    meta = getattr(product, "product_metadata", None) or {}
+    product_payload = None
+    if product is not None:
+        product_payload = {
+            "id": str(product.id),
+            "codigo": product.sku,
+            "nombre": product.name,
+            "precio": float(product.price or 0),
+            "product_metadata": meta,
+            "metadata": meta,
+            "stock_minimo": meta.get("stock_minimo"),
+            "reorder_point": meta.get("reorder_point"),
+        }
+    warehouse_payload = None
+    if warehouse is not None:
+        warehouse_payload = {
+            "id": str(warehouse.id),
+            "code": warehouse.code,
+            "name": warehouse.name,
+        }
+
+    return StockItemOut(
+        id=str(row.id),
+        product_id=str(row.product_id),
+        warehouse_id=str(row.warehouse_id),
+        qty=float(row.qty or 0),
+        unit=(product.unit if product else None) or "unit",
+        pack_size=pack_size,
+        pack_label=pack_label,
+        pack_unit=pack_unit,
+        ubicacion=getattr(row, "location", None),
+        lote=getattr(row, "lot", None),
+        expires_at=_iso_date(getattr(row, "expires_at", None)),
+        product=product_payload,
+        warehouse=warehouse_payload,
+    )
 
 
 @router.get("/stock", response_model=list[StockItemOut])
@@ -197,17 +256,14 @@ def get_stock(
 
     q = (
         select(
-            StockItem.id,
-            StockItem.product_id,
-            StockItem.warehouse_id,
-            StockItem.qty,
+            StockItem,
+            Product,
+            Warehouse,
             Product.sku.label("p_sku"),
             Product.name.label("p_name"),
             Product.price.label("p_price"),
             Product.product_metadata.label("p_meta"),
             Product.unit.label("p_unit"),
-            Warehouse.code.label("w_code"),
-            Warehouse.name.label("w_name"),
             pack_subq.c.pack_size,
             pack_subq.c.pack_label,
             pack_subq.c.pack_unit,
@@ -226,30 +282,14 @@ def get_stock(
     rows = db.execute(q).all()
     out: list[StockItemOut] = []
     for r in rows:
-        meta = r[7] or {}
         out.append(
-            StockItemOut(
-                id=str(r[0]),
-                product_id=str(r[1]),
-                warehouse_id=str(r[2]),
-                qty=float(r[3] or 0),
-                unit=r[8] or "unit",
-                pack_size=float(r[11]) if r[11] is not None else None,
-                pack_label=r[12] or None,
-                pack_unit=r[13] or None,
-                product={
-                    "codigo": r[4],
-                    "nombre": r[5],
-                    "precio": float(r[6] or 0),
-                    "product_metadata": meta,
-                    "metadata": meta,
-                    "stock_minimo": meta.get("stock_minimo"),
-                    "reorder_point": meta.get("reorder_point"),
-                },
-                warehouse={
-                    "code": r[9],
-                    "name": r[10],
-                },
+            _serialize_stock_item(
+                r[0],
+                product=r[1],
+                warehouse=r[2],
+                pack_size=float(r[8]) if r[8] is not None else None,
+                pack_label=r[9] or None,
+                pack_unit=r[10] or None,
             )
         )
     return out
@@ -274,6 +314,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
             product_id=payload.product_id,
             qty=0,
             tenant_id=tid,
+            lot=(payload.lote or None),
+            expires_at=payload.expires_at,
         )
         db.add(row)
         db.flush()
@@ -308,6 +350,12 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
             initial_avg_cost=fallback_cost,
         )
 
+    if payload.delta >= 0:
+        if payload.lote is not None:
+            row.lot = payload.lote.strip() or None
+        if payload.expires_at is not None:
+            row.expires_at = payload.expires_at
+
     # Create move
     kind = "receipt" if payload.delta >= 0 else "issue"
     unit_cost_for_move = state.avg_cost if payload.delta < 0 else unit_cost
@@ -320,6 +368,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
         tentative=False,
         ref_type="adjust",
         ref_id=payload.reason or None,
+        lot=(payload.lote.strip() if payload.lote else None),
+        expires_at=payload.expires_at,
         unit_cost=float(unit_cost_for_move),
         total_cost=float(unit_cost_for_move * qty_dec),
     )
@@ -354,7 +404,11 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
 
     db.commit()
     db.refresh(row)
-    return row
+    product = (
+        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    )
+    warehouse = db.query(Warehouse).filter(Warehouse.id == payload.warehouse_id).first()
+    return _serialize_stock_item(row, product=product, warehouse=warehouse)
 
 
 class TransferIn(BaseModel):
@@ -576,7 +630,11 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
         db.add(item)
     db.commit()
     db.refresh(item)
-    return item
+    product = (
+        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    )
+    warehouse = db.query(Warehouse).filter(Warehouse.id == payload.warehouse_id).first()
+    return _serialize_stock_item(item, product=product, warehouse=warehouse)
 
 
 class ReorderPointIn(BaseModel):

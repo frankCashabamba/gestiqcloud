@@ -193,6 +193,37 @@ def test_listar_roles(client: TestClient, tenant_headers):
     assert len(data) >= 1, f"Expected at least 1 role, got {len(data)}"
 
 
+def test_seed_operational_roles_is_idempotent_for_bakery(
+    client: TestClient, tenant_headers, db, seed_tenant_context
+):
+    from app.models.company.company_role import CompanyRole
+
+    _, tenant = seed_tenant_context
+    tenant.sector_template_name = "panaderia"
+    db.add(tenant)
+    db.commit()
+
+    first = client.post("/api/v1/tenant/roles/seed-operational", headers=tenant_headers)
+    assert first.status_code == 200, f"Expected 200, got {first.status_code}: {first.text}"
+    first_body = first.json()
+    assert first_body["template"] == "operational"
+    assert first_body["sector"] == "panaderia"
+    assert first_body["created"] == 3
+    assert first_body["existing"] == 0
+
+    role_names = {item["role"]["name"] for item in first_body["items"]}
+    assert {"Cajera", "Panadero", "Encargado"}.issubset(role_names)
+
+    second = client.post("/api/v1/tenant/roles/seed-operational", headers=tenant_headers)
+    assert second.status_code == 200, f"Expected 200, got {second.status_code}: {second.text}"
+    second_body = second.json()
+    assert second_body["created"] == 0
+    assert second_body["existing"] == 3
+
+    total = db.query(CompanyRole).filter(CompanyRole.tenant_id == tenant.id).count()
+    assert total >= 5
+
+
 def test_check_username_public(client: TestClient, db):
     r = client.get("/api/v1/users/check-username/algunusuario")
     assert r.status_code in (200, 400)

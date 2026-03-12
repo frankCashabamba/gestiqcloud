@@ -6,6 +6,8 @@ import { listProducts, type Product } from '../../services/api/products'
 import { getRecipeFullCost, type FullCostSummary } from '../../services/api/productionCosts'
 import { getCompanySettings, getCurrencySymbol, getDefaultTaxRate, type CompanySettings } from '../../services/companySettings'
 import tenantApi from '../../shared/api/client'
+import ProductionAvailabilityGuard from './ProductionAvailabilityGuard'
+import { usePermission } from '../../hooks/usePermission'
 
 function safeImageUrl(url: unknown): string | null {
   if (!url || typeof url !== 'string') return null
@@ -20,7 +22,17 @@ function safeImageUrl(url: unknown): string | null {
 import { useToast } from '../../shared/toast'
 
 export default function RecetasList() {
+  return (
+    <ProductionAvailabilityGuard>
+      <RecetasListContent />
+    </ProductionAvailabilityGuard>
+  )
+}
+
+function RecetasListContent() {
   const { t } = useTranslation(['costing', 'common'])
+  const can = usePermission()
+  const canWrite = can('produccion:write')
   const { success, error: toastError } = useToast()
   const navigate = useNavigate()
   const { empresa } = useParams()
@@ -139,7 +151,7 @@ export default function RecetasList() {
   }
 
   const handleDeleteConfirm = async () => {
-    if (!deleteModal) return
+    if (!canWrite || !deleteModal) return
     setDeleting(true)
     try {
       await deleteRecipe(deleteModal.id)
@@ -221,8 +233,9 @@ export default function RecetasList() {
 
           <select
             className="border rounded px-3 py-2"
-            onChange={(e) => e.target.value && navigate(`${basePath}/recetas/nueva?productId=${encodeURIComponent(e.target.value)}`)}
+            onChange={(e) => canWrite && e.target.value && navigate(`${basePath}/recetas/nueva?productId=${encodeURIComponent(e.target.value)}`)}
             defaultValue=""
+            disabled={!canWrite}
           >
             <option value="" disabled>
               {t('recipesList.createFromProduct')}
@@ -233,6 +246,8 @@ export default function RecetasList() {
               </option>
             ))}
           </select>
+          {canWrite && (
+          <>
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
             onClick={() => navigate(`${basePath}/recetas/nueva`)}
@@ -263,6 +278,8 @@ export default function RecetasList() {
           >
             💾 {t('recipesList.save')}
           </button>
+          </>
+          )}
         </div>
       </div>
 
@@ -336,12 +353,14 @@ export default function RecetasList() {
                       >
                         {t('recipesList.view')}
                       </button>
-                      <button
-                        className="text-red-600 hover:underline text-sm"
-                        onClick={() => setDeleteModal({ id: r.id, name: r.name })}
-                      >
-                        {t('actions.deleteRecipe')}
-                      </button>
+                      {canWrite && (
+                        <button
+                          className="text-red-600 hover:underline text-sm"
+                          onClick={() => setDeleteModal({ id: r.id, name: r.name })}
+                        >
+                          {t('actions.deleteRecipe')}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -362,7 +381,7 @@ export default function RecetasList() {
         </>
       )}
       </div>
-      {deleteModal && (
+      {canWrite && deleteModal && (
         <div
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 50,

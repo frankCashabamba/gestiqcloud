@@ -73,6 +73,11 @@ interface Features {
   pos_receipt_width_mm: number
   pos_return_window_days: number
 
+  // Produccion
+  production_enabled: boolean
+  production_batch_tracking: boolean
+  production_waste_tracking: boolean
+
   // General
   price_includes_tax: boolean
   tax_rate: number
@@ -275,8 +280,76 @@ export function useSectorFeaturesFromConfig(): SectorFeaturesConfig {
       serial_tracking: false,
       batch_tracking: false,
       weight_tracking: false,
+      production: false,
+      recipes: false,
+      production_batch_tracking: false,
+      production_waste_tracking: false,
+      waste_tracking: false,
     }
   )
+}
+
+function resolveFeatureFlag(
+  primary: boolean | undefined,
+  secondary: boolean | undefined,
+  fallback = false,
+): boolean {
+  if (typeof primary === 'boolean') return primary
+  if (typeof secondary === 'boolean') return secondary
+  return fallback
+}
+
+export function useResolvedCompanyFeatures(): Features {
+  const { features, sectorConfig, isModuleEnabled } = useCompanyConfig()
+  const sectorFeatures: Partial<SectorFeaturesConfig> = sectorConfig?.features || {}
+  const productionModuleEnabled =
+    isModuleEnabled('production') || isModuleEnabled('produccion')
+
+  return {
+    inventory_expiry_tracking: resolveFeatureFlag(
+      features?.inventory_expiry_tracking,
+      sectorFeatures.expiry_tracking,
+    ),
+    inventory_lot_tracking: resolveFeatureFlag(
+      features?.inventory_lot_tracking,
+      sectorFeatures.lot_tracking,
+    ),
+    inventory_serial_tracking: resolveFeatureFlag(
+      features?.inventory_serial_tracking,
+      sectorFeatures.serial_tracking,
+    ),
+    inventory_auto_reorder: resolveFeatureFlag(features?.inventory_auto_reorder, undefined),
+    pos_enable_weights: resolveFeatureFlag(
+      features?.pos_enable_weights,
+      sectorFeatures.weight_tracking,
+    ),
+    pos_enable_batch_tracking: resolveFeatureFlag(
+      features?.pos_enable_batch_tracking,
+      sectorFeatures.batch_tracking,
+    ),
+    pos_receipt_width_mm: features?.pos_receipt_width_mm ?? 58,
+    pos_return_window_days: features?.pos_return_window_days ?? 15,
+    production_enabled: resolveFeatureFlag(
+      features?.production_enabled,
+      sectorFeatures.production ?? sectorFeatures.recipes,
+      productionModuleEnabled,
+    ),
+    production_batch_tracking: resolveFeatureFlag(
+      features?.production_batch_tracking,
+      sectorFeatures.production_batch_tracking ?? sectorFeatures.batch_tracking,
+    ),
+    production_waste_tracking: resolveFeatureFlag(
+      features?.production_waste_tracking,
+      sectorFeatures.production_waste_tracking ?? sectorFeatures.waste_tracking,
+    ),
+    price_includes_tax: resolveFeatureFlag(features?.price_includes_tax, undefined, true),
+    tax_rate: features?.tax_rate ?? 0,
+  }
+}
+
+export function useProductionModuleEnabled(): boolean {
+  const features = useResolvedCompanyFeatures()
+  return features.production_enabled
 }
 
 /**

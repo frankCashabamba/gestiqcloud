@@ -9,6 +9,7 @@ import {
   setUsuarioPassword,
   listRoles,
   deleteRol,
+  seedOperationalRoles,
 } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
@@ -119,6 +120,21 @@ export default function UsuariosList() {
       await deleteRol(id)
       setRolesCompletos(prev => prev.filter(r => r.id !== id))
       success(t('users:roleManagement.deleted'))
+    } catch (e: any) {
+      toastError(getErrorMessage(e))
+    }
+  }
+
+  const handleSeedOperationalRoles = async () => {
+    try {
+      const result = await seedOperationalRoles()
+      await loadRoles()
+      success(
+        t('users:roleManagement.seedSuccess', {
+          created: result.created,
+          existing: result.existing,
+        })
+      )
     } catch (e: any) {
       toastError(getErrorMessage(e))
     }
@@ -281,12 +297,20 @@ export default function UsuariosList() {
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-slate-900">{t('users:roleManagement.title')}</h2>
-              <button
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-                onClick={() => setSelectedRol({} as Rol)}
-              >
-                {t('users:roleManagement.createRole')}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  onClick={() => void handleSeedOperationalRoles()}
+                >
+                  {t('users:roleManagement.seedOperational')}
+                </button>
+                <button
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                  onClick={() => setSelectedRol({} as Rol)}
+                >
+                  {t('users:roleManagement.createRole')}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">

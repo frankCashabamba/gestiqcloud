@@ -32,6 +32,8 @@
   "roleManagement": {
     "title": "Gestión de Roles",
     "createRole": "+ Crear Rol",
+    "seedOperational": "Cargar roles operativos",
+    "seedSuccess": "Roles operativos sincronizados. Creados: {{created}}. Ya existentes: {{existing}}.",
     "empty": "No hay roles creados. Crea el primer rol para tu empresa.",
     "edit": "Editar",
     "delete": "Eliminar",

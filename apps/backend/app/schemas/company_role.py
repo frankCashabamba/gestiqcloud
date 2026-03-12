@@ -1,5 +1,6 @@
 """Schemas for company roles management."""
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,3 +35,20 @@ class CompanyRoleOut(CompanyRoleBase):
     created_by_company: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompanyRoleSeedEntry(BaseModel):
+    """Role created or reused from an operational preset."""
+
+    role: CompanyRoleOut
+    status: Literal["created", "existing"]
+
+
+class CompanyRoleSeedSummary(BaseModel):
+    """Summary of operational role seeding."""
+
+    template: str
+    sector: str | None = None
+    created: int = 0
+    existing: int = 0
+    items: list[CompanyRoleSeedEntry] = Field(default_factory=list)

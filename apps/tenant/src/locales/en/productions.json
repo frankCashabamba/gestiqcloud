@@ -22,6 +22,34 @@
     "completed": "Completed",
     "cancelled": "Cancelled"
   },
+  "actionsLabels": {
+    "start": "Start",
+    "complete": "Complete",
+    "cancel": "Cancel"
+  },
+  "messages": {
+    "started": "Order started",
+    "completed": "Order completed",
+    "cancelled": "Order cancelled",
+    "cancelConfirm": "Cancel production order?",
+    "qtyProducedRequired": "Produced quantity must be greater than 0",
+    "wasteQtyInvalid": "Waste quantity must be greater than or equal to 0"
+  },
+  "fields": {
+    "batch": "Batch",
+    "waste": "Waste"
+  },
+  "completeModal": {
+    "title": "Complete production",
+    "qtyProduced": "Produced quantity",
+    "wasteQty": "Waste quantity",
+    "batchNumber": "Batch number",
+    "batchPlaceholder": "LOT-202603-001",
+    "wasteReason": "Waste reason",
+    "wasteReasonPlaceholder": "E.g. overbaked, damaged, discarded",
+    "notes": "Closing notes",
+    "notesPlaceholder": "Final notes for this order"
+  },
   "costDrivers": {
     "title": "Production Cost Types",
     "description": "Define labor roles, energy, packaging, and other indirect cost categories.",

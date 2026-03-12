@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import uuid4
 
-from sqlalchemy import Numeric, String
+from sqlalchemy import Date, Numeric, String
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +33,7 @@ class StockItem(Base):
     qty: Mapped[float] = mapped_column("qty", Numeric, default=0)
     location: Mapped[str | None] = mapped_column(String(50), nullable=True)
     lot: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    expires_at: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class StockMove(Base):
@@ -55,6 +56,8 @@ class StockMove(Base):
     posted: Mapped[bool] = mapped_column(default=False)
     ref_type: Mapped[str | None]
     ref_id: Mapped[str | None]
+    lot: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    expires_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     unit_cost: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
     total_cost: Mapped[float | None] = mapped_column(Numeric(14, 6), nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
