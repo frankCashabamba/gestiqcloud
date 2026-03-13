@@ -32,6 +32,7 @@ import React, {
   ReactNode,
 } from 'react'
 import { apiFetch } from '../lib/http'
+import { hasCompanyModuleEnabled } from '../lib/companyModuleKeys'
 import { useCompanySectorFullConfig as useCompanySectorFullConfigHook, SectorFullConfig, FeaturesConfig as SectorFeaturesConfig } from '../hooks/useCompanySectorFullConfig'
 import i18n, { normalizeLang } from '../i18n'
 import { useAuth } from '../auth/AuthContext'
@@ -210,7 +211,7 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
 
   const isModuleEnabled = (moduleKey: string): boolean => {
     if (!config) return false
-    return config.enabled_modules.includes(moduleKey)
+    return hasCompanyModuleEnabled(config.enabled_modules, moduleKey)
   }
 
   const value: CompanyConfigContextValue = {
@@ -302,8 +303,7 @@ function resolveFeatureFlag(
 export function useResolvedCompanyFeatures(): Features {
   const { features, sectorConfig, isModuleEnabled } = useCompanyConfig()
   const sectorFeatures: Partial<SectorFeaturesConfig> = sectorConfig?.features || {}
-  const productionModuleEnabled =
-    isModuleEnabled('production') || isModuleEnabled('produccion')
+  const productionModuleEnabled = isModuleEnabled('manufacturing')
 
   return {
     inventory_expiry_tracking: resolveFeatureFlag(

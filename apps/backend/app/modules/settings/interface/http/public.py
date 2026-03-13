@@ -19,6 +19,7 @@ from app.models.company.company_settings import CompanySettings
 from app.models.core.module import CompanyModule, Module
 from app.models.core.product_category import ProductCategory
 from app.models.tenant import Tenant
+from app.modules.settings.application.modules_catalog import canonicalize_module_id
 
 router = APIRouter(prefix="/company/settings", tags=["Company Settings (public)"])
 
@@ -38,6 +39,27 @@ def _module_slug(module: Module) -> str:
         if slug:
             return _normalize_slug(slug)
     return _normalize_slug(getattr(module, "name", "") or "")
+
+
+def _canonical_enabled_modules(values: list[str] | None) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+
+    for value in values or []:
+        normalized = _normalize_slug(value)
+        if not normalized:
+            continue
+        canonical = canonicalize_module_id(normalized) or normalized
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        result.append(canonical)
+
+    return result
+
+
+def _production_module_enabled(enabled_modules: list[str]) -> bool:
+    return "manufacturing" in _canonical_enabled_modules(enabled_modules)
 
 
 @router.get("/config", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
@@ -106,16 +128,18 @@ def get_tenant_config(
             .filter(CompanyModule.tenant_id == tid, CompanyModule.active.is_(True))
             .all()
         )
-        enabled_modules = [_module_slug(mod) for _cm, mod in rows]
+        enabled_modules = _canonical_enabled_modules([_module_slug(mod) for _cm, mod in rows])
 
     if not enabled_modules:
         modules_cfg = settings_obj.get("modules") if isinstance(settings_obj, dict) else None
         if isinstance(modules_cfg, dict):
-            enabled_modules = [
-                _normalize_slug(k)
-                for k, v in modules_cfg.items()
-                if isinstance(v, dict) and v.get("enabled") is True
-            ]
+            enabled_modules = _canonical_enabled_modules(
+                [
+                    _normalize_slug(k)
+                    for k, v in modules_cfg.items()
+                    if isinstance(v, dict) and v.get("enabled") is True
+                ]
+            )
 
     pos_receipt_width = None
     if isinstance(pos_config, dict):
@@ -197,8 +221,7 @@ def get_tenant_config(
             settings_obj.get(
                 "production_enabled",
                 sector_features.get("production", sector_features.get("recipes", False))
-                or ("production" in enabled_modules)
-                or ("produccion" in enabled_modules),
+                or _production_module_enabled(enabled_modules),
             )
         ),
         "production_batch_tracking": bool(
