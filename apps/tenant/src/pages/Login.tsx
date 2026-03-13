@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { apiFetch } from '../lib/http'
 import { useEnv } from '@ui/env'
 import { resolveTenantPath } from '../lib/tenantNavigation'
 
@@ -17,49 +16,32 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
   const year = new Date().getFullYear()
 
-  async function loginAdminFallback() {
-    try {
-      try {
-        await apiFetch('/api/v1/admin/auth/csrf', { retryOn401: false } as any)
-      } catch {}
-      const data = await apiFetch<{ access_token?: string }>('/api/v1/admin/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ identificador: identificador.trim(), password }),
-        retryOn401: false,
-      } as any)
-      const token = data?.access_token
-      const target = token ? `${adminOrigin}/#access_token=${encodeURIComponent(token)}` : adminOrigin
-      // Fallback disabled by policy: prevents admin login from tenant
-      throw new Error('fallback_disabled')
-    } catch (res: any) {
-      if (res?.status === 429) {
-        const wait = res?.retryAfter || 'a few'
-        throw new Error(t('login.tooManyAttempts', { wait }))
-      }
-      throw new Error(t('login.invalidCredentials'))
-    }
-  }
-
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
     setSubmitting(true)
     try {
-      await login({ identificador, password })
+      const result = await login({ identificador, password })
+      if (result.scope === 'admin') {
+        const target = result.accessToken
+          ? `${adminOrigin}/#access_token=${encodeURIComponent(result.accessToken)}`
+          : adminOrigin
+        window.location.assign(target)
+        return
+      }
       const target = await resolveTenantPath()
       navigate(target)
     } catch (err: any) {
-      if (err?.status && err.status !== 401) {
+      if (err?.status === 429) {
+        const wait = err?.retryAfter || 'a few'
+        setError(t('login.tooManyAttempts', { wait }))
+      } else if (err?.status === 401) {
+        setError(t('login.invalidCredentials'))
+      } else {
         setError(err?.message || t('login.serverError'))
-        setSubmitting(false)
-        return
       }
-      try {
-        throw new Error('fallback_disabled')
-      } catch (fallbackErr: any) {
-        setError(fallbackErr?.message || t('login.invalidCredentials'))
-        setSubmitting(false)
-      }
+    } finally {
+      setSubmitting(false)
     }
   }
 

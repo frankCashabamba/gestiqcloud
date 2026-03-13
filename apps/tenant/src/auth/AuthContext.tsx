@@ -4,7 +4,9 @@ import { TOKEN_KEY } from '../constants/storage'
 import { PermissionsProvider } from '../contexts/PermissionsContext'
 
 type LoginBody = { identificador: string; password: string }
-type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
+type LoginScope = 'tenant' | 'admin'
+type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: LoginScope }
+type LoginResult = { scope: LoginScope; accessToken: string }
 type MeCompany = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; es_admin_empresa?: boolean; roles?: string[] }
 
 type AuthContextType = {
@@ -12,7 +14,7 @@ type AuthContextType = {
   loading: boolean
   profile: MeCompany | null
   brand: string
-  login: (body: LoginBody) => Promise<void>
+  login: (body: LoginBody) => Promise<LoginResult>
   logout: () => Promise<void>
   refresh: () => Promise<boolean>
 }
@@ -145,11 +147,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   const login = async (body: LoginBody) => {
-    const data = await apiFetch<LoginResponse>('/api/v1/tenant/auth/login', { method: 'POST', body: JSON.stringify(body), retryOn401: false })
+    const data = await apiFetch<LoginResponse>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      retryOn401: false,
+    })
+    const scope: LoginScope = data.scope === 'admin' ? 'admin' : 'tenant'
+    if (scope === 'admin') {
+      clear()
+      return { scope, accessToken: data.access_token }
+    }
     setToken(data.access_token)
     sessionStorage.setItem(TOKEN_KEY, data.access_token)
     try { localStorage.setItem('authToken', data.access_token) } catch {}
     await loadMe(data.access_token)
+    return { scope, accessToken: data.access_token }
   }
 
   const logout = async () => {

@@ -49,7 +49,11 @@
       "Bash(xargs grep -l \"importador\\\\|importer\")",
       "Bash(wc -l /c/gestiqcloud/apps/backend/app/modules/importador/*.py)",
       "Bash(xargs wc -l)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(find . -path ./node_modules -prune -o -path ./*node_modules* -prune -o -type f \\\\\\( -name \"*.py\" -o -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -print)",
+      "Bash(find /c/gestiqcloud/apps -type f \\\\\\(-name *.py -o -name *.ts -o -name *.tsx \\\\\\))",
+      "Bash(grep -r \"def.*get.*\\(\" /c/gestiqcloud/apps/backend/app/modules/*/interface/http/tenant.py)",
+      "Bash(find /c/gestiqcloud/apps/backend/app/modules -name \"*.py\" -type f -exec grep -l \"^def get_\\\\|^async def get_\" {})"
     ],
     "additionalDirectories": [
       "c:\\Users\\frank\\.claude\\projects\\c--gestiqcloud"
