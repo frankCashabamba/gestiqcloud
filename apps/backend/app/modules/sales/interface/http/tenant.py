@@ -16,6 +16,8 @@ from app.models.core.clients import Client
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.sales.delivery import Delivery
 from app.models.sales.order import SalesOrder, SalesOrderItem
+from app.modules.shared.services.statuses import DeliveryStatus
+from app.modules.shared.services.tax import normalize_tax_rate, resolve_tenant_default_tax_rate
 from app.services.inventory_costing import InventoryCostingService
 
 router = APIRouter(
@@ -29,13 +31,17 @@ router = APIRouter(
 )
 
 
-def _tenant_id_str(request: Request) -> str | None:
+def _tenant_uuid(request: Request) -> UUID:
     try:
         claims = getattr(request.state, "access_claims", None) or {}
         tid = claims.get("tenant_id") if isinstance(claims, dict) else None
-        return str(tid) if tid is not None else None
-    except Exception:
-        return None
+        if tid is None:
+            raise HTTPException(status_code=401, detail="tenant_id invalido")
+        return UUID(str(tid))
+    except HTTPException:
+        raise
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
 
 
 def _uuid_or_none(value: str | None) -> UUID | None:
@@ -50,11 +56,38 @@ def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
     return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
+def _resolve_delivery_stock_item(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    warehouse_id: int,
+    product_id: str,
+) -> tuple[StockItem | None, Decimal]:
+    rows = (
+        db.query(StockItem)
+        .filter(
+            StockItem.tenant_id == tenant_id,
+            StockItem.warehouse_id == warehouse_id,
+            StockItem.product_id == product_id,
+        )
+        .with_for_update()
+        .all()
+    )
+    total_qty = _dec(sum(float(row.qty or 0) for row in rows))
+    positive_rows = [row for row in rows if float(row.qty or 0) > 0]
+    if len(positive_rows) > 1:
+        raise HTTPException(status_code=409, detail="lot_selection_required")
+    if positive_rows:
+        return positive_rows[0], total_qty
+    return (rows[0] if rows else None), total_qty
+
+
 class OrderItemIn(BaseModel):
     product_id: str
     qty: float = Field(gt=0)
     unit_price: float = 0
     discount_pct: float = Field(default=0, ge=0, le=100)
+    tax_rate: float | None = Field(default=None, ge=0)
 
 
 class OrderCreateIn(BaseModel):
@@ -90,11 +123,7 @@ def list_orders(
     offset: int = 0,
 ):
     """Listar órdenes de venta"""
-    tid = _tenant_id_str(request)
-
-    tenant_uuid = UUID(str(tid)) if tid else None
-    if not tenant_uuid:
-        raise HTTPException(status_code=401, detail="tenant_id invalido")
+    tenant_uuid = _tenant_uuid(request)
     query = (
         db.query(SalesOrder, Client.name)
         .outerjoin(Client, Client.id == SalesOrder.customer_id)
@@ -137,10 +166,7 @@ def get_order(
     db: Session = Depends(get_db),
 ):
     """Obtener orden de venta por ID"""
-    tid = _tenant_id_str(request)
-    tenant_uuid = UUID(str(tid)) if tid else None
-    if not tenant_uuid:
-        raise HTTPException(status_code=401, detail="tenant_id invalido")
+    tenant_uuid = _tenant_uuid(request)
 
     try:
         order_uuid = UUID(str(order_id))
@@ -179,10 +205,8 @@ def get_order(
 def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends(get_db)):
     if not payload.items:
         raise HTTPException(status_code=400, detail="items_required")
-    tid = _tenant_id_str(request)
-    tenant_uuid = UUID(str(tid)) if tid else None
-    if not tenant_uuid:
-        raise HTTPException(status_code=401, detail="tenant_id invalido")
+    tenant_uuid = _tenant_uuid(request)
+    default_tax_rate = resolve_tenant_default_tax_rate(db, tenant_uuid)
     so = SalesOrder(
         customer_id=_uuid_or_none(payload.customer_id),
         currency=payload.currency,
@@ -194,24 +218,30 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
     db.add(so)
     db.flush()
     subtotal = Decimal("0")
+    tax_total = Decimal("0")
     for it in payload.items:
         line_sub = _dec(it.qty, "0.01") * _dec(it.unit_price, "0.01")
         discount_amount = line_sub * _dec(it.discount_pct, "0.01") / Decimal("100")
         line_total = line_sub - discount_amount
+        line_tax_rate = normalize_tax_rate(it.tax_rate)
+        effective_tax_rate = line_tax_rate if line_tax_rate is not None else default_tax_rate
+        line_tax = line_total * effective_tax_rate
         subtotal += line_total
+        tax_total += line_tax
         db.add(
             SalesOrderItem(
                 order_id=so.id,
                 product_id=_uuid_or_none(it.product_id),
                 qty=it.qty,
                 unit_price=it.unit_price,
+                tax_rate=float(effective_tax_rate),
                 discount_percent=it.discount_pct,
                 line_total=float(line_total),
             )
         )
     so.subtotal = float(subtotal)
-    so.tax = float(subtotal * Decimal("0.21"))
-    so.total = float(subtotal + subtotal * Decimal("0.21"))
+    so.tax = float(tax_total)
+    so.total = float(subtotal + tax_total)
     db.commit()
     db.refresh(so)
 
@@ -277,10 +307,7 @@ def confirm_order(
     if request is None:
         raise HTTPException(status_code=401, detail="tenant_id invalido")
 
-    tid = _tenant_id_str(request)
-    tenant_uuid = UUID(str(tid)) if tid else None
-    if not tenant_uuid:
-        raise HTTPException(status_code=401, detail="tenant_id invalido")
+    tenant_uuid = _tenant_uuid(request)
 
     try:
         so_id = UUID(str(order_id))
@@ -293,8 +320,6 @@ def confirm_order(
     )
     if not so:
         raise HTTPException(status_code=404, detail="order_not_found")
-    if tid and str(getattr(so, "tenant_id", None)) != tid:
-        raise HTTPException(status_code=404, detail="order_not_found")
     if so.status != "draft":
         raise HTTPException(status_code=400, detail="invalid_status")
     items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == order_id).all()
@@ -302,7 +327,7 @@ def confirm_order(
         raise HTTPException(status_code=400, detail="no_items")
     for it in items:
         mv = StockMove(
-            tenant_id=tid,
+            tenant_id=str(tenant_uuid),
             product_id=it.product_id,
             warehouse_id=payload.warehouse_id,
             qty=it.qty,
@@ -362,13 +387,17 @@ class DeliveryCreateIn(BaseModel):
 
 @deliveries_router.post("/", response_model=dict, status_code=201)
 def create_delivery(payload: DeliveryCreateIn, request: Request, db: Session = Depends(get_db)):
-    tid = _tenant_id_str(request)
+    tenant_uuid = _tenant_uuid(request)
     so = db.get(SalesOrder, payload.order_id)
     if not so or so.status != "confirmed":
         raise HTTPException(status_code=400, detail="order_not_confirmed")
-    if tid and str(getattr(so, "tenant_id", None)) != tid:
+    if str(getattr(so, "tenant_id", None)) != str(tenant_uuid):
         raise HTTPException(status_code=404, detail="order_not_found")
-    d = Delivery(order_id=payload.order_id, status="pending", tenant_id=tid)
+    d = Delivery(
+        order_id=payload.order_id,
+        status=DeliveryStatus.PENDING.value,
+        tenant_id=str(tenant_uuid),
+    )
     db.add(d)
     db.commit()
     return {"id": d.id, "status": d.status}
@@ -385,16 +414,16 @@ def do_delivery(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    tid = _tenant_id_str(request)
+    tenant_uuid = _tenant_uuid(request)
     d = db.get(Delivery, delivery_id)
-    if not d or d.status != "pending":
+    if not d or d.status != DeliveryStatus.PENDING.value:
         raise HTTPException(status_code=404, detail="delivery_not_pending")
-    if tid and str(getattr(d, "tenant_id", None)) != tid:
+    if str(getattr(d, "tenant_id", None)) != str(tenant_uuid):
         raise HTTPException(status_code=404, detail="delivery_not_pending")
     so = db.get(SalesOrder, d.order_id)
     if not so or so.status != "confirmed":
         raise HTTPException(status_code=400, detail="order_not_confirmed")
-    if tid and str(getattr(so, "tenant_id", None)) != tid:
+    if str(getattr(so, "tenant_id", None)) != str(tenant_uuid):
         raise HTTPException(status_code=404, detail="order_not_found")
 
     items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == so.id).all()
@@ -402,32 +431,34 @@ def do_delivery(
     costing = InventoryCostingService(db)
     for it in items:
         qty_dec = _dec(it.qty)
-        row = (
-            db.query(StockItem)
-            .filter(
-                StockItem.warehouse_id == payload.warehouse_id,
-                StockItem.product_id == it.product_id,
-            )
-            .with_for_update()
-            .first()
+        row, total_qty = _resolve_delivery_stock_item(
+            db,
+            tenant_id=tenant_uuid,
+            warehouse_id=payload.warehouse_id,
+            product_id=it.product_id,
         )
         if not row:
-            row = StockItem(warehouse_id=payload.warehouse_id, product_id=it.product_id, qty=0)
+            row = StockItem(
+                tenant_id=tenant_uuid,
+                warehouse_id=payload.warehouse_id,
+                product_id=it.product_id,
+                qty=0,
+            )
             db.add(row)
             db.flush()
 
         state = costing.apply_outbound(
-            tid or "",
+            str(tenant_uuid),
             str(payload.warehouse_id),
             str(it.product_id),
             qty=qty_dec,
             allow_negative=False,
-            initial_qty=_dec(row.qty),
+            initial_qty=total_qty,
             initial_avg_cost=_dec(0),
         )
 
         mv = StockMove(
-            tenant_id=tid,
+            tenant_id=str(tenant_uuid),
             product_id=it.product_id,
             warehouse_id=payload.warehouse_id,
             qty=it.qty,
@@ -443,7 +474,7 @@ def do_delivery(
         row.qty = (row.qty or 0) - it.qty
         db.add(row)
 
-    d.status = "done"
+    d.status = DeliveryStatus.DONE.value
     so.status = "delivered"
     db.add(d)
     db.add(so)
@@ -468,10 +499,7 @@ def cancel_order(
     if request is None:
         raise HTTPException(status_code=401, detail="tenant_id invalido")
 
-    tid = _tenant_id_str(request)
-    tenant_uuid = UUID(str(tid)) if tid else None
-    if not tenant_uuid:
-        raise HTTPException(status_code=401, detail="tenant_id invalido")
+    tenant_uuid = _tenant_uuid(request)
 
     try:
         so_id = UUID(str(order_id))

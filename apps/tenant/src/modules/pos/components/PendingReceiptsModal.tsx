@@ -68,7 +68,14 @@ export default function PendingReceiptsModal({ isOpen, shiftId, onClose, onPaid,
       onPaid?.()
       toast.success(t('pos:pending.receiptPaid'))
     } catch (err: any) {
-      setError(err?.response?.data?.detail || t('pos:pending.receiptPayError'))
+      const detail = err?.response?.data?.detail
+      setError(
+        detail === 'lot_selection_required'
+          ? t('pos:pending.requiresLotSelection', {
+              defaultValue: 'Este ticket requiere seleccionar lote. Cobralo desde la pantalla principal de POS.',
+            })
+          : detail || t('pos:pending.receiptPayError')
+      )
     } finally {
       setPayingId(null)
     }

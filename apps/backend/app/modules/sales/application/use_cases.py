@@ -13,10 +13,14 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any
 from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from app.modules.shared.services.tax import LEGACY_FALLBACK_TAX_RATE, normalize_tax_rate
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,7 @@ class CreateSalesOrderUseCase:
         *,
         customer_id: UUID,
         lines: list[dict[str, Any]],
+        tax_rate: Decimal = LEGACY_FALLBACK_TAX_RATE,
         notes: str | None = None,
         due_date: datetime | None = None,
     ) -> dict[str, Any]:
@@ -70,20 +75,26 @@ class CreateSalesOrderUseCase:
         """
         subtotal = Decimal("0")
         total_discount = Decimal("0")
+        total_tax = Decimal("0")
+        default_tax_rate = normalize_tax_rate(tax_rate) or LEGACY_FALLBACK_TAX_RATE
 
         for line in lines:
             qty = Decimal(str(line.get("qty", 0)))
             unit_price = Decimal(str(line.get("unit_price", 0)))
             discount_pct = Decimal(str(line.get("discount_pct", 0))) / 100
+            line_tax_rate = normalize_tax_rate(line.get("tax_rate"))
+            effective_tax_rate = line_tax_rate if line_tax_rate is not None else default_tax_rate
 
             line_subtotal = qty * unit_price
             line_discount = line_subtotal * discount_pct
+            line_net = line_subtotal - line_discount
 
             subtotal += line_subtotal
             total_discount += line_discount
+            total_tax += line_net * effective_tax_rate
 
-        tax = (subtotal - total_discount) * Decimal("0.21")  # IVA 21%
-        total = subtotal - total_discount + tax
+        tax = total_tax
+        total = subtotal - total_discount + total_tax
 
         return {
             "order_id": UUID(int=0),  # Set by repo
@@ -196,8 +207,83 @@ class CreateInvoiceFromOrderUseCase:
 class CalculateDiscountUseCase:
     """Calcula descuento para orden."""
 
-    def __init__(self):
-        pass
+    WHOLESALE_DISCOUNT_PCT = Decimal("5.00")
+    VOLUME_DISCOUNT_TIERS: tuple[tuple[Decimal, Decimal], ...] = (
+        (Decimal("1500"), Decimal("5.00")),
+        (Decimal("500"), Decimal("2.00")),
+    )
+    VOLUME_QTY_TIERS: tuple[tuple[Decimal, Decimal], ...] = (
+        (Decimal("25"), Decimal("5.00")),
+        (Decimal("10"), Decimal("2.00")),
+    )
+
+    def __init__(self, db: Session | None = None):
+        self.db = db
+
+    @staticmethod
+    def _decimal(value: Any, *, default: Decimal = Decimal("0")) -> Decimal:
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            return default
+
+    @classmethod
+    def _pct_amount(cls, base: Decimal, pct: Decimal) -> Decimal:
+        if base <= 0 or pct <= 0:
+            return Decimal("0")
+        return (base * pct / Decimal("100")).quantize(Decimal("0.01"))
+
+    def _customer_is_wholesale(self, customer_id: UUID, lines: list[dict[str, Any]]) -> bool:
+        inline_flag = any(bool(line.get("customer_is_wholesale")) for line in lines)
+        if inline_flag:
+            return True
+        if self.db is None:
+            return False
+        try:
+            from app.models.core.clients import Client
+
+            customer = self.db.get(Client, customer_id)
+            return bool(getattr(customer, "is_wholesale", False)) if customer is not None else False
+        except Exception:
+            logger.exception("Error resolving customer wholesale flag for %s", customer_id)
+            return False
+
+    def _volume_discount_pct(self, subtotal: Decimal, lines: list[dict[str, Any]]) -> Decimal:
+        total_qty = sum((self._decimal(line.get("qty")) for line in lines), Decimal("0"))
+
+        subtotal_pct = next(
+            (
+                pct
+                for threshold, pct in self.VOLUME_DISCOUNT_TIERS
+                if subtotal >= threshold
+            ),
+            Decimal("0"),
+        )
+        qty_pct = next(
+            (
+                pct
+                for threshold, pct in self.VOLUME_QTY_TIERS
+                if total_qty >= threshold
+            ),
+            Decimal("0"),
+        )
+        explicit_pct = max(
+            (self._decimal(line.get("volume_discount_pct")) for line in lines),
+            default=Decimal("0"),
+        )
+        return max(subtotal_pct, qty_pct, explicit_pct)
+
+    def _promotion_discount_amount(self, lines: list[dict[str, Any]]) -> Decimal:
+        total = Decimal("0")
+        for line in lines:
+            qty = self._decimal(line.get("qty"))
+            unit_price = self._decimal(line.get("unit_price"))
+            line_base = qty * unit_price
+            promo_amount = self._decimal(line.get("promotion_discount_amount"))
+            promo_pct = self._decimal(line.get("promotion_discount_pct"))
+            line_total = promo_amount + self._pct_amount(line_base, promo_pct)
+            total += min(line_total, line_base if line_base > 0 else Decimal("0"))
+        return total.quantize(Decimal("0.01"))
 
     def execute(
         self,
@@ -220,13 +306,27 @@ class CalculateDiscountUseCase:
         Returns:
             Total discount amount
         """
-        # TODO: Implement discount rules engine
-        # - Check customer tier (wholesale vs retail)
-        # - Check volume-based discounts
-        # - Check active promotions
-        # - Check product-specific discounts
+        subtotal = self._decimal(subtotal)
+        if subtotal <= 0:
+            return Decimal("0.00")
 
-        return Decimal("0")
+        promotion_discount = self._promotion_discount_amount(lines)
+        remaining_after_promo = max(subtotal - promotion_discount, Decimal("0"))
+
+        customer_discount_pct = max(
+            (self._decimal(line.get("customer_discount_pct")) for line in lines),
+            default=Decimal("0"),
+        )
+        if customer_discount_pct <= 0 and self._customer_is_wholesale(customer_id, lines):
+            customer_discount_pct = self.WHOLESALE_DISCOUNT_PCT
+        customer_discount = self._pct_amount(remaining_after_promo, customer_discount_pct)
+
+        remaining_after_customer = max(remaining_after_promo - customer_discount, Decimal("0"))
+        volume_discount_pct = self._volume_discount_pct(subtotal, lines)
+        volume_discount = self._pct_amount(remaining_after_customer, volume_discount_pct)
+
+        total_discount = promotion_discount + customer_discount + volume_discount
+        return min(total_discount.quantize(Decimal("0.01")), subtotal.quantize(Decimal("0.01")))
 
 
 class GetSalesOrderUseCase:

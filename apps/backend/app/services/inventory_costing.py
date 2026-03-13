@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -191,7 +191,7 @@ class InventoryCostingService:
             )
         )
 
-    def apply_inbound_lifo(
+    def _record_layer(
         self,
         tenant_id: str,
         warehouse_id: str,
@@ -199,8 +199,7 @@ class InventoryCostingService:
         *,
         qty: Decimal,
         unit_cost: Decimal,
-    ) -> CostState:
-        """Record an inbound layer for LIFO costing."""
+    ) -> None:
         self._ensure_layers_table()
         self.db.execute(
             text(
@@ -216,34 +215,29 @@ class InventoryCostingService:
                 "cost": float(unit_cost),
             },
         )
-        # Also update the summary state
-        return self.apply_inbound(tenant_id, warehouse_id, product_id, qty=qty, unit_cost=unit_cost)
 
-    def apply_outbound_lifo(
+    def _consume_layers(
         self,
         tenant_id: str,
         warehouse_id: str,
         product_id: str,
         *,
         qty: Decimal,
+        order: Literal["fifo", "lifo"],
         allow_negative: bool = False,
-    ) -> tuple[CostState, Decimal]:
-        """
-        Consume stock using LIFO (last layer first).
-        Returns (new_state, total_cogs).
-        """
+    ) -> Decimal:
         self._ensure_layers_table()
         remaining = qty
         total_cogs = Decimal("0")
+        order_sql = "ASC" if order == "fifo" else "DESC"
 
-        # Get layers newest first (LIFO)
         layers = self.db.execute(
             text(
                 "SELECT id, remaining_qty, unit_cost "
                 "FROM inventory_cost_layers "
                 "WHERE tenant_id = :tid AND warehouse_id = :wid "
                 "AND product_id = :pid AND remaining_qty > 0 "
-                "ORDER BY created_at DESC, id DESC"
+                f"ORDER BY created_at {order_sql}, id {order_sql}"
             ),
             {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
         ).fetchall()
@@ -261,10 +255,165 @@ class InventoryCostingService:
             )
 
         if remaining > 0 and not allow_negative:
-            raise HTTPException(status_code=400, detail="insufficient_stock_lifo")
+            raise HTTPException(
+                status_code=400,
+                detail="insufficient_stock_fifo" if order == "fifo" else "insufficient_stock_lifo",
+            )
+
+        return _dec(total_cogs, "0.000001")
+
+    def _layer_inventory_value(
+        self,
+        tenant_id: str,
+        *,
+        warehouse_id: str | None = None,
+        order: Literal["fifo", "lifo"] = "fifo",
+    ) -> Decimal:
+        self._ensure_layers_table()
+        order_sql = "ASC" if order == "fifo" else "DESC"
+        clauses = [
+            "tenant_id = :tid",
+            "remaining_qty > 0",
+        ]
+        params: dict[str, object] = {"tid": tenant_id}
+        if warehouse_id is not None:
+            clauses.append("warehouse_id = :wid")
+            params["wid"] = warehouse_id
+
+        rows = self.db.execute(
+            text(
+                "SELECT remaining_qty, unit_cost "
+                "FROM inventory_cost_layers "
+                f"WHERE {' AND '.join(clauses)} "
+                f"ORDER BY warehouse_id ASC, product_id ASC, created_at {order_sql}, id {order_sql}"
+            ),
+            params,
+        ).fetchall()
+
+        total = Decimal("0")
+        for remaining_qty, unit_cost in rows:
+            total += Decimal(str(remaining_qty or 0)) * Decimal(str(unit_cost or 0))
+        return _dec(total, "0.000001")
+
+    def apply_inbound_lifo(
+        self,
+        tenant_id: str,
+        warehouse_id: str,
+        product_id: str,
+        *,
+        qty: Decimal,
+        unit_cost: Decimal,
+    ) -> CostState:
+        """Record an inbound layer for LIFO costing."""
+        self._record_layer(
+            tenant_id,
+            warehouse_id,
+            product_id,
+            qty=qty,
+            unit_cost=unit_cost,
+        )
+        # Also update the summary state
+        return self.apply_inbound(tenant_id, warehouse_id, product_id, qty=qty, unit_cost=unit_cost)
+
+    def apply_inbound_fifo(
+        self,
+        tenant_id: str,
+        warehouse_id: str,
+        product_id: str,
+        *,
+        qty: Decimal,
+        unit_cost: Decimal,
+    ) -> CostState:
+        """Record an inbound layer for FIFO costing."""
+        self._record_layer(
+            tenant_id,
+            warehouse_id,
+            product_id,
+            qty=qty,
+            unit_cost=unit_cost,
+        )
+        return self.apply_inbound(tenant_id, warehouse_id, product_id, qty=qty, unit_cost=unit_cost)
+
+    def apply_outbound_lifo(
+        self,
+        tenant_id: str,
+        warehouse_id: str,
+        product_id: str,
+        *,
+        qty: Decimal,
+        allow_negative: bool = False,
+    ) -> tuple[CostState, Decimal]:
+        """
+        Consume stock using LIFO (last layer first).
+        Returns (new_state, total_cogs).
+        """
+        total_cogs = self._consume_layers(
+            tenant_id,
+            warehouse_id,
+            product_id,
+            qty=qty,
+            order="lifo",
+            allow_negative=allow_negative,
+        )
 
         # Update summary state
         state = self.apply_outbound(
             tenant_id, warehouse_id, product_id, qty=qty, allow_negative=allow_negative
         )
-        return state, _dec(total_cogs, "0.000001")
+        return state, total_cogs
+
+    def apply_outbound_fifo(
+        self,
+        tenant_id: str,
+        warehouse_id: str,
+        product_id: str,
+        *,
+        qty: Decimal,
+        allow_negative: bool = False,
+    ) -> tuple[CostState, Decimal]:
+        """
+        Consume stock using FIFO (oldest layer first).
+        Returns (new_state, total_cogs).
+        """
+        total_cogs = self._consume_layers(
+            tenant_id,
+            warehouse_id,
+            product_id,
+            qty=qty,
+            order="fifo",
+            allow_negative=allow_negative,
+        )
+        state = self.apply_outbound(
+            tenant_id, warehouse_id, product_id, qty=qty, allow_negative=allow_negative
+        )
+        return state, total_cogs
+
+    def get_inventory_value(
+        self,
+        tenant_id: str,
+        *,
+        warehouse_id: str | None = None,
+        costing_method: Literal["avg", "fifo", "lifo"] = "avg",
+    ) -> Decimal:
+        """Calculate inventory value for a tenant using the requested costing method."""
+        method = (costing_method or "avg").lower()
+        if method == "avg":
+            clauses = ["tenant_id = :tid"]
+            params: dict[str, object] = {"tid": tenant_id}
+            if warehouse_id is not None:
+                clauses.append("warehouse_id = :wid")
+                params["wid"] = warehouse_id
+            row = self.db.execute(
+                text(
+                    "SELECT COALESCE(SUM(on_hand_qty * avg_cost), 0) "
+                    "FROM inventory_cost_state "
+                    f"WHERE {' AND '.join(clauses)}"
+                ),
+                params,
+            ).scalar()
+            return _dec(row, "0.000001")
+        if method == "fifo":
+            return self._layer_inventory_value(tenant_id, warehouse_id=warehouse_id, order="fifo")
+        if method == "lifo":
+            return self._layer_inventory_value(tenant_id, warehouse_id=warehouse_id, order="lifo")
+        raise ValueError(f"Unsupported costing method: {costing_method}")

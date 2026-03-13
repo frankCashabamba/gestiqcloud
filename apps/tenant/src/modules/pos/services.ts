@@ -18,7 +18,8 @@ import type {
     ReceiptCreateRequest,
     ReceiptToInvoiceRequest,
     RefundRequest,
-    PaymentLinkRequest
+    PaymentLinkRequest,
+    POSLineStockSelection
 } from '../../types/pos'
 export type { POSReceipt } from '../../types/pos'
 
@@ -176,10 +177,11 @@ export type CheckoutResponse = {
 export async function payReceipt(
     receiptId: string,
     payments: any[],
-    opts?: { warehouse_id?: string }
+    opts?: { warehouse_id?: string; stock_selections?: POSLineStockSelection[] }
 ): Promise<CheckoutResponse> {
     const payload: any = { payments }
     if (opts?.warehouse_id) payload.warehouse_id = opts.warehouse_id
+    if (opts?.stock_selections?.length) payload.stock_selections = opts.stock_selections
     const { data } = await tenantApi.post<CheckoutResponse>(
         `${BASE_URL}/receipts/${receiptId}/checkout`,
         payload,

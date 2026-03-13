@@ -2,6 +2,7 @@
 Payments Router - Payment links and webhooks
 """
 
+import json
 import logging
 from decimal import Decimal
 from typing import Any
@@ -16,6 +17,8 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant, get_current_user
+from app.modules.shared.services.statuses import PaymentLinkStatus
+from app.modules.shared.services.tax import resolve_tenant_default_tax_rate
 from app.services.payments import get_provider
 
 logger = logging.getLogger(__name__)
@@ -71,12 +74,12 @@ def get_provider_config(provider: str, tenant_id: str, db: Session) -> dict[str,
         import os
 
         if provider == "stripe":
-            return {
+            config = {
                 "secret_key": os.getenv("STRIPE_SECRET_KEY"),
                 "webhook_secret": os.getenv("STRIPE_WEBHOOK_SECRET"),
             }
         elif provider == "kushki":
-            return {
+            config = {
                 "merchant_id": os.getenv("KUSHKI_MERCHANT_ID"),
                 "public_key": os.getenv("KUSHKI_PUBLIC_KEY"),
                 "private_key": os.getenv("KUSHKI_PRIVATE_KEY"),
@@ -84,7 +87,7 @@ def get_provider_config(provider: str, tenant_id: str, db: Session) -> dict[str,
                 "env": os.getenv("KUSHKI_ENV", "sandbox"),
             }
         elif provider == "payphone":
-            return {
+            config = {
                 "token": os.getenv("PAYPHONE_TOKEN"),
                 "store_id": os.getenv("PAYPHONE_STORE_ID"),
                 "webhook_secret": os.getenv("PAYPHONE_WEBHOOK_SECRET"),
@@ -92,11 +95,15 @@ def get_provider_config(provider: str, tenant_id: str, db: Session) -> dict[str,
             }
         else:
             raise ValueError(f"Provider not configured: {provider}")
+    else:
+        config = dict(result[0])
 
-    return result[0]
+    config.setdefault("tenant_id", tenant_id)
+    config.setdefault("tax_rate", float(resolve_tenant_default_tax_rate(db, tenant_id)))
+    return config
 
 
-def get_invoice_data(invoice_id: UUID, db: Session) -> dict[str, Any]:
+def get_invoice_data(invoice_id: UUID, tenant_id: str, db: Session) -> dict[str, Any]:
     """Get invoice data"""
 
     query = text(
@@ -108,10 +115,14 @@ def get_invoice_data(invoice_id: UUID, db: Session) -> dict[str, Any]:
         FROM invoices i
         LEFT JOIN clientes c ON c.id = i.cliente_id
         WHERE i.id = :invoice_id
+          AND i.tenant_id = :tenant_id
     """
     )
 
-    result = db.execute(query, {"invoice_id": str(invoice_id)}).first()
+    result = db.execute(
+        query,
+        {"invoice_id": str(invoice_id), "tenant_id": tenant_id},
+    ).first()
 
     if not result:
         raise HTTPException(404, "Invoice not found")
@@ -124,6 +135,132 @@ def get_invoice_data(invoice_id: UUID, db: Session) -> dict[str, Any]:
         "customer_name": result[4],
         "customer_email": result[5],
     }
+
+
+def _safe_json_loads(payload: bytes) -> dict[str, Any]:
+    try:
+        data = json.loads(payload.decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _coerce_uuid_str(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return str(UUID(str(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_webhook_hints(provider: str, payload: bytes) -> dict[str, str | None]:
+    data = _safe_json_loads(payload)
+    hints: dict[str, str | None] = {
+        "tenant_id": None,
+        "invoice_id": None,
+        "session_id": None,
+        "payment_id": None,
+    }
+
+    if provider == "stripe":
+        event_data = (data.get("data") or {}).get("object") or {}
+        metadata = event_data.get("metadata") or {}
+        hints["tenant_id"] = _coerce_uuid_str(metadata.get("tenant_id"))
+        hints["invoice_id"] = _coerce_uuid_str(metadata.get("invoice_id"))
+        hints["session_id"] = str(event_data.get("id")) if event_data.get("id") else None
+        payment_intent = event_data.get("payment_intent")
+        hints["payment_id"] = str(payment_intent) if payment_intent else hints["session_id"]
+        return hints
+
+    transaction = data.get("transaction") or {}
+    metadata = transaction.get("metadata") or data.get("metadata") or {}
+    hints["tenant_id"] = _coerce_uuid_str(metadata.get("tenant_id"))
+    hints["invoice_id"] = _coerce_uuid_str(
+        metadata.get("invoice_id")
+        or transaction.get("invoice_id")
+        or transaction.get("clientTransactionId")
+        or transaction.get("reference")
+    )
+    session_id = transaction.get("token") or transaction.get("ticketNumber") or transaction.get(
+        "transactionId"
+    )
+    payment_id = transaction.get("id") or transaction.get("transactionId") or transaction.get(
+        "ticketNumber"
+    )
+    hints["session_id"] = str(session_id) if session_id else None
+    hints["payment_id"] = str(payment_id) if payment_id else hints["session_id"]
+    return hints
+
+
+def _find_tenant_id_from_payment_links(
+    db: Session,
+    *,
+    invoice_id: str | None = None,
+    session_id: str | None = None,
+    payment_id: str | None = None,
+) -> str | None:
+    if invoice_id:
+        tenant_id = db.execute(
+            text(
+                """
+                SELECT tenant_id
+                FROM payment_links
+                WHERE invoice_id = :invoice_id
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"invoice_id": invoice_id},
+        ).scalar()
+        if tenant_id:
+            return str(tenant_id)
+
+        tenant_id = db.execute(
+            text("SELECT tenant_id FROM invoices WHERE id = :invoice_id LIMIT 1"),
+            {"invoice_id": invoice_id},
+        ).scalar()
+        if tenant_id:
+            return str(tenant_id)
+
+    for candidate in (session_id, payment_id):
+        if not candidate:
+            continue
+        tenant_id = db.execute(
+            text(
+                """
+                SELECT tenant_id
+                FROM payment_links
+                WHERE session_id = :candidate
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"candidate": candidate},
+        ).scalar()
+        if tenant_id:
+            return str(tenant_id)
+
+    return None
+
+
+def _resolve_webhook_tenant_id(provider: str, payload: bytes, db: Session) -> str:
+    hints = _extract_webhook_hints(provider, payload)
+    tenant_id = hints.get("tenant_id")
+    if tenant_id:
+        return tenant_id
+
+    linked_tenant_id = _find_tenant_id_from_payment_links(
+        db,
+        invoice_id=hints.get("invoice_id"),
+        session_id=hints.get("session_id"),
+        payment_id=hints.get("payment_id"),
+    )
+    normalized = _coerce_uuid_str(linked_tenant_id)
+    if normalized:
+        return normalized
+
+    raise ValueError("tenant_not_resolved")
 
 
 # ============================================================================
@@ -141,7 +278,7 @@ def create_payment_link(
 ):
     """Create payment link"""
 
-    invoice = get_invoice_data(data.invoice_id, db)
+    invoice = get_invoice_data(data.invoice_id, tenant_id, db)
 
     if invoice["estado"] == "paid":
         raise HTTPException(400, "Invoice already paid")
@@ -193,7 +330,7 @@ def create_payment_link(
             )
             VALUES (
                 gen_random_uuid(), :tenant_id, :invoice_id, :provider,
-                :session_id, :payment_url, 'pending', :created_by
+                :session_id, :payment_url, :status_pending, :created_by
             )
         """
         )
@@ -206,6 +343,7 @@ def create_payment_link(
                 "provider": data.provider,
                 "session_id": result["session_id"],
                 "payment_url": result["url"],
+                "status_pending": PaymentLinkStatus.PENDING.value,
                 "created_by": current_user["id"],
             },
         )
@@ -238,12 +376,13 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
 
         logger.info(f"Webhook received from {provider}")
 
-        # TODO: Identify tenant from payload or path
-        config = get_provider_config(provider, "default", db)
+        tenant_id = _resolve_webhook_tenant_id(provider, payload, db)
+        config = get_provider_config(provider, tenant_id, db)
 
         payment_provider = get_provider(provider, config)
 
         result = payment_provider.handle_webhook(payload, headers)
+        resolved_tenant_id = _coerce_uuid_str(result.get("tenant_id")) or tenant_id
 
         logger.info(f"Webhook processed: {result}")
 
@@ -256,22 +395,35 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
                     UPDATE invoices
                     SET estado = 'paid'
                     WHERE id = :invoice_id
+                      AND tenant_id = :tenant_id
                       AND estado != 'paid'
                 """
                 )
 
-                db.execute(update_query, {"invoice_id": invoice_id})
+                db.execute(
+                    update_query,
+                    {"invoice_id": invoice_id, "tenant_id": resolved_tenant_id},
+                )
 
                 update_link = text(
                     """
                     UPDATE payment_links
-                    SET status = 'completed', completed_at = NOW()
+                    SET status = :status_completed, completed_at = NOW()
                     WHERE invoice_id = :invoice_id
-                      AND status = 'pending'
+                      AND tenant_id = :tenant_id
+                      AND status = :status_pending
                 """
                 )
 
-                db.execute(update_link, {"invoice_id": invoice_id})
+                db.execute(
+                    update_link,
+                    {
+                        "invoice_id": invoice_id,
+                        "tenant_id": resolved_tenant_id,
+                        "status_completed": PaymentLinkStatus.COMPLETED.value,
+                        "status_pending": PaymentLinkStatus.PENDING.value,
+                    },
+                )
 
                 db.commit()
 
@@ -283,12 +435,10 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
 
                     from app.modules.reconciliation.webhooks import PaymentWebhookService
 
-                    tenant_id = UUID(
-                        str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000"))
-                    )
+                    tenant_id_uuid = UUID(str(resolved_tenant_id))
                     webhook_service = PaymentWebhookService(db)
                     webhook_service.trigger_payment_received(
-                        tenant_id=tenant_id,
+                        tenant_id=tenant_id_uuid,
                         payment_id=result.get("payment_id", ""),
                         invoice_id=invoice_id,
                         amount=result.get("amount", 0),
@@ -306,10 +456,11 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
                 update_link = text(
                     """
                     UPDATE payment_links
-                    SET status = 'failed',
+                    SET status = :status_failed,
                         error_message = :error
                     WHERE invoice_id = :invoice_id
-                      AND status = 'pending'
+                      AND tenant_id = :tenant_id
+                      AND status = :status_pending
                 """
                 )
 
@@ -317,7 +468,10 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
                     update_link,
                     {
                         "invoice_id": invoice_id,
+                        "tenant_id": resolved_tenant_id,
                         "error": result.get("error", "Payment failed"),
+                        "status_failed": PaymentLinkStatus.FAILED.value,
+                        "status_pending": PaymentLinkStatus.PENDING.value,
                     },
                 )
 
@@ -329,12 +483,10 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
 
                     from app.modules.reconciliation.webhooks import PaymentWebhookService
 
-                    tenant_id = UUID(
-                        str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000"))
-                    )
+                    tenant_id_uuid = UUID(str(resolved_tenant_id))
                     webhook_service = PaymentWebhookService(db)
                     webhook_service.trigger_payment_failed(
-                        tenant_id=tenant_id,
+                        tenant_id=tenant_id_uuid,
                         payment_id=result.get("payment_id", ""),
                         invoice_id=invoice_id,
                         amount=result.get("amount", 0),

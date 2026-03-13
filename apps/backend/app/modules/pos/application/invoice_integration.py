@@ -30,6 +30,8 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
+from app.modules.shared.services.statuses import ExpenseStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -740,7 +742,7 @@ class POSInvoicingService:
                     "supplier_id": None,
                     "payment_method": pm,
                     "invoice_number": str(receipt_number),
-                    "status": "pending",
+                    "status": ExpenseStatus.PENDING.value,
                     "user_id": cashier_id or uuid4(),
                     "notes": refund_reason,
                     "created_at": datetime.utcnow().isoformat(),
@@ -755,7 +757,7 @@ class POSInvoicingService:
                 "expense_id": str(expense_id),
                 "expense_type": expense_type,
                 "amount": float(amount),
-                "status": "pending",
+                "status": ExpenseStatus.PENDING.value,
             }
         except Exception as e:
             try:

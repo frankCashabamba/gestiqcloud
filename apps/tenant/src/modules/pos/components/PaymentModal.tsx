@@ -1,12 +1,40 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { payReceipt, redeemStoreCredit, createPaymentLink, type CheckoutResponse } from '../services'
+import { getReceipt, payReceipt, redeemStoreCredit, createPaymentLink, type CheckoutResponse } from '../services'
 import { createMovimientoCaja } from '../../finances/services'
-import { listWarehouses, type Warehouse } from '../../inventory/services'
+import { listStockItems, listWarehouses, type StockItem, type Warehouse } from '../../inventory/services'
 import StoreCreditsModal from './StoreCreditsModal'
-import type { POSPayment, StoreCredit } from '../../../types/pos'
+import type { POSLineStockSelection, POSPayment, POSReceiptLine, StoreCredit } from '../../../types/pos'
 import { useCurrency } from '../../../hooks/useCurrency'
 import { useToast } from '../../../shared/toast'
+
+type LotOption = {
+  key: string
+  lot?: string | null
+  expires_at?: string | null
+  qty: number
+}
+
+const buildLotOptionKey = (lot?: string | null, expiresAt?: string | null) =>
+  JSON.stringify([lot || null, expiresAt || null])
+
+const readLotOptionKey = (key: string): { lot?: string; expires_at?: string } => {
+  try {
+    const [lot, expiresAt] = JSON.parse(key) as [string | null, string | null]
+    return {
+      lot: lot || undefined,
+      expires_at: expiresAt || undefined,
+    }
+  } catch {
+    return {}
+  }
+}
+
+const formatLotOptionLabel = (option: LotOption): string => {
+  const lotLabel = option.lot?.trim() || 'Sin lote'
+  const expiryLabel = option.expires_at ? new Date(option.expires_at).toLocaleDateString() : 'Sin caducidad'
+  return `${lotLabel} · Qty ${option.qty} · ${expiryLabel}`
+}
 
 interface PaymentModalProps {
   receiptId: string
@@ -44,6 +72,12 @@ export default function PaymentModal({
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null)
+  const [receiptLines, setReceiptLines] = useState<POSReceiptLine[]>([])
+  const [stockOptionsByLine, setStockOptionsByLine] = useState<Record<string, LotOption[]>>({})
+  const [lotSelections, setLotSelections] = useState<Record<string, string>>({})
+  const [stockLoading, setStockLoading] = useState(false)
+
+  const activeWarehouseId = warehouseId || selectedWarehouse || undefined
 
   useEffect(() => {
     ; (async () => {
@@ -58,6 +92,90 @@ export default function PaymentModal({
       }
     })()
   }, [warehouseId])
+
+  useEffect(() => {
+    let cancelled = false
+    ; (async () => {
+      try {
+        const receipt = await getReceipt(receiptId)
+        if (!cancelled) {
+          setReceiptLines(Array.isArray(receipt?.lines) ? receipt.lines : [])
+        }
+      } catch {
+        if (!cancelled) {
+          setReceiptLines([])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [receiptId])
+
+  useEffect(() => {
+    if (!activeWarehouseId || receiptLines.length === 0) {
+      setStockLoading(false)
+      setStockOptionsByLine({})
+      return
+    }
+
+    let cancelled = false
+    setStockLoading(true)
+
+    ; (async () => {
+      try {
+        const uniqueProductIds = Array.from(new Set(receiptLines.map((line) => String(line.product_id))))
+        const stockByProduct = new Map<string, StockItem[]>()
+
+        await Promise.all(
+          uniqueProductIds.map(async (productId) => {
+            const items = await listStockItems({ warehouse_id: activeWarehouseId, product_id: productId })
+            stockByProduct.set(
+              productId,
+              (items || []).filter((item) => Number(item.qty || 0) > 0)
+            )
+          })
+        )
+
+        if (cancelled) return
+
+        const nextOptions: Record<string, LotOption[]> = {}
+        for (const line of receiptLines) {
+          const lineId = String(line.id || '')
+          if (!lineId) continue
+          nextOptions[lineId] = (stockByProduct.get(String(line.product_id)) || []).map((item) => ({
+            key: buildLotOptionKey(item.lot || null, item.expires_at || null),
+            lot: item.lot || null,
+            expires_at: item.expires_at || null,
+            qty: Number(item.qty || 0),
+          }))
+        }
+
+        setStockOptionsByLine(nextOptions)
+        setLotSelections((prev) => {
+          const next = { ...prev }
+          for (const [lineId, selectedKey] of Object.entries(next)) {
+            if (!nextOptions[lineId]?.some((option) => option.key === selectedKey)) {
+              delete next[lineId]
+            }
+          }
+          return next
+        })
+      } catch {
+        if (!cancelled) {
+          setStockOptionsByLine({})
+        }
+      } finally {
+        if (!cancelled) {
+          setStockLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeWarehouseId, receiptLines])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -95,16 +213,71 @@ export default function PaymentModal({
   const hasWarehouseSelectionIssue = () =>
     !warehouseId && warehouses.filter((w) => w.is_active).length > 1 && !selectedWarehouse
 
+  const lineSelectionRequirements = useMemo(
+    () =>
+      receiptLines
+        .map((line) => {
+          const lineId = String(line.id || '')
+          const options = stockOptionsByLine[lineId] || []
+          return {
+            line,
+            lineId,
+            options,
+            requiresSelection: options.length > 1,
+          }
+        })
+        .filter((entry) => entry.lineId && entry.requiresSelection),
+    [receiptLines, stockOptionsByLine]
+  )
+
   const handlePay = async () => {
     if (loading) return
     if (hasWarehouseSelectionIssue()) {
       toast.warning(t('pos:payment.selectWarehouseWarning'))
       return
     }
+    if (activeWarehouseId && stockLoading) {
+      toast.warning(
+        t('pos:payment.loadingLotOptions', {
+          defaultValue: 'Cargando lotes disponibles. Espera un momento.',
+        })
+      )
+      return
+    }
 
     setLoading(true)
     try {
       const payments: POSPayment[] = []
+      const stockSelections: POSLineStockSelection[] = []
+
+      for (const requirement of lineSelectionRequirements) {
+        const selectedKey = lotSelections[requirement.lineId]
+        if (!selectedKey) {
+          toast.warning(
+            t('pos:payment.selectLotRequired', {
+              defaultValue: 'Selecciona un lote para cada linea requerida antes de cobrar.',
+            })
+          )
+          setLoading(false)
+          return
+        }
+        const selectedOption = requirement.options.find((option) => option.key === selectedKey)
+        if (!selectedOption || selectedOption.qty < Number(requirement.line.qty || 0)) {
+          toast.error(
+            t('pos:payment.selectedLotInsufficient', {
+              defaultValue: 'El lote seleccionado no tiene stock suficiente para esa linea.',
+            })
+          )
+          setLoading(false)
+          return
+        }
+        const parsedSelection = readLotOptionKey(selectedKey)
+        stockSelections.push({
+          line_id: requirement.lineId,
+          lot: parsedSelection.lot,
+          expires_at: parsedSelection.expires_at,
+        })
+      }
 
       if (splitEnabled) {
         const cash = Math.max(0, toNumber(splitCashAmount))
@@ -175,7 +348,11 @@ export default function PaymentModal({
       }
 
       const wh = warehouseId || selectedWarehouse || undefined
-      const response = await payReceipt(receiptId, payments, wh ? { warehouse_id: wh } : undefined)
+      const response = await payReceipt(
+        receiptId,
+        payments,
+        wh ? { warehouse_id: wh, stock_selections: stockSelections } : undefined
+      )
 
       try {
         const hasDocuments = !!(response?.documents_created?.sale || response?.documents_created?.invoice)
@@ -197,7 +374,22 @@ export default function PaymentModal({
 
       onSuccess(payments, response)
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || t('pos:payment.errorProcessing'))
+      const detail = error?.response?.data?.detail
+      if (detail === 'lot_selection_required') {
+        toast.error(
+          t('pos:payment.selectLotRequired', {
+            defaultValue: 'Selecciona un lote para cada linea requerida antes de cobrar.',
+          })
+        )
+      } else if (detail === 'selected_lot_not_found') {
+        toast.error(
+          t('pos:payment.selectedLotNotFound', {
+            defaultValue: 'El lote seleccionado ya no esta disponible. Recarga y vuelve a intentar.',
+          })
+        )
+      } else {
+        toast.error(detail || t('pos:payment.errorProcessing'))
+      }
     } finally {
       setLoading(false)
     }
@@ -300,6 +492,58 @@ export default function PaymentModal({
                 <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {!!activeWarehouseId && lineSelectionRequirements.length > 0 && (
+          <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-4">
+            <div className="mb-2 text-sm font-semibold text-amber-900">
+              {t('pos:payment.lotSelectionTitle', {
+                defaultValue: 'Seleccion de lote requerida',
+              })}
+            </div>
+            <p className="mb-3 text-xs text-amber-800">
+              {t('pos:payment.lotSelectionHelp', {
+                defaultValue: 'Estas lineas tienen varios lotes disponibles en el almacen seleccionado. Elige el lote a consumir.',
+              })}
+            </p>
+            <div className="space-y-3">
+              {lineSelectionRequirements.map((requirement) => (
+                <div key={requirement.lineId} className="rounded border border-amber-200 bg-white p-3">
+                  <div className="mb-2 text-sm font-medium text-slate-900">
+                    {requirement.line.product_name || requirement.line.product_code || requirement.line.product_id}
+                    {' · '}
+                    Qty {Number(requirement.line.qty || 0)}
+                  </div>
+                  <select
+                    value={lotSelections[requirement.lineId] || ''}
+                    onChange={(e) =>
+                      setLotSelections((prev) => ({
+                        ...prev,
+                        [requirement.lineId]: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded border px-3 py-2"
+                    disabled={stockLoading}
+                  >
+                    <option value="">
+                      {stockLoading
+                        ? t('pos:payment.loadingLotOptions', {
+                            defaultValue: 'Cargando lotes disponibles...',
+                          })
+                        : t('pos:payment.selectLotPlaceholder', {
+                            defaultValue: 'Selecciona un lote',
+                          })}
+                    </option>
+                    {requirement.options.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {formatLotOptionLabel(option)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

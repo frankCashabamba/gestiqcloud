@@ -1,21 +1,28 @@
 """
-Workers Celery para notifications multi-canal
-Soporta: Email (SMTP), WhatsApp (Twilio/API), Telegram (Bot API)
+Workers Celery para notificaciones multi-canal.
+Las funciones de envío real viven en:
+  app.modules.notifications.infrastructure._transport
 """
 
-import os
-import smtplib
-from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import requests
 from celery import shared_task
-from sqlalchemy import text
 
 from app.db.session import get_db_context
 from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
+from app.modules.notifications.infrastructure._transport import (
+    send_smtp,
+    send_telegram,
+    send_whatsapp,
+)
+
+
+# ---------------------------------------------------------------------------
+# Tarea principal: enviar una notificación
+# ---------------------------------------------------------------------------
 
 
 @shared_task(bind=True, max_retries=3)
@@ -31,329 +38,144 @@ def send_notification_task(
     config_override: dict[str, Any] | None = None,
 ):
     """
-    Envía notificación por canal configurado
+    Envía una notificación por el canal configurado y persiste el log.
 
     Args:
-        tenant_id: UUID del tenant
-        tipo: 'email', 'whatsapp', 'telegram'
-        destinatario: email/phone/chat_id
-        asunto: Asunto del message
-        message: Cuerpo del message (HTML para email)
-        ref_type: Tipo de referencia ('invoice', 'stock_alert', etc)
-        ref_id: UUID del documento relacionado
-        config_override: Configuración custom (opcional)
+        tenant_id:       UUID del tenant (str)
+        channel_type:    'email' | 'whatsapp' | 'telegram'
+        destinatario:    email / teléfono / chat_id
+        asunto:          Asunto del mensaje
+        message:         Cuerpo (HTML para email)
+        ref_type:        Tipo de referencia ('invoice', 'stock_alert', …)
+        ref_id:          UUID del documento relacionado
+        config_override: Config custom (omite la BD de canales)
     """
     with get_db_context() as db:
-        try:
-            # 1. Obtener canal configurado
-            if not config_override:
-                channel = (
-                    db.query(NotificationChannel)
-                    .filter(
-                        NotificationChannel.tenant_id == tenant_id,
-                        NotificationChannel.channel_type == channel_type,
-                        NotificationChannel.is_active,
-                    )
-                    .first()
+        # 1. Obtener configuración del canal
+        if config_override:
+            config = config_override
+        else:
+            channel_row = (
+                db.query(NotificationChannel)
+                .filter(
+                    NotificationChannel.tenant_id == tenant_id,
+                    NotificationChannel.channel_type == channel_type,
+                    NotificationChannel.is_active.is_(True),
                 )
+                .order_by(NotificationChannel.priority.desc())
+                .first()
+            )
+            if not channel_row:
+                raise ValueError(f"Canal '{channel_type}' no configurado o inactivo para tenant {tenant_id}")
+            config = channel_row.config
 
-                if not channel:
-                    raise ValueError(f"Channel {channel_type} no configurado o inactivo")
-
-                config = channel.config
-            else:
-                config = config_override
-
-            # 2. Enviar según tipo
-            result = None
+        # 2. Enviar
+        try:
             if channel_type == "email":
-                result = send_email(config, destinatario, asunto, message)
-            elif channel_type == "whatsapp":
+                result = send_smtp(config, destinatario, asunto, message)
+            elif channel_type in ("whatsapp", "sms"):
                 result = send_whatsapp(config, destinatario, message)
             elif channel_type == "telegram":
                 result = send_telegram(config, destinatario, message)
             else:
-                raise ValueError(f"Unsupported notification type: {channel_type}")
+                raise ValueError(f"Canal no soportado: {channel_type}")
 
-            # 3. Log exitoso
-            log = NotificationLog(
-                tenant_id=tenant_id,
-                channel_type=channel_type,
-                destinatario=destinatario,
-                asunto=asunto,
-                message=message,
-                canal=channel_type,
-                status="sent",
-                ref_type=ref_type,
-                ref_id=ref_id,
-                metadata=result,
-                sent_at=datetime.utcnow(),
-            )
-            db.add(log)
+            status = "sent"
+            error_msg = None
+        except Exception as exc:
+            status = "failed"
+            error_msg = str(exc)
+            result = {}
+            # Guardar log de error antes de reintentar
+            _write_log(db, tenant_id, channel_type, destinatario, asunto, message, status, error_msg, ref_type, ref_id)
             db.commit()
+            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
 
-            return {"status": "sent", "log_id": str(log.id), "result": result}
+        # 3. Log exitoso
+        log = _write_log(db, tenant_id, channel_type, destinatario, asunto, message, status, error_msg, ref_type, ref_id, extra_data=result)
+        db.commit()
 
-        except Exception as e:
-            # Log error
-            log = NotificationLog(
-                tenant_id=tenant_id,
-                channel_type=channel_type,
-                destinatario=destinatario,
-                asunto=asunto,
-                message=message,
-                canal=channel_type,
-                status="failed",
-                error_message=str(e),
-                ref_type=ref_type,
-                ref_id=ref_id,
-            )
-            db.add(log)
-            db.commit()
-
-            # Retry con backoff exponencial
-            raise self.retry(exc=e, countdown=60 * (2**self.request.retries))
+        return {"status": status, "log_id": str(log.id), "result": result}
 
 
-def send_email(config: dict[str, Any], to: str, subject: str, body: str) -> dict[str, Any]:
-    """
-    Envía email vía SMTP
-
-    Config esperado:
-    - smtp_host: Servidor SMTP
-    - smtp_port: Puerto (587/465)
-    - smtp_user: Usuario
-    - smtp_password: Contraseña
-    - from_email: Remitente
-    - use_tls: True/False
-    """
-    smtp_host = config.get("smtp_host", os.getenv("SMTP_HOST", "smtp.gmail.com"))
-    smtp_port = config.get("smtp_port", int(os.getenv("SMTP_PORT", "587")))
-    smtp_user = config.get("smtp_user", os.getenv("SMTP_USER"))
-    smtp_pass = config.get("smtp_password", os.getenv("SMTP_PASSWORD"))
-    from_email = config.get("from_email", smtp_user)
-    use_tls = config.get("use_tls", True)
-
-    if not smtp_user or not smtp_pass:
-        raise ValueError("SMTP credentials no configurados")
-
-    # Crear message
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = from_email
-    msg["To"] = to
-
-    # Añadir versión HTML
-    html_part = MIMEText(body, "html", "utf-8")
-    msg.attach(html_part)
-
-    # Enviar
-    if use_tls:
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-    else:
-        with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-
-    return {"sent": True, "to": to, "from": from_email, "subject": subject}
-
-
-def send_whatsapp(config: dict[str, Any], phone: str, message: str) -> dict[str, Any]:
-    """
-    Envía WhatsApp vía Twilio o API genérica
-
-    Config para Twilio:
-    - provider: 'twilio'
-    - account_sid: Twilio Account SID
-    - auth_token: Twilio Auth Token
-    - from_number: Número WhatsApp (+14155238886)
-
-    Config para API genérica:
-    - provider: 'generic'
-    - api_url: URL del endpoint
-    - api_key: Bearer token
-    """
-    provider = config.get("provider", "twilio")
-
-    if provider == "twilio":
-        try:
-            from twilio.rest import Client
-        except ImportError:
-            raise ImportError("Instalar twilio: pip install twilio")
-
-        account_sid = config.get("account_sid")
-        auth_token = config.get("auth_token")
-        from_number = config.get("from_number")
-
-        if not all([account_sid, auth_token, from_number]):
-            raise ValueError("Configuración Twilio incompleta")
-
-        client = Client(account_sid, auth_token)
-        msg = client.messages.create(
-            from_=f"whatsapp:{from_number}", body=message, to=f"whatsapp:{phone}"
-        )
-
-        return {
-            "sent": True,
-            "provider": "twilio",
-            "message_sid": msg.sid,
-            "status": msg.status,
-        }
-
-    elif provider == "generic":
-        api_url = config.get("api_url")
-        api_key = config.get("api_key")
-
-        if not api_url or not api_key:
-            raise ValueError("API URL y API Key requeridos")
-
-        response = requests.post(
-            api_url,
-            json={"phone": phone, "message": message},
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=30,
-        )
-        response.raise_for_status()
-
-        return {"sent": True, "provider": "generic", "response": response.json()}
-
-    else:
-        raise ValueError(f"Provider WhatsApp no soportado: {provider}")
-
-
-def send_telegram(config: dict[str, Any], chat_id: str, message: str) -> dict[str, Any]:
-    """
-    Envía message vía Telegram Bot API
-
-    Config:
-    - bot_token: Token del bot (obtener de @BotFather)
-    - parse_mode: 'HTML' o 'Markdown' (default: HTML)
-    """
-    bot_token = config.get("bot_token")
-    parse_mode = config.get("parse_mode", "HTML")
-
-    if not bot_token:
-        raise ValueError("bot_token no configurado")
-
-    telegram_api_base = config.get("api_base") or os.getenv(
-        "TELEGRAM_API_BASE", "https://api.telegram.org"
-    )
-    telegram_api_base = str(telegram_api_base).rstrip("/")
-    url = f"{telegram_api_base}/bot{bot_token}/sendMessage"
-
-    response = requests.post(
-        url,
-        json={
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": parse_mode,
-            "disable_web_page_preview": True,
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
-
-    data = response.json()
-
-    return {
-        "sent": True,
-        "message_id": data["result"]["message_id"],
-        "chat_id": chat_id,
-    }
+# ---------------------------------------------------------------------------
+# Tarea programada: alertas de stock bajo
+# ---------------------------------------------------------------------------
 
 
 @shared_task
 def check_and_notify_low_stock():
     """
-    task programada: revisar stock bajo y notificar
-    Ejecuta cada hora vía Celery Beat
+    Revisión periódica de stock bajo y envío de notificaciones.
+    Ejecutar cada hora vía Celery Beat.
     """
+    from sqlalchemy import text
+
     with get_db_context() as db:
-        # 1. Ejecutar función SQL que genera alertas
         db.execute(text("SELECT check_low_stock()"))
         db.commit()
 
-        # 2. Obtener alertas activas no notificadas
         alerts = (
             db.query(StockAlert)
-            .filter(StockAlert.status == "active", StockAlert.notified_at is None)
+            .filter(StockAlert.status == "active", StockAlert.notified_at.is_(None))
             .all()
         )
 
         if not alerts:
             return {"message": "No hay alertas pendientes", "count": 0}
 
-        # 3. Agrupar por tenant
+        # Agrupar por tenant
         by_tenant: dict[str, list[StockAlert]] = {}
         for alert in alerts:
-            tenant_id = str(alert.tenant_id)
-            if tenant_id not in by_tenant:
-                by_tenant[tenant_id] = []
-            by_tenant[tenant_id].append(alert)
+            key = str(alert.tenant_id)
+            by_tenant.setdefault(key, []).append(alert)
 
-        # 4. Enviar notificación por tenant
         notified_count = 0
         for tenant_id, tenant_alerts in by_tenant.items():
-            # Obtener canales activos
             channels = (
                 db.query(NotificationChannel)
                 .filter(
                     NotificationChannel.tenant_id == tenant_id,
-                    NotificationChannel.is_active,
+                    NotificationChannel.is_active.is_(True),
                 )
                 .all()
             )
-
             if not channels:
                 continue
 
-            # Construir message
-            productos_list = []
-            for alert in tenant_alerts:
-                productos_list.append(
-                    f"- <b>{alert.product.name}</b>: {alert.nivel_actual} uds "
-                    f"(mínimo: {alert.nivel_minimo})"
-                )
+            productos_list = [
+                f"- <b>{a.product.name}</b>: {a.current_qty} uds (mínimo: {a.threshold_qty})"
+                for a in tenant_alerts
+            ]
+            body = (
+                f"<b>⚠️ Alerta de Stock Bajo</b>\n\n"
+                f"Tienes {len(tenant_alerts)} producto(s) con stock bajo:\n\n"
+                + "\n".join(productos_list)
+            )
 
-            message = f"""
-<b>⚠️ Alerta de Stock Bajo</b>
-
-Tienes {len(tenant_alerts)} producto(s) con stock bajo:
-
-{chr(10).join(productos_list)}
-
-<a href="https://app.gestiqcloud.com/inventario">Ver Inventario Completo</a>
-            """.strip()
-
-            # Enviar por cada canal
             channels_used = []
-            for channel in channels:
-                default_recipient = channel.config.get("default_recipient")
+            for ch in channels:
+                default_recipient = ch.config.get("default_recipient")
                 if not default_recipient:
                     continue
-
                 try:
                     send_notification_task.delay(
                         tenant_id=tenant_id,
-                        channel_type=channel.channel_type,
+                        channel_type=ch.channel_type,
                         destinatario=default_recipient,
                         asunto="⚠️ Alerta Stock Bajo",
-                        message=message,
+                        message=body,
                         ref_type="stock_alert",
-                        ref_id=None,
                     )
-                    channels_used.append(channel.channel_type)
-                except Exception as e:
-                    print(f"error enviando alerta por {channel.channel_type}: {e}")
+                    channels_used.append(ch.channel_type)
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning("Error encolando alerta para %s: %s", ch.channel_type, exc)
 
-            # Marcar como notificadas
             if channels_used:
+                now = datetime.now(timezone.utc)
                 for alert in tenant_alerts:
-                    alert.notified_at = datetime.utcnow()
-                    alert.notified_via = channels_used
+                    alert.notified_at = now
                     alert.status = "notified"
                 db.commit()
                 notified_count += 1
@@ -361,37 +183,30 @@ Tienes {len(tenant_alerts)} producto(s) con stock bajo:
         return {"notified_tenants": notified_count, "total_alerts": len(alerts)}
 
 
+# ---------------------------------------------------------------------------
+# Tarea: notificar factura al cliente
+# ---------------------------------------------------------------------------
+
+
 @shared_task
 def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
-    """
-    Notifica al cliente sobre una invoice
-
-    Args:
-        invoice_id: UUID de la invoice
-        tipo: 'email', 'whatsapp', 'telegram'
-    """
+    """Notifica al cliente sobre una factura emitida."""
     with get_db_context() as db:
         from app.models.core import Invoice
 
         invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
         if not invoice:
-            raise ValueError(f"invoice {invoice_id} no encontrada")
+            raise ValueError(f"Factura {invoice_id} no encontrada")
 
-        # Construir message
-        asunto = f"invoice {invoice.numero} - {invoice.empresa.name}"
-        message = f"""
-<h2>invoice #{invoice.numero}</h2>
+        asunto = f"Factura {invoice.numero} - {invoice.empresa.name}"
+        body = (
+            f"<h2>Factura #{invoice.numero}</h2>"
+            f"<p><b>Fecha:</b> {invoice.fecha.strftime('%d/%m/%Y')}</p>"
+            f"<p><b>Cliente:</b> {invoice.cliente.name if invoice.cliente else 'N/A'}</p>"
+            f"<p><b>Total:</b> {invoice.total} €</p>"
+            f"<p><b>Estado:</b> {invoice.status}</p>"
+        )
 
-<p><b>Fecha:</b> {invoice.fecha.strftime("%d/%m/%Y")}</p>
-<p><b>Cliente:</b> {invoice.cliente.name if invoice.cliente else "N/A"}</p>
-<p><b>Total:</b> {invoice.total} €</p>
-
-<p><b>status:</b> {invoice.status}</p>
-
-<a href="https://app.gestiqcloud.com/invoices/{invoice.id}">Ver invoice Completa</a>
-        """.strip()
-
-        # Destinatario
         destinatario = None
         if channel_type == "email" and invoice.cliente:
             destinatario = invoice.cliente.email
@@ -399,15 +214,14 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
             destinatario = invoice.cliente.phone
 
         if not destinatario:
-            raise ValueError(f"No hay destinatario {channel_type} configurado")
+            raise ValueError(f"Sin destinatario '{channel_type}' para la factura {invoice_id}")
 
-        # Enviar
         send_notification_task.delay(
             tenant_id=str(invoice.tenant_id),
             channel_type=channel_type,
             destinatario=destinatario,
             asunto=asunto,
-            message=message,
+            message=body,
             ref_type="invoice",
             ref_id=str(invoice.id),
         )
@@ -415,26 +229,56 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
         return {"status": "queued", "invoice_id": invoice_id}
 
 
+# ---------------------------------------------------------------------------
+# Tarea: limpieza de logs antiguos
+# ---------------------------------------------------------------------------
+
+
 @shared_task
 def cleanup_old_logs(days: int = 90):
-    """
-    Limpia logs de notifications antiguos
-    Ejecutar mensualmente vía Celery Beat
-    """
+    """Elimina logs de notificaciones enviadas con más de `days` días."""
     with get_db_context() as db:
-        from datetime import timedelta
-
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
-
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         deleted = (
             db.query(NotificationLog)
             .filter(
-                NotificationLog.created_at < cutoff_date,
+                NotificationLog.created_at < cutoff,
                 NotificationLog.status == "sent",
             )
             .delete()
         )
-
         db.commit()
-
         return {"deleted_logs": deleted, "days": days}
+
+
+# ---------------------------------------------------------------------------
+# Helper interno
+# ---------------------------------------------------------------------------
+
+
+def _write_log(
+    db,
+    tenant_id: str,
+    channel_type: str,
+    recipient: str,
+    subject: str,
+    body: str,
+    status: str,
+    error_message: str | None = None,
+    ref_type: str | None = None,
+    ref_id: str | None = None,
+    extra_data: dict | None = None,
+) -> NotificationLog:
+    log = NotificationLog(
+        tenant_id=tenant_id,
+        notification_type=channel_type,
+        recipient=recipient,
+        subject=subject,
+        body=body,
+        status=status,
+        error_message=error_message,
+        extra_data=extra_data,
+        sent_at=datetime.now(timezone.utc) if status == "sent" else None,
+    )
+    db.add(log)
+    return log

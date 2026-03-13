@@ -99,6 +99,21 @@ def invoice_data():
     }
 
 
+@pytest.fixture(autouse=True)
+def stub_sii_submission(monkeypatch):
+    def _fake_submit_xml(settings, xml_content):
+        assert settings.api_endpoint
+        assert xml_content
+        return {
+            "status": "ACCEPTED",
+            "fiscal_number": "CSV-TEST-001",
+            "authorization_code": "AUTH-TEST-001",
+            "message": "Aceptado",
+        }
+
+    monkeypatch.setattr(SIIService, "submit_xml", staticmethod(_fake_submit_xml))
+
+
 # ============================================================================
 # TESTS: Configuration
 # ============================================================================
@@ -248,6 +263,23 @@ def test_generate_xml_totals(invoice_data):
     assert str(invoice_data["subtotal"]) in xml
     assert str(invoice_data["total_vat"]) in xml
     assert str(invoice_data["total"]) in xml
+
+
+def test_parse_agency_response_accepts_xml_payload():
+    parsed = SIIService._parse_agency_response(
+        """
+        <RespuestaSuministro>
+            <EstadoRegistro>Aceptado</EstadoRegistro>
+            <CSV>CSV-123</CSV>
+            <CodigoSeguroVerificacion>AUTH-999</CodigoSeguroVerificacion>
+        </RespuestaSuministro>
+        """,
+        200,
+    )
+
+    assert parsed["status"] == "ACCEPTED"
+    assert parsed["fiscal_number"] == "CSV-123"
+    assert parsed["authorization_code"] == "AUTH-999"
 
 
 # ============================================================================

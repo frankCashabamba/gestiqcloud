@@ -17,6 +17,7 @@ from app.models.core.facturacion import Invoice, InvoiceTemp
 from app.models.core.invoiceLine import BakeryLine, POSLine, WorkshopLine
 from app.models.tenant import Tenant
 from app.modules.invoicing import schemas
+from app.modules.shared.services.statuses import PendingStatus
 from app.modules.shared.services.numbering import generar_numero_documento
 
 # asegúrate de tener esta función creada
@@ -202,7 +203,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         """Function mover_facturas_a_principal - auto-generated docstring."""
         temporales = (
             db.query(InvoiceTemp)
-            .filter_by(tenant_id=_tenant_uuid(tenant_id), status="pending")
+            .filter_by(tenant_id=_tenant_uuid(tenant_id), status=PendingStatus.PENDING.value)
             .all()
         )
         for temp in temporales:
@@ -212,7 +213,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
                 supplier=data.get("supplier"),
                 issue_date=data.get("issue_date"),
                 amount=data.get("amount"),
-                status=data.get("status", "pending"),
+                status=data.get("status", PendingStatus.PENDING.value),
                 tenant_id=_tenant_uuid(tenant_id),
             )
             db.add(nueva)

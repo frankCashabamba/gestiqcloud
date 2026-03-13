@@ -572,6 +572,7 @@ async def _create_stock_move_for_output(
         warehouse_id=warehouse_id,
         ref_type="production_order",
         ref_id=str(order.id),
+        lot=order.batch_number,
         occurred_at=datetime.utcnow(),
     )
     db.add(stock_move)
@@ -582,12 +583,14 @@ async def _create_stock_move_for_output(
     )
     if warehouse_id:
         stmt = stmt.where(StockItem.warehouse_id == warehouse_id)
+    if order.batch_number:
+        stmt = stmt.where(StockItem.lot == order.batch_number)
+    else:
+        stmt = stmt.where(StockItem.lot.is_(None))
     result = db.execute(stmt)
     stock_item = result.scalar_one_or_none()
     if stock_item:
         stock_item.qty = float(stock_item.qty or 0) + abs(float(order.qty_produced))
-        if order.batch_number:
-            stock_item.lot = order.batch_number
     else:
         new_stock_item = StockItem(
             tenant_id=order.tenant_id,

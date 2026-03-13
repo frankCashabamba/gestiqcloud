@@ -38,6 +38,7 @@ class TestSalesOrderLineModel:
             qty=Decimal("1"),
             unit_price=Decimal("100.00"),
             discount_pct=Decimal("0"),
+            tax_rate=Decimal("0.21"),
         )
         # 100 * 1.21 = 121
         assert line.line_total == Decimal("121.00")

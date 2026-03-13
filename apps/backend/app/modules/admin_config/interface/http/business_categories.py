@@ -10,9 +10,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
+from app.db.rls import ensure_rls
 from app.models.company.company import BusinessCategory
 
-router = APIRouter(prefix="/api/v1/business-categories", tags=["Business Categories"])
+router = APIRouter(
+    prefix="/api/v1/business-categories",
+    tags=["Business Categories"],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
+)
 
 
 @router.get("/", summary="List business categories")

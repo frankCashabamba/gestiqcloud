@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 from uuid import UUID, uuid4
@@ -122,6 +122,13 @@ def _to_decimal_q(value: float | Decimal, q: str) -> Decimal:
     return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
+def _normalize_lot(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
 def _resolve_tenant_currency(db: Session, tenant_id: UUID) -> str:
     """Resuelve la moneda base del tenant para POS.
 
@@ -159,6 +166,122 @@ def _resolve_tenant_currency(db: Session, tenant_id: UUID) -> str:
         return str(base[0]).strip().upper()
 
     return "USD"
+
+
+def _resolve_inventory_costing_method(db: Session) -> str:
+    """Obtiene el metodo de costeo configurado para inventario/POS."""
+    try:
+        repo = SettingsRepo(db)
+        inventory_cfg = repo.get("inventory") or {}
+        pos_cfg = repo.get("pos") or {}
+        candidate = None
+        if isinstance(inventory_cfg, dict):
+            candidate = inventory_cfg.get("costing_method")
+        if candidate is None and isinstance(pos_cfg, dict):
+            candidate = ((pos_cfg.get("inventory") or {}).get("costing_method"))
+        method = str(candidate or "avg").strip().lower()
+        return method if method in {"avg", "fifo", "lifo"} else "avg"
+    except Exception:
+        return "avg"
+
+
+def _load_locked_stock_rows(db: Session, warehouse_id: UUID, product_id: UUID):
+    return db.execute(
+        text(
+            "SELECT id, qty, lot, expires_at FROM stock_items "
+            "WHERE warehouse_id = :wid AND product_id = :pid "
+            "FOR UPDATE"
+        ).bindparams(
+            bindparam("wid", type_=PGUUID(as_uuid=True)),
+            bindparam("pid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"wid": warehouse_id, "pid": product_id},
+    ).fetchall()
+
+
+def _sum_stock_rows_qty(rows) -> float:
+    return float(sum(float(row[1] or 0) for row in rows))
+
+
+def _resolve_outbound_stock_row(rows):
+    positive_rows = [row for row in rows if float(row[1] or 0) > 0]
+    if len(positive_rows) > 1:
+        raise HTTPException(status_code=409, detail="lot_selection_required")
+    if positive_rows:
+        return positive_rows[0]
+    return rows[0] if rows else None
+
+
+def _resolve_selected_stock_row(rows, *, lot: str | None, expires_at: date | None):
+    normalized_lot = _normalize_lot(lot)
+    matches = []
+    for row in rows:
+        row_lot = _normalize_lot(row[2])
+        row_exp = row[3]
+        if row_lot != normalized_lot:
+            continue
+        if expires_at is None:
+            if row_exp is not None:
+                continue
+        elif str(row_exp) != str(expires_at):
+            continue
+        matches.append(row)
+
+    if not matches:
+        raise HTTPException(status_code=400, detail="selected_lot_not_found")
+
+    positive_rows = [row for row in matches if float(row[1] or 0) > 0]
+    if len(positive_rows) > 1 or (len(matches) > 1 and not positive_rows):
+        raise HTTPException(status_code=409, detail="lot_selection_required")
+    if positive_rows:
+        return positive_rows[0]
+    return matches[0]
+
+
+def _ensure_generic_stock_row(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    warehouse_id: UUID,
+    product_id: UUID,
+):
+    row = db.execute(
+        text(
+            "SELECT id, qty FROM stock_items "
+            "WHERE warehouse_id = :wid AND product_id = :pid "
+            "AND lot IS NULL AND expires_at IS NULL "
+            "FOR UPDATE"
+        ).bindparams(
+            bindparam("wid", type_=PGUUID(as_uuid=True)),
+            bindparam("pid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"wid": warehouse_id, "pid": product_id},
+    ).first()
+    if row is not None:
+        return row
+    db.execute(
+        text(
+            "INSERT INTO stock_items(id, tenant_id, warehouse_id, product_id, qty, lot, expires_at) "
+            "VALUES (gen_random_uuid(), :tid, :wid, :pid, 0, NULL, NULL)"
+        ).bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+            bindparam("wid", type_=PGUUID(as_uuid=True)),
+            bindparam("pid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
+    )
+    return db.execute(
+        text(
+            "SELECT id, qty FROM stock_items "
+            "WHERE warehouse_id = :wid AND product_id = :pid "
+            "AND lot IS NULL AND expires_at IS NULL "
+            "FOR UPDATE"
+        ).bindparams(
+            bindparam("wid", type_=PGUUID(as_uuid=True)),
+            bindparam("pid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"wid": warehouse_id, "pid": product_id},
+    ).first()
 
 
 # ============================================================================
@@ -359,9 +482,22 @@ def _is_tax_enabled(db: Session) -> bool:
         return True
 
 
+class CheckoutLineStockSelectionIn(BaseModel):
+    line_id: str
+    lot: str | None = Field(default=None, max_length=100)
+    expires_at: date | None = None
+
+    @field_validator("line_id")
+    @classmethod
+    def validate_line_id(cls, v):
+        _validate_uuid(v, "Receipt line ID")
+        return v
+
+
 class CheckoutIn(BaseModel):
     payments: list[PaymentIn] = Field(min_length=1)
     warehouse_id: str | None = None
+    stock_selections: list[CheckoutLineStockSelectionIn] = Field(default_factory=list)
 
     @field_validator("warehouse_id")
     @classmethod
@@ -1888,8 +2024,12 @@ def checkout(
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).fetchall()
+        line_selection_map = {
+            str(selection.line_id): selection for selection in (payload.stock_selections or [])
+        }
 
         costing = InventoryCostingService(db)
+        costing_method = _resolve_inventory_costing_method(db)
 
         for line in lines:
             line_id = line[0]
@@ -1899,34 +2039,34 @@ def checkout(
             discount_pct = float(line[4] or 0)
 
             # Actualizar stock_items con lock
-            stock_item = db.execute(
-                text(
-                    "SELECT id, qty FROM stock_items "
-                    "WHERE warehouse_id = :wid AND product_id = :pid "
-                    "FOR UPDATE"
-                ),
-                {"wid": str(warehouse_uuid), "pid": str(product_id)},
-            ).first()
+            stock_rows = _load_locked_stock_rows(db, warehouse_uuid, product_id)
+            line_selection = line_selection_map.get(str(line_id))
+            if line_selection is not None:
+                stock_item = _resolve_selected_stock_row(
+                    stock_rows,
+                    lot=line_selection.lot,
+                    expires_at=line_selection.expires_at,
+                )
+                selected_lot = _normalize_lot(line_selection.lot)
+                selected_expires_at = line_selection.expires_at
+            else:
+                stock_item = _resolve_outbound_stock_row(stock_rows)
+                selected_lot = _normalize_lot(stock_item[2]) if stock_item is not None else None
+                selected_expires_at = stock_item[3] if stock_item is not None else None
 
             if stock_item is None:
-                # Crear registro con stock 0
-                db.execute(
-                    text(
-                        "INSERT INTO stock_items("
-                        "id, tenant_id, warehouse_id, product_id, qty"
-                        ") VALUES ("
-                        "gen_random_uuid(), :tid, :wid, :pid, 0"
-                        ")"
-                    ),
-                    {
-                        "tid": str(tenant_id),
-                        "wid": str(warehouse_uuid),
-                        "pid": str(product_id),
-                    },
+                stock_item = _ensure_generic_stock_row(
+                    db,
+                    tenant_id=tenant_id,
+                    warehouse_id=warehouse_uuid,
+                    product_id=product_id,
                 )
-                current_qty = 0.0
-            else:
-                current_qty = float(stock_item[1] or 0)
+                stock_rows = [stock_item]
+                selected_lot = None
+                selected_expires_at = None
+
+            current_qty = _sum_stock_rows_qty(stock_rows)
+            selected_qty = float(stock_item[1] or 0)
 
             cost_price = db.execute(
                 text("SELECT cost_price FROM products WHERE id = :pid"),
@@ -1956,18 +2096,41 @@ def checkout(
                 },
             )
 
-            state = costing.apply_outbound(
-                str(tenant_id),
-                str(warehouse_uuid),
-                str(product_id),
-                qty=_to_decimal_q(qty_sold, "0.000001"),
-                allow_negative=False,
-                initial_qty=_to_decimal_q(current_qty, "0.000001"),
-                initial_avg_cost=fallback_cost,
-            )
-
-            cogs_unit = state.avg_cost
-            cogs_total = _to_decimal_q(qty_sold, "0.000001") * cogs_unit
+            qty_dec = _to_decimal_q(qty_sold, "0.000001")
+            if costing_method == "fifo":
+                state, cogs_total = costing.apply_outbound_fifo(
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    allow_negative=False,
+                )
+                cogs_unit = (
+                    _to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else _to_decimal_q(0, "0.000001")
+                )
+            elif costing_method == "lifo":
+                state, cogs_total = costing.apply_outbound_lifo(
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    allow_negative=False,
+                )
+                cogs_unit = (
+                    _to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else _to_decimal_q(0, "0.000001")
+                )
+            else:
+                state = costing.apply_outbound(
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    allow_negative=False,
+                    initial_qty=_to_decimal_q(current_qty, "0.000001"),
+                    initial_avg_cost=fallback_cost,
+                )
+                cogs_unit = state.avg_cost
+                cogs_total = qty_dec * cogs_unit
             net_total = _to_decimal_q(qty_sold, "0.000001") * _to_decimal_q(unit_price, "0.0001")
             net_total = net_total * (Decimal("1") - (_to_decimal_q(discount_pct, "0.01") / 100))
             net_total = _to_decimal_q(net_total, "0.01")
@@ -2000,9 +2163,9 @@ def checkout(
                 text(
                     "INSERT INTO stock_moves("
                     "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, "
-                    "tentative, posted, unit_cost, total_cost, occurred_at"
+                    "tentative, posted, lot, expires_at, unit_cost, total_cost, occurred_at"
                     ") VALUES ("
-                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, :uc, :tc, :occurred_at"
+                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, :lot, :exp, :uc, :tc, :occurred_at"
                     ")"
                 ).bindparams(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -2016,22 +2179,24 @@ def checkout(
                     "wid": warehouse_uuid,
                     "q": qty_sold,
                     "rid": receipt_uuid,
+                    "lot": selected_lot,
+                    "exp": selected_expires_at,
                     "uc": float(cogs_unit),
                     "tc": float(cogs_total_money),
                     "occurred_at": datetime.utcnow(),
                 },
             )
 
-            new_qty = current_qty - qty_sold
-            if new_qty < 0:
+            new_qty = selected_qty - qty_sold
+            if current_qty - qty_sold < 0 or new_qty < 0:
                 raise HTTPException(status_code=400, detail="insufficient_stock")
 
             db.execute(
                 text(
                     "UPDATE stock_items SET qty = :q "
-                    "WHERE warehouse_id = :wid AND product_id = :pid"
-                ),
-                {"q": new_qty, "wid": str(warehouse_uuid), "pid": str(product_id)},
+                    "WHERE id = :id"
+                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                {"q": new_qty, "id": stock_item[0]},
             )
 
         # 6. Marcar recibo como pagado
@@ -2242,44 +2407,49 @@ def refund_receipt(
             qty_dec = _to_decimal_q(qty_return, "0.000001")
             cogs_unit_dec = _to_decimal_q(cogs_unit, "0.000001")
 
-            stock_item = db.execute(
-                text(
-                    "SELECT id, qty FROM stock_items "
-                    "WHERE warehouse_id = :wid AND product_id = :pid "
-                    "FOR UPDATE"
-                ),
-                {"wid": str(warehouse_uuid), "pid": str(product_id)},
-            ).first()
-            current_qty = float(stock_item[1] or 0) if stock_item else 0.0
-            if stock_item is None:
-                db.execute(
-                    text(
-                        "INSERT INTO stock_items(id, tenant_id, warehouse_id, product_id, qty) "
-                        "VALUES (gen_random_uuid(), :tid, :wid, :pid, 0)"
-                    ),
-                    {
-                        "tid": str(tenant_id),
-                        "wid": str(warehouse_uuid),
-                        "pid": str(product_id),
-                    },
-                )
-
-            costing.apply_inbound(
-                str(tenant_id),
-                str(warehouse_uuid),
-                str(product_id),
-                qty=qty_dec,
-                unit_cost=cogs_unit_dec,
-                initial_qty=_to_decimal_q(current_qty, "0.000001"),
-                initial_avg_cost=cogs_unit_dec,
+            stock_rows = _load_locked_stock_rows(db, warehouse_uuid, product_id)
+            current_qty = _sum_stock_rows_qty(stock_rows)
+            stock_item = _ensure_generic_stock_row(
+                db,
+                tenant_id=tenant_id,
+                warehouse_id=warehouse_uuid,
+                product_id=product_id,
             )
+            generic_qty = float(stock_item[1] or 0)
+
+            if costing_method == "fifo":
+                costing.apply_inbound_fifo(
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    unit_cost=cogs_unit_dec,
+                )
+            elif costing_method == "lifo":
+                costing.apply_inbound_lifo(
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    unit_cost=cogs_unit_dec,
+                )
+            else:
+                costing.apply_inbound(
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    unit_cost=cogs_unit_dec,
+                    initial_qty=_to_decimal_q(current_qty, "0.000001"),
+                    initial_avg_cost=cogs_unit_dec,
+                )
 
             db.execute(
                 text(
                     "UPDATE stock_items SET qty = :q "
-                    "WHERE warehouse_id = :wid AND product_id = :pid"
-                ),
-                {"q": current_qty + qty_return, "wid": str(warehouse_uuid), "pid": str(product_id)},
+                    "WHERE id = :id"
+                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                {"q": generic_qty + qty_return, "id": stock_item[0]},
             )
 
             refund_net = -abs(net_total or line_total)
@@ -3205,44 +3375,30 @@ def post_receipt(
             )
 
             # Actualizar stock_items
-            row = db.execute(
-                text(
-                    "SELECT id, qty FROM stock_items "
-                    "WHERE warehouse_id = :wid AND product_id = :pid FOR UPDATE"
-                ).bindparams(
-                    bindparam("wid", type_=PGUUID(as_uuid=True)),
-                    bindparam("pid", type_=PGUUID(as_uuid=True)),
-                ),
-                {"wid": wh_id, "pid": it[0]},
-            ).first()
+            rows = _load_locked_stock_rows(db, wh_id, it[0])
+            row = _resolve_outbound_stock_row(rows)
 
             if row is None:
-                db.execute(
-                    text(
-                        "INSERT INTO stock_items(tenant_id, warehouse_id, product_id, qty) "
-                        "VALUES (:tid, :wid, :pid, 0)"
-                    ).bindparams(
-                        bindparam("tid", type_=PGUUID(as_uuid=True)),
-                        bindparam("wid", type_=PGUUID(as_uuid=True)),
-                        bindparam("pid", type_=PGUUID(as_uuid=True)),
-                    ),
-                    {"tid": tenant_id, "wid": wh_id, "pid": it[0]},
+                row = _ensure_generic_stock_row(
+                    db,
+                    tenant_id=tenant_id,
+                    warehouse_id=wh_id,
+                    product_id=it[0],
                 )
-                cur_qty = 0.0
-            else:
-                cur_qty = float(row[1] or 0)
+                rows = [row]
 
-            new_qty = cur_qty - float(it[1])
+            cur_qty = _sum_stock_rows_qty(rows)
+            selected_qty = float(row[1] or 0)
+            new_qty = selected_qty - float(it[1])
+            if cur_qty - float(it[1]) < 0 or new_qty < 0:
+                raise HTTPException(status_code=400, detail="insufficient_stock")
 
             db.execute(
                 text(
                     "UPDATE stock_items SET qty = :q "
-                    "WHERE warehouse_id = :wid AND product_id = :pid"
-                ).bindparams(
-                    bindparam("wid", type_=PGUUID(as_uuid=True)),
-                    bindparam("pid", type_=PGUUID(as_uuid=True)),
-                ),
-                {"q": new_qty, "wid": wh_id, "pid": it[0]},
+                    "WHERE id = :id"
+                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                {"q": new_qty, "id": row[0]},
             )
 
         # Actualizar recibo (use 'paid' not 'posted' - valid statuses: draft, paid, voided, invoiced)

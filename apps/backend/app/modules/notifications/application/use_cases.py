@@ -13,8 +13,6 @@ from app.modules.notifications.domain.exceptions import (
 )
 from app.modules.notifications.domain.models import Notification, NotificationTemplate
 from app.modules.notifications.infrastructure.notification_service import (
-    NotificationChannel,
-    NotificationPriority,
     NotificationService,
 )
 
@@ -52,13 +50,13 @@ class SendNotificationUseCase:
         db_session.flush()
 
         try:
-            service = NotificationService(db_session, {})
+            service = NotificationService(db_session, tenant_id=tenant_id)
             result = await service.send(
+                channel=channel,
                 recipient=recipient,
-                channel=NotificationChannel(channel),
                 subject=subject,
                 body=body,
-                priority=NotificationPriority(priority),
+                priority=priority,
                 metadata=metadata,
             )
             notification.status = "sent" if result.get("success") else "failed"

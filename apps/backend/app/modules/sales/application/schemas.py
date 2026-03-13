@@ -18,6 +18,7 @@ class SalesOrderLineModel(BaseModel):
     qty: Decimal = Field(gt=0, decimal_places=3)
     unit_price: Decimal = Field(ge=0, decimal_places=4)
     discount_pct: Decimal = Field(ge=0, le=100, decimal_places=2, default=Decimal("0"))
+    tax_rate: Decimal = Field(ge=0, decimal_places=4, default=Decimal("0"))
 
     @property
     def line_subtotal(self) -> Decimal:
@@ -27,7 +28,7 @@ class SalesOrderLineModel(BaseModel):
     @property
     def line_total(self) -> Decimal:
         """Total with tax."""
-        return self.line_subtotal * Decimal("1.21")  # IVA 21%
+        return self.line_subtotal * (Decimal("1") + self.tax_rate)
 
 
 class CustomerModel(BaseModel):

@@ -52,49 +52,80 @@ export type Cliente = {
   is_wholesale?: boolean
 }
 
+function normalizeCliente(raw: Partial<Cliente> & Record<string, any>): Cliente {
+  const name = raw.name ?? raw.nombre ?? ''
+  const phone = raw.phone ?? raw.telefono
+  const address = raw.address ?? raw.direccion
+
+  return {
+    ...(raw as Cliente),
+    id: raw.id ?? '',
+    name,
+    phone,
+    telefono: phone,
+    address,
+    direccion: address,
+  }
+}
+
+function buildClientePayload(payload: Omit<Cliente, 'id'>): Record<string, unknown> {
+  const cleanPayload = stripOfflineMeta(payload as any)
+  const normalized = {
+    ...cleanPayload,
+    name: cleanPayload.name ?? cleanPayload.nombre ?? '',
+    phone: cleanPayload.phone ?? cleanPayload.telefono ?? null,
+    address: cleanPayload.address ?? cleanPayload.direccion ?? null,
+  }
+
+  delete (normalized as any).nombre
+  delete (normalized as any).telefono
+  delete (normalized as any).direccion
+  return normalized
+}
+
 export async function listClientes(): Promise<Cliente[]> {
   const { data } = await tenantApi.get<Cliente[] | { items?: Cliente[] }>(TENANT_CLIENTS.base)
-  return ensureArray<Cliente>(data)
+  return ensureArray<Cliente>(data).map(item => normalizeCliente(item))
 }
 
 export async function getCliente(id: number | string): Promise<Cliente> {
   const { data } = await tenantApi.get<Cliente>(TENANT_CLIENTS.byId(id))
-  return data
+  return normalizeCliente(data)
 }
 
 export async function createCliente(payload: Omit<Cliente, 'id'>): Promise<Cliente> {
-  const cleanPayload = stripOfflineMeta(payload as any)
+  const cleanPayload = buildClientePayload(payload)
   try {
     const response = await tenantApi.post<Cliente>(TENANT_CLIENTS.base, cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
     if (isOfflineQueuedResponse(response)) {
       const tempId = createOfflineTempId('customer')
       await storeEntity('customer', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
-      return { id: tempId, ...(cleanPayload as any) }
+      return normalizeCliente({ id: tempId, ...(cleanPayload as any) })
     }
-    return response.data
+    return normalizeCliente(response.data)
   } catch (error) {
     if (isNetworkIssue(error)) {
       const tempId = createOfflineTempId('customer')
       await storeEntity('customer', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
-      return { id: tempId, ...(cleanPayload as any) }
+      return normalizeCliente({ id: tempId, ...(cleanPayload as any) })
     }
     throw error
   }
 }
 
 export async function updateCliente(id: number | string, payload: Omit<Cliente, 'id'>): Promise<Cliente> {
-  const cleanPayload = stripOfflineMeta(payload as any)
+  const cleanPayload = buildClientePayload(payload)
   try {
     const response = await tenantApi.put<Cliente>(TENANT_CLIENTS.byId(id), cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
     if (isOfflineQueuedResponse(response)) {
       await storeEntity('customer', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
-      return { id, ...(cleanPayload as any) } as Cliente
+      return normalizeCliente({ id, ...(cleanPayload as any) })
     }
-    return response.data
+    return normalizeCliente(response.data)
   } catch (error) {
     if (isNetworkIssue(error)) {
       await storeEntity('customer', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
-      return { id, ...(cleanPayload as any) } as Cliente
+      return normalizeCliente({ id, ...(cleanPayload as any) })
     }
     throw error
   }

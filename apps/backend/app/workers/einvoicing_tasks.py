@@ -7,6 +7,7 @@ import logging
 import os
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 # Celery is optional in the minimal test environment. Provide light shims so
 # importing this module doesn't fail when celery isn't installed.
@@ -47,6 +48,30 @@ def generate_facturae_xml(invoice_data: dict[str, Any]) -> str:
     Versión simplificada para MVP.
     """
     from lxml import etree
+
+    def _normalize_rate(raw: Any) -> Decimal:
+        try:
+            rate = Decimal(str(raw)) if raw is not None else Decimal("0")
+        except Exception:
+            return Decimal("0")
+        if rate > 1:
+            rate = rate / Decimal("100")
+        if rate < 0:
+            rate = Decimal("0")
+        return rate
+
+    def _resolve_rate() -> Decimal:
+        raw = invoice_data.get("tax_rate") or invoice_data.get("iva_rate")
+        if raw is not None:
+            return _normalize_rate(raw)
+        subtotal = Decimal(str(invoice_data.get("subtotal") or 0))
+        iva = Decimal(str(invoice_data.get("iva") or 0))
+        if subtotal <= 0:
+            return Decimal("0")
+        return _normalize_rate(iva / subtotal)
+
+    tax_rate = _resolve_rate()
+    tax_rate_pct = (tax_rate * Decimal("100")).quantize(Decimal("0.01"))
 
     # Estructura básica Facturae 3.2
     root = etree.Element(
@@ -100,7 +125,7 @@ def generate_facturae_xml(invoice_data: dict[str, Any]) -> str:
     taxes = etree.SubElement(invoice, "TaxesOutputs")
     tax = etree.SubElement(taxes, "Tax")
     etree.SubElement(tax, "TaxTypeCode").text = "01"  # IVA
-    etree.SubElement(tax, "TaxRate").text = "21.00"  # TODO: calcular dinámicamente
+    etree.SubElement(tax, "TaxRate").text = f"{tax_rate_pct:.2f}"
     etree.SubElement(tax, "TaxableBase").text = f"{invoice_data['subtotal']:.2f}"
     etree.SubElement(tax, "TaxAmount").text = f"{invoice_data['iva']:.2f}"
 
@@ -503,7 +528,7 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
             insert_submission,
             {
                 "tenant_id": tenant_id,
-                "invoice_id": int(invoice_id),
+                "invoice_id": str(invoice_id),
                 "payload": signed_xml,
                 "receipt_number": clave_acceso,
                 "status": result["status"],
@@ -616,10 +641,13 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
             "p12_base64": base64.b64encode(cert_info["cert_data"]).decode(),
             "password": get_certificate_password(tenant_id, "ESP"),
         }
-        _signed_xml = sign_facturae_xml(xml_content, cert_data)
+        signed_xml = sign_facturae_xml(xml_content, cert_data)
 
-        # 4. Enviar a AEAT/SII (TODO: implementar)
-        result = {"status": "ACCEPTED", "message": "Facturae sent (stub)"}
+        # 4. Enviar a AEAT/SII usando endpoint configurable
+        from app.modules.einvoicing.application.sii_service import SIIService
+
+        settings = SIIService.get_settings(db, UUID(str(tenant_id)), "ES")
+        result = SIIService.submit_xml(settings, signed_xml)
 
         # 5. Guardar resultado en SII batch
         from datetime import datetime
@@ -670,7 +698,7 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
                 {
                     "tenant_id": tenant_id,
                     "batch_id": batch_id,
-                    "invoice_id": int(invoice_id),
+                    "invoice_id": str(invoice_id),
                     "status": result["status"],
                 },
             )
@@ -697,12 +725,11 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
 
 @celery_app.task(name="einvoicing.send_einvoice")
-def send_einvoice_task(invoice_id: str, country: str, env: str = "sandbox"):
+def send_einvoice_task(invoice_id: str, tenant_id: str, country: str, env: str = "sandbox"):
     """task unificada: Despachar según país"""
 
     if country == "EC":
-        return sign_and_send_sri_task.delay(invoice_id, env)
-    elif country == "ES":
-        return sign_and_send_facturae_task.delay(invoice_id, env)
-    else:
-        raise ValueError(f"País no soportado: {country}")
+        return sign_and_send_sri_task.delay(invoice_id, tenant_id, env)
+    if country == "ES":
+        return sign_and_send_facturae_task.delay(invoice_id, tenant_id, env)
+    raise ValueError(f"País no soportado: {country}")

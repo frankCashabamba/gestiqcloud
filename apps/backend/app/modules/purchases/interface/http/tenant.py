@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.inventory.stock import StockItem, StockMove
+from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.models.purchases.purchase import PurchaseLine
 from app.services.inventory_costing import InventoryCostingService
 
@@ -86,10 +88,29 @@ def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
     return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
+def _normalize_lot(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _resolve_inventory_costing_method(db: Session) -> str:
+    try:
+        repo = SettingsRepo(db)
+        inventory_cfg = repo.get("inventory") or {}
+        method = str((inventory_cfg.get("costing_method") if isinstance(inventory_cfg, dict) else None) or "avg").strip().lower()
+        return method if method in {"avg", "fifo", "lifo"} else "avg"
+    except Exception:
+        return "avg"
+
+
 class PurchaseReceiveLineIn(BaseModel):
     product_id: UUID
     qty: float = Field(gt=0)
     unit_cost: float = Field(ge=0)
+    lote: str | None = None
+    expires_at: date | None = None
 
 
 class PurchaseReceiveIn(BaseModel):
@@ -110,16 +131,23 @@ def receive_purchase(
         raise HTTPException(404, "Not found")
 
     costing = InventoryCostingService(db)
+    costing_method = _resolve_inventory_costing_method(db)
     for line in payload.lines:
         qty_dec = _dec(line.qty)
         unit_cost_dec = _dec(line.unit_cost)
+        line_lot = _normalize_lot(line.lote)
 
         # Update stock item with lock
         row = (
             db.query(StockItem)
             .filter(
+                StockItem.tenant_id == str(tenant_id),
                 StockItem.warehouse_id == str(payload.warehouse_id),
                 StockItem.product_id == str(line.product_id),
+                StockItem.lot == line_lot if line_lot is not None else StockItem.lot.is_(None),
+                StockItem.expires_at == line.expires_at
+                if line.expires_at is not None
+                else StockItem.expires_at.is_(None),
             )
             .with_for_update()
             .first()
@@ -130,19 +158,38 @@ def receive_purchase(
                 warehouse_id=str(payload.warehouse_id),
                 product_id=str(line.product_id),
                 qty=0,
+                lot=line_lot,
+                expires_at=line.expires_at,
             )
             db.add(row)
             db.flush()
 
-        costing.apply_inbound(
-            str(tenant_id),
-            str(payload.warehouse_id),
-            str(line.product_id),
-            qty=qty_dec,
-            unit_cost=unit_cost_dec,
-            initial_qty=_dec(row.qty),
-            initial_avg_cost=unit_cost_dec,
-        )
+        if costing_method == "fifo":
+            costing.apply_inbound_fifo(
+                str(tenant_id),
+                str(payload.warehouse_id),
+                str(line.product_id),
+                qty=qty_dec,
+                unit_cost=unit_cost_dec,
+            )
+        elif costing_method == "lifo":
+            costing.apply_inbound_lifo(
+                str(tenant_id),
+                str(payload.warehouse_id),
+                str(line.product_id),
+                qty=qty_dec,
+                unit_cost=unit_cost_dec,
+            )
+        else:
+            costing.apply_inbound(
+                str(tenant_id),
+                str(payload.warehouse_id),
+                str(line.product_id),
+                qty=qty_dec,
+                unit_cost=unit_cost_dec,
+                initial_qty=_dec(row.qty),
+                initial_avg_cost=unit_cost_dec,
+            )
 
         row.qty = (row.qty or 0) + float(qty_dec)
         db.add(row)
@@ -158,6 +205,8 @@ def receive_purchase(
                 posted=True,
                 ref_type="purchase",
                 ref_id=str(purchase.id),
+                lot=line_lot,
+                expires_at=line.expires_at,
                 unit_cost=float(unit_cost_dec),
                 total_cost=float(unit_cost_dec * qty_dec),
             )

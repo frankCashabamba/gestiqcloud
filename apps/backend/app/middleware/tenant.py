@@ -8,6 +8,7 @@ auth + RLS stack. 100% UUID - no legacy int conversions.
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -28,15 +29,13 @@ def _validate_tenant_uuid(claim_tid: str | None) -> str:
         raise HTTPException(status_code=403, detail="missing_tenant")
 
     tenant_uuid = str(claim_tid).strip()
-
-    # Validación básica de formato UUID
-    if len(tenant_uuid) != 36 or tenant_uuid.count("-") != 4:
+    try:
+        return str(UUID(tenant_uuid))
+    except (TypeError, ValueError):
         raise HTTPException(
             status_code=403,
             detail=f"invalid_tenant_format: expected UUID, got {tenant_uuid}",
         )
-
-    return tenant_uuid
 
 
 def ensure_tenant(request: Request, db: Session = Depends(get_db)) -> str:
@@ -78,11 +77,10 @@ def ensure_tenant(request: Request, db: Session = Depends(get_db)) -> str:
 
     try:
         set_tenant_guc(db, tenant_uuid, persist=False)
-        print(f"[DEBUG] RLS set for tenant: {tenant_uuid}")
-    except Exception as e:
+        logger.debug("RLS set for tenant %s", tenant_uuid)
+    except Exception:
         # Non-fatal: proceed without aborting request
-        print(f"[ERROR] Failed to set RLS for tenant {tenant_uuid}: {e}")
-        pass
+        logger.exception("Failed to set RLS for tenant %s", tenant_uuid)
     # Also expose on request for downstream use
     try:
         request.state.tenant_id = tenant_uuid

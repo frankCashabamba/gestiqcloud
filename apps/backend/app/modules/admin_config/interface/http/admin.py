@@ -7,6 +7,8 @@ from pydantic import BaseModel as PydanticModel
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 from app.models.core.country_catalogs import CountryIdType
 from app.modules.admin_config.application.categorias_gasto.dto import CategoriaGastoIn
 from app.modules.admin_config.application.categorias_gasto.use_cases import (
@@ -205,7 +207,11 @@ from app.modules.admin_config.schemas import (  # Reusar MonedaRead para listas 
     UnidadMedidaUpdate,
 )
 
-router = APIRouter(prefix="/config", tags=["admin:config"])
+router = APIRouter(
+    prefix="/config",
+    tags=["admin:config"],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
+)
 
 
 def _currency_repo(db: Session) -> SqlAlchemyMonedaRepo:

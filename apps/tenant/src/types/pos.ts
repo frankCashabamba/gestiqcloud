@@ -44,6 +44,12 @@ export interface POSReceiptLine {
   line_total: number
 }
 
+export interface POSLineStockSelection {
+  line_id: string
+  lot?: string
+  expires_at?: string
+}
+
 export interface POSReceipt {
   id?: string
   tenant_id?: string

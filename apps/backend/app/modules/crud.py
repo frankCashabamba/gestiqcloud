@@ -93,7 +93,6 @@ def crear_modulo(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
     print("�sT�,? Creando estructura de mA3dulo:", nuevo_modulo.name)
 
     crear_estructura_modulo(nuevo_modulo.name)  # type: ignore[arg-type]
-    print("DEBUG tipo:", type(nuevo_modulo.name), "valor:", nuevo_modulo.name)
     print("�o. Estructura creada")
 
     return nuevo_modulo

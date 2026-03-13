@@ -15,6 +15,7 @@ from app.core.authz import require_scope
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
+from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.models.recipes import RecipeIngredient
 from app.services.inventory_costing import InventoryCostingService
 
@@ -23,6 +24,8 @@ router = APIRouter(
     tags=["Inventory"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
 )
+
+_UNSET = object()
 
 
 def _tenant_id_str(request: Request) -> str | None:
@@ -58,6 +61,17 @@ def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
     return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
+def _resolve_inventory_costing_method(db: Session) -> str:
+    try:
+        repo = SettingsRepo(db)
+        inventory_cfg = repo.get("inventory") or {}
+        candidate = inventory_cfg.get("costing_method") if isinstance(inventory_cfg, dict) else None
+        method = str(candidate or "avg").strip().lower()
+        return method if method in {"avg", "fifo", "lifo"} else "avg"
+    except Exception:
+        return "avg"
+
+
 def _iso_date(value: date | datetime | str | None) -> str | None:
     if value is None:
         return None
@@ -66,6 +80,127 @@ def _iso_date(value: date | datetime | str | None) -> str | None:
     if isinstance(value, date):
         return value.isoformat()
     return str(value)
+
+
+def _normalize_lot(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _stock_item_query(
+    db: Session,
+    *,
+    tenant_id: str,
+    warehouse_id: str,
+    product_id: str,
+    lot: object = _UNSET,
+    expires_at: object = _UNSET,
+    for_update: bool = False,
+):
+    query = db.query(StockItem).filter(
+        StockItem.tenant_id == tenant_id,
+        StockItem.warehouse_id == warehouse_id,
+        StockItem.product_id == product_id,
+    )
+    if lot is not _UNSET:
+        query = query.filter(StockItem.lot == lot) if lot is not None else query.filter(StockItem.lot.is_(None))
+    if expires_at is not _UNSET:
+        query = (
+            query.filter(StockItem.expires_at == expires_at)
+            if expires_at is not None
+            else query.filter(StockItem.expires_at.is_(None))
+        )
+    if for_update:
+        query = query.with_for_update()
+    return query
+
+
+def _ensure_receipt_stock_item(
+    db: Session,
+    *,
+    tenant_id: str,
+    warehouse_id: str,
+    product_id: str,
+    lot: str | None,
+    expires_at: date | None,
+) -> StockItem:
+    row = (
+        _stock_item_query(
+            db,
+            tenant_id=tenant_id,
+            warehouse_id=warehouse_id,
+            product_id=product_id,
+            lot=lot,
+            expires_at=expires_at,
+            for_update=True,
+        )
+        .first()
+    )
+    if row:
+        return row
+    row = StockItem(
+        warehouse_id=warehouse_id,
+        product_id=product_id,
+        qty=0,
+        tenant_id=tenant_id,
+        lot=lot,
+        expires_at=expires_at,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _resolve_issue_stock_item(
+    db: Session,
+    *,
+    tenant_id: str,
+    warehouse_id: str,
+    product_id: str,
+    lot: str | None,
+    expires_at: date | None,
+    lot_specified: bool,
+    expires_specified: bool,
+    ambiguous_detail: str,
+) -> StockItem | None:
+    if lot_specified or expires_specified:
+        rows = (
+            _stock_item_query(
+                db,
+                tenant_id=tenant_id,
+                warehouse_id=warehouse_id,
+                product_id=product_id,
+                lot=lot if lot_specified else _UNSET,
+                expires_at=expires_at if expires_specified else _UNSET,
+                for_update=True,
+            )
+            .all()
+        )
+        positive_rows = [row for row in rows if float(row.qty or 0) > 0]
+        if len(positive_rows) > 1 or (len(rows) > 1 and not positive_rows):
+            raise HTTPException(status_code=409, detail=ambiguous_detail)
+        if positive_rows:
+            return positive_rows[0]
+        return rows[0] if rows else None
+
+    rows = (
+        _stock_item_query(
+            db,
+            tenant_id=tenant_id,
+            warehouse_id=warehouse_id,
+            product_id=product_id,
+            for_update=True,
+        )
+        .all()
+    )
+    positive_rows = [row for row in rows if float(row.qty or 0) > 0]
+    if len(positive_rows) > 1:
+        raise HTTPException(status_code=409, detail=ambiguous_detail)
+    if positive_rows:
+        return positive_rows[0]
+    return rows[0] if rows else None
 
 
 class WarehouseIn(BaseModel):
@@ -310,26 +445,39 @@ def get_stock(
 def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends(get_db)):
     # Find or create stock item
     tid = _require_tenant_id(request)
-    row = (
-        db.query(StockItem)
-        .filter(
-            StockItem.tenant_id == tid,
-            StockItem.warehouse_id == payload.warehouse_id,
-            StockItem.product_id == payload.product_id,
-        )
-        .first()
-    )
-    if not row:
-        row = StockItem(
+    lot = _normalize_lot(payload.lote)
+    if payload.delta >= 0:
+        row = _ensure_receipt_stock_item(
+            db,
+            tenant_id=tid,
             warehouse_id=payload.warehouse_id,
             product_id=payload.product_id,
-            qty=0,
-            tenant_id=tid,
-            lot=(payload.lote or None),
+            lot=lot,
             expires_at=payload.expires_at,
         )
-        db.add(row)
-        db.flush()
+    else:
+        row = _resolve_issue_stock_item(
+            db,
+            tenant_id=tid,
+            warehouse_id=payload.warehouse_id,
+            product_id=payload.product_id,
+            lot=lot,
+            expires_at=payload.expires_at,
+            lot_specified=payload.lote is not None,
+            expires_specified=payload.expires_at is not None,
+            ambiguous_detail="lot_required_for_issue",
+        )
+        if not row:
+            row = StockItem(
+                warehouse_id=payload.warehouse_id,
+                product_id=payload.product_id,
+                qty=0,
+                tenant_id=tid,
+                lot=lot,
+                expires_at=payload.expires_at,
+            )
+            db.add(row)
+            db.flush()
 
     qty_abs = abs(payload.delta)
     qty_dec = _dec(qty_abs)
@@ -344,37 +492,76 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
     fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
 
     costing = InventoryCostingService(db)
+    costing_method = _resolve_inventory_costing_method(db)
     if payload.delta >= 0:
         unit_cost = _dec(payload.unit_cost) if payload.unit_cost is not None else fallback_cost
-        state = costing.apply_inbound(
-            tid or "",
-            payload.warehouse_id,
-            payload.product_id,
-            qty=qty_dec,
-            unit_cost=unit_cost,
-            initial_qty=_dec(row.qty),
-            initial_avg_cost=fallback_cost,
-        )
+        if costing_method == "fifo":
+            state = costing.apply_inbound_fifo(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                unit_cost=unit_cost,
+            )
+        elif costing_method == "lifo":
+            state = costing.apply_inbound_lifo(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                unit_cost=unit_cost,
+            )
+        else:
+            state = costing.apply_inbound(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                unit_cost=unit_cost,
+                initial_qty=_dec(row.qty),
+                initial_avg_cost=fallback_cost,
+            )
     else:
-        state = costing.apply_outbound(
-            tid or "",
-            payload.warehouse_id,
-            payload.product_id,
-            qty=qty_dec,
-            allow_negative=True,
-            initial_qty=_dec(row.qty),
-            initial_avg_cost=fallback_cost,
-        )
+        if costing_method == "fifo":
+            state, total_cogs = costing.apply_outbound_fifo(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                allow_negative=True,
+            )
+            unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
+        elif costing_method == "lifo":
+            state, total_cogs = costing.apply_outbound_lifo(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                allow_negative=True,
+            )
+            unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
+        else:
+            state = costing.apply_outbound(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                allow_negative=True,
+                initial_qty=_dec(row.qty),
+                initial_avg_cost=fallback_cost,
+            )
+            unit_cost = state.avg_cost
 
     if payload.delta >= 0:
-        if payload.lote is not None:
-            row.lot = payload.lote.strip() or None
-        if payload.expires_at is not None:
-            row.expires_at = payload.expires_at
+        row.lot = lot
+        row.expires_at = payload.expires_at
+
+    move_lot = row.lot if payload.delta < 0 else lot
+    move_expires_at = row.expires_at if payload.delta < 0 else payload.expires_at
 
     # Create move
     kind = "receipt" if payload.delta >= 0 else "issue"
-    unit_cost_for_move = state.avg_cost if payload.delta < 0 else unit_cost
+    unit_cost_for_move = unit_cost
     move = StockMove(
         tenant_id=tid,
         product_id=payload.product_id,
@@ -384,8 +571,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
         tentative=False,
         ref_type="adjust",
         ref_id=payload.reason or None,
-        lot=(payload.lote.strip() if payload.lote else None),
-        expires_at=payload.expires_at,
+        lot=move_lot,
+        expires_at=move_expires_at,
         unit_cost=float(unit_cost_for_move),
         total_cost=float(unit_cost_for_move * qty_dec),
     )
@@ -440,53 +627,44 @@ class TransferIn(BaseModel):
     to_warehouse_id: str
     product_id: str
     qty: float = Field(gt=0)
+    lote: str | None = None
+    expires_at: date | None = None
 
 
 @router.post("/stock/transfer", response_model=dict)
 def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(get_db)):
     tid = _require_tenant_id(request)
+    lot = _normalize_lot(payload.lote)
     # Create issue from source and receipt to destination, post atomically
     # Source
-    src_item = (
-        db.query(StockItem)
-        .filter(
-            StockItem.tenant_id == tid,
-            StockItem.warehouse_id == payload.from_warehouse_id,
-            StockItem.product_id == payload.product_id,
-        )
-        .first()
+    src_item = _resolve_issue_stock_item(
+        db,
+        tenant_id=tid,
+        warehouse_id=payload.from_warehouse_id,
+        product_id=payload.product_id,
+        lot=lot,
+        expires_at=payload.expires_at,
+        lot_specified=payload.lote is not None,
+        expires_specified=payload.expires_at is not None,
+        ambiguous_detail="lot_required_for_transfer",
     )
     if not src_item:
-        src_item = StockItem(
-            warehouse_id=payload.from_warehouse_id,
-            product_id=payload.product_id,
-            qty=0,
-            tenant_id=tid,
-        )
-        db.add(src_item)
-        db.flush()
-    if (src_item.qty or 0) < payload.qty:
+        raise HTTPException(status_code=400, detail="insufficient_stock")
+    if float(src_item.qty or 0) < payload.qty:
         raise HTTPException(status_code=400, detail="insufficient_stock")
 
+    transfer_lot = lot if payload.lote is not None else src_item.lot
+    transfer_expires_at = payload.expires_at if payload.expires_at is not None else src_item.expires_at
+
     # Destination
-    dst_item = (
-        db.query(StockItem)
-        .filter(
-            StockItem.tenant_id == tid,
-            StockItem.warehouse_id == payload.to_warehouse_id,
-            StockItem.product_id == payload.product_id,
-        )
-        .first()
+    dst_item = _ensure_receipt_stock_item(
+        db,
+        tenant_id=tid,
+        warehouse_id=payload.to_warehouse_id,
+        product_id=payload.product_id,
+        lot=transfer_lot,
+        expires_at=transfer_expires_at,
     )
-    if not dst_item:
-        dst_item = StockItem(
-            warehouse_id=payload.to_warehouse_id,
-            product_id=payload.product_id,
-            qty=0,
-            tenant_id=tid,
-        )
-        db.add(dst_item)
-        db.flush()
 
     qty_dec = _dec(payload.qty)
     product = (
@@ -495,24 +673,59 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
     fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
 
     costing = InventoryCostingService(db)
-    state_src = costing.apply_outbound(
-        tid or "",
-        payload.from_warehouse_id,
-        payload.product_id,
-        qty=qty_dec,
-        allow_negative=False,
-        initial_qty=_dec(src_item.qty),
-        initial_avg_cost=fallback_cost,
-    )
-    costing.apply_inbound(
-        tid or "",
-        payload.to_warehouse_id,
-        payload.product_id,
-        qty=qty_dec,
-        unit_cost=state_src.avg_cost,
-        initial_qty=_dec(dst_item.qty),
-        initial_avg_cost=state_src.avg_cost,
-    )
+    costing_method = _resolve_inventory_costing_method(db)
+    if costing_method == "fifo":
+        state_src, total_cogs = costing.apply_outbound_fifo(
+            tid or "",
+            str(payload.from_warehouse_id),
+            str(payload.product_id),
+            qty=qty_dec,
+            allow_negative=False,
+        )
+        transfer_unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
+        costing.apply_inbound_fifo(
+            tid or "",
+            str(payload.to_warehouse_id),
+            str(payload.product_id),
+            qty=qty_dec,
+            unit_cost=transfer_unit_cost,
+        )
+    elif costing_method == "lifo":
+        state_src, total_cogs = costing.apply_outbound_lifo(
+            tid or "",
+            str(payload.from_warehouse_id),
+            str(payload.product_id),
+            qty=qty_dec,
+            allow_negative=False,
+        )
+        transfer_unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
+        costing.apply_inbound_lifo(
+            tid or "",
+            str(payload.to_warehouse_id),
+            str(payload.product_id),
+            qty=qty_dec,
+            unit_cost=transfer_unit_cost,
+        )
+    else:
+        state_src = costing.apply_outbound(
+            tid or "",
+            str(payload.from_warehouse_id),
+            str(payload.product_id),
+            qty=qty_dec,
+            allow_negative=False,
+            initial_qty=_dec(src_item.qty),
+            initial_avg_cost=fallback_cost,
+        )
+        transfer_unit_cost = state_src.avg_cost
+        costing.apply_inbound(
+            tid or "",
+            str(payload.to_warehouse_id),
+            str(payload.product_id),
+            qty=qty_dec,
+            unit_cost=transfer_unit_cost,
+            initial_qty=_dec(dst_item.qty),
+            initial_avg_cost=transfer_unit_cost,
+        )
 
     # Moves
     mv_issue = StockMove(
@@ -524,8 +737,10 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
         tentative=False,
         posted=True,
         ref_type="transfer",
-        unit_cost=float(state_src.avg_cost),
-        total_cost=float(state_src.avg_cost * qty_dec),
+        lot=transfer_lot,
+        expires_at=transfer_expires_at,
+        unit_cost=float(transfer_unit_cost),
+        total_cost=float(transfer_unit_cost * qty_dec),
     )
     mv_receipt = StockMove(
         tenant_id=tid,
@@ -536,8 +751,10 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
         tentative=False,
         posted=True,
         ref_type="transfer",
-        unit_cost=float(state_src.avg_cost),
-        total_cost=float(state_src.avg_cost * qty_dec),
+        lot=transfer_lot,
+        expires_at=transfer_expires_at,
+        unit_cost=float(transfer_unit_cost),
+        total_cost=float(transfer_unit_cost * qty_dec),
     )
     db.add(mv_issue)
     db.add(mv_receipt)
@@ -578,19 +795,24 @@ class CycleCountIn(BaseModel):
     warehouse_id: str
     product_id: str
     counted_qty: float = Field(ge=0)
+    lote: str | None = None
+    expires_at: date | None = None
 
 
 @router.post("/stock/cycle_count", response_model=StockItemOut)
 def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(get_db)):
     tid = _require_tenant_id(request)
-    item = (
-        db.query(StockItem)
-        .filter(
-            StockItem.tenant_id == tid,
-            StockItem.warehouse_id == payload.warehouse_id,
-            StockItem.product_id == payload.product_id,
-        )
-        .first()
+    lot = _normalize_lot(payload.lote)
+    item = _resolve_issue_stock_item(
+        db,
+        tenant_id=tid,
+        warehouse_id=payload.warehouse_id,
+        product_id=payload.product_id,
+        lot=lot,
+        expires_at=payload.expires_at,
+        lot_specified=payload.lote is not None,
+        expires_specified=payload.expires_at is not None,
+        ambiguous_detail="lot_required_for_cycle_count",
     )
     if not item:
         item = StockItem(
@@ -598,6 +820,8 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
             product_id=payload.product_id,
             qty=0,
             tenant_id=tid,
+            lot=lot,
+            expires_at=payload.expires_at,
         )
         db.add(item)
         db.flush()
@@ -613,29 +837,67 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
         fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
         costing = InventoryCostingService(db)
 
+        costing_method = _resolve_inventory_costing_method(db)
         if delta > 0:
-            state = costing.apply_inbound(
-                tid or "",
-                str(payload.warehouse_id),
-                str(payload.product_id),
-                qty=qty_dec,
-                unit_cost=fallback_cost,
-                initial_qty=_dec(item.qty),
-                initial_avg_cost=fallback_cost,
-            )
+            if costing_method == "fifo":
+                state = costing.apply_inbound_fifo(
+                    tid or "",
+                    str(payload.warehouse_id),
+                    str(payload.product_id),
+                    qty=qty_dec,
+                    unit_cost=fallback_cost,
+                )
+            elif costing_method == "lifo":
+                state = costing.apply_inbound_lifo(
+                    tid or "",
+                    str(payload.warehouse_id),
+                    str(payload.product_id),
+                    qty=qty_dec,
+                    unit_cost=fallback_cost,
+                )
+            else:
+                state = costing.apply_inbound(
+                    tid or "",
+                    str(payload.warehouse_id),
+                    str(payload.product_id),
+                    qty=qty_dec,
+                    unit_cost=fallback_cost,
+                    initial_qty=_dec(item.qty),
+                    initial_avg_cost=fallback_cost,
+                )
+            unit_cost_for_move = fallback_cost
         else:
-            state = costing.apply_outbound(
-                tid or "",
-                str(payload.warehouse_id),
-                str(payload.product_id),
-                qty=qty_dec,
-                allow_negative=True,
-                initial_qty=_dec(item.qty),
-                initial_avg_cost=fallback_cost,
-            )
+            if costing_method == "fifo":
+                state, total_cogs = costing.apply_outbound_fifo(
+                    tid or "",
+                    str(payload.warehouse_id),
+                    str(payload.product_id),
+                    qty=qty_dec,
+                    allow_negative=True,
+                )
+                unit_cost_for_move = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
+            elif costing_method == "lifo":
+                state, total_cogs = costing.apply_outbound_lifo(
+                    tid or "",
+                    str(payload.warehouse_id),
+                    str(payload.product_id),
+                    qty=qty_dec,
+                    allow_negative=True,
+                )
+                unit_cost_for_move = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
+            else:
+                state = costing.apply_outbound(
+                    tid or "",
+                    str(payload.warehouse_id),
+                    str(payload.product_id),
+                    qty=qty_dec,
+                    allow_negative=True,
+                    initial_qty=_dec(item.qty),
+                    initial_avg_cost=fallback_cost,
+                )
+                unit_cost_for_move = state.avg_cost
 
         # create adjust move posted
-        unit_cost_for_move = fallback_cost if delta > 0 else state.avg_cost
         move = StockMove(
             tenant_id=tid,
             product_id=payload.product_id,
@@ -648,6 +910,8 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
             ref_id=str(payload.counted_qty),
             unit_cost=float(unit_cost_for_move),
             total_cost=float(unit_cost_for_move * qty_dec),
+            lot=item.lot,
+            expires_at=item.expires_at,
         )
         db.add(move)
         item.qty = current + delta
