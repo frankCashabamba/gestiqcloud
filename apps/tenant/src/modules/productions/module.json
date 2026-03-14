@@ -1,0 +1,13 @@
+{
+  "id": "manufacturing",
+  "name": "Manufacturing",
+  "icon": "🏭",
+  "category": "operations",
+  "description": "Production orders, BOM and manufacturing tracking",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": ["inventory"],
+  "countries": ["ES", "EC"],
+  "aliases": ["productions", "production", "produccion", "producción"],
+  "implemented": true
+}

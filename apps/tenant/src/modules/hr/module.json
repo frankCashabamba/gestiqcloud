@@ -1,0 +1,13 @@
+{
+  "id": "hr",
+  "name": "Human Resources",
+  "icon": "👥",
+  "category": "people",
+  "description": "Payroll, attendance, vacations and contracts",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["rrhh"],
+  "implemented": true
+}

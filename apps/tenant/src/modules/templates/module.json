@@ -1,0 +1,13 @@
+{
+  "id": "templates",
+  "name": "Templates",
+  "icon": "🧩",
+  "category": "settings",
+  "description": "UI templates and overlay configuration",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["plantillas"],
+  "implemented": true
+}

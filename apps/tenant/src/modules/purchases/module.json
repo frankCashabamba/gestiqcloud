@@ -1,0 +1,13 @@
+{
+  "id": "purchases",
+  "name": "Purchases",
+  "icon": "🛒",
+  "category": "operations",
+  "description": "Purchase orders, receiving, and supplier management",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": ["inventory"],
+  "countries": ["ES", "EC"],
+  "aliases": ["compras"],
+  "implemented": true
+}

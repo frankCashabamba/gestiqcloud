@@ -27,7 +27,9 @@ def test_discount_combines_promotion_customer_and_volume_rules():
         ],
     )
 
-    assert discount == Decimal("94.50")
+    # Cascading: promo 10% of 600 = 60, wholesale 5% of 540 = 27,
+    # volume 2% of 513 = 10.26 → total 97.26
+    assert discount == Decimal("97.26")
 
 
 def test_discount_honors_explicit_customer_and_volume_overrides():
@@ -47,7 +49,9 @@ def test_discount_honors_explicit_customer_and_volume_overrides():
         ],
     )
 
-    assert discount == Decimal("30.66")
+    # Cascading: promo 20, customer 3% of 180 = 5.40,
+    # volume 4% of 174.60 = 6.98 → total 32.38
+    assert discount == Decimal("32.38")
 
 
 def test_discount_never_exceeds_subtotal():

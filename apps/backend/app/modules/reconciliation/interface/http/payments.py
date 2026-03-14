@@ -272,11 +272,11 @@ def _resolve_webhook_tenant_id(provider: str, payload: bytes, db: Session) -> st
 
 @router.post("/link", response_model=PaymentLinkResponse)
 def create_payment_link(
+    request: Request,
     data: PaymentLinkRequest,
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
     current_user: dict = Depends(get_current_user),
-    request: Request | None = None,
 ):
     """Create payment link"""
 

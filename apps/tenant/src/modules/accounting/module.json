@@ -1,0 +1,13 @@
+{
+  "id": "accounting",
+  "name": "Accounting",
+  "icon": "📚",
+  "category": "finance",
+  "description": "Ledger, journal entries and accounting controls",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["contabilidad"],
+  "implemented": true
+}

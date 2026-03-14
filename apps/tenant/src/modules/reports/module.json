@@ -1,0 +1,13 @@
+{
+  "id": "reports",
+  "name": "Reports",
+  "icon": "📊",
+  "category": "analytics",
+  "description": "Custom reports, dashboards and exports",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["reportes"],
+  "implemented": true
+}

@@ -87,6 +87,10 @@ _deprecated_docs/
 # --- imports legacy ---
 apps/backend/app/modules/_old_imports/
 
+# --- backend local artifacts ---
+**/htmlcov/
+**/coverage.xml
+
 # --- build/test artifacts ---
 playwright-report/
 test-results/

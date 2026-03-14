@@ -1,7 +1,13 @@
 {
-  "name": "suppliers",
-  "url": "/suppliers",
-  "icon": "\ud83d\udcdd",
-  "category": "master-data",
-  "description": "Manage supplier records, contacts and commercial terms"
+  "id": "suppliers",
+  "name": "Suppliers",
+  "icon": "🚚",
+  "category": "operations",
+  "description": "Supplier profiles, contacts and purchasing workflows",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["proveedores"],
+  "implemented": true
 }

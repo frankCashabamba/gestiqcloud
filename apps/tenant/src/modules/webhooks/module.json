@@ -1,0 +1,13 @@
+{
+  "id": "webhooks",
+  "name": "Webhooks",
+  "icon": "🔗",
+  "category": "integrations",
+  "description": "Webhook subscriptions, delivery logs and integrations",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": [],
+  "implemented": true
+}

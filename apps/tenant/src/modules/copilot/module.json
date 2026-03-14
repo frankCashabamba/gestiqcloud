@@ -1,0 +1,13 @@
+{
+  "id": "copilot",
+  "name": "AI Copilot",
+  "icon": "✨",
+  "category": "tools",
+  "description": "AI analysis, suggestions and assisted draft creation",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": [],
+  "implemented": false
+}

@@ -1,0 +1,13 @@
+{
+  "id": "invoicing",
+  "name": "Invoicing",
+  "icon": "🧾",
+  "category": "finance",
+  "description": "Invoice management, credits and document numbering",
+  "required": true,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["billing", "facturacion", "facturación"],
+  "implemented": true
+}

@@ -1,0 +1,13 @@
+{
+  "id": "imports",
+  "name": "Imports",
+  "icon": "📥",
+  "category": "operations",
+  "description": "Bulk loading of products, customers and data via Excel/CSV",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["importador", "importer", "importaciones"],
+  "implemented": true
+}

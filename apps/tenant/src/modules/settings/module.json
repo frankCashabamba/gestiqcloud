@@ -1,0 +1,13 @@
+{
+  "id": "settings",
+  "name": "Settings",
+  "icon": "⚙️",
+  "category": "settings",
+  "description": "General configuration, branding, fiscal and operations settings",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["configuracion", "configuración"],
+  "implemented": true
+}

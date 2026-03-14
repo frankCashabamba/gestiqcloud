@@ -3,13 +3,16 @@
 Seed del catálogo de módulos del sistema en la tabla `modules`.
 
 Qué hace:
-  1. Agrega las 7 columnas nuevas a `modules` (idempotente, ADD COLUMN IF NOT EXISTS).
-  2. Inserta los 25 módulos de MODULE_REGISTRY con ON CONFLICT (url) DO UPDATE,
-     actualizando todos los campos excepto `active` (para no pisar customizaciones).
+  Inserta los módulos descubiertos desde module.json con ON CONFLICT (url) DO UPDATE,
+  actualizando todos los campos excepto `active` (para no pisar customizaciones).
+
+Requisito previo:
+  La migración SQL debe haberse aplicado antes de ejecutar este script:
+    ops/migrations/2026-03-14_001_modules_catalog_columns/up.sql
 
 Cuándo ejecutar:
   - En deployments nuevos (tabla vacía).
-  - Después de agregar módulos nuevos a MODULE_REGISTRY.
+  - Después de agregar módulos nuevos (module.json en el frontend).
   - Para sincronizar metadatos (descripción, icono, aliases, etc.) sin perder
     cambios manuales de admin en `active`, `name` y `category`.
 
@@ -33,47 +36,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text
 
 from app.config.database import SessionLocal
-from app.modules.settings.application.modules_catalog import MODULE_REGISTRY
+from app.modules.settings.application.modules_catalog import _discover_modules_from_fs
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Columnas nuevas que puede que no existan en instancias antiguas
-# ---------------------------------------------------------------------------
-_NEW_COLUMNS: list[tuple[str, str]] = [
-    ("implemented",     "BOOLEAN NOT NULL DEFAULT TRUE"),
-    ("required",        "BOOLEAN NOT NULL DEFAULT FALSE"),
-    ("default_enabled", "BOOLEAN NOT NULL DEFAULT TRUE"),
-    ("dependencies",    "JSONB"),
-    ("aliases",         "JSONB"),
-    ("countries",       "JSONB"),
-    ("sectors",         "JSONB"),
-]
 
-
-def _ensure_columns(db) -> list[str]:
-    added: list[str] = []
-    for col, definition in _NEW_COLUMNS:
-        try:
-            db.execute(text(f"ALTER TABLE modules ADD COLUMN IF NOT EXISTS {col} {definition}"))
-            db.commit()
-            added.append(col)
-        except Exception as exc:
-            db.rollback()
-            log.warning("  no se pudo agregar columna %s: %s", col, exc)
-    return added
-
-
-def _upsert_modules(db, dry_run: bool = False) -> dict[str, list[str]]:
-    result: dict[str, list[str]] = {"inserted": [], "updated": [], "skipped": []}
-
-    # Primero: asegurar que exista el índice único en `url` para el ON CONFLICT
+def _ensure_url_index(db) -> None:
+    """Crea el índice único en modules.url necesario para ON CONFLICT (url)."""
     try:
         db.execute(
             text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS modules_url_unique "
-                "ON modules (url) WHERE url IS NOT NULL"
+                "ON modules (url)"
             )
         )
         db.commit()
@@ -81,19 +56,28 @@ def _upsert_modules(db, dry_run: bool = False) -> dict[str, list[str]]:
         db.rollback()
         log.warning("No se pudo crear índice único en url: %s", exc)
 
-    for entry in MODULE_REGISTRY:
+
+def _upsert_modules(db, dry_run: bool = False) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {"inserted": [], "updated": [], "skipped": []}
+    _ensure_url_index(db)
+
+    for entry in _discover_modules_from_fs():
         catalog_id: str = str(entry["id"])
         deps = entry.get("dependencies") or []
         aliases_raw = list(entry.get("aliases") or [])
-        # Incluir el propio id como alias si no está ya
         if catalog_id not in aliases_raw:
             aliases_raw = [catalog_id] + aliases_raw
         countries = entry.get("countries") or ["ES", "EC"]
         sectors = entry.get("sectors")  # None = todos
 
+        if dry_run:
+            log.info("  [DRY-RUN] %s  (%s)", catalog_id, entry.get("name"))
+            result["skipped"].append(catalog_id)
+            continue
+
         params = {
             "id":              str(uuid.uuid4()),
-            "name":            catalog_id,           # nombre canónico = id
+            "name":            catalog_id,
             "description":     entry.get("description"),
             "icon":            entry.get("icon"),
             "category":        entry.get("category"),
@@ -109,11 +93,6 @@ def _upsert_modules(db, dry_run: bool = False) -> dict[str, list[str]]:
             "countries":       json.dumps(countries),
             "sectors":         json.dumps(sectors) if sectors is not None else None,
         }
-
-        if dry_run:
-            log.info("  [DRY-RUN] %s  (%s)", catalog_id, entry.get("name"))
-            result["skipped"].append(catalog_id)
-            continue
 
         try:
             row = db.execute(
@@ -168,17 +147,8 @@ def main(dry_run: bool = False) -> None:
     db = SessionLocal()
     try:
         log.info("=== seed_modules_catalog ===")
-
-        # 1. Columnas
-        log.info("-- Verificando columnas nuevas en modules --")
-        added = _ensure_columns(db)
-        if added:
-            log.info("  Columnas agregadas: %s", added)
-        else:
-            log.info("  Todas las columnas ya existían.")
-
-        # 2. Módulos
-        log.info("-- Insertando / actualizando módulos (%d total) --", len(MODULE_REGISTRY))
+        registry = _discover_modules_from_fs()
+        log.info("-- Insertando / actualizando módulos (%d total) --", len(registry))
         stats = _upsert_modules(db, dry_run=dry_run)
 
         log.info("  Insertados : %d  %s", len(stats["inserted"]), stats["inserted"])

@@ -1,0 +1,13 @@
+{
+  "id": "users",
+  "name": "Users",
+  "icon": "🪪",
+  "category": "people",
+  "description": "Tenant users, access roles and operational permissions",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["usuarios"],
+  "implemented": true
+}

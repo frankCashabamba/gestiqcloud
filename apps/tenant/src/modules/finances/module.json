@@ -1,0 +1,13 @@
+{
+  "id": "finance",
+  "name": "Finance",
+  "icon": "💼",
+  "category": "finance",
+  "description": "Cash, banks and treasury operations",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["finances", "finanzas"],
+  "implemented": true
+}

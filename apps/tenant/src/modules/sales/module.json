@@ -1,0 +1,13 @@
+{
+  "id": "sales",
+  "name": "Sales",
+  "icon": "📈",
+  "category": "sales",
+  "description": "Quotes, orders, delivery notes and sales tracking",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": ["inventory", "invoicing"],
+  "countries": ["ES", "EC"],
+  "aliases": ["ventas"],
+  "implemented": true
+}

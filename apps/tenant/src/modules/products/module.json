@@ -1,0 +1,13 @@
+{
+  "id": "products",
+  "name": "Products",
+  "icon": "🏷️",
+  "category": "operations",
+  "description": "Product catalog, variants, labels and commercial data",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["productos"],
+  "implemented": true
+}

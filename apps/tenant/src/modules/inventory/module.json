@@ -1,0 +1,13 @@
+{
+  "id": "inventory",
+  "name": "Inventory",
+  "icon": "📦",
+  "category": "operations",
+  "description": "Stock management, warehouses, lots and expiration dates",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["inventario"],
+  "implemented": true
+}

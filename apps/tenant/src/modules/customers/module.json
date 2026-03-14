@@ -1,0 +1,13 @@
+{
+  "id": "customers",
+  "name": "Customers",
+  "icon": "🧑",
+  "category": "sales",
+  "description": "Customer records, segmentation and relationship management",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["clientes", "clients"],
+  "implemented": true
+}

@@ -201,9 +201,10 @@ def _build_module_payload(
     default_icon: str | None = None,
     default_category: str | None = None,
 ) -> dict:
+    catalog_id = _manifest_value(manifest, "id", default=name) or name
     return {
         "name": name,
-        "url": _manifest_value(manifest, "url", default=name) or name,
+        "url": _manifest_value(manifest, "url", default=catalog_id) or catalog_id,
         "icon": _manifest_value(manifest, "icon", "icono", default=default_icon),
         "active": bool(_manifest_value(manifest, "active", "activo", default=True)),
         "initial_template": (
@@ -228,6 +229,13 @@ def _build_module_payload(
             "categoria",
             default=default_category,
         ),
+        "implemented": bool(_manifest_value(manifest, "implemented", default=True)),
+        "required": bool(_manifest_value(manifest, "required", default=False)),
+        "default_enabled": bool(_manifest_value(manifest, "default_enabled", default=True)),
+        "dependencies": _manifest_value(manifest, "dependencies", default=[]) or [],
+        "aliases": _manifest_value(manifest, "aliases", default=[]) or [],
+        "countries": _manifest_value(manifest, "countries", default=["ES", "EC"]) or ["ES", "EC"],
+        "sectors": _manifest_value(manifest, "sectors", default=None),
     }
 
 
@@ -389,6 +397,11 @@ def _module_payload_needs_sync(existing: Module, payload: dict, *, sync_active: 
         return True
 
     if sync_active and bool(getattr(existing, "active", True)) != bool(payload.get("active", True)):
+        return True
+
+    current_name = str(getattr(existing, "name", "")).strip().lower()
+    canonical_name = str(payload.get("name", "")).strip().lower()
+    if canonical_name and current_name != canonical_name:
         return True
 
     return False
@@ -582,7 +595,7 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
                         existing,
                         module_payload,
                         sync_active=reactivate_existing,
-                        sync_name=False,
+                        sync_name=reactivate_existing,
                     )
                     db.add(existing)
                     db.commit()

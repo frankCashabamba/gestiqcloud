@@ -1,0 +1,13 @@
+{
+  "id": "einvoicing",
+  "name": "E-Invoicing",
+  "icon": "📨",
+  "category": "finance",
+  "description": "Electronic submission via SRI (EC) or Facturae/SII (ES)",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": ["invoicing"],
+  "countries": ["ES", "EC"],
+  "aliases": [],
+  "implemented": true
+}

@@ -1,0 +1,13 @@
+{
+  "id": "pos",
+  "name": "Point of Sale",
+  "icon": "💰",
+  "category": "sales",
+  "description": "POS system with tickets, fast invoicing and thermal printing",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": ["inventory", "invoicing"],
+  "countries": ["ES", "EC"],
+  "aliases": ["tpv"],
+  "implemented": true
+}

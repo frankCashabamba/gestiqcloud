@@ -1,0 +1,13 @@
+{
+  "id": "notifications",
+  "name": "Notifications",
+  "icon": "🔔",
+  "category": "integrations",
+  "description": "Notification center and alert management",
+  "required": false,
+  "default_enabled": false,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["notificaciones"],
+  "implemented": true
+}
