@@ -32,6 +32,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import tenantApi from '../shared/api/client'
+import { getDefaultUnits } from '../services/unitService'
 
 // ============================================================================
 // INTERFACES
@@ -293,13 +294,7 @@ export function getSectorEndpoints(config: SectorFullConfig | null): EndpointsCo
 }
 
 export function getSectorUnits(config: SectorFullConfig | null): SectorUnit[] {
-  return (
-    config?.branding?.units || [
-      { code: 'unit', label: 'Unidad' },
-      { code: 'kg', label: 'Kilogramo' },
-      { code: 'l', label: 'Litro' },
-    ]
-  )
+  return config?.branding?.units || getDefaultUnits()
 }
 
 // ============================================================================

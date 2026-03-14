@@ -77,7 +77,7 @@ def get_sector_modules(
     """
     try:
         # Obtener módulos filtrados dinámicamente
-        modules = get_available_modules(country=country, sector=sector)
+        modules = get_available_modules(country=country, sector=sector, db=db)
 
         # Mapear a response model
         module_list = [ModuleInfo(**m) for m in modules]

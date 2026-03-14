@@ -247,7 +247,7 @@ def list_modules(
                 enabled_modules.add(canonical)
 
     # Use the official catalog to keep names/icons/deps aligned
-    modules_catalog = get_available_modules()
+    modules_catalog = get_available_modules(db=db)
 
     def map_module(m: dict) -> dict:
         mid = m.get("id") or m.get("code")

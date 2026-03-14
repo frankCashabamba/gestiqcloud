@@ -14,6 +14,7 @@ import {
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { getDefaultReorderPoint, getCompanySettings } from '../../services/companySettings'
+import { isStandardUnitCode } from '../../services/unitService'
 
 export default function StockList() {
   const { t } = useTranslation(['inventory', 'common'])
@@ -414,12 +415,11 @@ export default function StockList() {
                           )}
                         </span>
                         {(() => {
-                          const METRIC = new Set(['kg','g','lb','oz','ton','mg','L','ml','gal','uds','unidades','pcs'])
                           const stockUnit = item.unit ?? ''
                           const pu = item.pack_unit ?? ''
                           const showEquiv = item.pack_size && item.pack_size > 0 && pu
-                            && METRIC.has(pu)
-                            && !METRIC.has(stockUnit)
+                            && isStandardUnitCode(pu)
+                            && !isStandardUnitCode(stockUnit)
                           if (!showEquiv) return null
                           return (
                             <div className="text-xs text-gray-400 mt-0.5">

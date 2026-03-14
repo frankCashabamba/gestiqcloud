@@ -16,6 +16,7 @@ from app.models.core.global_catalogs import (
     PaymentMethodTemplate,
     UnitOfMeasure,
 )
+from app.services.unit_catalog_service import normalize_operational_unit
 
 router = APIRouter(prefix="/catalogs", tags=["tenant:catalogs"])
 
@@ -47,7 +48,15 @@ def list_units(db: Session = Depends(get_db)):
         .all()
     )
     return [
-        {"id": r.id, "code": r.code, "name": r.name, "abbreviation": r.abbreviation} for r in rows
+        {
+            "id": r.id,
+            "code": normalize_operational_unit(r.abbreviation or r.code),
+            "catalog_code": r.code,
+            "name": r.name,
+            "label": r.name,
+            "abbreviation": r.abbreviation,
+        }
+        for r in rows
     ]
 
 

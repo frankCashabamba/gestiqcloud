@@ -1,28 +1,13 @@
-from fastapi.testclient import TestClient
+import pytest
 
 from app.models.core.module import Module
+from app.modules.modules_catalog.interface.http.admin import register_modules
 
 
-def _admin_token(client: TestClient, superuser_factory) -> str:
-    superuser_factory(email="root@admin.com", username="root", password="secret")
-    response = client.post(
-        "/api/v1/admin/auth/login",
-        json={"identificador": "root", "password": "secret"},
-    )
-    assert response.status_code == 200, response.text
-    return response.json()["access_token"]
+pytestmark = pytest.mark.no_db
 
-
-def test_register_modules_falls_back_to_backend_catalog(client: TestClient, db, superuser_factory):
-    token = _admin_token(client, superuser_factory)
-    response = client.post(
-        "/api/v1/admin/modules/register-modules",
-        json={"dir": "Z:/missing/modules"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 200, response.text
-    data = response.json()
+def test_register_modules_falls_back_to_backend_catalog(db):
+    data = register_modules({"dir": "Z:/missing/modules"}, db)
 
     assert data["source"] == "backend_catalog"
     assert "registrados" not in data
@@ -34,38 +19,24 @@ def test_register_modules_falls_back_to_backend_catalog(client: TestClient, db, 
     inventory = db.query(Module).filter(Module.name == "inventory").first()
     assert inventory is not None
     assert inventory.initial_template == "inventory"
+    assert (inventory.context_filters or {}).get("catalog_id") == "inventory"
 
-
-def test_register_modules_does_not_duplicate_catalog_entries(
-    client: TestClient, db, superuser_factory
-):
-    token = _admin_token(client, superuser_factory)
-    headers = {"Authorization": f"Bearer {token}"}
+def test_register_modules_does_not_duplicate_catalog_entries(db):
     payload = {"dir": "Z:/missing/modules"}
 
-    first = client.post("/api/v1/admin/modules/register-modules", json=payload, headers=headers)
-    assert first.status_code == 200, first.text
+    first = register_modules(payload, db)
+    assert first["source"] == "backend_catalog"
 
-    second = client.post("/api/v1/admin/modules/register-modules", json=payload, headers=headers)
-    assert second.status_code == 200, second.text
-    data = second.json()
+    data = register_modules(payload, db)
 
     assert data["registered"] == []
     assert "inventory" in data["already_existing"]
     assert db.query(Module).filter(Module.name == "inventory").count() == 1
 
+def test_register_modules_uses_complete_canonical_catalog(db):
+    data = register_modules({"dir": "Z:/missing/modules"}, db)
 
-def test_register_modules_uses_complete_canonical_catalog(
-    client: TestClient, db, superuser_factory
-):
-    token = _admin_token(client, superuser_factory)
-    response = client.post(
-        "/api/v1/admin/modules/register-modules",
-        json={"dir": "Z:/missing/modules"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 200, response.text
+    assert data["source"] == "backend_catalog"
     names = {row.name for row in db.query(Module).all()}
 
     assert "imports" in names
@@ -77,11 +48,7 @@ def test_register_modules_uses_complete_canonical_catalog(
     assert "ecommerce" not in names
     assert "projects" not in names
 
-
-def test_register_modules_upserts_legacy_alias_to_canonical_name(
-    client: TestClient, db, superuser_factory
-):
-    token = _admin_token(client, superuser_factory)
+def test_register_modules_upserts_legacy_alias_to_canonical_name(db):
     legacy = Module(
         name="importador",
         description="Legacy importer",
@@ -93,14 +60,7 @@ def test_register_modules_upserts_legacy_alias_to_canonical_name(
     db.commit()
     db.refresh(legacy)
 
-    response = client.post(
-        "/api/v1/admin/modules/register-modules",
-        json={"dir": "Z:/missing/modules", "upsert": True},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 200, response.text
-    data = response.json()
+    data = register_modules({"dir": "Z:/missing/modules", "upsert": True}, db)
 
     refreshed = db.query(Module).filter(Module.id == legacy.id).first()
     assert refreshed is not None

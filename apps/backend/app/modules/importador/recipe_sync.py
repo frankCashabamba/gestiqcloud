@@ -12,49 +12,11 @@ from sqlalchemy.orm import Session
 from app.models.core.products import Product
 from app.models.importador import ImpDocumento
 from app.models.recipes import Recipe, RecipeIngredient
-
-_VALID_UNITS = {
-    "kg",
-    "g",
-    "lb",
-    "oz",
-    "ton",
-    "mg",
-    "L",
-    "ml",
-    "gal",
-    "qt",
-    "pt",
-    "cup",
-    "fl_oz",
-    "tbsp",
-    "tsp",
-    "uds",
-    "unidades",
-    "pcs",
-}
+from app.services.unit_catalog_service import normalize_operational_unit
 
 
 def _normalize_unit(unit: str | None) -> str:
-    u = str(unit or "").strip().lower()
-    if not u or u == "-" or u.isdigit():
-        return "uds"
-    if u in ("unit", "units", "und", "uni"):
-        return "uds"
-    if u in ("unidad", "unid", "pza", "pieza", "cantidad"):
-        return "unidades"
-    if u in ("gr", "gramo", "gramos"):
-        return "g"
-    if u in ("kilo", "kilos", "kilogramo", "kilogramos"):
-        return "kg"
-    if u in ("lbs", "pounds", "libra", "libras"):
-        return "lb"
-    if u in ("lt", "litr", "litro", "litros"):
-        return "L"
-    for valid in _VALID_UNITS:
-        if u == valid.lower():
-            return valid
-    return "uds"
+    return normalize_operational_unit(unit)
 
 
 RECIPE_NAME_KEYS = (

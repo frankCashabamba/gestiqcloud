@@ -260,7 +260,7 @@ class SettingsManager:
                 if (canonical := canonicalize_module_id(m))
             }
 
-        modules = get_available_modules(country)
+        modules = get_available_modules(country, db=self.db)
 
         # Add enabled status if we have tenant_id
         if tenant_id:

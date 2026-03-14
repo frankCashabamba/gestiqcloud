@@ -46,6 +46,16 @@ describe('unitService', () => {
     expect(typeof unitService.formatWithUnit).toBe('function')
   })
 
+  it('should export normalizeUnitCode function', async () => {
+    const unitService = await import('../services/unitService')
+    expect(typeof unitService.normalizeUnitCode).toBe('function')
+  })
+
+  it('should export isStandardUnitCode function', async () => {
+    const unitService = await import('../services/unitService')
+    expect(typeof unitService.isStandardUnitCode).toBe('function')
+  })
+
   it('getDefaultUnits should return array of units', async () => {
     const { getDefaultUnits } = await import('../services/unitService')
     const units = getDefaultUnits()
@@ -61,9 +71,9 @@ describe('unitService', () => {
     const units = getDefaultUnits()
     const codes = units.map(u => u.code)
 
-    expect(codes).toContain('unit')
+    expect(codes).toContain('uds')
     expect(codes).toContain('kg')
-    expect(codes).toContain('l')
+    expect(codes).toContain('L')
   })
 
   it('formatWithUnit should format value with unit label', async () => {
@@ -80,6 +90,22 @@ describe('unitService', () => {
 
     const formatted = formatWithUnit(10, 'unknown_unit', [])
     expect(formatted).toBe('10 unknown_unit')
+  })
+
+  it('normalizeUnitCode should canonicalize count aliases', async () => {
+    const { normalizeUnitCode } = await import('../services/unitService')
+
+    expect(normalizeUnitCode('unit')).toBe('uds')
+    expect(normalizeUnitCode('Unidad')).toBe('uds')
+    expect(normalizeUnitCode('lt')).toBe('L')
+  })
+
+  it('isStandardUnitCode should detect standard units only', async () => {
+    const { isStandardUnitCode } = await import('../services/unitService')
+
+    expect(isStandardUnitCode('kg')).toBe(true)
+    expect(isStandardUnitCode('unit')).toBe(true)
+    expect(isStandardUnitCode('cubeta')).toBe(false)
   })
 })
 

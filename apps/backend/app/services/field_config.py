@@ -6,6 +6,110 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.company.company import SectorTemplate
+from app.models.core.ui_field_config import SectorFieldDefault
+
+_CLIENT_SECTOR_DEFAULTS: dict[str, list[dict[str, Any]]] = {
+    "default": [
+        {"field": "nombre", "visible": True, "required": True, "ord": 10},
+        {"field": "identificacion_tipo", "visible": True, "required": False, "ord": 15},
+        {"field": "identificacion", "visible": True, "required": False, "ord": 16},
+        {"field": "email", "visible": True, "required": False, "ord": 20},
+        {"field": "telefono", "visible": True, "required": False, "ord": 21},
+        {"field": "direccion", "visible": True, "required": False, "ord": 30},
+        {"field": "direccion2", "visible": False, "required": False, "ord": 31},
+        {"field": "localidad", "visible": True, "required": False, "ord": 32},
+        {"field": "provincia", "visible": True, "required": False, "ord": 33},
+        {"field": "ciudad", "visible": False, "required": False, "ord": 34},
+        {"field": "pais", "visible": True, "required": False, "ord": 35},
+        {"field": "codigo_postal", "visible": True, "required": False, "ord": 36},
+    ],
+    "retail": [
+        {"field": "nombre", "visible": True, "required": True, "ord": 10},
+        {"field": "identificacion_tipo", "visible": True, "required": False, "ord": 15},
+        {"field": "identificacion", "visible": True, "required": False, "ord": 16},
+        {"field": "email", "visible": True, "required": False, "ord": 20},
+        {"field": "telefono", "visible": True, "required": False, "ord": 21},
+        {"field": "direccion", "visible": True, "required": False, "ord": 30},
+        {"field": "direccion2", "visible": False, "required": False, "ord": 31},
+        {"field": "localidad", "visible": True, "required": False, "ord": 32},
+        {"field": "provincia", "visible": True, "required": False, "ord": 33},
+        {"field": "ciudad", "visible": False, "required": False, "ord": 34},
+        {"field": "pais", "visible": True, "required": False, "ord": 35},
+        {"field": "codigo_postal", "visible": True, "required": False, "ord": 36},
+        {"field": "whatsapp", "visible": True, "required": False, "ord": 40},
+        {"field": "descuento_pct", "visible": True, "required": False, "ord": 41},
+        {"field": "payment_terms_days", "visible": False, "required": False, "ord": 42},
+        {"field": "credit_limit", "visible": False, "required": False, "ord": 43},
+        {"field": "moneda", "visible": True, "required": False, "ord": 44},
+    ],
+    "panaderia": [
+        {"field": "nombre", "visible": True, "required": True, "ord": 10},
+        {"field": "identificacion_tipo", "visible": True, "required": False, "ord": 15},
+        {"field": "identificacion", "visible": True, "required": False, "ord": 16},
+        {"field": "email", "visible": True, "required": False, "ord": 20},
+        {"field": "telefono", "visible": True, "required": False, "ord": 21},
+        {"field": "direccion", "visible": True, "required": False, "ord": 30},
+        {"field": "direccion2", "visible": False, "required": False, "ord": 31},
+        {"field": "localidad", "visible": True, "required": False, "ord": 32},
+        {"field": "provincia", "visible": True, "required": False, "ord": 33},
+        {"field": "ciudad", "visible": False, "required": False, "ord": 34},
+        {"field": "pais", "visible": True, "required": False, "ord": 35},
+        {"field": "codigo_postal", "visible": True, "required": False, "ord": 36},
+        {"field": "contacto_nombre", "visible": True, "required": False, "ord": 50},
+        {"field": "contacto_telefono", "visible": True, "required": False, "ord": 51},
+        {"field": "envio_direccion", "visible": False, "required": False, "ord": 60},
+    ],
+    "restaurante": [
+        {"field": "nombre", "visible": True, "required": True, "ord": 10},
+        {"field": "identificacion_tipo", "visible": True, "required": False, "ord": 15},
+        {"field": "identificacion", "visible": True, "required": False, "ord": 16},
+        {"field": "email", "visible": True, "required": False, "ord": 20},
+        {"field": "telefono", "visible": True, "required": False, "ord": 21},
+        {"field": "direccion", "visible": True, "required": False, "ord": 30},
+        {"field": "direccion2", "visible": False, "required": False, "ord": 31},
+        {"field": "localidad", "visible": True, "required": False, "ord": 32},
+        {"field": "provincia", "visible": True, "required": False, "ord": 33},
+        {"field": "ciudad", "visible": False, "required": False, "ord": 34},
+        {"field": "pais", "visible": True, "required": False, "ord": 35},
+        {"field": "codigo_postal", "visible": True, "required": False, "ord": 36},
+    ],
+    "taller": [
+        {"field": "nombre", "visible": True, "required": True, "ord": 10},
+        {"field": "identificacion_tipo", "visible": True, "required": False, "ord": 15},
+        {"field": "identificacion", "visible": True, "required": False, "ord": 16},
+        {"field": "email", "visible": True, "required": False, "ord": 20},
+        {"field": "telefono", "visible": True, "required": False, "ord": 21},
+        {"field": "direccion", "visible": True, "required": False, "ord": 30},
+        {"field": "direccion2", "visible": False, "required": False, "ord": 31},
+        {"field": "localidad", "visible": True, "required": False, "ord": 32},
+        {"field": "provincia", "visible": True, "required": False, "ord": 33},
+        {"field": "ciudad", "visible": False, "required": False, "ord": 34},
+        {"field": "pais", "visible": True, "required": False, "ord": 35},
+        {"field": "codigo_postal", "visible": True, "required": False, "ord": 36},
+        {"field": "contacto_nombre", "visible": True, "required": False, "ord": 50},
+        {"field": "contacto_telefono", "visible": True, "required": False, "ord": 51},
+        {"field": "idioma", "visible": False, "required": False, "ord": 70},
+    ],
+}
+
+_CLIENT_SECTOR_ALIASES = {
+    "bazar": "retail",
+    "todoa100": "retail",
+    "panerp": "panaderia",
+    "mecanico": "taller",
+}
+
+_FIELD_MODULE_ALIASES = {
+    "customers": "clientes",
+    "customer": "clientes",
+    "clients": "clientes",
+    "client": "clientes",
+    "products": "productos",
+    "product": "productos",
+    "proveedores": "suppliers",
+    "proveedor": "suppliers",
+    "supplier": "suppliers",
+}
 
 
 def _normalize(items: list[dict]) -> list[dict]:
@@ -14,6 +118,9 @@ def _normalize(items: list[dict]) -> list[dict]:
         f = (it or {}).get("field")
         if not f:
             continue
+        options = (it or {}).get("options")
+        if options is None:
+            options = []
         out.append(
             {
                 "field": f,
@@ -25,13 +132,108 @@ def _normalize(items: list[dict]) -> list[dict]:
                 # Campos opcionales para importador dinámico
                 "aliases": (it or {}).get("aliases"),
                 "field_type": (it or {}).get("field_type"),
-                "options": (it or {}).get("options"),
+                "options": options,
                 "validation_pattern": (it or {}).get("validation_pattern"),
                 "validation_rules": (it or {}).get("validation_rules"),
                 "transform_expression": (it or {}).get("transform_expression"),
             }
         )
     return out
+
+
+def canonical_sector_field_key(sector: str | None) -> str:
+    raw = str(sector or "default").strip().lower()
+    return _CLIENT_SECTOR_ALIASES.get(raw, raw)
+
+
+def canonical_field_module_key(module: str | None) -> str:
+    raw = str(module or "").strip().lower()
+    return _FIELD_MODULE_ALIASES.get(raw, raw)
+
+
+def _field_module_candidates(module: str | None) -> list[str]:
+    canonical = canonical_field_module_key(module)
+    candidates = [canonical]
+    for alias, target in _FIELD_MODULE_ALIASES.items():
+        if target == canonical and alias not in candidates:
+            candidates.append(alias)
+    return candidates
+
+
+def _template_field_items(db: Session, sector: str | None, module: str) -> list[dict]:
+    sector_key = canonical_sector_field_key(sector)
+    module_key = canonical_field_module_key(module)
+    if not sector_key:
+        return []
+    try:
+        tpl = (
+            db.query(SectorTemplate)
+            .filter(
+                SectorTemplate.code == sector_key,
+                SectorTemplate.is_active == True,  # noqa: E712
+            )
+            .first()
+        )
+        if not tpl:
+            return []
+        config = tpl.template_config or {}
+        fields_cfg = (config.get("fields") or {}).get(module_key, {}) or {}
+        items = fields_cfg.get("items") or fields_cfg.get("fields") or []
+        if isinstance(items, dict):
+            items = list(items.values())
+        if not isinstance(items, list):
+            return []
+        return _normalize(items)
+    except Exception:
+        return []
+
+
+def ensure_sector_field_defaults_seeded(
+    db: Session, *, module: str, sector: str | None
+) -> None:
+    """Seed DB-backed sector defaults for modules still migrating off code defaults."""
+    module_candidates = _field_module_candidates(module)
+    module_key = canonical_field_module_key(module)
+    sector_key = canonical_sector_field_key(sector)
+
+    exists = (
+        db.query(SectorFieldDefault)
+        .filter(
+            SectorFieldDefault.sector == sector_key,
+            SectorFieldDefault.module.in_(module_candidates),
+        )
+        .first()
+    )
+    if exists:
+        return
+
+    # Intenta cargar desde template_config del sector (BD); el dict hardcodeado
+    # solo aplica como fallback para "clientes" mientras no haya datos en BD.
+    items_to_seed: list[dict] = _template_field_items(db, sector_key, module_key)
+    if not items_to_seed and module_key == "clientes":
+        fallback_sector = sector_key if sector_key in _CLIENT_SECTOR_DEFAULTS else "default"
+        items_to_seed = _normalize(_CLIENT_SECTOR_DEFAULTS[fallback_sector])
+
+    if not items_to_seed:
+        return
+
+    for item in items_to_seed:
+        db.add(
+            SectorFieldDefault(
+                sector=sector_key,
+                module=module_key,
+                field=item["field"],
+                visible=item["visible"],
+                required=item["required"],
+                ord=item.get("ord"),
+                label=item.get("label"),
+                help=item.get("help"),
+                field_type=item.get("field_type"),
+                options=item.get("options"),
+                validation_pattern=item.get("validation_pattern"),
+            )
+        )
+    db.commit()
 
 
 def _merge(base_items: list[dict], overrides: list[dict]) -> list[dict]:
@@ -63,10 +265,11 @@ def _template_required_fields(db: Session, sector: str | None, module: str) -> l
     if not sector:
         return []
     try:
+        module_key = canonical_field_module_key(module)
         tpl = (
             db.query(SectorTemplate)
             .filter(
-                SectorTemplate.code == sector.lower(),
+                SectorTemplate.code == canonical_sector_field_key(sector),
                 SectorTemplate.is_active == True,  # noqa: E712
             )
             .first()
@@ -75,7 +278,7 @@ def _template_required_fields(db: Session, sector: str | None, module: str) -> l
             return []
         config = tpl.template_config or {}
         branding = config.get("branding", {}) or {}
-        required = (branding.get("required_fields", {}) or {}).get(module, [])
+        required = (branding.get("required_fields", {}) or {}).get(module_key, [])
         if not isinstance(required, list):
             return []
         return _normalize(
@@ -109,18 +312,29 @@ def resolve_fields(
     """
     from app.models.core.ui_field_config import TenantFieldConfig  # type: ignore
 
+    module_key = canonical_field_module_key(module)
+    module_candidates = _field_module_candidates(module)
+    sector_key = canonical_sector_field_key(sector)
+
     # Load tenant overrides
     tenant_items: list[dict] = []
     if tenant_id:
-        rows = (
-            db.query(TenantFieldConfig)
-            .filter(
-                TenantFieldConfig.tenant_id == tenant_id,
-                TenantFieldConfig.module == module,
-            )
-            .order_by(TenantFieldConfig.ord.asc().nulls_last())
-            .all()
-        )
+        rows = []
+        try:
+            for module_name in module_candidates:
+                rows = (
+                    db.query(TenantFieldConfig)
+                    .filter(
+                        TenantFieldConfig.tenant_id == tenant_id,
+                        TenantFieldConfig.module == module_name,
+                    )
+                    .order_by(TenantFieldConfig.ord.asc().nulls_last())
+                    .all()
+                )
+                if rows:
+                    break
+        except Exception:
+            rows = []
         tenant_items = [
             {
                 "field": r.field,
@@ -145,15 +359,19 @@ def resolve_fields(
         try:
             from app.models.core.ui_field_config import SectorFieldDefault  # type: ignore
 
-            srows = (
-                db.query(SectorFieldDefault)
-                .filter(
-                    SectorFieldDefault.sector == sector,
-                    SectorFieldDefault.module == module,
+            srows = []
+            for module_name in module_candidates:
+                srows = (
+                    db.query(SectorFieldDefault)
+                    .filter(
+                        SectorFieldDefault.sector == sector_key,
+                        SectorFieldDefault.module == module_name,
+                    )
+                    .order_by(SectorFieldDefault.ord.asc().nulls_last())
+                    .all()
                 )
-                .order_by(SectorFieldDefault.ord.asc().nulls_last())
-                .all()
-            )
+                if srows:
+                    break
             sector_items = [
                 {
                     "field": r.field,
@@ -175,12 +393,12 @@ def resolve_fields(
             sector_items = []
 
     # Base code defaults (prioriza config de template del sector)
-    template_items = _template_required_fields(db, sector, module)
+    template_items = _template_required_fields(db, sector_key, module_key)
     # Evitar hardcoding: si no hay datos en template ni defaults_fn, retorna vacío
     if defaults_fn is None:
         base_items = template_items
     else:
-        base_items = template_items or _normalize(defaults_fn(module, sector or "default"))
+        base_items = template_items or _normalize(defaults_fn(module_key, sector_key or "default"))
 
     # Read mode
     mode = "mixed"
@@ -192,8 +410,19 @@ def resolve_fields(
                 text(
                     "SELECT form_mode FROM tenant_module_settings WHERE tenant_id = :tid AND module = :mod"
                 ),
-                {"tid": tenant_id, "mod": module},
+                {"tid": tenant_id, "mod": module_key},
             ).first()
+            if (not row or not row[0]) and module_candidates:
+                for legacy_module in module_candidates[1:]:
+                    row = db.execute(
+                        text(
+                            "SELECT form_mode FROM tenant_module_settings "
+                            "WHERE tenant_id = :tid AND module = :mod"
+                        ),
+                        {"tid": tenant_id, "mod": legacy_module},
+                    ).first()
+                    if row and row[0]:
+                        break
             if row and row[0]:
                 mode = str(row[0]).lower()
         except Exception:

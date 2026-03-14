@@ -30,6 +30,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import tenantApi from '../shared/api/client'
+import { getDefaultUnits } from '../services/unitService'
 
 export interface SectorUnit {
   code: string
@@ -162,11 +163,7 @@ export function getSectorDisplayName(config: BrandingConfig | null): string {
 }
 
 export function getSectorUnits(config: BrandingConfig | null): SectorUnit[] {
-  return config?.units || [
-    { code: 'unit', label: 'Unidad' },
-    { code: 'kg', label: 'Kilogramo' },
-    { code: 'l', label: 'Litro' },
-  ]
+  return config?.units || getDefaultUnits()
 }
 
 export function getFormatRule(

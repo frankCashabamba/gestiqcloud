@@ -33,23 +33,8 @@ import {
 } from '../../services/api/productionCosts';
 import tenantApi from '../../shared/api/client';
 import { usePermission } from '../../hooks/usePermission';
-
-const VALID_UNITS = new Set(['kg', 'g', 'lb', 'oz', 'ton', 'mg', 'L', 'ml', 'gal', 'qt', 'pt', 'cup', 'fl_oz', 'tbsp', 'tsp', 'uds', 'unidades', 'pcs']);
-
-const normalizeRecipeUnit = (unit?: string | null): string => {
-  const u = String(unit || '').trim().toLowerCase();
-  if (!u || u === '-' || /^\d+$/.test(u)) return 'uds';
-  if (u === 'unit' || u === 'units' || u === 'und' || u === 'uni') return 'uds';
-  if (u === 'unidad' || u === 'unid' || u === 'pza' || u === 'pieza' || u === 'cantidad') return 'unidades';
-  if (u === 'gr' || u === 'gramo' || u === 'gramos') return 'g';
-  if (u === 'kilo' || u === 'kilos' || u === 'kilogramo' || u === 'kilogramos') return 'kg';
-  if (u === 'lbs' || u === 'pounds' || u === 'libra' || u === 'libras') return 'lb';
-  if (u === 'lt' || u === 'litr' || u === 'litro' || u === 'litros') return 'L';
-  for (const valid of VALID_UNITS) {
-    if (u === valid.toLowerCase()) return valid;
-  }
-  return 'uds';
-};
+import { useUnits } from '../../hooks/useUnits';
+import { normalizeUnitCode } from '../../services/unitService';
 
 const HOUR_LIKE_DRIVER_UNITS = new Set(['h', 'hh', 'hr', 'hrs', 'hora', 'horas', 'hour', 'hours']);
 
@@ -169,6 +154,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const { t } = useTranslation(['productions', 'common']);
   const can = usePermission();
   const canWrite = can('produccion:write');
+  const { units } = useUnits();
 
   const [loading, setLoading] = useState(true);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -254,10 +240,10 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
             id: ing.id,
             product_id: String(ing.product_id || ''),
             qty: Number(ing.qty || 0),
-            unit: normalizeRecipeUnit(ing.unit),
+            unit: normalizeUnitCode(ing.unit, units),
             purchase_packaging: String(ing.purchase_packaging || ''),
             qty_per_package: Math.max(Number(ing.qty_per_package || 1), 0.0001),
-            package_unit: normalizeRecipeUnit(ing.package_unit),
+            package_unit: normalizeUnitCode(ing.package_unit, units),
             package_cost: Number(ing.package_cost || 0),
             notes: ing.notes || '',
             line_order: typeof ing.line_order === 'number' ? ing.line_order : idx,
@@ -331,12 +317,16 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const setIngredientField = (index: number, field: string, value: any) => {
     setIngredientsDraft((prev) => {
       const next = [...prev];
-      (next[index] as any)[field] = value;
+      const normalizedValue =
+        field === 'unit' || field === 'package_unit'
+          ? normalizeUnitCode(value, units)
+          : value;
+      (next[index] as any)[field] = normalizedValue;
       if (field === 'product_id') {
         const p = products.find((x) => x.id === value);
         if (p) {
-          next[index].unit = normalizeRecipeUnit(p.unit);
-          next[index].package_unit = normalizeRecipeUnit(p.unit);
+          next[index].unit = normalizeUnitCode(p.unit, units);
+          next[index].package_unit = normalizeUnitCode(p.unit, units);
         }
       }
       return next;
@@ -382,10 +372,10 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         .map((row, index) => ({
           product_id: row.product_id,
           qty: Number(row.qty || 0),
-          unit: normalizeRecipeUnit(row.unit),
+          unit: normalizeUnitCode(row.unit, units),
           purchase_packaging: String(row.purchase_packaging || '-'),
           qty_per_package: Math.max(Number(row.qty_per_package || 1), 0.0001),
-          package_unit: normalizeRecipeUnit(row.package_unit || row.unit),
+          package_unit: normalizeUnitCode(row.package_unit || row.unit, units),
           package_cost: Number(row.package_cost || 0),
           notes: row.notes || undefined,
           line_order: index,
@@ -1015,7 +1005,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                 const product = products.find((p) => p.id === item.product_id);
                 const productName = product?.name || (item as any)?.product_name || '-';
                 const qty = Number(item.qty ?? 0);
-                const unitNorm = normalizeRecipeUnit(item.unit);
+                const unitNorm = normalizeUnitCode(item.unit, units);
                 let kgLbText: string | null = null;
                 if (unitNorm === 'g') {
                   const kg = qty / 1000;
@@ -1076,11 +1066,19 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                   {isEditing && (
                     <TableCell>
                       <TextField
-                        value={item.unit}
+                        select
+                        SelectProps={{ native: true }}
+                        value={normalizeUnitCode(item.unit, units)}
                         onChange={(e) => setIngredientField(index, 'unit', e.target.value)}
                         size="small"
                         sx={{ width: 90 }}
-                      />
+                      >
+                        {units.map((unit) => (
+                          <option key={unit.code} value={unit.code}>
+                            {unit.label}
+                          </option>
+                        ))}
+                      </TextField>
                     </TableCell>
                   )}
                   <TableCell align="right">

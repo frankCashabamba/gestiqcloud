@@ -5,6 +5,10 @@ from __future__ import annotations
 import unicodedata
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from app.models.core.module import Module
+
 
 def _normalize_key(value: str | None) -> str:
     raw = str(value or "").strip().lower()
@@ -456,30 +460,126 @@ def get_module_aliases(module_id: str) -> list[str]:
     return list(module.get("aliases", [canonical]))
 
 
+def _module_catalog_id(module_row: Module) -> str | None:
+    context_filters = getattr(module_row, "context_filters", None) or {}
+    raw_candidates = [
+        context_filters.get("catalog_id"),
+        getattr(module_row, "url", None),
+        getattr(module_row, "name", None),
+    ]
+    for raw in raw_candidates:
+        canonical = canonicalize_module_id(raw)
+        if canonical:
+            return canonical
+    return None
+
+
+def _module_catalog_overrides(db: Session | None) -> dict[str, dict[str, Any]]:
+    """Retorna overrides y módulos BD-only. Clave = catalog_id o str(row.id)."""
+    if db is None:
+        return {}
+
+    overrides: dict[str, dict[str, Any]] = {}
+    for row in db.query(Module).all():
+        canonical = _module_catalog_id(row)
+        # Módulos sin catalog_id válido se exponen por su URL o name como clave tentativa.
+        key = canonical or str(getattr(row, "url", None) or getattr(row, "name", None) or row.id)
+        context_filters = getattr(row, "context_filters", None) or {}
+        overrides[key] = {
+            "name": getattr(row, "name", None),
+            "description": getattr(row, "description", None),
+            "icon": getattr(row, "icon", None),
+            "category": getattr(row, "category", None),
+            "active": bool(getattr(row, "active", True)),
+            "countries": context_filters.get("countries"),
+            "sectors": context_filters.get("sectors"),
+            "required": context_filters.get("required"),
+            "default_enabled": context_filters.get("default_enabled"),
+            # flag para distinguir módulos que NO están en el catálogo de código
+            "_bd_only": canonical is None or canonical not in AVAILABLE_MODULES,
+        }
+    return overrides
+
+
 def get_available_modules(
     country: str | None = None,
     sector: str | None = None,
+    db: Session | None = None,
 ) -> list[dict[str, Any]]:
-    """Return implemented modules optionally filtered by country and sector."""
-    modules = [dict(module) for module in AVAILABLE_MODULES.values()]
+    """Return implemented modules optionally filtered by country and sector.
+
+    Fuentes (en orden de prioridad):
+    1. Catálogo de código (AVAILABLE_MODULES) con overrides de BD.
+    2. Módulos creados solo en BD (sin entrada en el catálogo de código).
+    """
+    overrides = _module_catalog_overrides(db)
+    seen_ids: set[str] = set()
+    modules: list[dict[str, Any]] = []
+
+    # — Catálogo de código con overrides de BD —
+    for module_id, base_module in AVAILABLE_MODULES.items():
+        module = dict(base_module)
+        override = overrides.get(module_id)
+        if override:
+            if override.get("active") is False:
+                seen_ids.add(module_id)
+                continue
+            for field in ("name", "description", "icon", "category"):
+                value = override.get(field)
+                if value not in (None, ""):
+                    module[field] = value
+            for field in ("countries", "sectors"):
+                if override.get(field) is not None:
+                    module[field] = override[field]
+            for field in ("required", "default_enabled"):
+                if override.get(field) is not None:
+                    module[field] = bool(override[field])
+        seen_ids.add(module_id)
+        modules.append(module)
+
+    # — Módulos creados solo en BD (no presentes en el catálogo de código) —
+    for key, override in overrides.items():
+        if key in seen_ids:
+            continue
+        if not override.get("_bd_only"):
+            continue
+        if override.get("active") is False:
+            continue
+        modules.append({
+            "id": key,
+            "name": override.get("name") or key,
+            "name_en": override.get("name") or key,
+            "icon": override.get("icon"),
+            "category": override.get("category"),
+            "description": override.get("description"),
+            "required": bool(override.get("required", False)),
+            "default_enabled": bool(override.get("default_enabled", True)),
+            "dependencies": [],
+            "countries": override.get("countries") or ["ES", "EC"],
+            "sectors": override.get("sectors"),
+            "aliases": [key],
+            "implemented": True,
+        })
 
     if country:
-        modules = [m for m in modules if country.upper() in m.get("countries", [])]
+        modules = [m for m in modules if country.upper() in (m.get("countries") or [])]
 
     if sector:
         modules = [
-            m for m in modules if m.get("sectors") is None or sector.lower() in m.get("sectors", [])
+            m for m in modules if m.get("sectors") is None or sector.lower() in (m.get("sectors") or [])
         ]
 
     return modules
 
 
-def get_module_by_id(module_id: str) -> dict[str, Any] | None:
+def get_module_by_id(module_id: str, db: Session | None = None) -> dict[str, Any] | None:
     canonical = canonicalize_module_id(module_id)
     if not canonical:
         return None
-    module = AVAILABLE_MODULES.get(canonical)
-    return dict(module) if module else None
+    for module in get_available_modules(db=db):
+        if module.get("id") == canonical:
+            return dict(module)
+    return None
 
 
 def get_required_modules() -> list[str]:

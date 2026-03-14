@@ -27,6 +27,7 @@ from app.models.core.country_catalogs import CountryIdType
 from app.models.tenant import Tenant
 from app.schemas.sector_plantilla import SectorConfigJSON
 from app.services.sector_templates import apply_sector_template
+from app.services.system_defaults_service import get_system_default, get_system_default_bool
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,15 @@ router_admin = APIRouter(
     tags=["Company Settings (admin)"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
+
+
+def _default_limits(db: Session) -> dict[str, object]:
+    return {
+        "user_limit": int(get_system_default(db, "company.user_limit_default", 10.0)),
+        "allow_custom_roles": get_system_default_bool(
+            db, "company.allow_custom_roles_default", True
+        ),
+    }
 
 
 class CompanySettingsRequest(BaseModel):
@@ -701,7 +711,7 @@ def get_settings_limites(tenant_id: str = Depends(ensure_tenant), db: Session = 
         db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     )
     if not company_settings:
-        return {"user_limit": 10, "allow_custom_roles": True}
+        return _default_limits(db)
 
     return {
         "user_limit": company_settings.user_limit,
@@ -749,7 +759,7 @@ def get_settings_limites_admin(tenant_id: str, db: Session = Depends(get_db)):
         db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     )
     if not company_settings:
-        return {"user_limit": 10, "allow_custom_roles": True}
+        return _default_limits(db)
 
     return {
         "user_limit": company_settings.user_limit,

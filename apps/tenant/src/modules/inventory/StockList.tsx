@@ -8,6 +8,7 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import { usePermission } from '../../hooks/usePermission'
 import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
+import { isStandardUnitCode } from '../../services/unitService'
 
 export default function StockList() {
     const { t } = useTranslation(['inventory', 'common'])
@@ -421,12 +422,11 @@ export default function StockList() {
                                                 {(() => {
                                                     // Solo mostrar equivalente cuando el stock está en unidad CUSTOM (Cubeta, bloque, saco...)
                                                     // y el pack_unit es una unidad estándar (g, uds, kg, lb, L...)
-                                                    const METRIC = new Set(['kg','g','lb','oz','ton','mg','L','ml','gal','uds','unidades','pcs'])
                                                     const stockUnit = item.unit ?? ''
                                                     const pu = item.pack_unit ?? ''
                                                     const showEquiv = item.pack_size && item.pack_size > 0 && pu
-                                                        && METRIC.has(pu)          // pack_unit es estándar
-                                                        && !METRIC.has(stockUnit)  // stock unit es custom (Cubeta, bloque...)
+                                                        && isStandardUnitCode(pu)
+                                                        && !isStandardUnitCode(stockUnit)
                                                     if (!showEquiv) return null
                                                     return (
                                                         <div className="text-xs text-gray-400 mt-0.5">

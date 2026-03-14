@@ -15,7 +15,14 @@ from app.models.company.settings import ConfiguracionEmpresa
 from app.models.core.ui_field_config import SectorFieldDefault, TenantFieldConfig
 from app.models.core.ui_template import UiTemplate
 from app.models.tenant import Tenant as Empresa
-from app.services.field_config import resolve_fields
+from app.services.field_config import (
+    canonical_field_module_key,
+    canonical_sector_field_key,
+    ensure_sector_field_defaults_seeded,
+    resolve_fields,
+)
+from app.services.sector_defaults import get_sector_defaults
+from app.services.system_defaults_service import get_system_default_text
 
 router = APIRouter()
 admin_router = APIRouter(prefix="/admin/field-config", tags=["admin-field-config"])
@@ -83,6 +90,37 @@ def _first_non_empty(*values: str | None) -> str | None:
     return None
 
 
+def _theme_defaults(db: Session) -> dict[str, object]:
+    return {
+        "colors": {
+            "primary": get_system_default_text(db, "theme.colors.primary", "#2563eb"),
+            "secondary": get_system_default_text(db, "theme.colors.secondary", "#1e293b"),
+            "onPrimary": get_system_default_text(db, "theme.colors.on_primary", "#ffffff"),
+            "bg": get_system_default_text(db, "theme.colors.bg", "#ffffff"),
+            "fg": get_system_default_text(db, "theme.colors.fg", "#0f172a"),
+            "muted": get_system_default_text(db, "theme.colors.muted", "#64748b"),
+            "success": get_system_default_text(db, "theme.colors.success", "#10b981"),
+            "warning": get_system_default_text(db, "theme.colors.warning", "#f59e0b"),
+            "danger": get_system_default_text(db, "theme.colors.danger", "#ef4444"),
+        },
+        "typography": {
+            "fontFamily": get_system_default_text(
+                db, "theme.typography.font_family", "Inter, system-ui, sans-serif"
+            ),
+            "fontSizeBase": get_system_default_text(db, "theme.typography.font_size_base", "16px"),
+        },
+        "radius": {
+            "sm": get_system_default_text(db, "theme.radius.sm", "4px"),
+            "md": get_system_default_text(db, "theme.radius.md", "8px"),
+            "lg": get_system_default_text(db, "theme.radius.lg", "12px"),
+        },
+        "shadows": {
+            "sm": get_system_default_text(db, "theme.shadows.sm", "0 1px 2px rgba(0,0,0,.08)"),
+            "md": get_system_default_text(db, "theme.shadows.md", "0 4px 12px rgba(0,0,0,.12)"),
+        },
+    }
+
+
 @router.get("/theme")
 def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(default=None)):
     """Return design tokens for theming the tenant UI.
@@ -92,6 +130,8 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
     mecanico -> taller). Para colores, prioriza `ConfiguracionEmpresa.color_primario`
     y luego `Tenant.primary_color`.
     """
+    defaults = _theme_defaults(db)
+
     if empresa:
         emp = (
             db.query(Empresa).filter((Empresa.slug == empresa) | (Empresa.name == empresa)).first()
@@ -125,12 +165,12 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
             company_settings.primary_color if company_settings else None,
             getattr(cfg, "color_primario", None),
             getattr(emp, "primary_color", None),
-            "#2563eb",
+            str(defaults["colors"]["primary"]),
         )
         color_secondary = _first_non_empty(
             company_settings.secondary_color if company_settings else None,
             getattr(cfg, "color_secundario", None),
-            "#1e293b",
+            str(defaults["colors"]["secondary"]),
         )
 
         raw_sector = getattr(emp, "sector_template_name", None)
@@ -141,23 +181,17 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
             "colors": {
                 "primary": color_primary,
                 "secondary": color_secondary,
-                "onPrimary": "#ffffff",
-                "bg": "#ffffff",
-                "fg": "#0f172a",
-                "muted": "#64748b",
-                "success": "#10b981",
-                "warning": "#f59e0b",
-                "danger": "#ef4444",
+                "onPrimary": defaults["colors"]["onPrimary"],
+                "bg": defaults["colors"]["bg"],
+                "fg": defaults["colors"]["fg"],
+                "muted": defaults["colors"]["muted"],
+                "success": defaults["colors"]["success"],
+                "warning": defaults["colors"]["warning"],
+                "danger": defaults["colors"]["danger"],
             },
-            "typography": {
-                "fontFamily": "Inter, system-ui, sans-serif",
-                "fontSizeBase": "16px",
-            },
-            "radius": {"sm": "4px", "md": "8px", "lg": "12px"},
-            "shadows": {
-                "sm": "0 1px 2px rgba(0,0,0,.08)",
-                "md": "0 4px 12px rgba(0,0,0,.12)",
-            },
+            "typography": defaults["typography"],
+            "radius": defaults["radius"],
+            "shadows": defaults["shadows"],
             "mode": "light",
             "components": {},
             "sector": sector,
@@ -166,100 +200,13 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
     # Safe defaults
     return {
         "brand": {"name": "", "logoUrl": None, "faviconUrl": None},
-        "colors": {
-            "primary": "#2563eb",
-            "secondary": "#1e293b",
-            "onPrimary": "#ffffff",
-            "bg": "#ffffff",
-            "fg": "#0f172a",
-            "muted": "#64748b",
-            "success": "#10b981",
-            "warning": "#f59e0b",
-            "danger": "#ef4444",
-        },
-        "typography": {
-            "fontFamily": "Inter, system-ui, sans-serif",
-            "fontSizeBase": "16px",
-        },
-        "radius": {"sm": "4px", "md": "8px", "lg": "12px"},
-        "shadows": {
-            "sm": "0 1px 2px rgba(0,0,0,.08)",
-            "md": "0 4px 12px rgba(0,0,0,.12)",
-        },
+        "colors": defaults["colors"],
+        "typography": defaults["typography"],
+        "radius": defaults["radius"],
+        "shadows": defaults["shadows"],
         "mode": "light",
         "components": {},
     }
-
-
-def _default_fields_by_sector(module: str, sector: str) -> list[dict]:
-    """Default field visibility/order for known modules by sector.
-
-    Currently supports module 'clientes'. Extend as needed.
-    """
-    sector = (sector or "default").lower()
-    if module != "clientes":
-        return []
-
-    # Base fields common for all sectors
-    base = [
-        {"field": "nombre", "visible": True, "required": True, "ord": 10},
-        {"field": "identificacion_tipo", "visible": True, "required": False, "ord": 15},
-        {"field": "identificacion", "visible": True, "required": False, "ord": 16},
-        {"field": "email", "visible": True, "required": False, "ord": 20},
-        {"field": "telefono", "visible": True, "required": False, "ord": 21},
-        {"field": "direccion", "visible": True, "required": False, "ord": 30},
-        {"field": "direccion2", "visible": False, "required": False, "ord": 31},
-        {"field": "localidad", "visible": True, "required": False, "ord": 32},
-        {"field": "provincia", "visible": True, "required": False, "ord": 33},
-        {"field": "ciudad", "visible": False, "required": False, "ord": 34},
-        {"field": "pais", "visible": True, "required": False, "ord": 35},
-        {"field": "codigo_postal", "visible": True, "required": False, "ord": 36},
-    ]
-
-    sector_extras: list[dict] = []
-    if sector in ("retail", "bazar", "todoa100"):
-        sector_extras += [
-            {"field": "whatsapp", "visible": True, "required": False, "ord": 40},
-            {"field": "descuento_pct", "visible": True, "required": False, "ord": 41},
-            {
-                "field": "payment_terms_days",
-                "visible": False,
-                "required": False,
-                "ord": 42,
-            },
-            {"field": "credit_limit", "visible": False, "required": False, "ord": 43},
-            {"field": "moneda", "visible": True, "required": False, "ord": 44},
-        ]
-    if sector in ("panaderia", "panerp"):
-        sector_extras += [
-            {"field": "contacto_nombre", "visible": True, "required": False, "ord": 50},
-            {
-                "field": "contacto_telefono",
-                "visible": True,
-                "required": False,
-                "ord": 51,
-            },
-            {
-                "field": "envio_direccion",
-                "visible": False,
-                "required": False,
-                "ord": 60,
-            },
-        ]
-    if sector in ("taller", "mecanico"):
-        sector_extras += [
-            {"field": "contacto_nombre", "visible": True, "required": False, "ord": 50},
-            {
-                "field": "contacto_telefono",
-                "visible": True,
-                "required": False,
-                "ord": 51,
-            },
-            {"field": "idioma", "visible": False, "required": False, "ord": 70},
-        ]
-
-    return base + sector_extras
-
 
 @router.get("/fields")
 def get_field_config(
@@ -272,6 +219,8 @@ def get_field_config(
     If no explicit config stored for the tenant/module, returns sensible defaults
     based on the tenant sector (plantilla_inicio -> normalized sector).
     """
+    requested_module = module
+    module = canonical_field_module_key(module)
     tenant_id = None
     sector = "default"
     if empresa:
@@ -280,19 +229,25 @@ def get_field_config(
         )
         if emp:
             tenant_id = getattr(emp, "id", None)
-            sector = _normalize_sector_slug(getattr(emp, "sector_plantilla_nombre", None)) or (
-                (getattr(emp, "plantilla_inicio", None) or "default").strip().lower()
+            raw_sector = (
+                getattr(emp, "sector_template_name", None)
+                or getattr(emp, "sector_plantilla_nombre", None)
+                or getattr(emp, "plantilla_inicio", None)
+                or "default"
             )
+            sector = canonical_sector_field_key(raw_sector)
+
+    ensure_sector_field_defaults_seeded(db, module=module, sector=sector)
 
     items = resolve_fields(
         db,
         module=module,
         tenant_id=str(tenant_id) if tenant_id else None,
         sector=sector,
-        defaults_fn=_default_fields_by_sector,
+        defaults_fn=lambda mod, sec: get_sector_defaults(mod, sec, db=db),
     )
 
-    return {"module": module, "empresa": empresa, "items": items}
+    return {"module": module, "requested_module": requested_module, "empresa": empresa, "items": items}
 
 
 @admin_router.get("/sector")
@@ -301,7 +256,10 @@ def get_sector_fields(
 ):
     from app.models.core.ui_field_config import SectorFieldDefault
 
-    s = (sector or "default").strip().lower()
+    requested_module = module
+    module = canonical_field_module_key(module)
+    s = canonical_sector_field_key(sector)
+    ensure_sector_field_defaults_seeded(db, module=module, sector=s)
     rows = (
         db.query(SectorFieldDefault)
         .filter(SectorFieldDefault.sector == s, SectorFieldDefault.module == module)
@@ -322,17 +280,15 @@ def get_sector_fields(
         }
         for r in rows
     ]
-    if not items:
-        items = _default_fields_by_sector(module, s)
-    return {"module": module, "sector": s, "items": items}
+    return {"module": module, "requested_module": requested_module, "sector": s, "items": items}
 
 
 @admin_router.put("/sector")
 def put_sector_fields(payload: dict, db: Session = Depends(get_db)):
     from app.models.core.ui_field_config import SectorFieldDefault
 
-    sector = (payload.get("sector") or "default").strip().lower()
-    module = payload.get("module")
+    sector = canonical_sector_field_key(payload.get("sector"))
+    module = canonical_field_module_key(payload.get("module"))
     items = payload.get("items") or []
     if not module:
         return {"ok": False, "error": "module is required"}
@@ -341,6 +297,9 @@ def put_sector_fields(payload: dict, db: Session = Depends(get_db)):
         SectorFieldDefault.sector == sector, SectorFieldDefault.module == module
     ).delete()
     for it in items:
+        options = it.get("options")
+        if options is None:
+            options = []
         row = SectorFieldDefault(
             sector=sector,
             module=module,
@@ -351,7 +310,7 @@ def put_sector_fields(payload: dict, db: Session = Depends(get_db)):
             label=it.get("label"),
             help=it.get("help"),
             field_type=it.get("field_type"),
-            options=it.get("options"),
+            options=options,
             validation_pattern=it.get("validation_pattern"),
         )
         db.add(row)
@@ -362,7 +321,7 @@ def put_sector_fields(payload: dict, db: Session = Depends(get_db)):
 @admin_router.put("/tenant")
 def put_tenant_fields(payload: dict, db: Session = Depends(get_db)):
     empresa = payload.get("empresa")
-    module = payload.get("module")
+    module = canonical_field_module_key(payload.get("module"))
     items = payload.get("items") or []
     if not module:
         return {"ok": False, "error": "module is required"}
@@ -378,6 +337,9 @@ def put_tenant_fields(payload: dict, db: Session = Depends(get_db)):
         TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module == module
     ).delete()
     for it in items:
+        options = it.get("options")
+        if options is None:
+            options = []
         row = TenantFieldConfig(
             tenant_id=tenant_id,
             module=module,
@@ -388,7 +350,7 @@ def put_tenant_fields(payload: dict, db: Session = Depends(get_db)):
             label=it.get("label"),
             help=it.get("help"),
             field_type=it.get("field_type"),
-            options=it.get("options"),
+            options=options,
             validation_pattern=it.get("validation_pattern"),
         )
         db.add(row)
@@ -574,7 +536,7 @@ def put_tenant_module_mode(payload: dict, db: Session = Depends(get_db)):
     payload: { empresa: slug|name, module: str, form_mode: 'mixed'|'tenant'|'sector'|'basic' }
     """
     empresa = payload.get("empresa")
-    module = payload.get("module")
+    module = canonical_field_module_key(payload.get("module"))
     form_mode = str(payload.get("form_mode") or "mixed").lower()
     if not module:
         return {"ok": False, "error": "module is required"}

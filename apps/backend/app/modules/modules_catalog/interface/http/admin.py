@@ -231,6 +231,30 @@ def _build_module_payload(
     }
 
 
+def _merge_catalog_context_filters(
+    payload: dict,
+    *,
+    existing: Module | None = None,
+    canonical_name: str | None = None,
+) -> dict:
+    current = getattr(existing, "context_filters", None) or {}
+    incoming = payload.get("context_filters") or {}
+    merged = {**current, **incoming}
+
+    catalog_id = (
+        current.get("catalog_id")
+        or canonicalize_module_id(payload.get("url"))
+        or canonicalize_module_id(payload.get("name"))
+        or canonicalize_module_id(getattr(existing, "url", None) if existing else None)
+        or canonicalize_module_id(getattr(existing, "name", None) if existing else None)
+        or canonicalize_module_id(canonical_name)
+    )
+    if catalog_id:
+        merged["catalog_id"] = catalog_id
+
+    return merged
+
+
 def _collect_filesystem_module_entries(
     modules_dir: str,
 ) -> tuple[list[dict], list[str], list[dict]]:
@@ -292,7 +316,7 @@ def _collect_catalog_module_entries() -> tuple[list[dict], list[str], list[dict]
             "active": True,
             "initial_template": name,
             "context_type": "none",
-            "context_filters": {},
+            "context_filters": {"catalog_id": name},
             "description": item.get("description"),
             "target_model": None,
             "category": item.get("category"),
@@ -342,10 +366,6 @@ def _find_existing_module(db: Session, canonical_name: str) -> Module | None:
 
 
 def _module_payload_needs_sync(existing: Module, payload: dict, *, sync_active: bool) -> bool:
-    current_name = str(getattr(existing, "name", "")).strip().lower()
-    if current_name != payload["name"]:
-        return True
-
     expected_url = payload.get("url") or existing.url or payload["name"]
     if getattr(existing, "url", None) != expected_url:
         return True
@@ -364,7 +384,7 @@ def _module_payload_needs_sync(existing: Module, payload: dict, *, sync_active: 
             return True
 
     current_filters = getattr(existing, "context_filters", None) or {}
-    incoming_filters = payload.get("context_filters")
+    incoming_filters = _merge_catalog_context_filters(payload, existing=existing)
     if incoming_filters is not None and current_filters != (incoming_filters or {}):
         return True
 
@@ -374,9 +394,27 @@ def _module_payload_needs_sync(existing: Module, payload: dict, *, sync_active: 
     return False
 
 
-def _update_existing_module(existing: Module, payload: dict, *, sync_active: bool = True) -> None:
-    existing.name = payload["name"]  # type: ignore[assignment]
-    existing.url = payload.get("url") or existing.url or payload["name"]  # type: ignore[assignment]
+def _update_existing_module(
+    existing: Module,
+    payload: dict,
+    *,
+    sync_active: bool = True,
+    sync_name: bool = True,
+) -> None:
+    merged_filters = _merge_catalog_context_filters(
+        payload,
+        existing=existing,
+        canonical_name=payload["name"],
+    )
+    catalog_id = merged_filters.get("catalog_id")
+
+    if catalog_id:
+        existing.url = catalog_id  # type: ignore[assignment]
+    else:
+        existing.url = payload.get("url") or existing.url or payload["name"]  # type: ignore[assignment]
+
+    if sync_name:
+        existing.name = payload.get("name") or existing.name  # type: ignore[assignment]
 
     if payload.get("icon") is not None:
         existing.icon = payload.get("icon")  # type: ignore[assignment]
@@ -390,8 +428,7 @@ def _update_existing_module(existing: Module, payload: dict, *, sync_active: boo
         existing.context_type = payload["context_type"]  # type: ignore[assignment]
     if payload.get("target_model") is not None:
         existing.target_model = payload.get("target_model")  # type: ignore[assignment]
-    if payload.get("context_filters") is not None:
-        existing.context_filters = payload.get("context_filters") or {}  # type: ignore[assignment]
+    existing.context_filters = merged_filters  # type: ignore[assignment]
 
     if sync_active:
         existing.active = bool(payload.get("active", True))  # type: ignore[assignment]
@@ -443,6 +480,12 @@ def list_admin_modules_no_slash(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=mod_schemas.ModuloOut)
 def create_module(module_in: mod_schemas.ModuloCreate, db: Session = Depends(get_db)):
+    payload = module_in.model_dump()
+    payload["context_filters"] = _merge_catalog_context_filters(
+        payload,
+        canonical_name=payload.get("name"),
+    )
+    module_in = mod_schemas.ModuloCreate(**payload)
     return mod_crud.crear_modulo(db, module_in)
 
 
@@ -516,6 +559,11 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
             name = entry["name"]
             module_payload = entry["payload"]
             existing = _find_existing_module(db, name)
+            module_payload["context_filters"] = _merge_catalog_context_filters(
+                module_payload,
+                existing=existing,
+                canonical_name=name,
+            )
 
             if existing:
                 try:
@@ -534,6 +582,7 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
                         existing,
                         module_payload,
                         sync_active=reactivate_existing,
+                        sync_name=False,
                     )
                     db.add(existing)
                     db.commit()
@@ -682,20 +731,7 @@ def update_module(
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
 
-    module.name = module_in.name
-    module.description = getattr(module_in, "description", module.description)
-    module.url = getattr(module_in, "url", module.url)
-    module.icon = getattr(module_in, "icon", module.icon)
-    module.category = getattr(module_in, "category", module.category)
-    module.active = getattr(module_in, "active", module.active)
-    module.initial_template = getattr(
-        module_in, "initial_template", getattr(module, "initial_template", None)
-    )
-    module.context_type = getattr(module_in, "context_type", getattr(module, "context_type", None))
-    module.target_model = getattr(module_in, "target_model", getattr(module, "target_model", None))
-    module.context_filters = getattr(
-        module_in, "context_filters", getattr(module, "context_filters", None)
-    )
+    _update_existing_module(module, module_in.model_dump(), sync_active=True)
 
     db.add(module)
     db.commit()

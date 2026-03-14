@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.models.company.company import SectorValidationRule
 from app.services.sector_service import get_sector_or_404
+from app.services.unit_catalog_service import list_public_units, normalize_operational_unit
 
 router = APIRouter(prefix="/api/v1/sectors", tags=["Sectors"])
 
@@ -46,12 +47,17 @@ def get_sector_units(code: str, db: Session = Depends(get_db)):
         branding = template_config.get("branding", {})
         units = branding.get("units", [])
 
-        if not units:
+        if units:
             units = [
-                {"code": "unit", "label": "Unit"},
-                {"code": "kg", "label": "Kilogram"},
-                {"code": "l", "label": "Liter"},
+                {
+                    "code": normalize_operational_unit(item.get("code")),
+                    "label": item.get("label") or item.get("name") or normalize_operational_unit(item.get("code")),
+                }
+                for item in units
+                if isinstance(item, dict) and item.get("code")
             ]
+        if not units:
+            units = list_public_units(db)
 
         return {"ok": True, "code": code, "units": units}
 

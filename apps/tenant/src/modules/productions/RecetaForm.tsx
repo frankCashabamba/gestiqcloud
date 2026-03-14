@@ -15,29 +15,14 @@ import {
   createRecipe, updateRecipe, type Recipe, type RecipeIngredient
 } from '../../services/api/recetas';
 import { createProduct, listProducts, type Product } from '../../services/api/products';
+import { normalizeUnitCode } from '../../services/unitService';
+import { useUnits } from '../../hooks/useUnits';
 
 interface RecetaFormProps {
   open: boolean;
   recipe?: Recipe | null;
   onClose: () => void;
 }
-
-const VALID_UNITS = new Set(['kg', 'g', 'lb', 'oz', 'ton', 'mg', 'L', 'ml', 'gal', 'qt', 'pt', 'cup', 'fl_oz', 'tbsp', 'tsp', 'uds', 'unidades', 'pcs']);
-
-const normalizeRecipeUnit = (unit?: string | null): string => {
-  const u = String(unit || '').trim().toLowerCase();
-  if (!u || u === '-' || /^\d+$/.test(u)) return 'uds';
-  if (u === 'unit' || u === 'units' || u === 'und' || u === 'uni') return 'uds';
-  if (u === 'unidad' || u === 'unid' || u === 'pza' || u === 'pieza' || u === 'cantidad') return 'unidades';
-  if (u === 'gr' || u === 'gramo' || u === 'gramos') return 'g';
-  if (u === 'kilo' || u === 'kilos' || u === 'kilogramo' || u === 'kilogramos') return 'kg';
-  if (u === 'lbs' || u === 'pounds' || u === 'libra' || u === 'libras') return 'lb';
-  if (u === 'lt' || u === 'litr' || u === 'litro' || u === 'litros') return 'L';
-  for (const valid of VALID_UNITS) {
-    if (u === valid.toLowerCase()) return valid;
-  }
-  return 'uds';
-};
 
 const getRecipeRequestErrorMessage = (err: any): string => {
   const detail = err?.response?.data?.detail;
@@ -98,6 +83,7 @@ const formActionsSx = {
 
 export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const { t } = useTranslation(['productions', 'common']);
+  const { units } = useUnits();
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,10 +140,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         setIngredientes(recipe.ingredients.map(ing => ({
           product_id: ing.product_id,
           qty: ing.qty,
-          unit: normalizeRecipeUnit(ing.unit),
+          unit: normalizeUnitCode(ing.unit, units),
           purchase_packaging: ing.purchase_packaging ?? '',
           qty_per_package: ing.qty_per_package ?? 1,
-          package_unit: normalizeRecipeUnit(ing.package_unit),
+          package_unit: normalizeUnitCode(ing.package_unit, units),
           package_cost: ing.package_cost ?? 0,
           notes: ing.notes,
           line_order: ing.line_order || 0
@@ -215,7 +201,11 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
   const handleIngredientChange = (index: number, field: string, value: any) => {
     const updated = [...ingredientes];
-    (updated[index] as any)[field] = value;
+    const normalizedValue =
+      field === 'unit' || field === 'package_unit'
+        ? normalizeUnitCode(value, units)
+        : value;
+    (updated[index] as any)[field] = normalizedValue;
 
     // Si se selecciona un producto, autocompletar datos de compra
     if (field === 'product_id' && value) {
@@ -223,8 +213,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
       if (producto) {
         // Autocompletar con valores del producto
         updated[index].unit = producto.unit || 'kg';
-        updated[index].unit = normalizeRecipeUnit(producto.unit);
-        updated[index].package_unit = normalizeRecipeUnit(producto.unit);
+        updated[index].unit = normalizeUnitCode(producto.unit, units);
+        updated[index].package_unit = normalizeUnitCode(producto.unit, units);
 
         // Valores por defecto según la unidad
         const defaultPresentaciones: Record<string, { qty: number, desc: string }> = {
@@ -233,11 +223,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
           'g': { qty: 1000, desc: 'Bolsa 1 kg' },
           'oz': { qty: 16, desc: 'Libra (16 oz)' },
           'L': { qty: 20, desc: 'Bidón 20 L' },
-          'unit': { qty: 24, desc: t('productions:recipeForm.box24Units') },
-          'unidades': { qty: 24, desc: t('productions:recipeForm.box24Units') }
+          'uds': { qty: 24, desc: t('productions:recipeForm.box24Units') }
         };
 
-        const unit = normalizeRecipeUnit(producto.unit);
+        const unit = normalizeUnitCode(producto.unit, units);
         const defaultPres = defaultPresentaciones[unit] || { qty: 1, desc: t('productions:recipeForm.unit') };
 
         updated[index].qty_per_package = defaultPres.qty;
@@ -315,10 +304,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         .map((ing, index) => ({
           product_id: ing.product_id,
           qty: Number(ing.qty || 0),
-          unit: normalizeRecipeUnit(ing.unit),
+          unit: normalizeUnitCode(ing.unit, units),
           purchase_packaging: String(ing.purchase_packaging || '-'),
           qty_per_package: Number(ing.qty_per_package || 0),
-          package_unit: normalizeRecipeUnit(ing.package_unit || ing.unit),
+          package_unit: normalizeUnitCode(ing.package_unit || ing.unit, units),
           package_cost: Number(ing.package_cost || 0),
           notes: ing.notes || undefined,
           line_order: index,
@@ -665,12 +654,20 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
                 <Grid item xs={6} sm={3}>
                   <TextField
+                    select
                     size="small"
                     fullWidth
                     label={t('productions:recipeForm.unit')}
-                    value={ing.unit}
+                    value={normalizeUnitCode(ing.unit, units)}
                     onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
-                  />
+                    SelectProps={{ native: true }}
+                  >
+                    {units.map((unit) => (
+                      <option key={unit.code} value={unit.code}>
+                        {unit.label}
+                      </option>
+                    ))}
+                  </TextField>
                 </Grid>
 
                 <Grid item xs={12} sm={4}>
@@ -697,12 +694,20 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
                 <Grid item xs={4} sm={2}>
                   <TextField
+                    select
                     size="small"
                     fullWidth
                     label="Unidad Pres."
-                    value={ing.package_unit}
+                    value={normalizeUnitCode(ing.package_unit, units)}
                     onChange={(e) => handleIngredientChange(index, 'package_unit', e.target.value)}
-                  />
+                    SelectProps={{ native: true }}
+                  >
+                    {units.map((unit) => (
+                      <option key={unit.code} value={unit.code}>
+                        {unit.label}
+                      </option>
+                    ))}
+                  </TextField>
                 </Grid>
 
                 <Grid item xs={4} sm={3}>

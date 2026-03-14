@@ -60,7 +60,7 @@ def get_unit_type(unit: str) -> UnitType | None:
         return UnitType.VOLUME
     elif unit_lower in ["c", "f", "k", "celsius", "fahrenheit", "kelvin"]:
         return UnitType.TEMPERATURE
-    elif unit_lower in ["uds", "unidades", "pcs", "piezas", "units"]:
+    elif unit_lower in ["uds", "unidades", "pcs", "piezas", "units", "unit", "un"]:
         return UnitType.COUNT
 
     return None
@@ -87,10 +87,14 @@ def normalize_unit_name(unit: str) -> str:
         "galon": "gal",
         "galones": "gal",
         # Conteo
+        "unit": "uds",
+        "units": "uds",
         "unidad": "uds",
         "unidades": "uds",
+        "un": "uds",
         "pieza": "uds",
         "piezas": "uds",
+        "pcs": "uds",
         # Temperatura
         "celsius": "C",
         "fahrenheit": "F",

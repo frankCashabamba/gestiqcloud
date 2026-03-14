@@ -29,7 +29,7 @@ class TenantFieldConfig(Base):
     help: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Nuevas columnas para importación dinámica
     aliases: Mapped[dict | None] = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"),
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
         comment="Array de aliases: ['precio', 'pvp', 'price']",
     )
@@ -40,7 +40,7 @@ class TenantFieldConfig(Base):
         String(500), nullable=True, comment="Regex para validación"
     )
     validation_rules: Mapped[dict | None] = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"),
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
         comment="Reglas complejas: {min, max, custom}",
     )
@@ -48,7 +48,7 @@ class TenantFieldConfig(Base):
         Text, nullable=True, comment="parseFloat(v.replace(...)) como string"
     )
     options: Mapped[dict | None] = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"),
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
         comment="Array de opciones para select: ['Opción 1', 'Opción 2']",
     )
@@ -68,7 +68,7 @@ class SectorFieldDefault(Base):
     help: Mapped[str | None] = mapped_column(Text, nullable=True)
     field_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     options: Mapped[dict | None] = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"),
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
         comment="Array de opciones para select: ['Opción 1', 'Opción 2']",
     )

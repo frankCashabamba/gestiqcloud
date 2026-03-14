@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config.database import SessionLocal
 from app.models.company.company import SectorTemplate
 from app.models.core.ui_field_config import SectorFieldDefault
+from app.services.field_config import canonical_field_module_key, canonical_sector_field_key
 
 
 def _get_session(db: Session | None) -> tuple[Session, bool]:
@@ -79,7 +80,15 @@ def get_sector_defaults(
     """
     session, should_close = _get_session(db)
     try:
-        sector_code = (sector or "default").lower()
+        sector_code = canonical_sector_field_key(sector)
+        module_key = canonical_field_module_key(module)
+        module_candidates = [module_key]
+        if module_key == "productos":
+            module_candidates.append("products")
+        elif module_key == "suppliers":
+            module_candidates.append("proveedores")
+        elif module_key == "clientes":
+            module_candidates.extend(["customers", "clients"])
 
         def _load(code: str) -> tuple[list[dict[str, Any]], SectorTemplate | None]:
             tpl = (
@@ -90,27 +99,31 @@ def get_sector_defaults(
                 )
                 .first()
             )
-            rows = (
-                session.query(SectorFieldDefault)
-                .filter(
-                    SectorFieldDefault.sector == code,
-                    SectorFieldDefault.module == module,
+            rows: list[SectorFieldDefault] = []
+            for module_name in module_candidates:
+                rows = (
+                    session.query(SectorFieldDefault)
+                    .filter(
+                        SectorFieldDefault.sector == code,
+                        SectorFieldDefault.module == module_name,
+                    )
+                    .order_by(SectorFieldDefault.ord.asc().nulls_last())
+                    .all()
                 )
-                .order_by(SectorFieldDefault.ord.asc().nulls_last())
-                .all()
-            )
+                if rows:
+                    break
             return _normalize_field_rows(rows), tpl
 
         fields, tpl = _load(sector_code)
 
         if not fields:
-            fields = _fields_from_template_config(tpl, module)
+            fields = _fields_from_template_config(tpl, module_key)
 
         # Fallback a panaderia si no hay datos del sector solicitado
         if not fields and sector_code != "panaderia":
             fields, tpl_pan = _load("panaderia")
             if not fields:
-                fields = _fields_from_template_config(tpl_pan, module)
+                fields = _fields_from_template_config(tpl_pan, module_key)
 
         return fields
     finally:
@@ -130,7 +143,7 @@ def get_sector_categories(
     """
     session, should_close = _get_session(db)
     try:
-        sector_code = (sector or "default").lower()
+        sector_code = canonical_sector_field_key(sector)
 
         def _load_defaults(code: str) -> dict[str, Any]:
             tpl = (
