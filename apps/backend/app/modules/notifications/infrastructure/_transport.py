@@ -14,10 +14,10 @@ from typing import Any
 
 import requests
 
-
 # ---------------------------------------------------------------------------
 # Email (SMTP)
 # ---------------------------------------------------------------------------
+
 
 def send_smtp(
     config: dict[str, Any],
@@ -64,6 +64,7 @@ def send_smtp(
 # WhatsApp (Twilio o API genérica)
 # ---------------------------------------------------------------------------
 
+
 def send_whatsapp(
     config: dict[str, Any],
     phone: str,
@@ -91,7 +92,9 @@ def send_whatsapp(
         from_number = config.get("from_number")
 
         if not all([account_sid, auth_token, from_number]):
-            raise ValueError("Configuración Twilio incompleta (account_sid, auth_token, from_number)")
+            raise ValueError(
+                "Configuración Twilio incompleta (account_sid, auth_token, from_number)"
+            )
 
         client = Client(account_sid, auth_token)
         msg = client.messages.create(
@@ -123,6 +126,7 @@ def send_whatsapp(
 # Telegram (Bot API)
 # ---------------------------------------------------------------------------
 
+
 def send_telegram(
     config: dict[str, Any],
     chat_id: str,
@@ -137,7 +141,9 @@ def send_telegram(
     if not bot_token:
         raise ValueError("bot_token no configurado")
 
-    api_base = (config.get("api_base") or os.getenv("TELEGRAM_API_BASE", "https://api.telegram.org")).rstrip("/")
+    api_base = (
+        config.get("api_base") or os.getenv("TELEGRAM_API_BASE", "https://api.telegram.org")
+    ).rstrip("/")
     parse_mode = config.get("parse_mode", "HTML")
 
     resp = requests.post(

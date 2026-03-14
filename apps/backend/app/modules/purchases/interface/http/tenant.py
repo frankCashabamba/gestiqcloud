@@ -11,8 +11,8 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.inventory.stock import StockItem, StockMove
-from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.models.purchases.purchase import PurchaseLine
+from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.services.inventory_costing import InventoryCostingService
 
 from ...infrastructure.repositories import PurchaseRepo
@@ -99,7 +99,14 @@ def _resolve_inventory_costing_method(db: Session) -> str:
     try:
         repo = SettingsRepo(db)
         inventory_cfg = repo.get("inventory") or {}
-        method = str((inventory_cfg.get("costing_method") if isinstance(inventory_cfg, dict) else None) or "avg").strip().lower()
+        method = (
+            str(
+                (inventory_cfg.get("costing_method") if isinstance(inventory_cfg, dict) else None)
+                or "avg"
+            )
+            .strip()
+            .lower()
+        )
         return method if method in {"avg", "fifo", "lifo"} else "avg"
     except Exception:
         return "avg"
@@ -145,9 +152,11 @@ def receive_purchase(
                 StockItem.warehouse_id == str(payload.warehouse_id),
                 StockItem.product_id == str(line.product_id),
                 StockItem.lot == line_lot if line_lot is not None else StockItem.lot.is_(None),
-                StockItem.expires_at == line.expires_at
-                if line.expires_at is not None
-                else StockItem.expires_at.is_(None),
+                (
+                    StockItem.expires_at == line.expires_at
+                    if line.expires_at is not None
+                    else StockItem.expires_at.is_(None)
+                ),
             )
             .with_for_update()
             .first()

@@ -6,7 +6,7 @@ Las funciones de envío real viven en:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from celery import shared_task
@@ -18,7 +18,6 @@ from app.modules.notifications.infrastructure._transport import (
     send_telegram,
     send_whatsapp,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tarea principal: enviar una notificación
@@ -66,7 +65,9 @@ def send_notification_task(
                 .first()
             )
             if not channel_row:
-                raise ValueError(f"Canal '{channel_type}' no configurado o inactivo para tenant {tenant_id}")
+                raise ValueError(
+                    f"Canal '{channel_type}' no configurado o inactivo para tenant {tenant_id}"
+                )
             config = channel_row.config
 
         # 2. Enviar
@@ -87,12 +88,35 @@ def send_notification_task(
             error_msg = str(exc)
             result = {}
             # Guardar log de error antes de reintentar
-            _write_log(db, tenant_id, channel_type, destinatario, asunto, message, status, error_msg, ref_type, ref_id)
+            _write_log(
+                db,
+                tenant_id,
+                channel_type,
+                destinatario,
+                asunto,
+                message,
+                status,
+                error_msg,
+                ref_type,
+                ref_id,
+            )
             db.commit()
-            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+            raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))
 
         # 3. Log exitoso
-        log = _write_log(db, tenant_id, channel_type, destinatario, asunto, message, status, error_msg, ref_type, ref_id, extra_data=result)
+        log = _write_log(
+            db,
+            tenant_id,
+            channel_type,
+            destinatario,
+            asunto,
+            message,
+            status,
+            error_msg,
+            ref_type,
+            ref_id,
+            extra_data=result,
+        )
         db.commit()
 
         return {"status": status, "log_id": str(log.id), "result": result}
@@ -170,10 +194,13 @@ def check_and_notify_low_stock():
                     channels_used.append(ch.channel_type)
                 except Exception as exc:
                     import logging
-                    logging.getLogger(__name__).warning("Error encolando alerta para %s: %s", ch.channel_type, exc)
+
+                    logging.getLogger(__name__).warning(
+                        "Error encolando alerta para %s: %s", ch.channel_type, exc
+                    )
 
             if channels_used:
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 for alert in tenant_alerts:
                     alert.notified_at = now
                     alert.status = "notified"
@@ -238,7 +265,7 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
 def cleanup_old_logs(days: int = 90):
     """Elimina logs de notificaciones enviadas con más de `days` días."""
     with get_db_context() as db:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         deleted = (
             db.query(NotificationLog)
             .filter(
@@ -278,7 +305,7 @@ def _write_log(
         status=status,
         error_message=error_message,
         extra_data=extra_data,
-        sent_at=datetime.now(timezone.utc) if status == "sent" else None,
+        sent_at=datetime.now(UTC) if status == "sent" else None,
     )
     db.add(log)
     return log

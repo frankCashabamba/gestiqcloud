@@ -252,19 +252,11 @@ class CalculateDiscountUseCase:
         total_qty = sum((self._decimal(line.get("qty")) for line in lines), Decimal("0"))
 
         subtotal_pct = next(
-            (
-                pct
-                for threshold, pct in self.VOLUME_DISCOUNT_TIERS
-                if subtotal >= threshold
-            ),
+            (pct for threshold, pct in self.VOLUME_DISCOUNT_TIERS if subtotal >= threshold),
             Decimal("0"),
         )
         qty_pct = next(
-            (
-                pct
-                for threshold, pct in self.VOLUME_QTY_TIERS
-                if total_qty >= threshold
-            ),
+            (pct for threshold, pct in self.VOLUME_QTY_TIERS if total_qty >= threshold),
             Decimal("0"),
         )
         explicit_pct = max(

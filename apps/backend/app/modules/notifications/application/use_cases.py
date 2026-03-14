@@ -12,9 +12,7 @@ from app.modules.notifications.domain.exceptions import (
     TemplateNotFound,
 )
 from app.modules.notifications.domain.models import Notification, NotificationTemplate
-from app.modules.notifications.infrastructure.notification_service import (
-    NotificationService,
-)
+from app.modules.notifications.infrastructure.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 

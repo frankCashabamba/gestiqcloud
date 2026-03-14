@@ -3,8 +3,8 @@ import pytest
 from app.models.core.module import Module
 from app.modules.modules_catalog.interface.http.admin import register_modules
 
-
 pytestmark = pytest.mark.no_db
+
 
 def test_register_modules_falls_back_to_backend_catalog(db):
     data = register_modules({"dir": "Z:/missing/modules"}, db)
@@ -21,6 +21,7 @@ def test_register_modules_falls_back_to_backend_catalog(db):
     assert inventory.initial_template == "inventory"
     assert (inventory.context_filters or {}).get("catalog_id") == "inventory"
 
+
 def test_register_modules_does_not_duplicate_catalog_entries(db):
     payload = {"dir": "Z:/missing/modules"}
 
@@ -32,6 +33,7 @@ def test_register_modules_does_not_duplicate_catalog_entries(db):
     assert data["registered"] == []
     assert "inventory" in data["already_existing"]
     assert db.query(Module).filter(Module.name == "inventory").count() == 1
+
 
 def test_register_modules_uses_complete_canonical_catalog(db):
     data = register_modules({"dir": "Z:/missing/modules"}, db)
@@ -47,6 +49,7 @@ def test_register_modules_uses_complete_canonical_catalog(db):
     assert "webhooks" in names
     assert "ecommerce" not in names
     assert "projects" not in names
+
 
 def test_register_modules_upserts_legacy_alias_to_canonical_name(db):
     legacy = Module(

@@ -149,9 +149,10 @@ class PayrollService:
     ) -> dict[str, Any] | None:
         PayrollService._ensure_payroll_parameters_table(db)
         tenant_key = str(tenant_id)
-        row = db.execute(
-            text(
-                """
+        row = (
+            db.execute(
+                text(
+                    """
                 SELECT tenant_id, smi, ss_employee_rate, ss_employer_rate,
                        mutual_insurance_rate, irpf_brackets_json
                 FROM payroll_parameters
@@ -161,9 +162,12 @@ class PayrollService:
                 ORDER BY CASE WHEN tenant_id = :tenant_id THEN 0 ELSE 1 END
                 LIMIT 1
                 """
-            ),
-            {"tenant_id": tenant_key, "country": country, "year": year},
-        ).mappings().first()
+                ),
+                {"tenant_id": tenant_key, "country": country, "year": year},
+            )
+            .mappings()
+            .first()
+        )
         if not row:
             return None
 

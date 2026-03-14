@@ -63,7 +63,9 @@ def test_admin_sector_fields_resolve_products_alias(client: TestClient, db):
 
 
 def test_company_field_config_uses_products_alias_for_tenant_sector(client: TestClient, db):
-    tenant = Tenant(id=uuid4(), name="Retail Products", slug="retail-products", sector_template_name="retail")
+    tenant = Tenant(
+        id=uuid4(), name="Retail Products", slug="retail-products", sector_template_name="retail"
+    )
     db.add(tenant)
     db.commit()
 
@@ -79,7 +81,9 @@ def test_company_field_config_uses_products_alias_for_tenant_sector(client: Test
 
 
 def test_company_field_config_reads_legacy_products_module_rows(client: TestClient, db):
-    tenant = Tenant(id=uuid4(), name="Legacy Products", slug="legacy-products", sector_template_name="legacy")
+    tenant = Tenant(
+        id=uuid4(), name="Legacy Products", slug="legacy-products", sector_template_name="legacy"
+    )
     db.add(tenant)
     db.add(
         SectorFieldDefault(

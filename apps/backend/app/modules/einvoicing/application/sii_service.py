@@ -140,7 +140,9 @@ class SIIService:
         )
         extra_headers = validation_rules.get("request_headers")
         if isinstance(extra_headers, dict):
-            headers.update({str(key): str(value) for key, value in extra_headers.items() if value is not None})
+            headers.update(
+                {str(key): str(value) for key, value in extra_headers.items() if value is not None}
+            )
         if settings.api_key_encrypted and "Authorization" not in headers:
             headers["Authorization"] = f"Bearer {settings.api_key_encrypted}"
         return headers
@@ -361,7 +363,8 @@ class SIIService:
                 db.add(
                     EInvoiceError(
                         einvoice_id=einvoice.id,
-                        error_message=submission.get("message") or "Invoice rejected by fiscal authority",
+                        error_message=submission.get("message")
+                        or "Invoice rejected by fiscal authority",
                         error_type="FISCAL_REJECTION",
                         is_recoverable=False,
                     )

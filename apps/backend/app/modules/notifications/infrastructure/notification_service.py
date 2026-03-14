@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -204,7 +204,7 @@ class NotificationService:
                 status=status,
                 error_message=error_message,
                 extra_data=extra_data,
-                sent_at=datetime.now(timezone.utc) if status == "sent" else None,
+                sent_at=datetime.now(UTC) if status == "sent" else None,
             )
             self.db.add(log)
             self.db.commit()

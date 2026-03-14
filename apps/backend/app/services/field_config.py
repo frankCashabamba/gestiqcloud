@@ -142,7 +142,22 @@ def _normalize(items: list[dict]) -> list[dict]:
 
 
 def canonical_sector_field_key(sector: str | None) -> str:
+    """Resolución de código de sector usando solo el dict de código (sin BD). Mantener para backward-compat."""
     raw = str(sector or "default").strip().lower()
+    return _CLIENT_SECTOR_ALIASES.get(raw, raw)
+
+
+def resolve_sector_code(db: Session, sector: str | None) -> str:
+    """Resolución de código de sector con prioridad BD (sector.code_aliases en system_defaults)."""
+    raw = str(sector or "default").strip().lower()
+    try:
+        from app.services.system_defaults_service import get_system_default_json
+
+        aliases: dict = get_system_default_json(db, "sector.code_aliases", {})
+        if isinstance(aliases, dict) and raw in aliases:
+            return str(aliases[raw])
+    except Exception:
+        pass
     return _CLIENT_SECTOR_ALIASES.get(raw, raw)
 
 
@@ -161,7 +176,7 @@ def _field_module_candidates(module: str | None) -> list[str]:
 
 
 def _template_field_items(db: Session, sector: str | None, module: str) -> list[dict]:
-    sector_key = canonical_sector_field_key(sector)
+    sector_key = resolve_sector_code(db, sector)
     module_key = canonical_field_module_key(module)
     if not sector_key:
         return []
@@ -188,13 +203,11 @@ def _template_field_items(db: Session, sector: str | None, module: str) -> list[
         return []
 
 
-def ensure_sector_field_defaults_seeded(
-    db: Session, *, module: str, sector: str | None
-) -> None:
+def ensure_sector_field_defaults_seeded(db: Session, *, module: str, sector: str | None) -> None:
     """Seed DB-backed sector defaults for modules still migrating off code defaults."""
     module_candidates = _field_module_candidates(module)
     module_key = canonical_field_module_key(module)
-    sector_key = canonical_sector_field_key(sector)
+    sector_key = resolve_sector_code(db, sector)
 
     exists = (
         db.query(SectorFieldDefault)
@@ -269,7 +282,7 @@ def _template_required_fields(db: Session, sector: str | None, module: str) -> l
         tpl = (
             db.query(SectorTemplate)
             .filter(
-                SectorTemplate.code == canonical_sector_field_key(sector),
+                SectorTemplate.code == resolve_sector_code(db, sector),
                 SectorTemplate.is_active == True,  # noqa: E712
             )
             .first()
@@ -314,7 +327,7 @@ def resolve_fields(
 
     module_key = canonical_field_module_key(module)
     module_candidates = _field_module_candidates(module)
-    sector_key = canonical_sector_field_key(sector)
+    sector_key = resolve_sector_code(db, sector)
 
     # Load tenant overrides
     tenant_items: list[dict] = []

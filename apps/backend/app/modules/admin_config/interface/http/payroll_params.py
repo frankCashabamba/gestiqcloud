@@ -1,4 +1,5 @@
 """Admin endpoints — CRUD de parámetros de nómina globales."""
+
 from __future__ import annotations
 
 import json
@@ -15,12 +16,11 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
-    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))]
-)
+router = APIRouter(dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))])
 
 
 # ─────────────────────────── helpers ────────────────────────────
+
 
 def _ensure_table(db: Session) -> None:
     db.execute(
@@ -58,15 +58,24 @@ def _row_to_dict(row: Any) -> dict:
         "country": row["country"],
         "year": row["year"],
         "smi": float(row["smi"]) if row["smi"] is not None else None,
-        "ss_employee_rate": float(row["ss_employee_rate"]) if row["ss_employee_rate"] is not None else None,
-        "ss_employer_rate": float(row["ss_employer_rate"]) if row["ss_employer_rate"] is not None else None,
-        "mutual_insurance_rate": float(row["mutual_insurance_rate"]) if row["mutual_insurance_rate"] is not None else None,
+        "ss_employee_rate": (
+            float(row["ss_employee_rate"]) if row["ss_employee_rate"] is not None else None
+        ),
+        "ss_employer_rate": (
+            float(row["ss_employer_rate"]) if row["ss_employer_rate"] is not None else None
+        ),
+        "mutual_insurance_rate": (
+            float(row["mutual_insurance_rate"])
+            if row["mutual_insurance_rate"] is not None
+            else None
+        ),
         "irpf_brackets": brackets,
         "updated_at": str(row["updated_at"]) if row.get("updated_at") else None,
     }
 
 
 # ─────────────────────────── schemas ────────────────────────────
+
 
 class IrpfBracket(BaseModel):
     min: float = 0
@@ -86,6 +95,7 @@ class PayrollParamsIn(BaseModel):
 
 # ─────────────────────────── endpoints ──────────────────────────
 
+
 @router.get("/config/payroll-params")
 def list_payroll_params(
     country: str | None = None,
@@ -103,18 +113,22 @@ def list_payroll_params(
         filters += " AND year = :year"
         params["year"] = year
 
-    rows = db.execute(
-        text(
-            f"""
+    rows = (
+        db.execute(
+            text(
+                f"""
             SELECT country, year, smi, ss_employee_rate, ss_employer_rate,
                    mutual_insurance_rate, irpf_brackets_json, updated_at
             FROM payroll_parameters
             {filters}
             ORDER BY country, year DESC
             """
-        ),
-        params,
-    ).mappings().all()
+            ),
+            params,
+        )
+        .mappings()
+        .all()
+    )
 
     return [_row_to_dict(r) for r in rows]
 
@@ -160,17 +174,21 @@ def upsert_payroll_params(
     )
     db.commit()
 
-    row = db.execute(
-        text(
-            """
+    row = (
+        db.execute(
+            text(
+                """
             SELECT country, year, smi, ss_employee_rate, ss_employer_rate,
                    mutual_insurance_rate, irpf_brackets_json, updated_at
             FROM payroll_parameters
             WHERE tenant_id IS NULL AND country = :country AND year = :year
             """
-        ),
-        {"country": payload.country.upper(), "year": payload.year},
-    ).mappings().first()
+            ),
+            {"country": payload.country.upper(), "year": payload.year},
+        )
+        .mappings()
+        .first()
+    )
 
     return _row_to_dict(row)
 

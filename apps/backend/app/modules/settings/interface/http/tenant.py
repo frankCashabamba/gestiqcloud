@@ -17,9 +17,9 @@ from app.models.core.ui_template import UiTemplate
 from app.models.tenant import Tenant as Empresa
 from app.services.field_config import (
     canonical_field_module_key,
-    canonical_sector_field_key,
     ensure_sector_field_defaults_seeded,
     resolve_fields,
+    resolve_sector_code,
 )
 from app.services.sector_defaults import get_sector_defaults
 from app.services.system_defaults_service import get_system_default_text
@@ -208,6 +208,7 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
         "components": {},
     }
 
+
 @router.get("/fields")
 def get_field_config(
     module: str = Query(..., description="Module key, e.g., 'clientes'"),
@@ -235,7 +236,7 @@ def get_field_config(
                 or getattr(emp, "plantilla_inicio", None)
                 or "default"
             )
-            sector = canonical_sector_field_key(raw_sector)
+            sector = resolve_sector_code(db, raw_sector)
 
     ensure_sector_field_defaults_seeded(db, module=module, sector=sector)
 
@@ -247,7 +248,12 @@ def get_field_config(
         defaults_fn=lambda mod, sec: get_sector_defaults(mod, sec, db=db),
     )
 
-    return {"module": module, "requested_module": requested_module, "empresa": empresa, "items": items}
+    return {
+        "module": module,
+        "requested_module": requested_module,
+        "empresa": empresa,
+        "items": items,
+    }
 
 
 @admin_router.get("/sector")
@@ -258,7 +264,7 @@ def get_sector_fields(
 
     requested_module = module
     module = canonical_field_module_key(module)
-    s = canonical_sector_field_key(sector)
+    s = resolve_sector_code(db, sector)
     ensure_sector_field_defaults_seeded(db, module=module, sector=s)
     rows = (
         db.query(SectorFieldDefault)
@@ -287,7 +293,7 @@ def get_sector_fields(
 def put_sector_fields(payload: dict, db: Session = Depends(get_db)):
     from app.models.core.ui_field_config import SectorFieldDefault
 
-    sector = canonical_sector_field_key(payload.get("sector"))
+    sector = resolve_sector_code(db, payload.get("sector"))
     module = canonical_field_module_key(payload.get("module"))
     items = payload.get("items") or []
     if not module:

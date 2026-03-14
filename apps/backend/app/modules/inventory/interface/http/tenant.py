@@ -16,8 +16,8 @@ from app.core.authz import require_scope
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
-from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.models.recipes import RecipeIngredient
+from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.services.inventory_costing import InventoryCostingService
 
 router = APIRouter(
@@ -106,7 +106,11 @@ def _stock_item_query(
         StockItem.product_id == product_id,
     )
     if lot is not _UNSET:
-        query = query.filter(StockItem.lot == lot) if lot is not None else query.filter(StockItem.lot.is_(None))
+        query = (
+            query.filter(StockItem.lot == lot)
+            if lot is not None
+            else query.filter(StockItem.lot.is_(None))
+        )
     if expires_at is not _UNSET:
         query = (
             query.filter(StockItem.expires_at == expires_at)
@@ -127,18 +131,15 @@ def _ensure_receipt_stock_item(
     lot: str | None,
     expires_at: date | None,
 ) -> StockItem:
-    row = (
-        _stock_item_query(
-            db,
-            tenant_id=tenant_id,
-            warehouse_id=warehouse_id,
-            product_id=product_id,
-            lot=lot,
-            expires_at=expires_at,
-            for_update=True,
-        )
-        .first()
-    )
+    row = _stock_item_query(
+        db,
+        tenant_id=tenant_id,
+        warehouse_id=warehouse_id,
+        product_id=product_id,
+        lot=lot,
+        expires_at=expires_at,
+        for_update=True,
+    ).first()
     if row:
         return row
     row = StockItem(
@@ -167,18 +168,15 @@ def _resolve_issue_stock_item(
     ambiguous_detail: str,
 ) -> StockItem | None:
     if lot_specified or expires_specified:
-        rows = (
-            _stock_item_query(
-                db,
-                tenant_id=tenant_id,
-                warehouse_id=warehouse_id,
-                product_id=product_id,
-                lot=lot if lot_specified else _UNSET,
-                expires_at=expires_at if expires_specified else _UNSET,
-                for_update=True,
-            )
-            .all()
-        )
+        rows = _stock_item_query(
+            db,
+            tenant_id=tenant_id,
+            warehouse_id=warehouse_id,
+            product_id=product_id,
+            lot=lot if lot_specified else _UNSET,
+            expires_at=expires_at if expires_specified else _UNSET,
+            for_update=True,
+        ).all()
         positive_rows = [row for row in rows if float(row.qty or 0) > 0]
         if len(positive_rows) > 1 or (len(rows) > 1 and not positive_rows):
             raise HTTPException(status_code=409, detail=ambiguous_detail)
@@ -186,16 +184,13 @@ def _resolve_issue_stock_item(
             return positive_rows[0]
         return rows[0] if rows else None
 
-    rows = (
-        _stock_item_query(
-            db,
-            tenant_id=tenant_id,
-            warehouse_id=warehouse_id,
-            product_id=product_id,
-            for_update=True,
-        )
-        .all()
-    )
+    rows = _stock_item_query(
+        db,
+        tenant_id=tenant_id,
+        warehouse_id=warehouse_id,
+        product_id=product_id,
+        for_update=True,
+    ).all()
     positive_rows = [row for row in rows if float(row.qty or 0) > 0]
     if len(positive_rows) > 1:
         raise HTTPException(status_code=409, detail=ambiguous_detail)
@@ -663,7 +658,9 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
         raise HTTPException(status_code=400, detail="insufficient_stock")
 
     transfer_lot = lot if payload.lote is not None else src_item.lot
-    transfer_expires_at = payload.expires_at if payload.expires_at is not None else src_item.expires_at
+    transfer_expires_at = (
+        payload.expires_at if payload.expires_at is not None else src_item.expires_at
+    )
 
     # Destination
     dst_item = _ensure_receipt_stock_item(

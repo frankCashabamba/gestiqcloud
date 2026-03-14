@@ -117,7 +117,11 @@ async def export_facturae_xml(
         "subtotal": Decimal(str(invoice.subtotal or 0)),
         "iva": Decimal(str(invoice.iva or 0)),
         "total": Decimal(str(invoice.total or 0)),
-        "tax_rate": Decimal(str((invoice.iva or 0) / (invoice.subtotal or 1))) if (invoice.subtotal or 0) else Decimal("0"),
+        "tax_rate": (
+            Decimal(str((invoice.iva or 0) / (invoice.subtotal or 1)))
+            if (invoice.subtotal or 0)
+            else Decimal("0")
+        ),
         "empresa": {
             "nombre": getattr(tenant, "name", "") or "",
             "ruc": getattr(tenant, "tax_id", "") or "",

@@ -51,7 +51,9 @@ def get_sector_units(code: str, db: Session = Depends(get_db)):
             units = [
                 {
                     "code": normalize_operational_unit(item.get("code")),
-                    "label": item.get("label") or item.get("name") or normalize_operational_unit(item.get("code")),
+                    "label": item.get("label")
+                    or item.get("name")
+                    or normalize_operational_unit(item.get("code")),
                 }
                 for item in units
                 if isinstance(item, dict) and item.get("code")

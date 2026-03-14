@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.core.global_catalogs import UnitOfMeasure
@@ -108,6 +109,49 @@ _KNOWN_UNIT_ALIASES = {
 }
 
 
+def ensure_unit_aliases_seeded(db: Session) -> None:
+    """Crea la tabla unit_aliases si no existe y siembra desde _KNOWN_UNIT_ALIASES."""
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS unit_aliases (
+                alias        VARCHAR(50)  PRIMARY KEY,
+                canonical    VARCHAR(20)  NOT NULL,
+                updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    for alias, canonical in _KNOWN_UNIT_ALIASES.items():
+        db.execute(
+            text(
+                "INSERT INTO unit_aliases (alias, canonical) VALUES (:alias, :canonical) "
+                "ON CONFLICT (alias) DO NOTHING"
+            ),
+            {"alias": alias, "canonical": canonical},
+        )
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def load_unit_aliases(db: Session) -> dict[str, str]:
+    """Carga el diccionario de aliases desde BD, con _KNOWN_UNIT_ALIASES como fallback base."""
+    ensure_unit_aliases_seeded(db)
+    try:
+        rows = db.execute(text("SELECT alias, canonical FROM unit_aliases")).fetchall()
+        if rows:
+            # BD extiende/sobreescribe el dict de código
+            merged = dict(_KNOWN_UNIT_ALIASES)
+            for alias, canonical in rows:
+                merged[str(alias).strip().lower()] = str(canonical).strip()
+            return merged
+    except Exception:
+        pass
+    return dict(_KNOWN_UNIT_ALIASES)
+
+
 def _sanitize_unit_token(raw: str | None) -> str:
     token = str(raw or "").strip().replace("-", "_").replace(" ", "_")
     return "".join(ch for ch in token if ch.isalnum() or ch == "_")
@@ -118,12 +162,17 @@ def normalize_operational_unit(
     *,
     default: str = "uds",
     valid_units: Iterable[str] | None = None,
+    extra_aliases: dict[str, str] | None = None,
 ) -> str:
     """Normalize unit tokens to operational runtime codes.
+
+    ``extra_aliases`` permite pasar aliases cargados desde BD (via load_unit_aliases)
+    que extienden/sobreescriben el dict de código. Callers sin db omiten el parámetro.
 
     When ``valid_units`` is provided, the returned value prefers an exact
     existing code from that set (case-insensitive).
     """
+    aliases = extra_aliases if extra_aliases is not None else _KNOWN_UNIT_ALIASES
 
     raw = str(raw_unit or "").strip()
     if not raw or raw == "-" or raw.isdigit():
@@ -134,34 +183,76 @@ def normalize_operational_unit(
     if raw_lower in exact_valid:
         return exact_valid[raw_lower]
 
-    normalized = _KNOWN_UNIT_ALIASES.get(raw_lower)
+    normalized = aliases.get(raw_lower)
     if normalized is None:
         sanitized = _sanitize_unit_token(raw).lower()
-        normalized = _KNOWN_UNIT_ALIASES.get(sanitized, sanitized or default)
+        normalized = aliases.get(sanitized, sanitized or default)
 
     if exact_valid:
         if normalized.lower() in exact_valid:
             return exact_valid[normalized.lower()]
         for code in exact_valid.values():
-            candidate = normalize_operational_unit(code, default=default)
+            candidate = normalize_operational_unit(
+                code, default=default, extra_aliases=extra_aliases
+            )
             if candidate.lower() == normalized.lower():
                 return code
 
     return normalized
 
 
-def serialize_public_unit(unit: UnitOfMeasure) -> dict[str, str]:
-    public_code = normalize_operational_unit(unit.abbreviation or unit.code)
+def normalize_operational_unit_db(
+    raw_unit: str | None,
+    db: Session,
+    *,
+    default: str = "uds",
+    valid_units: Iterable[str] | None = None,
+) -> str:
+    """Versión DB-aware de normalize_operational_unit. Carga aliases desde BD."""
+    aliases = load_unit_aliases(db)
+    return normalize_operational_unit(
+        raw_unit, default=default, valid_units=valid_units, extra_aliases=aliases
+    )
+
+
+def serialize_public_unit(
+    unit: UnitOfMeasure, aliases: dict[str, str] | None = None
+) -> dict[str, str]:
+    public_code = normalize_operational_unit(unit.abbreviation or unit.code, extra_aliases=aliases)
     return {"code": public_code, "label": unit.name}
 
 
+def ensure_default_units_seeded(db: Session) -> None:
+    """Siembra DEFAULT_PUBLIC_UNITS en units_of_measure si la tabla está vacía.
+
+    Permite que la BD sea siempre la fuente de verdad; los hardcodes de
+    DEFAULT_PUBLIC_UNITS quedan como datos de bootstrap, no como fallback runtime.
+    """
+    count = db.query(UnitOfMeasure).count()
+    if count > 0:
+        return
+    for item in DEFAULT_PUBLIC_UNITS:
+        db.add(
+            UnitOfMeasure(
+                code=item["code"],
+                name=item["label"],
+                abbreviation=item["code"],
+                active=True,
+            )
+        )
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 def list_public_units(db: Session) -> list[dict[str, str]]:
+    ensure_default_units_seeded(db)
+    aliases = load_unit_aliases(db)
     rows = (
         db.query(UnitOfMeasure)
         .filter(UnitOfMeasure.active.is_(True))
         .order_by(UnitOfMeasure.code.asc())
         .all()
     )
-    if not rows:
-        return [dict(item) for item in DEFAULT_PUBLIC_UNITS]
-    return [serialize_public_unit(row) for row in rows]
+    return [serialize_public_unit(row, aliases=aliases) for row in rows]

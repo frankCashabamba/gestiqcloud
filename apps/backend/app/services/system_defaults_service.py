@@ -1,4 +1,5 @@
 """System defaults service for global runtime configuration."""
+
 from __future__ import annotations
 
 import logging
@@ -27,9 +28,23 @@ _DEFAULTS: list[dict[str, Any]] = [
     {
         "key": "tax.fallback_rate",
         "category": "tax",
-        "value_text": "0.21",
+        "value_text": "0.0",
         "value_type": "number",
-        "description": "Legacy fallback tax rate when country-specific config is missing",
+        "description": "Fallback tax rate when country-specific config is missing. Set per country: ES=0.21, EC=0.12",
+    },
+    {
+        "key": "sector.fallback_code",
+        "category": "sector",
+        "value_text": "panaderia",
+        "value_type": "text",
+        "description": "Sector code used as fallback when the requested sector has no field/category config in DB",
+    },
+    {
+        "key": "pos.default_register_name",
+        "category": "pos",
+        "value_text": "Caja Principal",
+        "value_type": "text",
+        "description": "Name of the default POS register created during tenant onboarding",
     },
     {
         "key": "company.user_limit_default",
@@ -157,6 +172,34 @@ _DEFAULTS: list[dict[str, Any]] = [
         "value_type": "text",
         "description": "Global medium shadow",
     },
+    {
+        "key": "modules.categories",
+        "category": "modules",
+        "value_text": '[{"id":"sales","name":"Sales","icon":"📈","order":1},{"id":"operations","name":"Operations","icon":"⚙️","order":2},{"id":"finance","name":"Finance","icon":"💼","order":3},{"id":"people","name":"People","icon":"👥","order":4},{"id":"settings","name":"Settings","icon":"⚙️","order":5},{"id":"integrations","name":"Integrations","icon":"🔌","order":6},{"id":"analytics","name":"Analytics","icon":"📊","order":7},{"id":"tools","name":"Tools","icon":"🧠","order":8}]',
+        "value_type": "json",
+        "description": "Module categories shown in the admin module catalog. Editable from admin.",
+    },
+    {
+        "key": "sector.code_aliases",
+        "category": "sector",
+        "value_text": '{"bazar":"retail","todoa100":"retail","panerp":"panaderia","mecanico":"taller"}',
+        "value_type": "json",
+        "description": "Sector code aliases: maps legacy/alternative codes to canonical sector codes. Add entries here to create new aliases without deploying.",
+    },
+    {
+        "key": "numbering.default_reset_policy",
+        "category": "numbering",
+        "value_text": "yearly",
+        "value_type": "text",
+        "description": "Reset policy for document series counters: 'yearly' resets each fiscal year, 'never' is sequential",
+    },
+    {
+        "key": "numbering.default_series",
+        "category": "numbering",
+        "value_text": '[{"doc_type":"R","name_backoffice":"RBO","name_pos":"R001"},{"doc_type":"F","name":"F"},{"doc_type":"C","name":"C"}]',
+        "value_type": "json",
+        "description": "Default document series created at tenant onboarding. JSON array. Each entry needs doc_type; receipts use name_backoffice/name_pos, others use name.",
+    },
 ]
 
 
@@ -226,6 +269,19 @@ def get_system_default_text(db: Session, key: str, default: str) -> str:
     return default
 
 
+def get_system_default_json(db: Session, key: str, default: Any) -> Any:
+    """Read a JSON default (list or dict), falling back safely on errors."""
+    import json
+
+    try:
+        raw = _get_raw_system_default(db, key)
+        if raw:
+            return json.loads(raw)
+    except Exception as exc:
+        logger.warning("system_defaults: could not read json '%s': %s", key, exc)
+    return default
+
+
 def get_system_default_bool(db: Session, key: str, default: bool) -> bool:
     """Read a boolean default, falling back safely on errors."""
     try:
@@ -242,28 +298,36 @@ def get_system_default_bool(db: Session, key: str, default: bool) -> bool:
 def list_system_defaults(db: Session) -> list[dict[str, Any]]:
     """Return all system default rows."""
     ensure_system_defaults_table(db)
-    rows = db.execute(
-        text(
-            "SELECT key, category, value_text, description, value_type, updated_at "
-            "FROM system_defaults ORDER BY category, key"
+    rows = (
+        db.execute(
+            text(
+                "SELECT key, category, value_text, description, value_type, updated_at "
+                "FROM system_defaults ORDER BY category, key"
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]
 
 
 def update_system_default(db: Session, key: str, value: str) -> dict[str, Any] | None:
     """Update a single system default value."""
     ensure_system_defaults_table(db)
-    result = db.execute(
-        text(
-            """
+    result = (
+        db.execute(
+            text(
+                """
             UPDATE system_defaults
             SET value_text = :value, updated_at = CURRENT_TIMESTAMP
             WHERE key = :key
             RETURNING key, category, value_text, description, value_type, updated_at
             """
-        ),
-        {"key": key, "value": value},
-    ).mappings().first()
+            ),
+            {"key": key, "value": value},
+        )
+        .mappings()
+        .first()
+    )
     db.commit()
     return dict(result) if result else None

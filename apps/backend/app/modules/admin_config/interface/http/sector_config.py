@@ -16,6 +16,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.core.cache import build_cache_key, cache_delete
+from app.core.security_cookies import get_current_user
 from app.schemas.sector_plantilla import (
     SectorConfigJSON,
     SectorConfigResponse,

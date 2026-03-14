@@ -3,7 +3,9 @@ from fastapi.testclient import TestClient
 
 def _admin_headers(client: TestClient, superuser_factory) -> dict[str, str]:
     password = "admin123!"
-    user = superuser_factory(username="configadmin", email="configadmin@example.com", password=password)
+    user = superuser_factory(
+        username="configadmin", email="configadmin@example.com", password=password
+    )
     response = client.post(
         "/api/v1/admin/auth/login",
         json={"identificador": user.username, "password": password},

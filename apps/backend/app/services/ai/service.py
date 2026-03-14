@@ -5,9 +5,9 @@ Con logging automático, análisis de errores y recuperación
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
-import hashlib
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -21,7 +21,9 @@ from app.services.ai.recovery import recovery_manager
 logger = logging.getLogger(__name__)
 
 
-async def _store_response_in_cache(tenant_id: str | None, request: AIRequest, response: AIResponse) -> None:
+async def _store_response_in_cache(
+    tenant_id: str | None, request: AIRequest, response: AIResponse
+) -> None:
     if response.is_error or not response.content:
         return
     cache_tenant = str(tenant_id or "global")

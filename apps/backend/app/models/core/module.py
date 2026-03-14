@@ -19,7 +19,7 @@ JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class Module(Base):
-    """Module catalog entry."""
+    """Module catalog entry — fuente de verdad para todos los módulos del sistema."""
 
     __tablename__ = "modules"
     __table_args__ = {"extend_existing": True}
@@ -27,16 +27,33 @@ class Module(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         _uuid_col, primary_key=True, default=uuid.uuid4, index=True
     )  # type: ignore
-    name: Mapped[str] = mapped_column(String(100), nullable=False)  # type: ignore
+
+    # Identificación
+    name: Mapped[str] = mapped_column(String(100), nullable=False)  # canonical ID (ej: "pos")
     description: Mapped[str | None] = mapped_column(Text)  # type: ignore
-    active: Mapped[bool] = mapped_column(Boolean, default=True)  # type: ignore
     icon: Mapped[str | None] = mapped_column(String(100), default="📦")  # type: ignore
-    url: Mapped[str | None] = mapped_column(String(255))  # type: ignore
+    category: Mapped[str | None] = mapped_column(String(50))  # type: ignore
+
+    # Estado
+    active: Mapped[bool] = mapped_column(Boolean, default=True)  # type: ignore
+    implemented: Mapped[bool] = mapped_column(Boolean, default=True)  # type: ignore
+
+    # Comportamiento
+    required: Mapped[bool] = mapped_column(Boolean, default=False)  # type: ignore
+    default_enabled: Mapped[bool] = mapped_column(Boolean, default=True)  # type: ignore
+    dependencies: Mapped[list | None] = mapped_column(JSON_TYPE)  # IDs de módulos requeridos
+    aliases: Mapped[list | None] = mapped_column(JSON_TYPE)  # nombres alternativos reconocidos
+
+    # Disponibilidad geográfica y sectorial
+    countries: Mapped[list | None] = mapped_column(JSON_TYPE)  # ["ES", "EC"] o null = todos
+    sectors: Mapped[list | None] = mapped_column(JSON_TYPE)  # null = todos los sectores
+
+    # Frontend routing (legacy, mantenido para compatibilidad)
+    url: Mapped[str | None] = mapped_column(String(255))  # catalog_id / slug
     initial_template: Mapped[str] = mapped_column(String(255), nullable=False)  # type: ignore
     context_type: Mapped[str] = mapped_column(String(10), default="none")  # type: ignore
     target_model: Mapped[str | None] = mapped_column(String(255))  # type: ignore
-    context_filters: Mapped[dict | None] = mapped_column(JSON_TYPE)  # type: ignore
-    category: Mapped[str | None] = mapped_column(String(50))  # type: ignore
+    context_filters: Mapped[dict | None] = mapped_column(JSON_TYPE)  # legacy JSONB blob
 
 
 class CompanyModule(Base):

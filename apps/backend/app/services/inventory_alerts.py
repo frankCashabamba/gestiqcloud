@@ -16,11 +16,11 @@ from app.models.core.products import Product
 from app.models.inventory.alerts import AlertConfig, AlertHistory
 from app.models.inventory.stock import StockItem
 from app.models.inventory.warehouse import Warehouse
+from app.models.production._production_order import ProductionOrder
 from app.modules.notifications.infrastructure.notification_service import (
     NotificationChannel,
     NotificationService,
 )
-from app.models.production._production_order import ProductionOrder
 
 
 class InventoryAlertService:

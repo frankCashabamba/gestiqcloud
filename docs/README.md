@@ -11,11 +11,9 @@ Este es el indice canonico de documentacion activa del repositorio.
 - `docs/entornos.md`
 
 ## API y contratos
-- Canonico: `docs/API_CONTRACTS.md`
-- Referencia complementaria/operativa: `docs/api-contracts.md`
+- `docs/api-contracts.md`
 - `docs/examples-curl.md`
 - `docs/observabilidad.md`
-- `docs/cache-uploads.md`
 
 ## Frontend
 - `docs/frontend-structure.md`
@@ -29,9 +27,11 @@ Este es el indice canonico de documentacion activa del repositorio.
 
 ## Modulos
 - `docs/modules-index.md`
+- `docs/payments-einvoicing.md`
+- `docs/I18N_GUIDE.md`
 
-## Legacy
-Documentacion historica/no canonica:
-- `docs/legacy/root-archive-2026-02-18/`
-- `docs/legacy/module-archive-2026-02-18/`
-- `apps/backend/app/modules/imports/_legacy_docs/`
+## Decisiones (ADR)
+- `docs/adr/`
+
+## Operaciones
+- `docs/runbooks/`

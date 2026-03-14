@@ -17,8 +17,8 @@ from app.models.core.facturacion import Invoice, InvoiceTemp
 from app.models.core.invoiceLine import BakeryLine, POSLine, WorkshopLine
 from app.models.tenant import Tenant
 from app.modules.invoicing import schemas
-from app.modules.shared.services.statuses import PendingStatus
 from app.modules.shared.services.numbering import generar_numero_documento
+from app.modules.shared.services.statuses import PendingStatus
 
 # asegúrate de tener esta función creada
 

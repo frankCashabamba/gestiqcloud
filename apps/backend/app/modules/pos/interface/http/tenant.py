@@ -178,7 +178,7 @@ def _resolve_inventory_costing_method(db: Session) -> str:
         if isinstance(inventory_cfg, dict):
             candidate = inventory_cfg.get("costing_method")
         if candidate is None and isinstance(pos_cfg, dict):
-            candidate = ((pos_cfg.get("inventory") or {}).get("costing_method"))
+            candidate = (pos_cfg.get("inventory") or {}).get("costing_method")
         method = str(candidate or "avg").strip().lower()
         return method if method in {"avg", "fifo", "lifo"} else "avg"
     except Exception:
@@ -2119,7 +2119,9 @@ def checkout(
                     )
                     cogs_total += alloc_cogs
                 cogs_unit = (
-                    _to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else _to_decimal_q(0, "0.000001")
+                    _to_decimal_q(cogs_total / qty_dec, "0.000001")
+                    if qty_dec > 0
+                    else _to_decimal_q(0, "0.000001")
                 )
             elif costing_method == "lifo":
                 cogs_total = _to_decimal_q(0, "0.000001")
@@ -2135,7 +2137,9 @@ def checkout(
                     )
                     cogs_total += alloc_cogs
                 cogs_unit = (
-                    _to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else _to_decimal_q(0, "0.000001")
+                    _to_decimal_q(cogs_total / qty_dec, "0.000001")
+                    if qty_dec > 0
+                    else _to_decimal_q(0, "0.000001")
                 )
             else:
                 _state = costing.apply_outbound(
@@ -2186,7 +2190,9 @@ def checkout(
                     raise HTTPException(status_code=400, detail="selected_lot_insufficient")
                 running_total += alloc_qty
                 alloc_qty_dec = _to_decimal_q(alloc_qty, "0.000001")
-                alloc_ratio = alloc_qty_dec / qty_dec if qty_dec > 0 else _to_decimal_q(0, "0.000001")
+                alloc_ratio = (
+                    alloc_qty_dec / qty_dec if qty_dec > 0 else _to_decimal_q(0, "0.000001")
+                )
                 alloc_total_cost = _to_decimal_q(cogs_total_money * alloc_ratio, "0.01")
 
                 db.execute(
@@ -2218,10 +2224,9 @@ def checkout(
                 )
 
                 db.execute(
-                    text(
-                        "UPDATE stock_items SET qty = :q "
-                        "WHERE id = :id"
-                    ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                    text("UPDATE stock_items SET qty = :q " "WHERE id = :id").bindparams(
+                        bindparam("id", type_=PGUUID(as_uuid=True))
+                    ),
                     {"q": new_qty, "id": stock_item[0]},
                 )
 
@@ -2419,6 +2424,7 @@ def refund_receipt(
             raise HTTPException(status_code=400, detail="Recibo sin lÃ­neas")
 
         costing = InventoryCostingService(db)
+        costing_method = _resolve_inventory_costing_method(db)
 
         for line in lines:
             product_id = line[0]
@@ -2474,10 +2480,9 @@ def refund_receipt(
                 )
 
             db.execute(
-                text(
-                    "UPDATE stock_items SET qty = :q "
-                    "WHERE id = :id"
-                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                text("UPDATE stock_items SET qty = :q " "WHERE id = :id").bindparams(
+                    bindparam("id", type_=PGUUID(as_uuid=True))
+                ),
                 {"q": generic_qty + qty_return, "id": stock_item[0]},
             )
 
@@ -3423,10 +3428,9 @@ def post_receipt(
                 raise HTTPException(status_code=400, detail="insufficient_stock")
 
             db.execute(
-                text(
-                    "UPDATE stock_items SET qty = :q "
-                    "WHERE id = :id"
-                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                text("UPDATE stock_items SET qty = :q " "WHERE id = :id").bindparams(
+                    bindparam("id", type_=PGUUID(as_uuid=True))
+                ),
                 {"q": new_qty, "id": row[0]},
             )
 

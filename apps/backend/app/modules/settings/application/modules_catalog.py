@@ -19,16 +19,21 @@ def _normalize_key(value: str | None) -> str:
     return without_marks.replace(" ", "").replace("_", "").replace("-", "")
 
 
-MODULE_CATEGORIES = [
-    {"id": "sales", "name": "Sales", "icon": "📈", "order": 1},
-    {"id": "operations", "name": "Operations", "icon": "⚙️", "order": 2},
-    {"id": "finance", "name": "Finance", "icon": "💼", "order": 3},
-    {"id": "people", "name": "People", "icon": "👥", "order": 4},
-    {"id": "settings", "name": "Settings", "icon": "⚙️", "order": 5},
-    {"id": "integrations", "name": "Integrations", "icon": "🔌", "order": 6},
-    {"id": "analytics", "name": "Analytics", "icon": "📊", "order": 7},
-    {"id": "tools", "name": "Tools", "icon": "🧠", "order": 8},
-]
+# Constante vacía mantenida para backward-compat de importaciones estáticas.
+# En runtime SIEMPRE usar get_module_categories(db).
+MODULE_CATEGORIES: list[dict[str, Any]] = []
+
+
+def get_module_categories(db: Session) -> list[dict[str, Any]]:
+    """Lee las categorías de módulos SIEMPRE desde system_defaults (BD).
+
+    El seed inicial ocurre automáticamente la primera vez que se accede
+    via ensure_system_defaults_table, por lo que la BD es siempre la fuente.
+    """
+    from app.services.system_defaults_service import get_system_default_json
+
+    cats = get_system_default_json(db, "modules.categories", [])
+    return cats if isinstance(cats, list) else []
 
 
 MODULE_REGISTRY: list[dict[str, Any]] = [
@@ -461,6 +466,7 @@ def get_module_aliases(module_id: str) -> list[str]:
 
 
 def _module_catalog_id(module_row: Module) -> str | None:
+    """Resuelve el catalog_id canónico de una fila de la tabla modules."""
     context_filters = getattr(module_row, "context_filters", None) or {}
     raw_candidates = [
         context_filters.get("catalog_id"),
@@ -474,31 +480,89 @@ def _module_catalog_id(module_row: Module) -> str | None:
     return None
 
 
-def _module_catalog_overrides(db: Session | None) -> dict[str, dict[str, Any]]:
-    """Retorna overrides y módulos BD-only. Clave = catalog_id o str(row.id)."""
-    if db is None:
-        return {}
+def _module_row_to_dict(row: Module) -> dict[str, Any]:
+    """Convierte una fila de modules a dict normalizado (mismo formato que MODULE_REGISTRY)."""
+    catalog_id = _module_catalog_id(row) or str(getattr(row, "url", None) or row.name)
+    # Leer nuevas columnas con getattr seguro para BDs que aún no migraron
+    return {
+        "id": catalog_id,
+        "name": row.name,
+        "name_en": row.name,
+        "icon": getattr(row, "icon", None),
+        "category": getattr(row, "category", None),
+        "description": getattr(row, "description", None),
+        "active": bool(getattr(row, "active", True)),
+        "implemented": bool(getattr(row, "implemented", True)),
+        "required": bool(getattr(row, "required", False)),
+        "default_enabled": bool(getattr(row, "default_enabled", True)),
+        "dependencies": getattr(row, "dependencies", None) or [],
+        "aliases": getattr(row, "aliases", None) or [catalog_id],
+        "countries": getattr(row, "countries", None) or ["ES", "EC"],
+        "sectors": getattr(row, "sectors", None),
+    }
 
-    overrides: dict[str, dict[str, Any]] = {}
-    for row in db.query(Module).all():
-        canonical = _module_catalog_id(row)
-        # Módulos sin catalog_id válido se exponen por su URL o name como clave tentativa.
-        key = canonical or str(getattr(row, "url", None) or getattr(row, "name", None) or row.id)
-        context_filters = getattr(row, "context_filters", None) or {}
-        overrides[key] = {
-            "name": getattr(row, "name", None),
-            "description": getattr(row, "description", None),
-            "icon": getattr(row, "icon", None),
-            "category": getattr(row, "category", None),
-            "active": bool(getattr(row, "active", True)),
-            "countries": context_filters.get("countries"),
-            "sectors": context_filters.get("sectors"),
-            "required": context_filters.get("required"),
-            "default_enabled": context_filters.get("default_enabled"),
-            # flag para distinguir módulos que NO están en el catálogo de código
-            "_bd_only": canonical is None or canonical not in AVAILABLE_MODULES,
-        }
-    return overrides
+
+def ensure_module_catalog_seeded(db: Session) -> None:
+    """Asegura que la tabla modules tenga las columnas nuevas y los módulos del sistema.
+
+    1. Ejecuta ALTER TABLE para las 7 columnas nuevas (idempotente, IF NOT EXISTS).
+    2. Si la tabla está vacía, siembra desde MODULE_REGISTRY.
+    """
+    from sqlalchemy import text
+
+    _new_columns = [
+        ("implemented", "BOOLEAN NOT NULL DEFAULT TRUE"),
+        ("required", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("default_enabled", "BOOLEAN NOT NULL DEFAULT TRUE"),
+        ("dependencies", "JSONB"),
+        ("aliases", "JSONB"),
+        ("countries", "JSONB"),
+        ("sectors", "JSONB"),
+    ]
+    for col, definition in _new_columns:
+        try:
+            db.execute(text(f"ALTER TABLE modules ADD COLUMN IF NOT EXISTS {col} {definition}"))
+        except Exception:
+            db.rollback()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    if db.query(Module).count() > 0:
+        return
+
+    for entry in MODULE_REGISTRY:
+        catalog_id = str(entry["id"])
+        row = Module(
+            name=catalog_id,
+            description=entry.get("description"),
+            active=True,
+            icon=entry.get("icon"),
+            url=catalog_id,
+            initial_template=catalog_id,
+            context_type="none",
+            context_filters={"catalog_id": catalog_id},
+            category=entry.get("category"),
+        )
+        for field in (
+            "implemented",
+            "required",
+            "default_enabled",
+            "dependencies",
+            "aliases",
+            "countries",
+            "sectors",
+        ):
+            try:
+                setattr(row, field, entry.get(field))
+            except Exception:
+                pass
+        db.add(row)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def get_available_modules(
@@ -506,69 +570,27 @@ def get_available_modules(
     sector: str | None = None,
     db: Session | None = None,
 ) -> list[dict[str, Any]]:
-    """Return implemented modules optionally filtered by country and sector.
+    """Retorna los módulos implementados del sistema.
 
-    Fuentes (en orden de prioridad):
-    1. Catálogo de código (AVAILABLE_MODULES) con overrides de BD.
-    2. Módulos creados solo en BD (sin entrada en el catálogo de código).
+    Fuente: tabla `modules` en BD (siempre, cuando hay sesión disponible).
+    Fallback sin BD: catálogo de código AVAILABLE_MODULES (tests / startup).
     """
-    overrides = _module_catalog_overrides(db)
-    seen_ids: set[str] = set()
-    modules: list[dict[str, Any]] = []
-
-    # — Catálogo de código con overrides de BD —
-    for module_id, base_module in AVAILABLE_MODULES.items():
-        module = dict(base_module)
-        override = overrides.get(module_id)
-        if override:
-            if override.get("active") is False:
-                seen_ids.add(module_id)
-                continue
-            for field in ("name", "description", "icon", "category"):
-                value = override.get(field)
-                if value not in (None, ""):
-                    module[field] = value
-            for field in ("countries", "sectors"):
-                if override.get(field) is not None:
-                    module[field] = override[field]
-            for field in ("required", "default_enabled"):
-                if override.get(field) is not None:
-                    module[field] = bool(override[field])
-        seen_ids.add(module_id)
-        modules.append(module)
-
-    # — Módulos creados solo en BD (no presentes en el catálogo de código) —
-    for key, override in overrides.items():
-        if key in seen_ids:
-            continue
-        if not override.get("_bd_only"):
-            continue
-        if override.get("active") is False:
-            continue
-        modules.append({
-            "id": key,
-            "name": override.get("name") or key,
-            "name_en": override.get("name") or key,
-            "icon": override.get("icon"),
-            "category": override.get("category"),
-            "description": override.get("description"),
-            "required": bool(override.get("required", False)),
-            "default_enabled": bool(override.get("default_enabled", True)),
-            "dependencies": [],
-            "countries": override.get("countries") or ["ES", "EC"],
-            "sectors": override.get("sectors"),
-            "aliases": [key],
-            "implemented": True,
-        })
+    if db is None:
+        # Sin BD: usa el catálogo de código como último recurso
+        modules = [dict(m) for m in AVAILABLE_MODULES.values()]
+    else:
+        ensure_module_catalog_seeded(db)
+        rows = db.query(Module).filter(Module.active.is_(True), Module.implemented.is_(True)).all()
+        modules = [_module_row_to_dict(row) for row in rows]
 
     if country:
         modules = [m for m in modules if country.upper() in (m.get("countries") or [])]
-
     if sector:
         modules = [
-            m for m in modules if m.get("sectors") is None or sector.lower() in (m.get("sectors") or [])
+            m
+            for m in modules
+            if m.get("sectors") is None or sector.lower() in (m.get("sectors") or [])
         ]
-
     return modules
 
 
@@ -582,14 +604,12 @@ def get_module_by_id(module_id: str, db: Session | None = None) -> dict[str, Any
     return None
 
 
-def get_required_modules() -> list[str]:
-    return [module_id for module_id, module in AVAILABLE_MODULES.items() if module["required"]]
+def get_required_modules(db: Session | None = None) -> list[str]:
+    return [m["id"] for m in get_available_modules(db=db) if m.get("required")]
 
 
-def get_default_enabled_modules() -> list[str]:
-    return [
-        module_id for module_id, module in AVAILABLE_MODULES.items() if module["default_enabled"]
-    ]
+def get_default_enabled_modules(db: Session | None = None) -> list[str]:
+    return [m["id"] for m in get_available_modules(db=db) if m.get("default_enabled")]
 
 
 def validate_module_dependencies(enabled_modules: list[str]) -> dict[str, list[str]]:

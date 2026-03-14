@@ -280,8 +280,12 @@ def test_inventory_value_uses_requested_costing_method(db: Session, tenant_minim
     db.commit()
 
     svc = InventoryCostingService(db)
-    svc.apply_inbound_fifo(str(tid), str(wh_id), str(prod_id), qty=Decimal("5"), unit_cost=Decimal("2"))
-    svc.apply_inbound_fifo(str(tid), str(wh_id), str(prod_id), qty=Decimal("5"), unit_cost=Decimal("4"))
+    svc.apply_inbound_fifo(
+        str(tid), str(wh_id), str(prod_id), qty=Decimal("5"), unit_cost=Decimal("2")
+    )
+    svc.apply_inbound_fifo(
+        str(tid), str(wh_id), str(prod_id), qty=Decimal("5"), unit_cost=Decimal("4")
+    )
     db.commit()
 
     avg_value = svc.get_inventory_value(str(tid), warehouse_id=str(wh_id), costing_method="avg")

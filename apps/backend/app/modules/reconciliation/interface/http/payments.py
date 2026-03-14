@@ -182,11 +182,13 @@ def _extract_webhook_hints(provider: str, payload: bytes) -> dict[str, str | Non
         or transaction.get("clientTransactionId")
         or transaction.get("reference")
     )
-    session_id = transaction.get("token") or transaction.get("ticketNumber") or transaction.get(
-        "transactionId"
+    session_id = (
+        transaction.get("token")
+        or transaction.get("ticketNumber")
+        or transaction.get("transactionId")
     )
-    payment_id = transaction.get("id") or transaction.get("transactionId") or transaction.get(
-        "ticketNumber"
+    payment_id = (
+        transaction.get("id") or transaction.get("transactionId") or transaction.get("ticketNumber")
     )
     hints["session_id"] = str(session_id) if session_id else None
     hints["payment_id"] = str(payment_id) if payment_id else hints["session_id"]

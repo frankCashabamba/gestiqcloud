@@ -39,6 +39,7 @@ backend/.env
 **/.coverage*
 **/.venv/
 .venv/
+r/
 
 # --- Node / TS (en cualquier carpeta) ---
 **/node_modules/
@@ -85,3 +86,9 @@ _deprecated_docs/
 
 # --- imports legacy ---
 apps/backend/app/modules/_old_imports/
+
+# --- build/test artifacts ---
+playwright-report/
+test-results/
+.pre-commit-cache/
+.tmp-npm-ci-*/

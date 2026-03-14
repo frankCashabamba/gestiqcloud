@@ -6,6 +6,7 @@ from .application.modules_catalog import (
     get_available_modules,
     get_default_enabled_modules,
     get_module_by_id,
+    get_module_categories,
     get_required_modules,
     validate_module_dependencies,
 )
@@ -15,6 +16,7 @@ __all__ = [
     "SettingsManager",
     "get_available_modules",
     "get_module_by_id",
+    "get_module_categories",
     "get_required_modules",
     "get_default_enabled_modules",
     "validate_module_dependencies",

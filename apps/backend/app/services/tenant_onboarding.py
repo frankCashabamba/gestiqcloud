@@ -45,7 +45,11 @@ def auto_setup_tenant(
 
         # 1. Crear registro POS por defecto
         try:
-            default_register_name = "Caja Principal"
+            from app.services.system_defaults_service import get_system_default_text
+
+            default_register_name = get_system_default_text(
+                db, "pos.default_register_name", "Caja Principal"
+            )
 
             existing = db.execute(
                 text(

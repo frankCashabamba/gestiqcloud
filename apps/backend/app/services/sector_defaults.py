@@ -10,12 +10,26 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config.database import SessionLocal
 from app.models.company.company import SectorTemplate
 from app.models.core.ui_field_config import SectorFieldDefault
-from app.services.field_config import canonical_field_module_key, canonical_sector_field_key
+from app.services.field_config import canonical_field_module_key, resolve_sector_code
+
+
+def _get_fallback_sector(session: Session) -> str:
+    """Lee el sector de fallback desde system_defaults. Devuelve 'panaderia' si no está configurado."""
+    try:
+        row = session.execute(
+            text("SELECT value_text FROM system_defaults WHERE key = 'sector.fallback_code'")
+        ).fetchone()
+        if row and row[0]:
+            return str(row[0]).strip()
+    except Exception:
+        pass
+    return "panaderia"
 
 
 def _get_session(db: Session | None) -> tuple[Session, bool]:
@@ -80,7 +94,7 @@ def get_sector_defaults(
     """
     session, should_close = _get_session(db)
     try:
-        sector_code = canonical_sector_field_key(sector)
+        sector_code = resolve_sector_code(session, sector)
         module_key = canonical_field_module_key(module)
         module_candidates = [module_key]
         if module_key == "productos":
@@ -119,9 +133,10 @@ def get_sector_defaults(
         if not fields:
             fields = _fields_from_template_config(tpl, module_key)
 
-        # Fallback a panaderia si no hay datos del sector solicitado
-        if not fields and sector_code != "panaderia":
-            fields, tpl_pan = _load("panaderia")
+        # Fallback al sector configurado en system_defaults si no hay datos del sector solicitado
+        fallback_sector = _get_fallback_sector(session)
+        if not fields and sector_code != fallback_sector:
+            fields, tpl_pan = _load(fallback_sector)
             if not fields:
                 fields = _fields_from_template_config(tpl_pan, module_key)
 
@@ -143,7 +158,7 @@ def get_sector_categories(
     """
     session, should_close = _get_session(db)
     try:
-        sector_code = canonical_sector_field_key(sector)
+        sector_code = resolve_sector_code(session, sector)
 
         def _load_defaults(code: str) -> dict[str, Any]:
             tpl = (
@@ -166,8 +181,9 @@ def get_sector_categories(
         if categories:
             return categories
 
-        if sector_code != "panaderia":
-            defaults_pan = _load_defaults("panaderia")
+        fallback_sector = _get_fallback_sector(session)
+        if sector_code != fallback_sector:
+            defaults_pan = _load_defaults(fallback_sector)
             if module == "productos":
                 categories = defaults_pan.get("categories") or []
             elif module == "expenses":

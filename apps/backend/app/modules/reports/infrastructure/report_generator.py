@@ -9,8 +9,6 @@ from abc import ABC, abstractmethod
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.services.system_defaults_service import get_system_default
-
 from app.modules.reports.domain.entities import (
     FinancialReport,
     InventoryReport,
@@ -20,6 +18,7 @@ from app.modules.reports.domain.entities import (
     ReportType,
     SalesReport,
 )
+from app.services.system_defaults_service import get_system_default
 
 logger = logging.getLogger(__name__)
 

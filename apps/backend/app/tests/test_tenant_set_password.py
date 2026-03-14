@@ -40,7 +40,9 @@ def test_tenant_set_password_marks_first_company_admin_activation_for_onboarding
     assert user.password_hash != "old-hash"
 
 
-def test_tenant_set_password_keeps_reset_flow_without_onboarding_for_verified_admin(db, monkeypatch):
+def test_tenant_set_password_keeps_reset_flow_without_onboarding_for_verified_admin(
+    db, monkeypatch
+):
     tenant = Tenant(id=uuid4(), name="Demo Empresa", slug="demo-empresa")
     db.add(tenant)
     db.flush()

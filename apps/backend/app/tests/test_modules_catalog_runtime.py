@@ -3,7 +3,6 @@ import pytest
 from app.models.core.module import Module
 from app.modules.settings.application.modules_catalog import get_available_modules
 
-
 pytestmark = pytest.mark.no_db
 
 

@@ -127,24 +127,32 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
 
     Nota: La tabla doc_series actual usa (tipo, anio, serie) sin register_id
     """
-    # Tipos de documento según nueva estructura (doc_type, name, current_no, reset_policy)
-    default_series = [
-        {
-            "doc_type": "R",  # receipt
-            "name": "RBO" if register_id is None else "R001",
-            "description": "Recibos Backoffice" if register_id is None else "Recibos POS",
-        },
-        {
-            "doc_type": "F",  # invoice
-            "name": "F",
-            "description": "Facturas",
-        },
-        {
-            "doc_type": "C",  # credit note
-            "name": "C",
-            "description": "Abonos/Créditos",
-        },
-    ]
+    from app.services.system_defaults_service import (
+        get_system_default_json,
+        get_system_default_text,
+    )
+
+    reset_policy = get_system_default_text(db, "numbering.default_reset_policy", "yearly")
+
+    _series_defs = get_system_default_json(
+        db,
+        "numbering.default_series",
+        [
+            {"doc_type": "R", "name_backoffice": "RBO", "name_pos": "R001"},
+            {"doc_type": "F", "name": "F"},
+            {"doc_type": "C", "name": "C"},
+        ],
+    )
+
+    # Normaliza: los recibos tienen nombre distinto según contexto (backoffice vs POS)
+    default_series = []
+    for entry in _series_defs:
+        doc_type = entry.get("doc_type", "")
+        if "name_backoffice" in entry or "name_pos" in entry:
+            name = entry.get("name_backoffice" if register_id is None else "name_pos", doc_type)
+        else:
+            name = entry.get("name", doc_type)
+        default_series.append({"doc_type": doc_type, "name": name})
 
     for series_data in default_series:
         # Verificar si ya existe para este tenant/doc_type/registro
@@ -178,7 +186,7 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
                     id, tenant_id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                 )
                 VALUES (
-                    :id, :tenant_id, CAST(:register_id AS uuid), :doc_type, :name, 0, 'yearly', true, NOW()
+                    :id, :tenant_id, CAST(:register_id AS uuid), :doc_type, :name, 0, :reset_policy, true, NOW()
                 )
             """
             )
@@ -191,6 +199,7 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
                     "register_id": str(register_id) if register_id else None,
                     "doc_type": series_data["doc_type"],
                     "name": series_data["name"],
+                    "reset_policy": reset_policy,
                 },
             )
 
