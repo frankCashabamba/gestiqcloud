@@ -74,7 +74,7 @@ export default function PaymentModal({
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null)
   const [receiptLines, setReceiptLines] = useState<POSReceiptLine[]>([])
   const [stockOptionsByLine, setStockOptionsByLine] = useState<Record<string, LotOption[]>>({})
-  const [lotSelections, setLotSelections] = useState<Record<string, string>>({})
+  const [allocationDrafts, setAllocationDrafts] = useState<Record<string, Record<string, string>>>({})
   const [stockLoading, setStockLoading] = useState(false)
 
   const activeWarehouseId = warehouseId || selectedWarehouse || undefined
@@ -152,11 +152,17 @@ export default function PaymentModal({
         }
 
         setStockOptionsByLine(nextOptions)
-        setLotSelections((prev) => {
+        setAllocationDrafts((prev) => {
           const next = { ...prev }
-          for (const [lineId, selectedKey] of Object.entries(next)) {
-            if (!nextOptions[lineId]?.some((option) => option.key === selectedKey)) {
+          for (const [lineId, selections] of Object.entries(next)) {
+            const validKeys = new Set((nextOptions[lineId] || []).map((option) => option.key))
+            const filtered = Object.fromEntries(
+              Object.entries(selections).filter(([optionKey]) => validKeys.has(optionKey))
+            )
+            if (Object.keys(filtered).length === 0) {
               delete next[lineId]
+            } else {
+              next[lineId] = filtered
             }
           }
           return next
@@ -219,15 +225,18 @@ export default function PaymentModal({
         .map((line) => {
           const lineId = String(line.id || '')
           const options = stockOptionsByLine[lineId] || []
+          const draft = allocationDrafts[lineId] || {}
+          const totalAssigned = options.reduce((sum, option) => sum + toNumber(draft[option.key] || 0), 0)
           return {
             line,
             lineId,
             options,
             requiresSelection: options.length > 1,
+            totalAssigned,
           }
         })
         .filter((entry) => entry.lineId && entry.requiresSelection),
-    [receiptLines, stockOptionsByLine]
+    [allocationDrafts, receiptLines, stockOptionsByLine]
   )
 
   const handlePay = async () => {
@@ -251,8 +260,21 @@ export default function PaymentModal({
       const stockSelections: POSLineStockSelection[] = []
 
       for (const requirement of lineSelectionRequirements) {
-        const selectedKey = lotSelections[requirement.lineId]
-        if (!selectedKey) {
+        const draft = allocationDrafts[requirement.lineId] || {}
+        const allocations = requirement.options
+          .map((option) => {
+            const qty = toNumber(draft[option.key] || 0)
+            if (qty <= 0) return null
+            const parsedSelection = readLotOptionKey(option.key)
+            return {
+              lot: parsedSelection.lot,
+              expires_at: parsedSelection.expires_at,
+              qty,
+            }
+          })
+          .filter(Boolean) as Array<{ lot?: string; expires_at?: string; qty: number }>
+
+        if (allocations.length === 0) {
           toast.warning(
             t('pos:payment.selectLotRequired', {
               defaultValue: 'Selecciona un lote para cada linea requerida antes de cobrar.',
@@ -261,8 +283,25 @@ export default function PaymentModal({
           setLoading(false)
           return
         }
-        const selectedOption = requirement.options.find((option) => option.key === selectedKey)
-        if (!selectedOption || selectedOption.qty < Number(requirement.line.qty || 0)) {
+        const assignedQty = allocations.reduce((sum, allocation) => sum + Number(allocation.qty || 0), 0)
+        const lineQty = Number(requirement.line.qty || 0)
+        if (Math.abs(assignedQty - lineQty) > 0.000001) {
+          toast.error(
+            t('pos:payment.invalidLotAllocationTotal', {
+              defaultValue: 'La suma asignada por lotes debe coincidir exactamente con la cantidad de la linea.',
+            })
+          )
+          setLoading(false)
+          return
+        }
+        const hasInsufficientAllocation = allocations.some((allocation) => {
+          const match = requirement.options.find((option) => {
+            const parsed = readLotOptionKey(option.key)
+            return parsed.lot === allocation.lot && parsed.expires_at === allocation.expires_at
+          })
+          return !match || match.qty + 0.000001 < Number(allocation.qty || 0)
+        })
+        if (hasInsufficientAllocation) {
           toast.error(
             t('pos:payment.selectedLotInsufficient', {
               defaultValue: 'El lote seleccionado no tiene stock suficiente para esa linea.',
@@ -271,11 +310,9 @@ export default function PaymentModal({
           setLoading(false)
           return
         }
-        const parsedSelection = readLotOptionKey(selectedKey)
         stockSelections.push({
           line_id: requirement.lineId,
-          lot: parsedSelection.lot,
-          expires_at: parsedSelection.expires_at,
+          allocations,
         })
       }
 
@@ -379,6 +416,18 @@ export default function PaymentModal({
         toast.error(
           t('pos:payment.selectLotRequired', {
             defaultValue: 'Selecciona un lote para cada linea requerida antes de cobrar.',
+          })
+        )
+      } else if (detail === 'invalid_lot_allocation_total') {
+        toast.error(
+          t('pos:payment.invalidLotAllocationTotal', {
+            defaultValue: 'La suma asignada por lotes debe coincidir exactamente con la cantidad de la linea.',
+          })
+        )
+      } else if (detail === 'selected_lot_insufficient') {
+        toast.error(
+          t('pos:payment.selectedLotInsufficient', {
+            defaultValue: 'El lote seleccionado no tiene stock suficiente para esa linea.',
           })
         )
       } else if (detail === 'selected_lot_not_found') {
@@ -515,32 +564,36 @@ export default function PaymentModal({
                     {' · '}
                     Qty {Number(requirement.line.qty || 0)}
                   </div>
-                  <select
-                    value={lotSelections[requirement.lineId] || ''}
-                    onChange={(e) =>
-                      setLotSelections((prev) => ({
-                        ...prev,
-                        [requirement.lineId]: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded border px-3 py-2"
-                    disabled={stockLoading}
-                  >
-                    <option value="">
-                      {stockLoading
-                        ? t('pos:payment.loadingLotOptions', {
-                            defaultValue: 'Cargando lotes disponibles...',
-                          })
-                        : t('pos:payment.selectLotPlaceholder', {
-                            defaultValue: 'Selecciona un lote',
-                          })}
-                    </option>
+                  <div className="space-y-2">
                     {requirement.options.map((option) => (
-                      <option key={option.key} value={option.key}>
-                        {formatLotOptionLabel(option)}
-                      </option>
+                      <div key={option.key} className="grid grid-cols-[1fr_120px] gap-3 items-center">
+                        <div className="text-xs text-slate-700">{formatLotOptionLabel(option)}</div>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={allocationDrafts[requirement.lineId]?.[option.key] || ''}
+                          onChange={(e) =>
+                            setAllocationDrafts((prev) => ({
+                              ...prev,
+                              [requirement.lineId]: {
+                                ...(prev[requirement.lineId] || {}),
+                                [option.key]: e.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full rounded border px-3 py-2 text-right"
+                          placeholder="0"
+                          disabled={stockLoading}
+                        />
+                      </div>
                     ))}
-                  </select>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-600">
+                    {t('pos:payment.assignedLotQty', {
+                      defaultValue: 'Asignado',
+                    })}{' '}
+                    {requirement.totalAssigned.toFixed(2)} / {Number(requirement.line.qty || 0).toFixed(2)}
+                  </div>
                 </div>
               ))}
             </div>

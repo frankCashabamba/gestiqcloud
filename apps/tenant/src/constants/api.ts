@@ -26,6 +26,10 @@ export const API_PATHS = {
     ME: `/api/${API_VERSION}/me/tenant`,
   },
 
+  PAYMENTS: {
+    BASE: `/api/${API_VERSION}/payments`,
+  },
+
   // Tenant modules
   POS: {
     REGISTERS: `/api/${API_VERSION}/tenant/pos/registers`,

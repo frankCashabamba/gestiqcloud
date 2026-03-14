@@ -81,7 +81,7 @@ class StockAlert(Base):
 
     tenant = relationship("Tenant")
     product = relationship("Product")
-    # warehouse = relationship("Warehouse")  # TODO: Crear modelo Warehouse
+    warehouse = relationship("Warehouse")
     incident = relationship("Incident")
 
 

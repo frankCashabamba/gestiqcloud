@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal, NamedTuple
 from uuid import uuid4
@@ -19,6 +19,13 @@ def _dec(value: float | Decimal | None, q: str) -> Decimal:
     if value is None:
         value = 0
     return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
+
+
+def _normalize_lot(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
 
 
 class InventoryCostingService:
@@ -184,12 +191,22 @@ class InventoryCostingService:
                 "tenant_id TEXT NOT NULL, "
                 "warehouse_id TEXT NOT NULL, "
                 "product_id TEXT NOT NULL, "
+                "lot TEXT NULL, "
+                "expires_at DATE NULL, "
                 "remaining_qty NUMERIC(14,6) NOT NULL, "
                 "unit_cost NUMERIC(14,6) NOT NULL, "
                 "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                 ")"
             )
         )
+        for ddl in (
+            "ALTER TABLE inventory_cost_layers ADD COLUMN IF NOT EXISTS lot TEXT NULL",
+            "ALTER TABLE inventory_cost_layers ADD COLUMN IF NOT EXISTS expires_at DATE NULL",
+        ):
+            try:
+                self.db.execute(text(ddl))
+            except Exception:
+                pass
 
     def _record_layer(
         self,
@@ -199,18 +216,22 @@ class InventoryCostingService:
         *,
         qty: Decimal,
         unit_cost: Decimal,
+        lot: str | None = None,
+        expires_at: date | None = None,
     ) -> None:
         self._ensure_layers_table()
         self.db.execute(
             text(
                 "INSERT INTO inventory_cost_layers "
-                "(tenant_id, warehouse_id, product_id, remaining_qty, unit_cost) "
-                "VALUES (:tid, :wid, :pid, :qty, :cost)"
+                "(tenant_id, warehouse_id, product_id, lot, expires_at, remaining_qty, unit_cost) "
+                "VALUES (:tid, :wid, :pid, :lot, :exp, :qty, :cost)"
             ),
             {
                 "tid": tenant_id,
                 "wid": warehouse_id,
                 "pid": product_id,
+                "lot": _normalize_lot(lot),
+                "exp": expires_at,
                 "qty": float(qty),
                 "cost": float(unit_cost),
             },
@@ -225,21 +246,35 @@ class InventoryCostingService:
         qty: Decimal,
         order: Literal["fifo", "lifo"],
         allow_negative: bool = False,
+        lot: str | None = None,
+        expires_at: date | None = None,
     ) -> Decimal:
         self._ensure_layers_table()
         remaining = qty
         total_cogs = Decimal("0")
         order_sql = "ASC" if order == "fifo" else "DESC"
+        clauses = [
+            "tenant_id = :tid",
+            "warehouse_id = :wid",
+            "product_id = :pid",
+            "remaining_qty > 0",
+        ]
+        params: dict[str, object] = {"tid": tenant_id, "wid": warehouse_id, "pid": product_id}
+        if lot is not None:
+            clauses.append("lot = :lot")
+            params["lot"] = _normalize_lot(lot)
+        if expires_at is not None:
+            clauses.append("expires_at = :exp")
+            params["exp"] = expires_at
 
         layers = self.db.execute(
             text(
                 "SELECT id, remaining_qty, unit_cost "
                 "FROM inventory_cost_layers "
-                "WHERE tenant_id = :tid AND warehouse_id = :wid "
-                "AND product_id = :pid AND remaining_qty > 0 "
+                f"WHERE {' AND '.join(clauses)} "
                 f"ORDER BY created_at {order_sql}, id {order_sql}"
             ),
-            {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
+            params,
         ).fetchall()
 
         for layer_id, layer_qty, layer_cost in layers:
@@ -303,6 +338,8 @@ class InventoryCostingService:
         *,
         qty: Decimal,
         unit_cost: Decimal,
+        lot: str | None = None,
+        expires_at: date | None = None,
     ) -> CostState:
         """Record an inbound layer for LIFO costing."""
         self._record_layer(
@@ -311,6 +348,8 @@ class InventoryCostingService:
             product_id,
             qty=qty,
             unit_cost=unit_cost,
+            lot=lot,
+            expires_at=expires_at,
         )
         # Also update the summary state
         return self.apply_inbound(tenant_id, warehouse_id, product_id, qty=qty, unit_cost=unit_cost)
@@ -323,6 +362,8 @@ class InventoryCostingService:
         *,
         qty: Decimal,
         unit_cost: Decimal,
+        lot: str | None = None,
+        expires_at: date | None = None,
     ) -> CostState:
         """Record an inbound layer for FIFO costing."""
         self._record_layer(
@@ -331,6 +372,8 @@ class InventoryCostingService:
             product_id,
             qty=qty,
             unit_cost=unit_cost,
+            lot=lot,
+            expires_at=expires_at,
         )
         return self.apply_inbound(tenant_id, warehouse_id, product_id, qty=qty, unit_cost=unit_cost)
 
@@ -342,6 +385,8 @@ class InventoryCostingService:
         *,
         qty: Decimal,
         allow_negative: bool = False,
+        lot: str | None = None,
+        expires_at: date | None = None,
     ) -> tuple[CostState, Decimal]:
         """
         Consume stock using LIFO (last layer first).
@@ -354,6 +399,8 @@ class InventoryCostingService:
             qty=qty,
             order="lifo",
             allow_negative=allow_negative,
+            lot=lot,
+            expires_at=expires_at,
         )
 
         # Update summary state
@@ -370,6 +417,8 @@ class InventoryCostingService:
         *,
         qty: Decimal,
         allow_negative: bool = False,
+        lot: str | None = None,
+        expires_at: date | None = None,
     ) -> tuple[CostState, Decimal]:
         """
         Consume stock using FIFO (oldest layer first).
@@ -382,6 +431,8 @@ class InventoryCostingService:
             qty=qty,
             order="fifo",
             allow_negative=allow_negative,
+            lot=lot,
+            expires_at=expires_at,
         )
         state = self.apply_outbound(
             tenant_id, warehouse_id, product_id, qty=qty, allow_negative=allow_negative

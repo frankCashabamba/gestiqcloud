@@ -44,10 +44,15 @@ export interface POSReceiptLine {
   line_total: number
 }
 
-export interface POSLineStockSelection {
-  line_id: string
+export interface POSLineStockAllocation {
   lot?: string
   expires_at?: string
+  qty: number
+}
+
+export interface POSLineStockSelection {
+  line_id: string
+  allocations: POSLineStockAllocation[]
 }
 
 export interface POSReceipt {

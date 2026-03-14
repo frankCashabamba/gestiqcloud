@@ -68,19 +68,12 @@ export async function resolveAlert(alertId: string): Promise<void> {
 }
 
 export async function configureNotificationChannel(
-  tipo: NotificationChannel,
-  config: { enabled: boolean; config: any }
+  _tipo: NotificationChannel,
+  _config: { enabled: boolean; config: any }
 ): Promise<void> {
-  await tenantApi.post(`/api/v1/incidents/notifications/channels`, {
-    tipo,
-    name: tipo.toUpperCase(),
-    description: `Canal ${tipo}`,
-    config: config.config,
-    active: !!config.enabled,
-    use_for_alerts: true,
-    use_for_invoices: false,
-    use_for_marketing: false,
-  })
+  throw new Error(
+    'Configura las credenciales del canal en Ajustes > Notificaciones. Las alertas de inventario usan sus propios destinatarios en cada configuración de alerta.'
+  )
 }
 
 export async function testNotification(tipo: NotificationChannel, details?: any): Promise<void> {

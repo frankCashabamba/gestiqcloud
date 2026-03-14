@@ -6,21 +6,27 @@ Endpoints:
 - PUT  /api/v1/admin/sectors/{code}/config    # Update config
 """
 
+import asyncio
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.cache import build_cache_key, cache_delete
+from app.middleware.tenant import get_current_user
 from app.schemas.sector_plantilla import (
     SectorConfigJSON,
     SectorConfigResponse,
     SectorConfigUpdateRequest,
 )
-from app.services.cache import invalidate_sector_cache
 from app.services.sector_service import get_sector_or_404
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin - Sector Config"])
+
+
+def _invalidate_sector_cache(sector_code: str) -> None:
+    asyncio.run(cache_delete(build_cache_key("global", "sector_config", sector_code)))
 
 
 @router.get(
@@ -70,6 +76,7 @@ def update_admin_sector_config(
     code: str,
     payload: SectorConfigUpdateRequest,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Updates the complete configuration of a sector.
@@ -96,14 +103,14 @@ def update_admin_sector_config(
 
         sector.template_config = payload.config.model_dump(mode="python")
         sector.updated_at = datetime.now(UTC)
-        sector.updated_by = "admin"  # TODO: get from current_user when auth is implemented
+        sector.updated_by = str(current_user.get("id") or current_user.get("user_id") or "system")
         sector.config_version = (sector.config_version or 1) + 1
 
         db.add(sector)
         db.commit()
         db.refresh(sector)
 
-        invalidate_sector_cache(code)
+        _invalidate_sector_cache(code)
 
         return {
             "success": True,

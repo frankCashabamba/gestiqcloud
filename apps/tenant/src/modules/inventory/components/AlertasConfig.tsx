@@ -4,11 +4,10 @@ import {
   listStockAlerts,
   updateReorderPoint,
   resolveAlert,
-  configureNotificationChannel,
   testNotification,
   fetchProductos,
 } from '../services/inventory'
-import type { StockAlert, NotificationChannel, NotificationChannelConfig } from '../types/alertas'
+import type { StockAlert, NotificationChannel } from '../types/alertas'
 import type { Producto } from '../types/producto'
 import { ensureArray } from '../../../shared/utils/array'
 
@@ -274,24 +273,8 @@ function AlertasTable() {
 // Sección: Canales de notificación
 function CanalesNotificacion() {
   const [tipo, setTipo] = useState<NotificationChannel>('email')
-  const [enabled, setEnabled] = useState(true)
   const [details, setDetails] = useState<any>({ email: '', phone: '', chat_id: '' })
-  const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-
-  const saveChannel = async () => {
-    setSaving(true)
-    setMsg(null)
-    try {
-      const cfg: NotificationChannelConfig = { tipo, enabled, config: details }
-      await configureNotificationChannel(tipo, cfg as any)
-      setMsg('Configuration saved successfully')
-    } catch (e) {
-      setMsg('Error saving configuration')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const sendTest = async () => {
     setMsg(null)
@@ -299,7 +282,7 @@ function CanalesNotificacion() {
       await testNotification(tipo, details)
       setMsg('Test notification sent successfully')
     } catch (e) {
-      setMsg('Error sending test')
+      setMsg(e instanceof Error ? e.message : 'Error sending test')
     }
   }
 
@@ -307,6 +290,12 @@ function CanalesNotificacion() {
     <div className="bg-white rounded-lg border p-6 max-w-2xl">
       <h3 className="font-semibold text-lg mb-4">Notification Channels</h3>
       {msg && <div className="mb-4 p-3 bg-gray-50 border text-sm">{msg}</div>}
+
+      <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        La configuración persistente de canales ya no se hace desde esta pantalla.
+        Usa Ajustes &gt; Notificaciones para SMTP, WhatsApp o Telegram.
+        Aquí solo puedes lanzar una prueba a un destinatario concreto.
+      </div>
 
       <div className="grid grid-cols-1 gap-4">
         <div>
@@ -316,11 +305,6 @@ function CanalesNotificacion() {
             <option value="whatsapp">WhatsApp</option>
             <option value="telegram">Telegram</option>
           </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Enabled</label>
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         </div>
 
         {tipo === 'email' && (
@@ -343,9 +327,6 @@ function CanalesNotificacion() {
         )}
 
         <div className="flex gap-2">
-          <button onClick={saveChannel} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60">
-            Save channel
-          </button>
           <button onClick={sendTest} className="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200">
             Send test
           </button>

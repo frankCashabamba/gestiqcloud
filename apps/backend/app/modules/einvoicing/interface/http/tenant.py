@@ -1,8 +1,10 @@
 """E-Invoicing Module - HTTP API (Tenant)"""
 
+from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -10,7 +12,9 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.core.facturacion import Invoice
 from app.modules.einvoicing.application.sii_service import SIIService
+from app.workers.einvoicing_tasks import generate_facturae_xml
 
 router = APIRouter(
     prefix="/einvoicing",
@@ -83,6 +87,64 @@ class SendInvoiceResponse(BaseModel):
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
+
+
+@router.get("/facturae/{invoice_id}/export")
+async def export_facturae_xml(
+    invoice_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = claims["tenant_id"]
+    invoice = db.get(Invoice, invoice_id)
+    if not invoice or str(invoice.tenant_id) != str(tenant_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    tenant = invoice.tenant
+    customer = invoice.customer
+    issue_date = invoice.issue_date
+    if isinstance(issue_date, str):
+        try:
+            issue_date = date.fromisoformat(issue_date[:10])
+        except Exception:
+            issue_date = datetime.utcnow().date()
+    elif issue_date is None:
+        issue_date = datetime.utcnow().date()
+
+    invoice_data = {
+        "numero": invoice.numero,
+        "fecha": issue_date,
+        "subtotal": Decimal(str(invoice.subtotal or 0)),
+        "iva": Decimal(str(invoice.iva or 0)),
+        "total": Decimal(str(invoice.total or 0)),
+        "tax_rate": Decimal(str((invoice.iva or 0) / (invoice.subtotal or 1))) if (invoice.subtotal or 0) else Decimal("0"),
+        "empresa": {
+            "nombre": getattr(tenant, "name", "") or "",
+            "ruc": getattr(tenant, "tax_id", "") or "",
+            "direccion": getattr(tenant, "address", "") or "",
+        },
+        "cliente": {
+            "nombre": getattr(customer, "name", "") or "",
+            "ruc": getattr(customer, "tax_id", "") or "",
+            "email": getattr(customer, "email", "") or "",
+        },
+        "lineas": [
+            {
+                "description": getattr(line, "description", "") or "",
+                "quantity": float(getattr(line, "quantity", 0) or 0),
+                "unit_price": float(getattr(line, "unit_price", 0) or 0),
+                "iva": float(getattr(line, "vat", 0) or 0),
+            }
+            for line in (invoice.lines or [])
+        ],
+    }
+    xml_content = generate_facturae_xml(invoice_data)
+    filename = f"factura-{invoice.numero or invoice.id}.xml"
+    return Response(
+        content=xml_content.encode("utf-8"),
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/send-sii", response_model=SendInvoiceResponse, status_code=status.HTTP_201_CREATED)

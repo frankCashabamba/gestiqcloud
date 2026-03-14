@@ -91,6 +91,18 @@ export default function FacturasList() {
   }, [items, estado, desde, hasta, q])
 
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
+  const einvoiceCountry = useMemo(() => {
+    const candidates = [
+      config?.company?.country,
+      config?.settings?.locale,
+    ]
+    const normalized = candidates
+      .map((value) => String(value || '').trim().toUpperCase())
+      .find((value) => value.length >= 2)
+    if (!normalized) return 'ES' as const
+    if (normalized === 'EC' || normalized.endsWith('-EC') || normalized.endsWith('_EC')) return 'EC' as const
+    return 'ES' as const
+  }, [config])
 
   return (
     <div className="p-4">
@@ -153,10 +165,10 @@ export default function FacturasList() {
       <td>
       <EinvoiceStatus
         invoiceId={v.id.toString()}
-          country="ES"  // TODO: Detectar desde company config
-            canSend={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
-            enabled={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
-            />
+        country={einvoiceCountry}
+        canSend={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
+        enabled={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
+      />
           </td>
             <td className="flex gap-2 items-center">
               {(v.estado||'').toLowerCase() === 'pending_payment' ? (

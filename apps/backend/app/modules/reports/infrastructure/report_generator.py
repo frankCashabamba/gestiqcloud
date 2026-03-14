@@ -41,10 +41,10 @@ class SalesReportGenerator(BaseReportGenerator):
                 SELECT
                     DATE(so.created_at) as fecha,
                     COUNT(DISTINCT so.id) as num_pedidos,
-                    SUM(soi.qty) as total_items,
-                    SUM(soi.qty * soi.unit_price) as total_venta
+                    SUM(soi.quantity) as total_items,
+                    SUM(soi.quantity * soi.unit_price) as total_venta
                 FROM sales_orders so
-                LEFT JOIN sales_order_items soi ON so.id = soi.order_id
+                LEFT JOIN sales_order_items soi ON so.id = soi.sales_order_id
                 WHERE so.tenant_id = :tenant_id
             """
 
@@ -101,13 +101,14 @@ class InventoryReportGenerator(BaseReportGenerator):
             query = """
                 SELECT
                     p.id,
-                    p.nombre,
-                    COALESCE(i.cantidad, 0) as stock,
-                    COALESCE(i.precio_unitario, 0) as precio,
-                    COALESCE(i.cantidad * i.precio_unitario, 0) as valor_total
+                    p.name,
+                    COALESCE(SUM(si.qty), 0) as stock,
+                    COALESCE(p.price, 0) as precio,
+                    COALESCE(SUM(si.qty) * p.price, 0) as valor_total
                 FROM products p
-                LEFT JOIN inventario i ON p.id = i.product_id
+                LEFT JOIN stock_items si ON p.id = si.product_id AND si.tenant_id = :tenant_id
                 WHERE p.tenant_id = :tenant_id
+                GROUP BY p.id, p.name, p.price
                 ORDER BY stock ASC
             """
 
@@ -153,7 +154,7 @@ class FinancialReportGenerator(BaseReportGenerator):
                 SELECT COALESCE(SUM(total), 0)
                 FROM invoices
                 WHERE tenant_id = :tenant_id
-                AND estado IN ('emitida', 'pagada')
+                AND status IN ('paid', 'invoiced')
             """
 
             # Expenses from purchase orders

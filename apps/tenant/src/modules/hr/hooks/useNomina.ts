@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getErrorMessage } from '../../../shared/toast'
 import {
   approveNomina,
   createNomina,
@@ -20,9 +21,7 @@ export function useNomina() {
     listNominas()
       .then((items) => setRecibos(items))
       .catch((err: unknown) => {
-        const message =
-          err instanceof Error ? err.message : 'No se pudo cargar la nómina'
-        setError(message)
+        setError(getErrorMessage(err))
         setRecibos([])
       })
       .finally(() => setLoading(false))
@@ -40,7 +39,7 @@ export function useNomina() {
       load()
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo generar la nómina')
+      setError(getErrorMessage(err))
       return false
     } finally {
       setSubmitting(false)
@@ -55,7 +54,7 @@ export function useNomina() {
       load()
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo confirmar la nómina')
+      setError(getErrorMessage(err))
       return false
     } finally {
       setSubmitting(false)
@@ -70,7 +69,7 @@ export function useNomina() {
       load()
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo marcar la nómina como pagada')
+      setError(getErrorMessage(err))
       return false
     } finally {
       setSubmitting(false)
@@ -85,7 +84,7 @@ export function useNomina() {
       load()
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo eliminar la nÃ³mina')
+      setError(getErrorMessage(err))
       return false
     } finally {
       setSubmitting(false)

@@ -171,6 +171,8 @@ def receive_purchase(
                 str(line.product_id),
                 qty=qty_dec,
                 unit_cost=unit_cost_dec,
+                lot=line_lot,
+                expires_at=line.expires_at,
             )
         elif costing_method == "lifo":
             costing.apply_inbound_lifo(
@@ -179,6 +181,8 @@ def receive_purchase(
                 str(line.product_id),
                 qty=qty_dec,
                 unit_cost=unit_cost_dec,
+                lot=line_lot,
+                expires_at=line.expires_at,
             )
         else:
             costing.apply_inbound(

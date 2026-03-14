@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -290,3 +291,91 @@ def test_inventory_value_uses_requested_costing_method(db: Session, tenant_minim
     assert avg_value == Decimal("30.000000")
     assert fifo_value == Decimal("30.000000")
     assert lifo_value == Decimal("30.000000")
+
+
+def test_inventory_costing_fifo_consumes_only_selected_lot(db: Session, tenant_minimal):
+    from app.services.inventory_costing import InventoryCostingService
+
+    tid = tenant_minimal["tenant_id"]
+    tid_str = tenant_minimal["tenant_id_str"]
+
+    eng = db.get_bind()
+    if eng.dialect.name != "postgresql":
+        pytest.skip("Postgres-specific test (RLS + SET LOCAL)")
+
+    db.execute(text(f"SET app.tenant_id = '{tid_str}'"))
+    db.execute(text("SET session_replication_role = REPLICA"))
+
+    wh_id = db.execute(text("SELECT gen_random_uuid()")).scalar()
+    prod_id = db.execute(text("SELECT gen_random_uuid()")).scalar()
+
+    db.execute(
+        text(
+            "INSERT INTO warehouses (id, tenant_id, code, name, active) "
+            "VALUES (:id, :tid, :code, :name, TRUE)"
+        ),
+        {"id": wh_id, "tid": tid, "code": "LOT-FIFO-WH", "name": "Lot FIFO WH"},
+    )
+    db.execute(
+        text(
+            "INSERT INTO products (id, tenant_id, name, active, stock, unit) "
+            "VALUES (:id, :tid, :name, TRUE, 0, 'unit')"
+        ),
+        {"id": prod_id, "tid": tid, "name": "Lot FIFO Product"},
+    )
+    db.commit()
+
+    svc = InventoryCostingService(db)
+    svc.apply_inbound_fifo(
+        str(tid),
+        str(wh_id),
+        str(prod_id),
+        qty=Decimal("5"),
+        unit_cost=Decimal("2.00"),
+        lot="LOT-A",
+        expires_at=date(2026, 3, 31),
+    )
+    svc.apply_inbound_fifo(
+        str(tid),
+        str(wh_id),
+        str(prod_id),
+        qty=Decimal("5"),
+        unit_cost=Decimal("3.00"),
+        lot="LOT-B",
+        expires_at=date(2026, 4, 30),
+    )
+    db.commit()
+
+    state, total_cogs = svc.apply_outbound_fifo(
+        str(tid),
+        str(wh_id),
+        str(prod_id),
+        qty=Decimal("4"),
+        allow_negative=False,
+        lot="LOT-B",
+        expires_at=date(2026, 4, 30),
+    )
+    db.commit()
+
+    assert state.on_hand_qty == Decimal("6")
+    assert total_cogs == Decimal("12.000000")
+
+    layers = db.execute(
+        text(
+            "SELECT lot, expires_at, remaining_qty, unit_cost "
+            "FROM inventory_cost_layers "
+            "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid "
+            "ORDER BY lot ASC"
+        ),
+        {"tid": tid, "wid": wh_id, "pid": prod_id},
+    ).fetchall()
+
+    assert len(layers) == 2
+    assert layers[0][0] == "LOT-A"
+    assert layers[0][1] == date(2026, 3, 31)
+    assert float(layers[0][2] or 0) == 5.0
+    assert float(layers[0][3] or 0) == 2.0
+    assert layers[1][0] == "LOT-B"
+    assert layers[1][1] == date(2026, 4, 30)
+    assert float(layers[1][2] or 0) == 1.0
+    assert float(layers[1][3] or 0) == 3.0

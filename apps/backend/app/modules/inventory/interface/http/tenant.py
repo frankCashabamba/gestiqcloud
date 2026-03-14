@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
@@ -502,6 +503,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
                 str(payload.product_id),
                 qty=qty_dec,
                 unit_cost=unit_cost,
+                lot=lot,
+                expires_at=payload.expires_at,
             )
         elif costing_method == "lifo":
             state = costing.apply_inbound_lifo(
@@ -510,6 +513,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
                 str(payload.product_id),
                 qty=qty_dec,
                 unit_cost=unit_cost,
+                lot=lot,
+                expires_at=payload.expires_at,
             )
         else:
             state = costing.apply_inbound(
@@ -529,6 +534,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
                 str(payload.product_id),
                 qty=qty_dec,
                 allow_negative=True,
+                lot=row.lot,
+                expires_at=row.expires_at,
             )
             unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
         elif costing_method == "lifo":
@@ -538,6 +545,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
                 str(payload.product_id),
                 qty=qty_dec,
                 allow_negative=True,
+                lot=row.lot,
+                expires_at=row.expires_at,
             )
             unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
         else:
@@ -681,6 +690,8 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
             str(payload.product_id),
             qty=qty_dec,
             allow_negative=False,
+            lot=transfer_lot,
+            expires_at=transfer_expires_at,
         )
         transfer_unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
         costing.apply_inbound_fifo(
@@ -689,6 +700,8 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
             str(payload.product_id),
             qty=qty_dec,
             unit_cost=transfer_unit_cost,
+            lot=transfer_lot,
+            expires_at=transfer_expires_at,
         )
     elif costing_method == "lifo":
         state_src, total_cogs = costing.apply_outbound_lifo(
@@ -697,6 +710,8 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
             str(payload.product_id),
             qty=qty_dec,
             allow_negative=False,
+            lot=transfer_lot,
+            expires_at=transfer_expires_at,
         )
         transfer_unit_cost = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
         costing.apply_inbound_lifo(
@@ -705,6 +720,8 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
             str(payload.product_id),
             qty=qty_dec,
             unit_cost=transfer_unit_cost,
+            lot=transfer_lot,
+            expires_at=transfer_expires_at,
         )
     else:
         state_src = costing.apply_outbound(
@@ -846,6 +863,8 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
                     str(payload.product_id),
                     qty=qty_dec,
                     unit_cost=fallback_cost,
+                    lot=item.lot,
+                    expires_at=item.expires_at,
                 )
             elif costing_method == "lifo":
                 state = costing.apply_inbound_lifo(
@@ -854,6 +873,8 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
                     str(payload.product_id),
                     qty=qty_dec,
                     unit_cost=fallback_cost,
+                    lot=item.lot,
+                    expires_at=item.expires_at,
                 )
             else:
                 state = costing.apply_inbound(
@@ -874,6 +895,8 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
                     str(payload.product_id),
                     qty=qty_dec,
                     allow_negative=True,
+                    lot=item.lot,
+                    expires_at=item.expires_at,
                 )
                 unit_cost_for_move = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
             elif costing_method == "lifo":
@@ -883,6 +906,8 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
                     str(payload.product_id),
                     qty=qty_dec,
                     allow_negative=True,
+                    lot=item.lot,
+                    expires_at=item.expires_at,
                 )
                 unit_cost_for_move = _dec(total_cogs / qty_dec if qty_dec > 0 else fallback_cost)
             else:
@@ -1218,7 +1243,10 @@ def test_alert_config(config_id: str, request: Request, db: Session = Depends(ge
     tid = _require_tenant_id(request)
     try:
         from app.models.inventory.alerts import AlertConfig
-        from app.services.notifications import NotificationService
+        from app.modules.notifications.infrastructure.notification_service import (
+            NotificationChannel,
+            NotificationService,
+        )
     except ImportError:
         raise HTTPException(status_code=500, detail="Alert or notification services not available")
 
@@ -1229,7 +1257,7 @@ def test_alert_config(config_id: str, request: Request, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Alert config not found")
 
     # Send test notification
-    notification_service = NotificationService(db)
+    notification_service = NotificationService(db, tenant_id=config.tenant_id)
     test_message = f"🔔 ALERTA DE PRUEBA - {config.name}\n\nEsta es una notificación de prueba del sistema de alertas de inventario."
 
     channels_sent = []
@@ -1237,28 +1265,55 @@ def test_alert_config(config_id: str, request: Request, db: Session = Depends(ge
 
     try:
         if config.notify_email and config.email_recipients:
-            notification_service.send_email(
-                recipients=config.email_recipients,
-                subject=f"Test Alert: {config.name}",
-                body=test_message,
-            )
-            channels_sent.append("email")
+            email_sent = False
+            for recipient in config.email_recipients:
+                result = asyncio.run(
+                    notification_service.send(
+                        channel=NotificationChannel.EMAIL,
+                        recipient=recipient,
+                        subject=f"Test Alert: {config.name}",
+                        body=test_message,
+                    )
+                )
+                email_sent = email_sent or bool(result.get("success"))
+            if email_sent:
+                channels_sent.append("email")
     except Exception as e:
         errors.append(f"Email error: {str(e)}")
 
     try:
         if config.notify_whatsapp and config.whatsapp_numbers:
+            whatsapp_sent = False
             for number in config.whatsapp_numbers:
-                notification_service.send_whatsapp(number, test_message)
-            channels_sent.append("whatsapp")
+                result = asyncio.run(
+                    notification_service.send(
+                        channel=NotificationChannel.WHATSAPP,
+                        recipient=number,
+                        subject=f"Test Alert: {config.name}",
+                        body=test_message,
+                    )
+                )
+                whatsapp_sent = whatsapp_sent or bool(result.get("success"))
+            if whatsapp_sent:
+                channels_sent.append("whatsapp")
     except Exception as e:
         errors.append(f"WhatsApp error: {str(e)}")
 
     try:
         if config.notify_telegram and config.telegram_chat_ids:
+            telegram_sent = False
             for chat_id in config.telegram_chat_ids:
-                notification_service.send_telegram(chat_id, test_message)
-            channels_sent.append("telegram")
+                result = asyncio.run(
+                    notification_service.send(
+                        channel=NotificationChannel.TELEGRAM,
+                        recipient=chat_id,
+                        subject=f"Test Alert: {config.name}",
+                        body=test_message,
+                    )
+                )
+                telegram_sent = telegram_sent or bool(result.get("success"))
+            if telegram_sent:
+                channels_sent.append("telegram")
     except Exception as e:
         errors.append(f"Telegram error: {str(e)}")
 

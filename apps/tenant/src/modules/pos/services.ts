@@ -24,7 +24,7 @@ import type {
 export type { POSReceipt } from '../../types/pos'
 
 const BASE_URL = API_PATHS.POS.REGISTERS.replace('/registers', '')
-const PAYMENTS_URL = '/api/v1/payments' // TODO: mover a API_PATHS
+const PAYMENTS_URL = API_PATHS.PAYMENTS.BASE
 
 // Ensure Authorization header is always present even across dev proxies/redirects
 function authHeaders(): Record<string, string> {

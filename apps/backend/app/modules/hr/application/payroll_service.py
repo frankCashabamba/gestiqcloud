@@ -1,12 +1,13 @@
 """HR Service - Payroll Generation and Management"""
 
+import json
 import logging
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, text
 from sqlalchemy.orm import Session
 
 from app.models.company.company_settings import CompanySettings
@@ -81,6 +82,114 @@ class PayrollService:
             if normalized in {"0", "false", "no", "off"}:
                 return False
         return default
+
+    @staticmethod
+    def _default_payroll_parameters(country: str, year: int) -> dict[str, Any]:
+        country = (country or "ES").upper()
+        if country == "ES" and year == 2026:
+            return {
+                "smi": Decimal("1464.00"),
+                "ss_employee_rate": Decimal("6.35"),
+                "ss_employer_rate": Decimal("23.60"),
+                "mutual_insurance_rate": Decimal("1.25"),
+                "irpf_brackets": [
+                    {"min": 0, "max": 12450, "rate": Decimal("19.00")},
+                    {"min": 12450, "max": 35200, "rate": Decimal("21.00")},
+                    {"min": 35200, "max": 60000, "rate": Decimal("28.00")},
+                    {"min": 60000, "max": 300000, "rate": Decimal("37.00")},
+                    {"min": 300000, "max": float("inf"), "rate": Decimal("45.00")},
+                ],
+            }
+        if country == "EC" and year == 2026:
+            return {
+                "smi": Decimal("460.00"),
+                "ss_employee_rate": Decimal("9.45"),
+                "ss_employer_rate": Decimal("11.15"),
+                "mutual_insurance_rate": Decimal("0.00"),
+                "irpf_brackets": [],
+            }
+        raise ValueError(f"Parameters not found for {country}/{year}")
+
+    @staticmethod
+    def _ensure_payroll_parameters_table(db: Session) -> None:
+        db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS payroll_parameters (
+                    tenant_id TEXT NULL,
+                    country VARCHAR(2) NOT NULL,
+                    year INTEGER NOT NULL,
+                    smi NUMERIC(14,2) NULL,
+                    ss_employee_rate NUMERIC(8,4) NULL,
+                    ss_employer_rate NUMERIC(8,4) NULL,
+                    mutual_insurance_rate NUMERIC(8,4) NULL,
+                    irpf_brackets_json TEXT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        try:
+            db.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_payroll_parameters_scope "
+                    "ON payroll_parameters (tenant_id, country, year)"
+                )
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _load_payroll_parameters_from_db(
+        db: Session,
+        tenant_id: UUID,
+        country: str,
+        year: int,
+    ) -> dict[str, Any] | None:
+        PayrollService._ensure_payroll_parameters_table(db)
+        tenant_key = str(tenant_id)
+        row = db.execute(
+            text(
+                """
+                SELECT tenant_id, smi, ss_employee_rate, ss_employer_rate,
+                       mutual_insurance_rate, irpf_brackets_json
+                FROM payroll_parameters
+                WHERE country = :country
+                  AND year = :year
+                  AND (tenant_id = :tenant_id OR tenant_id IS NULL)
+                ORDER BY CASE WHEN tenant_id = :tenant_id THEN 0 ELSE 1 END
+                LIMIT 1
+                """
+            ),
+            {"tenant_id": tenant_key, "country": country, "year": year},
+        ).mappings().first()
+        if not row:
+            return None
+
+        try:
+            brackets_raw = json.loads(row["irpf_brackets_json"] or "[]")
+        except Exception:
+            brackets_raw = []
+        brackets: list[dict[str, Any]] = []
+        for item in brackets_raw:
+            if not isinstance(item, dict):
+                continue
+            brackets.append(
+                {
+                    "min": float(item.get("min", 0) or 0),
+                    "max": float(item.get("max", float("inf")) or float("inf")),
+                    "rate": PayrollService._parse_decimal(item.get("rate")) or Decimal("0"),
+                }
+            )
+
+        return {
+            "smi": PayrollService._parse_decimal(row["smi"]) or Decimal("0"),
+            "ss_employee_rate": PayrollService._parse_decimal(row["ss_employee_rate"]),
+            "ss_employer_rate": PayrollService._parse_decimal(row["ss_employer_rate"]),
+            "mutual_insurance_rate": PayrollService._parse_decimal(row["mutual_insurance_rate"]),
+            "irpf_brackets": brackets,
+        }
 
     @staticmethod
     def _default_payroll_rules(country_code: str) -> dict[str, Any]:
@@ -160,9 +269,28 @@ class PayrollService:
 
     @staticmethod
     def _payroll_rules(
-        country_code: str, payroll_settings: dict[str, Any] | None
+        country_code: str,
+        payroll_settings: dict[str, Any] | None,
+        payroll_parameters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         rules = PayrollService._default_payroll_rules(country_code)
+        parameters = payroll_parameters if isinstance(payroll_parameters, dict) else {}
+        if parameters:
+            if parameters.get("ss_employee_rate") is not None:
+                rules["social_security_employee_rate"] = PayrollService._parse_decimal(
+                    parameters.get("ss_employee_rate")
+                )
+            if parameters.get("ss_employer_rate") is not None:
+                rules["social_security_employer_rate"] = PayrollService._parse_decimal(
+                    parameters.get("ss_employer_rate")
+                )
+            if parameters.get("mutual_insurance_rate") is not None:
+                rules["mutual_insurance_rate"] = PayrollService._parse_decimal(
+                    parameters.get("mutual_insurance_rate")
+                )
+            if parameters.get("irpf_brackets"):
+                rules["apply_income_tax"] = True
+                rules["income_tax_rate"] = None
         settings = payroll_settings if isinstance(payroll_settings, dict) else {}
         if not settings:
             return rules
@@ -384,67 +512,76 @@ class PayrollService:
 
     @staticmethod
     def get_payroll_parameters(db: Session, tenant_id: UUID, country: str, year: int) -> dict:
-        """
-        Obtiene parámetros de impuestos desde BD.
-
-        Busca en tabla payroll_parameters (que debe existir como master data).
-        De momento retorna defaults para España 2026.
-        """
-        # TODO: Implementar lectura desde tabla payroll_parameters
-        if country == "ES" and year == 2026:
-            return {
-                "smi": Decimal("1464.00"),  # Salario mínimo interprofesional
-                "ss_employee_rate": Decimal("6.35"),  # %
-                "ss_employer_rate": Decimal("23.60"),  # %
-                "mutual_insurance_rate": Decimal("1.25"),  # % (promedio)
-                "irpf_brackets": [
-                    {"min": 0, "max": 12450, "rate": Decimal("19.00")},
-                    {"min": 12450, "max": 35200, "rate": Decimal("21.00")},
-                    {"min": 35200, "max": 60000, "rate": Decimal("28.00")},
-                    {"min": 60000, "max": 300000, "rate": Decimal("37.00")},
-                    {"min": 300000, "max": float("inf"), "rate": Decimal("45.00")},
-                ],
-            }
-
-        raise ValueError(f"Parameters not found for {country}/{year}")
+        """Obtiene parametros de nomina desde BD con fallback a defaults."""
+        normalized_country = str(country or "ES").strip().upper()
+        from_db = PayrollService._load_payroll_parameters_from_db(
+            db, tenant_id, normalized_country, year
+        )
+        if from_db:
+            defaults = PayrollService._default_payroll_parameters(normalized_country, year)
+            merged = {**defaults, **{k: v for k, v in from_db.items() if v is not None}}
+            if from_db.get("irpf_brackets"):
+                merged["irpf_brackets"] = from_db["irpf_brackets"]
+            return merged
+        return PayrollService._default_payroll_parameters(normalized_country, year)
 
     @staticmethod
     def calculate_irpf(gross: Decimal, country: str, year: int, db: Session = None) -> Decimal:
-        """Calcula IRPF según brackets."""
-        if country == "ES" and year == 2026:
-            # Tarifa progresiva España 2026
-            brackets = [
-                (Decimal("12450"), Decimal("19")),
-                (Decimal("35200"), Decimal("21")),
-                (Decimal("60000"), Decimal("28")),
-                (Decimal("300000"), Decimal("37")),
-                (Decimal("999999999"), Decimal("45")),
-            ]
+        """Calcula impuesto sobre la renta segun brackets configurados."""
+        normalized_country = str(country or "ES").strip().upper()
+        params = None
+        if db is not None:
+            params = PayrollService._load_payroll_parameters_from_db(
+                db,
+                UUID(int=0),
+                normalized_country,
+                year,
+            )
+        if not params:
+            params = PayrollService._default_payroll_parameters(normalized_country, year)
 
-            irpf = Decimal("0")
-            prev_limit = Decimal("0")
+        brackets = params.get("irpf_brackets") or []
+        gross_amount = Decimal(str(gross or 0))
+        if gross_amount <= 0 or not brackets:
+            return Decimal("0.00")
 
-            for limit, rate in brackets:
-                if gross <= prev_limit:
-                    break
-                taxable = min(gross, limit) - prev_limit
-                irpf += taxable * (rate / 100)
-                prev_limit = limit
+        tax = Decimal("0")
+        previous_limit = Decimal("0")
+        for bracket in brackets:
+            limit = Decimal(str(bracket.get("max", gross_amount)))
+            rate = PayrollService._parse_decimal(bracket.get("rate")) or Decimal("0")
+            if gross_amount <= previous_limit:
+                break
+            taxable = min(gross_amount, limit) - previous_limit
+            tax += taxable * (rate / Decimal("100"))
+            previous_limit = limit
 
-            return irpf
-
-        raise ValueError(f"IRPF calculation not implemented for {country}/{year}")
+        return tax.quantize(Decimal("0.01"))
 
     @staticmethod
     def calculate_social_security(
-        gross: Decimal, country: str, year: int, employee: bool = True
+        gross: Decimal,
+        country: str,
+        year: int,
+        employee: bool = True,
+        db: Session | None = None,
     ) -> Decimal:
-        """Calcula aportación Seguridad Social."""
-        if country == "ES" and year == 2026:
-            rate = Decimal("6.35") if employee else Decimal("23.60")
-            return (gross * rate) / 100
+        """Calcula aportacion de Seguridad Social."""
+        normalized_country = str(country or "ES").strip().upper()
+        params = None
+        if db is not None:
+            params = PayrollService._load_payroll_parameters_from_db(
+                db,
+                UUID(int=0),
+                normalized_country,
+                year,
+            )
+        if not params:
+            params = PayrollService._default_payroll_parameters(normalized_country, year)
 
-        raise ValueError(f"SS calculation not implemented for {country}/{year}")
+        rate_key = "ss_employee_rate" if employee else "ss_employer_rate"
+        rate = PayrollService._parse_decimal(params.get(rate_key)) or Decimal("0")
+        return ((Decimal(str(gross or 0)) * rate) / Decimal("100")).quantize(Decimal("0.01"))
 
     @staticmethod
     def _existing_payroll_for_month(
@@ -546,8 +683,13 @@ class PayrollService:
 
         year = int(payroll_month[:4])
         tenant_context = PayrollService._tenant_payroll_context(db, tenant_id)
+        payroll_parameters = PayrollService.get_payroll_parameters(
+            db, tenant_id, tenant_context["country_code"], year
+        )
         payroll_rules = PayrollService._payroll_rules(
-            tenant_context["country_code"], tenant_context.get("payroll_settings")
+            tenant_context["country_code"],
+            tenant_context.get("payroll_settings"),
+            payroll_parameters,
         )
 
         for employee in employees:

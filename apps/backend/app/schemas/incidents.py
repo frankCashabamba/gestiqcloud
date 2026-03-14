@@ -117,11 +117,22 @@ class NotificationChannelCreate(BaseModel):
             if "smtp_host" not in v or "from_email" not in v:
                 raise ValueError("Email config requires smtp_host and from_email")
         elif channel_type == "whatsapp":
-            if "api_key" not in v or "phone" not in v:
-                raise ValueError("WhatsApp config requires api_key and phone")
+            provider = str(v.get("provider") or "twilio").strip().lower()
+            if provider == "twilio":
+                required = ("account_sid", "auth_token", "from_number")
+                if any(not v.get(key) for key in required):
+                    raise ValueError(
+                        "WhatsApp Twilio config requires account_sid, auth_token and from_number"
+                    )
+            elif provider == "generic":
+                required = ("api_url", "api_key")
+                if any(not v.get(key) for key in required):
+                    raise ValueError("WhatsApp generic config requires api_url and api_key")
+            else:
+                raise ValueError("WhatsApp config provider must be twilio or generic")
         elif channel_type == "telegram":
-            if "bot_token" not in v or "chat_id" not in v:
-                raise ValueError("Telegram config requires bot_token and chat_id")
+            if not v.get("bot_token"):
+                raise ValueError("Telegram config requires bot_token")
         elif channel_type == "slack":
             if "webhook_url" not in v:
                 raise ValueError("Slack config requires webhook_url")
@@ -134,7 +145,7 @@ class NotificationChannelCreate(BaseModel):
                 "name": "Primary Stock Alerts",
                 "config": {
                     "bot_token": "123456:ABC-DEF...",
-                    "chat_id": "-1001234567890",
+                    "parse_mode": "HTML",
                 },
                 "is_active": True,
                 "priority": 10,

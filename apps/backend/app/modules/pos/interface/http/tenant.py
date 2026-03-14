@@ -482,10 +482,20 @@ def _is_tax_enabled(db: Session) -> bool:
         return True
 
 
-class CheckoutLineStockSelectionIn(BaseModel):
-    line_id: str
+class CheckoutLineStockAllocationIn(BaseModel):
     lot: str | None = Field(default=None, max_length=100)
     expires_at: date | None = None
+    qty: float = Field(gt=0)
+
+    @field_validator("lot")
+    @classmethod
+    def normalize_lot(cls, v):
+        return _normalize_lot(v)
+
+
+class CheckoutLineStockSelectionIn(BaseModel):
+    line_id: str
+    allocations: list[CheckoutLineStockAllocationIn] = Field(min_length=1)
 
     @field_validator("line_id")
     @classmethod
@@ -2041,32 +2051,52 @@ def checkout(
             # Actualizar stock_items con lock
             stock_rows = _load_locked_stock_rows(db, warehouse_uuid, product_id)
             line_selection = line_selection_map.get(str(line_id))
+            allocations: list[tuple[object, float, str | None, date | None]] = []
             if line_selection is not None:
-                stock_item = _resolve_selected_stock_row(
-                    stock_rows,
-                    lot=line_selection.lot,
-                    expires_at=line_selection.expires_at,
-                )
-                selected_lot = _normalize_lot(line_selection.lot)
-                selected_expires_at = line_selection.expires_at
+                selected_total = 0.0
+                for allocation in line_selection.allocations:
+                    alloc_qty = float(allocation.qty or 0)
+                    if alloc_qty <= 0:
+                        continue
+                    stock_item = _resolve_selected_stock_row(
+                        stock_rows,
+                        lot=allocation.lot,
+                        expires_at=allocation.expires_at,
+                    )
+                    selected_qty = float(stock_item[1] or 0)
+                    if selected_qty < alloc_qty:
+                        raise HTTPException(status_code=400, detail="selected_lot_insufficient")
+                    allocations.append(
+                        (
+                            stock_item,
+                            alloc_qty,
+                            _normalize_lot(allocation.lot),
+                            allocation.expires_at,
+                        )
+                    )
+                    selected_total += alloc_qty
+                if abs(selected_total - qty_sold) > 0.000001:
+                    raise HTTPException(status_code=400, detail="invalid_lot_allocation_total")
             else:
                 stock_item = _resolve_outbound_stock_row(stock_rows)
-                selected_lot = _normalize_lot(stock_item[2]) if stock_item is not None else None
-                selected_expires_at = stock_item[3] if stock_item is not None else None
-
-            if stock_item is None:
-                stock_item = _ensure_generic_stock_row(
-                    db,
-                    tenant_id=tenant_id,
-                    warehouse_id=warehouse_uuid,
-                    product_id=product_id,
+                if stock_item is None:
+                    stock_item = _ensure_generic_stock_row(
+                        db,
+                        tenant_id=tenant_id,
+                        warehouse_id=warehouse_uuid,
+                        product_id=product_id,
+                    )
+                    stock_rows = [stock_item]
+                allocations.append(
+                    (
+                        stock_item,
+                        qty_sold,
+                        _normalize_lot(stock_item[2]) if stock_item is not None else None,
+                        stock_item[3] if stock_item is not None else None,
+                    )
                 )
-                stock_rows = [stock_item]
-                selected_lot = None
-                selected_expires_at = None
 
             current_qty = _sum_stock_rows_qty(stock_rows)
-            selected_qty = float(stock_item[1] or 0)
 
             cost_price = db.execute(
                 text("SELECT cost_price FROM products WHERE id = :pid"),
@@ -2098,29 +2128,39 @@ def checkout(
 
             qty_dec = _to_decimal_q(qty_sold, "0.000001")
             if costing_method == "fifo":
-                state, cogs_total = costing.apply_outbound_fifo(
-                    str(tenant_id),
-                    str(warehouse_uuid),
-                    str(product_id),
-                    qty=qty_dec,
-                    allow_negative=False,
-                )
+                cogs_total = _to_decimal_q(0, "0.000001")
+                for stock_item, alloc_qty, selected_lot, selected_expires_at in allocations:
+                    _state, alloc_cogs = costing.apply_outbound_fifo(
+                        str(tenant_id),
+                        str(warehouse_uuid),
+                        str(product_id),
+                        qty=_to_decimal_q(alloc_qty, "0.000001"),
+                        allow_negative=False,
+                        lot=selected_lot,
+                        expires_at=selected_expires_at,
+                    )
+                    cogs_total += alloc_cogs
                 cogs_unit = (
                     _to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else _to_decimal_q(0, "0.000001")
                 )
             elif costing_method == "lifo":
-                state, cogs_total = costing.apply_outbound_lifo(
-                    str(tenant_id),
-                    str(warehouse_uuid),
-                    str(product_id),
-                    qty=qty_dec,
-                    allow_negative=False,
-                )
+                cogs_total = _to_decimal_q(0, "0.000001")
+                for stock_item, alloc_qty, selected_lot, selected_expires_at in allocations:
+                    _state, alloc_cogs = costing.apply_outbound_lifo(
+                        str(tenant_id),
+                        str(warehouse_uuid),
+                        str(product_id),
+                        qty=_to_decimal_q(alloc_qty, "0.000001"),
+                        allow_negative=False,
+                        lot=selected_lot,
+                        expires_at=selected_expires_at,
+                    )
+                    cogs_total += alloc_cogs
                 cogs_unit = (
                     _to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else _to_decimal_q(0, "0.000001")
                 )
             else:
-                state = costing.apply_outbound(
+                _state = costing.apply_outbound(
                     str(tenant_id),
                     str(warehouse_uuid),
                     str(product_id),
@@ -2129,7 +2169,7 @@ def checkout(
                     initial_qty=_to_decimal_q(current_qty, "0.000001"),
                     initial_avg_cost=fallback_cost,
                 )
-                cogs_unit = state.avg_cost
+                cogs_unit = _state.avg_cost
                 cogs_total = qty_dec * cogs_unit
             net_total = _to_decimal_q(qty_sold, "0.000001") * _to_decimal_q(unit_price, "0.0001")
             net_total = net_total * (Decimal("1") - (_to_decimal_q(discount_pct, "0.01") / 100))
@@ -2158,46 +2198,57 @@ def checkout(
                 },
             )
 
-            # Registrar movimiento de stock con costo
-            db.execute(
-                text(
-                    "INSERT INTO stock_moves("
-                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, "
-                    "tentative, posted, lot, expires_at, unit_cost, total_cost, occurred_at"
-                    ") VALUES ("
-                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, :lot, :exp, :uc, :tc, :occurred_at"
-                    ")"
-                ).bindparams(
-                    bindparam("tid", type_=PGUUID(as_uuid=True)),
-                    bindparam("pid", type_=PGUUID(as_uuid=True)),
-                    bindparam("wid", type_=PGUUID(as_uuid=True)),
-                    bindparam("rid", type_=PGUUID(as_uuid=True)),
-                ),
-                {
-                    "tid": tenant_id,
-                    "pid": product_id,
-                    "wid": warehouse_uuid,
-                    "q": qty_sold,
-                    "rid": receipt_uuid,
-                    "lot": selected_lot,
-                    "exp": selected_expires_at,
-                    "uc": float(cogs_unit),
-                    "tc": float(cogs_total_money),
-                    "occurred_at": datetime.utcnow(),
-                },
-            )
-
-            new_qty = selected_qty - qty_sold
-            if current_qty - qty_sold < 0 or new_qty < 0:
+            if current_qty - qty_sold < 0:
                 raise HTTPException(status_code=400, detail="insufficient_stock")
+            running_total = 0.0
+            for stock_item, alloc_qty, selected_lot, selected_expires_at in allocations:
+                selected_qty = float(stock_item[1] or 0)
+                new_qty = selected_qty - alloc_qty
+                if new_qty < 0:
+                    raise HTTPException(status_code=400, detail="selected_lot_insufficient")
+                running_total += alloc_qty
+                alloc_qty_dec = _to_decimal_q(alloc_qty, "0.000001")
+                alloc_ratio = alloc_qty_dec / qty_dec if qty_dec > 0 else _to_decimal_q(0, "0.000001")
+                alloc_total_cost = _to_decimal_q(cogs_total_money * alloc_ratio, "0.01")
 
-            db.execute(
-                text(
-                    "UPDATE stock_items SET qty = :q "
-                    "WHERE id = :id"
-                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-                {"q": new_qty, "id": stock_item[0]},
-            )
+                db.execute(
+                    text(
+                        "INSERT INTO stock_moves("
+                        "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, "
+                        "tentative, posted, lot, expires_at, unit_cost, total_cost, occurred_at"
+                        ") VALUES ("
+                        ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, :lot, :exp, :uc, :tc, :occurred_at"
+                        ")"
+                    ).bindparams(
+                        bindparam("tid", type_=PGUUID(as_uuid=True)),
+                        bindparam("pid", type_=PGUUID(as_uuid=True)),
+                        bindparam("wid", type_=PGUUID(as_uuid=True)),
+                        bindparam("rid", type_=PGUUID(as_uuid=True)),
+                    ),
+                    {
+                        "tid": tenant_id,
+                        "pid": product_id,
+                        "wid": warehouse_uuid,
+                        "q": alloc_qty,
+                        "rid": receipt_uuid,
+                        "lot": selected_lot,
+                        "exp": selected_expires_at,
+                        "uc": float(cogs_unit),
+                        "tc": float(alloc_total_cost),
+                        "occurred_at": datetime.utcnow(),
+                    },
+                )
+
+                db.execute(
+                    text(
+                        "UPDATE stock_items SET qty = :q "
+                        "WHERE id = :id"
+                    ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                    {"q": new_qty, "id": stock_item[0]},
+                )
+
+            if abs(running_total - qty_sold) > 0.000001:
+                raise HTTPException(status_code=400, detail="invalid_lot_allocation_total")
 
         # 6. Marcar recibo como pagado
         db.execute(

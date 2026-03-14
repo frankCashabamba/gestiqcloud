@@ -5,6 +5,7 @@ Handles checking inventory levels and sending notifications.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -15,6 +16,10 @@ from app.models.core.products import Product
 from app.models.inventory.alerts import AlertConfig, AlertHistory
 from app.models.inventory.stock import StockItem
 from app.models.inventory.warehouse import Warehouse
+from app.modules.notifications.infrastructure.notification_service import (
+    NotificationChannel,
+    NotificationService,
+)
 from app.models.production._production_order import ProductionOrder
 
 
@@ -331,40 +336,61 @@ Fecha: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}"""
         """Send alert notification through configured channels."""
         channels_sent: list[str] = []
 
-        try:
-            from app.services.notifications import NotificationService
+        notification_service = NotificationService(self.db, tenant_id=config.tenant_id)
 
-            notification_service = NotificationService(self.db)
-
-            if config.notify_email and config.email_recipients:
+        if config.notify_email and config.email_recipients:
+            email_sent = False
+            for recipient in config.email_recipients:
                 try:
-                    notification_service.send_email(
-                        recipients=config.email_recipients,
-                        subject=f"Alerta de Inventario: {config.name}",
-                        body=message,
+                    result = asyncio.run(
+                        notification_service.send(
+                            channel=NotificationChannel.EMAIL,
+                            recipient=recipient,
+                            subject=f"Alerta de Inventario: {config.name}",
+                            body=message,
+                        )
                     )
-                    channels_sent.append("email")
+                    email_sent = email_sent or bool(result.get("success"))
                 except Exception as exc:
                     print(f"Email notification failed: {exc}")
+            if email_sent:
+                channels_sent.append("email")
 
-            if config.notify_whatsapp and config.whatsapp_numbers:
+        if config.notify_whatsapp and config.whatsapp_numbers:
+            whatsapp_sent = False
+            for number in config.whatsapp_numbers:
                 try:
-                    for number in config.whatsapp_numbers:
-                        notification_service.send_whatsapp(number, message)
-                    channels_sent.append("whatsapp")
+                    result = asyncio.run(
+                        notification_service.send(
+                            channel=NotificationChannel.WHATSAPP,
+                            recipient=number,
+                            subject=f"Alerta de Inventario: {config.name}",
+                            body=message,
+                        )
+                    )
+                    whatsapp_sent = whatsapp_sent or bool(result.get("success"))
                 except Exception as exc:
                     print(f"WhatsApp notification failed: {exc}")
+            if whatsapp_sent:
+                channels_sent.append("whatsapp")
 
-            if config.notify_telegram and config.telegram_chat_ids:
+        if config.notify_telegram and config.telegram_chat_ids:
+            telegram_sent = False
+            for chat_id in config.telegram_chat_ids:
                 try:
-                    for chat_id in config.telegram_chat_ids:
-                        notification_service.send_telegram(chat_id, message)
-                    channels_sent.append("telegram")
+                    result = asyncio.run(
+                        notification_service.send(
+                            channel=NotificationChannel.TELEGRAM,
+                            recipient=chat_id,
+                            subject=f"Alerta de Inventario: {config.name}",
+                            body=message,
+                        )
+                    )
+                    telegram_sent = telegram_sent or bool(result.get("success"))
                 except Exception as exc:
                     print(f"Telegram notification failed: {exc}")
-
-        except ImportError:
-            print("Notification service not available")
+            if telegram_sent:
+                channels_sent.append("telegram")
 
         return channels_sent
 

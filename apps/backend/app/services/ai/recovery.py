@@ -6,12 +6,15 @@ Intenta solucionar problemas automáticamente
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import time
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.cache import CacheTTL, build_cache_key, cache_get
 from app.services.ai.base import AIRequest, AIResponse
 from app.services.ai.factory import AIProviderFactory
 from app.services.ai.logging import AILogger
@@ -223,8 +226,59 @@ class CacheStrategy(ErrorRecoveryStrategy):
         Buscar en cache (futuro)
         Por ahora es placeholder
         """
-        # TODO: Implementar cache en Redis
-        return None
+        try:
+            tenant_id = None
+            for source in (request.metadata or {}, request.context or {}):
+                if isinstance(source, dict) and source.get("tenant_id"):
+                    tenant_id = str(source["tenant_id"])
+                    break
+            if not tenant_id:
+                tenant_id = "global"
+
+            key_payload = {
+                "task": str(request.task),
+                "prompt": request.prompt,
+                "model": str(request.model or ""),
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "context": request.context or {},
+            }
+            fingerprint = hashlib.md5(
+                json.dumps(key_payload, sort_keys=True, default=str).encode("utf-8"),
+                usedforsecurity=False,
+            ).hexdigest()
+            cache_key = build_cache_key(tenant_id, "ai_recovery", fingerprint)
+            cached = await cache_get(cache_key)
+            if not isinstance(cached, dict) or not cached.get("content"):
+                return None
+
+            response = AIResponse(
+                task=request.task,
+                content=str(cached.get("content") or ""),
+                model=str(cached.get("model") or "cache"),
+                tokens_used=cached.get("tokens_used"),
+                confidence=cached.get("confidence"),
+                processing_time_ms=0,
+                metadata={
+                    **(cached.get("metadata") or {}),
+                    "source": "redis_cache",
+                    "cache_ttl": int(CacheTTL.MEDIUM),
+                },
+                error=None,
+            )
+            AILogger.log_recovery_attempt(
+                db,
+                request_id,
+                self.name,
+                "Respuesta recuperada desde Redis",
+                success=True,
+                recovery_time_ms=0,
+                result={"cache_key": cache_key},
+            )
+            return response
+        except Exception as e:
+            logger.debug(f"Cache strategy failed: {e}")
+            return None
 
 
 class AIRecoveryManager:

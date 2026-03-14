@@ -7,16 +7,47 @@ from __future__ import annotations
 
 import json
 import logging
+import hashlib
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.cache import CacheTTL, build_cache_key, cache_set
 from app.services.ai.base import AIRequest, AIResponse, AITask
 from app.services.ai.factory import AIProviderFactory
 from app.services.ai.logging import AILogger
 from app.services.ai.recovery import recovery_manager
 
 logger = logging.getLogger(__name__)
+
+
+async def _store_response_in_cache(tenant_id: str | None, request: AIRequest, response: AIResponse) -> None:
+    if response.is_error or not response.content:
+        return
+    cache_tenant = str(tenant_id or "global")
+    key_payload = {
+        "task": str(request.task),
+        "prompt": request.prompt,
+        "model": str(request.model or ""),
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens,
+        "context": request.context or {},
+    }
+    fingerprint = hashlib.md5(
+        json.dumps(key_payload, sort_keys=True, default=str).encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()
+    await cache_set(
+        build_cache_key(cache_tenant, "ai_recovery", fingerprint),
+        {
+            "content": response.content,
+            "model": response.model,
+            "tokens_used": response.tokens_used,
+            "confidence": response.confidence,
+            "metadata": response.metadata or {},
+        },
+        ttl=CacheTTL.MEDIUM,
+    )
 
 
 class AIService:
@@ -112,6 +143,7 @@ class AIService:
                     AIResponseStatus.SUCCESS if not response.is_error else AIResponseStatus.ERROR
                 )
                 AILogger.log_response(db, request_id, response, status=status)
+            await _store_response_in_cache(tenant_id, request, response)
 
             logger.debug(f"IA query ({task}): {ai_provider.name} - {response.processing_time_ms}ms")
             return response

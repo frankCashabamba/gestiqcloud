@@ -5,32 +5,47 @@ import type { Movimiento, MovimientoBanco, SaldosResumen } from './types'
 // Re-export types
 export type { Movimiento, MovimientoBanco, SaldosResumen }
 
+function mapMovimiento(m: any): Movimiento {
+  const tipoRaw = (m.tipo || m.type || '').toString().toLowerCase()
+  const tipo: 'ingreso' | 'egreso' =
+    tipoRaw === 'expense' || tipoRaw === 'egreso' || Number(m.amount || 0) < 0
+      ? 'egreso'
+      : 'ingreso'
+  const monto = typeof m.importe !== 'undefined' ? m.importe : m.amount
+  return {
+    id: m.id,
+    fecha: m.fecha || m.date || m.created_at || '',
+    concepto: m.concepto || m.descripcion || m.description || '',
+    tipo,
+    monto: Number(monto || 0),
+    referencia: m.ref_doc_id,
+    cuenta: m.caja_id || m.cash_box_id,
+    conciliado: m.conciliado ?? true,
+    created_at: m.created_at,
+  } as Movimiento
+}
+
 export async function listCaja(): Promise<Movimiento[]> {
   try {
     const { data } = await tenantApi.get<any>(TENANT_CASHBOX.base)
     const items: any[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
-    return items.map((m) => {
-      const tipoRaw = (m.tipo || m.type || '').toString().toLowerCase()
-      const tipo: 'ingreso' | 'egreso' =
-        tipoRaw === 'expense' || tipoRaw === 'egreso' || Number(m.amount || 0) < 0
-          ? 'egreso'
-          : 'ingreso'
-      const monto = typeof m.importe !== 'undefined' ? m.importe : m.amount
-      return {
-        id: m.id,
-        fecha: m.fecha || m.date || m.created_at || '',
-        concepto: m.concepto || m.descripcion || m.description || '',
-        tipo,
-        monto: Number(monto || 0),
-        referencia: m.ref_doc_id,
-        cuenta: m.caja_id || m.cash_box_id,
-        conciliado: m.conciliado ?? true,
-        created_at: m.created_at,
-      } as Movimiento
-    })
+    return items.map(mapMovimiento)
   } catch (error) {
     console.error('Error loading caja:', error)
     return []
+  }
+}
+
+export async function getMovimientoCaja(id: number | string): Promise<Movimiento> {
+  try {
+    const { data } = await tenantApi.get<any>(`${TENANT_CASHBOX.base}/${id}`)
+    return mapMovimiento(data)
+  } catch (error: any) {
+    if (error?.response?.status !== 404) throw error
+    const movimientos = await listCaja()
+    const movimiento = movimientos.find((item) => String(item.id) === String(id))
+    if (!movimiento) throw error
+    return movimiento
   }
 }
 
@@ -87,6 +102,14 @@ export async function conciliarMovimiento(id: number | string): Promise<Movimien
 
 export async function createMovimientoCaja(payload: Omit<Movimiento, 'id'>): Promise<Movimiento> {
   const { data } = await tenantApi.post<Movimiento>(TENANT_CASHBOX.base, payload)
+  return data
+}
+
+export async function updateMovimientoCaja(
+  id: number | string,
+  payload: Partial<Omit<Movimiento, 'id'>>,
+): Promise<Movimiento> {
+  const { data } = await tenantApi.put<Movimiento>(`${TENANT_CASHBOX.base}/${id}`, payload)
   return data
 }
 

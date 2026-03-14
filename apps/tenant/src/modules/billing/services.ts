@@ -317,7 +317,6 @@ export async function marcarCobrada(id: number | string): Promise<void> {
     await tenantApi.patch(TENANT_INVOICING.byId(String(id)) + '/marcar-cobrada')
 }
 
-// Stub for Facturae export (downloads XML); adjust endpoint when backend is ready
 export async function exportarFacturae(id: string | number): Promise<Blob> {
     const res = await tenantApi.get(`/einvoicing/facturae/${id}/export`, {
         responseType: 'blob'
