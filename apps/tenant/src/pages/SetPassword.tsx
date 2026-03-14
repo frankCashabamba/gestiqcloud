@@ -20,6 +20,12 @@ interface PasswordStrength {
   errors: string[]
 }
 
+interface SetPasswordResponse {
+  email?: string
+  username?: string
+  requires_onboarding?: boolean
+}
+
 function checkStrength(pwd: string): PasswordStrength {
   const errors: string[] = []
   if (pwd.length < 8) errors.push('Mínimo 8 caracteres')
@@ -65,12 +71,12 @@ export default function SetPassword() {
       if (!isValid) throw new Error(strength.errors[0])
       if (pwd !== pwd2) throw new Error(t('pages.setPassword.errors.mismatch'))
       setSaving(true)
-      const { data } = await tenantApi.post(TENANT_AUTH.setPassword, { token, password: pwd })
+      const { data } = await tenantApi.post<SetPasswordResponse>(TENANT_AUTH.setPassword, { token, password: pwd })
       const ident = (data?.email || data?.username || '').trim()
       if (!ident) throw new Error(t('pages.setPassword.errors.loginFailed'))
       await login({ identificador: ident, password: pwd })
       success(t('pages.setPassword.success'))
-      const target = await resolveTenantPath()
+      const target = data?.requires_onboarding ? '/onboarding' : await resolveTenantPath()
       nav(target)
     } catch (e: any) {
       error(getErrorMessage(e))

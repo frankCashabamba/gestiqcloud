@@ -72,7 +72,8 @@ export async function getShiftSummary(shiftId: string, params?: { cashier_id?: s
 }
 
 export async function closeShift(payload: ShiftCloseRequest): Promise<POSShift> {
-    const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts/close`, payload, { headers: authHeaders() })
+    const { shift_id, ...body } = payload
+    const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts/${shift_id}/close`, body, { headers: authHeaders() })
     return data
 }
 

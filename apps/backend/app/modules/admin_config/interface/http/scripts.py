@@ -12,8 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin-scripts"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["admin-scripts"],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
+)
 
 
 class RunScriptIn(BaseModel):

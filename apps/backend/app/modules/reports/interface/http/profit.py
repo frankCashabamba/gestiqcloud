@@ -82,7 +82,7 @@ def get_product_margins(
     date_from: date = Query(...),
     date_to: date = Query(...),
     limit: int = Query(50, le=200),
-    sort_by: str = Query("revenue", regex="^(revenue|margin_pct|cogs|sold_qty)$"),
+    sort_by: str = Query("revenue", pattern="^(revenue|margin_pct|cogs|sold_qty)$"),
     db: Session = Depends(get_db),
 ):
     """Get product profit margins from snapshots."""

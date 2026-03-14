@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import UTC, datetime
 from email.utils import format_datetime
 from importlib import import_module
@@ -203,7 +202,7 @@ def build_api_router() -> APIRouter:
     # Empresas
     _mount_empresas(r)
     # Onboarding initialization
-    include_router_safe(r, ("app.routers.onboarding_init", "router"))
+    include_router_safe(r, ("app.modules.onboarding.interface.http.tenant", "router"))
     # Alta de empresas: usar router moderno únicamente
 
     # Clientes (mount under /tenant to align FE endpoints)
@@ -289,53 +288,6 @@ def build_api_router() -> APIRouter:
 
     # (deduplicated) Inventario router is already mounted above
 
-    # Imports (controlado por IMPORTS_ENABLED)
-    imports_enabled = os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true")
-    if imports_enabled:
-        include_router_safe(
-            r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
-        )
-
-        # Smart Preview endpoints
-        include_router_safe(
-            r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
-        )
-
-        # Import Files endpoints (classification, etc.)
-        include_router_safe(
-            r, ("app.modules.imports.interface.http.preview", "files_router"), prefix="/imports"
-        )
-
-        # Smart Router analyze endpoint
-        include_router_safe(
-            r, ("app.modules.imports.interface.http.analyze", "router"), prefix="/imports"
-        )
-
-        # Batch confirmation endpoint
-        include_router_safe(
-            r, ("app.modules.imports.interface.http.confirm", "router"), prefix="/imports"
-        )
-
-        # OCR Metrics endpoint
-        include_router_safe(r, ("app.modules.imports.interface.http.metrics", "router"), prefix="")
-
-        # Imports public (health) router
-        _mounted_public = include_router_safe(
-            r, ("app.modules.imports.interface.http.tenant", "public_router")
-        )
-        logger.info(
-            "imports.public_router mounted=%s via IMPORTS_ENABLED",
-            bool(_mounted_public),
-        )
-
-        # Minimal v2 importer
-        include_router_safe(r, ("app.modules.imports_v2", "router"), prefix="/api/v1")
-        # Minimal v2 importer
-        include_router_safe(r, ("app.modules.imports_v2", "router"), prefix="")
-    else:
-        logger.debug("Imports routers skipped (IMPORTS_ENABLED=0); mounting imports_v2 anyway")
-        include_router_safe(r, ("app.modules.imports_v2", "router"), prefix="")
-
     # Accounting
     include_router_safe(
         r,
@@ -355,14 +307,6 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.production.interface.http.tenant", "router"), prefix="/tenant"
     )
-
-    # Importador Excel
-    if os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true"):
-        include_router_safe(
-            r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
-        )
-    else:
-        logger.debug("Importador Excel skipped (IMPORTS_ENABLED=0)")
 
     include_router_safe(
         r, ("app.modules.printing.interface.http.tenant", "router"), prefix="/tenant"
@@ -484,55 +428,5 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.reports.interface.http.profit", "router"), prefix="/tenant"
     )
-
-    # Final safeguard: ensure imports router is mounted in non-production envs
-    try:
-        env = os.getenv("ENV", "development").lower()
-
-        def _has_import_batches(routes) -> bool:
-            markers = {
-                "/imports/batches",
-                "/api/v1/imports/batches",
-                "/tenant/imports/batches",
-            }
-            for rt in routes:
-                path = (getattr(rt, "path", "") or "").rstrip("/")
-                if path in markers:
-                    return True
-            return False
-
-        has_imports = _has_import_batches(r.routes)
-        if env != "production" and not has_imports:
-            # Try multiple paths to be resilient across entrypoints
-            mounted = include_router_safe(
-                r,
-                ("app.modules.imports.interface.http.tenant", "router"),
-                prefix="/tenant",
-                fallback=(
-                    "apps.backend.app.modules.imports.interface.http.tenant",
-                    "router",
-                ),
-            ) or include_router_safe(
-                r,
-                ("backend.app.modules.imports.interface.http.tenant", "router"),
-                prefix="/tenant",
-            )
-            if mounted:
-                include_router_safe(
-                    r,
-                    ("app.modules.imports.interface.http.tenant", "public_router"),
-                    fallback=(
-                        "apps.backend.app.modules.imports.interface.http.tenant",
-                        "public_router",
-                    ),
-                ) or include_router_safe(
-                    r,
-                    (
-                        "backend.app.modules.imports.interface.http.tenant",
-                        "public_router",
-                    ),
-                )
-    except Exception:
-        pass
 
     return r

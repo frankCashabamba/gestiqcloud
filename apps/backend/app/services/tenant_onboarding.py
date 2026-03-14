@@ -133,18 +133,11 @@ def auto_setup_tenant(
                     pass
                 result["errors"].append(f"Sector template: {str(e)}")
 
-        # 4. Seed field configs (aliases + field_type) — unificado en el endpoint
-        #    El usuario puede re-ejecutar desde el botón "Inicializar aliases por defecto"
-        try:
-            from app.modules.imports.interface.http.tenant import _seed_field_defaults
-
-            seed_result = _seed_field_defaults(db, tenant_id)
-            result["import_classification_seeded"] = True
-            result["seeded_modules"] = seed_result
-            logger.info("✅ Field configs (aliases + clasificación) sembrados")
-        except Exception as e:
-            logger.error(f"Error seeding field configs: {e}")
-            result["errors"].append(f"Field configs: {str(e)}")
+        # 4. Imports-based field seeding was retired with the old imports module.
+        #    Explicit setup flows now own this step.
+        result["import_classification_seeded"] = False
+        result["seeded_modules"] = []
+        logger.info("Field config seed skipped: legacy imports module retired")
 
         # 5. NO hacer commit - dejar que el caller lo maneje
         # db.commit()
@@ -236,5 +229,4 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
         return False
 
 
-# _seed_import_classification removed — logic unified in
-# app.modules.imports.interface.http.tenant._seed_field_defaults
+# Legacy imports-based field seeding was retired with the old imports module.

@@ -267,32 +267,6 @@ def client() -> TestClient:
     # Import the app only after DB is prepared to avoid importing PG-only models
     from app.main import app
 
-    # Ensure imports router is mounted in test env (fallbacks)
-    try:
-        has_imports = any(
-            (getattr(r, "path", "") or "").rstrip("/") == "/api/v1/imports/batches"
-            for r in app.router.routes
-        )
-    except Exception:
-        has_imports = False
-    if not has_imports:
-        # Try canonical path
-        try:
-            from app.modules.imports.interface.http.tenant import router as _imports_router
-
-            app.include_router(_imports_router, prefix="/api/v1")
-            has_imports = True
-        except Exception as e:
-            print("WARN: include imports (app.*) failed:", repr(e))
-        # Try relative apps.backend path (how tests import this package)
-        if not has_imports:
-            try:
-                from app.modules.imports.interface.http.tenant import router as _imports_router_rel
-
-                app.include_router(_imports_router_rel, prefix="/api/v1")
-                has_imports = True
-            except Exception as e2:
-                print("WARN: include imports (apps.backend.*) failed:", repr(e2))
     return TestClient(app)
 
 

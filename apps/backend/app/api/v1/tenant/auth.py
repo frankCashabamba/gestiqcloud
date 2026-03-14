@@ -407,6 +407,9 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
     if not user or not user.tenant_id:
         raise HTTPException(status_code=404, detail="user_not_found")
 
+    was_verified = bool(getattr(user, "is_verified", False))
+    requires_onboarding = bool(getattr(user, "is_company_admin", False) and not was_verified)
+
     user.password_hash = hasher.hash(new_pwd)
     # marca como verificado si ese campo existe en el modelo
     try:
@@ -420,4 +423,5 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
         "ok": True,
         "email": getattr(user, "email", None),
         "username": getattr(user, "username", None),
+        "requires_onboarding": requires_onboarding,
     }

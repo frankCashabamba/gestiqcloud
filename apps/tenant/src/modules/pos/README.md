@@ -98,7 +98,7 @@ apps/backend/app/modules/pos/interface/http/tenant.py (900+ líneas)
 **Backend:**
 ```python
 POST /api/v1/tenant/pos/shifts
-POST /api/v1/tenant/pos/shifts/close
+POST /api/v1/tenant/pos/shifts/:shift_id/close
 GET  /api/v1/tenant/pos/shifts/current/:register_id
 ```
 
@@ -364,7 +364,7 @@ El diseño es **universal**. Solo cambian:
 |--------|----------|-------------|
 | GET | `/registers` | Lista cajas/registros |
 | POST | `/shifts` | Abrir turno |
-| POST | `/shifts/close` | Cerrar turno |
+| POST | `/shifts/:shift_id/close` | Cerrar turno |
 | GET | `/shifts/current/:register_id` | Turno actual |
 | POST | `/receipts` | Crear ticket |
 | POST | `/receipts/:id/checkout` | Cobro + descuento stock (backend) |

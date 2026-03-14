@@ -13,8 +13,8 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.core.facturacion import Invoice
+from app.modules.einvoicing.application.facturae_xml import generate_facturae_xml
 from app.modules.einvoicing.application.sii_service import SIIService
-from app.workers.einvoicing_tasks import generate_facturae_xml
 
 router = APIRouter(
     prefix="/einvoicing",

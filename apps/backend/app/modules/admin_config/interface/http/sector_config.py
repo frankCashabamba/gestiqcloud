@@ -13,8 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 from app.core.cache import build_cache_key, cache_delete
-from app.middleware.tenant import get_current_user
 from app.schemas.sector_plantilla import (
     SectorConfigJSON,
     SectorConfigResponse,
@@ -22,7 +23,11 @@ from app.schemas.sector_plantilla import (
 )
 from app.services.sector_service import get_sector_or_404
 
-router = APIRouter(prefix="/api/v1/admin", tags=["Admin - Sector Config"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["Admin - Sector Config"],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
+)
 
 
 def _invalidate_sector_cache(sector_code: str) -> None:

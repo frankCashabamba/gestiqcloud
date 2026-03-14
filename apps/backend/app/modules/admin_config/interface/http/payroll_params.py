@@ -11,9 +11,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(
+    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))]
+)
 
 
 # ─────────────────────────── helpers ────────────────────────────

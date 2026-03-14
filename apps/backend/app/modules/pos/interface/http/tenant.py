@@ -523,16 +523,6 @@ class CloseShiftIn(BaseModel):
     loss_note: str | None = None
 
 
-class CloseShiftWithIdIn(CloseShiftIn):
-    shift_id: str
-
-    @field_validator("shift_id")
-    @classmethod
-    def validate_shift_id(cls, v):
-        _validate_uuid(v, "Shift ID")
-        return v
-
-
 class CalculateTotalsLineIn(BaseModel):
     """Línea para cálculo de totales (sin persistir)"""
 
@@ -1474,18 +1464,6 @@ def generate_accounting_for_closed_shift(
         logger.error(f"Error generating accounting for shift: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al contabilizar turno: {str(e)}")
-
-
-@router.post(
-    "/shifts/close",
-    response_model=dict,
-    dependencies=[Depends(require_permission("pos.shift.close"))],
-)
-def close_shift_with_body(
-    payload: CloseShiftWithIdIn, request: Request, db: Session = Depends(get_db)
-):
-    """Alias de cierre de turno recibiendo shift_id en el body (compatibilidad front)"""
-    return close_shift(payload.shift_id, payload, request, db)
 
 
 @router.get(

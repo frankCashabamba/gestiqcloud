@@ -15,7 +15,11 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
-router = APIRouter(prefix="/migrations", tags=["migrations"])
+router = APIRouter(
+    prefix="/migrations",
+    tags=["migrations"],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
+)
 logger = logging.getLogger("app.migrations")
 
 
@@ -57,8 +61,6 @@ def _migration_friendly_name(migration_dir: Path) -> str:
 async def get_migration_history(
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(with_access_claims),
-    _: None = Depends(require_scope("admin")),
 ):
     """
     Get executed migrations history.
@@ -90,8 +92,6 @@ async def get_migration_history(
 @router.get("/status")
 async def get_migration_status(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(with_access_claims),
-    _: None = Depends(require_scope("admin")),
 ):
     """
     Get current migration system status.
@@ -147,7 +147,6 @@ async def execute_migrations(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: dict = Depends(with_access_claims),
-    _: None = Depends(require_scope("admin")),
 ):
     """
     Execute pending migrations.
@@ -289,8 +288,6 @@ async def execute_migrations(
 @router.get("/pending")
 async def get_pending_migrations(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(with_access_claims),
-    _: None = Depends(require_scope("admin")),
 ):
     """Get pending migrations."""
     result = (
@@ -330,8 +327,6 @@ class MigrationMarkResponse(BaseModel):
 async def mark_migration_status(
     body: MigrationMarkRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(with_access_claims),
-    _: None = Depends(require_scope("admin")),
 ):
     """Mark migration status in schema_migrations.
 
