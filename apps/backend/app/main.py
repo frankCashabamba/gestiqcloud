@@ -615,7 +615,7 @@ except Exception as e:
 
 # Incidents + IA
 try:
-    from app.routers.incidents import router as incidents_router
+    from app.modules.support.interface.http.incidents import router as incidents_router
 
     app.include_router(incidents_router, prefix="/api/v1")
     _router_logger.info("Incidents router mounted at /api/v1/incidents")
@@ -624,7 +624,7 @@ except Exception as e:
 
 # Notifications
 try:
-    from app.routers.notifications import router as notifications_router
+    from app.modules.notifications.interface.http.tenant import router as notifications_router
 
     app.include_router(notifications_router, prefix="/api/v1")
     _router_logger.info("Notifications router mounted at /api/v1/notifications")

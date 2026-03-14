@@ -230,6 +230,12 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.admin_config.interface.http.admin", "router"), prefix="/admin"
     )
+    include_router_safe(
+        r, ("app.modules.admin_config.interface.http.payroll_params", "router"), prefix="/admin"
+    )
+    include_router_safe(
+        r, ("app.modules.admin_config.interface.http.system_defaults", "router"), prefix="/admin"
+    )
     # Tenant-facing global catalogs (read-only)
     include_router_safe(
         r, ("app.modules.admin_config.interface.http.tenant_catalogs", "router"), prefix="/tenant"
@@ -391,10 +397,10 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.routers.dashboard_stats", "router"))
 
     # Tenant roles management
-    include_router_safe(r, ("app.routers.tenant.roles", "router"))
+    include_router_safe(r, ("app.modules.identity.interface.http.tenant_roles", "router"))
 
     # Migrations management (admin)
-    include_router_safe(r, ("app.routers.migrations", "router"))
+    include_router_safe(r, ("app.modules.admin_config.interface.http.migrations", "router"))
     include_router_safe(r, ("app.routers.admin.ops", "router"), prefix="/admin")
 
     # (removed) Tenant onboarding/configuración inicial router (legacy)

@@ -2,6 +2,9 @@ import React from 'react'
 
 import { Routes, Route, Navigate } from 'react-router-dom'
 
+import PayrollParamsForm from './nomina/PayrollParamsForm'
+import PayrollParamsList from './nomina/PayrollParamsList'
+import SystemDefaultsForm from './sistema/SystemDefaultsForm'
 import CategoriaGastoForm from './categorias-gasto/CategoriaGastoForm'
 import CategoriaGastoList from './categorias-gasto/CategoriaGastoList'
 import FieldConfigManager from './FieldConfigManager'
@@ -172,6 +175,26 @@ function Index() {
       </section>
 
       <section className="admin-section">
+        <h2>RRHH y Sistema</h2>
+        <div className="admin-grid">
+          <AdminCard
+            href="parametros-nomina"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Parámetros de nómina"
+            description="SMI, SS empleado/empleador, mutualidad y tramos IRPF por país y año."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="defaults-sistema"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Defaults del sistema"
+            description="Umbrales y valores por defecto globales: stock bajo, días vencimiento facturas, tasa impuesto fallback."
+            iconSize="sm"
+          />
+        </div>
+      </section>
+
+      <section className="admin-section">
         <h2>Seguridad</h2>
         <div className="admin-grid">
           <AdminCard
@@ -268,6 +291,10 @@ export default function ConfiguracionSistema() {
       <Route path="metodos-pago" element={<MetodoPagoList />} />
       <Route path="metodos-pago/nuevo" element={<MetodoPagoForm />} />
       <Route path="metodos-pago/:id/editar" element={<MetodoPagoForm />} />
+      <Route path="parametros-nomina" element={<PayrollParamsList />} />
+      <Route path="parametros-nomina/nuevo" element={<PayrollParamsForm />} />
+      <Route path="parametros-nomina/:country/:year/editar" element={<PayrollParamsForm />} />
+      <Route path="defaults-sistema" element={<SystemDefaultsForm />} />
       <Route path="fields" element={<FieldConfigManager />} />
       <Route path="imports-catalog" element={<ImportCatalog />} />
       <Route path="*" element={<Navigate to="." replace />} />

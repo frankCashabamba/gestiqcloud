@@ -9,6 +9,8 @@ from abc import ABC, abstractmethod
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.services.system_defaults_service import get_system_default
+
 from app.modules.reports.domain.entities import (
     FinancialReport,
     InventoryReport,
@@ -116,7 +118,8 @@ class InventoryReportGenerator(BaseReportGenerator):
 
             # Calculate statistics
             total_items = len(result)
-            low_stock = sum(1 for row in result if row[2] < 10)  # Assuming low = < 10
+            low_stock_threshold = get_system_default(db, "reports.low_stock_threshold", 10.0)
+            low_stock = sum(1 for row in result if row[2] < low_stock_threshold)
             out_of_stock = sum(1 for row in result if row[2] == 0)
             total_value = sum(row[4] or 0 for row in result)
 

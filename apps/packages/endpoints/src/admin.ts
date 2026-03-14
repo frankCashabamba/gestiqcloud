@@ -97,6 +97,15 @@ export const ADMIN_CONFIG = {
     base: '/v1/admin/config/document-id-type',
     byId: (id: string) => `/v1/admin/config/document-id-type/${id}`,
   },
+  payrollParams: {
+    base: '/v1/admin/config/payroll-params',
+    byCountryYear: (country: string, year: number) =>
+      `/v1/admin/config/payroll-params/${country}/${year}`,
+  },
+  systemDefaults: {
+    base: '/v1/admin/config/system-defaults',
+    byKey: (key: string) => `/v1/admin/config/system-defaults/${key}`,
+  },
 }
 
 export const ADMIN_USERS = {
