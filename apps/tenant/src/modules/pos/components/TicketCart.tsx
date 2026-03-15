@@ -4,6 +4,7 @@
  */
 import React from 'react'
 import type { CartItem } from '../../../types/pos'
+import { useCurrency } from '../../../hooks/useCurrency'
 
 interface TicketCartProps {
   items: CartItem[]
@@ -18,6 +19,7 @@ interface TicketCartProps {
 }
 
 export default function TicketCart({ items, totals, onUpdateQty, onRemoveItem, onClear }: TicketCartProps) {
+  const { symbol: currencySymbol } = useCurrency()
 
   return (
     <div className="bg-white rounded-lg shadow h-full flex flex-col">
@@ -64,9 +66,9 @@ export default function TicketCart({ items, totals, onUpdateQty, onRemoveItem, o
                     onChange={(e) => onUpdateQty(index, parseFloat(e.target.value) || 0)}
                     className="w-20 px-2 py-1 border rounded text-sm"
                   />
-                  <span className="text-sm">× €{(item.unit_price ?? 0).toFixed(2)}</span>
+                  <span className="text-sm">× {currencySymbol}{(item.unit_price ?? 0).toFixed(2)}</span>
                   <span className="ml-auto font-semibold">
-                    €{(item.line_total ?? 0).toFixed(2)}
+                    {currencySymbol}{(item.line_total ?? 0).toFixed(2)}
                   </span>
                 </div>
 
@@ -86,15 +88,15 @@ export default function TicketCart({ items, totals, onUpdateQty, onRemoveItem, o
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span>Subtotal:</span>
-              <span>€{totals.subtotal.toFixed(2)}</span>
+              <span>{currencySymbol}{totals.subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span>IVA:</span>
-              <span>€{totals.tax.toFixed(2)}</span>
+              <span>{currencySymbol}{totals.tax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between font-bold text-lg pt-2 border-t">
               <span>TOTAL:</span>
-              <span>€{totals.total.toFixed(2)}</span>
+              <span>{currencySymbol}{totals.total.toFixed(2)}</span>
             </div>
           </div>
         </div>

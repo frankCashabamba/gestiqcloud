@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { CalendarRange, Clock3, LogIn, LogOut, PauseCircle, PlayCircle, UserCircle } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { CalendarRange, Clock, Clock3, Download, LogIn, LogOut, PauseCircle, PlayCircle, UserCircle, Wallet } from 'lucide-react'
 import { GcPageHeader } from '@ui'
 import { TENANT_HR } from '@shared/endpoints'
 import api from '../../shared/api/client'
@@ -11,6 +10,8 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import type { Vacacion } from '../../types/hr'
 import './hr.css'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type MeEmployee = {
   id: string
   name: string
@@ -19,21 +20,35 @@ type MeEmployee = {
   estado: string
   fecha_ingreso: string
   email: string | null
+  salario_base: number | null
+  modalidad_pago: string | null
+  tipo_contrato: string | null
 }
 
-type VacationForm = {
+type PayrollEntry = {
+  payroll_detail_id: string
+  payroll_id: string
+  payroll_month: string
+  payroll_date: string
+  status: string
+  gross_salary: number
+  irpf: number
+  social_security: number
+  total_deductions: number
+  net_salary: number
+  currency: string
+}
+
+type VacForm = {
   fecha_inicio: string
   fecha_fin: string
   tipo: string
   motivo: string
 }
 
-const VACATION_FORM_INITIAL: VacationForm = {
-  fecha_inicio: '',
-  fecha_fin: '',
-  tipo: 'vacaciones',
-  motivo: '',
-}
+type Tab = 'jornada' | 'ausencias' | 'nominas'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getNowStamp() {
   const now = new Date()
@@ -44,113 +59,207 @@ function getNowStamp() {
   }
 }
 
+function getMonthRange(monthStr: string) {
+  const [year, month] = monthStr.split('-').map(Number)
+  const from = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  return { from, to }
+}
+
+function currentMonthStr() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
 function formatDate(value: string) {
-  const d = new Date(value)
+  const d = new Date(value + (value.length === 10 ? 'T00:00:00' : ''))
   if (Number.isNaN(d.getTime())) return value
   return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)
 }
 
-function getStatusBadge(estado: string) {
+function formatMonth(value: string) {
+  const [year, month] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1))
+}
+
+function formatCurrency(value: number, currency = 'EUR') {
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(value)
+}
+
+function calcDuration(start?: string, end?: string) {
+  if (!start || !end) return null
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + (m || 0)
+  }
+  const diff = toMin(end) - toMin(start)
+  if (diff <= 0) return null
+  return `${Math.floor(diff / 60)}h ${String(diff % 60).padStart(2, '0')}m`
+}
+
+function calcTotalHours(fichajes: { horaInicio: string; horaFin?: string; tipo: string }[]) {
+  let mins = 0
+  for (const f of fichajes) {
+    if (f.tipo !== 'trabajo' || !f.horaFin) continue
+    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0) }
+    const diff = toMin(f.horaFin) - toMin(f.horaInicio)
+    if (diff > 0) mins += diff
+  }
+  return mins > 0 ? `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m` : '0h 00m'
+}
+
+function statusBadge(estado: string) {
   if (estado === 'aprobada') return 'hr-badge hr-badge--success'
   if (estado === 'rechazada') return 'hr-badge hr-badge--danger'
+  if (estado === 'cancelada') return 'hr-badge hr-badge--neutral'
   return 'hr-badge hr-badge--pending'
 }
 
+function payrollStatusBadge(status: string) {
+  if (status === 'PAID') return 'hr-badge hr-badge--success'
+  if (status === 'CONFIRMED') return 'hr-badge hr-badge--info'
+  return 'hr-badge hr-badge--neutral'
+}
+
+function payrollStatusLabel(status: string) {
+  const map: Record<string, string> = { PAID: 'Pagada', CONFIRMED: 'Confirmada', DRAFT: 'Borrador', CANCELLED: 'Cancelada' }
+  return map[status] ?? status
+}
+
+const VAC_FORM_INIT: VacForm = { fecha_inicio: '', fecha_fin: '', tipo: 'vacaciones', motivo: '' }
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function MiJornada() {
-  const { t } = useTranslation(['hr', 'common'])
   const { success, error: toastError, warning, info } = useToast()
 
+  // Perfil
   const [me, setMe] = useState<MeEmployee | null>(null)
   const [meLoading, setMeLoading] = useState(true)
   const [meError, setMeError] = useState<string | null>(null)
 
+  // Tab activa
+  const [tab, setTab] = useState<Tab>('jornada')
+
+  // Fichajes
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr())
+  const monthRange = useMemo(() => getMonthRange(selectedMonth), [selectedMonth])
+  const fichajesParams = useMemo(
+    () => me ? { empleadoId: me.id, fromDate: monthRange.from, toDate: monthRange.to } : undefined,
+    [me?.id, monthRange.from, monthRange.to]
+  )
+  const { fichajes, loading: fichajesLoading, reload: reloadFichajes } = useFichajes(fichajesParams)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  // Para estado actual (hoy) necesitamos el open entry independiente del mes seleccionado
+  const todayStr = useMemo(() => getNowStamp().fecha, [])
+  const todayRange = useMemo(() => ({ from: todayStr, to: todayStr }), [todayStr])
+  const todayParams = useMemo(
+    () => me ? { empleadoId: me.id, fromDate: todayStr, toDate: todayStr } : undefined,
+    [me?.id, todayStr]
+  )
+  const { fichajes: todayFichajes, reload: reloadToday } = useFichajes(todayParams)
+  const openEntry = useMemo(() => todayFichajes.find((f) => !f.horaFin) || null, [todayFichajes])
+
+  // Vacaciones
   const [vacaciones, setVacaciones] = useState<Vacacion[]>([])
   const [vacLoading, setVacLoading] = useState(false)
   const [showVacForm, setShowVacForm] = useState(false)
-  const [vacForm, setVacForm] = useState<VacationForm>(VACATION_FORM_INITIAL)
+  const [vacForm, setVacForm] = useState<VacForm>(VAC_FORM_INIT)
   const [vacSubmitting, setVacSubmitting] = useState(false)
+  const vacDays = useMemo(() => {
+    if (!vacForm.fecha_inicio || !vacForm.fecha_fin) return 0
+    const ms = new Date(vacForm.fecha_fin).getTime() - new Date(vacForm.fecha_inicio).getTime()
+    return Math.max(0, Math.round(ms / 86400000) + 1)
+  }, [vacForm.fecha_inicio, vacForm.fecha_fin])
 
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const { fichajes, loading: fichajesLoading, reload } = useFichajes()
+  // Nóminas
+  const [nominas, setNominas] = useState<PayrollEntry[]>([])
+  const [nominasLoading, setNominasLoading] = useState(false)
+  const nominasLoaded = useRef(false)
 
-  // Cargar perfil del empleado autenticado
+  // ── Carga del perfil ─────────────────────────────────────────────────────────
+
   useEffect(() => {
     let cancelled = false
-    async function loadMe() {
+    async function load() {
       try {
         setMeLoading(true)
         const { data } = await api.get<MeEmployee>(TENANT_HR.me)
         if (!cancelled) setMe(data)
       } catch (e: any) {
-        if (!cancelled) setMeError(e?.response?.data?.detail || 'No se encontró ficha de empleado')
+        if (!cancelled) setMeError(e?.response?.data?.detail || 'employee_not_found')
       } finally {
         if (!cancelled) setMeLoading(false)
       }
     }
-    void loadMe()
+    void load()
     return () => { cancelled = true }
   }, [])
 
-  // Cargar vacaciones propias cuando tengamos el employee_id
-  useEffect(() => {
-    if (!me?.id) return
-    let cancelled = false
-    async function loadVac() {
-      setVacLoading(true)
-      try {
-        const data = await listVacaciones({ empleadoId: me!.id })
-        if (!cancelled) setVacaciones(Array.isArray(data) ? data : data?.items || [])
-      } catch (e: any) {
-        if (!cancelled) toastError(getErrorMessage(e))
-      } finally {
-        if (!cancelled) setVacLoading(false)
-      }
+  // ── Carga de vacaciones ──────────────────────────────────────────────────────
+
+  async function loadVacaciones(employeeId: string) {
+    setVacLoading(true)
+    try {
+      const data = await listVacaciones({ empleadoId: employeeId })
+      setVacaciones(Array.isArray(data) ? data : data?.items ?? [])
+    } catch (e) {
+      toastError(getErrorMessage(e))
+    } finally {
+      setVacLoading(false)
     }
-    void loadVac()
-    return () => { cancelled = true }
-  }, [me?.id])
+  }
 
-  // Fichajes del empleado actual
-  const misFichajes = useMemo(() => {
-    if (!me?.id) return []
-    return fichajes
-      .filter((f) => f.empleadoId === me.id)
-      .sort((a, b) => `${b.fecha}T${b.horaInicio}`.localeCompare(`${a.fecha}T${a.horaInicio}`))
-  }, [fichajes, me?.id])
+  useEffect(() => {
+    if (me?.id && tab === 'ausencias') void loadVacaciones(me.id)
+  }, [me?.id, tab])
 
-  const openEntry = useMemo(() => misFichajes.find((f) => !f.horaFin) || null, [misFichajes])
+  // ── Carga de nóminas ─────────────────────────────────────────────────────────
 
-  const currentStatus = openEntry?.tipo === 'descanso'
-    ? 'En descanso'
-    : openEntry
-      ? 'Trabajando'
-      : 'Fuera de jornada'
+  useEffect(() => {
+    if (tab !== 'nominas' || nominasLoaded.current) return
+    nominasLoaded.current = true
+    setNominasLoading(true)
+    api.get<{ items: PayrollEntry[] }>(TENANT_HR.mePayroll)
+      .then(({ data }) => setNominas(data.items ?? []))
+      .catch((e) => toastError(getErrorMessage(e)))
+      .finally(() => setNominasLoading(false))
+  }, [tab])
+
+  // ── Acciones de fichaje ──────────────────────────────────────────────────────
 
   async function handleFichar(action: 'clockIn' | 'startBreak' | 'resumeBreak' | 'clockOut') {
     if (!me?.id) return
     const { fecha, hora } = getNowStamp()
     setActionLoading(action)
     try {
-      if (action === 'clockIn') {
-        if (openEntry) { info('Ya tienes una entrada abierta'); return }
-        await registrarFichaje({ empleadoId: me.id, fecha, horaInicio: hora, tipo: 'trabajo' })
-        success('Entrada registrada')
-      } else if (action === 'startBreak') {
-        if (!openEntry || openEntry.tipo !== 'trabajo') { warning('Necesitas tener una jornada abierta'); return }
-        await actualizarFichaje(openEntry.id, { horaFin: hora })
-        await registrarFichaje({ empleadoId: me.id, fecha, horaInicio: hora, tipo: 'descanso' })
-        success('Descanso iniciado')
-      } else if (action === 'resumeBreak') {
-        if (!openEntry || openEntry.tipo !== 'descanso') { warning('No tienes un descanso abierto'); return }
-        await actualizarFichaje(openEntry.id, { horaFin: hora })
-        await registrarFichaje({ empleadoId: me.id, fecha, horaInicio: hora, tipo: 'trabajo' })
-        success('Jornada retomada')
-      } else if (action === 'clockOut') {
-        if (!openEntry) { warning('No tienes jornada abierta'); return }
-        await actualizarFichaje(openEntry.id, { horaFin: hora })
-        success('Salida registrada')
+      switch (action) {
+        case 'clockIn':
+          if (openEntry) { info('Ya tienes una entrada abierta'); return }
+          await registrarFichaje({ empleadoId: me.id, fecha, horaInicio: hora, tipo: 'trabajo' })
+          success('Entrada registrada')
+          break
+        case 'startBreak':
+          if (!openEntry || openEntry.tipo !== 'trabajo') { warning('Necesitas una jornada abierta'); return }
+          await actualizarFichaje(openEntry.id, { horaFin: hora })
+          await registrarFichaje({ empleadoId: me.id, fecha, horaInicio: hora, tipo: 'descanso' })
+          success('Descanso iniciado')
+          break
+        case 'resumeBreak':
+          if (!openEntry || openEntry.tipo !== 'descanso') { warning('No hay descanso abierto'); return }
+          await actualizarFichaje(openEntry.id, { horaFin: hora })
+          await registrarFichaje({ empleadoId: me.id, fecha, horaInicio: hora, tipo: 'trabajo' })
+          success('Jornada retomada')
+          break
+        case 'clockOut':
+          if (!openEntry) { warning('No tienes jornada abierta'); return }
+          await actualizarFichaje(openEntry.id, { horaFin: hora })
+          success('Salida registrada')
+          break
       }
-      await reload()
+      await Promise.all([reloadFichajes(), reloadToday()])
     } catch (e) {
       toastError(getErrorMessage(e))
     } finally {
@@ -158,9 +267,11 @@ export default function MiJornada() {
     }
   }
 
-  async function handleVacacionSubmit(e: React.FormEvent) {
+  // ── Solicitud de ausencia ────────────────────────────────────────────────────
+
+  async function handleVacSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!me?.id || !vacForm.fecha_inicio || !vacForm.fecha_fin) return
+    if (!me?.id) return
     setVacSubmitting(true)
     try {
       await createVacacion({
@@ -172,16 +283,29 @@ export default function MiJornada() {
       })
       success('Solicitud enviada')
       setShowVacForm(false)
-      setVacForm(VACATION_FORM_INITIAL)
-      // Refrescar
-      const data = await listVacaciones({ empleadoId: me.id })
-      setVacaciones(Array.isArray(data) ? data : data?.items || [])
+      setVacForm(VAC_FORM_INIT)
+      await loadVacaciones(me.id)
     } catch (e) {
       toastError(getErrorMessage(e))
     } finally {
       setVacSubmitting(false)
     }
   }
+
+  // ── Estado actual ────────────────────────────────────────────────────────────
+
+  const currentStatus = openEntry?.tipo === 'descanso' ? 'En descanso'
+    : openEntry ? 'Trabajando'
+      : 'Fuera de jornada'
+
+  const statusColor = openEntry?.tipo === 'descanso' ? 'var(--gc-warning)'
+    : openEntry ? 'var(--gc-success)'
+      : 'var(--gc-muted)'
+
+  const totalHorasHoy = useMemo(() => calcTotalHours(todayFichajes), [todayFichajes])
+  const totalHorasMes = useMemo(() => calcTotalHours(fichajes), [fichajes])
+
+  // ── Render: loading / error ───────────────────────────────────────────────────
 
   if (meLoading) {
     return (
@@ -197,223 +321,334 @@ export default function MiJornada() {
         <div className="hr-empty">
           <UserCircle size={40} />
           <div className="hr-empty__title">Sin ficha de empleado</div>
-          <div>{meError || 'No se encontró una ficha de empleado asociada a tu cuenta.'}</div>
+          <div>No se encontró una ficha en RRHH asociada a tu cuenta.</div>
           <div style={{ marginTop: 8, fontSize: 13, color: 'var(--gc-muted)' }}>
-            Pide a tu administrador que cree tu ficha en RRHH con el mismo email de tu usuario.
+            Pide a tu administrador que cree tu ficha con el mismo email de tu usuario.
           </div>
         </div>
       </div>
     )
   }
 
+  // ── Render principal ─────────────────────────────────────────────────────────
+
   return (
     <div className="hr-shell">
+
+      {/* Header */}
       <section className="hr-hero">
         <GcPageHeader
-          badge="Mi jornada"
+          badge="Mi espacio"
           title={`${me.name} ${me.apellidos}`}
-          subtitle={[me.puesto, me.estado === 'activo' ? 'Activo' : me.estado].filter(Boolean).join(' · ')}
+          subtitle={[me.puesto, me.tipo_contrato].filter(Boolean).join(' · ')}
         />
-      </section>
-
-      {/* FICHAJES */}
-      <section className="hr-quick-grid">
-        <article className="hr-status-card">
-          <div className="hr-status-card__eyebrow">Estado actual</div>
-          <div className="hr-status-card__value">{currentStatus}</div>
-          {openEntry && (
-            <div className="hr-status-card__hint">
-              Desde las {openEntry.horaInicio}
+        <div className="hr-kpi-grid" style={{ marginTop: '1rem' }}>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Estado hoy</div>
+            <div className="hr-kpi-card__value" style={{ color: statusColor }}>{currentStatus}</div>
+            {openEntry && <div className="hr-kpi-card__hint">Desde {openEntry.horaInicio}</div>}
+          </div>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Horas hoy</div>
+            <div className="hr-kpi-card__value">{totalHorasHoy}</div>
+            <div className="hr-kpi-card__hint">Trabajo efectivo</div>
+          </div>
+          <div className="hr-kpi-card">
+            <div className="hr-kpi-card__label">Horas en {formatMonth(selectedMonth).split(' ')[0]}</div>
+            <div className="hr-kpi-card__value">{totalHorasMes}</div>
+            <div className="hr-kpi-card__hint">Mes seleccionado</div>
+          </div>
+          {me.salario_base != null && (
+            <div className="hr-kpi-card">
+              <div className="hr-kpi-card__label">Salario base</div>
+              <div className="hr-kpi-card__value">{formatCurrency(me.salario_base)}</div>
+              <div className="hr-kpi-card__hint">{me.modalidad_pago ?? ''}</div>
             </div>
           )}
-        </article>
+        </div>
+      </section>
 
-        <article className="hr-toolbar">
-          <div className="hr-table-meta">
-            <div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, margin: '1.25rem 0 1rem', borderBottom: '1px solid var(--gc-border)' }}>
+        {([
+          { key: 'jornada', label: 'Jornada', icon: Clock },
+          { key: 'ausencias', label: 'Ausencias', icon: CalendarRange },
+          { key: 'nominas', label: 'Mis nóminas', icon: Wallet },
+        ] as const).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 14, fontWeight: tab === key ? 600 : 400,
+              color: tab === key ? 'var(--gc-primary)' : 'var(--gc-muted)',
+              borderBottom: tab === key ? '2px solid var(--gc-primary)' : '2px solid transparent',
+              marginBottom: -1,
+            }}
+          >
+            <Icon size={15} />{label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB: JORNADA ─────────────────────────────────────────────────── */}
+      {tab === 'jornada' && (
+        <>
+          {/* Botones de fichaje */}
+          <section className="hr-toolbar" style={{ marginBottom: '1.25rem' }}>
+            <div className="hr-table-meta" style={{ marginBottom: 10 }}>
               <div className="hr-kpi-card__label">Registrar jornada</div>
             </div>
-          </div>
-          <div className="hr-actions-row">
+            <div className="hr-actions-row">
+              <button
+                type="button"
+                className="gc-btn gc-btn--primary"
+                onClick={() => void handleFichar('clockIn')}
+                disabled={actionLoading !== null || Boolean(openEntry)}
+              >
+                <LogIn size={15} />
+                {actionLoading === 'clockIn' ? 'Registrando...' : 'Entrada'}
+              </button>
+              <button
+                type="button"
+                className="gc-btn gc-btn--ghost"
+                onClick={() => void handleFichar('startBreak')}
+                disabled={actionLoading !== null || openEntry?.tipo !== 'trabajo'}
+              >
+                <PauseCircle size={15} />
+                Descanso
+              </button>
+              <button
+                type="button"
+                className="gc-btn gc-btn--ghost"
+                onClick={() => void handleFichar('resumeBreak')}
+                disabled={actionLoading !== null || openEntry?.tipo !== 'descanso'}
+              >
+                <PlayCircle size={15} />
+                Retomar
+              </button>
+              <button
+                type="button"
+                className="gc-btn gc-btn--danger"
+                onClick={() => void handleFichar('clockOut')}
+                disabled={actionLoading !== null || !openEntry}
+              >
+                <LogOut size={15} />
+                {actionLoading === 'clockOut' ? 'Registrando...' : 'Salida'}
+              </button>
+            </div>
+          </section>
+
+          {/* Selector de mes + tabla */}
+          <section className="gc-table-wrap">
+            <div className="hr-table-meta" style={{ marginBottom: 10 }}>
+              <span className="hr-kpi-card__label">Historial de fichajes</span>
+              <input
+                type="month"
+                className="gc-input"
+                style={{ width: 160 }}
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+              />
+            </div>
+
+            {fichajesLoading ? (
+              <div className="hr-empty"><Clock3 size={24} /><div>Cargando...</div></div>
+            ) : fichajes.length === 0 ? (
+              <div className="hr-empty">
+                <Clock size={28} />
+                <div className="hr-empty__title">Sin registros en {formatMonth(selectedMonth)}</div>
+              </div>
+            ) : (
+              <table className="gc-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Entrada</th>
+                    <th>Salida</th>
+                    <th>Duración</th>
+                    <th>Tipo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fichajes.map((f) => (
+                    <tr key={f.id}>
+                      <td>{formatDate(f.fecha)}</td>
+                      <td>{f.horaInicio}</td>
+                      <td>
+                        {f.horaFin ?? <span className="hr-badge hr-badge--pending">Abierto</span>}
+                      </td>
+                      <td>{calcDuration(f.horaInicio, f.horaFin) ?? '—'}</td>
+                      <td>
+                        <span className={f.tipo === 'trabajo' ? 'hr-badge hr-badge--success' : 'hr-badge hr-badge--info'}>
+                          {f.tipo === 'trabajo' ? 'Trabajo' : f.tipo === 'descanso' ? 'Descanso' : f.tipo}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </>
+      )}
+
+      {/* ── TAB: AUSENCIAS ───────────────────────────────────────────────── */}
+      {tab === 'ausencias' && (
+        <section>
+          <div className="hr-table-meta" style={{ marginBottom: 12 }}>
+            <span className="hr-kpi-card__label">Mis solicitudes de ausencia</span>
             <button
               type="button"
               className="gc-btn gc-btn--primary"
-              onClick={() => void handleFichar('clockIn')}
-              disabled={actionLoading !== null || Boolean(openEntry)}
+              onClick={() => setShowVacForm((v) => !v)}
             >
-              <LogIn size={16} />
-              {actionLoading === 'clockIn' ? 'Registrando...' : 'Entrada'}
-            </button>
-            <button
-              type="button"
-              className="gc-btn gc-btn--ghost"
-              onClick={() => void handleFichar('startBreak')}
-              disabled={actionLoading !== null || openEntry?.tipo !== 'trabajo'}
-            >
-              <PauseCircle size={16} />
-              Iniciar descanso
-            </button>
-            <button
-              type="button"
-              className="gc-btn gc-btn--ghost"
-              onClick={() => void handleFichar('resumeBreak')}
-              disabled={actionLoading !== null || openEntry?.tipo !== 'descanso'}
-            >
-              <PlayCircle size={16} />
-              Retomar jornada
-            </button>
-            <button
-              type="button"
-              className="gc-btn gc-btn--danger"
-              onClick={() => void handleFichar('clockOut')}
-              disabled={actionLoading !== null || !openEntry}
-            >
-              <LogOut size={16} />
-              Salida
+              <CalendarRange size={14} />
+              {showVacForm ? 'Cancelar' : 'Nueva solicitud'}
             </button>
           </div>
-        </article>
-      </section>
 
-      {/* HISTORIAL DE FICHAJES */}
-      {misFichajes.length > 0 && (
-        <section className="gc-table-wrap" style={{ marginTop: '1.25rem' }}>
-          <div className="hr-table-meta" style={{ marginBottom: 8 }}>
-            <span className="hr-kpi-card__label">Mis registros recientes</span>
-          </div>
-          <table className="gc-table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Entrada</th>
-                <th>Salida</th>
-                <th>Tipo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {misFichajes.slice(0, 10).map((f) => (
-                <tr key={f.id}>
-                  <td>{formatDate(f.fecha)}</td>
-                  <td>{f.horaInicio}</td>
-                  <td>{f.horaFin ?? <span className="hr-badge hr-badge--pending">Abierto</span>}</td>
-                  <td>
-                    <span className={f.tipo === 'trabajo' ? 'hr-badge hr-badge--success' : 'hr-badge hr-badge--info'}>
-                      {f.tipo === 'trabajo' ? 'Trabajo' : f.tipo === 'descanso' ? 'Descanso' : f.tipo}
-                    </span>
-                  </td>
+          {showVacForm && (
+            <form onSubmit={(e) => void handleVacSubmit(e)} className="hr-toolbar" style={{ marginBottom: 16 }}>
+              <div className="hr-toolbar-grid">
+                <label className="hr-field">
+                  <span className="hr-field__label">Tipo</span>
+                  <select
+                    className="gc-input gc-select"
+                    value={vacForm.tipo}
+                    onChange={(e) => setVacForm((f) => ({ ...f, tipo: e.target.value }))}
+                  >
+                    <option value="vacaciones">Vacaciones</option>
+                    <option value="baja_medica">Baja médica</option>
+                    <option value="permiso">Permiso</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </label>
+                <label className="hr-field">
+                  <span className="hr-field__label">Fecha inicio</span>
+                  <input
+                    type="date"
+                    className="gc-input"
+                    required
+                    value={vacForm.fecha_inicio}
+                    onChange={(e) => setVacForm((f) => ({ ...f, fecha_inicio: e.target.value }))}
+                  />
+                </label>
+                <label className="hr-field">
+                  <span className="hr-field__label">Fecha fin</span>
+                  <input
+                    type="date"
+                    className="gc-input"
+                    required
+                    min={vacForm.fecha_inicio}
+                    value={vacForm.fecha_fin}
+                    onChange={(e) => setVacForm((f) => ({ ...f, fecha_fin: e.target.value }))}
+                  />
+                </label>
+                <label className="hr-field hr-field--wide">
+                  <span className="hr-field__label">
+                    Motivo
+                    {vacDays > 0 && <span style={{ fontWeight: 400, color: 'var(--gc-muted)', marginLeft: 8 }}>{vacDays} día{vacDays !== 1 ? 's' : ''}</span>}
+                  </span>
+                  <input
+                    className="gc-input"
+                    value={vacForm.motivo}
+                    onChange={(e) => setVacForm((f) => ({ ...f, motivo: e.target.value }))}
+                    placeholder="Opcional — asunto personal, médico, etc."
+                  />
+                </label>
+              </div>
+              <div className="hr-actions-row" style={{ marginTop: 10 }}>
+                <button type="submit" className="gc-btn gc-btn--primary" disabled={vacSubmitting}>
+                  {vacSubmitting ? 'Enviando...' : 'Enviar solicitud'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {vacLoading ? (
+            <div className="hr-empty"><Clock3 size={24} /><div>Cargando...</div></div>
+          ) : vacaciones.length === 0 ? (
+            <div className="hr-empty">
+              <CalendarRange size={28} />
+              <div className="hr-empty__title">Sin solicitudes registradas</div>
+              <div>Cuando envíes una solicitud aparecerá aquí con su estado.</div>
+            </div>
+          ) : (
+            <table className="gc-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Desde</th>
+                  <th>Hasta</th>
+                  <th>Días</th>
+                  <th>Estado</th>
+                  <th>Motivo</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {vacaciones.map((v) => (
+                  <tr key={String(v.id)}>
+                    <td>{v.tipo}</td>
+                    <td>{formatDate(v.fecha_inicio)}</td>
+                    <td>{formatDate(v.fecha_fin)}</td>
+                    <td>{v.dias}</td>
+                    <td><span className={statusBadge(v.estado)}>{v.estado}</span></td>
+                    <td style={{ color: 'var(--gc-muted)', fontSize: 13 }}>{v.motivo ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </section>
       )}
 
-      {/* VACACIONES */}
-      <section style={{ marginTop: '2rem' }}>
-        <div className="hr-table-meta" style={{ marginBottom: 12 }}>
-          <div>
-            <div className="hr-kpi-card__label">Mis solicitudes de ausencia</div>
+      {/* ── TAB: NÓMINAS ─────────────────────────────────────────────────── */}
+      {tab === 'nominas' && (
+        <section>
+          <div className="hr-table-meta" style={{ marginBottom: 12 }}>
+            <span className="hr-kpi-card__label">Mis nóminas</span>
           </div>
-          <button
-            type="button"
-            className="gc-btn gc-btn--primary"
-            onClick={() => setShowVacForm((v) => !v)}
-          >
-            <CalendarRange size={15} />
-            Nueva solicitud
-          </button>
-        </div>
 
-        {showVacForm && (
-          <form onSubmit={(e) => void handleVacacionSubmit(e)} className="hr-toolbar" style={{ marginBottom: 16 }}>
-            <div className="hr-toolbar-grid">
-              <label className="hr-field">
-                <span className="hr-field__label">Tipo</span>
-                <select
-                  className="gc-input gc-select"
-                  value={vacForm.tipo}
-                  onChange={(e) => setVacForm((f) => ({ ...f, tipo: e.target.value }))}
-                >
-                  <option value="vacaciones">Vacaciones</option>
-                  <option value="baja_medica">Baja médica</option>
-                  <option value="permiso">Permiso</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </label>
-              <label className="hr-field">
-                <span className="hr-field__label">Fecha inicio</span>
-                <input
-                  type="date"
-                  className="gc-input"
-                  required
-                  value={vacForm.fecha_inicio}
-                  onChange={(e) => setVacForm((f) => ({ ...f, fecha_inicio: e.target.value }))}
-                />
-              </label>
-              <label className="hr-field">
-                <span className="hr-field__label">Fecha fin</span>
-                <input
-                  type="date"
-                  className="gc-input"
-                  required
-                  value={vacForm.fecha_fin}
-                  onChange={(e) => setVacForm((f) => ({ ...f, fecha_fin: e.target.value }))}
-                />
-              </label>
-              <label className="hr-field hr-field--wide">
-                <span className="hr-field__label">Motivo (opcional)</span>
-                <input
-                  className="gc-input"
-                  value={vacForm.motivo}
-                  onChange={(e) => setVacForm((f) => ({ ...f, motivo: e.target.value }))}
-                  placeholder="Describe el motivo"
-                />
-              </label>
+          {nominasLoading ? (
+            <div className="hr-empty"><Clock3 size={24} /><div>Cargando nóminas...</div></div>
+          ) : nominas.length === 0 ? (
+            <div className="hr-empty">
+              <Wallet size={28} />
+              <div className="hr-empty__title">Sin nóminas disponibles</div>
+              <div>Las nóminas confirmadas o pagadas aparecerán aquí.</div>
             </div>
-            <div className="hr-actions-row" style={{ marginTop: 8 }}>
-              <button type="submit" className="gc-btn gc-btn--primary" disabled={vacSubmitting}>
-                {vacSubmitting ? 'Enviando...' : 'Enviar solicitud'}
-              </button>
-              <button type="button" className="gc-btn gc-btn--ghost" onClick={() => setShowVacForm(false)}>
-                Cancelar
-              </button>
-            </div>
-          </form>
-        )}
-
-        {vacLoading ? (
-          <div className="hr-empty"><Clock3 size={24} /><div>Cargando solicitudes...</div></div>
-        ) : vacaciones.length === 0 ? (
-          <div className="hr-empty">
-            <CalendarRange size={28} />
-            <div className="hr-empty__title">Sin solicitudes</div>
-            <div>Aún no has enviado ninguna solicitud de ausencia.</div>
-          </div>
-        ) : (
-          <table className="gc-table">
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Desde</th>
-                <th>Hasta</th>
-                <th>Días</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vacaciones.map((v) => (
-                <tr key={String(v.id)}>
-                  <td>{v.tipo}</td>
-                  <td>{formatDate(v.fecha_inicio)}</td>
-                  <td>{formatDate(v.fecha_fin)}</td>
-                  <td>{v.dias}</td>
-                  <td><span className={getStatusBadge(v.estado)}>{v.estado}</span></td>
+          ) : (
+            <table className="gc-table">
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th>Bruto</th>
+                  <th>Deducciones</th>
+                  <th>Neto</th>
+                  <th>Estado</th>
+                  <th>Fecha pago</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+              </thead>
+              <tbody>
+                {nominas.map((n) => (
+                  <tr key={n.payroll_detail_id}>
+                    <td style={{ fontWeight: 500 }}>{formatMonth(n.payroll_month)}</td>
+                    <td>{formatCurrency(n.gross_salary, n.currency)}</td>
+                    <td style={{ color: 'var(--gc-danger)' }}>−{formatCurrency(n.total_deductions, n.currency)}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--gc-success)' }}>{formatCurrency(n.net_salary, n.currency)}</td>
+                    <td><span className={payrollStatusBadge(n.status)}>{payrollStatusLabel(n.status)}</span></td>
+                    <td>{formatDate(n.payroll_date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+
     </div>
   )
 }

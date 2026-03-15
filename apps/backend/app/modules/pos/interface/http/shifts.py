@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from decimal import Decimal
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import bindparam, text
@@ -462,7 +461,9 @@ def close_shift(
         if str(tenant_id) != str(token_tenant_id):
             logger.warning(
                 "Tenant mismatch closing shift: shift_tenant=%s token_tenant=%s shift=%s",
-                tenant_id, token_tenant_id, shift_uuid,
+                tenant_id,
+                token_tenant_id,
+                shift_uuid,
             )
             raise HTTPException(status_code=403, detail="tenant_mismatch")
 
@@ -507,7 +508,8 @@ def close_shift(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
                 {"sid": shift_uuid, "tid": tenant_id},
-            ).scalar() or 0
+            ).scalar()
+            or 0
         )
         net_total = total_sales - tax_total
 
@@ -773,7 +775,8 @@ def generate_accounting_for_closed_shift(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
                 {"sid": shift_uuid, "tid": tenant_id},
-            ).scalar() or 0.0
+            ).scalar()
+            or 0.0
         )
         net_total = total_sales - tax_total
 

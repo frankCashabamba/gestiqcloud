@@ -154,7 +154,7 @@ export default function PayrollParamsForm() {
         </div>
 
         <div>
-          <label className="block mb-1 text-sm font-medium">SMI mensual (€)</label>
+          <label className="block mb-1 text-sm font-medium">SMI mensual</label>
           <input
             type="number"
             step="0.01"

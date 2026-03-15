@@ -214,11 +214,37 @@ export default function Migraciones() {
 
   const reload = useCallback(async () => {
     try {
-      const [list, hist] = await Promise.allSettled([
+      const [list, hist, details] = await Promise.allSettled([
         getMigrationsList(500),
         getMigrationHistory(20),
+        getMigrationDetails(),
       ])
-      if (list.status === 'fulfilled') setMigrations(list.value)
+
+      let records: MigrationRecord[] = list.status === 'fulfilled' ? list.value : []
+
+      // Migraciones en disco no registradas en schema_migrations → aparecen como pendientes
+      if (details.status === 'fulfilled' && Array.isArray(details.value?.pending_revisions)) {
+        const knownVersions = new Set(records.map(r => r.version))
+        const synthetic: MigrationRecord[] = details.value.pending_revisions
+          .filter((v: string) => !knownVersions.has(v))
+          .map((v: string, i: number) => ({
+            id: -(i + 1),
+            version: v,
+            name: v,
+            status: 'pending',
+            mode: null,
+            started_at: null,
+            completed_at: null,
+            executed_by: null,
+            execution_time_ms: null,
+            error_message: null,
+            applied_order: null,
+            created_at: null,
+          }))
+        if (synthetic.length > 0) records = [...synthetic, ...records]
+      }
+
+      setMigrations(records)
       if (hist.status === 'fulfilled' && hist.value?.items) setRunHistory(hist.value.items)
     } finally {
       setLoading(false)

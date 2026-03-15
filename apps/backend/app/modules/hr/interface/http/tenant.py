@@ -4,7 +4,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -475,8 +475,33 @@ class MeEmployeeResponse(BaseModel):
     estado: str
     fecha_ingreso: date
     email: str | None = None
+    salario_base: Decimal | None = None
+    modalidad_pago: str | None = None
+    tipo_contrato: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MyPayrollEntryResponse(BaseModel):
+    """Entrada de nómina del empleado autenticado."""
+
+    payroll_detail_id: UUID
+    payroll_id: UUID
+    payroll_month: str
+    payroll_date: date
+    status: str
+    gross_salary: Decimal
+    irpf: Decimal
+    social_security: Decimal
+    total_deductions: Decimal
+    net_salary: Decimal
+    currency: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MyPayrollListResponse(BaseModel):
+    items: list[MyPayrollEntryResponse]
 
 
 @router.get("/me", response_model=MeEmployeeResponse)
@@ -520,7 +545,73 @@ async def get_my_employee_profile(
         estado=_employee_status_from_model(employee.status),
         fecha_ingreso=employee.hire_date,
         email=employee.email,
+        salario_base=current_salary_amount(employee),
+        modalidad_pago=payment_mode_to_api(current_payment_mode(employee)),
+        tipo_contrato=_contract_type_from_model(employee.contract_type),
     )
+
+
+@router.get("/me/payroll", response_model=MyPayrollListResponse)
+async def get_my_payroll(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Devuelve las entradas de nómina del empleado autenticado."""
+    claims = getattr(request.state, "access_claims", {}) or {}
+    user_email = claims.get("sub") or claims.get("email")
+    tenant_id = claims.get("tenant_id")
+
+    if not user_email or not tenant_id:
+        raise HTTPException(status_code=401, detail="unauthenticated")
+
+    try:
+        tid = UUID(str(tenant_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="invalid_tenant")
+
+    employee = (
+        db.execute(
+            select(Employee).where(
+                Employee.tenant_id == tid,
+                Employee.email == str(user_email).lower(),
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    if not employee:
+        raise HTTPException(status_code=404, detail="employee_not_found")
+
+    rows = db.execute(
+        select(PayrollDetail, Payroll)
+        .join(Payroll, Payroll.id == PayrollDetail.payroll_id)
+        .where(
+            PayrollDetail.employee_id == employee.id,
+            Payroll.tenant_id == _db_tenant_id(tid),
+            Payroll.status.in_(["CONFIRMED", "PAID"]),
+        )
+        .order_by(Payroll.payroll_month.desc())
+    ).all()
+
+    items = [
+        MyPayrollEntryResponse(
+            payroll_detail_id=detail.id,
+            payroll_id=payroll.id,
+            payroll_month=payroll.payroll_month,
+            payroll_date=payroll.payroll_date,
+            status=payroll.status,
+            gross_salary=detail.gross_salary,
+            irpf=detail.irpf,
+            social_security=detail.social_security,
+            total_deductions=detail.total_deductions,
+            net_salary=detail.net_salary,
+            currency=detail.currency,
+        )
+        for detail, payroll in rows
+    ]
+
+    return MyPayrollListResponse(items=items)
 
 
 @router.get("/employees", response_model=EmployeeListResponse)

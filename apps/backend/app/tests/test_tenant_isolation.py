@@ -4,6 +4,7 @@ Tenant isolation tests — verify RLS prevents cross-tenant data access.
 Run with:
     ALLOW_TEST_NON_SQLITE_DB=1 TEST_DATABASE_URL=postgresql://... pytest app/tests/test_tenant_isolation.py -v
 """
+
 from __future__ import annotations
 
 import uuid
@@ -45,11 +46,26 @@ def two_tenants(db: Session):
     # Cleanup
     db.execute(text("SET session_replication_role = REPLICA"))
     for table in [
-        "sales_order_items", "sales_orders", "invoice_lines", "invoices",
-        "purchase_lines", "purchases", "pos_receipt_lines", "pos_receipts",
-        "pos_shifts", "pos_registers", "stock_moves", "stock_items",
-        "expenses", "bank_transactions", "bank_accounts",
-        "import_items", "import_batches", "products", "clients", "warehouses",
+        "sales_order_items",
+        "sales_orders",
+        "invoice_lines",
+        "invoices",
+        "purchase_lines",
+        "purchases",
+        "pos_receipt_lines",
+        "pos_receipts",
+        "pos_shifts",
+        "pos_registers",
+        "stock_moves",
+        "stock_items",
+        "expenses",
+        "bank_transactions",
+        "bank_accounts",
+        "import_items",
+        "import_batches",
+        "products",
+        "clients",
+        "warehouses",
     ]:
         try:
             db.execute(
@@ -124,8 +140,7 @@ def test_clients_isolation(db: Session, two_tenants):
 
     _insert_as_replica(
         db,
-        "INSERT INTO clients (id, tenant_id, name) "
-        "VALUES (:id, :tid, 'Secret Client')",
+        "INSERT INTO clients (id, tenant_id, name) " "VALUES (:id, :tid, 'Secret Client')",
         {"id": cid, "tid": t["a"]},
     )
 
@@ -236,8 +251,12 @@ def test_pos_receipts_isolation(db: Session, two_tenants):
         },
     )
 
-    _assert_invisible(db, "pos_receipts", receipt_id, t["b_str"], "Tenant B sees Tenant A POS receipt")
-    _assert_visible(db, "pos_receipts", receipt_id, t["a_str"], "Tenant A cannot see own POS receipt")
+    _assert_invisible(
+        db, "pos_receipts", receipt_id, t["b_str"], "Tenant B sees Tenant A POS receipt"
+    )
+    _assert_visible(
+        db, "pos_receipts", receipt_id, t["a_str"], "Tenant A cannot see own POS receipt"
+    )
 
 
 # ── stock_items (requires warehouses + products) ─────────────────────────

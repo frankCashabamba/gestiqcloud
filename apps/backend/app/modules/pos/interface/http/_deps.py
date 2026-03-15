@@ -18,7 +18,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 from uuid import UUID
 
-from fastapi import HTTPException, Query
+from fastapi import HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -280,6 +280,46 @@ def resolve_outbound_stock_row(rows):
     if positive_rows:
         return positive_rows[0]
     return rows[0] if rows else None
+
+
+def resolve_outbound_stock_fifo(rows, qty_needed: float) -> tuple[list[tuple], float]:
+    """FIFO automático entre lotes.
+
+    Orden de consumo: sin lote primero (stock antiguo sin trazabilidad),
+    luego por nombre de lote ascendente, luego por vencimiento ascendente.
+
+    Returns:
+        (allocations, remaining)
+        allocations: list of (stock_row, alloc_qty, lot, expires_at)
+        remaining: qty no cubierta (> 0 si stock insuficiente)
+    """
+
+    def _sort_key(row):
+        lot = normalize_lot(row[2])
+        exp = row[3]
+        return (
+            0 if lot is None else 1,
+            lot or "",
+            str(exp) if exp is not None else "",
+        )
+
+    positive_rows = sorted(
+        [row for row in rows if float(row[1] or 0) > 0],
+        key=_sort_key,
+    )
+
+    allocations: list[tuple] = []
+    remaining = qty_needed
+
+    for row in positive_rows:
+        if remaining <= 0:
+            break
+        available = float(row[1] or 0)
+        alloc = min(available, remaining)
+        allocations.append((row, alloc, normalize_lot(row[2]), row[3]))
+        remaining -= alloc
+
+    return allocations, remaining
 
 
 def resolve_selected_stock_row(rows, *, lot: str | None, expires_at: date | None):

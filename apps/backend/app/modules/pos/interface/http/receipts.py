@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -29,19 +29,19 @@ from ._deps import (
     ensure_generic_stock_row,
     get_claims,
     get_tenant_id,
+    get_user_id,
+    is_company_admin,
     is_tax_enabled,
     load_locked_stock_rows,
     normalize_lot,
     resolve_default_tax_rate,
     resolve_inventory_costing_method,
-    resolve_outbound_stock_row,
+    resolve_outbound_stock_fifo,
     resolve_selected_stock_row,
     sum_stock_rows_qty,
     to_decimal,
     to_decimal_q,
     validate_uuid,
-    get_user_id,
-    is_company_admin,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,8 +72,12 @@ def calculate_receipt_totals(payload: CalculateTotalsIn):
     """Calcula totales de un recibo sin persistirlo. Usa Decimal para precisión."""
     if not payload.lines:
         return CalculateTotalsOut(
-            subtotal=0.0, line_discounts=0.0, global_discount=0.0,
-            base_after_discounts=0.0, tax=0.0, total=0.0,
+            subtotal=0.0,
+            line_discounts=0.0,
+            global_discount=0.0,
+            base_after_discounts=0.0,
+            tax=0.0,
+            total=0.0,
         )
 
     subtotal = Decimal("0")
@@ -133,7 +137,9 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
     current_user_id = get_user_id(request)
     shift_uuid = validate_uuid(payload.shift_id, "Shift ID")
     register_uuid = validate_uuid(payload.register_id, "Register ID")
-    customer_uuid = validate_uuid(payload.customer_id, "Customer ID") if payload.customer_id else None
+    customer_uuid = (
+        validate_uuid(payload.customer_id, "Customer ID") if payload.customer_id else None
+    )
 
     try:
         # Resolver cajero (admin puede asignar a otro)
@@ -201,6 +207,7 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
         ticket_number = f"R-{ticket_number:04d}"
 
         from ._deps import resolve_tenant_currency
+
         currency = resolve_tenant_currency(db, tenant_id)
 
         row = db.execute(
@@ -449,18 +456,18 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
             ),
             "lines": [
                 {
-                    "id": str(l[0]) if l[0] else None,
-                    "product_id": str(l[1]) if l[1] else None,
-                    "product_name": l[2],
-                    "product_code": l[3],
-                    "qty": float(l[4] or 0),
-                    "uom": l[5],
-                    "unit_price": float(l[6] or 0),
-                    "tax_rate": float(l[7] or 0),
-                    "discount_pct": float(l[8] or 0),
-                    "line_total": float(l[9] or 0),
+                    "id": str(ln[0]) if ln[0] else None,
+                    "product_id": str(ln[1]) if ln[1] else None,
+                    "product_name": ln[2],
+                    "product_code": ln[3],
+                    "qty": float(ln[4] or 0),
+                    "uom": ln[5],
+                    "unit_price": float(ln[6] or 0),
+                    "tax_rate": float(ln[7] or 0),
+                    "discount_pct": float(ln[8] or 0),
+                    "line_total": float(ln[9] or 0),
                 }
-                for l in lines
+                for ln in lines
             ],
             "payments": [
                 {
@@ -530,10 +537,16 @@ def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_
             claims = get_claims(request)
             user_id = claims.get("user_id")
             audit_event(
-                db, action="delete", entity_type="pos_receipt", entity_id=str(rid),
-                actor_type="user" if user_id else "system", source="api",
-                tenant_id=str(tenant_id), user_id=str(user_id) if user_id else None,
-                changes={"status": row[0]}, req=request,
+                db,
+                action="delete",
+                entity_type="pos_receipt",
+                entity_id=str(rid),
+                actor_type="user" if user_id else "system",
+                source="api",
+                tenant_id=str(tenant_id),
+                user_id=str(user_id) if user_id else None,
+                changes={"status": row[0]},
+                req=request,
             )
         except Exception:
             pass
@@ -596,9 +609,12 @@ def checkout(
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
                 ),
                 {
-                    "id": uuid4(), "rid": receipt_uuid,
-                    "m": payment.method, "a": payment.amount,
-                    "ref": payment.ref, "paid_at": datetime.utcnow(),
+                    "id": uuid4(),
+                    "rid": receipt_uuid,
+                    "m": payment.method,
+                    "a": payment.amount,
+                    "ref": payment.ref,
+                    "paid_at": datetime.utcnow(),
                 },
             )
 
@@ -660,9 +676,7 @@ def checkout(
             {"rid": receipt_uuid},
         ).fetchall()
 
-        line_selection_map = {
-            str(sel.line_id): sel for sel in (payload.stock_selections or [])
-        }
+        line_selection_map = {str(sel.line_id): sel for sel in (payload.stock_selections or [])}
         costing = InventoryCostingService(db)
         costing_method = resolve_inventory_costing_method(db)
 
@@ -688,26 +702,32 @@ def checkout(
                     )
                     if float(stock_item[1] or 0) < alloc_qty:
                         raise HTTPException(status_code=400, detail="selected_lot_insufficient")
-                    allocations.append((
-                        stock_item, alloc_qty,
-                        normalize_lot(allocation.lot), allocation.expires_at,
-                    ))
+                    allocations.append(
+                        (
+                            stock_item,
+                            alloc_qty,
+                            normalize_lot(allocation.lot),
+                            allocation.expires_at,
+                        )
+                    )
                     selected_total += alloc_qty
                 if abs(selected_total - qty_sold) > 0.000001:
                     raise HTTPException(status_code=400, detail="invalid_lot_allocation_total")
             else:
-                stock_item = resolve_outbound_stock_row(stock_rows)
-                if stock_item is None:
+                fifo_allocs, remaining = resolve_outbound_stock_fifo(stock_rows, qty_sold)
+                if remaining > 0.000001 or not fifo_allocs:
+                    # Sin stock suficiente → fallback a fila genérica (permite negativo)
                     stock_item = ensure_generic_stock_row(
-                        db, tenant_id=tenant_id,
-                        warehouse_id=warehouse_uuid, product_id=product_id,
+                        db,
+                        tenant_id=tenant_id,
+                        warehouse_id=warehouse_uuid,
+                        product_id=product_id,
                     )
                     stock_rows = [stock_item]
-                allocations.append((
-                    stock_item, qty_sold,
-                    normalize_lot(stock_item[2]) if stock_item is not None else None,
-                    stock_item[3] if stock_item is not None else None,
-                ))
+                    allocations.append((stock_item, qty_sold, None, None))
+                else:
+                    for si, alloc_qty, lot, exp in fifo_allocs:
+                        allocations.append((si, alloc_qty, lot, exp))
 
             current_qty = sum_stock_rows_qty(stock_rows)
 
@@ -729,8 +749,11 @@ def checkout(
                     bindparam("pid", type_=PGUUID(as_uuid=True)),
                 ),
                 {
-                    "tid": tenant_id, "wid": warehouse_uuid, "pid": product_id,
-                    "q": float(current_qty), "avg": float(fallback_cost),
+                    "tid": tenant_id,
+                    "wid": warehouse_uuid,
+                    "pid": product_id,
+                    "q": float(current_qty),
+                    "avg": float(fallback_cost),
                 },
             )
 
@@ -740,26 +763,45 @@ def checkout(
                 cogs_total = to_decimal_q(0, "0.000001")
                 for si, alloc_qty, lot, exp in allocations:
                     _, alloc_cogs = costing.apply_outbound_fifo(
-                        str(tenant_id), str(warehouse_uuid), str(product_id),
+                        str(tenant_id),
+                        str(warehouse_uuid),
+                        str(product_id),
                         qty=to_decimal_q(alloc_qty, "0.000001"),
-                        allow_negative=False, lot=lot, expires_at=exp,
+                        allow_negative=False,
+                        lot=lot,
+                        expires_at=exp,
                     )
                     cogs_total += alloc_cogs
-                cogs_unit = to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else to_decimal_q(0, "0.000001")
+                cogs_unit = (
+                    to_decimal_q(cogs_total / qty_dec, "0.000001")
+                    if qty_dec > 0
+                    else to_decimal_q(0, "0.000001")
+                )
             elif costing_method == "lifo":
                 cogs_total = to_decimal_q(0, "0.000001")
                 for si, alloc_qty, lot, exp in allocations:
                     _, alloc_cogs = costing.apply_outbound_lifo(
-                        str(tenant_id), str(warehouse_uuid), str(product_id),
+                        str(tenant_id),
+                        str(warehouse_uuid),
+                        str(product_id),
                         qty=to_decimal_q(alloc_qty, "0.000001"),
-                        allow_negative=False, lot=lot, expires_at=exp,
+                        allow_negative=False,
+                        lot=lot,
+                        expires_at=exp,
                     )
                     cogs_total += alloc_cogs
-                cogs_unit = to_decimal_q(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else to_decimal_q(0, "0.000001")
+                cogs_unit = (
+                    to_decimal_q(cogs_total / qty_dec, "0.000001")
+                    if qty_dec > 0
+                    else to_decimal_q(0, "0.000001")
+                )
             else:
                 _state = costing.apply_outbound(
-                    str(tenant_id), str(warehouse_uuid), str(product_id),
-                    qty=qty_dec, allow_negative=False,
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    allow_negative=False,
                     initial_qty=to_decimal_q(current_qty, "0.000001"),
                     initial_avg_cost=fallback_cost,
                 )
@@ -772,7 +814,8 @@ def checkout(
             cogs_total_money = to_decimal_q(cogs_total, "0.01")
             gross_profit = to_decimal_q(net_total - cogs_total_money, "0.01")
             gross_margin_pct = (
-                to_decimal_q(gross_profit / net_total, "0.0001") if net_total > 0
+                to_decimal_q(gross_profit / net_total, "0.0001")
+                if net_total > 0
                 else to_decimal_q(0, "0.0001")
             )
 
@@ -784,8 +827,11 @@ def checkout(
                     "WHERE id = :id"
                 ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
                 {
-                    "id": line_id, "net": float(net_total), "cu": float(cogs_unit),
-                    "ct": float(cogs_total_money), "gp": float(gross_profit),
+                    "id": line_id,
+                    "net": float(net_total),
+                    "cu": float(cogs_unit),
+                    "ct": float(cogs_total_money),
+                    "gp": float(gross_profit),
                     "gmp": float(gross_margin_pct),
                 },
             )
@@ -801,7 +847,9 @@ def checkout(
                     raise HTTPException(status_code=400, detail="selected_lot_insufficient")
                 running_total += alloc_qty
                 alloc_qty_dec = to_decimal_q(alloc_qty, "0.000001")
-                alloc_ratio = alloc_qty_dec / qty_dec if qty_dec > 0 else to_decimal_q(0, "0.000001")
+                alloc_ratio = (
+                    alloc_qty_dec / qty_dec if qty_dec > 0 else to_decimal_q(0, "0.000001")
+                )
                 alloc_total_cost = to_decimal_q(cogs_total_money * alloc_ratio, "0.01")
 
                 db.execute(
@@ -820,10 +868,16 @@ def checkout(
                         bindparam("rid", type_=PGUUID(as_uuid=True)),
                     ),
                     {
-                        "tid": tenant_id, "pid": product_id, "wid": warehouse_uuid,
-                        "q": alloc_qty, "rid": receipt_uuid, "lot": selected_lot,
-                        "exp": selected_exp, "uc": float(cogs_unit),
-                        "tc": float(alloc_total_cost), "occurred_at": datetime.utcnow(),
+                        "tid": tenant_id,
+                        "pid": product_id,
+                        "wid": warehouse_uuid,
+                        "q": alloc_qty,
+                        "rid": receipt_uuid,
+                        "lot": selected_lot,
+                        "exp": selected_exp,
+                        "uc": float(cogs_unit),
+                        "tc": float(alloc_total_cost),
+                        "occurred_at": datetime.utcnow(),
                     },
                 )
                 db.execute(
@@ -854,10 +908,12 @@ def checkout(
         documents_created: dict = {}
         try:
             from app.modules.pos.application.invoice_integration import POSInvoicingService
+
             service = POSInvoicingService(db, tenant_id)
             try:
                 invoice_result = service.create_invoice_from_receipt(
-                    receipt_uuid, customer_id=None,
+                    receipt_uuid,
+                    customer_id=None,
                     invoice_series=getattr(payload, "invoice_series", "A"),
                 )
                 if invoice_result:
@@ -891,14 +947,21 @@ def checkout(
             claims = get_claims(request)
             user_id = claims.get("user_id")
             audit_event(
-                db, action="issue", entity_type="pos_receipt", entity_id=str(receipt_uuid),
-                actor_type="user" if user_id else "system", source="api",
-                tenant_id=str(tenant_id), user_id=str(user_id) if user_id else None,
+                db,
+                action="issue",
+                entity_type="pos_receipt",
+                entity_id=str(receipt_uuid),
+                actor_type="user" if user_id else "system",
+                source="api",
+                tenant_id=str(tenant_id),
+                user_id=str(user_id) if user_id else None,
                 changes={
                     "status": "paid",
                     "totals": {
-                        "subtotal": float(subtotal), "tax": float(tax),
-                        "total": float(total), "paid": float(paid),
+                        "subtotal": float(subtotal),
+                        "tax": float(tax),
+                        "total": float(total),
+                        "paid": float(paid),
                         "change": float(paid - total),
                     },
                     "documents_created": list(documents_created.keys()),
@@ -913,8 +976,10 @@ def checkout(
             "receipt_id": str(receipt_uuid),
             "status": "paid",
             "totals": {
-                "subtotal": float(subtotal), "tax": float(tax),
-                "total": float(total), "paid": float(paid),
+                "subtotal": float(subtotal),
+                "tax": float(tax),
+                "total": float(total),
+                "paid": float(paid),
                 "change": float(paid - total),
             },
             "documents_created": documents_created,
@@ -971,9 +1036,9 @@ def refund_receipt(
             raise HTTPException(status_code=400, detail="Recibo sin warehouse_id")
 
         has_refunds = db.execute(
-            text("SELECT 1 FROM pos_receipt_lines WHERE receipt_id = :rid AND qty < 0 LIMIT 1").bindparams(
-                bindparam("rid", type_=PGUUID(as_uuid=True))
-            ),
+            text(
+                "SELECT 1 FROM pos_receipt_lines WHERE receipt_id = :rid AND qty < 0 LIMIT 1"
+            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).first()
         if has_refunds:
@@ -1013,25 +1078,36 @@ def refund_receipt(
             stock_rows = load_locked_stock_rows(db, warehouse_uuid, product_id)
             current_qty = sum_stock_rows_qty(stock_rows)
             stock_item = ensure_generic_stock_row(
-                db, tenant_id=tenant_id,
-                warehouse_id=warehouse_uuid, product_id=product_id,
+                db,
+                tenant_id=tenant_id,
+                warehouse_id=warehouse_uuid,
+                product_id=product_id,
             )
             generic_qty = float(stock_item[1] or 0)
 
             if costing_method == "fifo":
                 costing.apply_inbound_fifo(
-                    str(tenant_id), str(warehouse_uuid), str(product_id),
-                    qty=qty_dec, unit_cost=cogs_unit_dec,
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    unit_cost=cogs_unit_dec,
                 )
             elif costing_method == "lifo":
                 costing.apply_inbound_lifo(
-                    str(tenant_id), str(warehouse_uuid), str(product_id),
-                    qty=qty_dec, unit_cost=cogs_unit_dec,
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    unit_cost=cogs_unit_dec,
                 )
             else:
                 costing.apply_inbound(
-                    str(tenant_id), str(warehouse_uuid), str(product_id),
-                    qty=qty_dec, unit_cost=cogs_unit_dec,
+                    str(tenant_id),
+                    str(warehouse_uuid),
+                    str(product_id),
+                    qty=qty_dec,
+                    unit_cost=cogs_unit_dec,
                     initial_qty=to_decimal_q(current_qty, "0.000001"),
                     initial_avg_cost=cogs_unit_dec,
                 )
@@ -1048,7 +1124,8 @@ def refund_receipt(
             refund_profit = to_decimal_q(refund_net - refund_cogs_total, "0.01")
             refund_margin = (
                 to_decimal_q(refund_profit / Decimal(str(refund_net)), "0.0001")
-                if refund_net != 0 else to_decimal_q(0, "0.0001")
+                if refund_net != 0
+                else to_decimal_q(0, "0.0001")
             )
 
             db.execute(
@@ -1064,11 +1141,19 @@ def refund_receipt(
                     bindparam("pid", type_=PGUUID(as_uuid=True)),
                 ),
                 {
-                    "rid": receipt_uuid, "pid": product_id, "qty": -abs(qty),
-                    "up": unit_price, "tr": tax_rate, "dp": discount_pct,
-                    "lt": -abs(line_total), "uom": uom, "net": refund_net,
-                    "cu": float(cogs_unit_dec), "ct": refund_cogs_total,
-                    "gp": float(refund_profit), "gmp": float(refund_margin),
+                    "rid": receipt_uuid,
+                    "pid": product_id,
+                    "qty": -abs(qty),
+                    "up": unit_price,
+                    "tr": tax_rate,
+                    "dp": discount_pct,
+                    "lt": -abs(line_total),
+                    "uom": uom,
+                    "net": refund_net,
+                    "cu": float(cogs_unit_dec),
+                    "ct": refund_cogs_total,
+                    "gp": float(refund_profit),
+                    "gmp": float(refund_margin),
                 },
             )
 
@@ -1088,8 +1173,11 @@ def refund_receipt(
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
                 ),
                 {
-                    "tid": tenant_id, "pid": product_id, "wid": warehouse_uuid,
-                    "q": qty_return, "rid": receipt_uuid,
+                    "tid": tenant_id,
+                    "pid": product_id,
+                    "wid": warehouse_uuid,
+                    "q": qty_return,
+                    "rid": receipt_uuid,
                     "uc": float(cogs_unit_dec),
                     "tc": float(cogs_unit_dec * qty_dec),
                     "occurred_at": datetime.utcnow(),
@@ -1116,9 +1204,11 @@ def refund_receipt(
         documents_created: dict = {}
         try:
             from app.modules.pos.application.invoice_integration import POSInvoicingService
+
             service = POSInvoicingService(db, tenant_id)
             expense_result = service.create_expense_from_receipt(
-                receipt_uuid, expense_type="refund",
+                receipt_uuid,
+                expense_type="refund",
                 refund_reason=payload.reason,
                 payment_method=("cash" if payload.refund_method == "cash" else None),
             )
@@ -1131,11 +1221,17 @@ def refund_receipt(
             claims = get_claims(request)
             user_id = claims.get("user_id")
             audit_event(
-                db, action="refund", entity_type="pos_receipt", entity_id=str(receipt_uuid),
-                actor_type="user" if user_id else "system", source="api",
-                tenant_id=str(tenant_id), user_id=str(user_id) if user_id else None,
+                db,
+                action="refund",
+                entity_type="pos_receipt",
+                entity_id=str(receipt_uuid),
+                actor_type="user" if user_id else "system",
+                source="api",
+                tenant_id=str(tenant_id),
+                user_id=str(user_id) if user_id else None,
                 changes={
-                    "status": "refunded", "reason": payload.reason,
+                    "status": "refunded",
+                    "reason": payload.reason,
                     "documents_created": list(documents_created.keys()),
                 },
                 req=request,
@@ -1180,9 +1276,7 @@ def backfill_receipt_documents(
 
     for_update = " FOR UPDATE" if getattr(db.get_bind().dialect, "name", "") != "sqlite" else ""
     receipt = db.execute(
-        text(
-            f"SELECT status FROM pos_receipts WHERE id = :id AND tenant_id = :tid{for_update}"
-        ),
+        text(f"SELECT status FROM pos_receipts WHERE id = :id AND tenant_id = :tid{for_update}"),
         {"id": receipt_uuid, "tid": tenant_id},
     ).first()
     if not receipt:
@@ -1193,6 +1287,7 @@ def backfill_receipt_documents(
     documents_created: dict = {}
     try:
         from app.modules.pos.application.invoice_integration import POSInvoicingService
+
         service = POSInvoicingService(db, tenant_id)
         invoice_result = service.create_invoice_from_receipt(receipt_uuid, customer_id=None)
         if invoice_result:
@@ -1259,8 +1354,8 @@ def print_receipt(
         ).fetchall()
 
         lines_html = "".join(
-            f'<div class="line"><span>{l[0]:.2f}x {l[3] or "Producto"}</span><span>${l[2]:.2f}</span></div>'
-            for l in lines
+            f'<div class="line"><span>{ln[0]:.2f}x {ln[3] or "Producto"}</span><span>${ln[2]:.2f}</span></div>'
+            for ln in lines
         )
         payments_html = "".join(
             f'<div class="line"><span>{p[0].upper()}</span><span>${p[1]:.2f}</span></div>'

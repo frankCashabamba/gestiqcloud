@@ -7,6 +7,7 @@ import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
+import { useCurrency } from '../../hooks/useCurrency'
 
 interface FormT {
   numero?: string
@@ -30,7 +31,8 @@ export default function FacturaForm() {
   const { success, error } = useToast()
   const { config } = useCompanyConfig()
   const can = usePermission()
-  const currency = config?.settings?.currency || '€'
+  const { symbol: currencySymbol } = useCurrency()
+  const currency = currencySymbol || config?.settings?.currency || ''
   const today = new Date().toISOString().slice(0, 10)
   const isNew = !id
   const requiredPermission = isNew ? 'billing:create' : 'billing:update'

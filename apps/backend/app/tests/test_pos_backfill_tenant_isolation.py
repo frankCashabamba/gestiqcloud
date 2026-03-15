@@ -15,7 +15,7 @@ from app.modules.company.interface.http.admin import (
     admin_backfill_pos_receipt_documents,
     admin_list_pos_backfill_candidates,
 )
-from app.modules.pos.interface.http.tenant import backfill_receipt_documents
+from app.modules.pos.interface.http.receipts import backfill_receipt_documents
 
 
 def _req(tenant_id: uuid.UUID | None = None) -> SimpleNamespace:

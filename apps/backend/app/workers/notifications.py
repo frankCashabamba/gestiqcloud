@@ -226,11 +226,25 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
             raise ValueError(f"Factura {invoice_id} no encontrada")
 
         asunto = f"Factura {invoice.numero} - {invoice.empresa.name}"
+        currency_symbols = {
+            "EUR": "€",
+            "USD": "$",
+            "GBP": "£",
+            "PEN": "S/",
+            "MXN": "$",
+            "COP": "$",
+            "ARS": "$",
+            "CLP": "$",
+            "BRL": "R$",
+            "JPY": "¥",
+        }
+        iso = getattr(invoice.empresa, "base_currency", None) or "EUR"
+        symbol = currency_symbols.get(iso, iso)
         body = (
             f"<h2>Factura #{invoice.numero}</h2>"
             f"<p><b>Fecha:</b> {invoice.fecha.strftime('%d/%m/%Y')}</p>"
             f"<p><b>Cliente:</b> {invoice.cliente.name if invoice.cliente else 'N/A'}</p>"
-            f"<p><b>Total:</b> {invoice.total} €</p>"
+            f"<p><b>Total:</b> {invoice.total} {symbol}</p>"
             f"<p><b>Estado:</b> {invoice.status}</p>"
         )
 

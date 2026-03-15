@@ -125,10 +125,10 @@
       <div class="cart" role="list" aria-label="Carrito" id="cartList"></div>
       <div class="pay">
         <div class="totals">
-          <div>Subtotal</div><div id="subtotal" class="sum">0,00€</div>
-          <div>Descuento</div><div id="discount" class="sum">0,00€</div>
-          <div>IVA</div><div id="tax" class="sum">0,00€</div>
-          <div class="big">Total</div><div id="total" class="sum big">0,00€</div>
+          <div>Subtotal</div><div id="subtotal" class="sum">0,00</div>
+          <div>Descuento</div><div id="discount" class="sum">0,00</div>
+          <div>IVA</div><div id="tax" class="sum">0,00</div>
+          <div class="big">Total</div><div id="total" class="sum big">0,00</div>
         </div>
         <div class="paymodes" role="group" aria-label="Métodos de pago">
           <button class="btn" data-pay="cash">Efectivo</button>
@@ -176,7 +176,11 @@
       {id:101, sku:'COM1', name:'Combo Café + Croissant', price:2.20, cat:'Combos', tags:['ahorro']}
     ];
     const TAX = 0.10;
-    // Nunca asumir moneda: si no hay configuración disponible, mostrar número sin símbolo.
+    const CURRENCY_SYMBOLS = { USD:'$', EUR:'€', COP:'$', PEN:'S/', MXN:'$' };
+    function currencySymbol() {
+      const cur = (window.__TENANT_CURRENCY__ || '').toString().trim().toUpperCase();
+      return CURRENCY_SYMBOLS[cur] || cur || '';
+    }
     const euros = (n) => {
       const cur = (window.__TENANT_CURRENCY__ || '').toString().trim().toUpperCase();
       if (!cur) return Number(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -382,7 +386,7 @@
         area.innerHTML = `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
             <div>
-              <label>Entregado (€)</label>
+              <label>Entregado (<span id="currencyLabel"></span>)</label>
               <input id="entregado" style="width:100%;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 10px;font-size:18px" inputmode="decimal" />
             </div>
             <div>
@@ -394,6 +398,8 @@
             ${[7,8,9,'⌫',4,5,6,'×2',1,2,3,'%',0,',','Borrar','Exacto'].map(k => `<button class="btn">${k}</button>`).join('')}
           </div>
         `;
+        const lbl = area.querySelector('#currencyLabel');
+        if (lbl) lbl.textContent = currencySymbol();
         const inp = area.querySelector('#entregado');
         const cam = area.querySelector('#cambio');
         const setCambio = ()=> {
@@ -512,7 +518,24 @@
       cart = []; globalDiscountPct=0; ticketNotes=''; renderCart();
     });
 
-    // Init
+    // Init — fetch tenant currency from API
+    (async function loadCurrency() {
+      try {
+        const res = await fetch('/api/v1/company/settings', { credentials: 'same-origin' });
+        if (res.ok) {
+          const data = await res.json();
+          const cur = (data.currency || '').toString().trim().toUpperCase();
+          if (cur) {
+            window.__TENANT_CURRENCY__ = cur;
+            renderCart();
+            renderPayArea();
+            renderCatalog(catalog);
+          }
+        }
+      } catch (e) {
+        console.warn('[TPV] No se pudo cargar la moneda del tenant:', e);
+      }
+    })();
     renderCatalog(catalog);
     renderCart();
     applyFilters();

@@ -1,4 +1,5 @@
 """Feature flags API for tenant frontend."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends

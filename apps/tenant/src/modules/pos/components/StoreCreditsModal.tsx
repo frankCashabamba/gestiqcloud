@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { listStoreCredits, getStoreCreditByCode, redeemStoreCredit } from '../services'
 import type { StoreCredit } from '../../../types/pos'
 import { useToast } from '../../../shared/toast'
+import { useCurrency } from '../../../hooks/useCurrency'
 
 interface StoreCreditsModalProps {
   onSelect: (credit: StoreCredit) => void
@@ -16,6 +17,7 @@ interface StoreCreditsModalProps {
 export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsModalProps) {
   const { t } = useTranslation(['pos', 'common'])
   const toast = useToast()
+  const { symbol: currencySymbol } = useCurrency()
   const [credits, setCredits] = useState<StoreCredit[]>([])
   const [loading, setLoading] = useState(false)
   const [searchCode, setSearchCode] = useState('')
@@ -100,7 +102,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
             <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
               <p><strong>{t('pos:storeCredits.creditFound')}:</strong> {foundCredit.code}</p>
               <p>{t('pos:storeCredits.customer')}: {foundCredit.customer_id || t('pos:storeCredits.customerUnassigned')}</p>
-              <p>{t('pos:storeCredits.remainingAmount')}: €{foundCredit.amount_remaining.toFixed(2)}</p>
+              <p>{t('pos:storeCredits.remainingAmount')}: {currencySymbol}{foundCredit.amount_remaining.toFixed(2)}</p>
               <p>{t('pos:storeCredits.expires')}: {foundCredit.expires_at ? new Date(foundCredit.expires_at).toLocaleDateString() : t('pos:storeCredits.noExpiry')}</p>
               <button
                 onClick={() => handleSelect(foundCredit)}
@@ -151,10 +153,10 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
 
                     <div className="text-right">
                       <p className="text-xl font-bold text-green-600">
-                        €{credit.amount_remaining.toFixed(2)}
+                        {currencySymbol}{credit.amount_remaining.toFixed(2)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {t('pos:storeCredits.of')} €{credit.amount_initial.toFixed(2)}
+                        {t('pos:storeCredits.of')} {currencySymbol}{credit.amount_initial.toFixed(2)}
                       </p>
                       {credit.expires_at && (
                         <p className="text-xs text-orange-600">

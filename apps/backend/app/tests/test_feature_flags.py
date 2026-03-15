@@ -1,4 +1,5 @@
 """Tests for feature flag resolution."""
+
 from app.modules.feature_flags.service import resolve_flags
 
 

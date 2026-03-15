@@ -2,6 +2,7 @@
  * WeightInput - Input manual de peso para productos a granel
  */
 import React, { useState } from 'react'
+import { useCurrency } from '../../../hooks/useCurrency'
 
 interface WeightInputProps {
     productName: string
@@ -18,6 +19,7 @@ export default function WeightInput({
     onCancel,
     uom = 'kg'
 }: WeightInputProps) {
+    const { symbol: currencySymbol } = useCurrency()
     const [weight, setWeight] = useState('')
     const [error, setError] = useState('')
 
@@ -50,7 +52,7 @@ export default function WeightInput({
                     <p className="text-sm text-gray-600">Producto:</p>
                     <p className="font-bold">{productName}</p>
                     <p className="text-sm text-gray-600 mt-2">
-                        price: €{pricePerUnit.toFixed(2)}/{uom}
+                        price: {currencySymbol}{pricePerUnit.toFixed(2)}/{uom}
                     </p>
                 </div>
 
@@ -97,7 +99,7 @@ export default function WeightInput({
                     <div className="mb-4 p-3 bg-green-50 rounded">
                         <p className="text-sm text-gray-600">Total estimado:</p>
                         <p className="text-2xl font-bold text-green-700">
-                            €{total.toFixed(2)}
+                            {currencySymbol}{total.toFixed(2)}
                         </p>
                     </div>
                 )}

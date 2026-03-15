@@ -78,9 +78,9 @@ class RecipeCostLineUpdate(BaseModel):
 
 
 class RecipeCostLineResponse(RecipeCostLineBase):
-    id: UUID
+    id: UUID | None = None
     recipe_id: UUID
-    created_at: datetime
+    created_at: datetime | None = None
 
     # Joined driver info
     driver_code: str | None = None

@@ -18,6 +18,19 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from . import analytics, daily_counts, numbering, receipts, registers, shifts
+from ._deps import (  # noqa: F401 — re-exported for backward compat
+    CheckoutIn,
+    CloseShiftIn,
+    OpenShiftIn,
+    ReceiptCreateIn,
+    ReceiptLineIn,
+    RefundReceiptIn,
+    RegisterIn,
+)
+from .analytics import margins_by_customer, margins_by_product, margins_product_lines  # noqa: F401
+from .receipts import checkout, create_receipt, refund_receipt  # noqa: F401
+from .registers import create_register  # noqa: F401
+from .shifts import close_shift, open_shift  # noqa: F401
 
 # Router raíz sin prefijo — cada sub-router lleva su propio prefix="/pos".
 router = APIRouter()

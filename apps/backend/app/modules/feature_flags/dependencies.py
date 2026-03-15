@@ -1,4 +1,5 @@
 """FastAPI dependencies for feature flags."""
+
 from __future__ import annotations
 
 from fastapi import Depends, HTTPException, Request

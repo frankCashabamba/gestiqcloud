@@ -103,6 +103,7 @@ export const TENANT_CRM = {
 
 export const TENANT_HR = {
   me: '/api/v1/tenant/hr/me',
+  mePayroll: '/api/v1/tenant/hr/me/payroll',
   vacations: {
     base: '/api/v1/tenant/hr/vacations',
     byId: (id: number | string) => `/api/v1/tenant/hr/vacations/${id}`,

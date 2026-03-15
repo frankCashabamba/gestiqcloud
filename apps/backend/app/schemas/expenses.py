@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ExpenseBase(BaseModel):
@@ -28,6 +28,13 @@ class ExpenseBase(BaseModel):
     )
     notes: str | None = Field(None, alias="notas")
 
+    @field_validator("supplier_id", "expense_category_id", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v: object) -> object:
+        if v == "":
+            return None
+        return v
+
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -41,6 +48,14 @@ class ExpenseUpdate(BaseModel):
     number: str | None = Field(None, alias="numero", max_length=50)
     supplier_id: UUID | None = Field(None)
     expense_category_id: UUID | None = Field(None)
+
+    @field_validator("supplier_id", "expense_category_id", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v: object) -> object:
+        if v == "":
+            return None
+        return v
+
     date: date | None = Field(None, alias="fecha")
     concept: str | None = Field(None, alias="concepto", max_length=255)
     subtotal: float | None = Field(None, ge=0)

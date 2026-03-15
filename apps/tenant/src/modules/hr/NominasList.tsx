@@ -4,9 +4,11 @@ import { listNominas, removeNomina, type Nomina } from './services/nomina'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { useTranslation } from 'react-i18next'
+import { useCurrency } from '../../hooks/useCurrency'
 
 export default function NominasList() {
     const { t } = useTranslation(['hr', 'common'])
+    const { symbol: currencySymbol } = useCurrency()
     const [items, setItems] = useState<Nomina[]>([])
     const [loading, setLoading] = useState(false)
     const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -58,7 +60,7 @@ export default function NominasList() {
         return map[s || 'draft'] || s
     }
 
-    const formatCurrency = (val?: number) => val ? `€${val.toFixed(2)}` : '-'
+    const formatCurrency = (val?: number) => val ? `${currencySymbol}${val.toFixed(2)}` : '-'
 
     return (
         <div className="p-4">

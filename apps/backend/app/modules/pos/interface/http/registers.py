@@ -14,7 +14,7 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_permission, require_scope
 from app.db.rls import ensure_guc_from_request, ensure_rls
 
-from ._deps import RegisterIn, get_tenant_id, validate_uuid
+from ._deps import RegisterIn, get_tenant_id
 
 logger = logging.getLogger(__name__)
 

@@ -4,12 +4,14 @@ import { TrendingUp, Users, Target, DollarSign } from 'lucide-react'
 import { getDashboard } from '../services'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 import { usePermission } from '../../../hooks/usePermission'
+import { useCurrency } from '../../../hooks/useCurrency'
 import PermissionDenied from '../../../components/PermissionDenied'
 import type { CRMDashboard } from '../types'
 
 export default function CRMDashboard() {
   const { t } = useTranslation(['crm', 'common'])
   const can = usePermission()
+  const { symbol: currencySymbol } = useCurrency()
   const [metrics, setMetrics] = useState<CRMDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const { error } = useToast()
@@ -70,7 +72,7 @@ export default function CRMDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">{t('crm:dashboard.pipelineValue')}</p>
-              <p className="text-3xl font-bold text-purple-600">€{metrics.opportunities.total_value.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-purple-600">{currencySymbol}{metrics.opportunities.total_value.toFixed(2)}</p>
             </div>
             <DollarSign className="text-purple-600" size={40} />
           </div>

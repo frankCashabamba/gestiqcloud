@@ -68,7 +68,7 @@ export default function PayrollParamsList() {
           <tr>
             <th className="text-left py-2 px-3">País</th>
             <th className="text-left py-2 px-3">Año</th>
-            <th className="text-left py-2 px-3">SMI (€)</th>
+            <th className="text-left py-2 px-3">SMI</th>
             <th className="text-left py-2 px-3">SS Empleado %</th>
             <th className="text-left py-2 px-3">SS Empleador %</th>
             <th className="text-left py-2 px-3">Mutualidad %</th>

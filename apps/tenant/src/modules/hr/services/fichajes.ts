@@ -23,9 +23,14 @@ function normalizeEntry(entry: TimeEntryApi): Fichaje {
   }
 }
 
-export async function getFichajes(): Promise<Fichaje[]> {
+export async function getFichajes(params?: {
+  empleadoId?: string
+  fromDate?: string
+  toDate?: string
+}): Promise<Fichaje[]> {
   const { data } = await tenantApi.get<TimeEntryApi[] | { items?: TimeEntryApi[] }>(
-    TENANT_HR.timekeeping.base
+    TENANT_HR.timekeeping.base,
+    { params: { empleadoId: params?.empleadoId, fromDate: params?.fromDate, toDate: params?.toDate } }
   )
   const items = Array.isArray(data) ? data : data?.items || []
   return items.map(normalizeEntry)

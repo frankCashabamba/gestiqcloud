@@ -9,6 +9,7 @@ Resolution order (last wins):
   5. Tenant overrides (config_json.features)
   6. Beta user overrides
 """
+
 from __future__ import annotations
 
 import logging
