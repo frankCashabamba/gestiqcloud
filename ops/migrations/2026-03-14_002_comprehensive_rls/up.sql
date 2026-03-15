@@ -221,17 +221,21 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- stock_transfers (may already have policy from 020_stock_transfers.sql)
-ALTER TABLE stock_transfers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE stock_transfers FORCE ROW LEVEL SECURITY;
+DO $$ BEGIN
+    ALTER TABLE stock_transfers ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE stock_transfers FORCE ROW LEVEL SECURITY;
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
 
 -- internal_transfers
-ALTER TABLE internal_transfers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE internal_transfers FORCE ROW LEVEL SECURITY;
 DO $$ BEGIN
+    ALTER TABLE internal_transfers ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE internal_transfers FORCE ROW LEVEL SECURITY;
     CREATE POLICY tenant_isolation_policy ON internal_transfers
         USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
         WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 EXCEPTION WHEN duplicate_object THEN NULL;
+         WHEN undefined_table THEN NULL;
 END $$;
 
 -- inventory_settings
