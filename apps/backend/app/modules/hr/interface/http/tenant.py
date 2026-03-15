@@ -464,6 +464,65 @@ def _tenant_currency(db: Session, tenant_id: UUID) -> str:
 # ============================================================================
 
 
+class MeEmployeeResponse(BaseModel):
+    """Perfil de empleado del usuario autenticado."""
+
+    id: UUID
+    name: str
+    apellidos: str
+    puesto: str | None = None
+    departamento_id: str | None = None
+    estado: str
+    fecha_ingreso: date
+    email: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+@router.get("/me", response_model=MeEmployeeResponse)
+async def get_my_employee_profile(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Devuelve el perfil de empleado del usuario autenticado (lookup por email)."""
+    claims = getattr(request.state, "access_claims", {}) or {}
+    user_email = claims.get("sub") or claims.get("email")
+    tenant_id = claims.get("tenant_id")
+
+    if not user_email or not tenant_id:
+        raise HTTPException(status_code=401, detail="unauthenticated")
+
+    try:
+        tid = UUID(str(tenant_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="invalid_tenant")
+
+    employee = (
+        db.execute(
+            select(Employee).where(
+                Employee.tenant_id == tid,
+                Employee.email == str(user_email).lower(),
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    if not employee:
+        raise HTTPException(status_code=404, detail="employee_not_found")
+
+    return MeEmployeeResponse(
+        id=employee.id,
+        name=employee.first_name,
+        apellidos=employee.last_name,
+        puesto=employee.job_title,
+        departamento_id=employee.department,
+        estado=_employee_status_from_model(employee.status),
+        fecha_ingreso=employee.hire_date,
+        email=employee.email,
+    )
+
+
 @router.get("/employees", response_model=EmployeeListResponse)
 async def list_employees(
     search: str | None = None,

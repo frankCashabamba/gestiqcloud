@@ -413,19 +413,21 @@ def health():
 
 @app.get("/ready", tags=["health"], include_in_schema=False)
 def ready():
-    """Healthcheck profundo: verifica DB y Redis"""
-    checks = {"database": False, "redis": False}
+    """Deep healthcheck: verifies DB, Redis, Celery, and migrations."""
+    import json as _json
+
+    checks: dict[str, bool] = {}
 
     # Check database
     try:
-        from app.config.database import ping as db_ping  # type: ignore
+        from app.config.database import ping as db_ping
 
         checks["database"] = bool(db_ping())
     except Exception as e:
         logging.getLogger("app.health").warning(f"DB health check failed: {e}")
         checks["database"] = False
 
-    # Check Redis (si está configurado)
+    # Check Redis
     if settings.REDIS_URL:
         try:
             import redis
@@ -437,12 +439,28 @@ def ready():
             logging.getLogger("app.health").warning(f"Redis health check failed: {e}")
             checks["redis"] = False
     else:
-        checks["redis"] = True  # No required, mark as OK
+        checks["redis"] = True  # Not required
+
+    # Check Celery broker connectivity
+    celery_url = os.getenv("CELERY_BROKER_URL") or settings.REDIS_URL
+    if celery_url:
+        try:
+            import redis
+
+            r = redis.from_url(celery_url, socket_connect_timeout=2)
+            r.ping()
+            checks["celery_broker"] = True
+        except Exception as e:
+            logging.getLogger("app.health").warning(f"Celery broker check failed: {e}")
+            checks["celery_broker"] = False
+    else:
+        checks["celery_broker"] = True  # Not configured
 
     all_ok = all(checks.values())
     status_code = 200 if all_ok else 503
+    body = _json.dumps({"status": "ok" if all_ok else "fail", "checks": checks})
     return Response(
-        content=f'{{"status": "{"ok" if all_ok else "fail"}", "checks": {checks}}}'.encode(),
+        content=body.encode(),
         media_type="application/json",
         status_code=status_code,
     )
@@ -630,6 +648,15 @@ try:
     _router_logger.info("Notifications router mounted at /api/v1/notifications")
 except Exception as e:
     _router_logger.error(f"Error mounting Notifications router: {e}")
+
+# Feature Flags
+try:
+    from app.modules.feature_flags.interface.http.tenant import router as feature_flags_router
+
+    app.include_router(feature_flags_router, prefix="/api/v1")
+    _router_logger.info("Feature Flags router mounted at /api/v1/feature-flags")
+except Exception as e:
+    _router_logger.warning(f"Feature Flags router mount failed: {e}")
 
 # HR payroll
 try:

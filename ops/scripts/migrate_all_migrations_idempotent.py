@@ -90,6 +90,17 @@ def is_migration_applied(conn, migration_name: str) -> bool:
         return False
 
 
+def get_stored_hash(conn, migration_name: str) -> str | None:
+    """Query the stored hash for a migration from _migrations."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT hash FROM _migrations WHERE name = %s", (migration_name,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
 def record_migration(conn, migration_name: str, content_hash: str) -> bool:
     """Record migration as applied."""
     cursor = conn.cursor()
@@ -117,6 +128,10 @@ def apply_migration(conn, migration_dir: Path, sql_content: str, dry_run: bool =
     if is_migration_applied(conn, migration_name):
         print(f"\n> {migration_dir.name}")
         print("  [SKIP] Already applied")
+        stored_hash = get_stored_hash(conn, migration_name)
+        current_hash = get_file_hash(sql_content)
+        if stored_hash and stored_hash != current_hash:
+            print("  [WARNING] Content changed since applied (stored hash differs)")
         return True
 
     if dry_run:

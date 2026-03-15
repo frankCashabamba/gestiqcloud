@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from '../../auth/ProtectedRoute'
 import PermissionDenied from '../../components/PermissionDenied'
+import { usePermission } from '../../hooks/usePermission'
 import Panel from './Panel'
 import EmployeesList from './EmployeesList'
 import EmployeeForm from './EmployeeForm'
@@ -9,6 +10,13 @@ import VacationsList from './VacationsList'
 import VacationForm from './VacationForm'
 import FichajesView from './FichajesView'
 import NominaView from './NominaView'
+import MiJornada from './MiJornada'
+
+function HRIndex() {
+  const can = usePermission()
+  if (can('hr:manage')) return <Panel />
+  return <Navigate to="mi-jornada" replace />
+}
 
 export default function RRHHRoutes() {
   return (
@@ -17,7 +25,8 @@ export default function RRHHRoutes() {
       fallback={<PermissionDenied permission="hr:read" />}
     >
       <Routes>
-        <Route index element={<Panel />} />
+        <Route index element={<HRIndex />} />
+        <Route path="mi-jornada" element={<MiJornada />} />
         <Route path="empleados" element={<EmployeesList />} />
         <Route
           path="empleados/nuevo"

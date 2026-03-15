@@ -23,6 +23,57 @@ router = APIRouter(
 logger = logging.getLogger("app.migrations")
 
 
+def _ensure_schema_migrations_table(db: Session) -> None:
+    """Crea schema_migrations si no existe y la siembra desde _migrations."""
+    try:
+        db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    id            SERIAL PRIMARY KEY,
+                    version       VARCHAR NOT NULL UNIQUE,
+                    name          VARCHAR,
+                    status        VARCHAR NOT NULL DEFAULT 'pending',
+                    mode          VARCHAR,
+                    started_at    TIMESTAMPTZ,
+                    completed_at  TIMESTAMPTZ,
+                    executed_by   VARCHAR,
+                    execution_time_ms INTEGER,
+                    error_message TEXT,
+                    applied_order INTEGER,
+                    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
+        # Sembrar desde _migrations (runner idempotente) si la tabla existe,
+        # y actualizar filas existentes que ya fueron aplicadas.
+        db.execute(
+            text(
+                """
+                INSERT INTO schema_migrations (version, name, status, completed_at, created_at, updated_at)
+                SELECT
+                    name AS version,
+                    name,
+                    'success',
+                    applied_at,
+                    applied_at,
+                    applied_at
+                FROM _migrations
+                ON CONFLICT (version) DO UPDATE SET
+                    status       = 'success',
+                    completed_at = COALESCE(schema_migrations.completed_at, EXCLUDED.completed_at),
+                    updated_at   = now()
+                WHERE schema_migrations.status != 'success'
+                """
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 class MigrationRecord(BaseModel):
     """Migration record."""
 
@@ -66,6 +117,7 @@ async def get_migration_history(
     Get executed migrations history.
     Only accessible to administrators.
     """
+    _ensure_schema_migrations_table(db)
     result = (
         db.execute(
             text(
@@ -96,6 +148,7 @@ async def get_migration_status(
     """
     Get current migration system status.
     """
+    _ensure_schema_migrations_table(db)
     stats = (
         db.execute(
             text(
@@ -290,6 +343,7 @@ async def get_pending_migrations(
     db: Session = Depends(get_db),
 ):
     """Get pending migrations."""
+    _ensure_schema_migrations_table(db)
     result = (
         db.execute(
             text(
@@ -332,6 +386,7 @@ async def mark_migration_status(
 
     Useful to ignore ('ignored') a problematic migration or revert to 'pending'.
     """
+    _ensure_schema_migrations_table(db)
     allowed = {"pending", "running", "success", "failed", "ignored"}
     st = body.status.lower().strip()
     if st not in allowed:
