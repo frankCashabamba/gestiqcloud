@@ -2,7 +2,6 @@
 import React from 'react'
 
 import { AdminCard } from '../components/AdminCard'
-import { GenericDashboard } from '../components/GenericDashboard'
 import { MetricCard } from '../components/MetricCard'
 import { SimpleLineChart } from '../components/SimpleLineChart'
 import { useAdminStats } from '../hooks/useAdminStats'
@@ -244,11 +243,6 @@ export default function AdminPanel() {
       <section className="admin-section">
         <h2>🚀 Operaciones de Soporte</h2>
         {renderCards(operationsCards)}
-      </section>
-
-      <section className="admin-section">
-        <h2>📱 Dashboard Configurable (Sistema Sin Hardcodes)</h2>
-        <GenericDashboard dashboardSlug="default" />
       </section>
     </div>
   )
