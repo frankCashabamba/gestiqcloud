@@ -188,7 +188,7 @@ function AppliedTable({
             </tr>
           ))}
           {filtered.length === 0 && (
-            <tr><td colSpan={4} className="mig-table__empty">Sin resultados para "{search}"</td></tr>
+            <tr><td colSpan={4} className="mig-table__empty">Sin resultados para &quot;{search}&quot;</td></tr>
           )}
         </tbody>
       </table>
@@ -397,7 +397,7 @@ export default function Migraciones() {
       {!loading && failedMigs.length > 0 && (
         <Section title="Fallidas" count={failedMigs.length} variant="failed">
           <div className="mig-card mig-card--failed">
-            {failedMigs.map(m => <ActionRow {...rowProps(m)} />)}
+            {failedMigs.map(m => <ActionRow key={m.version} {...rowProps(m)} />)}
           </div>
         </Section>
       )}
@@ -406,7 +406,7 @@ export default function Migraciones() {
       {!loading && pendingMigs.length > 0 && (
         <Section title="Pendientes" count={pendingMigs.length} variant="pending">
           <div className="mig-card mig-card--pending">
-            {pendingMigs.map(m => <ActionRow {...rowProps(m)} />)}
+            {pendingMigs.map(m => <ActionRow key={m.version} {...rowProps(m)} />)}
           </div>
         </Section>
       )}
@@ -422,7 +422,7 @@ export default function Migraciones() {
       {!loading && ignoredMigs.length > 0 && (
         <Section title="Ignoradas" count={ignoredMigs.length} defaultOpen={false}>
           <div className="mig-card">
-            {ignoredMigs.map(m => <ActionRow {...rowProps(m)} />)}
+            {ignoredMigs.map(m => <ActionRow key={m.version} {...rowProps(m)} />)}
           </div>
         </Section>
       )}
