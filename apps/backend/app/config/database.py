@@ -226,9 +226,7 @@ def get_db(request: Request) -> Iterator[Session]:
                 # Superadmin bypass: set app.bypass_rls so admin_bypass RLS policies
                 # allow operations without requiring app.tenant_id to match.
                 if is_superadmin:
-                    db.execute(
-                        text("SELECT set_config('app.bypass_rls', 'true', true)")
-                    )
+                    db.execute(text("SELECT set_config('app.bypass_rls', 'true', true)"))
             except Exception:
                 logger.warning("Failed to set RLS GUCs for request", exc_info=True)
                 db.rollback()
