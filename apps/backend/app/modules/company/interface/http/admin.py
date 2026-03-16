@@ -94,9 +94,7 @@ def _delete_tenant_rows_recursive(
     for child_table, child_col in _collect_fk_tables(db, table, schema=schema):
         if child_table in visited:
             continue
-        child_where = (
-            f'"{child_col}" IN (SELECT id FROM "{schema}"."{table}" WHERE {where_clause})'
-        )
+        child_where = f'"{child_col}" IN (SELECT id FROM "{schema}"."{table}" WHERE {where_clause})'
         _delete_tenant_rows_recursive(
             db, child_table, child_where, params, schema, visited, depth + 1
         )
@@ -106,9 +104,7 @@ def _delete_tenant_rows_recursive(
         params,
     ).rowcount
     if n or depth == 0:
-        logger.info(
-            "delete_company: removed %d from %s (depth=%d)", n, table, depth
-        )
+        logger.info("delete_company: removed %d from %s (depth=%d)", n, table, depth)
 
 
 def _delete_company_data_postgres(
