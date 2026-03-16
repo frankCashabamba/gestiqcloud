@@ -295,7 +295,7 @@ async def enqueue_async_batch(
         )
         db.commit()
 
-        store_payload(str(doc.id), file_bytes)
+        await asyncio.to_thread(store_payload, str(doc.id), file_bytes)
         if process_document_task:
             process_document_task.delay(
                 doc_id=str(doc.id),

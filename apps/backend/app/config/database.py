@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
@@ -208,15 +208,12 @@ def _apply_rls_gucs(
 def _session_after_begin(session: Session, transaction, connection):
     if connection.dialect.name != "postgresql":
         return
-    try:
-        _apply_rls_gucs(
-            connection,
-            tenant_id=session.info.get("tenant_id"),
-            user_id=session.info.get("user_id"),
-            bypass_rls=bool(session.info.get("bypass_rls", False)),
-        )
-    except Exception:
-        logger.warning("after_begin: failed to apply RLS GUCs", exc_info=True)
+    _apply_rls_gucs(
+        connection,
+        tenant_id=session.info.get("tenant_id"),
+        user_id=session.info.get("user_id"),
+        bypass_rls=bool(session.info.get("bypass_rls", False)),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -351,6 +348,49 @@ def ping() -> bool:
         except Exception:
             pass
     return True
+
+
+# ---------------------------------------------------------------------------
+# Helpers RLS: fijar contexto y bypass temporal
+# ---------------------------------------------------------------------------
+def set_rls_tenant(db: Session, tenant_id: str | None) -> None:
+    """Fija tenant_id en db.info y en el GUC de la transacción actual."""
+    db.info["tenant_id"] = tenant_id
+    db.execute(
+        text("SELECT set_config('app.tenant_id', :tid, true)"),
+        {"tid": tenant_id or ""},
+    )
+
+
+def set_rls_user(db: Session, user_id: str | None) -> None:
+    """Fija user_id en db.info y en el GUC de la transacción actual."""
+    db.info["user_id"] = user_id
+    db.execute(
+        text("SELECT set_config('app.user_id', :uid, true)"),
+        {"uid": user_id or ""},
+    )
+
+
+@contextmanager
+def temp_rls_bypass(db: Session) -> Generator[None, None, None]:
+    """
+    Context manager que activa bypass_rls temporalmente y lo restaura al salir.
+
+    Uso:
+        with temp_rls_bypass(db):
+            user = db.query(User).filter(...).first()
+    """
+    prev = bool(db.info.get("bypass_rls", False))
+    db.info["bypass_rls"] = True
+    db.execute(text("SELECT set_config('app.bypass_rls', 'true', true)"))
+    try:
+        yield
+    finally:
+        db.info["bypass_rls"] = prev
+        db.execute(
+            text("SELECT set_config('app.bypass_rls', :v, true)"),
+            {"v": "true" if prev else "false"},
+        )
 
 
 @contextmanager

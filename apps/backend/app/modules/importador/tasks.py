@@ -133,6 +133,17 @@ async def _run_processing(
     from app.modules.importador.ocr_service import extract_text_from_file
 
     with SessionLocal() as db:
+        # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
+        # manualmente para que el evento after_begin aplique los GUCs de RLS correctamente.
+        from sqlalchemy import text as _text
+
+        # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
+        # manualmente para que el evento after_begin aplique los GUCs de RLS correctamente.
+        db.info["tenant_id"] = str(tenant_id)
+        db.info["user_id"] = str(user_id) if user_id else None
+        db.info["bypass_rls"] = True  # worker de confianza; no es una sesión de usuario
+        db.execute(_text("SELECT 1"))  # dispara after_begin con los GUCs correctos
+
         from app.models.importador import ImpDocumento
 
         doc = db.query(ImpDocumento).filter(ImpDocumento.id == doc_id).first()
@@ -415,6 +426,11 @@ def _make_task():
                 from app.modules.importador import crud
 
                 with SessionLocal() as db:
+                    from sqlalchemy import text as _text
+
+                    db.info["tenant_id"] = tenant_id
+                    db.info["bypass_rls"] = True
+                    db.execute(_text("SELECT 1"))
                     doc = db.query(ImpDocumento).filter(ImpDocumento.id == UUID(doc_id)).first()
                     if doc:
                         crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": msg})

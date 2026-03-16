@@ -3,6 +3,11 @@
 Saves the initial tenant configuration in both Tenant and CompanySettings.
 """
 
+import base64
+import os
+import re
+import uuid
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +20,26 @@ from app.models.company.company_settings import CompanySettings
 from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/tenant/onboarding", tags=["Onboarding"])
+
+
+def _save_logo_if_dataurl(data: str | None) -> str | None:
+    """Si data es un data URL base64, lo guarda en disco y devuelve la ruta. Si no, devuelve data tal cual."""
+    if not data or not data.startswith("data:"):
+        return data
+    try:
+        m = re.match(r"^data:([^;,]+);base64,(.*)$", data, re.IGNORECASE | re.DOTALL)
+        if not m:
+            return None
+        mime = m.group(1).lower()
+        ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}.get(mime, ".png")
+        raw = base64.b64decode(m.group(2))
+        base_dir = Path(os.getcwd()) / "uploads" / "logos"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        fname = f"{uuid.uuid4().hex}{ext}"
+        (base_dir / fname).write_bytes(raw)
+        return f"/uploads/logos/{fname}"
+    except Exception:
+        return None
 
 
 class OnboardingInitRequest(BaseModel):
@@ -110,7 +135,7 @@ async def onboarding_init(
             settings.default_language = payload.default_language
             settings.timezone = payload.timezone
             settings.currency = payload.currency
-            settings.company_logo = payload.logo_empresa
+            settings.company_logo = _save_logo_if_dataurl(payload.logo_empresa)
             settings.primary_color = payload.primary_color
             settings.secondary_color = payload.secondary_color
             settings.company_name = payload.company_name

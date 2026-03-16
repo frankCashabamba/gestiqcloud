@@ -7,7 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.email.email_utils import verificar_token_email
-from app.config.database import get_db
+from app.config.database import get_db, set_rls_tenant, set_rls_user, temp_rls_bypass
 from app.config.settings import settings
 from app.core.audit import audit as audit_log
 from app.core.auth_http import refresh_cookie_path_tenant  # <- IMPORT NECESARIO
@@ -68,17 +68,20 @@ def tenant_login(
         response.headers["Retry-After"] = str(rl.retry_after)
 
     # 1) Buscar usuario (case-insensitive) + join con tenant
-    user = (
-        db.query(CompanyUser)
-        .options(joinedload(CompanyUser.tenant))
-        .filter(
-            or_(
-                func.lower(CompanyUser.email) == ident,
-                func.lower(CompanyUser.username) == ident,
+    # Endpoint público (sin JWT) → get_db no tiene tenant_id → RLS filtraría todo.
+    # Bypass temporal acotado solo al lookup; en cuanto conocemos el tenant lo fijamos.
+    with temp_rls_bypass(db):
+        user = (
+            db.query(CompanyUser)
+            .options(joinedload(CompanyUser.tenant))
+            .filter(
+                or_(
+                    func.lower(CompanyUser.email) == ident,
+                    func.lower(CompanyUser.username) == ident,
+                )
             )
+            .first()
         )
-        .first()
-    )
 
     # Capturar user_id antes de cualquier commit/rollback que pueda expirar el objeto ORM
     user_id_str: str | None = None
@@ -141,22 +144,9 @@ def tenant_login(
     request.state.session_dirty = True
     set_tenant_scope(request, tenant_id)
 
-    # Si resolvimos UUID de tenant, propágalo a la sesión DB (GUC + session.info)
-    try:
-        if tenant_uuid_for_family:
-            from sqlalchemy import text as _text
-
-            db.execute(
-                _text("SET LOCAL app.tenant_id = :tid"),
-                {"tid": str(tenant_uuid_for_family)},
-            )
-            try:
-                db.info["tenant_id"] = str(tenant_uuid_for_family)
-            except Exception:
-                pass
-    except Exception:
-        # No bloquear el login por fallos al fijar el GUC
-        pass
+    # Fija contexto RLS ahora que conocemos tenant y usuario
+    set_rls_tenant(db, tenant_id)
+    set_rls_user(db, user_id_str)
 
     # 4) CSRF (cookie legible por JS)
     issue_csrf_and_cookie(request, response, path="/")
@@ -293,28 +283,29 @@ def tenant_refresh(request: Request, response: Response, db: Session = Depends(g
         except (ValueError, TypeError):
             raise HTTPException(status_code=401, detail="invalid_refresh_token")
 
-        user = (
-            db.query(CompanyUser)
-            .options(joinedload(CompanyUser.tenant))
-            .filter(CompanyUser.id == tenant_user_id)
-            .first()
-        )
+        # Fija tenant_id del token antes del query para que RLS lo encuentre
+        tenant_scope_id = str(raw_tenant_id) if raw_tenant_id else None
+        if tenant_scope_id:
+            set_rls_tenant(db, tenant_scope_id)
+
+        with temp_rls_bypass(db):
+            user = (
+                db.query(CompanyUser)
+                .options(joinedload(CompanyUser.tenant))
+                .filter(CompanyUser.id == tenant_user_id)
+                .first()
+            )
         if not user or not user.tenant_id:
             raise HTTPException(status_code=401, detail="invalid_refresh_token")
 
-        tenant_scope_id = str(raw_tenant_id or user.tenant_id)
+        tenant_scope_id = str(user.tenant_id)
+        set_rls_tenant(db, tenant_scope_id)
+        set_rls_user(db, str(user.id))
+
         s = ensure_session(request)
         s.update({"kind": "tenant", "tenant_user_id": str(user.id), "tenant_id": tenant_scope_id})
         request.state.session_dirty = True
         set_tenant_scope(request, tenant_scope_id)
-
-        try:
-            from sqlalchemy import text as _text
-
-            db.execute(_text("SET LOCAL app.tenant_id = :tid"), {"tid": tenant_scope_id})
-            db.info["tenant_id"] = tenant_scope_id
-        except Exception:
-            pass
 
         claims = build_tenant_claims(db, user)
         if not claims:
@@ -417,20 +408,24 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=400, detail="invalid_or_expired_token")
 
-    user = db.query(CompanyUser).filter(func.lower(CompanyUser.email) == str(email).lower()).first()
+    with temp_rls_bypass(db):
+        user = (
+            db.query(CompanyUser)
+            .filter(func.lower(CompanyUser.email) == str(email).lower())
+            .first()
+        )
     if not user or not user.tenant_id:
         raise HTTPException(status_code=404, detail="user_not_found")
+
+    set_rls_tenant(db, str(user.tenant_id))
+    set_rls_user(db, str(user.id))
 
     was_verified = bool(getattr(user, "is_verified", False))
     requires_onboarding = bool(getattr(user, "is_company_admin", False) and not was_verified)
 
     user.password_hash = hasher.hash(new_pwd)
-    # marca como verificado si ese campo existe en el modelo
-    try:
-        if hasattr(user, "is_verified"):
-            user.is_verified = True
-    except Exception:
-        pass
+    if hasattr(user, "is_verified"):
+        user.is_verified = True
     db.add(user)
     db.commit()
     return {
