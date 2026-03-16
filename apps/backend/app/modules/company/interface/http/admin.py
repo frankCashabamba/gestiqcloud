@@ -68,174 +68,89 @@ def _collect_fk_tables(
     return [(row[0], row[1]) for row in rows]
 
 
-def _tbl_exists(db: Session, table: str, schema: str = "public") -> bool:
-    """Check table existence using to_regclass (never raises, always reliable)."""
-    result = db.execute(
-        text("SELECT to_regclass(:full_name)"),
-        {"full_name": f"{schema}.{table}"},
-    ).scalar()
-    return result is not None
+def _delete_tenant_rows_recursive(
+    db: Session,
+    table: str,
+    where_clause: str,
+    params: dict,
+    schema: str,
+    visited: set[str],
+    depth: int = 0,
+) -> None:
+    """Delete tenant rows from `table` matching `where_clause`.
+
+    Before deleting, recursively deletes all rows in tables that have a FK
+    pointing to `table` (grandchildren, great-grandchildren, etc.) so that
+    no FK violation can block the deletion.
+
+    `visited` prevents cycles and double-processing.
+    All tables share a single PK named `id` (standard for this codebase).
+    """
+    if depth > 20 or table in visited:
+        return
+    visited.add(table)
+
+    # Find all tables that reference `table` and delete them first.
+    for child_table, child_col in _collect_fk_tables(db, table, schema=schema):
+        if child_table in visited:
+            continue
+        child_where = (
+            f'"{child_col}" IN (SELECT id FROM "{schema}"."{table}" WHERE {where_clause})'
+        )
+        _delete_tenant_rows_recursive(
+            db, child_table, child_where, params, schema, visited, depth + 1
+        )
+
+    n = db.execute(
+        text(f'DELETE FROM "{schema}"."{table}" WHERE {where_clause}'),
+        params,
+    ).rowcount
+    if n or depth == 0:
+        logger.info(
+            "delete_company: removed %d from %s (depth=%d)", n, table, depth
+        )
 
 
 def _delete_company_data_postgres(
     db: Session, tenant_id: uuid.UUID, excluded_tables: set[str]
 ) -> None:
     schema = "public"
-    tid = {"tenant_id": tenant_id}
+    params = {"tenant_id": tenant_id}
 
-    # ---------------------------------------------------------------------------
-    # Multi-level FK chains that _collect_fk_tables cannot auto-discover.
-    # import_items.tenant_id is NOT a FK to tenants, so the generic loop
-    # never deletes import_items. Must be deleted explicitly, leaf-first.
-    # Table existence is checked via to_regclass() before each delete so that
-    # a missing table (pending migration) doesn't abort the transaction.
-    # ---------------------------------------------------------------------------
-
-    # Leaf tables that reference import_items (must go before import_items)
-    if _tbl_exists(db, "import_attachments"):
-        n = db.execute(
-            text(
-                'DELETE FROM "public"."import_attachments" '
-                "WHERE item_id IN ("
-                "  SELECT i.id FROM import_items i "
-                "  JOIN import_batches b ON i.batch_id = b.id "
-                "  WHERE b.tenant_id = :tenant_id"
-                ")"
-            ),
-            tid,
-        ).rowcount
-        logger.info("delete_company: removed %d import_attachments for %s", n, tenant_id)
-
-    if _tbl_exists(db, "import_item_corrections"):
-        n = db.execute(
-            text(
-                'DELETE FROM "public"."import_item_corrections" '
-                "WHERE item_id IN ("
-                "  SELECT i.id FROM import_items i "
-                "  JOIN import_batches b ON i.batch_id = b.id "
-                "  WHERE b.tenant_id = :tenant_id"
-                ")"
-            ),
-            tid,
-        ).rowcount
-        logger.info("delete_company: removed %d import_item_corrections for %s", n, tenant_id)
-
-    if _tbl_exists(db, "import_lineage"):
-        n = db.execute(
-            text(
-                'DELETE FROM "public"."import_lineage" '
-                "WHERE item_id IN ("
-                "  SELECT i.id FROM import_items i "
-                "  JOIN import_batches b ON i.batch_id = b.id "
-                "  WHERE b.tenant_id = :tenant_id"
-                ")"
-            ),
-            tid,
-        ).rowcount
-        logger.info("delete_company: removed %d import_lineage for %s", n, tenant_id)
-
-    # import_items must be deleted before import_batches
-    if _tbl_exists(db, "import_items"):
-        n = db.execute(
-            text(
-                'DELETE FROM "public"."import_items" '
-                "WHERE batch_id IN ("
-                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-                ")"
-            ),
-            tid,
-        ).rowcount
-        logger.info("delete_company: removed %d import_items for %s", n, tenant_id)
-
-    # Tables that reference import_batches.id directly (must go before import_batches)
-    if _tbl_exists(db, "import_resolutions"):
-        n = db.execute(
-            text(
-                'DELETE FROM "public"."import_resolutions" '
-                "WHERE import_job_id IN ("
-                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-                ")"
-            ),
-            tid,
-        ).rowcount
-        logger.info("delete_company: removed %d import_resolutions for %s", n, tenant_id)
-
-    if _tbl_exists(db, "posting_registry"):
-        n = db.execute(
-            text(
-                'DELETE FROM "public"."posting_registry" '
-                "WHERE import_job_id IN ("
-                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-                ")"
-            ),
-            tid,
-        ).rowcount
-        logger.info("delete_company: removed %d posting_registry for %s", n, tenant_id)
+    # Tables never to touch (audit trail, excluded by caller).
+    skip: set[str] = excluded_tables | {"tenants"}
 
     user_fk_tables = _collect_fk_tables(db, "company_users", schema=schema)
     tenant_fk_tables = _collect_fk_tables(db, "tenants", schema=schema)
 
-    # FK violation error codes (PostgreSQL)
-    _FK_PGCODES = {"23503", "23001"}
+    # Shared visited set: each table is processed at most once across all calls.
+    visited: set[str] = set(skip)
 
-    def _delete_with_retry(
-        pending: list[tuple[str, str]],
-        sql_fn,  # callable(table, column) -> str
-        params: dict,
-    ) -> None:
-        """Delete tables with retry: if a table fails due to FK violation from another
-        table in the same batch, defer it and retry after others succeed.
-        Uses savepoints so a failed attempt doesn't abort the outer transaction.
-        """
-        for _pass in range(len(pending) + 1):
-            if not pending:
-                break
-            still_pending = []
-            for table, column in pending:
-                sp = db.begin_nested()
-                try:
-                    db.execute(text(sql_fn(table, column)), params)
-                    sp.commit()
-                except Exception as exc:
-                    sp.rollback()
-                    pgcode = getattr(getattr(exc, "orig", None), "pgcode", None)
-                    if pgcode in _FK_PGCODES:
-                        still_pending.append((table, column))
-                    else:
-                        raise
-            if still_pending == pending:
-                # No progress: remaining tables cannot be deleted (unresolvable FK)
-                logger.warning(
-                    "delete_company: could not delete tables due to unresolvable FK: %s",
-                    [t for t, _ in still_pending],
-                )
-                break
-            pending = still_pending
+    # 1. Delete rows that depend on company_users first.
+    for table, column in user_fk_tables:
+        if table in visited or table == "company_users":
+            continue
+        _delete_tenant_rows_recursive(
+            db,
+            table,
+            f'"{column}" IN (SELECT id FROM "{schema}"."company_users" WHERE tenant_id = :tenant_id)',
+            params,
+            schema,
+            visited,
+        )
 
-    # Delete rows that depend on company_users first to avoid FK violations.
-    user_pending = [
-        (t, c) for t, c in user_fk_tables if t not in excluded_tables and t != "company_users"
-    ]
-    _delete_with_retry(
-        user_pending,
-        lambda t, c: (
-            f'DELETE FROM "{schema}"."{t}" '
-            f'WHERE "{c}" IN (SELECT id FROM "{schema}"."company_users" WHERE tenant_id = :tenant_id)'
-        ),
-        {"tenant_id": tenant_id},
-    )
-
-    # Delete rows by tenant FK (skip tenants/company_users themselves).
-    tenant_pending = [
-        (t, c)
-        for t, c in tenant_fk_tables
-        if t not in excluded_tables and t not in ("tenants", "company_users")
-    ]
-    _delete_with_retry(
-        tenant_pending,
-        lambda t, c: f'DELETE FROM "{schema}"."{t}" WHERE "{c}" = :tenant_id',
-        {"tenant_id": tenant_id},
-    )
+    # 2. Delete all rows with direct FK to tenants (and their transitive children).
+    for table, column in tenant_fk_tables:
+        if table in visited or table in ("tenants", "company_users"):
+            continue
+        _delete_tenant_rows_recursive(
+            db,
+            table,
+            f'"{column}" = :tenant_id',
+            params,
+            schema,
+            visited,
+        )
 
 
 def _module_names(db: Session, tenant_id: uuid.UUID) -> list[str]:
