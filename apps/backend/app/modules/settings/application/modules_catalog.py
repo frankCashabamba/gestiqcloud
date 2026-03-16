@@ -113,6 +113,39 @@ def _discover_modules_from_fs() -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Static built-in registry — fallback when frontend filesystem is not available
+# (e.g. production VPS where only the backend is deployed without frontend source)
+# ---------------------------------------------------------------------------
+
+_BUILTIN_MODULES: list[dict[str, Any]] = [
+    {"id": "accounting", "name": "Accounting", "icon": "📚", "category": "finance", "description": "Ledger, journal entries and accounting controls", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["contabilidad"], "implemented": True},
+    {"id": "invoicing", "name": "Invoicing", "icon": "🧾", "category": "finance", "description": "Invoice management, credits and document numbering", "required": True, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["billing", "facturacion", "facturación"], "implemented": True},
+    {"id": "copilot", "name": "AI Copilot", "icon": "✨", "category": "tools", "description": "AI analysis, suggestions and assisted draft creation", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": [], "implemented": False},
+    {"id": "crm", "name": "CRM", "icon": "🤝", "category": "sales", "description": "Lead management, opportunities and customer relations", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": [], "implemented": True},
+    {"id": "customers", "name": "Customers", "icon": "🧑", "category": "sales", "description": "Customer records, segmentation and relationship management", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["clientes", "clients"], "implemented": True},
+    {"id": "einvoicing", "name": "E-Invoicing", "icon": "📨", "category": "finance", "description": "Electronic submission via SRI (EC) or Facturae/SII (ES)", "required": False, "default_enabled": True, "dependencies": ["invoicing"], "countries": ["ES", "EC"], "aliases": [], "implemented": True},
+    {"id": "expenses", "name": "Expenses", "icon": "💸", "category": "finance", "description": "Recording and approval of expenses, mileage and per diems", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["gastos"], "implemented": True},
+    {"id": "finance", "name": "Finance", "icon": "💼", "category": "finance", "description": "Cash, banks and treasury operations", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["finances", "finanzas"], "implemented": True},
+    {"id": "hr", "name": "Human Resources", "icon": "👥", "category": "people", "description": "Payroll, attendance, vacations and contracts", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["rrhh"], "implemented": True},
+    {"id": "imports", "name": "Imports", "icon": "📥", "category": "operations", "description": "Bulk loading of products, customers and data via Excel/CSV", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["importador", "importer", "importaciones"], "implemented": True},
+    {"id": "inventory", "name": "Inventory", "icon": "📦", "category": "operations", "description": "Stock management, warehouses, lots and expiration dates", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["inventario"], "implemented": True},
+    {"id": "notifications", "name": "Notifications", "icon": "🔔", "category": "integrations", "description": "Notification center and alert management", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["notificaciones"], "implemented": True},
+    {"id": "pos", "name": "Point of Sale", "icon": "💰", "category": "sales", "description": "POS system with tickets, fast invoicing and thermal printing", "required": False, "default_enabled": True, "dependencies": ["inventory", "invoicing"], "countries": ["ES", "EC"], "aliases": ["tpv"], "implemented": True},
+    {"id": "manufacturing", "name": "Manufacturing", "icon": "🏭", "category": "operations", "description": "Production orders, BOM and manufacturing tracking", "required": False, "default_enabled": False, "dependencies": ["inventory"], "countries": ["ES", "EC"], "aliases": ["productions", "production", "produccion", "producción"], "implemented": True},
+    {"id": "products", "name": "Products", "icon": "🏷️", "category": "operations", "description": "Product catalog, variants, labels and commercial data", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["productos"], "implemented": True},
+    {"id": "purchases", "name": "Purchases", "icon": "🛒", "category": "operations", "description": "Purchase orders, receiving, and supplier management", "required": False, "default_enabled": True, "dependencies": ["inventory"], "countries": ["ES", "EC"], "aliases": ["compras"], "implemented": True},
+    {"id": "reconciliation", "name": "Reconciliation", "icon": "🔄", "category": "finance", "description": "Bank statement import and reconciliation workflows", "required": False, "default_enabled": False, "dependencies": ["finance"], "countries": ["ES", "EC"], "aliases": ["conciliacion", "conciliación", "conciliacionbancaria"], "implemented": True},
+    {"id": "reports", "name": "Reports", "icon": "📊", "category": "analytics", "description": "Custom reports, dashboards and exports", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["reportes"], "implemented": True},
+    {"id": "sales", "name": "Sales", "icon": "📈", "category": "sales", "description": "Quotes, orders, delivery notes and sales tracking", "required": False, "default_enabled": True, "dependencies": ["inventory", "invoicing"], "countries": ["ES", "EC"], "aliases": ["ventas"], "implemented": True},
+    {"id": "settings", "name": "Settings", "icon": "⚙️", "category": "settings", "description": "General configuration, branding, fiscal and operations settings", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["configuracion", "configuración"], "implemented": True},
+    {"id": "suppliers", "name": "Suppliers", "icon": "🚚", "category": "operations", "description": "Supplier profiles, contacts and purchasing workflows", "required": False, "default_enabled": True, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["proveedores"], "implemented": True},
+    {"id": "templates", "name": "Templates", "icon": "🧩", "category": "settings", "description": "UI templates and overlay configuration", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["plantillas"], "implemented": True},
+    {"id": "users", "name": "Users", "icon": "🪪", "category": "people", "description": "Tenant users, access roles and operational permissions", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": ["usuarios"], "implemented": True},
+    {"id": "webhooks", "name": "Webhooks", "icon": "🔗", "category": "integrations", "description": "Webhook subscriptions, delivery logs and integrations", "required": False, "default_enabled": False, "dependencies": [], "countries": ["ES", "EC"], "aliases": [], "implemented": True},
+]
+
+
+# ---------------------------------------------------------------------------
 # Lazy-loaded lookup tables
 # ---------------------------------------------------------------------------
 
@@ -124,10 +157,16 @@ AVAILABLE_MODULES: dict[str, dict[str, Any]] = {}
 
 def _ensure_modules_loaded() -> None:
     global _modules_loaded
-    if _modules_loaded:
+    # If previously loaded but resulted in empty (e.g. filesystem not available at startup),
+    # allow a retry so the built-in fallback can populate the tables.
+    if _modules_loaded and _ALL_MODULES_BY_ID:
         return
     _modules_loaded = True
     registry = _discover_modules_from_fs()
+    if not registry:
+        # Filesystem not available (e.g. production VPS without frontend source) → use built-in
+        logger.info("Frontend modules dir not found; using built-in static module registry.")
+        registry = list(_BUILTIN_MODULES)
     for entry in registry:
         module = dict(entry)
         module_id = str(module["id"]).strip()
@@ -228,7 +267,8 @@ def ensure_module_catalog_seeded(db: Session) -> None:
     if db.query(Module).count() > 0:
         return
 
-    for entry in _discover_modules_from_fs():
+    seed_entries = _discover_modules_from_fs() or list(_BUILTIN_MODULES)
+    for entry in seed_entries:
         catalog_id = str(entry["id"])
         row = Module(
             name=catalog_id,
