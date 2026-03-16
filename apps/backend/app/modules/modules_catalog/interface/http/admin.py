@@ -301,7 +301,9 @@ def _collect_filesystem_module_entries(
     return entries, ignored, errors
 
 
-def _collect_catalog_module_entries(db: Session | None = None) -> tuple[list[dict], list[str], list[dict]]:
+def _collect_catalog_module_entries(
+    db: Session | None = None,
+) -> tuple[list[dict], list[str], list[dict]]:
     entries: list[dict] = []
     ignored: list[str] = []
     seen: set[str] = set()
