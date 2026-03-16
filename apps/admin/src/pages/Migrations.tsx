@@ -310,7 +310,6 @@ export default function Migraciones() {
   const allGood = !loading && pendingMigs.length === 0 && failedMigs.length === 0
 
   const rowProps = (m: MigrationRecord) => ({
-    key: m.id,
     rec: m,
     marking: marking === m.id,
     expandedError: expandedError === m.id,
