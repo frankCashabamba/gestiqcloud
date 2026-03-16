@@ -1032,7 +1032,6 @@ async def create_company_full_json(
             dest.write_bytes(raw)
             repo.update(tenant_uuid, {"logo": f"/uploads/logos/{fname}"})
 
-        # Auto-asignación de plantilla y fijar contexto RLS ANTES de crear usuario
         tid = str(tenant_uuid) if tenant_uuid else None
 
         import secrets
