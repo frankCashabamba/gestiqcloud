@@ -148,6 +148,78 @@ async def get_db_session():  # pragma: no cover - used as patch target in tests
 
 
 # ---------------------------------------------------------------------------
+# RLS context extraction + GUC helpers
+# ---------------------------------------------------------------------------
+def _extract_rls_context(request: Request) -> dict:
+    claims = getattr(request.state, "access_claims", None) or {}
+    sess = getattr(request.state, "session", {}) or {}
+
+    tenant_id = claims.get("tenant_id") if isinstance(claims, dict) else None
+    user_id = claims.get("user_id") if isinstance(claims, dict) else None
+
+    if tenant_id is None and isinstance(sess, dict):
+        tenant_id = sess.get("tenant_id")
+    if user_id is None and isinstance(sess, dict):
+        user_id = sess.get("tenant_user_id") or sess.get("user_id")
+
+    is_superadmin = False
+    if isinstance(claims, dict):
+        is_superadmin = bool(
+            claims.get("is_superadmin")
+            or claims.get("scope") == "admin"
+            or claims.get("kind") == "admin"  # JWT admin emitido con kind="admin"
+        )
+    if not is_superadmin and isinstance(sess, dict):
+        is_superadmin = bool(
+            sess.get("is_superadmin") or sess.get("scope") == "admin" or sess.get("kind") == "admin"
+        )
+
+    return {
+        "tenant_id": str(tenant_id) if tenant_id is not None else None,
+        "user_id": str(user_id) if user_id is not None else None,
+        "bypass_rls": is_superadmin,
+    }
+
+
+def _apply_rls_gucs(
+    connection, *, tenant_id: str | None, user_id: str | None, bypass_rls: bool
+) -> None:
+    """Aplica los GUCs de RLS como transaction-local en la conexión dada."""
+    connection.execute(
+        text("SELECT set_config('app.tenant_id', :tid, true)"),
+        {"tid": tenant_id or ""},
+    )
+    connection.execute(
+        text("SELECT set_config('app.user_id', :uid, true)"),
+        {"uid": user_id or ""},
+    )
+    connection.execute(
+        text("SELECT set_config('app.bypass_rls', :bypass, true)"),
+        {"bypass": "true" if bypass_rls else "false"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Hook after_begin: re-aplica GUCs al inicio de CADA transacción nueva,
+# incluidas las que arrancan tras un db.rollback(). Esto garantiza que
+# bypass_rls nunca se pierde independientemente de cuántos rollbacks ocurran.
+# ---------------------------------------------------------------------------
+@event.listens_for(SessionLocal, "after_begin")
+def _session_after_begin(session: Session, transaction, connection):
+    if connection.dialect.name != "postgresql":
+        return
+    try:
+        _apply_rls_gucs(
+            connection,
+            tenant_id=session.info.get("tenant_id"),
+            user_id=session.info.get("user_id"),
+            bypass_rls=bool(session.info.get("bypass_rls", False)),
+        )
+    except Exception:
+        logger.warning("after_begin: failed to apply RLS GUCs", exc_info=True)
+
+
+# ---------------------------------------------------------------------------
 # Helper: resolve legacy numeric tenant_id -> UUID
 # ---------------------------------------------------------------------------
 def _resolve_tenant_id(db: Session, raw_tid: str) -> str:
@@ -180,67 +252,25 @@ def get_db(request: Request) -> Iterator[Session]:
     try:
         dialect = getattr(getattr(db, "bind", None), "dialect", None)
         is_postgres = getattr(dialect, "name", "") == "postgresql"
-        # Defensive: clear any leftover GUCs from pooled connections.
-        # set_config(..., NULL, true) is transaction-local and won't error
-        # even if the custom GUC was never set.
+
         if is_postgres:
-            try:
-                db.execute(text("SELECT set_config('app.tenant_id', NULL, true)"))
-                db.execute(text("SELECT set_config('app.user_id', NULL, true)"))
-                # Limpiar bypass_rls a nivel de sesión (no transaction-local) para que
-                # no se filtre entre requests en conexiones reutilizadas del pool.
-                db.execute(text("SELECT set_config('app.bypass_rls', '', false)"))
-            except Exception:
-                logger.warning("Failed to clear GUCs on pooled connection", exc_info=True)
-                db.rollback()
+            ctx = _extract_rls_context(request)
 
-            # Set RLS GUCs on THIS session using request context
-            try:
-                claims = getattr(request.state, "access_claims", None) or {}
-                sess = getattr(request.state, "session", {}) or {}
-                tenant_id = None
-                user_id = None
-                if isinstance(claims, dict):
-                    tenant_id = claims.get("tenant_id")
-                    user_id = claims.get("user_id")
-                if tenant_id is None or user_id is None:
-                    tenant_id = tenant_id or sess.get("tenant_id")
-                    user_id = user_id or sess.get("tenant_user_id")
+            # Resuelve tenant legacy numérico -> UUID antes de guardar en db.info
+            if ctx["tenant_id"] is not None:
+                try:
+                    ctx["tenant_id"] = _resolve_tenant_id(db, ctx["tenant_id"])
+                except Exception:
+                    pass
 
-                # Detect superadmin: is_superadmin in claims OR scope == "admin"
-                is_superadmin = bool(
-                    (isinstance(claims, dict) and claims.get("is_superadmin"))
-                    or (isinstance(claims, dict) and claims.get("scope") == "admin")
-                )
+            # Guarda contexto en db.info: after_begin lo reaplica en cada
+            # nueva transacción (incluyendo tras cualquier db.rollback()).
+            db.info["tenant_id"] = ctx["tenant_id"]
+            db.info["user_id"] = ctx["user_id"]
+            db.info["bypass_rls"] = bool(ctx["bypass_rls"])
 
-                if tenant_id is not None and user_id is not None:
-                    tid = _resolve_tenant_id(db, str(tenant_id))
-                    uid = str(user_id)
-                    db.execute(
-                        text("SELECT set_config('app.tenant_id', :tid, true)"),
-                        {"tid": tid},
-                    )
-                    db.execute(
-                        text("SELECT set_config('app.user_id', :uid, true)"),
-                        {"uid": uid},
-                    )
-                    db.info["tenant_id"] = tid
-
-                # Superadmin bypass: set app.bypass_rls a nivel de sesión (is_local=false)
-                # para que sobreviva cualquier db.rollback() dentro del mismo request.
-                # Se limpia al inicio de cada request (arriba) para evitar filtraciones
-                # entre requests en conexiones reutilizadas del pool.
-                if is_superadmin:
-                    db.execute(text("SELECT set_config('app.bypass_rls', 'true', false)"))
-            except Exception:
-                logger.warning("Failed to set RLS GUCs for request", exc_info=True)
-                db.rollback()
-
-        # Final safeguard: ensure session isn't in aborted state before yielding
-        try:
+            # Fuerza arranque de transacción para que after_begin aplique los GUCs ya.
             db.execute(text("SELECT 1"))
-        except Exception:
-            db.rollback()
 
         yield db
     finally:
@@ -248,7 +278,7 @@ def get_db(request: Request) -> Iterator[Session]:
 
 
 # ---------------------------------------------------------------------------
-# ORM hook: auto-fill tenant_id and UUID PKs when missing (best-effort)
+# ORM hook: auto-fill tenant_id cuando falta (best-effort)
 # ---------------------------------------------------------------------------
 @event.listens_for(SessionLocal, "before_flush")
 def _auto_fill_multitenant_fields(session: Session, flush_context, instances):
