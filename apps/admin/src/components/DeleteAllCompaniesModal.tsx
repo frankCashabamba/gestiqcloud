@@ -55,6 +55,7 @@ export const DeleteAllCompaniesModal: React.FC<Props> = ({ companyCount, onClose
         <div
           className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
           <div className="text-center">
             <div
@@ -128,6 +129,7 @@ export const DeleteAllCompaniesModal: React.FC<Props> = ({ companyCount, onClose
       <div
         className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
@@ -165,7 +167,6 @@ export const DeleteAllCompaniesModal: React.FC<Props> = ({ companyCount, onClose
             }}
             placeholder={CONFIRM_TEXT}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-            autoFocus
           />
           {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
         </div>
@@ -181,7 +182,7 @@ export const DeleteAllCompaniesModal: React.FC<Props> = ({ companyCount, onClose
           </button>
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={() => { void handleSubmit() }}
             disabled={loading || confirmText.trim().toUpperCase() !== CONFIRM_TEXT}
             className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >

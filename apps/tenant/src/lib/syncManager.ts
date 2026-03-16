@@ -122,7 +122,8 @@ class SyncManager {
 
         const op = item.data?._op as 'create' | 'update' | 'delete' | undefined
         const isDelete = op === 'delete' || item.data?._deleted === true
-        const isCreate = op === 'create' || (!isDelete && item.remoteVersion === 0)
+        // If _op is explicitly set, respect it; only fall back to remoteVersion===0 when op is unset
+        const isCreate = op === 'create' || (op == null && !isDelete && item.remoteVersion === 0)
         const isUpdate = !isDelete && !isCreate
 
         // Check for conflicts only on updates
@@ -239,6 +240,7 @@ class SyncManager {
 // Singleton instance
 let syncManagerInstance: SyncManager | null = null
 let syncListenerRegistered = false
+let syncListenerFn: ((event: Event) => void) | null = null
 
 export function getSyncManager(): SyncManager {
   if (!syncManagerInstance) {
@@ -256,7 +258,7 @@ export function initSyncEventListener() {
   if (syncListenerRegistered) return
   syncListenerRegistered = true
 
-  window.addEventListener('offline:sync-requested', async (event: Event) => {
+  syncListenerFn = async (event: Event) => {
     const customEvent = event as CustomEvent
     const entity = customEvent.detail?.entity
 
@@ -271,9 +273,15 @@ export function initSyncEventListener() {
     } catch (error) {
       console.error('Sync failed:', error)
     }
-  })
+  }
+
+  window.addEventListener('offline:sync-requested', syncListenerFn)
 }
 
 export function resetSyncListener() {
+  if (syncListenerFn) {
+    window.removeEventListener('offline:sync-requested', syncListenerFn)
+    syncListenerFn = null
+  }
   syncListenerRegistered = false
 }

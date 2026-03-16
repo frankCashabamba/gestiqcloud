@@ -28,6 +28,12 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/__tests__/setup.ts',
+    env: {
+      VITE_API_URL: 'http://localhost:8000',
+      VITE_BASE_PATH: '/',
+      VITE_TENANT_ORIGIN: 'http://localhost:5173',
+      VITE_ADMIN_ORIGIN: 'http://localhost:5174',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json'],

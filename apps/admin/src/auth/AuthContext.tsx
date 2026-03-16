@@ -1,5 +1,5 @@
 // AuthContext.tsx
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createSharedClient } from '@shared'
 
@@ -150,7 +150,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         sessionStorage.removeItem('access_token_admin')
     }
 
-    const login = async (body: LoginBody) => {
+    const login = useCallback(async (body: LoginBody) => {
           try { await api.get('/v1/admin/auth/csrf') } catch { /* noop: best-effort CSRF prefetch */ }
            const r = await api.post<LoginResponse>('/v1/admin/auth/login', { identificador: body.identificador.trim(), password: body.password })
            const data = r.data
@@ -160,14 +160,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
            sessionStorage.setItem('access_token_admin', data.access_token)
            const me = await loadMeProfile(data.access_token)
            setProfile(me)
-       }
+    }, [])
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         try { await api.post('/v1/admin/auth/logout') } catch { /* noop: best-effort logout */ }
         clear()
-    }
+    }, [])
 
-    const refresh = async () => {
+    const refresh = useCallback(async () => {
         const t = await refreshOnceIfPossible()
         if (t) {
             setToken(t)
@@ -175,7 +175,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             return true
         }
         return false
-    }
+    }, [])
 
     const value = useMemo(
         () => ({ token, loading, profile, login, logout, brand: 'Admin', refresh }),

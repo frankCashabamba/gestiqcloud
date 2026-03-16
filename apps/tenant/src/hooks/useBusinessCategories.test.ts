@@ -9,7 +9,7 @@
 
 import { renderHook, waitFor } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
-import { useBusinessCategories } from './useBusinessCategories'
+import { useBusinessCategories, clearBusinessCategoriesCache } from './useBusinessCategories'
 import * as api from '../services/businessCategoriesApi'
 
 // Mock de la API
@@ -21,6 +21,8 @@ vi.mock('../services/businessCategoriesApi', () => ({
 describe('useBusinessCategories', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Reset module-level cache so tests don't interfere with each other
+    clearBusinessCategoriesCache()
   })
 
   it('should load categories from API', async () => {
