@@ -697,6 +697,12 @@ def delete_company(
                     db.rollback()
                 except Exception:
                     pass
+                # SET LOCAL se perdió con el rollback; re-aplicar GUC para que
+                # las subqueries en import_batches/import_items no sean filtradas por RLS.
+                try:
+                    db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_uuid)})
+                except Exception:
+                    pass
 
         excluded_tables = {"audit_events", "auth_audit"}
 
