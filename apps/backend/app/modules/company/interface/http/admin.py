@@ -68,6 +68,24 @@ def _collect_fk_tables(
     return [(row[0], row[1]) for row in rows]
 
 
+def _safe_delete(db: Session, sql: str, params: dict) -> None:
+    """Execute a DELETE inside a savepoint.
+
+    If the table does not exist (PostgreSQL error 42P01 / UndefinedTable)
+    the savepoint is rolled back and execution continues normally.
+    Any other error is re-raised.
+    """
+    sp = db.begin_nested()
+    try:
+        db.execute(text(sql), params)
+        sp.commit()
+    except Exception as e:
+        sp.rollback()
+        pgcode = getattr(getattr(e, "orig", None), "pgcode", None)
+        if pgcode != "42P01":
+            raise
+
+
 def _delete_company_data_postgres(
     db: Session, tenant_id: uuid.UUID, excluded_tables: set[str]
 ) -> None:
@@ -76,100 +94,67 @@ def _delete_company_data_postgres(
     # ---------------------------------------------------------------------------
     # Multi-level FK chains that _collect_fk_tables cannot auto-discover
     # (tables that do NOT have a direct tenant_id FK to `tenants`).
-    # Must be deleted leaf-first before the generic tenant-FK loop runs.
-    #
-    # We first check which of these tables actually exist in the DB so that
-    # a missing table (pending migration) doesn't abort the transaction and
-    # prevent the critical import_items deletion from running.
+    # Deleted leaf-first using savepoints so that a missing table (pending
+    # migration) does not abort the transaction.
     # ---------------------------------------------------------------------------
-    _deep_chain_tables = [
-        "import_attachments",
-        "import_item_corrections",
-        "import_lineage",
-        "import_items",
-        "import_resolutions",
-        "posting_registry",
-    ]
-    _existing = {
-        row[0]
-        for row in db.execute(
-            text(
-                "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema = :schema AND table_name = ANY(:names)"
-            ),
-            {"schema": schema, "names": _deep_chain_tables},
-        ).fetchall()
-    }
 
     # Leaf tables that reference import_items
-    if "import_attachments" in _existing:
-        db.execute(
-            text(
-                'DELETE FROM "public"."import_attachments" '
-                "WHERE item_id IN ("
-                "  SELECT i.id FROM import_items i "
-                "  JOIN import_batches b ON i.batch_id = b.id "
-                "  WHERE b.tenant_id = :tenant_id"
-                ")"
-            ),
-            {"tenant_id": tenant_id},
-        )
-    if "import_item_corrections" in _existing:
-        db.execute(
-            text(
-                'DELETE FROM "public"."import_item_corrections" '
-                "WHERE item_id IN ("
-                "  SELECT i.id FROM import_items i "
-                "  JOIN import_batches b ON i.batch_id = b.id "
-                "  WHERE b.tenant_id = :tenant_id"
-                ")"
-            ),
-            {"tenant_id": tenant_id},
-        )
-    if "import_lineage" in _existing:
-        db.execute(
-            text(
-                'DELETE FROM "public"."import_lineage" '
-                "WHERE item_id IN ("
-                "  SELECT i.id FROM import_items i "
-                "  JOIN import_batches b ON i.batch_id = b.id "
-                "  WHERE b.tenant_id = :tenant_id"
-                ")"
-            ),
-            {"tenant_id": tenant_id},
-        )
+    _safe_delete(
+        db,
+        'DELETE FROM "public"."import_attachments" '
+        "WHERE item_id IN ("
+        "  SELECT i.id FROM import_items i "
+        "  JOIN import_batches b ON i.batch_id = b.id "
+        "  WHERE b.tenant_id = :tenant_id"
+        ")",
+        {"tenant_id": tenant_id},
+    )
+    _safe_delete(
+        db,
+        'DELETE FROM "public"."import_item_corrections" '
+        "WHERE item_id IN ("
+        "  SELECT i.id FROM import_items i "
+        "  JOIN import_batches b ON i.batch_id = b.id "
+        "  WHERE b.tenant_id = :tenant_id"
+        ")",
+        {"tenant_id": tenant_id},
+    )
+    _safe_delete(
+        db,
+        'DELETE FROM "public"."import_lineage" '
+        "WHERE item_id IN ("
+        "  SELECT i.id FROM import_items i "
+        "  JOIN import_batches b ON i.batch_id = b.id "
+        "  WHERE b.tenant_id = :tenant_id"
+        ")",
+        {"tenant_id": tenant_id},
+    )
     # import_items must be deleted before import_batches
-    if "import_items" in _existing:
-        db.execute(
-            text(
-                'DELETE FROM "public"."import_items" '
-                "WHERE batch_id IN ("
-                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-                ")"
-            ),
-            {"tenant_id": tenant_id},
-        )
+    _safe_delete(
+        db,
+        'DELETE FROM "public"."import_items" '
+        "WHERE batch_id IN ("
+        "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
+        ")",
+        {"tenant_id": tenant_id},
+    )
     # Tables that reference import_batches.id directly
-    if "import_resolutions" in _existing:
-        db.execute(
-            text(
-                'DELETE FROM "public"."import_resolutions" '
-                "WHERE import_job_id IN ("
-                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-                ")"
-            ),
-            {"tenant_id": tenant_id},
-        )
-    if "posting_registry" in _existing:
-        db.execute(
-            text(
-                'DELETE FROM "public"."posting_registry" '
-                "WHERE import_job_id IN ("
-                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-                ")"
-            ),
-            {"tenant_id": tenant_id},
-        )
+    _safe_delete(
+        db,
+        'DELETE FROM "public"."import_resolutions" '
+        "WHERE import_job_id IN ("
+        "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
+        ")",
+        {"tenant_id": tenant_id},
+    )
+    _safe_delete(
+        db,
+        'DELETE FROM "public"."posting_registry" '
+        "WHERE import_job_id IN ("
+        "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
+        ")",
+        {"tenant_id": tenant_id},
+    )
 
     user_fk_tables = _collect_fk_tables(db, "company_users", schema=schema)
     tenant_fk_tables = _collect_fk_tables(db, "tenants", schema=schema)
