@@ -911,6 +911,11 @@ async def create_company_full_json(
                 db.rollback()
             except Exception:
                 pass
+            # Re-aplicar bypass RLS tras el rollback (el GUC es transaction-local y se pierde)
+            try:
+                db.execute(text("SELECT set_config('app.bypass_rls', 'true', true)"))
+            except Exception:
+                pass
             exists_user = (
                 db.query(CompanyUser)
                 .filter(

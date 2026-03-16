@@ -187,6 +187,9 @@ def get_db(request: Request) -> Iterator[Session]:
             try:
                 db.execute(text("SELECT set_config('app.tenant_id', NULL, true)"))
                 db.execute(text("SELECT set_config('app.user_id', NULL, true)"))
+                # Limpiar bypass_rls a nivel de sesión (no transaction-local) para que
+                # no se filtre entre requests en conexiones reutilizadas del pool.
+                db.execute(text("SELECT set_config('app.bypass_rls', '', false)"))
             except Exception:
                 logger.warning("Failed to clear GUCs on pooled connection", exc_info=True)
                 db.rollback()
@@ -223,10 +226,12 @@ def get_db(request: Request) -> Iterator[Session]:
                     )
                     db.info["tenant_id"] = tid
 
-                # Superadmin bypass: set app.bypass_rls so admin_bypass RLS policies
-                # allow operations without requiring app.tenant_id to match.
+                # Superadmin bypass: set app.bypass_rls a nivel de sesión (is_local=false)
+                # para que sobreviva cualquier db.rollback() dentro del mismo request.
+                # Se limpia al inicio de cada request (arriba) para evitar filtraciones
+                # entre requests en conexiones reutilizadas del pool.
                 if is_superadmin:
-                    db.execute(text("SELECT set_config('app.bypass_rls', 'true', true)"))
+                    db.execute(text("SELECT set_config('app.bypass_rls', 'true', false)"))
             except Exception:
                 logger.warning("Failed to set RLS GUCs for request", exc_info=True)
                 db.rollback()
