@@ -301,14 +301,12 @@ def _collect_filesystem_module_entries(
     return entries, ignored, errors
 
 
-def _collect_catalog_module_entries(
-    db: Session | None = None,
-) -> tuple[list[dict], list[str], list[dict]]:
+def _collect_catalog_module_entries() -> tuple[list[dict], list[str], list[dict]]:
     entries: list[dict] = []
     ignored: list[str] = []
     seen: set[str] = set()
 
-    for item in get_available_modules(db=db):
+    for item in get_available_modules():
         raw_id = str(item.get("id") or "").strip()
         if not raw_id:
             ignored.append(str(item))
@@ -562,7 +560,7 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
         entries, ignored, errors = _collect_filesystem_module_entries(modules_dir)
     else:
         source = "backend_catalog"
-        entries, ignored, errors = _collect_catalog_module_entries(db)
+        entries, ignored, errors = _collect_catalog_module_entries()
 
     registered: list[str] = []
     already_existing: list[str] = []
