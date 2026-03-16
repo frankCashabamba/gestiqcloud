@@ -68,117 +68,174 @@ def _collect_fk_tables(
     return [(row[0], row[1]) for row in rows]
 
 
-def _safe_delete(db: Session, sql: str, params: dict) -> None:
-    """Execute a DELETE inside a savepoint.
-
-    If the table does not exist (PostgreSQL error 42P01 / UndefinedTable)
-    the savepoint is rolled back and execution continues normally.
-    Any other error is re-raised.
-    """
-    sp = db.begin_nested()
-    try:
-        db.execute(text(sql), params)
-        sp.commit()
-    except Exception as e:
-        sp.rollback()
-        pgcode = getattr(getattr(e, "orig", None), "pgcode", None)
-        if pgcode != "42P01":
-            raise
+def _tbl_exists(db: Session, table: str, schema: str = "public") -> bool:
+    """Check table existence using to_regclass (never raises, always reliable)."""
+    result = db.execute(
+        text("SELECT to_regclass(:full_name)"),
+        {"full_name": f"{schema}.{table}"},
+    ).scalar()
+    return result is not None
 
 
 def _delete_company_data_postgres(
     db: Session, tenant_id: uuid.UUID, excluded_tables: set[str]
 ) -> None:
     schema = "public"
+    tid = {"tenant_id": tenant_id}
 
     # ---------------------------------------------------------------------------
-    # Multi-level FK chains that _collect_fk_tables cannot auto-discover
-    # (tables that do NOT have a direct tenant_id FK to `tenants`).
-    # Deleted leaf-first using savepoints so that a missing table (pending
-    # migration) does not abort the transaction.
+    # Multi-level FK chains that _collect_fk_tables cannot auto-discover.
+    # import_items.tenant_id is NOT a FK to tenants, so the generic loop
+    # never deletes import_items. Must be deleted explicitly, leaf-first.
+    # Table existence is checked via to_regclass() before each delete so that
+    # a missing table (pending migration) doesn't abort the transaction.
     # ---------------------------------------------------------------------------
 
-    # Leaf tables that reference import_items
-    _safe_delete(
-        db,
-        'DELETE FROM "public"."import_attachments" '
-        "WHERE item_id IN ("
-        "  SELECT i.id FROM import_items i "
-        "  JOIN import_batches b ON i.batch_id = b.id "
-        "  WHERE b.tenant_id = :tenant_id"
-        ")",
-        {"tenant_id": tenant_id},
-    )
-    _safe_delete(
-        db,
-        'DELETE FROM "public"."import_item_corrections" '
-        "WHERE item_id IN ("
-        "  SELECT i.id FROM import_items i "
-        "  JOIN import_batches b ON i.batch_id = b.id "
-        "  WHERE b.tenant_id = :tenant_id"
-        ")",
-        {"tenant_id": tenant_id},
-    )
-    _safe_delete(
-        db,
-        'DELETE FROM "public"."import_lineage" '
-        "WHERE item_id IN ("
-        "  SELECT i.id FROM import_items i "
-        "  JOIN import_batches b ON i.batch_id = b.id "
-        "  WHERE b.tenant_id = :tenant_id"
-        ")",
-        {"tenant_id": tenant_id},
-    )
+    # Leaf tables that reference import_items (must go before import_items)
+    if _tbl_exists(db, "import_attachments"):
+        n = db.execute(
+            text(
+                'DELETE FROM "public"."import_attachments" '
+                "WHERE item_id IN ("
+                "  SELECT i.id FROM import_items i "
+                "  JOIN import_batches b ON i.batch_id = b.id "
+                "  WHERE b.tenant_id = :tenant_id"
+                ")"
+            ),
+            tid,
+        ).rowcount
+        logger.info("delete_company: removed %d import_attachments for %s", n, tenant_id)
+
+    if _tbl_exists(db, "import_item_corrections"):
+        n = db.execute(
+            text(
+                'DELETE FROM "public"."import_item_corrections" '
+                "WHERE item_id IN ("
+                "  SELECT i.id FROM import_items i "
+                "  JOIN import_batches b ON i.batch_id = b.id "
+                "  WHERE b.tenant_id = :tenant_id"
+                ")"
+            ),
+            tid,
+        ).rowcount
+        logger.info("delete_company: removed %d import_item_corrections for %s", n, tenant_id)
+
+    if _tbl_exists(db, "import_lineage"):
+        n = db.execute(
+            text(
+                'DELETE FROM "public"."import_lineage" '
+                "WHERE item_id IN ("
+                "  SELECT i.id FROM import_items i "
+                "  JOIN import_batches b ON i.batch_id = b.id "
+                "  WHERE b.tenant_id = :tenant_id"
+                ")"
+            ),
+            tid,
+        ).rowcount
+        logger.info("delete_company: removed %d import_lineage for %s", n, tenant_id)
+
     # import_items must be deleted before import_batches
-    _safe_delete(
-        db,
-        'DELETE FROM "public"."import_items" '
-        "WHERE batch_id IN ("
-        "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-        ")",
-        {"tenant_id": tenant_id},
-    )
-    # Tables that reference import_batches.id directly
-    _safe_delete(
-        db,
-        'DELETE FROM "public"."import_resolutions" '
-        "WHERE import_job_id IN ("
-        "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-        ")",
-        {"tenant_id": tenant_id},
-    )
-    _safe_delete(
-        db,
-        'DELETE FROM "public"."posting_registry" '
-        "WHERE import_job_id IN ("
-        "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
-        ")",
-        {"tenant_id": tenant_id},
-    )
+    if _tbl_exists(db, "import_items"):
+        n = db.execute(
+            text(
+                'DELETE FROM "public"."import_items" '
+                "WHERE batch_id IN ("
+                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
+                ")"
+            ),
+            tid,
+        ).rowcount
+        logger.info("delete_company: removed %d import_items for %s", n, tenant_id)
+
+    # Tables that reference import_batches.id directly (must go before import_batches)
+    if _tbl_exists(db, "import_resolutions"):
+        n = db.execute(
+            text(
+                'DELETE FROM "public"."import_resolutions" '
+                "WHERE import_job_id IN ("
+                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
+                ")"
+            ),
+            tid,
+        ).rowcount
+        logger.info("delete_company: removed %d import_resolutions for %s", n, tenant_id)
+
+    if _tbl_exists(db, "posting_registry"):
+        n = db.execute(
+            text(
+                'DELETE FROM "public"."posting_registry" '
+                "WHERE import_job_id IN ("
+                "  SELECT id FROM import_batches WHERE tenant_id = :tenant_id"
+                ")"
+            ),
+            tid,
+        ).rowcount
+        logger.info("delete_company: removed %d posting_registry for %s", n, tenant_id)
 
     user_fk_tables = _collect_fk_tables(db, "company_users", schema=schema)
     tenant_fk_tables = _collect_fk_tables(db, "tenants", schema=schema)
 
+    # FK violation error codes (PostgreSQL)
+    _FK_PGCODES = {"23503", "23001"}
+
+    def _delete_with_retry(
+        pending: list[tuple[str, str]],
+        sql_fn,  # callable(table, column) -> str
+        params: dict,
+    ) -> None:
+        """Delete tables with retry: if a table fails due to FK violation from another
+        table in the same batch, defer it and retry after others succeed.
+        Uses savepoints so a failed attempt doesn't abort the outer transaction.
+        """
+        for _pass in range(len(pending) + 1):
+            if not pending:
+                break
+            still_pending = []
+            for table, column in pending:
+                sp = db.begin_nested()
+                try:
+                    db.execute(text(sql_fn(table, column)), params)
+                    sp.commit()
+                except Exception as exc:
+                    sp.rollback()
+                    pgcode = getattr(getattr(exc, "orig", None), "pgcode", None)
+                    if pgcode in _FK_PGCODES:
+                        still_pending.append((table, column))
+                    else:
+                        raise
+            if still_pending == pending:
+                # No progress: remaining tables cannot be deleted (unresolvable FK)
+                logger.warning(
+                    "delete_company: could not delete tables due to unresolvable FK: %s",
+                    [t for t, _ in still_pending],
+                )
+                break
+            pending = still_pending
+
     # Delete rows that depend on company_users first to avoid FK violations.
-    for table, column in user_fk_tables:
-        if table in excluded_tables or table == "company_users":
-            continue
-        db.execute(
-            text(
-                f'DELETE FROM "{schema}"."{table}" '
-                f'WHERE "{column}" IN (SELECT id FROM "{schema}"."company_users" WHERE tenant_id = :tenant_id)'
-            ),
-            {"tenant_id": tenant_id},
-        )
+    user_pending = [
+        (t, c) for t, c in user_fk_tables
+        if t not in excluded_tables and t != "company_users"
+    ]
+    _delete_with_retry(
+        user_pending,
+        lambda t, c: (
+            f'DELETE FROM "{schema}"."{t}" '
+            f'WHERE "{c}" IN (SELECT id FROM "{schema}"."company_users" WHERE tenant_id = :tenant_id)'
+        ),
+        {"tenant_id": tenant_id},
+    )
 
     # Delete rows by tenant FK (skip tenants/company_users themselves).
-    for table, column in tenant_fk_tables:
-        if table in excluded_tables or table in ("tenants", "company_users"):
-            continue
-        db.execute(
-            text(f'DELETE FROM "{schema}"."{table}" WHERE "{column}" = :tenant_id'),
-            {"tenant_id": tenant_id},
-        )
+    tenant_pending = [
+        (t, c) for t, c in tenant_fk_tables
+        if t not in excluded_tables and t not in ("tenants", "company_users")
+    ]
+    _delete_with_retry(
+        tenant_pending,
+        lambda t, c: f'DELETE FROM "{schema}"."{t}" WHERE "{c}" = :tenant_id',
+        {"tenant_id": tenant_id},
+    )
 
 
 def _module_names(db: Session, tenant_id: uuid.UUID) -> list[str]:
