@@ -204,6 +204,12 @@ def get_db(request: Request) -> Iterator[Session]:
                     tenant_id = tenant_id or sess.get("tenant_id")
                     user_id = user_id or sess.get("tenant_user_id")
 
+                # Detect superadmin: is_superadmin in claims OR scope == "admin"
+                is_superadmin = bool(
+                    (isinstance(claims, dict) and claims.get("is_superadmin"))
+                    or (isinstance(claims, dict) and claims.get("scope") == "admin")
+                )
+
                 if tenant_id is not None and user_id is not None:
                     tid = _resolve_tenant_id(db, str(tenant_id))
                     uid = str(user_id)
@@ -216,6 +222,13 @@ def get_db(request: Request) -> Iterator[Session]:
                         {"uid": uid},
                     )
                     db.info["tenant_id"] = tid
+
+                # Superadmin bypass: set app.bypass_rls so admin_bypass RLS policies
+                # allow operations without requiring app.tenant_id to match.
+                if is_superadmin:
+                    db.execute(
+                        text("SELECT set_config('app.bypass_rls', 'true', true)")
+                    )
             except Exception:
                 logger.warning("Failed to set RLS GUCs for request", exc_info=True)
                 db.rollback()
