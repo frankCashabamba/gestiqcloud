@@ -214,8 +214,7 @@ def _delete_company_data_postgres(
 
     # Delete rows that depend on company_users first to avoid FK violations.
     user_pending = [
-        (t, c) for t, c in user_fk_tables
-        if t not in excluded_tables and t != "company_users"
+        (t, c) for t, c in user_fk_tables if t not in excluded_tables and t != "company_users"
     ]
     _delete_with_retry(
         user_pending,
@@ -228,7 +227,8 @@ def _delete_company_data_postgres(
 
     # Delete rows by tenant FK (skip tenants/company_users themselves).
     tenant_pending = [
-        (t, c) for t, c in tenant_fk_tables
+        (t, c)
+        for t, c in tenant_fk_tables
         if t not in excluded_tables and t not in ("tenants", "company_users")
     ]
     _delete_with_retry(
