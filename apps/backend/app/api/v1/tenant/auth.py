@@ -80,6 +80,14 @@ def tenant_login(
         .first()
     )
 
+    # Capturar user_id antes de cualquier commit/rollback que pueda expirar el objeto ORM
+    user_id_str: str | None = None
+    if user:
+        try:
+            user_id_str = str(user.id)
+        except Exception:
+            pass
+
     # 2) Validaciones básicas
     if not user or not user.tenant_id or not user.tenant:
         limiter.incr_fail(request, ident)
@@ -101,7 +109,7 @@ def tenant_login(
             db,
             kind="login_failed",
             scope="tenant",
-            user_id=str(user.id),
+            user_id=user_id_str,
             tenant_id=None,
             req=request,
         )
@@ -113,6 +121,12 @@ def tenant_login(
         user.password_hash = new_hash
         db.add(user)
         db.commit()
+        # Después del commit SQLAlchemy expira el objeto; refrescar atributos críticos
+        try:
+            db.refresh(user)
+            user_id_str = str(user.id)
+        except Exception:
+            pass
 
     # OK → resetea contador
     limiter.reset(request, ident)
@@ -123,7 +137,7 @@ def tenant_login(
 
     # 3) Sesión + scope
     s = ensure_session(request)
-    s.update({"kind": "tenant", "tenant_user_id": str(user.id), "tenant_id": tenant_id})
+    s.update({"kind": "tenant", "tenant_user_id": user_id_str or "", "tenant_id": tenant_id})
     request.state.session_dirty = True
     set_tenant_scope(request, tenant_id)
 
@@ -181,7 +195,7 @@ def tenant_login(
             db,
             kind="login_failed",
             scope="tenant",
-            user_id=str(user.id),
+            user_id=user_id_str,
             tenant_id=None,
             req=request,
         )
@@ -190,7 +204,7 @@ def tenant_login(
     # 5) Refresh family + primer token
     repo = TenantSqlRefreshTokenRepo(db)
     try:
-        family_id = repo.create_family(user_id=str(user.id), tenant_id=tenant_uuid_for_family)
+        family_id = repo.create_family(user_id=user_id_str, tenant_id=tenant_uuid_for_family)
         jti = repo.issue_token(
             family_id=family_id,
             prev_jti=None,
@@ -240,7 +254,7 @@ def tenant_login(
         db,
         kind="login",
         scope="tenant",
-        user_id=str(user.id),
+        user_id=user_id_str,
         tenant_id=tenant_id,
         req=request,
     )

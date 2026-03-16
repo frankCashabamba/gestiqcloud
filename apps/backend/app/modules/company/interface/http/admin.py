@@ -608,6 +608,11 @@ def delete_company(
                 role_changed = True
             except Exception as e:
                 logger.warning("No se pudo desactivar triggers (continuando): %s", e)
+                # El fallo de SET aborta la transacción en Postgres; limpiar antes de continuar
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
         excluded_tables = {"audit_events", "auth_audit"}
 
