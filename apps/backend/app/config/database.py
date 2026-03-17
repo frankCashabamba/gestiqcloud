@@ -353,33 +353,47 @@ def ping() -> bool:
 # ---------------------------------------------------------------------------
 # Helpers RLS: fijar contexto y bypass temporal
 # ---------------------------------------------------------------------------
+def _is_postgres(db: Session) -> bool:
+    return (
+        getattr(getattr(db, "bind", None), "dialect", None)
+        and getattr(db.bind.dialect, "name", "") == "postgresql"
+    )  # type: ignore[union-attr]
+
+
 def set_rls_tenant(db: Session, tenant_id: str | None) -> None:
-    """Fija tenant_id en db.info y en el GUC de la transacción actual."""
+    """Fija tenant_id en db.info y en el GUC de la transacción actual (no-op en SQLite)."""
     db.info["tenant_id"] = tenant_id
-    db.execute(
-        text("SELECT set_config('app.tenant_id', :tid, true)"),
-        {"tid": tenant_id or ""},
-    )
+    if _is_postgres(db):
+        db.execute(
+            text("SELECT set_config('app.tenant_id', :tid, true)"),
+            {"tid": tenant_id or ""},
+        )
 
 
 def set_rls_user(db: Session, user_id: str | None) -> None:
-    """Fija user_id en db.info y en el GUC de la transacción actual."""
+    """Fija user_id en db.info y en el GUC de la transacción actual (no-op en SQLite)."""
     db.info["user_id"] = user_id
-    db.execute(
-        text("SELECT set_config('app.user_id', :uid, true)"),
-        {"uid": user_id or ""},
-    )
+    if _is_postgres(db):
+        db.execute(
+            text("SELECT set_config('app.user_id', :uid, true)"),
+            {"uid": user_id or ""},
+        )
 
 
 @contextmanager
 def temp_rls_bypass(db: Session) -> Generator[None, None, None]:
     """
     Context manager que activa bypass_rls temporalmente y lo restaura al salir.
+    No-op en SQLite (los tests no tienen RLS).
 
     Uso:
         with temp_rls_bypass(db):
             user = db.query(User).filter(...).first()
     """
+    if not _is_postgres(db):
+        yield
+        return
+
     prev = bool(db.info.get("bypass_rls", False))
     db.info["bypass_rls"] = True
     db.execute(text("SELECT set_config('app.bypass_rls', 'true', true)"))
