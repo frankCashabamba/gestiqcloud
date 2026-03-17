@@ -80,19 +80,18 @@ export default function DocumentList() {
     return 'Guardar gasto'
   }
 
-  const activeDocs = useMemo(() => docs, [docs])
   const processingCount = useMemo(() => {
     const cutoff = Date.now() - STALE_THRESHOLD_MS
-    return activeDocs.filter(
+    return docs.filter(
       (doc) => doc.estado === 'PROCESSING' && new Date(doc.updated_at || doc.created_at).getTime() > cutoff
     ).length
-  }, [activeDocs])
+  }, [docs])
   const pendingCount = useMemo(() => {
     const cutoff = Date.now() - STALE_THRESHOLD_MS
-    return activeDocs.filter(
+    return docs.filter(
       (doc) => doc.estado === 'PENDING' && new Date(doc.created_at).getTime() > cutoff
     ).length
-  }, [activeDocs])
+  }, [docs])
   const backgroundActive = processingCount > 0 || pendingCount > 0
 
   useEffect(() => {
@@ -234,7 +233,7 @@ export default function DocumentList() {
               </tr>
             </thead>
             <tbody>
-              {activeDocs.length === 0 && (
+              {docs.length === 0 && (
                 <tr>
                   <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
                     Sin documentos
@@ -242,7 +241,7 @@ export default function DocumentList() {
                 </tr>
               )}
 
-              {activeDocs.map((doc) => {
+              {docs.map((doc) => {
                 const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && doc.estado !== 'REJECTED'
                 return (
                   <tr

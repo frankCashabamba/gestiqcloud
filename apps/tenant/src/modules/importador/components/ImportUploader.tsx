@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react'
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchImportBatch,
@@ -443,7 +443,7 @@ export default function ImportUploader({
     e.target.value = ''
   }
 
-  const handleRun = async () => {
+  const handleRun = useCallback(async () => {
     const pending = entries.filter((entry): entry is FileEntry & { file: File } =>
       entry.status === 'pending' && Boolean(entry.file)
     )
@@ -530,22 +530,25 @@ export default function ImportUploader({
     } finally {
       setProcessing(false)
     }
-  }
+  }, [entries, forceReprocess, selectedSnapshotId, onImported])
 
-  const pendingCount = entries.filter((entry) => entry.status === 'pending').length
-  const totalCount = entries.length
-  const activeCount = entries.filter((entry) => entry.status === 'processing').length
-  const errorCount = entries.filter((entry) => entry.status === 'error').length
-  const completedCount = entries.filter((entry) => entry.status === 'done').length
-  const progressPct = totalCount > 0 ? Math.round(((completedCount + errorCount) / totalCount) * 100) : 0
-  const reviewEntries = entries.filter((entry) => entry.status === 'done')
-  const queueEntries = entries.filter((entry) => entry.status === 'processing' || entry.status === 'pending')
-  const errorEntries = entries.filter((entry) => entry.status === 'error')
-  const statusChips = [
+  const { pendingCount, totalCount, activeCount, errorCount, completedCount, progressPct, reviewEntries, queueEntries, errorEntries } = useMemo(() => {
+    const reviewEntries = entries.filter((entry) => entry.status === 'done')
+    const queueEntries = entries.filter((entry) => entry.status === 'processing' || entry.status === 'pending')
+    const errorEntries = entries.filter((entry) => entry.status === 'error')
+    const pendingCount = entries.filter((entry) => entry.status === 'pending').length
+    const totalCount = entries.length
+    const activeCount = queueEntries.filter((entry) => entry.status === 'processing').length
+    const errorCount = errorEntries.length
+    const completedCount = reviewEntries.length
+    const progressPct = totalCount > 0 ? Math.round(((completedCount + errorCount) / totalCount) * 100) : 0
+    return { pendingCount, totalCount, activeCount, errorCount, completedCount, progressPct, reviewEntries, queueEntries, errorEntries }
+  }, [entries])
+  const statusChips = useMemo(() => [
     { label: 'Por revisar', value: reviewEntries.length, color: '#10B981' },
     { label: 'En curso', value: queueEntries.length, color: '#4F46E5' },
     { label: 'Errores', value: errorEntries.length, color: '#EF4444' },
-  ]
+  ], [reviewEntries.length, queueEntries.length, errorEntries.length])
   const headerTitle = processing
     ? `Encolando ${totalCount} documento${totalCount > 1 ? 's' : ''}...`
     : activeCount > 0

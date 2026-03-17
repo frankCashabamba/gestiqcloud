@@ -187,7 +187,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         qty: 0,
         unit: 'kg',
         purchase_packaging: '',
-        qty_per_package: 0,
+        qty_per_package: 1,
         package_unit: 'kg',
         package_cost: 0,
         line_order: ingredientes.length
@@ -306,26 +306,14 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
           qty: Number(ing.qty || 0),
           unit: normalizeUnitCode(ing.unit, units),
           purchase_packaging: String(ing.purchase_packaging || '-'),
-          qty_per_package: Number(ing.qty_per_package || 0),
+          qty_per_package: Math.max(Number(ing.qty_per_package || 1), 0.0001),
           package_unit: normalizeUnitCode(ing.package_unit || ing.unit, units),
           package_cost: Number(ing.package_cost || 0),
           notes: ing.notes || undefined,
           line_order: index,
         }));
 
-      for (const ingredient of normalizedIngredients) {
-        if (ingredient.qty_per_package <= 0) {
-          const productName = products.find((item) => item.id === ingredient.product_id)?.name;
-          setError(
-            productName
-              ? `La cantidad por presentacion de ${productName} debe ser mayor que 0`
-              : 'La cantidad por presentacion debe ser mayor que 0'
-          );
-          return;
-        }
-      }
-
-      const seenProducts = new Set<string>();
+const seenProducts = new Set<string>();
       for (const ingredient of normalizedIngredients) {
         if (seenProducts.has(ingredient.product_id)) {
           const productName = products.find((item) => item.id === ingredient.product_id)?.name;
@@ -668,58 +656,6 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                       </option>
                     ))}
                   </TextField>
-                </Grid>
-
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    label="Presentación (ej: Saco 110 lbs)"
-                    value={ing.purchase_packaging}
-                    onChange={(e) => handleIngredientChange(index, 'purchase_packaging', e.target.value)}
-                  />
-                </Grid>
-
-                <Grid item xs={4} sm={2}>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    type="number"
-                    label="Cant. Present."
-                    value={ing.qty_per_package}
-                    onChange={(e) => handleIngredientChange(index, 'qty_per_package', Number(e.target.value))}
-                    inputProps={{ min: 0.0001, step: 0.01 }}
-                  />
-                </Grid>
-
-                <Grid item xs={4} sm={2}>
-                  <TextField
-                    select
-                    size="small"
-                    fullWidth
-                    label="Unidad Pres."
-                    value={normalizeUnitCode(ing.package_unit, units)}
-                    onChange={(e) => handleIngredientChange(index, 'package_unit', e.target.value)}
-                    SelectProps={{ native: true }}
-                  >
-                    {units.map((unit) => (
-                      <option key={unit.code} value={unit.code}>
-                        {unit.label}
-                      </option>
-                    ))}
-                  </TextField>
-                </Grid>
-
-                <Grid item xs={4} sm={3}>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    type="number"
-                    label="Costo Present."
-                    value={ing.package_cost}
-                    onChange={(e) => handleIngredientChange(index, 'package_cost', Number(e.target.value))}
-                    InputProps={{ startAdornment: '$' }}
-                  />
                 </Grid>
 
                 <Grid item xs={12} sm={1}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/AuthContext'
@@ -8,7 +8,11 @@ import { getMiEmpresa, type Empresa } from '../services/empresa'
 export default function Dashboard() {
   const { t } = useTranslation()
   const { profile } = useAuth()
-  const { modules, loading, error } = useMisModulos()
+  const { modules, loading } = useMisModulos()
+  const sortedModules = useMemo(
+    () => [...modules].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    [modules],
+  )
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
   const [empresaInfo, setEmpresaInfo] = useState<Empresa | null>(null)
@@ -45,7 +49,7 @@ export default function Dashboard() {
 
       {!loading && modules.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {[...modules].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((m) => {
+          {sortedModules.map((m) => {
             const to = prefix + (m.url || `/${(m.name || '').toLowerCase()}`)
             return (
               <Link key={m.id} to={to} className="gc-module-card">

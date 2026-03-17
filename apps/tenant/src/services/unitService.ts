@@ -228,6 +228,68 @@ export async function getUnitByCode(
   return units.find(u => normalizeUnitCode(u.code, units) === normalized) || null
 }
 
+// ── Conversion tables ────────────────────────────────────────────────────────
+// Each entry: [fromUnit, toUnit, factor]  →  result = qty * factor
+const UNIT_CONVERSIONS: [string, string, number][] = [
+  // Mass
+  ['g',   'kg',  1 / 1000],
+  ['kg',  'g',   1000],
+  ['g',   'lb',  1 / 453.592],
+  ['lb',  'g',   453.592],
+  ['g',   'oz',  1 / 28.3495],
+  ['oz',  'g',   28.3495],
+  ['kg',  'lb',  2.20462],
+  ['lb',  'kg',  1 / 2.20462],
+  ['kg',  'oz',  35.274],
+  ['oz',  'kg',  1 / 35.274],
+  ['lb',  'oz',  16],
+  ['oz',  'lb',  1 / 16],
+  ['ton', 'kg',  1000],
+  ['kg',  'ton', 1 / 1000],
+  ['ton', 'lb',  2204.62],
+  ['lb',  'ton', 1 / 2204.62],
+  ['mg',  'g',   1 / 1000],
+  ['g',   'mg',  1000],
+  // Volume
+  ['ml',  'L',   1 / 1000],
+  ['L',   'ml',  1000],
+  ['gal', 'L',   3.78541],
+  ['L',   'gal', 1 / 3.78541],
+  ['qt',  'L',   0.946353],
+  ['L',   'qt',  1 / 0.946353],
+  ['pt',  'L',   0.473176],
+  ['L',   'pt',  1 / 0.473176],
+  ['cup', 'ml',  236.588],
+  ['ml',  'cup', 1 / 236.588],
+  ['fl_oz','ml', 29.5735],
+  ['ml',  'fl_oz', 1 / 29.5735],
+  ['tbsp','ml',  14.7868],
+  ['ml',  'tbsp', 1 / 14.7868],
+  ['tsp', 'ml',  4.92892],
+  ['ml',  'tsp', 1 / 4.92892],
+]
+
+const conversionMap = new Map<string, number>()
+for (const [from, to, factor] of UNIT_CONVERSIONS) {
+  conversionMap.set(`${from}→${to}`, factor)
+}
+
+/**
+ * Convierte una cantidad de `fromUnit` a `toUnit`.
+ * Devuelve el valor original si las unidades son incompatibles o iguales.
+ */
+export function convertQtyToUnit(
+  qty: number,
+  fromUnit: string | null | undefined,
+  toUnit: string | null | undefined,
+): number {
+  const from = normalizeKnownUnitCode(fromUnit)
+  const to   = normalizeKnownUnitCode(toUnit)
+  if (from === to) return qty
+  const factor = conversionMap.get(`${from}→${to}`)
+  return factor != null ? qty * factor : qty
+}
+
 /**
  * Formatear valor con unidad
  *

@@ -9,6 +9,7 @@ import RecetasList from './RecetasList'
 import RecetaCreatePage from './RecetaCreatePage'
 import RecetaShowPage from './RecetaShowPage'
 import CostDriversPage from './CostDriversPage'
+import IngredientesMaestros from './IngredientesMaestros'
 
 export default function ProduccionRoutes() {
     return (
@@ -55,6 +56,7 @@ export default function ProduccionRoutes() {
                         </ProtectedRoute>
                     }
                 />
+                <Route path="ingredientes" element={<IngredientesMaestros />} />
                 <Route
                     path="costos"
                     element={
