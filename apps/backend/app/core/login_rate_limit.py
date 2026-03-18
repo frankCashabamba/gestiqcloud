@@ -21,7 +21,7 @@ except Exception:
     def utcnow_iso() -> str:
         import datetime as _dt
 
-        return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        return _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat() + "Z"
 
 
 try:

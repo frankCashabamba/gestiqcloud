@@ -182,12 +182,121 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         )
         return _safe_topic(db, "Cobros/Pagos", sql, lambda: _fetch_all(db, sql, tenant_params))
 
+    if topic == "pos_hoy":
+        where_clause, tenant_params = _tenant_where("r")
+        sql = (
+            "SELECT count(*) AS recibos, coalesce(sum(r.gross_total),0) AS total "
+            f"FROM pos_receipts r WHERE {where_clause} AND r.created_at::date = CURRENT_DATE AND r.status = 'paid'"
+        )
+        return _safe_topic(db, "POS hoy", sql, lambda: _fetch_all(db, sql, tenant_params))
+
+    if topic == "gastos_mes":
+        where_clause, tenant_params = _tenant_where()
+        sql = (
+            "SELECT date_trunc('month', date)::date AS mes, count(*) AS n, "
+            f"coalesce(sum(amount),0) AS total FROM expenses WHERE {where_clause} "
+            "GROUP BY 1 ORDER BY 1 DESC LIMIT 6"
+        )
+        return _safe_topic(db, "Gastos por mes", sql, lambda: _fetch_all(db, sql, tenant_params))
+
+    if topic == "produccion_activa":
+        where_clause, tenant_params = _tenant_where()
+        sql = (
+            f"SELECT status, count(*) AS n FROM production_orders WHERE {where_clause} "
+            "AND status IN ('planned','in_progress') GROUP BY 1"
+        )
+        return _safe_topic(db, "Producción activa", sql, lambda: _fetch_all(db, sql, tenant_params))
+
+    if topic == "compras_pendientes":
+        where_clause, tenant_params = _tenant_where()
+        sql = (
+            "SELECT count(*) AS total, coalesce(sum(total_amount),0) AS monto "
+            f"FROM purchase_orders WHERE {where_clause} AND status IN ('draft','sent','confirmed')"
+        )
+        return _safe_topic(
+            db, "Compras pendientes", sql, lambda: _fetch_all(db, sql, tenant_params)
+        )
+
+    if topic == "prediccion_reorden":
+        where_clause, tenant_params = _tenant_where("sm")
+        sql = (
+            "SELECT p.name, p.id AS product_id, "
+            "coalesce(sum(sm.qty) / NULLIF(count(DISTINCT sm.occurred_at::date), 0), 0) AS consumo_diario, "
+            "coalesce(si.qty, 0) AS stock_actual "
+            "FROM stock_moves sm "
+            "JOIN products p ON p.id = sm.product_id "
+            "LEFT JOIN stock_items si ON si.product_id = sm.product_id "
+            f"WHERE {where_clause} AND sm.kind = 'sale' "
+            "AND sm.occurred_at > CURRENT_DATE - INTERVAL '30 days' "
+            "GROUP BY p.name, p.id, si.qty "
+            "HAVING coalesce(si.qty, 0) > 0 "
+            "ORDER BY coalesce(si.qty, 0) / NULLIF(coalesce(sum(sm.qty) / NULLIF(count(DISTINCT sm.occurred_at::date), 0), 0), 0) ASC "
+            "LIMIT 10"
+        )
+        return _safe_topic(
+            db, "Predicción reorden", sql, lambda: _fetch_all(db, sql, tenant_params)
+        )
+
+    if topic == "anomalias_ventas":
+        # Detecta días con ventas POS < 60% del promedio de los últimos 30 días
+        where_clause, tenant_params = _tenant_where("pr")
+        sql = (
+            "WITH daily AS ("
+            "  SELECT created_at::date AS dia, coalesce(sum(gross_total), 0) AS total_dia "
+            "  FROM pos_receipts pr "
+            f" WHERE {where_clause} AND pr.status = 'paid' "
+            "  AND pr.created_at > CURRENT_DATE - INTERVAL '30 days' "
+            "  GROUP BY 1"
+            "), promedio AS ("
+            "  SELECT avg(total_dia) AS avg_30d FROM daily"
+            ") "
+            "SELECT d.dia, d.total_dia, p.avg_30d, "
+            "  round((d.total_dia / NULLIF(p.avg_30d, 0) * 100)::numeric, 1) AS pct_vs_promedio "
+            "FROM daily d, promedio p "
+            "WHERE d.total_dia < p.avg_30d * 0.6 "
+            "ORDER BY d.dia DESC LIMIT 10"
+        )
+        return _safe_topic(
+            db,
+            "Días con ventas anómalas (< 60% del promedio)",
+            sql,
+            lambda: _fetch_all(db, sql, tenant_params),
+        )
+
+    if topic == "clasificar_gasto":
+        description = str(p.get("description", ""))
+        amount = float(p.get("amount", 0))
+        if not description:
+            return {"cards": [], "note": "description_required"}
+        # Return data for AI classification
+        where_clause, tenant_params = _tenant_where()
+        sql = (
+            f"SELECT DISTINCT category FROM expenses WHERE {where_clause} "
+            "AND category IS NOT NULL ORDER BY category"
+        )
+        categories = _fetch_all(db, sql, tenant_params)
+        cat_list = [r.get("category", "") for r in categories if r.get("category")]
+        return {
+            "cards": [
+                {
+                    "title": "Clasificación de gasto",
+                    "data": {
+                        "description": description,
+                        "amount": amount,
+                        "existing_categories": cat_list,
+                    },
+                }
+            ],
+            "sql": sql,
+            "ai_classification_needed": True,
+        }
+
     # Default: unsupported
     return {"cards": [], "sql": None, "note": "topic_unsupported"}
 
 
 def create_invoice_draft(
-    db: Session, tenant_empresa_id: int, payload: dict[str, Any]
+    db: Session, tenant_empresa_id: str, payload: dict[str, Any]
 ) -> dict[str, Any]:
     # Create a minimal draft invoice; never post
     proveedor = str(payload.get("proveedor") or "N/A")
@@ -205,7 +314,7 @@ def create_invoice_draft(
         ),
         {
             "prov": proveedor,
-            "emp": int(tenant_empresa_id),
+            "emp": tenant_empresa_id,
             "cli": cliente_id,
             "sub": subtotal,
             "iva": iva,
@@ -213,7 +322,7 @@ def create_invoice_draft(
         },
     ).first()
     assert row is not None
-    return {"id": int(row[0]), "status": "draft"}
+    return {"id": str(row[0]), "status": "draft"}
 
 
 def create_order_draft(
@@ -240,16 +349,16 @@ def create_order_draft(
                 "price": float(it.get("unit_price") or 0),
             },
         )
-    return {"id": int(oid), "status": "draft"}
+    return {"id": str(oid), "status": "draft"}
 
 
 def create_transfer_draft(
     db: Session, payload: dict[str, Any], tenant_id: str | None = None
 ) -> dict[str, Any]:
     # Draft transfer: two stock_move tentative rows (no stock_items update)
-    src = int(payload.get("from_warehouse_id") or 0)
-    dst = int(payload.get("to_warehouse_id") or 0)
-    prod = int(payload.get("product_id") or 0)
+    src = str(payload.get("from_warehouse_id") or "")
+    dst = str(payload.get("to_warehouse_id") or "")
+    prod = str(payload.get("product_id") or "")
     qty = float(payload.get("qty") or 0)
     for wh, kind in ((src, "issue"), (dst, "receipt")):
         db.execute(

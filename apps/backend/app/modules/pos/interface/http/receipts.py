@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -33,13 +32,9 @@ from ._deps import (
     is_company_admin,
     is_tax_enabled,
     load_locked_stock_rows,
-    normalize_lot,
     resolve_default_tax_rate,
     resolve_inventory_costing_method,
-    resolve_outbound_stock_fifo,
-    resolve_selected_stock_row,
     sum_stock_rows_qty,
-    to_decimal,
     to_decimal_q,
     validate_uuid,
 )
@@ -575,422 +570,114 @@ def checkout(
     db: Session = Depends(get_db),
 ):
     """Registra pagos, descuenta stock y crea documentos complementarios."""
+    from app.modules.pos.application.checkout_service import (
+        CheckoutRequest,
+        CheckoutService,
+        PaymentIn,
+        StockAllocationIn,
+    )
+
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = validate_uuid(receipt_id, "Receipt ID")
     tenant_id = get_tenant_id(request)
 
-    try:
-        receipt = db.execute(
-            text(
-                "SELECT shift_id, status FROM pos_receipts "
-                "WHERE id = :id AND tenant_id = :tid FOR UPDATE"
-            ).bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True)),
-                bindparam("tid", type_=PGUUID(as_uuid=True)),
-            ),
-            {"id": receipt_uuid, "tid": tenant_id},
-        ).first()
-
-        if not receipt:
-            raise HTTPException(status_code=404, detail="Recibo no encontrado")
-        if receipt[1] != "draft":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Recibo en estado '{receipt[1]}', debe estar en 'draft'",
-            )
-
-        for payment in payload.payments:
-            db.execute(
-                text(
-                    "INSERT INTO pos_payments(id, receipt_id, method, amount, ref, paid_at) "
-                    "VALUES (:id, :rid, :m, :a, :ref, :paid_at)"
-                ).bindparams(
-                    bindparam("id", type_=PGUUID(as_uuid=True)),
-                    bindparam("rid", type_=PGUUID(as_uuid=True)),
-                ),
-                {
-                    "id": uuid4(),
-                    "rid": receipt_uuid,
-                    "m": payment.method,
-                    "a": payment.amount,
-                    "ref": payment.ref,
-                    "paid_at": datetime.utcnow(),
-                },
-            )
-
-        totals = db.execute(
-            text(
-                "SELECT "
-                "COALESCE(SUM(ABS(rl.qty) * rl.unit_price * (1 - rl.discount_pct/100)), 0) AS subtotal, "
-                "COALESCE(SUM(ABS(rl.qty) * rl.unit_price * (1 - rl.discount_pct/100) * rl.tax_rate), 0) AS tax "
-                "FROM pos_receipt_lines rl WHERE rl.receipt_id = :rid"
-            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
-            {"rid": receipt_uuid},
-        ).first()
-
-        payments_total = db.execute(
-            text(
-                "SELECT COALESCE(SUM(amount), 0) FROM pos_payments WHERE receipt_id = :rid"
-            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
-            {"rid": receipt_uuid},
-        ).first()
-
-        subtotal = to_decimal(float(totals[0] or 0))
-        tax = to_decimal(float(totals[1] or 0))
-
-        tax_enabled = is_tax_enabled(db)
-        default_tax = resolve_default_tax_rate(db)
-        if not tax_enabled or (default_tax is not None and default_tax <= 0):
-            tax = to_decimal(0.0)
-
-        total = subtotal + tax
-        paid = to_decimal(float(payments_total[0] or 0))
-
-        if int(paid * 100) < int(total * 100):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Pago insuficiente. Recibido: ${paid:.2f}, Requerido: ${total:.2f}",
-            )
-
-        warehouse_id = payload.warehouse_id
-        if warehouse_id:
-            warehouse_uuid = validate_uuid(warehouse_id, "Warehouse ID")
-        else:
-            warehouses = db.execute(
-                text("SELECT id FROM warehouses WHERE active = true LIMIT 2")
-            ).fetchall()
-            if len(warehouses) == 0:
-                raise HTTPException(status_code=400, detail="No hay almacenes activos disponibles")
-            if len(warehouses) > 1:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Múltiples almacenes disponibles, debe especificar warehouse_id",
-                )
-            warehouse_uuid = warehouses[0][0]
-
-        lines = db.execute(
-            text(
-                "SELECT id, product_id, qty, unit_price, discount_pct "
-                "FROM pos_receipt_lines WHERE receipt_id = :rid"
-            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
-            {"rid": receipt_uuid},
-        ).fetchall()
-
-        line_selection_map = {str(sel.line_id): sel for sel in (payload.stock_selections or [])}
-        costing = InventoryCostingService(db)
-        costing_method = resolve_inventory_costing_method(db)
-
-        for line in lines:
-            line_id = line[0]
-            product_id = line[1]
-            qty_sold = float(line[2])
-            unit_price = float(line[3])
-            discount_pct = float(line[4] or 0)
-
-            stock_rows = load_locked_stock_rows(db, warehouse_uuid, product_id)
-            line_selection = line_selection_map.get(str(line_id))
-            allocations: list[tuple] = []
-
-            if line_selection is not None:
-                selected_total = 0.0
-                for allocation in line_selection.allocations:
-                    alloc_qty = float(allocation.qty or 0)
-                    if alloc_qty <= 0:
-                        continue
-                    stock_item = resolve_selected_stock_row(
-                        stock_rows, lot=allocation.lot, expires_at=allocation.expires_at
-                    )
-                    if float(stock_item[1] or 0) < alloc_qty:
-                        raise HTTPException(status_code=400, detail="selected_lot_insufficient")
-                    allocations.append(
-                        (
-                            stock_item,
-                            alloc_qty,
-                            normalize_lot(allocation.lot),
-                            allocation.expires_at,
-                        )
-                    )
-                    selected_total += alloc_qty
-                if abs(selected_total - qty_sold) > 0.000001:
-                    raise HTTPException(status_code=400, detail="invalid_lot_allocation_total")
-            else:
-                fifo_allocs, remaining = resolve_outbound_stock_fifo(stock_rows, qty_sold)
-                if remaining > 0.000001 or not fifo_allocs:
-                    # Sin stock suficiente → fallback a fila genérica (permite negativo)
-                    stock_item = ensure_generic_stock_row(
-                        db,
-                        tenant_id=tenant_id,
-                        warehouse_id=warehouse_uuid,
-                        product_id=product_id,
-                    )
-                    stock_rows = [stock_item]
-                    allocations.append((stock_item, qty_sold, None, None))
-                else:
-                    for si, alloc_qty, lot, exp in fifo_allocs:
-                        allocations.append((si, alloc_qty, lot, exp))
-
-            current_qty = sum_stock_rows_qty(stock_rows)
-
-            cost_price = db.execute(
-                text("SELECT cost_price FROM products WHERE id = :pid"),
-                {"pid": product_id},
-            ).scalar()
-            fallback_cost = to_decimal_q(float(cost_price or 0), "0.000001")
-
-            db.execute(
-                text(
-                    "INSERT INTO inventory_cost_state(tenant_id, warehouse_id, product_id, on_hand_qty, avg_cost) "
-                    "VALUES (:tid, :wid, :pid, :q, :avg) "
-                    "ON CONFLICT (tenant_id, warehouse_id, product_id) "
-                    "DO UPDATE SET on_hand_qty = EXCLUDED.on_hand_qty"
-                ).bindparams(
-                    bindparam("tid", type_=PGUUID(as_uuid=True)),
-                    bindparam("wid", type_=PGUUID(as_uuid=True)),
-                    bindparam("pid", type_=PGUUID(as_uuid=True)),
-                ),
-                {
-                    "tid": tenant_id,
-                    "wid": warehouse_uuid,
-                    "pid": product_id,
-                    "q": float(current_qty),
-                    "avg": float(fallback_cost),
-                },
-            )
-
-            qty_dec = to_decimal_q(qty_sold, "0.000001")
-
-            if costing_method == "fifo":
-                cogs_total = to_decimal_q(0, "0.000001")
-                for si, alloc_qty, lot, exp in allocations:
-                    _, alloc_cogs = costing.apply_outbound_fifo(
-                        str(tenant_id),
-                        str(warehouse_uuid),
-                        str(product_id),
-                        qty=to_decimal_q(alloc_qty, "0.000001"),
-                        allow_negative=False,
-                        lot=lot,
-                        expires_at=exp,
-                    )
-                    cogs_total += alloc_cogs
-                cogs_unit = (
-                    to_decimal_q(cogs_total / qty_dec, "0.000001")
-                    if qty_dec > 0
-                    else to_decimal_q(0, "0.000001")
-                )
-            elif costing_method == "lifo":
-                cogs_total = to_decimal_q(0, "0.000001")
-                for si, alloc_qty, lot, exp in allocations:
-                    _, alloc_cogs = costing.apply_outbound_lifo(
-                        str(tenant_id),
-                        str(warehouse_uuid),
-                        str(product_id),
-                        qty=to_decimal_q(alloc_qty, "0.000001"),
-                        allow_negative=False,
-                        lot=lot,
-                        expires_at=exp,
-                    )
-                    cogs_total += alloc_cogs
-                cogs_unit = (
-                    to_decimal_q(cogs_total / qty_dec, "0.000001")
-                    if qty_dec > 0
-                    else to_decimal_q(0, "0.000001")
-                )
-            else:
-                _state = costing.apply_outbound(
-                    str(tenant_id),
-                    str(warehouse_uuid),
-                    str(product_id),
-                    qty=qty_dec,
-                    allow_negative=False,
-                    initial_qty=to_decimal_q(current_qty, "0.000001"),
-                    initial_avg_cost=fallback_cost,
-                )
-                cogs_unit = _state.avg_cost
-                cogs_total = qty_dec * cogs_unit
-
-            net_total = to_decimal_q(qty_sold, "0.000001") * to_decimal_q(unit_price, "0.0001")
-            net_total = net_total * (Decimal("1") - (to_decimal_q(discount_pct, "0.01") / 100))
-            net_total = to_decimal_q(net_total, "0.01")
-            cogs_total_money = to_decimal_q(cogs_total, "0.01")
-            gross_profit = to_decimal_q(net_total - cogs_total_money, "0.01")
-            gross_margin_pct = (
-                to_decimal_q(gross_profit / net_total, "0.0001")
-                if net_total > 0
-                else to_decimal_q(0, "0.0001")
-            )
-
-            db.execute(
-                text(
-                    "UPDATE pos_receipt_lines "
-                    "SET net_total = :net, cogs_unit = :cu, cogs_total = :ct, "
-                    "gross_profit = :gp, gross_margin_pct = :gmp "
-                    "WHERE id = :id"
-                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-                {
-                    "id": line_id,
-                    "net": float(net_total),
-                    "cu": float(cogs_unit),
-                    "ct": float(cogs_total_money),
-                    "gp": float(gross_profit),
-                    "gmp": float(gross_margin_pct),
-                },
-            )
-
-            if current_qty - qty_sold < 0:
-                raise HTTPException(status_code=400, detail="insufficient_stock")
-
-            running_total = 0.0
-            for si, alloc_qty, selected_lot, selected_exp in allocations:
-                selected_qty = float(si[1] or 0)
-                new_qty = selected_qty - alloc_qty
-                if new_qty < 0:
-                    raise HTTPException(status_code=400, detail="selected_lot_insufficient")
-                running_total += alloc_qty
-                alloc_qty_dec = to_decimal_q(alloc_qty, "0.000001")
-                alloc_ratio = (
-                    alloc_qty_dec / qty_dec if qty_dec > 0 else to_decimal_q(0, "0.000001")
-                )
-                alloc_total_cost = to_decimal_q(cogs_total_money * alloc_ratio, "0.01")
-
-                db.execute(
-                    text(
-                        "INSERT INTO stock_moves("
-                        "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, "
-                        "tentative, posted, lot, expires_at, unit_cost, total_cost, occurred_at"
-                        ") VALUES ("
-                        ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, "
-                        ":lot, :exp, :uc, :tc, :occurred_at"
-                        ")"
-                    ).bindparams(
-                        bindparam("tid", type_=PGUUID(as_uuid=True)),
-                        bindparam("pid", type_=PGUUID(as_uuid=True)),
-                        bindparam("wid", type_=PGUUID(as_uuid=True)),
-                        bindparam("rid", type_=PGUUID(as_uuid=True)),
-                    ),
-                    {
-                        "tid": tenant_id,
-                        "pid": product_id,
-                        "wid": warehouse_uuid,
-                        "q": alloc_qty,
-                        "rid": receipt_uuid,
-                        "lot": selected_lot,
-                        "exp": selected_exp,
-                        "uc": float(cogs_unit),
-                        "tc": float(alloc_total_cost),
-                        "occurred_at": datetime.utcnow(),
-                    },
-                )
-                db.execute(
-                    text("UPDATE stock_items SET qty = :q WHERE id = :id").bindparams(
-                        bindparam("id", type_=PGUUID(as_uuid=True))
-                    ),
-                    {"q": new_qty, "id": si[0]},
-                )
-
-            if abs(running_total - qty_sold) > 0.000001:
-                raise HTTPException(status_code=400, detail="invalid_lot_allocation_total")
-
-        db.execute(
-            text(
-                "UPDATE pos_receipts "
-                "SET status = 'paid', gross_total = :gt, tax_total = :tt, "
-                "warehouse_id = :wid, paid_at = NOW() "
-                "WHERE id = :id AND tenant_id = :tid"
-            ).bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True)),
-                bindparam("tid", type_=PGUUID(as_uuid=True)),
-            ),
-            {"id": receipt_uuid, "tid": tenant_id, "gt": total, "tt": tax, "wid": warehouse_uuid},
+    # Construir request para el servicio
+    warehouse_uuid = (
+        validate_uuid(payload.warehouse_id, "Warehouse ID") if payload.warehouse_id else None
+    )
+    svc_payments = [
+        PaymentIn(method=p.method, amount=Decimal(str(p.amount)), ref=getattr(p, "ref", None))
+        for p in payload.payments
+    ]
+    svc_selections = [
+        StockAllocationIn(
+            line_id=validate_uuid(str(sel.line_id), "Line ID"),
+            allocations=[
+                {"lot": a.lot, "expires_at": a.expires_at, "qty": float(a.qty or 0)}
+                for a in sel.allocations
+            ],
         )
-        db.commit()
+        for sel in (payload.stock_selections or [])
+    ]
+    checkout_req = CheckoutRequest(
+        receipt_id=receipt_uuid,
+        tenant_id=tenant_id,
+        payments=svc_payments,
+        warehouse_id=warehouse_uuid,
+        stock_selections=svc_selections,
+        invoice_series=getattr(payload, "invoice_series", "A"),
+    )
 
-        # Documentos complementarios (best-effort, no abortan el pago)
-        documents_created: dict = {}
-        try:
-            from app.modules.pos.application.invoice_integration import POSInvoicingService
-
-            service = POSInvoicingService(db, tenant_id)
-            try:
-                invoice_result = service.create_invoice_from_receipt(
-                    receipt_uuid,
-                    customer_id=None,
-                    invoice_series=getattr(payload, "invoice_series", "A"),
-                )
-                if invoice_result:
-                    documents_created["invoice"] = invoice_result
-                    db.commit()
-                else:
-                    db.rollback()
-            except Exception as e:
-                logger.warning("Error creating invoice from receipt: %s", e)
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-            try:
-                sale_result = service.create_sale_from_receipt(receipt_uuid)
-                if sale_result:
-                    documents_created["sale"] = sale_result
-                    db.commit()
-                else:
-                    db.rollback()
-            except Exception as e:
-                logger.warning("Error creating sale from receipt: %s", e)
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning("Error creating complementary documents: %s", e)
-
-        try:
-            claims = get_claims(request)
-            user_id = claims.get("user_id")
-            audit_event(
-                db,
-                action="issue",
-                entity_type="pos_receipt",
-                entity_id=str(receipt_uuid),
-                actor_type="user" if user_id else "system",
-                source="api",
-                tenant_id=str(tenant_id),
-                user_id=str(user_id) if user_id else None,
-                changes={
-                    "status": "paid",
-                    "totals": {
-                        "subtotal": float(subtotal),
-                        "tax": float(tax),
-                        "total": float(total),
-                        "paid": float(paid),
-                        "change": float(paid - total),
-                    },
-                    "documents_created": list(documents_created.keys()),
-                },
-                req=request,
-            )
-        except Exception:
-            pass
-
-        return {
-            "ok": True,
-            "receipt_id": str(receipt_uuid),
-            "status": "paid",
-            "totals": {
-                "subtotal": float(subtotal),
-                "tax": float(tax),
-                "total": float(total),
-                "paid": float(paid),
-                "change": float(paid - total),
-            },
-            "documents_created": documents_created,
-        }
-
-    except HTTPException:
+    try:
+        result = CheckoutService(db).execute(checkout_req)
+    except ValueError as e:
         db.rollback()
-        raise
+        detail = str(e)
+        if "receipt_not_found" in detail:
+            raise HTTPException(status_code=404, detail="Recibo no encontrado")
+        if "invalid_status:" in detail:
+            status_val = detail.split(":")[-1]
+            raise HTTPException(
+                status_code=400, detail=f"Recibo en estado '{status_val}', debe estar en 'draft'"
+            )
+        if "insufficient_payment" in detail:
+            raise HTTPException(
+                status_code=400,
+                detail=detail.replace("insufficient_payment: ", "Pago insuficiente. "),
+            )
+        if "no_active_warehouse" in detail:
+            raise HTTPException(status_code=400, detail="No hay almacenes activos disponibles")
+        if "multiple_warehouses" in detail:
+            raise HTTPException(
+                status_code=400,
+                detail="Múltiples almacenes disponibles, debe especificar warehouse_id",
+            )
+        raise HTTPException(status_code=400, detail=detail)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error en checkout: {str(e)}")
+
+    try:
+        claims = get_claims(request)
+        user_id = claims.get("user_id")
+        audit_event(
+            db,
+            action="issue",
+            entity_type="pos_receipt",
+            entity_id=str(receipt_uuid),
+            actor_type="user" if user_id else "system",
+            source="api",
+            tenant_id=str(tenant_id),
+            user_id=str(user_id) if user_id else None,
+            changes={
+                "status": "paid",
+                "totals": {
+                    "subtotal": float(result.subtotal),
+                    "tax": float(result.tax),
+                    "total": float(result.total),
+                    "paid": float(result.paid),
+                    "change": float(result.change),
+                },
+                "documents_created": list(result.documents_created.keys()),
+            },
+            req=request,
+        )
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "receipt_id": str(receipt_uuid),
+        "status": "paid",
+        "totals": {
+            "subtotal": float(result.subtotal),
+            "tax": float(result.tax),
+            "total": float(result.total),
+            "paid": float(result.paid),
+            "change": float(result.change),
+        },
+        "documents_created": result.documents_created,
+    }
 
 
 # ============================================================================
@@ -1180,7 +867,7 @@ def refund_receipt(
                     "rid": receipt_uuid,
                     "uc": float(cogs_unit_dec),
                     "tc": float(cogs_unit_dec * qty_dec),
-                    "occurred_at": datetime.utcnow(),
+                    "occurred_at": datetime.now(UTC),
                 },
             )
 
@@ -1313,7 +1000,7 @@ def backfill_receipt_documents(
 def print_receipt(
     receipt_id: str,
     request: Request,
-    width: str = "58mm",
+    width: str = "80mm",
     db: Session = Depends(get_db),
 ):
     """Genera HTML para impresión térmica del ticket (auto-imprime con window.print)."""
@@ -1324,7 +1011,7 @@ def print_receipt(
     try:
         receipt = db.execute(
             text(
-                "SELECT r.id, r.number, r.gross_total, r.tax_total, r.created_at, r.status "
+                "SELECT r.id, r.number, r.gross_total, r.tax_total, r.created_at, r.status, r.currency "
                 "FROM pos_receipts r WHERE r.id = :id AND r.tenant_id = :tid"
             ).bindparams(
                 bindparam("id", type_=PGUUID(as_uuid=True)),
@@ -1336,9 +1023,9 @@ def print_receipt(
         if not receipt:
             raise HTTPException(status_code=404, detail="Recibo no encontrado")
 
-        lines = db.execute(
+        lines_rows = db.execute(
             text(
-                "SELECT rl.qty, rl.unit_price, rl.line_total, p.name "
+                "SELECT rl.qty, rl.unit_price, rl.line_total, p.name, p.sku "
                 "FROM pos_receipt_lines rl "
                 "LEFT JOIN products p ON rl.product_id = p.id "
                 "WHERE rl.receipt_id = :rid ORDER BY rl.id"
@@ -1346,64 +1033,100 @@ def print_receipt(
             {"rid": receipt_uuid},
         ).fetchall()
 
-        payments = db.execute(
+        payments_rows = db.execute(
             text(
                 "SELECT method, amount FROM pos_payments WHERE receipt_id = :rid ORDER BY paid_at"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).fetchall()
 
-        lines_html = "".join(
-            f'<div class="line"><span>{ln[0]:.2f}x {ln[3] or "Producto"}</span><span>${ln[2]:.2f}</span></div>'
-            for ln in lines
-        )
-        payments_html = "".join(
-            f'<div class="line"><span>{p[0].upper()}</span><span>${p[1]:.2f}</span></div>'
-            for p in payments
-        )
+        # Company data from tenants table
+        tenant_row = db.execute(
+            text("SELECT name, tax_id, phone, address, website, logo FROM tenants WHERE id = :tid"),
+            {"tid": tenant_id},
+        ).fetchone()
 
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Ticket {receipt[1]}</title>
-    <style>
-        @page {{ width: {width}; margin: 0; }}
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ width: 100%; max-width: 48mm; font-family: 'Courier New', Courier, monospace;
-               font-size: 9pt; margin: 5mm auto; padding: 0 2mm; }}
-        .center {{ text-align: center; margin: 3px 0; }}
-        .bold {{ font-weight: bold; }}
-        .line {{ display: flex; justify-content: space-between; margin: 2px 0; font-size: 8pt; }}
-        .line span:first-child {{ flex: 1; overflow: hidden; text-overflow: ellipsis;
-                                  white-space: nowrap; padding-right: 5px; }}
-        .line span:last-child {{ text-align: right; white-space: nowrap; }}
-        hr {{ border: none; border-top: 1px dashed #000; margin: 5px 0; }}
-        .total {{ margin-top: 5px; padding-top: 5px; font-weight: bold; font-size: 10pt; }}
-        .section {{ margin: 8px 0; }}
-        .section-title {{ font-weight: bold; margin-bottom: 3px; font-size: 8pt; }}
-        @media print {{ body {{ margin: 0; padding: 2mm; }} }}
-    </style>
-</head>
-<body>
-    <div class="center bold" style="font-size: 11pt;">TICKET DE VENTA</div>
-    <div class="center">Nº {receipt[1] or "N/A"}</div>
-    <div class="center" style="font-size: 8pt;">{receipt[4].strftime("%d/%m/%Y %H:%M") if receipt[4] else ""}</div>
-    <hr>
-    <div class="section">
-        <div class="section-title">PRODUCTOS</div>
-        {lines_html}
-    </div>
-    <hr>
-    <div class="line"><span>SUBTOTAL</span><span>${(receipt[2] - receipt[3]):.2f}</span></div>
-    <div class="line"><span>IVA</span><span>${receipt[3]:.2f}</span></div>
-    <div class="total line"><span>TOTAL</span><span>${receipt[2]:.2f}</span></div>
-    {"<hr><div class='section'><div class='section-title'>PAGOS</div>" + payments_html + "</div>" if payments else ""}
-    <hr>
-    <div class="center" style="margin-top: 10px; font-size: 8pt;">¡Gracias por su compra!</div>
-    <script>window.addEventListener('load', function() {{ setTimeout(function() {{ window.print(); }}, 500); }});</script>
-</body>
-</html>"""
+        # Receipt template config from company_settings
+        from app.models.company.company_settings import CompanySettings
+
+        cs = db.query(CompanySettings).filter(CompanySettings.tenant_id == str(tenant_id)).first()
+        tpl_cfg: dict = {}
+        if cs and cs.settings:
+            tpl_cfg = cs.settings.get("receipt_template", {})
+
+        empresa = {
+            "nombre": (tenant_row[0] if tenant_row else None) or "Mi Empresa",
+            "ruc": (tenant_row[1] if tenant_row else None) or "",
+            "telefono": (tenant_row[2] if tenant_row else None) or "",
+            "direccion": (tenant_row[3] if tenant_row else None) or "",
+            "web": (tenant_row[4] if tenant_row else None) or "",
+            "logo": (tenant_row[5] if tenant_row else None) or "",
+            "email": "",
+        }
+
+        subtotal = float(receipt[2] or 0) - float(receipt[3] or 0)
+        gross_total = float(receipt[2] or 0)
+        tax_total = float(receipt[3] or 0)
+        currency = receipt[6] if receipt[6] else ""
+
+        lines_data = [
+            {
+                "product_name": ln[3] or "Producto",
+                "qty": float(ln[0] or 0),
+                "unit_price": float(ln[1] or 0),
+                "line_total": float(ln[2] or 0),
+                "sku": ln[4] or "",
+            }
+            for ln in lines_rows
+        ]
+
+        payments_data = [{"method": p[0] or "", "amount": float(p[1] or 0)} for p in payments_rows]
+
+        paid_total = sum(p["amount"] for p in payments_data)
+        change_val = max(0.0, paid_total - gross_total)
+
+        footer_message = tpl_cfg.get("footer_message", "¡Gracias por su compra!")
+        show_tax = tpl_cfg.get("show_tax_breakdown", True)
+
+        template_name = "pos/ticket_80mm.html" if width == "80mm" else "pos/ticket_58mm.html"
+
+        import os as _os
+
+        from jinja2 import Environment, FileSystemLoader
+
+        templates_dir = _os.path.join(
+            _os.path.dirname(_os.path.abspath(__file__)), "..", "..", "..", "..", "templates"
+        )
+        env = Environment(loader=FileSystemLoader(templates_dir), autoescape=True)
+        try:
+            tmpl = env.get_template(template_name)
+            html = tmpl.render(
+                empresa=empresa,
+                ticket={
+                    "number": receipt[1] or "N/A",
+                    "created_at": receipt[4],
+                    "subtotal": subtotal,
+                    "tax_total": tax_total,
+                    "gross_total": gross_total,
+                    "currency": currency,
+                    "show_tax_breakdown": show_tax,
+                    "footer_message": footer_message,
+                    "change": change_val,
+                },
+                lines=lines_data,
+                payments=payments_data,
+            )
+        except Exception:
+            # Fallback si el template no se encuentra
+            html = _build_fallback_receipt_html(
+                receipt,
+                lines_data,
+                payments_data,
+                empresa,
+                footer_message,
+                change_val,
+                width,
+            )
 
         return HTMLResponse(content=html)
 
@@ -1411,3 +1134,56 @@ def print_receipt(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar impresión: {str(e)}")
+
+
+def _build_fallback_receipt_html(
+    receipt,
+    lines_data,
+    payments_data,
+    empresa,
+    footer_message,
+    change_val,
+    width,
+) -> str:
+    """HTML mínimo de respaldo si el template Jinja2 no está disponible."""
+    max_w = "80mm" if width == "80mm" else "48mm"
+    lines_html = "".join(
+        f'<div class="line"><span>{ln["qty"]:.2f}x {ln["product_name"]}</span><span>${ln["line_total"]:.2f}</span></div>'
+        for ln in lines_data
+    )
+    payments_html = "".join(
+        f'<div class="line"><span>{p["method"].upper()}</span><span>${p["amount"]:.2f}</span></div>'
+        for p in payments_data
+    )
+    gross = float(receipt[2] or 0)
+    tax = float(receipt[3] or 0)
+    change_html = (
+        f'<div class="line"><span>CAMBIO</span><span>${change_val:.2f}</span></div>'
+        if change_val > 0
+        else ""
+    )
+    logo_html = (
+        f'<img src="{empresa["logo"]}" style="max-height:50px;max-width:60mm;" /><br/>'
+        if empresa.get("logo")
+        else ""
+    )
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ticket {receipt[1]}</title>
+<style>@page{{size:{width} auto;margin:0}}*{{margin:0;padding:0;box-sizing:border-box}}
+body{{width:100%;max-width:{max_w};font-family:'Courier New',monospace;font-size:9pt;margin:0 auto;padding:3mm 2mm}}
+.center{{text-align:center;margin:2px 0}}.bold{{font-weight:bold}}
+.line{{display:flex;justify-content:space-between;margin:1px 0;font-size:8pt}}
+hr{{border:none;border-top:1px dashed #000;margin:4px 0}}.total{{font-weight:bold;font-size:11pt}}
+@media print{{body{{margin:0;padding:2mm;max-width:none}}}}</style></head><body>
+<div class="center">{logo_html}<span class="bold" style="font-size:12pt">{empresa["nombre"]}</span></div>
+{"<div class='center' style='font-size:8pt'>RUC: " + empresa["ruc"] + "</div>" if empresa.get("ruc") else ""}
+{"<div class='center' style='font-size:8pt'>" + empresa["direccion"] + "</div>" if empresa.get("direccion") else ""}
+<div class="center" style="font-size:8pt">Nº {receipt[1] or "N/A"}</div>
+<div class="center" style="font-size:7pt">{receipt[4].strftime("%d/%m/%Y %H:%M:%S") if receipt[4] else ""}</div>
+<hr><div>{lines_html}</div><hr>
+<div class="line"><span>SUBTOTAL</span><span>${(gross - tax):.2f}</span></div>
+<div class="line"><span>IVA</span><span>${tax:.2f}</span></div>
+<div class="total line"><span>TOTAL</span><span>${gross:.2f}</span></div>
+{"<hr>" + payments_html + change_html if payments_data else ""}
+<hr><div class="center" style="margin-top:6px;font-size:8pt">{footer_message}</div>
+<script>window.addEventListener('load',function(){{setTimeout(function(){{window.print();}},500);}});</script>
+</body></html>"""

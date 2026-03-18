@@ -51,13 +51,13 @@ def ensure_tenant(request: Request, db: Session = Depends(get_db)) -> str:
     import os
 
     dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
-    logger.info(f"ensure_tenant: dev_mode={dev_mode}, env={os.getenv('ENVIRONMENT')}")
+    logger.debug(f"ensure_tenant: dev_mode={dev_mode}, env={os.getenv('ENVIRONMENT')}")
 
     try:
         claims = with_access_claims(request)
         claim_tid = claims.get("tenant_id") if isinstance(claims, dict) else None
         tenant_uuid = _validate_tenant_uuid(str(claim_tid) if claim_tid is not None else None)
-        logger.info(f"Token validated: tenant_uuid={tenant_uuid}")
+        logger.debug(f"Token validated: tenant_uuid={tenant_uuid}")
     except (HTTPException, Exception) as e:
         # FALLBACK para desarrollo: usar primer tenant de la BD
         logger.warning(f"Auth failed: {e}, dev_mode={dev_mode}")
@@ -69,7 +69,7 @@ def ensure_tenant(request: Request, db: Session = Depends(get_db)) -> str:
             ).fetchone()
             if result:
                 tenant_uuid = str(result[0])
-                logger.info(f"✅ DEV MODE: Using fallback tenant_id={tenant_uuid}")
+                logger.debug(f"✅ DEV MODE: Using fallback tenant_id={tenant_uuid}")
             else:
                 raise HTTPException(status_code=403, detail="no_tenants_found")
         else:

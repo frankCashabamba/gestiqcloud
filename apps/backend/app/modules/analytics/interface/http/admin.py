@@ -3,7 +3,7 @@ Router for admin dashboard statistics.
 Endpoint: GET /api/v1/admin/stats
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -47,7 +47,7 @@ def get_admin_stats(db: Session = Depends(get_db)) -> dict[str, Any]:
     migraciones_aplicadas = 0
     migraciones_pendientes = 0
 
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
     tenants_per_day_result = db.execute(
         select(
             func.date(Tenant.created_at).label("fecha"),

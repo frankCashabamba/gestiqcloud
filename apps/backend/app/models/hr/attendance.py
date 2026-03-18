@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING
 
 from sqlalchemy import TIMESTAMP, Date, ForeignKey, String, Time, Uuid, func
@@ -50,7 +50,7 @@ class VacationRequest(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )
 
     employee: Mapped[Employee] = relationship("Employee", back_populates="vacations", lazy="select")
@@ -85,7 +85,7 @@ class TimeEntry(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )
 
     employee: Mapped[Employee] = relationship(

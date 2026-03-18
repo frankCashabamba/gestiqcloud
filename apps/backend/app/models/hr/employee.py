@@ -16,7 +16,7 @@ Related Tables (see migrations):
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -205,7 +205,7 @@ class Employee(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relations

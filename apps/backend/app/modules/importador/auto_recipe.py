@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import String, cast, select
@@ -213,7 +213,7 @@ def remember_snapshot_learning(
         "doc_type": doc_type,
         "confidence": confidence,
         "reasoning": str(analysis.get("reasoning") or "").strip(),
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     content["learned_analysis"] = learned
     snapshot.content_json = content
@@ -240,7 +240,7 @@ def resolve_auto_recipe(
     recipe_name: str | None = None
     if not snap:
         prompts = _auto_prompts_excel(_flatten_headers(sheet_profiles))
-        name = f"auto-excel-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        name = f"auto-excel-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
         recipe_name, snap = _create_recipe_and_snapshot(
             db,
             tenant_id,
@@ -295,7 +295,7 @@ def resolve_auto_recipe_from_text(
 
     if not snap:
         prompts = _auto_prompts_text(tipo_doc, sorted(campos))
-        name = f"auto-{tipo_doc.lower()}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        name = f"auto-{tipo_doc.lower()}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
         recipe_name, snap = _create_recipe_and_snapshot(
             db,
             tenant_id,

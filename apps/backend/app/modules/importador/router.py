@@ -498,7 +498,7 @@ def _save_document_to_purchase(
     from app.services.inventory_costing import InventoryCostingService
 
     data = _get_doc_import_data(doc)
-    line_items = data.get("line_items") or []
+    line_items = data.get("line_items") or data.get("lineas") or data.get("items") or []
     if not line_items or not isinstance(line_items, list):
         line_items = []
 
@@ -616,10 +616,14 @@ def _save_document_to_purchase(
     for item in line_items:
         if not isinstance(item, dict):
             continue
-        description = str(item.get("description") or "").strip()
-        qty = float(item.get("quantity") or 0)
-        unit_price = float(item.get("unit_price") or 0)
-        total_price = float(item.get("total_price") or qty * unit_price)
+        description = str(item.get("description") or item.get("descripcion") or "").strip()
+        qty = float(item.get("quantity") or item.get("cantidad") or 0)
+        unit_price = float(
+            item.get("unit_price") or item.get("precio_unitario") or item.get("precio") or 0
+        )
+        total_price = float(
+            item.get("total_price") or item.get("total") or item.get("importe") or qty * unit_price
+        )
         if not description or qty <= 0:
             continue
 
@@ -714,6 +718,21 @@ def _save_document_to_purchase(
         lines_matched,
         unmatched,
     )
+
+    # Build a clear stock status message
+    if not update_stock:
+        stock_msg = ""
+    elif warehouse is None:
+        stock_msg = (
+            " ⚠️ No se actualizó el stock: no hay almacén activo configurado para este tenant."
+        )
+    elif lines_matched == 0 and unmatched:
+        stock_msg = f" ⚠️ No se actualizó el stock: sin producto coincidente para: {unmatched}."
+    elif lines_matched == 0 and line_items:
+        stock_msg = " ⚠️ No se actualizó el stock: los productos de la factura no coincidieron con ningún producto del catálogo."
+    else:
+        stock_msg = f" ✓ {lines_matched} producto(s) actualizados en stock."
+
     return {
         "purchase_id": purchase.id,
         "status": "stock_updated" if stock_only else "created",
@@ -722,11 +741,10 @@ def _save_document_to_purchase(
         "unmatched_descriptions": unmatched,
         "warehouse_id": str(warehouse.id) if warehouse else None,
         "message": (
-            f"Stock actualizado para compra existente. {lines_matched} producto(s) actualizados."
+            f"Stock actualizado para compra existente.{stock_msg}"
             if stock_only
-            else f"Compra registrada. {lines_matched} producto(s) actualizados en stock."
-        )
-        + (f" Sin match: {unmatched}" if unmatched else ""),
+            else f"Compra registrada.{stock_msg}"
+        ),
     }
 
 
@@ -1442,7 +1460,7 @@ def save_document(
         "payment_method": body.payment_method,
         "paid_at": body.paid_at,
         "notes": body.notes,
-        "saved_at": datetime.datetime.utcnow().isoformat(),
+        "saved_at": datetime.datetime.now(datetime.UTC).isoformat(),
     }
     crud.update_documento(
         db,
@@ -1563,7 +1581,7 @@ def save_document_as_products(
         "record_ids": result["product_ids"],
         "sheet_name": resolved_sheet,
         "category_name": body.category_name,
-        "saved_at": datetime.datetime.utcnow().isoformat(),
+        "saved_at": datetime.datetime.now(datetime.UTC).isoformat(),
     }
     confirmed = dict(data)
     confirmed["_save"] = save_meta

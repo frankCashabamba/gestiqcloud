@@ -1,7 +1,7 @@
 """Bank Models"""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import Boolean, Date, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -42,7 +42,7 @@ class BankMovement(Base):
     new_balance: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     bank_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     reconciled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

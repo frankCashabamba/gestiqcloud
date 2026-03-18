@@ -1,7 +1,7 @@
 """Expense Models"""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -62,7 +62,7 @@ class Expense(Base):
     pending_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     user_id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

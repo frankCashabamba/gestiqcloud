@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
 
@@ -1106,7 +1106,7 @@ def create_alert_config(payload: AlertConfigIn, request: Request, db: Session = 
         raise HTTPException(status_code=500, detail="Alert models not available")
 
     # Calculate next check time
-    next_check = datetime.utcnow() + timedelta(minutes=payload.check_frequency_minutes)
+    next_check = datetime.now(UTC) + timedelta(minutes=payload.check_frequency_minutes)
 
     config = AlertConfig(
         tenant_id=tid,
@@ -1182,7 +1182,7 @@ def update_alert_config(
         setattr(config, field, value)
 
     # Recalculate next check time
-    config.next_check_at = datetime.utcnow() + timedelta(minutes=config.check_frequency_minutes)
+    config.next_check_at = datetime.now(UTC) + timedelta(minutes=config.check_frequency_minutes)
 
     db.add(config)
     db.commit()
@@ -1349,7 +1349,7 @@ def list_alert_history(
 ):
     """Lista el historial de alertas enviadas"""
     tid = _require_tenant_id(request)
-    since_date = datetime.utcnow() - timedelta(days=days_back)
+    since_date = datetime.now(UTC) - timedelta(days=days_back)
 
     try:
         from app.models.inventory.alerts import AlertHistory

@@ -1,7 +1,7 @@
 """Bank Reconciliation Models"""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import TIMESTAMP, Boolean, Date
@@ -128,7 +128,7 @@ class BankReconciliation(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relations

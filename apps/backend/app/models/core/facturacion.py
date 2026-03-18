@@ -1,7 +1,7 @@
 """Module: facturacion.py - Invoice and payment models."""
 
 import uuid
-from datetime import date
+from datetime import UTC, date
 from enum import Enum
 
 from sqlalchemy import JSON, Date
@@ -53,7 +53,7 @@ class Invoice(Base):
     amount: Mapped[float] = mapped_column("amount", default=0)
     status: Mapped[str] = mapped_column("status", String, default="pending", index=True)
     created_at: Mapped[str] = mapped_column(
-        "created_at", String, default=lambda: __import__("datetime").datetime.utcnow().isoformat()
+        "created_at", String, default=lambda: __import__("datetime").datetime.now(UTC).isoformat()
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         "tenant_id", TENANT_UUID, ForeignKey("tenants.id"), index=True

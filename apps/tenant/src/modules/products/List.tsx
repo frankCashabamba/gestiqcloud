@@ -7,6 +7,7 @@ import {
   purgeProductos,
   bulkSetActive,
   bulkAssignCategory,
+  bulkGenerateMissingSkus,
   listCategorias,
   updateProducto,
   type Producto,
@@ -612,6 +613,27 @@ export default function ProductosList() {
               title={t('products:printLabelsTitle')}
             >
               {t('products:printLabels')}
+            </ProtectedButton>
+          )}
+          {can('products:update') && items.some(p => !p.sku?.trim()) && (
+            <ProtectedButton
+              permission="products:update"
+              className="bg-white border border-amber-400 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-50 transition-colors font-medium"
+              onClick={async () => {
+                const count = items.filter(p => !p.sku?.trim()).length
+                if (!confirm(`¿Generar código automático para ${count} producto(s) sin código?`)) return
+                try {
+                  const res = await bulkGenerateMissingSkus()
+                  success(`${res.updated} producto(s) actualizados con código.`)
+                  const updated = await listProductos()
+                  setItems(updated)
+                } catch (e) {
+                  toastError(getErrorMessage(e))
+                }
+              }}
+              title="Generar códigos para productos sin código"
+            >
+              ⚡ Generar códigos faltantes
             </ProtectedButton>
           )}
           {can('products:update') && (

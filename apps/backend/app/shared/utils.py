@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 
 def utcnow_iso() -> str:
-    return dt.datetime.utcnow().replace(tzinfo=dt.UTC).isoformat()
+    return dt.datetime.now(dt.UTC).isoformat()
 
 
 def slugify(text: str) -> str:

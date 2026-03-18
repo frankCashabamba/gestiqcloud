@@ -1,7 +1,7 @@
 """Domain models for webhooks system."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
@@ -55,8 +55,10 @@ class WebhookSubscription(Base):
     retry_count = Column(Integer, default=5)
     timeout_seconds = Column(Integer, default=30)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
     last_delivery_at = Column(DateTime, nullable=True)
 
     # Relationships
@@ -90,7 +92,7 @@ class WebhookDelivery(Base):
     next_retry_at = Column(DateTime, nullable=True, index=True)
     completed_at = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
 
     # Relationships
     subscription = relationship("WebhookSubscription", back_populates="deliveries")

@@ -20,7 +20,7 @@ MIGRADO DE:
 
 import logging
 import math
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -391,7 +391,7 @@ def _seed_default_order_costs(db: Session, order: ProductionOrder) -> None:
 
 
 def _generate_next_numero(db: Session, tenant_id: UUID) -> str:
-    year = datetime.utcnow().year
+    year = datetime.now(UTC).year
     prefix = f"OP-{year}-"
     table_name = ProductionOrder.__table__.fullname
     stmt = text(
@@ -417,8 +417,8 @@ def _generate_next_numero(db: Session, tenant_id: UUID) -> str:
 
 
 def _generate_batch_number(db: Session, tenant_id: UUID) -> str:
-    year = datetime.utcnow().year
-    month = datetime.utcnow().month
+    year = datetime.now(UTC).year
+    month = datetime.now(UTC).month
     prefix = f"LOT-{year}{month:02d}-"
     table_name = ProductionOrder.__table__.fullname
     stmt = text(
@@ -514,7 +514,7 @@ async def _create_stock_moves_for_ingredients(
             warehouse_id=warehouse_id,
             ref_type="production_order",
             ref_id=str(order.id),
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(UTC),
         )
         db.add(stock_move)
         db.flush()
@@ -573,7 +573,7 @@ async def _create_stock_move_for_output(
         ref_type="production_order",
         ref_id=str(order.id),
         lot=order.batch_number,
-        occurred_at=datetime.utcnow(),
+        occurred_at=datetime.now(UTC),
     )
     db.add(stock_move)
     db.flush()
@@ -731,7 +731,7 @@ def _create_expense_for_completed_production(
     )
 
     if existing:
-        existing.date = datetime.utcnow().date()
+        existing.date = datetime.now(UTC).date()
         existing.concept = concept
         existing.category = "production"
         existing.subcategory = "manufacturing"
@@ -747,7 +747,7 @@ def _create_expense_for_completed_production(
 
     expense = Expense(
         tenant_id=tenant_id,
-        date=datetime.utcnow().date(),
+        date=datetime.now(UTC).date(),
         concept=concept,
         category="production",
         subcategory="manufacturing",
@@ -812,7 +812,7 @@ async def list_production_planning_suggestions(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
-    target_day = target_date or datetime.utcnow().date()
+    target_day = target_date or datetime.now(UTC).date()
     window_start = target_day - timedelta(days=history_days)
     window_end = target_day
 
@@ -1199,7 +1199,7 @@ async def start_production(
             detail=f"No se puede iniciar orden en estado {order.status}",
         )
     order.status = "IN_PROGRESS"
-    order.started_at = request.started_at or datetime.utcnow()
+    order.started_at = request.started_at or datetime.now(UTC)
     if request.notes:
         order.notes = (order.notes or "") + f"\n[Inicio] {request.notes}"
     db.commit()
@@ -1231,7 +1231,7 @@ async def complete_production(
             status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
         )
     if order.status in ["DRAFT", "SCHEDULED"]:
-        order.started_at = order.started_at or request.completed_at or datetime.utcnow()
+        order.started_at = order.started_at or request.completed_at or datetime.now(UTC)
         order.status = "IN_PROGRESS"
     elif order.status != "IN_PROGRESS":
         raise HTTPException(
@@ -1241,7 +1241,7 @@ async def complete_production(
     order.qty_produced = request.qty_produced
     order.waste_qty = request.waste_qty
     order.waste_reason = request.waste_reason
-    order.completed_at = request.completed_at or datetime.utcnow()
+    order.completed_at = request.completed_at or datetime.now(UTC)
     order.status = "COMPLETED"
     if not order.batch_number:
         order.batch_number = request.batch_number or _generate_batch_number(db, tenant_id)

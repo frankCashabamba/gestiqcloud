@@ -12,7 +12,7 @@ Implementa:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any
@@ -108,7 +108,7 @@ class CreateSalesOrderUseCase:
             "lines": lines,
             "notes": notes,
             "due_date": due_date,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
         }
 
 
@@ -146,7 +146,7 @@ class ApproveSalesOrderUseCase:
         return {
             "order_id": order_id,
             "status": "approved",
-            "approved_at": datetime.utcnow(),
+            "approved_at": datetime.now(UTC),
             "approved_by": approved_by,
         }
 
@@ -200,7 +200,7 @@ class CreateInvoiceFromOrderUseCase:
             "subtotal": subtotal,
             "tax": tax,
             "total": total,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
         }
 
 
@@ -395,7 +395,7 @@ class CancelSalesOrderUseCase:
         return {
             "order_id": order_id,
             "status": "cancelled",
-            "cancelled_at": datetime.utcnow(),
+            "cancelled_at": datetime.now(UTC),
             "cancelled_by": cancelled_by,
             "reason": reason,
         }

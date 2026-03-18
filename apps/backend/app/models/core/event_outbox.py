@@ -3,7 +3,7 @@
 Event Outbox pattern – stores domain events for reliable async publishing."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -27,7 +27,7 @@ class EventOutbox(Base):
     aggregate_type = mapped_column(String, nullable=True)
     aggregate_id = mapped_column(UUID, nullable=True)
     payload = mapped_column(JSONB().with_variant(JSON(), "sqlite"), nullable=False)
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     published_at = mapped_column(DateTime(timezone=True), nullable=True)
     retry_count = mapped_column(Integer, default=0)
     last_error = mapped_column(Text, nullable=True)

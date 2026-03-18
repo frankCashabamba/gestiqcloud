@@ -7,7 +7,7 @@ Integrates with the webhooks module for secure, async delivery.
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -65,7 +65,7 @@ class InvoicingWebhookService:
                     "customer_name": customer_name,
                     "customer_id": customer_id,
                     "status": status,
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -106,7 +106,7 @@ class InvoicingWebhookService:
                     "invoice_number": invoice_number,
                     "sent_to": sent_to,
                     "status": "sent",
-                    "sent_at": datetime.utcnow().isoformat(),
+                    "sent_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -150,7 +150,7 @@ class InvoicingWebhookService:
                     "authorization_number": authorization_number,
                     "authorization_key": authorization_key,
                     "status": "authorized",
-                    "authorized_at": datetime.utcnow().isoformat(),
+                    "authorized_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -194,7 +194,7 @@ class InvoicingWebhookService:
                     "reason": reason,
                     "error_code": error_code,
                     "status": "rejected",
-                    "rejected_at": datetime.utcnow().isoformat(),
+                    "rejected_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -235,7 +235,7 @@ class InvoicingWebhookService:
                     "invoice_number": invoice_number,
                     "reason": reason,
                     "status": "cancelled",
-                    "cancelled_at": datetime.utcnow().isoformat(),
+                    "cancelled_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )

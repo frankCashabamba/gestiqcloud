@@ -146,10 +146,44 @@ except Exception:
 # ============================================================================
 
 
+def _configure_logging() -> None:
+    """Configure logging with rotation to prevent unbounded log file growth."""
+    from logging.handlers import RotatingFileHandler
+
+    log_file = os.getenv("LOG_FILE", "backend.log")
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    max_bytes = int(os.getenv("LOG_MAX_BYTES", str(10 * 1024 * 1024)))  # 10MB default
+    backup_count = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        root_logger.setLevel(getattr(logging, log_level, logging.INFO))
+
+    # Add rotating file handler if not already present
+    has_rotating = any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers)
+    if not has_rotating and log_file:
+        handler = RotatingFileHandler(
+            log_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding="utf-8",
+        )
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+        root_logger.addHandler(handler)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     global _imports_job_runner
+
+    # Configure logging with rotation
+    _configure_logging()
 
     # 🔒 Validar configuración crítica PRIMERO
     try:

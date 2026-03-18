@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -43,8 +43,12 @@ class Incident(Base):
     ia_analysis = Column(JSON_TYPE)
     ia_suggestion = Column(Text)
     resolved_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     tenant = relationship("Tenant", back_populates="incidents")
     assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
@@ -77,7 +81,7 @@ class StockAlert(Base):
     ia_recommendation = Column(Text)
     notified_at = Column(DateTime(timezone=True))
     resolved_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
 
     tenant = relationship("Tenant")
     product = relationship("Product")
@@ -99,8 +103,12 @@ class NotificationChannel(Base):
     config = Column(JSON_TYPE, nullable=False)  # {api_key, phone, chat_id, webhook_url, etc}
     is_active = Column(Boolean, default=True)
     priority = Column(Integer, default=0)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     tenant = relationship("Tenant")
     notification_logs = relationship("NotificationLog", back_populates="channel")
@@ -128,7 +136,7 @@ class NotificationLog(Base):
     error_message = Column(Text)
     extra_data = Column(JSON_TYPE)  # Renamed from metadata (reserved word)
     sent_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
 
     tenant = relationship("Tenant")
     channel = relationship("NotificationChannel", back_populates="notification_logs")

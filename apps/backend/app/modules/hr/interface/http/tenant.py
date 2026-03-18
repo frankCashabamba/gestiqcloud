@@ -1,6 +1,6 @@
 """HR Module - HTTP API (Tenant)"""
 
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 
@@ -700,7 +700,7 @@ async def create_employee(
         effective_date=request.fecha_ingreso,
         notes=build_salary_notes(request.modalidad_pago),
         created_by=user_id,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(UTC),
     )
     db.add(salary)
     db.commit()
@@ -780,7 +780,7 @@ async def update_employee(
                     effective_date=date.today(),
                     notes=build_salary_notes(next_mode),
                     created_by=user_id,
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
                 )
             )
 
@@ -880,7 +880,7 @@ async def approve_vacation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vacation not found")
     vacation.status = "aprobada"
     vacation.approved_by = _as_uuid(claims.get("user_id"))
-    vacation.approved_at = datetime.utcnow()
+    vacation.approved_at = datetime.now(UTC)
     vacation.rejection_reason = None
     db.commit()
     db.refresh(vacation)
@@ -900,7 +900,7 @@ async def reject_vacation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vacation not found")
     vacation.status = "rechazada"
     vacation.approved_by = _as_uuid(claims.get("user_id"))
-    vacation.approved_at = datetime.utcnow()
+    vacation.approved_at = datetime.now(UTC)
     vacation.rejection_reason = request.motivo
     db.commit()
     db.refresh(vacation)
@@ -1247,9 +1247,9 @@ async def download_payslip(
     payslip.download_count += 1
     from datetime import datetime
 
-    payslip.last_download_at = datetime.utcnow()
+    payslip.last_download_at = datetime.now(UTC)
     if not payslip.viewed_at:
-        payslip.viewed_at = datetime.utcnow()
+        payslip.viewed_at = datetime.now(UTC)
     db.commit()
 
     return {

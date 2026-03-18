@@ -1,5 +1,5 @@
 # app/core/maintenance.py
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -7,7 +7,7 @@ from app.models.auth.refresh_family import RefreshToken, RefreshTokenFamily  # a
 
 
 def gc_refresh_tokens(db: Session, older_than_days: int = 60) -> int:
-    cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+    cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
     # 1) borrar tokens expirados/used con exp < now - margen
     # 2) borrar familias sin tokens activos
     # Pseudocódigo – ajusta SQLAlchemy a tu esquema

@@ -138,5 +138,17 @@ class BaseAIProvider(ABC):
         """Estimación rápida de tokens (1 token ≈ 4 caracteres)"""
         return max(1, len(text) // 4)
 
+    def _get_system_prompt(self, task: AITask) -> str:
+        """System prompt por defecto según tarea"""
+        prompts = {
+            AITask.CLASSIFICATION: "Eres un experto en clasificación de documentos empresariales.",
+            AITask.ANALYSIS: "Eres un experto en análisis de datos y problemas empresariales.",
+            AITask.GENERATION: "Eres un experto en generación de documentos empresariales precisos.",
+            AITask.SUGGESTION: "Eres un asistente experto en sugerir acciones y mejoras.",
+            AITask.EXTRACTION: "Eres un experto en extracción y estructuración de datos.",
+            AITask.CHAT: "Eres un asistente empresarial útil, preciso y profesional.",
+        }
+        return prompts.get(task, "Eres un asistente empresarial útil.")
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"

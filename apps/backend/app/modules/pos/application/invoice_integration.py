@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -297,7 +297,7 @@ class POSInvoicingService:
                     "issue_date": issue_date,
                     "amount": float(total),
                     "status": "issued",
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                     "subtotal": float(subtotal),
                     "vat": float(vat),
                     "total": float(total),
@@ -745,7 +745,7 @@ class POSInvoicingService:
                     "status": ExpenseStatus.PENDING.value,
                     "user_id": cashier_id or uuid4(),
                     "notes": refund_reason,
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
 

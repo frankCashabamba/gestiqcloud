@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -511,8 +511,32 @@ class PayrollService:
                 expense.user_id = owner_id_db
 
         db.flush()
+        PayrollService._post_payroll_journal(db, expense, payroll.tenant_id, owner_id)
         PayrollService._refresh_profit_snapshot(db, payroll)
         return expense
+
+    @staticmethod
+    def _post_payroll_journal(
+        db: Session,
+        expense: "Expense",
+        tenant_id,
+        user_id,
+    ) -> None:
+        """Genera/actualiza el asiento contable para el gasto de nómina."""
+        try:
+            from app.modules.expenses.application.journal import ExpenseJournalService
+
+            tid = PayrollService._db_uuid(db, tenant_id)
+            uid = PayrollService._db_uuid(db, user_id) if user_id else None
+            svc = ExpenseJournalService(db, tid, uid)
+            # on_update revierte el asiento previo si ya existía y crea uno nuevo
+            svc.on_update(expense)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Could not post journal entry for payroll expense %s", expense.id
+            )
 
     @staticmethod
     def get_payroll_parameters(db: Session, tenant_id: UUID, country: str, year: int) -> dict:
@@ -721,7 +745,7 @@ class PayrollService:
                 tenant_id=PayrollService._db_tenant_id(db, tenant_id),
                 payroll_detail_id=detail.id,
                 employee_id=employee.id,
-                access_token=f"slip_{detail.id}_{datetime.utcnow().timestamp()}",
+                access_token=f"slip_{detail.id}_{datetime.now(UTC).timestamp()}",
                 valid_until=date(
                     year if payroll_month.endswith("12") else year,
                     int(payroll_month[5:]) + 1 if not payroll_month.endswith("12") else 1,
@@ -979,7 +1003,7 @@ class PayrollService:
 
         payroll.status = "CONFIRMED"
         payroll.confirmed_by = confirmed_by
-        payroll.confirmed_at = datetime.utcnow()
+        payroll.confirmed_at = datetime.now(UTC)
 
         PayrollService._sync_payroll_expense(db, payroll, user_id=confirmed_by, mark_paid=False)
         db.flush()

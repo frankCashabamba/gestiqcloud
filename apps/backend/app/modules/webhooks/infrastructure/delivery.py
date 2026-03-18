@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -60,7 +60,7 @@ class WebhookDeliveryService:
             delivery.response_body = response.text[:4096]
 
             if 200 <= response.status_code < 300:
-                delivery.completed_at = datetime.utcnow()
+                delivery.completed_at = datetime.now(UTC)
                 logger.info(f"Webhook delivered successfully: {delivery.id} → {target_url}")
                 return True
             else:
@@ -90,4 +90,4 @@ class WebhookDeliveryService:
             return None
 
         delay_seconds = self.BASE_DELAY_SECONDS * (self.BACKOFF_MULTIPLIER ** (attempt_number - 1))
-        return datetime.utcnow() + timedelta(seconds=delay_seconds)
+        return datetime.now(UTC) + timedelta(seconds=delay_seconds)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal, NamedTuple
 from uuid import uuid4
@@ -68,7 +68,7 @@ class InventoryCostingService:
                     {
                         **params,
                         "id": str(uuid4()),
-                        "updated_at": datetime.utcnow(),
+                        "updated_at": datetime.now(UTC),
                     },
                 )
         else:

@@ -211,6 +211,101 @@ def check_and_notify_low_stock():
 
 
 # ---------------------------------------------------------------------------
+# Tarea programada: alertas de caducidad (farmacia / alimentos)
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="app.workers.notifications.check_expiry_alerts")
+def check_expiry_alerts(days_ahead: int = 30):
+    """
+    Detecta lotes con fecha de caducidad próxima y envía alertas.
+    Ejecutar diariamente vía Celery Beat.
+
+    Args:
+        days_ahead: Aviso con tantos días de antelación (default: 30).
+    """
+    from sqlalchemy import text
+
+    with get_db_context() as db:
+        # Buscar lotes que caducan en los próximos `days_ahead` días y tienen stock > 0
+        rows = db.execute(
+            text(
+                "SELECT si.tenant_id, p.name AS product_name, si.lot, si.expires_at, "
+                "si.qty, w.name AS warehouse_name, "
+                "(si.expires_at - CURRENT_DATE) AS days_left "
+                "FROM stock_items si "
+                "JOIN products p ON p.id = si.product_id "
+                "JOIN warehouses w ON w.id = si.warehouse_id "
+                "WHERE si.expires_at IS NOT NULL "
+                "AND si.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE + :days "
+                "AND si.qty > 0 "
+                "ORDER BY si.tenant_id, si.expires_at ASC"
+            ),
+            {"days": days_ahead},
+        ).fetchall()
+
+        if not rows:
+            return {"message": "Sin lotes próximos a caducar", "count": 0}
+
+        # Agrupar por tenant
+        by_tenant: dict[str, list] = {}
+        for row in rows:
+            key = str(row[0])
+            by_tenant.setdefault(key, []).append(row)
+
+        notified_count = 0
+        for tenant_id, expiry_rows in by_tenant.items():
+            channels = (
+                db.query(NotificationChannel)
+                .filter(
+                    NotificationChannel.tenant_id == tenant_id,
+                    NotificationChannel.is_active.is_(True),
+                )
+                .all()
+            )
+            if not channels:
+                continue
+
+            lines = []
+            for r in expiry_rows:
+                days_left = int(r[6] or 0)
+                icon = "🔴" if days_left <= 7 else ("🟡" if days_left <= 15 else "🟢")
+                lines.append(
+                    f"{icon} <b>{r[1]}</b> | Lote: {r[2] or 'N/A'} | "
+                    f"Caduca: {r[3]} ({days_left}d) | Stock: {float(r[4]):.1f} | {r[5]}"
+                )
+
+            body = (
+                f"<h3>⏰ Alerta de Caducidad — {len(expiry_rows)} lote(s) próximos a vencer</h3>"
+                "<ul>" + "".join(f"<li>{ln}</li>" for ln in lines) + "</ul>"
+                f"<p style='color:#6b7280;font-size:12px'>Productos que caducan en los próximos {days_ahead} días con stock disponible.</p>"
+            )
+
+            for ch in channels:
+                default_recipient = ch.config.get("default_recipient")
+                if not default_recipient:
+                    continue
+                try:
+                    send_notification_task.delay(
+                        tenant_id=tenant_id,
+                        channel_type=ch.channel_type,
+                        destinatario=default_recipient,
+                        asunto=f"⏰ Alerta caducidad: {len(expiry_rows)} lote(s) próximos a vencer",
+                        message=body,
+                        ref_type="expiry_alert",
+                    )
+                    notified_count += 1
+                except Exception as exc:
+                    import logging as _logging
+
+                    _logging.getLogger(__name__).warning(
+                        "Error encolando alerta caducidad para tenant %s: %s", tenant_id, exc
+                    )
+
+        return {"notified_tenants": notified_count, "total_lots": len(rows)}
+
+
+# ---------------------------------------------------------------------------
 # Tarea: notificar factura al cliente
 # ---------------------------------------------------------------------------
 

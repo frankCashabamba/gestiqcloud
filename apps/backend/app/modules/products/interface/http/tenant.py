@@ -109,17 +109,12 @@ class ProductCreate(BaseModel):
     stock: float = Field(ge=0)
     unit: str = Field(min_length=1, default="unit")
     category: str | None = None
-    categoria: str | None = None
     category_id: str | None = None
     sku: str | None = None
     description: str | None = None
-    descripcion: str | None = None
     tax_rate: float | None = Field(default=None, ge=0)
-    iva_tasa: float | None = Field(default=None, ge=0)
     cost_price: float | None = Field(default=None, ge=0)
-    precio_compra: float | None = Field(default=None, ge=0)
-    activo: bool | None = True
-    active: bool | None = None
+    active: bool = True
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool = False
     product_metadata: dict | None = None
@@ -132,16 +127,11 @@ class ProductUpdate(BaseModel):
     stock: float | None = Field(default=None, ge=0)
     unit: str | None = Field(default=None, min_length=1)
     category: str | None = None
-    categoria: str | None = None
     category_id: str | None = None
     sku: str | None = None
     description: str | None = None
-    descripcion: str | None = None
     tax_rate: float | None = Field(default=None, ge=0)
-    iva_tasa: float | None = Field(default=None, ge=0)
     cost_price: float | None = Field(default=None, ge=0)
-    precio_compra: float | None = Field(default=None, ge=0)
-    activo: bool | None = None
     active: bool | None = None
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool | None = None
@@ -157,16 +147,11 @@ class ProductOut(BaseModel):
     unit: str
     sku: str | None = None
     category: str | None = None
-    categoria: str | None = Field(default=None, validation_alias="category")
     category_id: UUID | None = None
     description: str | None = None
-    descripcion: str | None = Field(default=None, validation_alias="description")
     tax_rate: float | None = None
-    iva_tasa: float | None = Field(default=None, validation_alias="tax_rate")
     cost_price: float | None = None
-    precio_compra: float | None = Field(default=None, validation_alias="cost_price")
     active: bool = True
-    activo: bool | None = Field(default=None, validation_alias="active")
     suggested_price: float | None = None
     use_suggested_price: bool = False
     product_metadata: dict | None = None
@@ -243,16 +228,11 @@ def _to_product_out_row(row: Product, real_stock: float | None = None) -> Produc
         unit=row.unit or "unit",
         sku=row.sku,
         category=row.category,
-        categoria=row.category,
         category_id=row.category_id,
         description=row.description,
-        descripcion=row.description,
         tax_rate=float(row.tax_rate) if row.tax_rate is not None else None,
-        iva_tasa=float(row.tax_rate) if row.tax_rate is not None else None,
         cost_price=float(row.cost_price) if row.cost_price is not None else None,
-        precio_compra=float(row.cost_price) if row.cost_price is not None else None,
         active=bool(row.active) if row.active is not None else True,
-        activo=bool(row.active) if row.active is not None else True,
         suggested_price=float(row.suggested_price) if row.suggested_price is not None else None,
         use_suggested_price=(
             bool(row.use_suggested_price) if row.use_suggested_price is not None else False
@@ -394,8 +374,8 @@ def list_products(
     request: Request,
     db: Session = Depends(get_db),
     q: str | None = Query(default=None, description="text search on name"),
-    categoria: str | None = Query(default=None, description="filter by category"),
-    activo: bool | None = Query(default=None, description="filter by active status"),
+    category: str | None = Query(default=None, description="filter by category"),
+    active: bool | None = Query(default=None, description="filter by active status"),
     limit: int = Query(default=500, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     _tid: str = Depends(ensure_tenant),
@@ -424,15 +404,15 @@ def list_products(
         .where(Product.tenant_id == tid_uuid)
     )
 
-    if activo is not None:
-        query = query.where(Product.active == activo)
+    if active is not None:
+        query = query.where(Product.active == active)
 
     if q:
         like = f"%{q}%"
         query = query.where(Product.name.ilike(like))
 
-    if categoria:
-        categoria_name = _normalize_category_name(categoria)
+    if category:
+        categoria_name = _normalize_category_name(category)
         if categoria_name:
             query = query.join(ProductCategory, Product.category_id == ProductCategory.id).where(
                 ProductCategory.name == categoria_name
@@ -754,23 +734,12 @@ def create_product(payload: ProductCreate, request: Request, db: Session = Depen
     tenant_id = _empresa_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="missing_tenant")
-    category_value = payload.category if payload.category is not None else payload.categoria
-    category_name = _normalize_category_name(category_value)
+    category_name = _normalize_category_name(payload.category)
     category_id = payload.category_id or _resolve_category_id(db, tenant_id, category_name)
 
-    # Auto-generar SKU si viene vac?o
     sku = payload.sku
     if not sku or sku.strip() == "":
         sku = _generate_next_sku(db, tenant_id, category_name)
-
-    active_value = payload.active if payload.active is not None else payload.activo
-    description_value = (
-        payload.description if payload.description is not None else payload.descripcion
-    )
-    tax_rate_value = payload.tax_rate if payload.tax_rate is not None else payload.iva_tasa
-    cost_price_value = (
-        payload.cost_price if payload.cost_price is not None else payload.precio_compra
-    )
 
     obj = Product(
         name=payload.name,
@@ -779,10 +748,10 @@ def create_product(payload: ProductCreate, request: Request, db: Session = Depen
         unit=payload.unit,
         sku=sku,
         category_id=category_id,
-        description=description_value,
-        tax_rate=tax_rate_value,
-        cost_price=cost_price_value,
-        active=True if active_value is None else active_value,
+        description=payload.description,
+        tax_rate=payload.tax_rate,
+        cost_price=payload.cost_price,
+        active=True if payload.active is None else payload.active,
         suggested_price=payload.suggested_price,
         use_suggested_price=payload.use_suggested_price,
         product_metadata=payload.product_metadata,
@@ -832,32 +801,32 @@ def update_product(
         obj.stock = payload.stock
     if payload.unit is not None:
         obj.unit = payload.unit
-    category_value = payload.category if payload.category is not None else payload.categoria
     if payload.category_id is not None:
         obj.category_id = payload.category_id or None
-    elif category_value is not None:
-        category_name = _normalize_category_name(category_value)
+    elif payload.category is not None:
+        category_name = _normalize_category_name(payload.category)
         obj.category_id = (
             _resolve_category_id(db, tenant_id, category_name) if category_name else None
         )
     if payload.sku is not None:
-        obj.sku = payload.sku
-    description_value = (
-        payload.description if payload.description is not None else payload.descripcion
-    )
-    if description_value is not None:
-        obj.description = description_value
-    tax_rate_value = payload.tax_rate if payload.tax_rate is not None else payload.iva_tasa
-    if tax_rate_value is not None:
-        obj.tax_rate = tax_rate_value
-    cost_price_value = (
-        payload.cost_price if payload.cost_price is not None else payload.precio_compra
-    )
-    if cost_price_value is not None:
-        obj.cost_price = cost_price_value
-    active_value = payload.active if payload.active is not None else payload.activo
-    if active_value is not None:
-        obj.active = active_value
+        incoming_sku = payload.sku.strip() if payload.sku else ""
+        if incoming_sku:
+            obj.sku = incoming_sku
+        else:
+            if not obj.sku or not str(obj.sku).strip():
+                obj.sku = _generate_next_sku(
+                    db, str(tenant_id), _normalize_category_name(payload.category)
+                )
+    elif not obj.sku or not str(obj.sku).strip():
+        obj.sku = _generate_next_sku(db, str(tenant_id), _normalize_category_name(payload.category))
+    if payload.description is not None:
+        obj.description = payload.description
+    if payload.tax_rate is not None:
+        obj.tax_rate = payload.tax_rate
+    if payload.cost_price is not None:
+        obj.cost_price = payload.cost_price
+    if payload.active is not None:
+        obj.active = payload.active
     if payload.suggested_price is not None:
         obj.suggested_price = payload.suggested_price
     if payload.use_suggested_price is not None:
@@ -1161,3 +1130,37 @@ def bulk_assign_category(payload: BulkCategoryIn, request: Request, db: Session 
         "category_created": category_created,
         "category_name": payload.category_name,
     }
+
+
+@router.post("/bulk/generate-skus", dependencies=protected)
+def bulk_generate_missing_skus(request: Request, db: Session = Depends(get_db)):
+    """Genera SKU automático para todos los productos del tenant que no tienen código."""
+    tenant_id = _empresa_id_from_request(request)
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+
+    products_without_sku = (
+        db.query(Product)
+        .filter(
+            Product.tenant_id == tenant_id,
+            (Product.sku == None) | (Product.sku == ""),  # noqa: E711
+        )
+        .all()
+    )
+
+    updated = 0
+    for product in products_without_sku:
+        category_name = None
+        if product.category_id:
+            from app.models.core.product_category import ProductCategory
+
+            cat = db.get(ProductCategory, product.category_id)
+            if cat:
+                category_name = _normalize_category_name(cat.name)
+        product.sku = _generate_next_sku(db, str(tenant_id), category_name)
+        db.add(product)
+        db.flush()
+        updated += 1
+
+    db.commit()
+    return {"updated": updated}

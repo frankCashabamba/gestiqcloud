@@ -1,7 +1,7 @@
 """Event Outbox Service — Publish domain events with guaranteed delivery"""
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -42,7 +42,7 @@ class EventService:
         """Mark an event as published."""
         event = db.query(EventOutbox).filter(EventOutbox.id == event_id).first()
         if event:
-            event.published_at = datetime.utcnow()
+            event.published_at = datetime.now(UTC)
             event.last_error = None
 
     @staticmethod

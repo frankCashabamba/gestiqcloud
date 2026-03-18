@@ -3,7 +3,7 @@ CRM Database Models
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from sqlalchemy import JSON
@@ -70,10 +70,10 @@ class Lead(Base):
     opportunity_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, index=True
+        nullable=False, default=lambda: datetime.now(UTC), index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
@@ -126,10 +126,10 @@ class Opportunity(Base):
     custom_fields: Mapped[dict | None] = mapped_column(JSON_TYPE, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, index=True
+        nullable=False, default=lambda: datetime.now(UTC), index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
@@ -184,10 +184,10 @@ class Activity(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, index=True
+        nullable=False, default=lambda: datetime.now(UTC), index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

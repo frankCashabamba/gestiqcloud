@@ -9,6 +9,8 @@ const AvanzadoSettings = React.lazy(() => import('./Avanzado'))
 const OperativoSettings = React.lazy(() => import('./Operativo'))
 const NotificacionesSettings = React.lazy(() => import('./Notificaciones'))
 const ModulosSettings = React.lazy(() => import('./ModulosPanel'))
+const BranchesManager = React.lazy(() => import('./BranchesManager'))
+const SubscriptionManager = React.lazy(() => import('./SubscriptionManager'))
 
 export const manifest = {
   id: 'settings',
@@ -25,6 +27,8 @@ export const manifest = {
     { path: '/settings/avanzado', element: AvanzadoSettings },
     { path: '/settings/notificaciones', element: NotificacionesSettings },
     { path: '/settings/modules', element: ModulosSettings },
+    { path: '/settings/branches', element: BranchesManager },
+    { path: '/settings/subscription', element: SubscriptionManager },
   ],
   menu: {
     title: 'Configuracion',

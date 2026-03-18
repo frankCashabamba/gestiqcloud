@@ -94,6 +94,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
+  const [saveMessage, setSaveMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
   const [updateStock, setUpdateStock] = useState(false)
@@ -173,6 +174,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
     if (!open || !doc) return
     fetchSaveCapabilities().then(setCapabilities).catch(() => {})
     setUpdateStock(false)
+    setSaveMessage('')
     const suggested = suggestSaveDestination(doc)
     setDestination(suggested)
     setPaymentStatus(inferredDefaults.paymentStatus)
@@ -277,7 +279,11 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
 
       const result = await saveDocument(doc.id, payload)
       onSaved?.(result)
-      onClose()
+      if (result.message && updateStock && canUpdateStock) {
+        setSaveMessage(result.message)
+      } else {
+        onClose()
+      }
     } catch (err: any) {
       setError(err?.response?.data?.detail || err?.message || 'No se pudo guardar el documento.')
     } finally {
@@ -457,13 +463,22 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
           )}
 
           {error && <div style={errorBox}>{error}</div>}
+          {saveMessage && (
+            <div style={saveMessage.includes('⚠️') ? warnBox : infoBox}>
+              {saveMessage}
+            </div>
+          )}
         </div>
 
         <div style={footer}>
-          <button onClick={onClose} style={secondaryBtn} disabled={saving}>Cancelar</button>
-          <button onClick={submit} style={primaryBtn} disabled={saving}>
-            {saving ? 'Guardando...' : destination === 'recipe' ? 'Guardar receta' : 'Guardar'}
+          <button onClick={onClose} style={secondaryBtn} disabled={saving}>
+            {saveMessage ? 'Cerrar' : 'Cancelar'}
           </button>
+          {!saveMessage && (
+            <button onClick={submit} style={primaryBtn} disabled={saving}>
+              {saving ? 'Guardando...' : destination === 'recipe' ? 'Guardar receta' : 'Guardar'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -577,6 +592,24 @@ const errorBox: React.CSSProperties = {
   background: '#fef2f2',
   border: '1px solid #fecaca',
   color: '#b91c1c',
+  fontSize: 13,
+}
+
+const warnBox: React.CSSProperties = {
+  padding: '0.75rem 0.85rem',
+  borderRadius: 10,
+  background: '#fffbeb',
+  border: '1px solid #fcd34d',
+  color: '#92400e',
+  fontSize: 13,
+}
+
+const infoBox: React.CSSProperties = {
+  padding: '0.75rem 0.85rem',
+  borderRadius: 10,
+  background: '#f0fdf4',
+  border: '1px solid #86efac',
+  color: '#166534',
   fontSize: 13,
 }
 

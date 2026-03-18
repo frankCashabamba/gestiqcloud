@@ -2,7 +2,7 @@
 
 import io
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -113,7 +113,7 @@ def export_report(
         content_type = CONTENT_TYPES.get(payload.format, "application/octet-stream")
         extension = FILE_EXTENSIONS.get(payload.format, "bin")
         filename = (
-            f"{payload.report_type.value}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.{extension}"
+            f"{payload.report_type.value}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.{extension}"
         )
 
         return StreamingResponse(

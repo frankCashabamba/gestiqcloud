@@ -6,7 +6,7 @@ Login, refresh, logout, password change
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -290,7 +290,7 @@ def change_password(
         )
 
         user.password_hash = result["new_password_hash"]
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(UTC)
         db.commit()
 
         response = JSONResponse({"message": result["message"]})

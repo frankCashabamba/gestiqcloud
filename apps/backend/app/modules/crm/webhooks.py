@@ -7,7 +7,7 @@ Integrates with the webhooks module for secure, async delivery.
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -60,7 +60,7 @@ class CustomerWebhookService:
                     "customer_phone": customer_phone,
                     "customer_type": customer_type,
                     "status": "active",
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -107,7 +107,7 @@ class CustomerWebhookService:
                     "customer_phone": customer_phone,
                     "changes": changes or {},
                     "status": "active",
-                    "updated_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )

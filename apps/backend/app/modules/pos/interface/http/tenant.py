@@ -13,7 +13,7 @@ negocio vive en los módulos individuales:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 
@@ -55,7 +55,7 @@ def health_check():
     return {
         "status": "healthy",
         "module": "pos",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 

@@ -10,7 +10,7 @@ Plan and execute production based on recipes/BOM:
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import JSON, TIMESTAMP
@@ -136,7 +136,10 @@ class ProductionOrder(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default="now()",
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relaciones

@@ -7,7 +7,7 @@ Integrates with the webhooks module for secure, async delivery.
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -63,7 +63,7 @@ class PaymentWebhookService:
                     "payment_method": payment_method,
                     "reference_number": reference_number,
                     "status": "completed",
-                    "received_at": datetime.utcnow().isoformat(),
+                    "received_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -113,7 +113,7 @@ class PaymentWebhookService:
                     "reason": reason,
                     "error_code": error_code,
                     "status": "failed",
-                    "failed_at": datetime.utcnow().isoformat(),
+                    "failed_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )

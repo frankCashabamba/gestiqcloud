@@ -2,7 +2,7 @@
 Models for Import system - Column Mappings
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import JSON, Boolean, Integer, String, Text
@@ -39,9 +39,9 @@ class ImportColumnMapping(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     created_by: Mapped[UUID | None] = mapped_column(TENANT_UUID, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False
     )
     last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
     use_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

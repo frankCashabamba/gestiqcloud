@@ -1,7 +1,7 @@
 """Settings Manager - Use Cases"""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -121,7 +121,7 @@ class SettingsManager:
         settings_dict = dict(base_settings) if isinstance(base_settings, dict) else {}
         settings_dict[module] = updated_config
         settings.settings = settings_dict
-        settings.updated_at = datetime.utcnow()
+        settings.updated_at = datetime.now(UTC)
 
         self.db.commit()
         self.db.refresh(settings)

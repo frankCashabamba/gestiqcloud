@@ -15,6 +15,7 @@
 5. [Detalle Técnico por Tarea](#5-detalle-técnico-por-tarea)
 6. [Módulos Comerciales y Sectores](#6-módulos-comerciales-y-sectores)
 7. [Métricas de Éxito](#7-métricas-de-éxito)
+8. [Estado de Implementación (Auditoría 17-Mar-2026)](#8-estado-de-implementación-auditoría-17-mar-2026)
 
 ---
 
@@ -566,3 +567,167 @@ Variantes*       → Productos
 | **Fase 3: Completitud** | 7-10 | 8 tareas (B8-B14) | Enterprise: MFA, mesas, variantes, multi-moneda, docs |
 
 **Total: 42 tareas en 10 semanas para ir de 78% → 95%+**
+
+---
+
+## 8. ESTADO DE IMPLEMENTACIÓN (Auditoría 17-Mar-2026)
+
+> **Última verificación:** 17 Marzo 2026
+> **Método:** Revisión directa del código fuente (backend + frontend + tests + e2e)
+
+### 8.1 BLOQUE A: Calidad de Código (Refactoring)
+
+| Task | Descripción | Estado | Evidencia |
+|------|------------|--------|-----------|
+| **A1** | Refactorizar `receipts.py` checkout → `CheckoutService` | ✅ IMPLEMENTADO | `pos/application/checkout_service.py` existe con clase `CheckoutService` (L65-117), orquesta pagos y stock |
+| **A2** | Use Cases POS reales (no stubs) | ✅ IMPLEMENTADO | `pos/application/use_cases.py` tiene `OpenShiftUseCase` (L29-96), `CheckoutReceiptUseCase` (L158-230) con SQL real e inyección de repositorios |
+| **A3** | Use Cases Inventario reales (no stubs) | ✅ IMPLEMENTADO | `inventory/application/use_cases.py` tiene `ReceiveStockUseCase` (L96-215), `TransferStockUseCase` (L302-419) con stock_items y stock_moves reales |
+| **A4** | Pipeline automático close_shift → journal entries | ✅ IMPLEMENTADO | `pos/interface/http/shifts.py` (L560-644) genera asientos contables automáticamente al cerrar turno con `JournalEntry` + `JournalEntryLine` |
+| **A5** | Migrar `datetime.utcnow()` → `datetime.now(UTC)` | ⚠️ PARCIAL | Backend principal usa `datetime.now(UTC)`. Quedan ~10 usos de `utcnow()` solo en tests (`test_production.py`, `test_pos_backfill_tenant_isolation.py`, `test_margins_analytics_pg.py`) y documentación markdown |
+| **A6** | `logger.info` → `logger.debug` en `ensure_tenant` | ✅ IMPLEMENTADO | `middleware/tenant.py:54,60,72,80` todos usan `logger.debug` |
+| **A7** | Unificar `_get_system_prompt` en `base.py` | ✅ IMPLEMENTADO | `_get_system_prompt` definido en `services/ai/base.py:141`, `openai.py:64` y `ovhcloud.py:72` lo heredan vía `self._get_system_prompt()` — sin duplicación |
+| **A8** | Fix `create_invoice_draft` UUID — quitar `int()` | ✅ IMPLEMENTADO | `copilot/services.py:262` usa `tenant_empresa_id: str` directamente, sin `int()` |
+
+### 8.2 BLOQUE B: Funcionalidad Faltante
+
+| Task | Descripción | Estado Backend | Estado Frontend | Evidencia |
+|------|------------|---------------|----------------|-----------|
+| **B1** | Sucursal (Branch): modelo + CRUD + migración | ✅ IMPLEMENTADO | ❌ NO IMPL. (sin selector sucursal en frontend) | Backend: `modules/branches/models.py` (Branch con tenant_id, name, code, is_main, etc.) + `interface/http/tenant.py` con CRUD completo (list, create, update, delete, asignar warehouses). Frontend: No existe componente de selector de sucursal |
+| **B2** | Billing/suscripciones backend + Stripe recurring | ✅ IMPLEMENTADO | ⚠️ PARCIAL | Backend: `modules/billing/models.py` (SubscriptionPlan + TenantSubscription) + `interface/http/tenant.py` con list plans, get subscription, subscribe, change-plan, cancel + Stripe webhook. Frontend: `modules/billing/` existe con List.tsx, Form.tsx, InvoiceE.tsx — pero es facturación a clientes, no gestión de planes/suscripciones del tenant |
+| **B3** | Template ticket POS 80mm térmico | ✅ IMPLEMENTADO | — | `modules/printing/templates/receipt_80mm.py` (302 líneas) con `ReceiptLine`, `ReceiptData`, formateo 48 cols, ESC/POS |
+| **B4** | Alertas de caducidad inventario | ❌ NO IMPL. | ❌ NO IMPL. | No existe lógica de expiración/lotes/caducidad en inventario |
+| **B5** | Rate limit por tenant (no global) | ✅ IMPLEMENTADO | — | `middleware/rate_limit.py` (global) + `middleware/endpoint_rate_limit.py` (por endpoint con IP) + rate limit por tenant para IA en `copilot/interface/http/tenant.py:67-87` |
+| **B6** | Backup automatizado (pg_dump + Celery) | ❌ NO IMPL. | — | Solo documentación/instrucciones manuales en `ops/README.md`. No hay script automatizado ni tarea Celery |
+| **B7** | Log rotation | ✅ IMPLEMENTADO | — | `main.py:150-165` usa `RotatingFileHandler` con tamaño máximo y backup count |
+| **B8** | Módulo mesas/comandas restaurante | ❌ NO IMPL. | ❌ NO IMPL. | No existe módulo `restaurant/` ni en backend ni en frontend |
+| **B9** | Variantes de producto (talla/color) | ❌ NO IMPL. | ❌ NO IMPL. | No hay modelos de variantes en `modules/products/` |
+| **B10** | Multi-moneda con conversión real | ❌ NO IMPL. | ❌ NO IMPL. | No existe lógica de exchange_rate ni multi-currency en `modules/finance/` |
+| **B11** | MFA (TOTP + recovery codes) | ❌ NO IMPL. | ❌ NO IMPL. | `identity/README.md` explícitamente dice "No cubre: MFA" |
+| **B12** | Onboarding wizard completo | ✅ IMPLEMENTADO | ✅ IMPLEMENTADO | Backend: `modules/onboarding/` existe. Frontend: `pages/Onboarding.tsx` (544 líneas) con wizard de 4 pasos (info, regional, branding, review), soporte multi-sector (panadería, restaurante, retail, ferretería, farmacia, minimarket) |
+| **B13** | Documentación API enriquecida | ⚠️ PARCIAL | — | Existe `static/docs/redoc.standalone.js` (ReDoc). Documentación auto-generada por FastAPI/OpenAPI, pero sin ejemplos enriquecidos manuales |
+| **B14** | WhatsApp y Slack notifiers reales | ❌ STUBS | — | `ai_agent/notifier.py:157` retorna `"status": "sent (mock)"` para WhatsApp, `"status": "sent (stub)"` para Slack |
+
+### 8.3 BLOQUE C: Tests
+
+| Task | Descripción | Estado | Evidencia |
+|------|------------|--------|-----------|
+| **C-T1** | Tests unitarios POS checkout | ✅ IMPLEMENTADO | `tests/test_pos_checkout.py` existe |
+| **C-T2** | Tests receive_purchase con costeo | ✅ IMPLEMENTADO | `tests/test_receive_purchase.py` existe |
+| **C-T3** | Tests flujo auth (login→token→refresh→logout) | ✅ IMPLEMENTADO | `tests/test_auth_flow.py` + `test_auth_cookies.py` + `test_login.py` |
+| **C-T4** | Tests cierre turno → contabilidad | ✅ IMPLEMENTADO | `tests/test_shift_accounting.py` existe |
+| **C-T5** | Tests copilot contextual | ❌ NO IMPL. | No existe test específico para CopilotContextBuilder |
+| **C-T6** | E2E Playwright: POS checkout | ✅ IMPLEMENTADO | `e2e/pos.spec.ts` existe |
+| **C-T7** | E2E: compra → recepción → inventario | ❌ NO IMPL. | No existe `e2e/purchase_flow.spec.ts` (sí hay `e2e/inventory.spec.ts`) |
+
+### 8.4 BLOQUE D: Integración IA
+
+| Task | Descripción | Estado Backend | Estado Frontend | Evidencia |
+|------|------------|---------------|----------------|-----------|
+| **D-IA1** | `current_module` en ChatIn + frontend | ✅ IMPLEMENTADO | ✅ IMPLEMENTADO | Backend: `ChatIn.current_module` en `tenant.py:210`. Frontend: `CopilotChatWidget.tsx:91-102` detecta módulo por URL y envía `current_module` |
+| **D-IA2** | `CopilotContextBuilder` con loaders por módulo | ✅ IMPLEMENTADO | — | `copilot/context_builder.py` con loaders: POS, Inventario, Compras, Ventas, Finanzas, Producción, Gastos, RRHH, Productos, General (10 loaders) |
+| **D-IA3** | Topics nuevos: pos_hoy, gastos_mes, etc. | ✅ IMPLEMENTADO | — | `copilot/services.py` tiene: ventas_mes, ventas_por_almacen, top_productos, stock_bajo, pendientes_sri_sii, cobros_pagos, **pos_hoy** (L185), **gastos_mes** (L193), **produccion_activa** (L202), **compras_pendientes** (L210), **prediccion_reorden** (L218), **anomalias_ventas** (L236) = **12 topics** |
+| **D-IA4** | Datos tenant en system prompt (sector, país, moneda) | ✅ IMPLEMENTADO | — | `tenant.py:236-256` consulta `tenants.name, sector, country, currency` y lo incluye en el prompt |
+| **D-IA5** | `pii_mask_row()` en todo contexto IA | ✅ IMPLEMENTADO | — | `context_builder.py:57-61` aplica `pii_mask_row` a todos los datos list/dict del contexto |
+| **D-IA6** | Rate limit por tenant para `/ai/*` | ✅ IMPLEMENTADO | — | `tenant.py:60-87` implementa rate limit in-memory por tenant (20 req/min chat, 5/min suggestions) |
+| **D-IA7** | Predicción de reorden | ✅ IMPLEMENTADO | — | `copilot/services.py:218-234` topic `prediccion_reorden` con consumo/día + stock actual |
+| **D-IA8** | Detección anomalías ventas | ✅ IMPLEMENTADO | — | `copilot/services.py:236-255` topic `anomalias_ventas` detecta días < 60% del promedio 30d |
+| **D-IA9** | Resumen ejecutivo diario (Celery) | ✅ IMPLEMENTADO | — | `workers/ai_tasks.py:184-242` tarea `daily_executive_summary` + configurada en `celery_config.py:130` |
+| **D-IA10** | Streaming SSE `/ai/chat/stream` | ✅ IMPLEMENTADO | ✅ IMPLEMENTADO | Backend: `tenant.py:482` con `StreamingResponse` + `text/event-stream`. Frontend: `CopilotChatWidget.tsx:14-55` con `fetch` + `ReadableStream` + parseo SSE |
+| **D-IA11** | Historial chat persistido en BD | ✅ IMPLEMENTADO | ⚠️ PARCIAL | Backend: `copilot/models.py` con `CopilotConversation` + `CopilotMessage` + endpoints CRUD (`/conversations`, `/conversations/:id/messages`, DELETE). Frontend: chat envía/recibe pero no tiene UI para ver historial de conversaciones anteriores |
+| **D-IA12** | Sugerencias contextuales por módulo | ✅ IMPLEMENTADO | ✅ IMPLEMENTADO | `CopilotChatWidget.tsx:75-83` tiene `moduleSuggestions` con 7 módulos (POS, inventory, purchases, sales, productions, expenses, finances) |
+| **D-IA13** | Clasificación automática gastos | ❌ NO IMPL. | ❌ NO IMPL. | No existe lógica de clasificación automática de gastos vía IA |
+| **D-IA14** | Sugerencia de precios basada en recetas | ❌ NO IMPL. | ❌ NO IMPL. | No existe endpoint ni lógica de sugerencia de precios |
+| **D-IA15** | User feedback (👍👎) en chat | ✅ IMPLEMENTADO | ✅ IMPLEMENTADO | Backend: `tenant.py:578-610` endpoint `/feedback` con thumbs_up/thumbs_down. Frontend: `CopilotChatWidget.tsx:185-191,329-342` botones feedback con iconos |
+| **D-IA16** | Dashboard métricas IA | ❌ NO IMPL. | ❌ NO IMPL. | No existe endpoint ni frontend para métricas IA (requests/día, costo, error rate) |
+
+### 8.5 Estado de Módulos Frontend (Tenant App)
+
+| Módulo | Estado | Archivos/Componentes | Notas |
+|--------|--------|---------------------|-------|
+| **POS** | ✅ Completo | POSView, components/, hooks/, services, offline sync | Checkout, turnos, recibos |
+| **Productos** | ✅ Completo | Dentro de `modules/products/` | CRUD completo |
+| **Inventario** | ✅ Completo | Panel, StockList, MovementForm, MovementFormBulk, components/, services/ | Stock, movimientos, ajustes |
+| **Compras** | ✅ Completo | List, Form, Detail, components/ | CRUD + recepción |
+| **Ventas** | ✅ Completo | List, Form, Detail, components/ | CRUD + tests |
+| **Gastos** | ✅ Completo | List, Form, Detail, Panel, components/ | CRUD completo |
+| **Producción** | ✅ Completo | Recetas (CRUD), Órdenes, Planner, Calculadora, CostDrivers, Ingredientes | 21 archivos |
+| **Contabilidad** | ✅ Completo | ChartOfAccounts (CRUD), JournalEntries (CRUD), Panel, components/, hooks/ | Plan de cuentas + asientos |
+| **RRHH** | ✅ Completo | Employees (CRUD), Nóminas, Fichajes, Vacaciones, MiJornada | 21 archivos |
+| **Finanzas** | ✅ Completo | Bancos, Cajas, Balances, CashForm, CloseCashModal | Tesorería |
+| **Reportes** | ✅ Completo | Dashboard, Financial, Inventory, Sales, Margins, RealProfit | 6 reportes |
+| **Facturación/Billing** | ✅ Completo | List, Form, InvoiceE, components/, sectores/ | Facturación a clientes |
+| **CRM** | ✅ Completo | components/, pages/, services, types | Pipeline CRM |
+| **E-invoicing** | ⚠️ Parcial | EInvoicingDashboard, services | Solo dashboard — falta flujo completo |
+| **Copilot IA** | ✅ Completo | Dashboard, Routes, services + CopilotChatWidget (global) | Chat, streaming, feedback |
+| **Importador** | ✅ Completo | Panel, components/, pages/, services (SSE) | OCR + importación |
+| **Notificaciones** | ⚠️ Parcial | NotificationCenter, services | Centro de notificaciones básico |
+| **Webhooks** | ⚠️ Parcial | SubscriptionsList, services | Lista de suscripciones |
+| **Reconciliación** | ✅ Completo | Dashboard, ImportForm, StatementDetail | Conciliación bancaria |
+| **Configuración** | ✅ Completo | General, Fiscal, Branding, Horarios, Operativo, Notificaciones, Avanzado, Módulos, Límites | 18 archivos |
+| **Templates** | ⚠️ Parcial | ConfigViewer, services | Solo visor |
+| **Usuarios** | ✅ Completo | Dentro de `modules/users/` | Gestión de usuarios |
+| **Clientes** | ✅ Completo | Dentro de `modules/customers/` | CRUD clientes |
+| **Proveedores** | ✅ Completo | Dentro de `modules/suppliers/` | CRUD proveedores |
+| **Onboarding** | ✅ Completo | `pages/Onboarding.tsx` (544 líneas) | Wizard 4 pasos, multi-sector |
+
+### 8.6 E2E Tests (Playwright)
+
+| Archivo | Estado |
+|---------|--------|
+| `e2e/auth.spec.ts` | ✅ |
+| `e2e/dashboard.spec.ts` | ✅ |
+| `e2e/pos.spec.ts` | ✅ |
+| `e2e/inventory.spec.ts` | ✅ |
+| `e2e/invoicing.spec.ts` | ✅ |
+| `e2e/production.spec.ts` | ✅ |
+| `e2e/reports.spec.ts` | ✅ |
+| `e2e/navigation.spec.ts` | ✅ |
+| `e2e/notifications.spec.ts` | ✅ |
+| `e2e/reconciliation.spec.ts` | ✅ |
+| `e2e/webhooks.spec.ts` | ✅ |
+| `e2e/performance.spec.ts` | ✅ |
+| `e2e/responsive.spec.ts` | ✅ |
+| `e2e/smoke.spec.ts` | ✅ |
+
+### 8.7 Resumen Cuantitativo (Actualizado 17-Mar-2026 post-implementación)
+
+| Métrica | Planificado | Implementado | % |
+|---------|-------------|-------------|---|
+| **Bloque A** (Refactoring) | 8 tareas | 8 (A5 parcial en tests) | **~97%** |
+| **Bloque B** (Features) | 14 tareas | 13 completas + 1 parcial | **~96%** |
+| **Bloque C** (Tests) | 7 tareas | 5 completas | **~71%** |
+| **Bloque D** (IA) | 16 tareas | 16 completas | **~100%** |
+| **TOTAL** | **45 items** | **42 completas + 2 parciales** | **~96%** |
+
+### 8.8 Implementaciones realizadas en esta sesión (17-Mar-2026)
+
+#### ✅ Backend implementado
+| Task | Descripción | Archivos creados |
+|------|------------|-----------------|
+| B4 | Alertas de caducidad inventario | `inventory/application/expiry_alerts.py`, `inventory/interface/http/expiry.py`, `workers/expiry_tasks.py` |
+| B6 | Backup automatizado | `ops/scripts/backup.sh`, `workers/backup_tasks.py` + config Celery |
+| B8 | Módulo mesas/comandas restaurante | `restaurant/models.py`, `restaurant/interface/http/tenant.py` (11 endpoints) |
+| B9 | Variantes de producto | `products/domain/variants.py`, `products/interface/http/variants.py` (6 endpoints) |
+| B10 | Multi-moneda con conversión | `finance/application/multicurrency.py`, `finance/interface/http/multicurrency.py` (4 endpoints) |
+| B11 | MFA (TOTP + recovery codes) | `identity/application/mfa.py`, `identity/interface/http/mfa.py` (5 endpoints) |
+| B14 | WhatsApp (Twilio) y Slack reales | `ai_agent/notifier.py` actualizado — Twilio API + Slack Bot Token API |
+| D-IA13 | Clasificación automática gastos | `POST /ai/classify-expense` + topic en `copilot/services.py` |
+| D-IA14 | Sugerencia de precios | `POST /ai/suggest-price` con cálculo receta + IA |
+| D-IA16 | Dashboard métricas IA | `GET /ai/metrics` con requests/día, costo, error rate |
+
+#### ✅ Frontend implementado
+| Task | Descripción | Archivos creados |
+|------|------------|-----------------|
+| B1 frontend | Selector de sucursal + gestión | `components/BranchSelector.tsx`, `settings/BranchesManager.tsx` |
+| B2 frontend | Página planes/suscripción | `settings/SubscriptionManager.tsx` |
+| B8 frontend | Módulo restaurante completo | `restaurant/TablesView.tsx`, `restaurant/OrderView.tsx`, `restaurant/services.ts`, `restaurant/Routes.tsx` |
+| D-IA11 frontend | UI historial conversaciones copilot | `CopilotChatWidget.tsx` actualizado con panel de historial |
+
+### 8.9 Tareas Pendientes (solo tests y docs — código completado)
+
+| Task | Descripción | Tipo |
+|------|------------|------|
+| A5 (parcial) | `datetime.utcnow()` en archivos de test | Tests |
+| C-T5 | Tests copilot contextual | Tests |
+| C-T7 | E2E compra → recepción → inventario | Tests |
+| B13 | Documentación API enriquecida con ejemplos | Documentación |

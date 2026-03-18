@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -47,8 +47,8 @@ class CreateInvoiceUseCase:
             "total": total,
             "lines": lines,
             "notes": notes,
-            "issued_at": datetime.utcnow(),
-            "due_date": due_date or datetime.utcnow(),
+            "issued_at": datetime.now(UTC),
+            "due_date": due_date or datetime.now(UTC),
         }
 
 
@@ -152,7 +152,7 @@ class SendInvoiceEmailUseCase:
             logger.warning("Email not configured (EMAIL_HOST / DEFAULT_FROM_EMAIL missing)")
             return {
                 "invoice_id": invoice_id,
-                "sent_at": datetime.utcnow(),
+                "sent_at": datetime.now(UTC),
                 "recipient": recipient_email,
                 "status": "skipped",
                 "reason": "email_not_configured",
@@ -186,7 +186,7 @@ class SendInvoiceEmailUseCase:
             logger.info("Sent invoice %s to %s", invoice_number, recipient_email)
             return {
                 "invoice_id": invoice_id,
-                "sent_at": datetime.utcnow(),
+                "sent_at": datetime.now(UTC),
                 "recipient": recipient_email,
                 "status": "sent",
             }
@@ -194,7 +194,7 @@ class SendInvoiceEmailUseCase:
             logger.error("Failed to send invoice email: %s", e)
             return {
                 "invoice_id": invoice_id,
-                "sent_at": datetime.utcnow(),
+                "sent_at": datetime.now(UTC),
                 "recipient": recipient_email,
                 "status": "failed",
                 "error": str(e),
@@ -216,7 +216,7 @@ class MarkInvoiceAsPaidUseCase:
         return {
             "invoice_id": invoice_id,
             "status": "paid",
-            "paid_at": payment_date or datetime.utcnow(),
+            "paid_at": payment_date or datetime.now(UTC),
             "paid_amount": paid_amount,
             "payment_method": payment_method,
             "payment_ref": payment_ref,

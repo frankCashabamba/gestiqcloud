@@ -13,6 +13,7 @@ from app.models.expenses.expense import Expense
 from app.models.production._cost_drivers import ProductionOrderCost
 from app.models.production.production_order import ProductionOrder
 
+from ...application.journal import ExpenseJournalService
 from ...infrastructure.repositories import ExpenseRepo
 from .schemas import ExpenseCreate, ExpenseOut, ExpenseUpdate
 
@@ -254,7 +255,10 @@ def create_expense(
 ):
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
-    return ExpenseRepo(db).create(tenant_id, user_id=user_id, **payload.model_dump())
+    expense = ExpenseRepo(db).create(tenant_id, user_id=user_id, **payload.model_dump())
+    ExpenseJournalService(db, UUID(tenant_id), UUID(user_id)).on_create(expense)
+    db.commit()
+    return expense
 
 
 @router.put("/{expense_id}", response_model=ExpenseOut)
@@ -265,13 +269,17 @@ def update_expense(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = claims["tenant_id"]
+    user_id = claims["user_id"]
     current = ExpenseRepo(db).get(tenant_id, expense_id)
     if not current:
         raise HTTPException(404, "Not found")
     if _is_locked_production_expense(current):
         raise HTTPException(403, "Production expenses are system-generated and cannot be edited")
     try:
-        return ExpenseRepo(db).update(tenant_id, expense_id, **payload.model_dump())
+        updated = ExpenseRepo(db).update(tenant_id, expense_id, **payload.model_dump())
+        ExpenseJournalService(db, UUID(tenant_id), UUID(user_id)).on_update(updated)
+        db.commit()
+        return updated
     except ValueError:
         raise HTTPException(404, "Not found")
 
@@ -281,8 +289,49 @@ def delete_expense(
     expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
+    user_id = claims["user_id"]
+    expense = ExpenseRepo(db).get(tenant_id, expense_id)
+    if not expense:
+        raise HTTPException(404, "Not found")
+    ExpenseJournalService(db, UUID(tenant_id), UUID(user_id)).on_delete(expense)
     try:
         ExpenseRepo(db).delete(tenant_id, expense_id)
     except ValueError:
         raise HTTPException(404, "Not found")
+    db.commit()
     return {"success": True}
+
+
+@router.post("/backfill-journal", status_code=200)
+def backfill_journal_entries(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """
+    Genera asientos contables para todos los gastos que aún no tienen uno.
+    Ejecutar una sola vez tras el despliegue de esta feature.
+    """
+    from sqlalchemy import select as sa_select
+
+    from app.models.accounting.chart_of_accounts import JournalEntry
+
+    tenant_id = UUID(claims["tenant_id"])
+    user_id = UUID(claims["user_id"])
+
+    # IDs de gastos que ya tienen asiento
+    existing_ids_stmt = sa_select(JournalEntry.ref_doc_id).where(
+        JournalEntry.ref_doc_type == "expense",
+        JournalEntry.status != "CANCELLED",
+    )
+    existing_ids = {row[0] for row in db.execute(existing_ids_stmt).fetchall()}
+
+    all_expenses = ExpenseRepo(db).list(tenant_id)
+    svc = ExpenseJournalService(db, tenant_id, user_id)
+    created = 0
+    for exp in all_expenses:
+        if exp.id not in existing_ids:
+            svc.on_create(exp)
+            created += 1
+
+    db.commit()
+    return {"backfilled": created, "total_expenses": len(all_expenses)}

@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -49,7 +49,7 @@ class WebhookEventQueue:
                 "secret": secret,
                 "payload": payload,
                 "attempt_number": attempt_number,
-                "enqueued_at": datetime.utcnow().isoformat(),
+                "enqueued_at": datetime.now(UTC).isoformat(),
             }
 
             self.redis_client.rpush(self.queue_key, json.dumps(message))

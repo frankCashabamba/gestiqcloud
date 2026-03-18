@@ -1,7 +1,7 @@
 """POS Models: Receipts and Payments"""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -64,7 +64,7 @@ class POSReceipt(Base):
     tax_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
@@ -141,7 +141,7 @@ class POSPayment(Base):
     )
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     ref: Mapped[str | None] = mapped_column(Text, nullable=True)
-    paid_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    paid_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     receipt: Mapped["POSReceipt"] = relationship("POSReceipt", back_populates="payments")

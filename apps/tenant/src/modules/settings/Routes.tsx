@@ -10,6 +10,10 @@ import ModulosPanel from './ModulosPanel'
 import NotificacionesSettings from './Notificaciones'
 import AvanzadoSettings from './Avanzado'
 import OperativoSettings from './Operativo'
+import BranchesManager from './BranchesManager'
+import SubscriptionManager from './SubscriptionManager'
+import ReceiptTemplateSettings from './ReceiptTemplateSettings'
+import MFASettings from './MFASettings'
 import SettingsLayout from './SettingsLayout'
 import SettingsHome from './SettingsHome'
 import { useSettingsAccess, type SettingsSection } from './useSettingsAccess'
@@ -94,6 +98,10 @@ export default function SettingsRoutes() {
             </Guard>
           }
         />
+        <Route path="branches" element={<BranchesManager />} />
+        <Route path="subscription" element={<SubscriptionManager />} />
+        <Route path="receipt-template" element={<ReceiptTemplateSettings />} />
+        <Route path="security" element={<MFASettings />} />
         <Route path="*" element={<Navigate to="." replace />} />
         </Route>
       </Routes>

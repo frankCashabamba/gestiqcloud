@@ -9,7 +9,7 @@ Encargado de:
 5. Análisis de impacto en recetas
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -211,7 +211,7 @@ class CostPeriodsService:
         if not period:
             raise ValueError(f"Period not found: {period_id}")
 
-        period.closed_at = datetime.utcnow()
+        period.closed_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(period)
         return period

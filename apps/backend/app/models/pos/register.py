@@ -1,7 +1,7 @@
 """Modelos POS: Registros y Turnos"""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -35,7 +35,7 @@ class POSRegister(Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
@@ -63,7 +63,7 @@ class POSShift(Base):
         index=True,
     )
     opened_by: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
-    opened_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    opened_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
     closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     opening_float: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     closing_total: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)

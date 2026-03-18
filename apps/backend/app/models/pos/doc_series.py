@@ -1,7 +1,7 @@
 """Document numbering series model for POS/backoffice."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -49,7 +49,7 @@ class DocSeries(Base):
         # yearly, never
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

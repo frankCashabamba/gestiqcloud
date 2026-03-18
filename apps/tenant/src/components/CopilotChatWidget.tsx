@@ -6,14 +6,63 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  id?: string          // message_id del backend (solo assistant, para feedback)
+  feedback?: 'thumbs_up' | 'thumbs_down'
+  streaming?: boolean  // true mientras se está recibiendo el stream
 }
 
-async function sendChatMessage(
+async function* streamChatMessage(
   message: string,
   history: { role: string; content: string }[],
-): Promise<{ reply: string; suggestions: string[] }> {
-  const res = await api.post('/api/v1/tenant/ai/chat', { message, history })
-  return res.data
+  currentModule?: string,
+): AsyncGenerator<{ chunk: string; done: boolean; suggestions?: string[]; message_id?: string }> {
+  const baseURL = (api.defaults.baseURL || '').replace(/\/+$/, '')
+  const token = localStorage.getItem('access_token_tenant') || ''
+
+  const res = await fetch(`${baseURL}/api/v1/tenant/ai/chat/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({ message, history, current_module: currentModule }),
+  })
+
+  if (!res.ok || !res.body) {
+    yield { chunk: 'Error al conectar con el asistente.', done: false }
+    yield { chunk: '', done: true, suggestions: [] }
+    return
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          yield JSON.parse(line.slice(6))
+        } catch {
+          // ignore malformed SSE line
+        }
+      }
+    }
+  }
+}
+
+async function sendFeedback(messageId: string, rating: 'thumbs_up' | 'thumbs_down') {
+  try {
+    await api.post('/api/v1/tenant/ai/feedback', { message_id: messageId, rating })
+  } catch {
+    // best-effort
+  }
 }
 
 export default function CopilotChatWidget() {
@@ -22,11 +71,41 @@ export default function CopilotChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[]>([
+  const [showHistory, setShowHistory] = useState(false)
+  const [conversations, setConversations] = useState<{id: string, title: string | null, current_module: string | null, created_at: string, message_count: number}[]>([])
+
+  const moduleSuggestions: Record<string, string[]> = {
+    pos: ['¿Cuánto vendí hoy?', '¿Cuáles son los productos más vendidos?', '¿Hay un turno abierto?'],
+    inventory: ['¿Qué productos tienen stock bajo?', '¿Cuál es el valor del inventario?', '¿Productos sin movimiento?'],
+    purchases: ['¿Hay órdenes de compra pendientes?', '¿Cuánto gasté en compras este mes?', '¿Último pedido recibido?'],
+    sales: ['¿Cómo van las ventas del mes?', '¿Quiénes son mis mejores clientes?', '¿Tendencia de ventas?'],
+    productions: ['¿Órdenes de producción activas?', '¿Eficiencia de producción?', '¿Mermas del día?'],
+    expenses: ['¿Cuánto gasté este mes?', '¿Categorías de gasto principales?', '¿Comparar con mes anterior?'],
+    finances: ['¿Resumen de cobros y pagos?', '¿Estado de cuentas?', '¿Flujo de caja?'],
+  }
+  const defaultSuggestions = [
     t('components.copilot.suggestions.sales'),
     t('components.copilot.suggestions.lowStock'),
     t('components.copilot.suggestions.topSelling'),
-  ])
+  ]
+
+  const path = window.location.pathname.toLowerCase()
+  const currentModule = (() => {
+    if (path.includes('/pos')) return 'pos'
+    if (path.includes('/inventory') || path.includes('/inventario')) return 'inventory'
+    if (path.includes('/purchases') || path.includes('/compras')) return 'purchases'
+    if (path.includes('/sales') || path.includes('/ventas')) return 'sales'
+    if (path.includes('/production') || path.includes('/produccion')) return 'productions'
+    if (path.includes('/expenses') || path.includes('/gastos')) return 'expenses'
+    if (path.includes('/finance') || path.includes('/finanzas')) return 'finances'
+    if (path.includes('/hr') || path.includes('/rrhh')) return 'hr'
+    if (path.includes('/products') || path.includes('/productos')) return 'products'
+    return undefined
+  })()
+
+  const [suggestions, setSuggestions] = useState<string[]>(
+    (currentModule && moduleSuggestions[currentModule]) || defaultSuggestions
+  )
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -45,35 +124,106 @@ export default function CopilotChatWidget() {
     if (!msg || loading) return
 
     const userMsg: ChatMessage = { role: 'user', content: msg, timestamp: new Date() }
-    setMessages(prev => [...prev, userMsg])
+    const assistantMsg: ChatMessage = { role: 'assistant', content: '', timestamp: new Date(), streaming: true }
+
+    setMessages(prev => [...prev, userMsg, assistantMsg])
     setInput('')
     setLoading(true)
     setSuggestions([])
 
     try {
-      const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
-      const data = await sendChatMessage(msg, history)
-      const assistantMsg: ChatMessage = {
-        role: 'assistant',
-        content: data.reply,
-        timestamp: new Date(),
-      }
-      setMessages(prev => [...prev, assistantMsg])
-      if (data.suggestions?.length) {
-        setSuggestions(data.suggestions)
+      const history = messages.map(m => ({ role: m.role, content: m.content }))
+      history.push({ role: 'user', content: msg })
+
+      const stream = streamChatMessage(msg, history, currentModule)
+
+      for await (const event of stream) {
+        if (!event.done) {
+          setMessages(prev => {
+            const updated = [...prev]
+            const last = updated[updated.length - 1]
+            if (last.role === 'assistant') {
+              updated[updated.length - 1] = { ...last, content: last.content + event.chunk }
+            }
+            return updated
+          })
+        } else {
+          // Stream completado
+          setMessages(prev => {
+            const updated = [...prev]
+            const last = updated[updated.length - 1]
+            if (last.role === 'assistant') {
+              updated[updated.length - 1] = {
+                ...last,
+                streaming: false,
+                id: event.message_id ?? undefined,
+              }
+            }
+            return updated
+          })
+          if (event.suggestions?.length) {
+            setSuggestions(event.suggestions)
+          }
+        }
       }
     } catch {
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: t('common:copilot.connectionError'),
-          timestamp: new Date(),
-        },
-      ])
+      setMessages(prev => {
+        const updated = [...prev]
+        const last = updated[updated.length - 1]
+        if (last.role === 'assistant') {
+          updated[updated.length - 1] = {
+            ...last,
+            content: t('common:copilot.connectionError'),
+            streaming: false,
+          }
+        }
+        return updated
+      })
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadHistory = async () => {
+    try {
+      const res = await api.get('/api/v1/tenant/ai/conversations')
+      setConversations(res.data)
+    } catch { /* ignore */ }
+  }
+
+  const loadConversation = async (convId: string) => {
+    try {
+      const res = await api.get(`/api/v1/tenant/ai/conversations/${convId}/messages`)
+      const msgs: ChatMessage[] = res.data.map((m: any) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.created_at),
+        id: m.id,
+      }))
+      setMessages(msgs)
+      setShowHistory(false)
+    } catch { /* ignore */ }
+  }
+
+  const deleteConversation = async (convId: string) => {
+    try {
+      await api.delete(`/api/v1/tenant/ai/conversations/${convId}`)
+      setConversations(prev => prev.filter(c => c.id !== convId))
+    } catch { /* ignore */ }
+  }
+
+  const toggleHistory = () => {
+    if (!showHistory) loadHistory()
+    setShowHistory(!showHistory)
+  }
+
+  const handleFeedback = async (msgIndex: number, rating: 'thumbs_up' | 'thumbs_down') => {
+    const msg = messages[msgIndex]
+    if (!msg?.id) return
+    setMessages(prev =>
+      prev.map((m, i) => (i === msgIndex ? { ...m, feedback: rating } : m))
+    )
+    await sendFeedback(msg.id, rating)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -136,27 +286,120 @@ export default function CopilotChatWidget() {
                 <div style={{ fontSize: '11px', opacity: 0.85 }}>{t('common:copilot.subtitle')}</div>
               </div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none',
-                color: 'var(--gc-on-primary)',
-                borderRadius: '50%',
-                width: '28px',
-                height: '28px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-              }}
-            >
-              ✕
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={toggleHistory}
+                style={{
+                  background: showHistory ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: 'var(--gc-on-primary)',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '14px',
+                }}
+                title="Historial de conversaciones"
+              >
+                📋
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: 'var(--gc-on-primary)',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '16px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
-          {/* Messages */}
+          {/* Messages / History */}
+          {showHistory ? (
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '12px',
+                minHeight: '200px',
+                maxHeight: '320px',
+                background: 'var(--gc-bg)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--gc-muted)' }}>Conversaciones anteriores</span>
+                <button
+                  onClick={() => { setMessages([]); setShowHistory(false) }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--gc-primary)',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  + Nueva conversación
+                </button>
+              </div>
+              {conversations.length === 0 && (
+                <p style={{ fontSize: '13px', color: 'var(--gc-muted)', textAlign: 'center', padding: '24px 0' }}>Sin conversaciones guardadas</p>
+              )}
+              {conversations.map(conv => (
+                <div
+                  key={conv.id}
+                  onClick={() => loadConversation(conv.id)}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--gc-border)',
+                    marginBottom: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: 'var(--gc-surface)',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{conv.title || 'Conversación'}</p>
+                    <p style={{ fontSize: '11px', color: 'var(--gc-muted)', margin: 0 }}>
+                      {conv.current_module && `${conv.current_module} · `}
+                      {conv.message_count} msgs · {new Date(conv.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id) }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      color: 'var(--gc-muted)',
+                      padding: '2px 4px',
+                      marginLeft: '8px',
+                    }}
+                    title="Eliminar"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div
             style={{
               flex: 1,
@@ -183,7 +426,8 @@ export default function CopilotChatWidget() {
                 key={idx}
                 style={{
                   display: 'flex',
-                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  flexDirection: 'column',
+                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
                 }}
               >
                 <div
@@ -201,33 +445,60 @@ export default function CopilotChatWidget() {
                   }}
                 >
                   {msg.content}
+                  {msg.streaming && (
+                    <span style={{ display: 'inline-flex', gap: '2px', marginLeft: '4px', verticalAlign: 'middle' }}>
+                      <span className="copilot-dot" style={{ animationDelay: '0s' }}>●</span>
+                      <span className="copilot-dot" style={{ animationDelay: '0.2s' }}>●</span>
+                      <span className="copilot-dot" style={{ animationDelay: '0.4s' }}>●</span>
+                    </span>
+                  )}
                 </div>
+
+                {/* Feedback buttons — solo en mensajes assistant completos con id */}
+                {msg.role === 'assistant' && !msg.streaming && msg.id && (
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                    <button
+                      onClick={() => handleFeedback(idx, 'thumbs_up')}
+                      title="Útil"
+                      style={{
+                        background: 'none',
+                        border: '1px solid var(--gc-border)',
+                        borderRadius: '6px',
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        opacity: msg.feedback === 'thumbs_up' ? 1 : 0.5,
+                        color: msg.feedback === 'thumbs_up' ? 'var(--gc-success, #22c55e)' : 'var(--gc-muted)',
+                        transition: 'opacity 0.15s',
+                      }}
+                    >
+                      👍
+                    </button>
+                    <button
+                      onClick={() => handleFeedback(idx, 'thumbs_down')}
+                      title="No útil"
+                      style={{
+                        background: 'none',
+                        border: '1px solid var(--gc-border)',
+                        borderRadius: '6px',
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        opacity: msg.feedback === 'thumbs_down' ? 1 : 0.5,
+                        color: msg.feedback === 'thumbs_down' ? 'var(--gc-danger, #ef4444)' : 'var(--gc-muted)',
+                        transition: 'opacity 0.15s',
+                      }}
+                    >
+                      👎
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
 
-            {loading && (
-              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                <div
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '12px 12px 12px 2px',
-                    background: 'var(--gc-surface)',
-                    fontSize: '13px',
-                    color: 'var(--gc-muted)',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', gap: '3px' }}>
-                    <span className="copilot-dot" style={{ animationDelay: '0s' }}>●</span>
-                    <span className="copilot-dot" style={{ animationDelay: '0.2s' }}>●</span>
-                    <span className="copilot-dot" style={{ animationDelay: '0.4s' }}>●</span>
-                  </span>
-                </div>
-              </div>
-            )}
-
             <div ref={messagesEndRef} />
           </div>
+          )}
 
           {/* Suggestions */}
           {suggestions.length > 0 && !loading && (

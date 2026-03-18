@@ -8,7 +8,7 @@ Indirect cost tracking for production:
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -47,7 +47,10 @@ class CostDriverUnitType(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default="now()",
+        onupdate=lambda: datetime.now(UTC),
     )
 
     def __repr__(self):
@@ -82,7 +85,10 @@ class ProductionCostDriver(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default="now()",
+        onupdate=lambda: datetime.now(UTC),
     )
 
     def __repr__(self):

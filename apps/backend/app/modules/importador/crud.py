@@ -207,7 +207,7 @@ def refresh_batch_status(db: Session, batch_id: UUID) -> ImpBatchImport | None:
     summary = summarize_batch(db, batch)
     completed_at = batch.completed_at
     if summary["estado"] in {"COMPLETED", "PARTIAL", "FAILED"} and completed_at is None:
-        completed_at = datetime.datetime.utcnow()
+        completed_at = datetime.datetime.now(datetime.UTC)
     if summary["estado"] == "PROCESSING":
         completed_at = None
     update_batch(

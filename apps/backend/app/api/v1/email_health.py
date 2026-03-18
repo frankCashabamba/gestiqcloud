@@ -76,7 +76,7 @@ def smtp_test(payload: EmailTestIn, background: BackgroundTasks):
       <p>Fecha servidor: {}</p>
     </body></html>
     """.format(
-            __import__("datetime").datetime.utcnow().isoformat() + "Z"
+            __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat() + "Z"
         )
     )
 

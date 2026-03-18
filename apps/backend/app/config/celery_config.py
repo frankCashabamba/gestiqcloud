@@ -54,7 +54,9 @@ celery_app = Celery(
     include=[
         "app.workers.notifications",
         "app.workers.einvoicing_tasks",
-        # Añadir más workers según sea necesario
+        "app.workers.ai_tasks",
+        "app.workers.expiry_tasks",
+        "app.workers.backup_tasks",
     ],
 )
 
@@ -116,6 +118,29 @@ celery_app.conf.beat_schedule = {
             "expires": 7000,
         },
     },
+    # Alertas de caducidad: cada día a las 06:00 UTC
+    "check-expiry-alerts-daily": {
+        "task": "app.workers.expiry_tasks.check_expiry_alerts",
+        "schedule": crontab(hour=6, minute=0),
+        "kwargs": {"days_ahead": 30},
+        "options": {
+            "expires": 3600,
+        },
+    },
+    # Backup diario de base de datos: cada día a las 02:00 UTC
+    "daily-database-backup": {
+        "task": "app.workers.backup_tasks.run_database_backup",
+        "schedule": crontab(hour=2, minute=0),
+        "options": {"expires": 7200},
+    },
+    # Resumen ejecutivo IA: cada día a las 07:00 UTC
+    "daily-executive-summary": {
+        "task": "app.workers.ai_tasks.daily_executive_summary",
+        "schedule": crontab(hour=7, minute=0),
+        "options": {
+            "expires": 3600,  # Expira en 1 hora si no se procesa
+        },
+    },
 }
 
 # ============================================================================
@@ -125,6 +150,9 @@ celery_app.conf.beat_schedule = {
 celery_app.conf.task_routes = {
     "app.workers.notifications.*": {"queue": "notifications"},
     "app.workers.einvoicing_tasks.*": {"queue": "einvoicing"},
+    "app.workers.ai_tasks.*": {"queue": "ai"},
+    "app.workers.expiry_tasks.*": {"queue": "notifications"},
+    "app.workers.backup_tasks.*": {"queue": "default"},
     "app.workers.reports.*": {"queue": "reports"},
 }
 

@@ -194,11 +194,20 @@ def build_api_router() -> APIRouter:
         prefix="/tenant",
     )
 
+    # MFA (TOTP + recovery codes)
+    include_router_safe(
+        r,
+        ("app.modules.identity.interface.http.mfa", "router"),
+        prefix="/tenant",
+    )
+
     # Products - mount under /tenant like clientes
     include_router_safe(r, ("app.modules.products.interface.http.public", "router"))
     include_router_safe(
         r, ("app.modules.products.interface.http.tenant", "router"), prefix="/tenant"
     )
+    # Product Variants
+    include_router_safe(r, ("app.modules.products.variants.router", "router"), prefix="/tenant")
     # Empresas
     _mount_empresas(r)
     # Onboarding initialization
@@ -394,6 +403,11 @@ def build_api_router() -> APIRouter:
     # Copilot (tenant-first)
     include_router_safe(
         r, ("app.modules.copilot.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Branches (Sucursales)
+    include_router_safe(
+        r, ("app.modules.branches.interface.http.tenant", "router"), prefix="/tenant"
     )
 
     # POS / Caja

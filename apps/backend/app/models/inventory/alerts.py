@@ -4,7 +4,7 @@ Inventory Alerts Models
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import ARRAY, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
@@ -50,8 +50,10 @@ class AlertConfig(Base):
     cooldown_hours = Column(Integer, default=24)
     max_alerts_per_day = Column(Integer, default=10)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     # Relationships
     history = relationship("AlertHistory", back_populates="config", cascade="all, delete-orphan")
@@ -77,8 +79,8 @@ class AlertHistory(Base):
     current_stock = Column(Float, nullable=True)
     message = Column(Text, nullable=True)
     channels_sent = Column(ARRAY(String), default=list)
-    sent_at = Column(DateTime, default=datetime.utcnow, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     config = relationship("AlertConfig", back_populates="history")

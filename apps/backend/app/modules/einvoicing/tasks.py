@@ -82,14 +82,14 @@ def scheduled_build_sii() -> dict:
       - EINV_TENANT_ID: tenant UUID to use (required)
     """
     import os
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     tenant_id = os.getenv("EINV_TENANT_ID")
     if not tenant_id:
         return {"skipped": True, "reason": "EINV_TENANT_ID not set"}
 
     mode = (os.getenv("EINV_SII_PERIOD_MODE") or "monthly").lower()
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     if mode == "quarterly":
         q = (now.month - 1) // 3 + 1
         period = f"{now.year}Q{q}"
@@ -111,7 +111,7 @@ def scheduled_retry() -> dict:
       - EINV_SII_PERIOD_MODE: 'monthly'|'quarterly' (default 'monthly') for SII rebuild
     """
     import os
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     tenant_id = os.getenv("EINV_TENANT_ID")
     if not tenant_id:
@@ -147,7 +147,7 @@ def scheduled_retry() -> dict:
 
     # SII: rebuild batch for current period (idempotent in our stub)
     mode = (os.getenv("EINV_SII_PERIOD_MODE") or "monthly").lower()
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     if mode == "quarterly":
         q = (now.month - 1) // 3 + 1
         period = f"{now.year}Q{q}"

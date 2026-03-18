@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -83,7 +83,7 @@ def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get
                 status_code=400, detail="Ya existe un turno abierto para este registro"
             )
 
-        opened_at = datetime.utcnow()
+        opened_at = datetime.now(UTC)
         row = db.execute(
             text(
                 "INSERT INTO pos_shifts(register_id, opened_by, opened_at, opening_float, status) "
@@ -513,123 +513,7 @@ def close_shift(
         )
         net_total = total_sales - tax_total
 
-        settings = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
-        if not settings:
-            raise HTTPException(
-                status_code=400, detail="Config contable POS no configurada para este tenant"
-            )
-        ensure_pos_accounting_settings(settings)
-
-        pm_rows = db.query(PaymentMethod).filter_by(tenant_id=tenant_id, is_active=True).all()
-        pm_map = {p.name.strip().lower(): p.account_id for p in pm_rows}
-
-        lines: list[AsientoLinea] = []
-        debit_total = 0.0
-        credit_total = 0.0
-
-        for method, amount in sales_by_method:
-            amt = float(amount or 0)
-            if amt <= 0:
-                continue
-            mkey = (method or "").strip().lower()
-            account_id = pm_map.get(mkey)
-            if not account_id:
-                if mkey in ("cash", "efectivo"):
-                    account_id = settings.cash_account_id
-                elif mkey in ("card", "tarjeta", "debit", "credit", "link"):
-                    account_id = settings.bank_account_id
-                else:
-                    account_id = settings.cash_account_id
-            if not account_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"No hay cuenta contable para el medio de pago: {method}",
-                )
-            lines.append(AsientoLinea(account_id=account_id, debit=Decimal(str(round(amt, 2)))))
-            debit_total += amt
-
-        if net_total > 0:
-            lines.append(
-                AsientoLinea(
-                    account_id=settings.sales_bakery_account_id,
-                    debit=Decimal("0"),
-                    credit=Decimal(str(round(net_total, 2))),
-                )
-            )
-            credit_total += net_total
-
-        if tax_total > 0:
-            lines.append(
-                AsientoLinea(
-                    account_id=settings.vat_output_account_id,
-                    debit=Decimal("0"),
-                    credit=Decimal(str(round(tax_total, 2))),
-                )
-            )
-            credit_total += tax_total
-
-        if payload.loss_amount and payload.loss_amount > 0:
-            if not settings.loss_account_id:
-                raise HTTPException(
-                    status_code=400, detail="Config contable: falta cuenta de pérdidas/mermas"
-                )
-            lines.append(
-                AsientoLinea(
-                    account_id=settings.loss_account_id,
-                    debit=Decimal(str(round(payload.loss_amount, 2))),
-                    credit=Decimal("0"),
-                )
-            )
-            lines.append(
-                AsientoLinea(
-                    account_id=settings.cash_account_id,
-                    debit=Decimal("0"),
-                    credit=Decimal(str(round(payload.loss_amount, 2))),
-                )
-            )
-            debit_total += float(payload.loss_amount)
-            credit_total += float(payload.loss_amount)
-
-        if round(debit_total - credit_total, 2) != 0:
-            raise HTTPException(status_code=400, detail="Asiento no balanceado al cerrar turno")
-
-        existing_entry = db.execute(
-            text(
-                "SELECT id FROM journal_entries "
-                "WHERE ref_doc_type = 'POS_SHIFT' AND ref_doc_id = :sid AND tenant_id = :tid"
-            ).bindparams(
-                bindparam("sid", type_=PGUUID(as_uuid=True)),
-                bindparam("tid", type_=PGUUID(as_uuid=True)),
-            ),
-            {"sid": shift_uuid, "tid": tenant_id},
-        ).first()
-        if existing_entry:
-            raise HTTPException(
-                status_code=400, detail="Ya existe un asiento contable para este turno"
-            )
-
-        number = _generate_numero_asiento(db, tenant_id, datetime.utcnow().year)
-        entry = AsientoContable(
-            tenant_id=tenant_id,
-            number=number,
-            date=datetime.utcnow().date(),
-            type="OPERATIONS",
-            description=f"Cierre turno POS {shift_id}",
-            ref_doc_type="POS_SHIFT",
-            ref_doc_id=shift_uuid,
-            debit_total=Decimal(str(round(debit_total, 2))),
-            credit_total=Decimal(str(round(credit_total, 2))),
-            is_balanced=True,
-            status="POSTED",
-        )
-        db.add(entry)
-        db.flush()
-
-        for idx, line in enumerate(lines):
-            line.entry_id = entry.id
-            line.line_number = idx + 1
-            db.add(line)
-
+        # --- Close the shift (always succeeds) ---
         db.execute(
             text(
                 "UPDATE pos_shifts "
@@ -639,7 +523,7 @@ def close_shift(
             {"sid": shift_uuid, "ct": payload.closing_cash},
         )
 
-        count_date = opened_at.date() if opened_at else datetime.utcnow().date()
+        count_date = opened_at.date() if opened_at else datetime.now(UTC).date()
         db.execute(
             text(
                 "INSERT INTO pos_daily_counts "
@@ -672,7 +556,124 @@ def close_shift(
 
         db.commit()
 
-        return {
+        # --- Automatic accounting (best-effort) ---
+        accounting_result = None
+        try:
+            ensure_guc_from_request(request, db, persist=True)
+            settings = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
+            if settings:
+                ensure_pos_accounting_settings(settings)
+                pm_rows = (
+                    db.query(PaymentMethod).filter_by(tenant_id=tenant_id, is_active=True).all()
+                )
+                pm_map = {p.name.strip().lower(): p.account_id for p in pm_rows}
+
+                existing_entry = db.execute(
+                    text(
+                        "SELECT id FROM journal_entries "
+                        "WHERE ref_doc_type = 'POS_SHIFT' AND ref_doc_id = :sid AND tenant_id = :tid"
+                    ).bindparams(
+                        bindparam("sid", type_=PGUUID(as_uuid=True)),
+                        bindparam("tid", type_=PGUUID(as_uuid=True)),
+                    ),
+                    {"sid": shift_uuid, "tid": tenant_id},
+                ).first()
+
+                if not existing_entry:
+                    acc_lines: list[AsientoLinea] = []
+                    debit_total = 0.0
+                    credit_total = 0.0
+
+                    for method, amount in sales_by_method:
+                        amt = float(amount or 0)
+                        if amt <= 0:
+                            continue
+                        mkey = (method or "").strip().lower()
+                        account_id = pm_map.get(mkey)
+                        if not account_id:
+                            if mkey in ("cash", "efectivo"):
+                                account_id = settings.cash_account_id
+                            elif mkey in ("card", "tarjeta", "debit", "credit", "link"):
+                                account_id = settings.bank_account_id
+                            else:
+                                account_id = settings.cash_account_id
+                        if account_id:
+                            acc_lines.append(
+                                AsientoLinea(
+                                    account_id=account_id, debit=Decimal(str(round(amt, 2)))
+                                )
+                            )
+                            debit_total += amt
+
+                    if net_total > 0 and settings.sales_bakery_account_id:
+                        acc_lines.append(
+                            AsientoLinea(
+                                account_id=settings.sales_bakery_account_id,
+                                debit=Decimal("0"),
+                                credit=Decimal(str(round(net_total, 2))),
+                            )
+                        )
+                        credit_total += net_total
+
+                    if tax_total > 0 and settings.vat_output_account_id:
+                        acc_lines.append(
+                            AsientoLinea(
+                                account_id=settings.vat_output_account_id,
+                                debit=Decimal("0"),
+                                credit=Decimal(str(round(tax_total, 2))),
+                            )
+                        )
+                        credit_total += tax_total
+
+                    if payload.loss_amount and payload.loss_amount > 0 and settings.loss_account_id:
+                        acc_lines.append(
+                            AsientoLinea(
+                                account_id=settings.loss_account_id,
+                                debit=Decimal(str(round(payload.loss_amount, 2))),
+                                credit=Decimal("0"),
+                            )
+                        )
+                        acc_lines.append(
+                            AsientoLinea(
+                                account_id=settings.cash_account_id,
+                                debit=Decimal("0"),
+                                credit=Decimal(str(round(payload.loss_amount, 2))),
+                            )
+                        )
+                        debit_total += float(payload.loss_amount)
+                        credit_total += float(payload.loss_amount)
+
+                    if acc_lines and round(debit_total - credit_total, 2) == 0:
+                        number = _generate_numero_asiento(db, tenant_id, datetime.now(UTC).year)
+                        entry = AsientoContable(
+                            tenant_id=tenant_id,
+                            number=number,
+                            date=datetime.now(UTC).date(),
+                            type="OPERATIONS",
+                            description=f"Cierre turno POS {shift_id}",
+                            ref_doc_type="POS_SHIFT",
+                            ref_doc_id=shift_uuid,
+                            debit_total=Decimal(str(round(debit_total, 2))),
+                            credit_total=Decimal(str(round(credit_total, 2))),
+                            is_balanced=True,
+                            status="POSTED",
+                        )
+                        db.add(entry)
+                        db.flush()
+                        for idx, line in enumerate(acc_lines):
+                            line.entry_id = entry.id
+                            line.line_number = idx + 1
+                            db.add(line)
+                        db.commit()
+                        accounting_result = {"entry_id": str(entry.id), "status": "posted"}
+        except Exception as e:
+            logger.warning("Accounting auto-generation failed for shift %s: %s", shift_id, e)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+        result = {
             "status": "closed",
             "expected_cash": expected_cash,
             "counted_cash": payload.closing_cash,
@@ -683,6 +684,9 @@ def close_shift(
             "loss_amount": payload.loss_amount or 0,
             "loss_note": payload.loss_note,
         }
+        if accounting_result:
+            result["accounting"] = accounting_result
+        return result
 
     except HTTPException:
         db.rollback()
@@ -866,11 +870,11 @@ def generate_accounting_for_closed_shift(
         if round(debit_total - credit_total, 2) != 0:
             raise HTTPException(status_code=400, detail="Asiento no balanceado")
 
-        number = _generate_numero_asiento(db, tenant_id, datetime.utcnow().year)
+        number = _generate_numero_asiento(db, tenant_id, datetime.now(UTC).year)
         entry = AsientoContable(
             tenant_id=tenant_id,
             number=number,
-            date=datetime.utcnow().date(),
+            date=datetime.now(UTC).date(),
             type="OPERATIONS",
             description=f"Contabilización turno POS {shift_id}",
             ref_doc_type="POS_SHIFT",

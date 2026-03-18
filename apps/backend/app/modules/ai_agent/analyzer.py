@@ -1,6 +1,6 @@
 import json
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -123,7 +123,7 @@ async def auto_resolve_incident(incident_id: UUID, db: Session) -> dict[str, Any
 
     incident.auto_resolved = True
     incident.estado = "resolved"
-    incident.resolved_at = datetime.utcnow()
+    incident.resolved_at = datetime.now(UTC)
     db.commit()
 
     return {

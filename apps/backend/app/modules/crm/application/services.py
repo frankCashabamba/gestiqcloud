@@ -3,7 +3,7 @@ CRM Application Services
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import bindparam, func, text
@@ -120,7 +120,7 @@ class CRMService:
                 changes[field] = value
             setattr(lead, field, value)
 
-        lead.updated_at = datetime.utcnow()
+        lead.updated_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(lead)
 
@@ -166,7 +166,7 @@ class CRMService:
             return None
 
         lead.status = LeadStatus.WON
-        lead.converted_at = datetime.utcnow()
+        lead.converted_at = datetime.now(UTC)
 
         opportunity = None
         if create_opportunity:
@@ -255,7 +255,7 @@ class CRMService:
         for field, value in update_data.items():
             setattr(opp, field, value)
 
-        opp.updated_at = datetime.utcnow()
+        opp.updated_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(opp)
         return OpportunityOut.model_validate(opp)
@@ -435,7 +435,7 @@ class CRMService:
         for field, value in update_data.items():
             setattr(activity, field, value)
 
-        activity.updated_at = datetime.utcnow()
+        activity.updated_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(activity)
         return ActivityOut.model_validate(activity)

@@ -1,6 +1,6 @@
 """Home page router compatibility shim."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.templating import Jinja2Templates
@@ -43,6 +43,6 @@ async def home(request: Request, user=Depends(get_current_user), db: Session = D
             "empresa": company,
             "empresa_nombre": company_name,
             "tema_empresa": company_theme,
-            "now": datetime.utcnow(),
+            "now": datetime.now(UTC),
         },
     )

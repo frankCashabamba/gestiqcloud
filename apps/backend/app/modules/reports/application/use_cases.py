@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -51,7 +51,7 @@ class GenerateReportUseCase:
 
         # Track in DB
         report_id = uuid.uuid4()
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         try:
             db.execute(
                 text(
@@ -163,7 +163,7 @@ class ScheduleReportUseCase:
         import json
 
         schedule_id = uuid.uuid4()
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         try:
             db.execute(

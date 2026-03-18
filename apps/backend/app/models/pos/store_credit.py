@@ -1,7 +1,7 @@
 """Modelos POS: Vales/Store Credit"""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import Date, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -41,7 +41,7 @@ class StoreCredit(Base):
         default="active",
         # active, redeemed, expired, void
     )
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
@@ -77,7 +77,7 @@ class StoreCreditEvent(Base):
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     ref_doc_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ref_doc_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
     credit: Mapped["StoreCredit"] = relationship("StoreCredit", back_populates="events")

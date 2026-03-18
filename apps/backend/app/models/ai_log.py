@@ -6,7 +6,7 @@ Permite auditoría, análisis de errores y mejora continua
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Column, DateTime, Float, Index, Integer, String, Text
 
@@ -91,8 +91,10 @@ class AIRequestLog(Base):
     response_metadata = Column(JSON, nullable=True)  # Provider-specific data
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     # Indexes para queries comunes
     __table_args__ = (
@@ -136,8 +138,10 @@ class AIErrorAnalysis(Base):
     correction_config = Column(JSON, nullable=True)  # retry_count, delay, etc
 
     # Tracking
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
     resolved_at = Column(DateTime, nullable=True)
 
 
@@ -164,4 +168,4 @@ class AIErrorRecovery(Base):
     # Resultado
     recovery_result = Column(JSON)  # Qué pasó: status, new_provider, etc
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))

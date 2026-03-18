@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import Integer, func
@@ -106,7 +106,7 @@ class AILogger:
                 log_entry.error_code = response.error[:50] if response.error else None
 
             log_entry.response_metadata = response.metadata or {}
-            log_entry.updated_at = datetime.utcnow()
+            log_entry.updated_at = datetime.now(UTC)
 
             db.commit()
             logger.debug(f"Response logged: {request_id} (status={status.value})")
@@ -132,7 +132,7 @@ class AILogger:
                 log_entry.status = AIResponseStatus.ERROR.value
                 log_entry.error_message = error_message[:500]
                 log_entry.error_code = error_code or "unknown"
-                log_entry.updated_at = datetime.utcnow()
+                log_entry.updated_at = datetime.now(UTC)
                 db.commit()
 
             # Analizar patrón de error
@@ -164,7 +164,7 @@ class AILogger:
 
             if error_analysis:
                 error_analysis.occurrence_count += 1
-                error_analysis.last_occurred = datetime.utcnow()
+                error_analysis.last_occurred = datetime.now(UTC)
             else:
                 # Crear nuevo análisis
                 error_analysis = AIErrorAnalysis(
@@ -233,7 +233,7 @@ class AIMetrics:
         try:
             from datetime import timedelta
 
-            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
             query = db.query(AIRequestLog).filter(AIRequestLog.created_at >= cutoff)
 
@@ -273,7 +273,7 @@ class AIMetrics:
 
             from sqlalchemy import func
 
-            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
             results = (
                 db.query(
@@ -319,7 +319,7 @@ class AIMetrics:
         try:
             from datetime import timedelta
 
-            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
             errors = (
                 db.query(
@@ -365,7 +365,7 @@ class AIMetrics:
         try:
             from datetime import timedelta
 
-            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
             slow = (
                 db.query(AIRequestLog)

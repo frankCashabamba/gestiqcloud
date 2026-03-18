@@ -348,6 +348,113 @@ async def print_label(
     }
 
 
+class ReceiptSettingsRequest(BaseModel):
+    footer_message: str = "¡Gracias por su compra!"
+    show_tax_breakdown: bool = True
+    show_cashier: bool = True
+    show_customer: bool = True
+    custom_header: str | None = None
+    custom_footer: str | None = None
+
+
+@router.get("/printing/receipt-settings", summary="Get receipt template settings")
+def get_receipt_settings(
+    tenant_id: str = Depends(ensure_tenant), db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    company_settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    if not company_settings:
+        return {}
+    settings = company_settings.settings or {}
+    return settings.get(
+        "receipt_template",
+        {
+            "footer_message": "¡Gracias por su compra!",
+            "show_tax_breakdown": True,
+            "show_cashier": True,
+            "show_customer": True,
+        },
+    )
+
+
+@router.post("/printing/receipt-settings", summary="Save receipt template settings")
+def save_receipt_settings(
+    payload: ReceiptSettingsRequest,
+    tenant_id: str = Depends(ensure_tenant),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    company_settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    if not company_settings:
+        raise HTTPException(status_code=404, detail="Tenant settings not configured yet")
+    settings = company_settings.settings or {}
+    settings["receipt_template"] = payload.dict()
+    company_settings.settings = settings
+    db.add(company_settings)
+    db.commit()
+    return payload.dict()
+
+
+@router.get("/printing/receipt-preview", summary="Get a sample receipt text preview")
+def get_receipt_preview(
+    tenant_id: str = Depends(ensure_tenant), db: Session = Depends(get_db)
+) -> dict[str, str]:
+    from datetime import datetime
+    from decimal import Decimal
+
+    from app.modules.printing.templates.receipt_80mm import (
+        PaymentInfo,
+        ReceiptData,
+        ReceiptLine,
+        render_receipt_text,
+    )
+
+    company_settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    cfg = {}
+    company_name = "Mi Empresa S.A."
+    company_address = "Av. Principal 123, Ciudad"
+    company_ruc = "1234567890001"
+    if company_settings:
+        s = company_settings.settings or {}
+        general = s.get("general", {})
+        company_name = general.get("company_name", company_name)
+        company_address = general.get("address", company_address)
+        company_ruc = general.get("ruc", company_ruc)
+        cfg = s.get("receipt_template", {})
+
+    data = ReceiptData(
+        receipt_number="R-000123",
+        date=datetime(2026, 3, 17, 10, 30),
+        cashier_name="María López",
+        register_name="Caja 1",
+        company_name=company_name,
+        company_address=company_address,
+        company_ruc=company_ruc,
+        company_phone="(02) 555-1234",
+        customer_name="Juan Pérez" if cfg.get("show_customer", True) else None,
+        lines=[
+            ReceiptLine(
+                "Producto A", Decimal("2"), Decimal("15.00"), Decimal("0"), Decimal("0.12")
+            ),
+            ReceiptLine(
+                "Producto B", Decimal("1"), Decimal("25.00"), Decimal("10"), Decimal("0.12")
+            ),
+            ReceiptLine("Producto C (nombre largo de ejemplo)", Decimal("3"), Decimal("5.50")),
+        ],
+        payments=[
+            PaymentInfo("Efectivo", Decimal("80.00")),
+        ],
+        footer_message=cfg.get("footer_message", "¡Gracias por su compra!"),
+        notes=cfg.get("custom_footer") or None,
+    )
+
+    return {"preview": render_receipt_text(data)}
+
+
 @router.post("/printing/labels/batch", summary="Send TSPL labels batch to attached printer")
 async def print_labels_batch(
     payload: PrintLabelsRequest,

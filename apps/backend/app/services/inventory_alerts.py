@@ -6,7 +6,7 @@ Handles checking inventory levels and sending notifications.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
@@ -39,7 +39,7 @@ class InventoryAlertService:
             and_(
                 AlertConfig.is_active,
                 or_(
-                    AlertConfig.next_check_at <= datetime.utcnow(),
+                    AlertConfig.next_check_at <= datetime.now(UTC),
                     AlertConfig.next_check_at.is_(None),
                 ),
             )
@@ -58,8 +58,8 @@ class InventoryAlertService:
             except Exception as exc:
                 results["errors"].append(f"Config {config.id}: {exc}")
 
-            config.last_checked_at = datetime.utcnow()
-            config.next_check_at = datetime.utcnow() + timedelta(
+            config.last_checked_at = datetime.now(UTC)
+            config.next_check_at = datetime.now(UTC) + timedelta(
                 minutes=config.check_frequency_minutes
             )
 
@@ -153,7 +153,7 @@ class InventoryAlertService:
 
     def _get_waste_targets_for_config(self, config: AlertConfig) -> list[dict[str, Any]]:
         """Get production waste totals grouped by finished product for the current day."""
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         day_start = datetime.combine(today, datetime.min.time())
         day_end = day_start + timedelta(days=1)
 
@@ -224,7 +224,7 @@ class InventoryAlertService:
             expires_at = product_data.get("expires_at")
             if not expires_at:
                 return False, ""
-            product_data["days_until_expiry"] = (expires_at - datetime.utcnow().date()).days
+            product_data["days_until_expiry"] = (expires_at - datetime.now(UTC).date()).days
             should_alert = product_data["days_until_expiry"] <= int(threshold)
         else:
             should_alert = current_stock <= threshold
@@ -236,7 +236,7 @@ class InventoryAlertService:
 
     def _can_send_alert(self, config: AlertConfig, product_id: Any) -> bool:
         """Check cooldown and daily limit for a candidate alert."""
-        cooldown_period = datetime.utcnow() - timedelta(hours=config.cooldown_hours)
+        cooldown_period = datetime.now(UTC) - timedelta(hours=config.cooldown_hours)
 
         recent_alerts = (
             self.db.query(AlertHistory)
@@ -253,7 +253,7 @@ class InventoryAlertService:
         if recent_alerts > 0:
             return False
 
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         today_start = datetime.combine(today, datetime.min.time())
         daily_alerts = (
             self.db.query(AlertHistory)
@@ -303,7 +303,7 @@ Umbral: {int(threshold)} dias
 
 Configuracion: {config.name}
 
-Fecha: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}"""
+Fecha: {datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")}"""
 
         if config.alert_type == "high_waste":
             return f"""ALERTA DE PRODUCCION - {alert_type_text}
@@ -316,7 +316,7 @@ Umbral: {threshold}
 
 Configuracion: {config.name}
 
-Fecha: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}"""
+Fecha: {datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")}"""
 
         return f"""ALERTA DE INVENTARIO - {alert_type_text}
 
@@ -328,7 +328,7 @@ Umbral: {threshold}
 
 Configuracion: {config.name}
 
-Fecha: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}"""
+Fecha: {datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")}"""
 
     def _send_alert_notification(
         self, config: AlertConfig, product_data: dict[str, Any], message: str

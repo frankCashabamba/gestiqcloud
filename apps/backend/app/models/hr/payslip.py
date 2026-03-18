@@ -1,7 +1,7 @@
 """Payment Slip (Boleto/Nómina) Model"""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import TIMESTAMP, Date
 from sqlalchemy import Enum as SQLEnum
@@ -111,5 +111,5 @@ class PaymentSlip(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )

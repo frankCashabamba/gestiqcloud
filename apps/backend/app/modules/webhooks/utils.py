@@ -237,13 +237,13 @@ class WebhookFormatter:
         Returns:
             Formatted payload dictionary
         """
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         return {
             "event": event,
             "resource_type": resource_type,
             "resource_id": resource_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "data": data,
             "metadata": {
                 "tenant_id": tenant_id,

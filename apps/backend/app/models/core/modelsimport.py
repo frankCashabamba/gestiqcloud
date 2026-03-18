@@ -3,7 +3,7 @@
 Auto-generated module docstring."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -59,9 +59,11 @@ class ImportBatch(Base):
     )  # PENDING|PARSING|EMPTY|READY|VALIDATED|PARTIAL|ERROR|PROMOTED
     # Use String for created_by to keep SQLite-friendly tests; store user UUID string if available
     created_by = mapped_column(String, nullable=False)
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Confirmation flow fields (when confidence < threshold)
@@ -144,7 +146,7 @@ class ImportAttachment(Base):
     sha256 = mapped_column(String, nullable=True)
     page_no = mapped_column(Integer, nullable=True)
     ocr_text = mapped_column(Text, nullable=True)
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
 class ImportMapping(Base):
@@ -167,7 +169,7 @@ class ImportMapping(Base):
     dedupe_keys = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"), nullable=True
     )  # ['issuer_tax_id','invoice_number',...]
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (
         Index("ix_import_mappings_tenant_source", "tenant_id", "source_type"),
@@ -184,7 +186,7 @@ class ImportItemCorrection(Base):
     field = mapped_column(String, nullable=False)
     old_value = mapped_column(JSON, nullable=True)
     new_value = mapped_column(JSON, nullable=True)
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
 class ImportLineage(Base):
@@ -194,7 +196,7 @@ class ImportLineage(Base):
     item_id = mapped_column(ForeignKey("import_items.id"), index=True, nullable=False)
     promoted_to = mapped_column(String, nullable=False)  # 'invoices'|'bank'|'expenses'
     promoted_ref = mapped_column(String, nullable=True)  # domain identifier (string)
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     @property
     def destination_table(self) -> str:
@@ -230,12 +232,12 @@ class ImportOCRJob(Base):
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 
@@ -262,7 +264,7 @@ class ImportResolution(Base):
     status = mapped_column(String, default="pending")  # resolved|pending|ignored
     confidence = mapped_column(Numeric(3, 2), nullable=True)
     resolved_by = mapped_column(String, nullable=True)  # auto|manual|ai
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (
         UniqueConstraint(
@@ -283,7 +285,7 @@ class PostingRegistry(Base):
         String, nullable=False
     )  # invoice|expense|bank_txn|product|sale_item
     entity_id = mapped_column(UUID, nullable=True)
-    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "posting_key", name="uq_posting_registry_tenant_key"),

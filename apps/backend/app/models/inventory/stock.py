@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from sqlalchemy import Date, Numeric, String
@@ -60,7 +60,7 @@ class StockMove(Base):
     expires_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     unit_cost: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
     total_cost: Mapped[float | None] = mapped_column(Numeric(14, 6), nullable=True)
-    occurred_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    occurred_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
 
 
 class InventoryCostState(Base):
@@ -77,4 +77,4 @@ class InventoryCostState(Base):
     product_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False, index=True)
     on_hand_qty: Mapped[float] = mapped_column(Numeric, default=0)
     avg_cost: Mapped[float] = mapped_column(Numeric(12, 6), default=0)
-    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))

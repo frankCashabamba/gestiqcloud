@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -117,7 +117,7 @@ class EmployeeSyncService:
                 currency="EUR",
                 effective_date=effective_date,
                 notes=build_salary_notes("mensual", "Auto-created from company user"),
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
             )
         )
 
@@ -196,7 +196,7 @@ class EmployeeSyncService:
                                 payment_mode or "mensual",
                                 "Updated from company user form",
                             ),
-                            created_at=datetime.utcnow(),
+                            created_at=datetime.now(UTC),
                         )
                     )
                 elif employee.salaries:

@@ -1,6 +1,6 @@
 """Incidents and alerts router."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -135,7 +135,7 @@ async def update_incident(
         setattr(incident, field, value)
 
     if incident_update.status == "resolved" and not incident.resolved_at:
-        incident.resolved_at = datetime.utcnow()
+        incident.resolved_at = datetime.now(UTC)
 
     db.commit()
     db.refresh(incident)
@@ -349,7 +349,7 @@ async def notify_stock_alert(
     try:
         await send_notification(channel=channels[0], alert=alert, db=db)
 
-        alert.notified_at = datetime.utcnow()
+        alert.notified_at = datetime.now(UTC)
         db.commit()
 
         return {"message": "Notification sent", "channel": channels[0].type}
@@ -376,7 +376,7 @@ async def resolve_stock_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
 
     alert.status = "resolved"
-    alert.resolved_at = datetime.utcnow()
+    alert.resolved_at = datetime.now(UTC)
     db.commit()
 
     return {"message": "Alert resolved", "alert_id": str(alert_id)}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -67,7 +67,7 @@ def create_posted_entry(
         raise ValueError(f"journal_entry_not_balanced debit={debit_total} credit={credit_total}")
 
     number = generate_entry_number(db, tenant_id, entry_date.year)
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     entry = JournalEntry(
         tenant_id=tenant_id,
         number=number,

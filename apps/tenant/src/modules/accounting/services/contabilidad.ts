@@ -6,7 +6,7 @@ import api from '../../../shared/api/client'
  */
 export async function fetchMovimientos(): Promise<Asiento[]> {
   try {
-    const { data } = await api.get<any>(`/api/v1/tenant/accounting/transactions`)
+    const { data } = await api.get<any>(`/api/v1/tenant/accounting/transactions?page_size=500`)
     const items: any[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
 
     return items.map((a: any) => {

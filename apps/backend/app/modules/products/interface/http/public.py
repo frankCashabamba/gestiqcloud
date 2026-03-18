@@ -43,8 +43,8 @@ def public_list_products(
         request=request,
         db=db,
         q=q,
-        categoria=categoria,
-        activo=activo,
+        category=categoria,
+        active=activo,
         limit=limit,
         offset=offset,
         _tid="",  # Will be extracted from request

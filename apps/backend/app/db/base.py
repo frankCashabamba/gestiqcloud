@@ -60,5 +60,13 @@ try:
     import app.models.core.document_storage  # noqa: F401
 except Exception:
     pass
+try:
+    import app.modules.copilot.models  # noqa: F401
+except Exception:
+    pass
+try:
+    import app.modules.branches.models  # noqa: F401
+except Exception:
+    pass
 
 target_metadata = Base.metadata

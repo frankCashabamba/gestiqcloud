@@ -1,7 +1,7 @@
 """Business logic for notifications module."""
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -157,7 +157,7 @@ class MarkAsReadUseCase:
         db_session: Session,
     ) -> int:
         """Mark notifications as read. Returns count updated."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         count = (
             db_session.query(Notification)
             .filter(
@@ -202,7 +202,7 @@ class ArchiveNotificationUseCase:
         if not notification:
             raise NotificationNotFound(f"Notification {notification_id} not found")
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         notification.archived_at = now
         notification.status = "archived"
         notification.updated_at = now

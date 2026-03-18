@@ -10,6 +10,7 @@ import { getCompanySettings, getDefaultReorderPoint } from '../../services/compa
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
+import ProductVariants from './ProductVariants'
 
 type FieldCfg = {
     field: string
@@ -33,7 +34,7 @@ export default function ProductoForm() {
         sku: '',
         name: '',
         price: 0,
-        iva_tasa: 0,
+        tax_rate: 0,
         active: true,
         stock: 0,
         unit: 'unit',
@@ -101,12 +102,12 @@ export default function ProductoForm() {
         const base: FieldCfg[] = [
             { field: 'sku', visible: true, required: false, ord: 10, label: t('products:form.sku'), type: 'text', help: t('products:form.skuHelp') },
             { field: 'name', visible: true, required: true, ord: 20, label: t('products:form.name'), type: 'text' },
-            { field: 'categoria', visible: true, required: false, ord: 22, label: t('products:form.category'), type: 'select' },
-            { field: 'descripcion', visible: true, required: false, ord: 25, label: t('products:form.description'), type: 'textarea' },
+            { field: 'category', visible: true, required: false, ord: 22, label: t('products:form.category'), type: 'select' },
+            { field: 'description', visible: true, required: false, ord: 25, label: t('products:form.description'), type: 'textarea' },
             { field: 'price', visible: true, required: true, ord: 30, label: `${t('products:form.price')} (${currencySymbol})`, type: 'number' },
             { field: 'stock', visible: true, required: false, ord: 35, label: t('products:form.stock'), type: 'number' },
-            { field: 'iva_tasa', visible: true, required: false, ord: 40, label: t('products:form.tax'), type: 'number' },
-            { field: 'activo', visible: true, required: false, ord: 50, label: t('products:form.active'), type: 'boolean' },
+            { field: 'tax_rate', visible: true, required: false, ord: 40, label: t('products:form.tax'), type: 'number' },
+            { field: 'active', visible: true, required: false, ord: 50, label: t('products:form.active'), type: 'boolean' },
             { field: 'import_aliases', visible: false, required: false, ord: 90, label: t('products:form.importAliases', 'Alias de importación'), type: 'import_aliases', help: t('products:form.importAliasesHelp', 'Nombres alternativos en facturas de proveedor con factor de conversión.') },
         ]
 
@@ -117,7 +118,12 @@ export default function ProductoForm() {
                     return
                 }
                 const prev = map.get(cfg.field) || {}
-                map.set(cfg.field, { ...prev, ...cfg })
+                const merged = { ...prev, ...cfg }
+                // Price field always shows currency symbol
+                if (cfg.field === 'price' && merged.label && !merged.label.includes(currencySymbol)) {
+                    merged.label = `${merged.label} (${currencySymbol})`
+                }
+                map.set(cfg.field, merged)
             })
 
         return Array.from(map.values()).sort((a, b) => (a.ord || 999) - (b.ord || 999))
@@ -250,9 +256,9 @@ export default function ProductoForm() {
                 throw new Error(`No se permite activar mayorista si el stock inicial es menor al minimo de stock (${minStockGlobal}).`)
             }
 
-            // Auto-cálculo de margen si existe precio_compra (guardar en metadata)
-            if (form.precio_compra && form.price) {
-                const margen = ((form.price - form.precio_compra) / form.precio_compra) * 100
+            // Auto-calculate margin if cost_price is set
+            if (form.cost_price && form.price) {
+                const margen = ((form.price - form.cost_price) / form.cost_price) * 100
                 metadata.margen = parseFloat(margen.toFixed(2))
                 setForm((prev) => ({ ...prev, product_metadata: metadata }))
             }
@@ -270,7 +276,7 @@ export default function ProductoForm() {
     }
 
     const generateSKU = () => {
-        const categoria = (form as any).categoria || ''
+        const categoria = form.category || ''
         const prefix = categoria ? categoria.substring(0, 3).toUpperCase() : 'PRO'
         const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
         const sku = `${prefix}-${random}`
@@ -452,7 +458,7 @@ export default function ProductoForm() {
                 </p>
             </div>
 
-            <form onSubmit={onSubmit} className="gc-card space-y-6">
+            <form onSubmit={onSubmit} className="gc-card space-y-6 mb-6">
                 {loadingCfg && (
                     <div className="flex items-center gap-2 text-sm text-slate-500">
                         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
@@ -631,6 +637,14 @@ export default function ProductoForm() {
                     </button>
                 </div>
             </form>
+
+            {id && (
+                <div className="gc-card">
+                    <h2 className="text-lg font-semibold text-slate-900 mb-4">Variantes de producto</h2>
+                    <p className="text-sm text-slate-500 mb-4">Gestiona variantes por talla, color u otros atributos.</p>
+                    <ProductVariants productId={id} basePrice={form.price} />
+                </div>
+            )}
         </div>
     )
 }

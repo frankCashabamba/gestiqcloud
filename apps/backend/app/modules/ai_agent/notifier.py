@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -61,7 +61,7 @@ async def send_notification(
             subject=subject,
             body=body,
             status="sent",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(UTC),
             metadata=result,
         )
         db.add(log_entry)
@@ -70,7 +70,7 @@ async def send_notification(
         return {
             "status": "sent",
             "message_id": result.get("message_id"),
-            "sent_at": datetime.utcnow().isoformat(),
+            "sent_at": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
@@ -135,7 +135,7 @@ async def _send_email(
         )
 
         return {
-            "message_id": f"email_{datetime.utcnow().timestamp()}",
+            "message_id": f"email_{datetime.now(UTC).timestamp()}",
             "status": "sent",
         }
 
@@ -147,21 +147,45 @@ async def _send_email(
 
 
 async def _send_whatsapp(channel: NotificationChannel, recipient: str, body: str) -> dict:
-    """Envía WhatsApp via API (ej. Twilio, WhatsApp Business API)"""
+    """Envía WhatsApp via Twilio API."""
     config = channel.config
-    api_key = config.get("api_key")
-    _phone = config.get("_phone")
+    account_sid = config.get("twilio_account_sid")
+    auth_token = config.get("twilio_auth_token")
+    from_number = config.get("twilio_whatsapp_number")  # e.g. "whatsapp:+14155238886"
 
-    # Mock en desarrollo
-    if not api_key:
-        return {"message_id": "mock_whatsapp_id", "status": "sent (mock)"}
+    if not all([account_sid, auth_token, from_number]):
+        return {
+            "message_id": "mock_whatsapp_id",
+            "status": "sent (mock - configure twilio credentials)",
+        }
 
-    # Implementación real con API provider (ej. Twilio)
-    # TODO: Implementar con aiohttp
-    return {
-        "message_id": f"wa_{datetime.utcnow().timestamp()}",
-        "status": "sent (stub)",
-    }
+    to_number = recipient if recipient.startswith("whatsapp:") else f"whatsapp:{recipient}"
+    if not from_number.startswith("whatsapp:"):
+        from_number = f"whatsapp:{from_number}"
+
+    try:
+        import httpx
+
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                data={"From": from_number, "To": to_number, "Body": body},
+                auth=(account_sid, auth_token),
+            )
+            data = response.json()
+            if response.status_code >= 400:
+                raise Exception(
+                    f"Twilio error {response.status_code}: {data.get('message', 'unknown')}"
+                )
+            return {
+                "message_id": data.get("sid", f"wa_{datetime.now(UTC).timestamp()}"),
+                "status": "sent",
+            }
+
+    except ImportError:
+        return {"message_id": "mock_whatsapp_id", "status": "sent (mock - install httpx)"}
 
 
 async def _send_telegram(channel: NotificationChannel, recipient: str, body: str) -> dict:
@@ -174,54 +198,71 @@ async def _send_telegram(channel: NotificationChannel, recipient: str, body: str
         return {"message_id": "mock_telegram_id", "status": "sent (mock)"}
 
     try:
-        import aiohttp
+        import httpx
 
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         payload = {"chat_id": chat_id, "text": body, "parse_mode": "HTML"}
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload) as response:
-                response.raise_for_status()
-                data = await response.json()
-                return {"message_id": data["result"]["message_id"], "status": "sent"}
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return {"message_id": data["result"]["message_id"], "status": "sent"}
 
     except ImportError:
         return {
             "message_id": "mock_telegram_id",
-            "status": "sent (mock - install aiohttp)",
+            "status": "sent (mock - install httpx)",
         }
     except Exception as e:
         raise Exception(f"Error enviando Telegram: {str(e)}")
 
 
 async def _send_slack(channel: NotificationChannel, subject: str, body: str) -> dict:
-    """Envía mensaje a Slack via Webhook"""
+    """Envía mensaje a Slack via Webhook o Bot Token API."""
     config = channel.config
     webhook_url = config.get("webhook_url")
+    bot_token = config.get("bot_token")
+    slack_channel = config.get("channel", "#alerts")
 
-    if not webhook_url:
-        return {"message_id": "mock_slack_id", "status": "sent (mock)"}
+    if not webhook_url and not bot_token:
+        return {
+            "message_id": "mock_slack_id",
+            "status": "sent (mock - configure webhook_url or bot_token)",
+        }
 
     try:
-        import aiohttp
+        import httpx
 
-        payload = {"text": f"*{subject}*\n\n{body}"}
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(webhook_url, json=payload) as response:
+        async with httpx.AsyncClient() as client:
+            if bot_token:
+                # Use Slack Web API for richer messages
+                url = "https://slack.com/api/chat.postMessage"
+                payload = {
+                    "channel": slack_channel,
+                    "text": f"*{subject}*\n\n{body}",
+                    "unfurl_links": False,
+                }
+                headers = {"Authorization": f"Bearer {bot_token}"}
+                response = await client.post(url, json=payload, headers=headers)
+                data = response.json()
+                if not data.get("ok"):
+                    raise Exception(f"Slack API error: {data.get('error', 'unknown')}")
+                return {
+                    "message_id": data.get("ts", f"slack_{datetime.now(UTC).timestamp()}"),
+                    "status": "sent",
+                }
+            else:
+                # Use incoming webhook
+                response = await client.post(webhook_url, json={"text": f"*{subject}*\n\n{body}"})
                 response.raise_for_status()
                 return {
-                    "message_id": f"slack_{datetime.utcnow().timestamp()}",
+                    "message_id": f"slack_{datetime.now(UTC).timestamp()}",
                     "status": "sent",
                 }
 
     except ImportError:
-        return {
-            "message_id": "mock_slack_id",
-            "status": "sent (mock - install aiohttp)",
-        }
-    except Exception as e:
-        raise Exception(f"Error enviando Slack: {str(e)}")
+        return {"message_id": "mock_slack_id", "status": "sent (mock - install httpx)"}
 
 
 # ============================================================================

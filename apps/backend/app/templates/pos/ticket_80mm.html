@@ -218,10 +218,26 @@
         </div>
     </div>
 
+    {% if payments %}
+    <div class="separator"></div>
+    <div class="totals">
+        {% for p in payments %}
+        <div class="total-line">
+            <span>{{ p.method | upper }}:</span>
+            <span>{{ "%.2f"|format(p.amount) }}</span>
+        </div>
+        {% endfor %}
+        {% if ticket.change and ticket.change > 0 %}
+        <div class="total-line">
+            <span>CAMBIO:</span>
+            <span>{{ "%.2f"|format(ticket.change) }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <div class="footer">
-        <p><strong>¡Gracias por su compra!</strong></p>
-        <p>Este documento no es válido como factura</p>
-        <p>Para factura, solicítela al momento de la compra</p>
+        <p><strong>{{ ticket.footer_message if ticket.footer_message else "¡Gracias por su compra!" }}</strong></p>
         {% if empresa.email %}
         <p>Email: {{ empresa.email }}</p>
         {% endif %}

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -338,15 +338,15 @@ class SIIService:
             )
 
             submission = SIIService.submit_xml(settings, xml_content)
-            einvoice.sent_at = datetime.utcnow()
+            einvoice.sent_at = datetime.now(UTC)
             einvoice.fiscal_number = submission.get("fiscal_number") or einvoice.fiscal_number
             einvoice.authorization_code = (
                 submission.get("authorization_code") or einvoice.authorization_code
             )
 
             if submission["status"] == "ACCEPTED":
-                einvoice.authorization_date = datetime.utcnow()
-                einvoice.accepted_at = datetime.utcnow()
+                einvoice.authorization_date = datetime.now(UTC)
+                einvoice.accepted_at = datetime.now(UTC)
                 SIIService._record_status_change(
                     db,
                     einvoice,
@@ -410,7 +410,7 @@ class SIIService:
                 )
             )
             einvoice.retry_count = (einvoice.retry_count or 0) + 1
-            einvoice.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
+            einvoice.next_retry_at = datetime.now(UTC) + timedelta(minutes=5)
             response = {
                 "status": "ERROR",
                 "error": str(e),
@@ -433,7 +433,7 @@ class SIIService:
                 )
             )
             einvoice.retry_count = (einvoice.retry_count or 0) + 1
-            einvoice.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
+            einvoice.next_retry_at = datetime.now(UTC) + timedelta(minutes=5)
             response = {
                 "status": "ERROR",
                 "error": str(e),
@@ -461,11 +461,11 @@ class SIIService:
         )
         submission = SIIService.submit_xml(settings, einvoice.xml_content or "")
         einvoice.retry_count += 1
-        einvoice.sent_at = datetime.utcnow()
+        einvoice.sent_at = datetime.now(UTC)
 
         if submission["status"] == "ACCEPTED":
-            einvoice.accepted_at = datetime.utcnow()
-            einvoice.authorization_date = datetime.utcnow()
+            einvoice.accepted_at = datetime.now(UTC)
+            einvoice.authorization_date = datetime.now(UTC)
             einvoice.fiscal_number = submission.get("fiscal_number") or einvoice.fiscal_number
             einvoice.authorization_code = (
                 submission.get("authorization_code") or einvoice.authorization_code

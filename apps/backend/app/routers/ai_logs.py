@@ -5,7 +5,7 @@ Endpoints para logs, métricas y análisis de IA
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -116,7 +116,7 @@ async def get_error_statistics(
         module: Filtrar por módulo
     """
     try:
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
         query = db.query(AIRequestLog).filter(AIRequestLog.created_at >= cutoff)
 
@@ -177,7 +177,7 @@ async def get_provider_performance(
         return {
             "period_hours": hours,
             "providers": performance,
-            "evaluated_at": datetime.utcnow().isoformat(),
+            "evaluated_at": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
@@ -305,7 +305,7 @@ async def get_analysis_summary(
             "top_errors": top_errors,
             "provider_performance": performance,
             "recommendations": recommendations or ["✅ Sistema funcionando normalmente"],
-            "analyzed_at": datetime.utcnow().isoformat(),
+            "analyzed_at": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
@@ -347,7 +347,7 @@ async def cleanup_old_logs(
         days: Eliminar logs más antiguos que N días
     """
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
 
         deleted = db.query(AIRequestLog).filter(AIRequestLog.created_at < cutoff).delete()
 

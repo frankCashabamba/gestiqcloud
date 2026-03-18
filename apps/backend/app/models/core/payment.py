@@ -7,7 +7,7 @@ Common hierarchy for:
 - AdvancePayment: Future deposits/advances
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from sqlalchemy import Numeric, String
@@ -64,7 +64,7 @@ class PaymentBase:
     paid_at: Mapped[datetime | None] = mapped_column(nullable=True, comment="Payment datetime")
 
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, comment="Record creation datetime"
+        nullable=False, default=lambda: datetime.now(UTC), comment="Record creation datetime"
     )
 
     def is_completed(self) -> bool:

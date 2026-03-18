@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -77,7 +77,7 @@ class StockTransferService:
         )
 
         transfer.status = TransferStatus.IN_TRANSIT
-        transfer.started_at = datetime.utcnow()
+        transfer.started_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(transfer)
         return transfer
@@ -105,7 +105,7 @@ class StockTransferService:
         )
 
         transfer.status = TransferStatus.COMPLETED
-        transfer.completed_at = datetime.utcnow()
+        transfer.completed_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(transfer)
         return transfer

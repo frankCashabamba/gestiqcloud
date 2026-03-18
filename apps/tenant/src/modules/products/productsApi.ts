@@ -20,6 +20,7 @@ const ENDPOINTS = {
     purge: '/api/v1/tenant/products/purge',
     bulkActive: '/api/v1/tenant/products/bulk/active',
     bulkCategory: '/api/v1/tenant/products/bulk/category',
+    bulkGenerateSkus: '/api/v1/tenant/products/bulk/generate-skus',
     similarDuplicates: '/api/v1/tenant/products/duplicates/similar',
     mergeDuplicates: '/api/v1/tenant/products/duplicates/merge',
   },
@@ -40,11 +41,11 @@ export type Producto = {
   sku: string | null
   name: string
   description?: string | null
-  descripcion?: string | null
   price: number
-  precio_compra?: number | null
-  iva_tasa?: number | null
-  categoria?: string | null
+  cost_price?: number | null
+  tax_rate?: number | null
+  category?: string | null
+  category_id?: string | null
   active: boolean
   stock: number
   unit: string
@@ -52,7 +53,6 @@ export type Producto = {
   use_suggested_price?: boolean
   product_metadata?: Record<string, any> | null
   import_aliases?: Array<{ name: string; factor: number; unit?: string }> | null
-  category_id?: string | null
   created_at: string
   updated_at?: string
 }
@@ -85,7 +85,7 @@ export type SimilarProductGroup = {
 export async function listProductos(hideOutOfStock: boolean = false): Promise<Producto[]> {
   const params = new URLSearchParams()
   if (hideOutOfStock) {
-    params.append('activo', 'true')
+    params.append('active', 'true')
   }
 
   const url = params.toString()
@@ -101,19 +101,18 @@ export async function listProductos(hideOutOfStock: boolean = false): Promise<Pr
     tenant_id: String(p.tenant_id || ''),
     sku: p.sku ?? null,
     name: p.name,
-    description: p.description ?? p.descripcion ?? null,
-    descripcion: undefined,
-    price: Number(p.price ?? p.precio ?? 0) || 0,
-    precio_compra: p.precio_compra ?? p.cost ?? p.cost_price ?? null,
-    iva_tasa: p.iva_tasa ?? p.tax_rate ?? null,
-    categoria: p.categoria ?? (typeof p.category === 'string' ? p.category : p.category?.name) ?? null,
-    active: Boolean(p.active ?? p.activo ?? true),
+    description: p.description ?? null,
+    price: Number(p.price ?? 0) || 0,
+    cost_price: p.cost_price ?? null,
+    tax_rate: p.tax_rate ?? null,
+    category: typeof p.category === 'string' ? p.category : (p.category?.name ?? null),
+    category_id: p.category_id ?? null,
+    active: Boolean(p.active ?? true),
     stock: Number(p.stock ?? 0) || 0,
-    unit: p.unit || p.uom || 'unit',
+    unit: p.unit || 'unit',
     suggested_price: p.suggested_price ?? null,
     use_suggested_price: Boolean(p.use_suggested_price ?? false),
-    product_metadata: p.product_metadata ?? p.metadata ?? null,
-    category_id: p.category_id ?? null,
+    product_metadata: p.product_metadata ?? null,
     created_at: p.created_at || new Date().toISOString(),
     updated_at: p.updated_at || undefined,
   })
@@ -148,7 +147,7 @@ export async function createProducto(data: Partial<Producto>): Promise<Producto>
         tenant_id: String((cleanPayload as any).tenant_id || ''),
         sku: (cleanPayload as any).sku ?? null,
         name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        description: (cleanPayload as any).description ?? null,
         price: Number((cleanPayload as any).price ?? 0) || 0,
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
@@ -167,7 +166,7 @@ export async function createProducto(data: Partial<Producto>): Promise<Producto>
         tenant_id: String((cleanPayload as any).tenant_id || ''),
         sku: (cleanPayload as any).sku ?? null,
         name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        description: (cleanPayload as any).description ?? null,
         price: Number((cleanPayload as any).price ?? 0) || 0,
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
@@ -195,7 +194,7 @@ export async function updateProducto(id: string, data: Partial<Producto>): Promi
         tenant_id: String((cleanPayload as any).tenant_id || ''),
         sku: (cleanPayload as any).sku ?? null,
         name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        description: (cleanPayload as any).description ?? null,
         price: Number((cleanPayload as any).price ?? 0) || 0,
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
@@ -214,7 +213,7 @@ export async function updateProducto(id: string, data: Partial<Producto>): Promi
         tenant_id: String((cleanPayload as any).tenant_id || ''),
         sku: (cleanPayload as any).sku ?? null,
         name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        description: (cleanPayload as any).description ?? null,
         price: Number((cleanPayload as any).price ?? 0) || 0,
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
@@ -268,6 +267,14 @@ export async function bulkAssignCategory(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids, category_name }),
+  })
+}
+
+export async function bulkGenerateMissingSkus(): Promise<{ updated: number }> {
+  return apiFetch<{ updated: number }>(ENDPOINTS.products.bulkGenerateSkus, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   })
 }
 

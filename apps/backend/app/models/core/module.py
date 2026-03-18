@@ -2,7 +2,7 @@
 
 # pylint: disable=unsubscriptable-object
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -68,7 +68,7 @@ class CompanyModule(Base):
     tenant_id: Mapped[object] = mapped_column(_uuid_col, ForeignKey("tenants.id"), nullable=False)  # type: ignore
     module_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("modules.id"), nullable=False)  # type: ignore
     active: Mapped[bool] = mapped_column(Boolean, default=True)  # type: ignore
-    activation_date: Mapped[datetime] = mapped_column(Date(), default=datetime.utcnow)  # type: ignore
+    activation_date: Mapped[datetime] = mapped_column(Date(), default=lambda: datetime.now(UTC))  # type: ignore
     expiration_date: Mapped[datetime | None] = mapped_column(Date())  # type: ignore
     initial_template: Mapped[str | None] = mapped_column(String(255))  # type: ignore
 
@@ -99,6 +99,6 @@ class AssignedModule(Base):
         _uuid_col, ForeignKey("company_users.id"), nullable=False
     )  # type: ignore
     module_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("modules.id"), nullable=False)  # type: ignore
-    assignment_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)  # type: ignore
+    assignment_date: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))  # type: ignore
     auto_view_module: Mapped[bool] = mapped_column(Boolean, default=True)  # type: ignore
     module: Mapped["Module"] = relationship("Module", lazy="joined")  # 👈  # type: ignore

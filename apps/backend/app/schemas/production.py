@@ -2,7 +2,7 @@
 Production Schemas - Pydantic models for production orders
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -86,7 +86,7 @@ class ProductionOrderStartRequest(BaseModel):
     """Start production."""
 
     started_at: datetime | None = Field(
-        default_factory=datetime.utcnow, description="Start datetime"
+        default_factory=lambda: datetime.now(UTC), description="Start datetime"
     )
     notes: str | None = Field(None, description="Start notes")
 
@@ -99,7 +99,7 @@ class ProductionOrderCompleteRequest(BaseModel):
     waste_reason: str | None = Field(None, description="Waste reason")
     batch_number: str | None = Field(None, description="Batch number")
     completed_at: datetime | None = Field(
-        default_factory=datetime.utcnow, description="Completion datetime"
+        default_factory=lambda: datetime.now(UTC), description="Completion datetime"
     )
     notes: str | None = Field(None, description="Closing notes")
 

@@ -1,6 +1,6 @@
 """E-Invoicing Module - HTTP API (Tenant)"""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -107,9 +107,9 @@ async def export_facturae_xml(
         try:
             issue_date = date.fromisoformat(issue_date[:10])
         except Exception:
-            issue_date = datetime.utcnow().date()
+            issue_date = datetime.now(UTC).date()
     elif issue_date is None:
-        issue_date = datetime.utcnow().date()
+        issue_date = datetime.now(UTC).date()
 
     invoice_data = {
         "numero": invoice.numero,

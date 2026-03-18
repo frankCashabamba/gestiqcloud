@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -92,7 +92,7 @@ class UpdateWebhookSubscriptionUseCase:
         if timeout_seconds is not None:
             subscription.timeout_seconds = timeout_seconds
 
-        subscription.updated_at = datetime.utcnow()
+        subscription.updated_at = datetime.now(UTC)
         db_session.commit()
         db_session.refresh(subscription)
 
@@ -248,7 +248,7 @@ class RetryFailedDeliveryUseCase:
         if not delivery:
             raise WebhookNotFound(f"Delivery {delivery_id} not found")
 
-        delivery.next_retry_at = datetime.utcnow()
+        delivery.next_retry_at = datetime.now(UTC)
         delivery.completed_at = None
         db_session.commit()
         db_session.refresh(delivery)
@@ -287,7 +287,7 @@ class TestWebhookSubscriptionUseCase:
         test_event = WebhookEvent(
             event_type=event_type or subscription.event_type,
             event_id=f"test-{uuid.uuid4()}",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             tenant_id=tenant_id,
             resource_type="Test",
             resource_id=uuid.uuid4(),

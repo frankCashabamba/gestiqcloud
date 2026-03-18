@@ -1,7 +1,7 @@
 """Domain models for notifications system."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
@@ -28,8 +28,10 @@ class Notification(Base):
     read_at = Column(DateTime, nullable=True)
     archived_at = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     def __repr__(self):
         return f"<Notification {self.id}: {self.channel} [{self.status}]>"
@@ -48,8 +50,10 @@ class NotificationTemplate(Base):
     body_template = Column(Text, nullable=False)
     is_active = Column(Boolean, default=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_notification_template_tenant_name"),

@@ -8,7 +8,7 @@ unit tests to SQLAlchemy constructors while remaining compatible with
 the application code that only reads attributes.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 
@@ -31,7 +31,7 @@ class SRISubmissionShim:  # noqa: D401 - simple data holder
         self.status = status
         self.error_message = error_message
         # Tests may pass submitted_at/created_at; we keep both
-        self.created_at = created_at or submitted_at or datetime.utcnow()
+        self.created_at = created_at or submitted_at or datetime.now(UTC)
         self.submitted_at = submitted_at or self.created_at
         # Map both alias names so use_case can read receipt_number
         self.clave_acceso = clave_acceso

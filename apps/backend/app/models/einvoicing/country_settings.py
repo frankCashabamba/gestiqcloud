@@ -1,7 +1,7 @@
 """E-Invoicing Country Settings & Configuration"""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, TIMESTAMP, Boolean, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -68,7 +68,7 @@ class TaxRegime(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )
 
 
@@ -166,5 +166,5 @@ class EInvoicingCountrySettings(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )

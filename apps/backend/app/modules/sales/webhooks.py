@@ -7,7 +7,7 @@ Integrates with the webhooks module for secure, async delivery.
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -66,7 +66,7 @@ class SalesOrderWebhookService:
                     "currency": currency,
                     "items_count": items_count,
                     "status": "draft",
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -116,7 +116,7 @@ class SalesOrderWebhookService:
                     "amount": str(amount),
                     "currency": currency,
                     "status": "confirmed",
-                    "confirmed_at": datetime.utcnow().isoformat(),
+                    "confirmed_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
@@ -157,7 +157,7 @@ class SalesOrderWebhookService:
                     "order_number": order_number,
                     "reason": reason,
                     "status": "cancelled",
-                    "cancelled_at": datetime.utcnow().isoformat(),
+                    "cancelled_at": datetime.now(UTC).isoformat(),
                 },
                 tenant_id=str(tenant_id),
             )
