@@ -486,7 +486,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                 iva_tasa: (productWithPrice as any).iva_tasa ?? defaultTaxPct,
                 qty: 1,
                 discount_pct: 0,
-                categoria: productWithPrice.categoria || (productWithPrice.product_metadata?.categoria as any),
+                categoria: productWithPrice.category || (productWithPrice.product_metadata?.categoria as any),
             }
             setCart([...cart, applyPricingToCartItem(baseItem, productWithPrice, 1)])
         }
@@ -564,7 +564,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                     action: {
                         label: t('common:create', { defaultValue: 'Create' }),
                         onClick: () => {
-                            setCreateProductForm({ sku: code, name: '', price: 0, stock: 1, iva_tasa: defaultTaxPct, categoria: selectedCategory !== '*' ? selectedCategory : '' })
+                            setCreateProductForm({ sku: code, name: '', price: 0, stock: 1, tax_rate: defaultTaxPct, category: selectedCategory !== '*' ? selectedCategory : '' })
                             setShowCreateProductModal(true)
                         },
                     },
@@ -607,7 +607,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                             action: {
                                 label: t('common:create', { defaultValue: 'Create' }),
                                 onClick: () => {
-                                    setCreateProductForm({ sku: code, name: '', price: 0, stock: 1, iva_tasa: defaultTaxPct, categoria: selectedCategory !== '*' ? selectedCategory : '' })
+                                    setCreateProductForm({ sku: code, name: '', price: 0, stock: 1, tax_rate: defaultTaxPct, category: selectedCategory !== '*' ? selectedCategory : '' })
                                     setShowCreateProductModal(true)
                                 },
                             },
@@ -1086,8 +1086,8 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                 name: createProductForm.name.trim(),
                 price: Number(createProductForm.price) || 0,
                 stock: Number(createProductForm.stock) || 0,
-                iva_tasa: Number(createProductForm.iva_tasa) || 0,
-                categoria: createProductForm.categoria.trim() || (selectedCategory !== '*' ? selectedCategory : undefined),
+                tax_rate: Number(createProductForm.tax_rate) || 0,
+                category: createProductForm.category.trim() || (selectedCategory !== '*' ? selectedCategory : undefined),
                 unit: 'unit',
                 active: true,
             })

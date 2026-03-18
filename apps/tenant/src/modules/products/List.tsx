@@ -438,7 +438,7 @@ export default function ProductosList() {
     }
 
     if (filterCategoria !== 'all') {
-      result = result.filter((p) => p.categoria === filterCategoria)
+      result = result.filter((p) => p.category === filterCategoria)
     }
 
     return result
@@ -472,7 +472,7 @@ export default function ProductosList() {
       name: product.name,
       codigo_barras: codigo,
       precio_venta: product.price,
-      categoria: product.categoria || undefined,
+      categoria: product.category || undefined,
     }
   }
 
@@ -567,7 +567,7 @@ export default function ProductosList() {
 
   const exportCSV = () => {
     const headers = [t('products:code'), t('products:name'), t('products:price'), t('products:tax'), t('products:status')]
-    const rows = sorted.map((p) => [p.sku || '', p.name, p.price?.toFixed(2) || '0', `${p.iva_tasa || 0}%`, p.active ? t('products:list.active') : t('products:list.inactive')])
+    const rows = sorted.map((p) => [p.sku || '', p.name, p.price?.toFixed(2) || '0', `${p.tax_rate || 0}%`, p.active ? t('products:list.active') : t('products:list.inactive')])
 
     const csv = [headers, ...rows].map((row) => row.join(';')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -706,7 +706,7 @@ export default function ProductosList() {
                   try {
                     const usedSkus = new Set(items.map(p => p.sku).filter(Boolean))
                     const updates: Promise<any>[] = withoutSku.map(p => {
-                      const prefix = p.categoria ? p.categoria.substring(0, 3).toUpperCase() : 'PRO'
+                      const prefix = p.category ? p.category.substring(0, 3).toUpperCase() : 'PRO'
                       let sku: string
                       do {
                         sku = `${prefix}-${Math.floor(Math.random() * 90000 + 10000)}`
@@ -936,9 +936,9 @@ export default function ProductosList() {
                   {p.description && <div className="text-xs text-gray-500 truncate max-w-xs">{p.description}</div>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                  {p.categoria ? (
+                  {p.category ? (
                       <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                          {p.categoria}
+                          {p.category}
                         </span>
                       ) : (
                         <span className="text-gray-400 text-xs">—</span>
@@ -1001,7 +1001,7 @@ export default function ProductosList() {
                     )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="text-sm text-gray-600">{p.iva_tasa || 0}%</span>
+                  <span className="text-sm text-gray-600">{p.tax_rate || 0}%</span>
                   </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span

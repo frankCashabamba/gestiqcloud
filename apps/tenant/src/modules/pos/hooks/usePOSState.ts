@@ -189,8 +189,8 @@ export function usePOSState() {
         name: '',
         price: 0,
         stock: 1,
-        iva_tasa: 0,
-        categoria: '',
+        tax_rate: 0,
+        category: '',
     })
 
     // ------------------------------------------------------------------
@@ -345,8 +345,8 @@ export function usePOSState() {
     const categories = useMemo(() => {
         const cats = new Set<string>()
         products.forEach((p) => {
-            if (p.categoria || p.product_metadata?.categoria) {
-                cats.add(p.categoria || (p.product_metadata?.categoria as any))
+            if (p.category || p.product_metadata?.categoria) {
+                cats.add(p.category || (p.product_metadata?.categoria as any))
             }
         })
         return ['*', ...Array.from(cats).sort()]
@@ -357,7 +357,7 @@ export function usePOSState() {
         if (viewMode === 'categories' && selectedCategory !== '*') {
             result = result.filter(
                 (p) =>
-                    p.categoria === selectedCategory ||
+                    p.category === selectedCategory ||
                     (p.product_metadata?.categoria || '') === selectedCategory
             )
         }

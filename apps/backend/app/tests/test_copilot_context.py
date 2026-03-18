@@ -19,7 +19,6 @@ from unittest.mock import MagicMock, patch
 
 from app.modules.copilot.context_builder import CopilotContextBuilder
 
-
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
@@ -46,7 +45,11 @@ def _make_db_with_results(results: list):
             else:
                 result.fetchone.return_value = val
                 result.fetchall.return_value = [val] if val else []
-            result.scalar.return_value = val[0] if (isinstance(val, tuple) and val) else (val if not isinstance(val, list) else None)
+            result.scalar.return_value = (
+                val[0]
+                if (isinstance(val, tuple) and val)
+                else (val if not isinstance(val, list) else None)
+            )
         else:
             result.fetchone.return_value = None
             result.fetchall.return_value = []
@@ -68,6 +71,7 @@ def _row(**kwargs):
 # Tests: dispatch por módulo
 # ---------------------------------------------------------------------------
 
+
 class TestModuleDispatch:
 
     def test_unknown_module_uses_general(self):
@@ -83,7 +87,9 @@ class TestModuleDispatch:
         assert data["modulo"] == "General"
 
     def test_pos_module_dispatches_correctly(self):
-        shift_row = _row(id=str(uuid.uuid4()), status="open", opened_at="2026-03-17T08:00", opening_float=100.0)
+        shift_row = _row(
+            id=str(uuid.uuid4()), status="open", opened_at="2026-03-17T08:00", opening_float=100.0
+        )
         sales_row = _row(recibos=5, total=350.0)
         db = _make_db_with_results([shift_row, sales_row, []])
         result_json = CopilotContextBuilder.build(db, TENANT, "pos")
@@ -149,6 +155,7 @@ class TestModuleDispatch:
 # Tests: output format
 # ---------------------------------------------------------------------------
 
+
 class TestOutputFormat:
 
     def test_always_returns_valid_json(self):
@@ -188,13 +195,16 @@ class TestOutputFormat:
 # Tests: PII masking
 # ---------------------------------------------------------------------------
 
+
 class TestPIIMasking:
 
     def test_pii_masking_called_on_list_context(self):
         """Verifica que el contexto aplica PII masking en listas."""
         # Las filas con 'name', 'email' deben ser procesadas
         with patch("app.modules.copilot.context_builder.pii_mask_row") as mock_mask:
-            mock_mask.side_effect = lambda r: {k: "***" if k in ("name", "email") else v for k, v in r.items()}
+            mock_mask.side_effect = lambda r: {
+                k: "***" if k in ("name", "email") else v for k, v in r.items()
+            }
 
             _make_db_with_results([[], [{"name": "Juan", "email": "j@e.com"}]])
             # sales module retorna top_clientes con rows de clientes
@@ -212,6 +222,7 @@ class TestPIIMasking:
 # ---------------------------------------------------------------------------
 # Tests: error handling
 # ---------------------------------------------------------------------------
+
 
 class TestErrorHandling:
 
@@ -249,14 +260,15 @@ class TestErrorHandling:
 # Tests: todas las claves de LOADERS registradas
 # ---------------------------------------------------------------------------
 
+
 class TestLoaderRegistry:
 
     def test_all_loaders_map_to_existing_methods(self):
         """Todas las claves en LOADERS apuntan a métodos que existen en la clase."""
         for key, method_name in CopilotContextBuilder.LOADERS.items():
-            assert hasattr(CopilotContextBuilder, method_name), (
-                f"Loader '{method_name}' para módulo '{key}' no existe en CopilotContextBuilder"
-            )
+            assert hasattr(
+                CopilotContextBuilder, method_name
+            ), f"Loader '{method_name}' para módulo '{key}' no existe en CopilotContextBuilder"
 
     def test_all_loaders_callable(self):
         """Todos los loaders son callables (métodos estáticos)."""
@@ -266,11 +278,23 @@ class TestLoaderRegistry:
 
     def test_spanish_and_english_aliases_point_to_same_loader(self):
         """Los alias en español/inglés apuntan al mismo loader."""
-        assert CopilotContextBuilder.LOADERS["inventario"] == CopilotContextBuilder.LOADERS["inventory"]
-        assert CopilotContextBuilder.LOADERS["compras"] == CopilotContextBuilder.LOADERS["purchases"]
+        assert (
+            CopilotContextBuilder.LOADERS["inventario"]
+            == CopilotContextBuilder.LOADERS["inventory"]
+        )
+        assert (
+            CopilotContextBuilder.LOADERS["compras"] == CopilotContextBuilder.LOADERS["purchases"]
+        )
         assert CopilotContextBuilder.LOADERS["ventas"] == CopilotContextBuilder.LOADERS["sales"]
-        assert CopilotContextBuilder.LOADERS["finanzas"] == CopilotContextBuilder.LOADERS["finances"]
-        assert CopilotContextBuilder.LOADERS["produccion"] == CopilotContextBuilder.LOADERS["productions"]
+        assert (
+            CopilotContextBuilder.LOADERS["finanzas"] == CopilotContextBuilder.LOADERS["finances"]
+        )
+        assert (
+            CopilotContextBuilder.LOADERS["produccion"]
+            == CopilotContextBuilder.LOADERS["productions"]
+        )
         assert CopilotContextBuilder.LOADERS["gastos"] == CopilotContextBuilder.LOADERS["expenses"]
         assert CopilotContextBuilder.LOADERS["rrhh"] == CopilotContextBuilder.LOADERS["hr"]
-        assert CopilotContextBuilder.LOADERS["productos"] == CopilotContextBuilder.LOADERS["products"]
+        assert (
+            CopilotContextBuilder.LOADERS["productos"] == CopilotContextBuilder.LOADERS["products"]
+        )

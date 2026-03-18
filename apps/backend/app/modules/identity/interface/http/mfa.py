@@ -156,9 +156,9 @@ def verify_and_enable_mfa(payload: TOTPVerifyIn, request: Request, db: Session =
         raise HTTPException(status_code=400, detail="invalid_totp_code")
 
     db.execute(
-        text("UPDATE user_mfa SET is_enabled = true, last_used_at = NOW() WHERE user_id = :uid").bindparams(
-            bindparam("uid", type_=PGUUID(as_uuid=True))
-        ),
+        text(
+            "UPDATE user_mfa SET is_enabled = true, last_used_at = NOW() WHERE user_id = :uid"
+        ).bindparams(bindparam("uid", type_=PGUUID(as_uuid=True))),
         {"uid": user_id},
     )
     db.commit()
@@ -221,9 +221,9 @@ def use_recovery_code(payload: RecoveryIn, request: Request, db: Session = Depen
     stored_codes.remove(hashed_input)
 
     db.execute(
-        text("UPDATE user_mfa SET recovery_codes = :codes, last_used_at = NOW() WHERE user_id = :uid").bindparams(
-            bindparam("uid", type_=PGUUID(as_uuid=True))
-        ),
+        text(
+            "UPDATE user_mfa SET recovery_codes = :codes, last_used_at = NOW() WHERE user_id = :uid"
+        ).bindparams(bindparam("uid", type_=PGUUID(as_uuid=True))),
         {"uid": user_id, "codes": stored_codes},
     )
     db.commit()

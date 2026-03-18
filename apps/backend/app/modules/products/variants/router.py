@@ -1,6 +1,7 @@
 """
 Endpoints para variantes de producto (talla, color, etc.)
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -31,6 +32,7 @@ router = APIRouter(
 # Schemas
 # ============================================================================
 
+
 class AttributeIn(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     values: list[str] = Field(default_factory=list)
@@ -58,6 +60,7 @@ class VariantUpdate(BaseModel):
 # ============================================================================
 # Attributes CRUD
 # ============================================================================
+
 
 @router.get("/attributes")
 def list_attributes(
@@ -87,6 +90,7 @@ def create_attribute(
 ) -> dict[str, Any]:
     tid = claims["tenant_id"]
     import json as _json
+
     row = db.execute(
         text(
             "INSERT INTO product_variant_attributes (tenant_id, name, values) "
@@ -121,6 +125,7 @@ def delete_attribute(
 # ============================================================================
 # Variants CRUD
 # ============================================================================
+
 
 @router.get("/{product_id}")
 def list_variants(
@@ -161,6 +166,7 @@ def create_variant(
     claims: dict = Depends(with_access_claims),
 ) -> dict[str, Any]:
     import json as _json
+
     tid = claims["tenant_id"]
     row = db.execute(
         text(
@@ -201,6 +207,7 @@ def update_variant(
     claims: dict = Depends(with_access_claims),
 ) -> dict[str, Any]:
     import json as _json
+
     tid = claims["tenant_id"]
     fields: list[str] = []
     params: dict[str, Any] = {"vid": str(variant_id), "tid": str(tid)}

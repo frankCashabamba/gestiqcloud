@@ -30,6 +30,4 @@ class Branch(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
-    __table_args__ = (
-        Index("uq_branches_tenant_code", "tenant_id", "code", unique=True),
-    )
+    __table_args__ = (Index("uq_branches_tenant_code", "tenant_id", "code", unique=True),)

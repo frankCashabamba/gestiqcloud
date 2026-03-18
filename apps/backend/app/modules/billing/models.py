@@ -45,8 +45,17 @@ class TenantSubscription(Base):
     canceled_at = Column(DateTime(timezone=True))
     trial_ends_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     __table_args__ = (
-        Index("uq_tenant_subscriptions_active", "tenant_id", unique=True, postgresql_where="status IN ('active', 'trialing')"),
+        Index(
+            "uq_tenant_subscriptions_active",
+            "tenant_id",
+            unique=True,
+            postgresql_where="status IN ('active', 'trialing')",
+        ),
     )

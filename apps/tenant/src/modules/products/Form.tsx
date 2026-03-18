@@ -312,11 +312,11 @@ export default function ProductoForm() {
         }
 
         // Campo Categoría con select que carga desde BD
-        if (f.field === 'categoria') {
+        if (f.field === 'category') {
             return (
                 <select
                     value={value}
-                    onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
                     className="gc-input"
                 >
                     <option value="">Sin categoría</option>

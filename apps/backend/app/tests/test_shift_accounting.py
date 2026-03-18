@@ -18,7 +18,6 @@ from app.modules.pos.application.use_cases import (
     POS_AccountingIntegrationUseCase,
 )
 
-
 # ============================================================================
 # POS_AccountingIntegrationUseCase
 # ============================================================================
@@ -40,8 +39,10 @@ class TestPOSAccountingIntegrationUseCase:
 
         assert result["status"] == "posted"
         debits = [line for line in result["lines"] if line["type"] == "debit"]
-        assert any(line["account"] == "cash_or_bank_cash" and line["amount"] == Decimal("112.00")
-                   for line in debits)
+        assert any(
+            line["account"] == "cash_or_bank_cash" and line["amount"] == Decimal("112.00")
+            for line in debits
+        )
 
     def test_generates_revenue_and_vat_credit_lines(self):
         db = MagicMock()
@@ -261,11 +262,19 @@ class TestShiftAccountingPipeline:
             tenant_id=uuid.uuid4(),
         )
 
-        debits = {line["account"]: line["amount"] for line in acc_result["lines"] if line["type"] == "debit"}
+        debits = {
+            line["account"]: line["amount"]
+            for line in acc_result["lines"]
+            if line["type"] == "debit"
+        }
         assert debits["cash_or_bank_cash"] == cash
         assert debits["cash_or_bank_card"] == card
 
-        credits = {line["account"]: line["amount"] for line in acc_result["lines"] if line["type"] == "credit"}
+        credits = {
+            line["account"]: line["amount"]
+            for line in acc_result["lines"]
+            if line["type"] == "credit"
+        }
         assert credits["sales_revenue"] == subtotal
         assert credits["vat_output"] == tax
 
@@ -297,7 +306,8 @@ class TestShiftAccountingPipeline:
         )
 
         revenue_line = next(
-            line for line in acc_result["lines"]
+            line
+            for line in acc_result["lines"]
             if line["type"] == "credit" and line["account"] == "sales_revenue"
         )
         assert revenue_line["amount"] == cash  # Siempre el total vendido real

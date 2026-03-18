@@ -130,9 +130,9 @@ class TestOpenShiftUseCase:
             n = call_count["n"]
             call_count["n"] += 1
             if n == 0:
-                result.first.return_value = (True,)   # register active
+                result.first.return_value = (True,)  # register active
             elif n == 1:
-                result.first.return_value = None       # no open shift
+                result.first.return_value = None  # no open shift
             else:
                 result.first.return_value = (new_shift_id,)  # INSERT RETURNING
             return result
@@ -193,10 +193,20 @@ class TestCreateReceiptUseCase:
 
         uc = CreateReceiptUseCase(db)
         lines = [
-            {"product_id": str(uuid.uuid4()), "qty": "2", "unit_price": "10.00",
-             "discount_pct": "10", "tax_rate": "0.12"},
-            {"product_id": str(uuid.uuid4()), "qty": "1", "unit_price": "50.00",
-             "discount_pct": "0", "tax_rate": "0.12"},
+            {
+                "product_id": str(uuid.uuid4()),
+                "qty": "2",
+                "unit_price": "10.00",
+                "discount_pct": "10",
+                "tax_rate": "0.12",
+            },
+            {
+                "product_id": str(uuid.uuid4()),
+                "qty": "1",
+                "unit_price": "50.00",
+                "discount_pct": "0",
+                "tax_rate": "0.12",
+            },
         ]
 
         result = uc.execute(
@@ -377,8 +387,8 @@ class TestCloseShiftUseCase:
         )
 
         assert result["status"] == "closed"
-        assert result["expected_cash"] == Decimal("300")   # opening_float + cash_sales
-        assert result["variance"] == Decimal("-10")         # 290 - 300
+        assert result["expected_cash"] == Decimal("300")  # opening_float + cash_sales
+        assert result["variance"] == Decimal("-10")  # 290 - 300
         assert result["sales_total"] == Decimal("200")
 
     def test_zero_variance_when_exact_count(self):

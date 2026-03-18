@@ -101,9 +101,9 @@ def create_attribute(payload: AttributeCreateIn, request: Request, db: Session =
     tenant_id = _get_tenant_id(request)
 
     existing = db.execute(
-        text("SELECT id FROM product_attributes WHERE tenant_id = :tid AND name = :name").bindparams(
-            bindparam("tid", type_=PGUUID(as_uuid=True))
-        ),
+        text(
+            "SELECT id FROM product_attributes WHERE tenant_id = :tid AND name = :name"
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_id, "name": payload.name},
     ).first()
     if existing:
@@ -169,7 +169,9 @@ def list_variants(product_id: str, request: Request, db: Session = Depends(get_d
 
 
 @router.post("/{product_id}", response_model=dict[str, Any], status_code=201)
-def create_variant(product_id: str, payload: VariantCreateIn, request: Request, db: Session = Depends(get_db)):
+def create_variant(
+    product_id: str, payload: VariantCreateIn, request: Request, db: Session = Depends(get_db)
+):
     """Crea una variante para un producto."""
     ensure_guc_from_request(request, db, persist=True)
     tenant_id = _get_tenant_id(request)
@@ -222,7 +224,9 @@ def create_variant(product_id: str, payload: VariantCreateIn, request: Request, 
 
 
 @router.put("/{variant_id}", response_model=dict[str, Any])
-def update_variant(variant_id: str, payload: VariantUpdateIn, request: Request, db: Session = Depends(get_db)):
+def update_variant(
+    variant_id: str, payload: VariantUpdateIn, request: Request, db: Session = Depends(get_db)
+):
     """Actualiza una variante."""
     ensure_guc_from_request(request, db, persist=True)
 
@@ -243,6 +247,7 @@ def update_variant(variant_id: str, payload: VariantUpdateIn, request: Request, 
         params["sku"] = payload.sku
     if payload.attributes is not None:
         import json
+
         updates.append("attributes = :attrs::jsonb")
         params["attrs"] = json.dumps(payload.attributes)
     if payload.price_override is not None:

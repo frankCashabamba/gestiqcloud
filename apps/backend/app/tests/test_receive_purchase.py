@@ -19,7 +19,6 @@ import pytest
 
 from app.services.inventory_costing import InventoryCostingService
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -399,7 +398,9 @@ class TestApplyOutboundLayered:
         db = self._make_outbound_db(layers, on_hand=10.0)
         svc = InventoryCostingService(db)
 
-        state, cogs = svc.apply_outbound_fifo(TENANT, WH, PROD, qty=Decimal("5"), allow_negative=True)
+        state, cogs = svc.apply_outbound_fifo(
+            TENANT, WH, PROD, qty=Decimal("5"), allow_negative=True
+        )
 
         assert cogs == Decimal("0")
 
@@ -455,7 +456,7 @@ class TestGetInventoryValue:
         """LIFO computa el mismo SUM pero con orden invertido."""
         db = _make_db()
         db.execute.return_value.fetchall.return_value = [
-            (5.0, 8.0),   # más reciente primero
+            (5.0, 8.0),  # más reciente primero
             (10.0, 5.0),
         ]
 

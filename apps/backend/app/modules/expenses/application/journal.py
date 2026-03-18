@@ -33,29 +33,30 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _CATEGORY_ACCOUNTS: dict[str, tuple[str, str, str]] = {
-    "payroll":    ("6.2.01", "Gastos de personal",       "EXPENSE"),
-    "rent":       ("6.2.02", "Arrendamientos y cánones", "EXPENSE"),
-    "supplies":   ("6.2.03", "Suministros",              "EXPENSE"),
-    "marketing":  ("6.2.04", "Publicidad y propaganda",  "EXPENSE"),
-    "services":   ("6.2.05", "Servicios exteriores",     "EXPENSE"),
-    "production": ("6.1.01", "Costo de producción",      "EXPENSE"),
-    "other":      ("6.2.99", "Otros gastos operativos",  "EXPENSE"),
+    "payroll": ("6.2.01", "Gastos de personal", "EXPENSE"),
+    "rent": ("6.2.02", "Arrendamientos y cánones", "EXPENSE"),
+    "supplies": ("6.2.03", "Suministros", "EXPENSE"),
+    "marketing": ("6.2.04", "Publicidad y propaganda", "EXPENSE"),
+    "services": ("6.2.05", "Servicios exteriores", "EXPENSE"),
+    "production": ("6.1.01", "Costo de producción", "EXPENSE"),
+    "other": ("6.2.99", "Otros gastos operativos", "EXPENSE"),
 }
 
 _PAYMENT_ACCOUNTS: dict[str, tuple[str, str, str]] = {
-    "cash":         ("1.1.01", "Caja",                "ASSET"),
-    "card":         ("1.1.02", "Tarjetas de crédito", "ASSET"),
-    "transfer":     ("1.1.03", "Banco",               "ASSET"),
-    "direct_debit": ("1.1.03", "Banco",               "ASSET"),
+    "cash": ("1.1.01", "Caja", "ASSET"),
+    "card": ("1.1.02", "Tarjetas de crédito", "ASSET"),
+    "transfer": ("1.1.03", "Banco", "ASSET"),
+    "direct_debit": ("1.1.03", "Banco", "ASSET"),
 }
 
-_DEFAULT_EXPENSE  = ("6.2.99", "Otros gastos operativos",      "EXPENSE")
+_DEFAULT_EXPENSE = ("6.2.99", "Otros gastos operativos", "EXPENSE")
 _DEFAULT_PAYABLES = ("2.1.01", "Proveedores / Cuentas por pagar", "LIABILITY")
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _resolve_account(
     db: Session,
@@ -130,9 +131,9 @@ def _reverse_entry(db: Session, entry: JournalEntry) -> None:
     for line in entry.lines:
         acct = db.get(ChartOfAccounts, line.account_id)
         if acct:
-            acct.debit_balance  = _as_dec(acct.debit_balance  or 0) - _as_dec(line.debit)
+            acct.debit_balance = _as_dec(acct.debit_balance or 0) - _as_dec(line.debit)
             acct.credit_balance = _as_dec(acct.credit_balance or 0) - _as_dec(line.credit)
-            acct.balance        = _as_dec(acct.debit_balance or 0)  - _as_dec(acct.credit_balance or 0)
+            acct.balance = _as_dec(acct.debit_balance or 0) - _as_dec(acct.credit_balance or 0)
             db.add(acct)
     db.flush()
 
@@ -140,6 +141,7 @@ def _reverse_entry(db: Session, entry: JournalEntry) -> None:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 class ExpenseJournalService:
     """
@@ -159,8 +161,11 @@ class ExpenseJournalService:
             if total <= 0:
                 return
             exp_acct, cnt_acct = _expense_accounts(
-                self.db, self.tenant_id,
-                expense.category, expense.payment_method, expense.status,
+                self.db,
+                self.tenant_id,
+                expense.category,
+                expense.payment_method,
+                expense.status,
             )
             entry_date = expense.date if isinstance(expense.date, date) else date.today()
             create_posted_entry(
@@ -172,7 +177,7 @@ class ExpenseJournalService:
                 ref_doc_id=expense.id,
                 created_by=self.user_id,
                 lines=[
-                    JournalLineIn(account_id=exp_acct.id, debit=total,        credit=Decimal("0")),
+                    JournalLineIn(account_id=exp_acct.id, debit=total, credit=Decimal("0")),
                     JournalLineIn(account_id=cnt_acct.id, debit=Decimal("0"), credit=total),
                 ],
             )

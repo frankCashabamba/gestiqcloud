@@ -593,11 +593,11 @@ export default function POSView() {
                                 </div>
                                 <div style={{ display: 'grid', gap: 6 }}>
                                     <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{t('pos:createProduct.tax')}</label>
-                                    <input type="number" style={{ border: '1px solid #cbd5e1', padding: '10px 12px', borderRadius: 10, fontSize: 16, fontWeight: 600, color: '#0f172a', background: '#fff' }} value={createProductForm.iva_tasa} onChange={(e) => setCreateProductForm((prev) => ({ ...prev, iva_tasa: Number(e.target.value) || 0 }))} min={0} step="0.01" />
+                                    <input type="number" style={{ border: '1px solid #cbd5e1', padding: '10px 12px', borderRadius: 10, fontSize: 16, fontWeight: 600, color: '#0f172a', background: '#fff' }} value={createProductForm.tax_rate} onChange={(e) => setCreateProductForm((prev) => ({ ...prev, tax_rate: Number(e.target.value) || 0 }))} min={0} step="0.01" />
                                 </div>
                             </div>
                             <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{t('pos:createProduct.category')}</label>
-                            <input type="text" style={{ border: '1px solid #cbd5e1', padding: '10px 12px', borderRadius: 10, fontSize: 15, color: '#0f172a', background: '#fff' }} value={createProductForm.categoria} placeholder="Opcional" onChange={(e) => setCreateProductForm((prev) => ({ ...prev, categoria: e.target.value }))} />
+                            <input type="text" style={{ border: '1px solid #cbd5e1', padding: '10px 12px', borderRadius: 10, fontSize: 15, color: '#0f172a', background: '#fff' }} value={createProductForm.category} placeholder="Opcional" onChange={(e) => setCreateProductForm((prev) => ({ ...prev, category: e.target.value }))} />
                         </div>
                         <div className="pos-modal-actions">
                             <ProtectedButton permission="pos:read" unstyled disabled={creatingProduct} style={{ minWidth: 108, height: 42, borderRadius: 10, border: '1px solid #94a3b8', background: '#e2e8f0', color: '#1e293b', fontWeight: 700, fontSize: 15 }} onClick={() => setShowCreateProductModal(false)}>{t('common:cancel')}</ProtectedButton>

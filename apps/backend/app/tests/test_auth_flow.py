@@ -21,7 +21,6 @@ from app.modules.identity.application.use_cases import (
     RefreshTokenUseCase,
 )
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -232,9 +231,7 @@ class TestRefreshTokenUseCase:
         user_id = str(uuid.uuid4())
 
         ts = MagicMock()
-        ts.decode_and_validate.return_value = {
-            "jti": jti, "family": family_id, "sub": user_id
-        }
+        ts.decode_and_validate.return_value = {"jti": jti, "family": family_id, "sub": user_id}
         repo = _make_refresh_repo(is_reused=True)
 
         uc = RefreshTokenUseCase(token_service=ts, refresh_repo=repo)

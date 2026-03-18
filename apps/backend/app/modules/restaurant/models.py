@@ -25,9 +25,7 @@ class RestaurantTable(Base):
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
-    __table_args__ = (
-        Index("uq_restaurant_table_number", "tenant_id", "number", unique=True),
-    )
+    __table_args__ = (Index("uq_restaurant_table_number", "tenant_id", "number", unique=True),)
 
 
 class RestaurantOrder(Base):
@@ -35,7 +33,9 @@ class RestaurantOrder(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
-    table_id = Column(UUID(as_uuid=True), ForeignKey("restaurant_tables.id"), nullable=False, index=True)
+    table_id = Column(
+        UUID(as_uuid=True), ForeignKey("restaurant_tables.id"), nullable=False, index=True
+    )
     order_number = Column(String(20), nullable=False)
     waiter_id = Column(UUID(as_uuid=True), nullable=True)
     waiter_name = Column(String(100), nullable=True)
@@ -48,18 +48,25 @@ class RestaurantOrder(Base):
     opened_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     closed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-
-    __table_args__ = (
-        Index("ix_restaurant_orders_tenant_status", "tenant_id", "status"),
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
+
+    __table_args__ = (Index("ix_restaurant_orders_tenant_status", "tenant_id", "status"),)
 
 
 class RestaurantOrderItem(Base):
     __tablename__ = "restaurant_order_items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    order_id = Column(UUID(as_uuid=True), ForeignKey("restaurant_orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("restaurant_orders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
     product_name = Column(String(200), nullable=False)
     qty = Column(Numeric(10, 3), nullable=False, default=1)

@@ -32,6 +32,7 @@ router = APIRouter(
 
 # --- Schemas ---
 
+
 class PlanOut(BaseModel):
     id: str
     name: str
@@ -66,6 +67,7 @@ class ChangePlanIn(BaseModel):
 
 
 # --- Endpoints ---
+
 
 @router.get("/plans", response_model=list[PlanOut])
 def list_plans(db: Session = Depends(get_db)):
@@ -148,7 +150,9 @@ def subscribe(payload: SubscribeIn, request: Request, db: Session = Depends(get_
 
     # Check plan exists
     plan = db.execute(
-        text("SELECT id, name, price_monthly, price_yearly FROM subscription_plans WHERE id = :pid AND is_active = true"),
+        text(
+            "SELECT id, name, price_monthly, price_yearly FROM subscription_plans WHERE id = :pid AND is_active = true"
+        ),
         {"pid": payload.plan_id},
     ).first()
     if not plan:
@@ -167,6 +171,7 @@ def subscribe(payload: SubscribeIn, request: Request, db: Session = Depends(get_
 
     now = datetime.now(UTC)
     from dateutil.relativedelta import relativedelta
+
     if payload.billing_cycle == "yearly":
         period_end = now + relativedelta(years=1)
     else:
@@ -290,6 +295,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
     try:
         import stripe
+
         event = stripe.Webhook.construct_event(body, sig, stripe_secret)
     except Exception as e:
         logger.warning("Stripe webhook verification failed: %s", e)

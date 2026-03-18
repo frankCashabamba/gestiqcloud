@@ -43,6 +43,7 @@ def _get_tenant_id(request: Request) -> UUID:
 # Schemas — Tables
 # ---------------------------------------------------------------------------
 
+
 class TableCreateIn(BaseModel):
     number: int
     name: str | None = Field(default=None, max_length=50)
@@ -63,6 +64,7 @@ class TableUpdateIn(BaseModel):
 # ---------------------------------------------------------------------------
 # Schemas — Orders
 # ---------------------------------------------------------------------------
+
 
 class OrderCreateIn(BaseModel):
     table_id: UUID
@@ -89,6 +91,7 @@ class OrderItemUpdateIn(BaseModel):
 # ===========================================================================
 # TABLES endpoints
 # ===========================================================================
+
 
 @router.get("/tables", response_model=list[dict[str, Any]])
 def list_tables(
@@ -180,7 +183,9 @@ def create_table(payload: TableCreateIn, request: Request, db: Session = Depends
 
 
 @router.put("/tables/{table_id}", response_model=dict[str, Any])
-def update_table(table_id: str, payload: TableUpdateIn, request: Request, db: Session = Depends(get_db)):
+def update_table(
+    table_id: str, payload: TableUpdateIn, request: Request, db: Session = Depends(get_db)
+):
     """Actualiza una mesa (incluye cambios de estado)."""
     ensure_guc_from_request(request, db, persist=True)
 
@@ -219,9 +224,9 @@ def update_table(table_id: str, payload: TableUpdateIn, request: Request, db: Se
         raise HTTPException(status_code=400, detail="no_fields_to_update")
 
     db.execute(
-        text(
-            f"UPDATE restaurant_tables SET {', '.join(updates)} WHERE id = :tid"
-        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+        text(f"UPDATE restaurant_tables SET {', '.join(updates)} WHERE id = :tid").bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True))
+        ),
         params,
     )
     db.commit()
@@ -257,6 +262,7 @@ def deactivate_table(table_id: str, request: Request, db: Session = Depends(get_
 # ===========================================================================
 # ORDERS (Comandas) endpoints
 # ===========================================================================
+
 
 @router.get("/orders", response_model=list[dict[str, Any]])
 def list_orders(
@@ -443,7 +449,9 @@ def get_order(order_id: str, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/orders/{order_id}/items", response_model=dict[str, Any], status_code=201)
-def add_order_item(order_id: str, payload: OrderItemCreateIn, request: Request, db: Session = Depends(get_db)):
+def add_order_item(
+    order_id: str, payload: OrderItemCreateIn, request: Request, db: Session = Depends(get_db)
+):
     """Agrega un ítem a la comanda."""
     ensure_guc_from_request(request, db, persist=True)
 
@@ -537,9 +545,9 @@ def update_order_item(
         raise HTTPException(status_code=400, detail="no_fields_to_update")
 
     db.execute(
-        text(
-            f"UPDATE restaurant_order_items SET {', '.join(updates)} WHERE id = :iid"
-        ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
+        text(f"UPDATE restaurant_order_items SET {', '.join(updates)} WHERE id = :iid").bindparams(
+            bindparam("iid", type_=PGUUID(as_uuid=True))
+        ),
         params,
     )
 
@@ -673,6 +681,7 @@ def close_order(order_id: str, request: Request, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _recalculate_order_totals(db: Session, order_id: str) -> dict[str, float]:
     """Recalcula subtotal/total de la comanda a partir de sus ítems activos."""

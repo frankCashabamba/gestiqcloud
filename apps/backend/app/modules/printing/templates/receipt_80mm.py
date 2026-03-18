@@ -15,6 +15,7 @@ from decimal import Decimal
 @dataclass
 class ReceiptLine:
     """Línea de producto en el recibo."""
+
     name: str
     qty: Decimal
     unit_price: Decimal
@@ -35,6 +36,7 @@ class ReceiptLine:
 @dataclass
 class PaymentInfo:
     """Información de pago."""
+
     method: str
     amount: Decimal
     ref: str | None = None
@@ -43,6 +45,7 @@ class PaymentInfo:
 @dataclass
 class ReceiptData:
     """Datos completos para generar un recibo."""
+
     receipt_number: str
     date: datetime
     cashier_name: str
@@ -213,21 +216,21 @@ def render_receipt_escpos(data: ReceiptData) -> bytes:
     - Bold/double-width text
     - Paper cut
     """
-    ESC = b'\x1b'
-    GS = b'\x1d'
+    ESC = b"\x1b"
+    GS = b"\x1d"
 
-    INIT = ESC + b'@'                  # Initialize printer
-    CENTER = ESC + b'a\x01'           # Center align
-    LEFT = ESC + b'a\x00'             # Left align
-    BOLD_ON = ESC + b'E\x01'          # Bold on
-    BOLD_OFF = ESC + b'E\x00'         # Bold off
-    DOUBLE_ON = GS + b'!\x11'         # Double width+height
-    DOUBLE_OFF = GS + b'!\x00'        # Normal size
-    CUT = GS + b'V\x00'              # Full cut
-    FEED = b'\n'
+    INIT = ESC + b"@"  # Initialize printer
+    CENTER = ESC + b"a\x01"  # Center align
+    LEFT = ESC + b"a\x00"  # Left align
+    BOLD_ON = ESC + b"E\x01"  # Bold on
+    BOLD_OFF = ESC + b"E\x00"  # Bold off
+    DOUBLE_ON = GS + b"!\x11"  # Double width+height
+    DOUBLE_OFF = GS + b"!\x00"  # Normal size
+    CUT = GS + b"V\x00"  # Full cut
+    FEED = b"\n"
 
     def encode(text: str) -> bytes:
-        return text.encode('cp437', errors='replace')
+        return text.encode("cp437", errors="replace")
 
     buf = bytearray()
     buf += INIT

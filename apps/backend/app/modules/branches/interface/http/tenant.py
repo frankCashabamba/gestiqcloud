@@ -40,6 +40,7 @@ def _get_tenant_id(request: Request) -> UUID:
 
 # --- Schemas ---
 
+
 class BranchCreateIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     code: str = Field(min_length=1, max_length=20)
@@ -59,6 +60,7 @@ class BranchUpdateIn(BaseModel):
 
 
 # --- Endpoints ---
+
 
 @router.get("", response_model=list[dict[str, Any]])
 def list_branches(request: Request, db: Session = Depends(get_db)):
@@ -94,9 +96,9 @@ def get_branch(branch_id: str, request: Request, db: Session = Depends(get_db)):
     ensure_guc_from_request(request, db, persist=True)
 
     branch = db.execute(
-        text("SELECT id, name, code, address, city, phone, is_main, is_active, created_at FROM branches WHERE id = :bid").bindparams(
-            bindparam("bid", type_=PGUUID(as_uuid=True))
-        ),
+        text(
+            "SELECT id, name, code, address, city, phone, is_main, is_active, created_at FROM branches WHERE id = :bid"
+        ).bindparams(bindparam("bid", type_=PGUUID(as_uuid=True))),
         {"bid": branch_id},
     ).first()
 
@@ -184,7 +186,9 @@ def create_branch(payload: BranchCreateIn, request: Request, db: Session = Depen
 
 
 @router.patch("/{branch_id}", response_model=dict[str, Any])
-def update_branch(branch_id: str, payload: BranchUpdateIn, request: Request, db: Session = Depends(get_db)):
+def update_branch(
+    branch_id: str, payload: BranchUpdateIn, request: Request, db: Session = Depends(get_db)
+):
     """Actualiza una sucursal."""
     ensure_guc_from_request(request, db, persist=True)
     tenant_id = _get_tenant_id(request)
@@ -243,7 +247,9 @@ def update_branch(branch_id: str, payload: BranchUpdateIn, request: Request, db:
 
 
 @router.post("/{branch_id}/assign-warehouse/{warehouse_id}", response_model=dict)
-def assign_warehouse(branch_id: str, warehouse_id: str, request: Request, db: Session = Depends(get_db)):
+def assign_warehouse(
+    branch_id: str, warehouse_id: str, request: Request, db: Session = Depends(get_db)
+):
     """Vincula un almacén a una sucursal."""
     ensure_guc_from_request(request, db, persist=True)
 
@@ -259,7 +265,9 @@ def assign_warehouse(branch_id: str, warehouse_id: str, request: Request, db: Se
 
 
 @router.post("/{branch_id}/assign-register/{register_id}", response_model=dict)
-def assign_register(branch_id: str, register_id: str, request: Request, db: Session = Depends(get_db)):
+def assign_register(
+    branch_id: str, register_id: str, request: Request, db: Session = Depends(get_db)
+):
     """Vincula un registro POS a una sucursal."""
     ensure_guc_from_request(request, db, persist=True)
 

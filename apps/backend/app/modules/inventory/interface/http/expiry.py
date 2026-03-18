@@ -46,9 +46,7 @@ def get_expiry_alerts(
     ensure_guc_from_request(request, db, persist=True)
     tenant_id = _get_tenant_id(request)
 
-    return ExpiryAlertService.check_expiring_products(
-        db, str(tenant_id), days_ahead=days_ahead
-    )
+    return ExpiryAlertService.check_expiring_products(db, str(tenant_id), days_ahead=days_ahead)
 
 
 @router.get("/expired", response_model=list[dict[str, Any]])

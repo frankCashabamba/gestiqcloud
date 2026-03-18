@@ -284,10 +284,7 @@ class CopilotContextBuilder:
         ).scalar()
 
         low_stock = db.execute(
-            text(
-                "SELECT count(*) FROM stock_items "
-                "WHERE tenant_id = :tid AND qty < 5"
-            ),
+            text("SELECT count(*) FROM stock_items " "WHERE tenant_id = :tid AND qty < 5"),
             {"tid": tid},
         ).scalar()
 

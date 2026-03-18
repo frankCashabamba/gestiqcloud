@@ -180,10 +180,12 @@ class CheckoutService:
 
     def _is_tax_enabled(self) -> bool:
         from app.modules.pos.interface.http._deps import is_tax_enabled
+
         return is_tax_enabled(self.db)
 
     def _resolve_default_tax_rate(self) -> float | None:
         from app.modules.pos.interface.http._deps import resolve_default_tax_rate
+
         return resolve_default_tax_rate(self.db)
 
     def _resolve_warehouse(self, warehouse_id: UUID | None) -> UUID:
@@ -231,7 +233,11 @@ class CheckoutService:
 
         for line in lines:
             line_id, product_id, qty_sold, unit_price, discount_pct = (
-                line[0], line[1], float(line[2]), float(line[3]), float(line[4] or 0)
+                line[0],
+                line[1],
+                float(line[2]),
+                float(line[3]),
+                float(line[4] or 0),
             )
             self._process_line(
                 line_id=line_id,
@@ -294,11 +300,14 @@ class CheckoutService:
                 )
                 if float(stock_item[1] or 0) < alloc_qty:
                     raise ValueError("selected_lot_insufficient")
-                allocations.append((
-                    stock_item, alloc_qty,
-                    normalize_lot(alloc.get("lot")),
-                    alloc.get("expires_at"),
-                ))
+                allocations.append(
+                    (
+                        stock_item,
+                        alloc_qty,
+                        normalize_lot(alloc.get("lot")),
+                        alloc.get("expires_at"),
+                    )
+                )
                 selected_total += alloc_qty
             if abs(selected_total - qty_sold) > 0.000001:
                 raise ValueError("invalid_lot_allocation_total")
@@ -330,37 +339,52 @@ class CheckoutService:
             cogs_total = to_dec(0, "0.000001")
             for si, alloc_qty, lot, exp in allocations:
                 _, alloc_cogs = self._costing.apply_outbound_fifo(
-                    str(tenant_id), str(warehouse_id), str(product_id),
+                    str(tenant_id),
+                    str(warehouse_id),
+                    str(product_id),
                     qty=to_dec(alloc_qty, "0.000001"),
-                    allow_negative=False, lot=lot, expires_at=exp,
+                    allow_negative=False,
+                    lot=lot,
+                    expires_at=exp,
                 )
                 cogs_total += alloc_cogs
         elif costing_method == "lifo":
             cogs_total = to_dec(0, "0.000001")
             for si, alloc_qty, lot, exp in allocations:
                 _, alloc_cogs = self._costing.apply_outbound_lifo(
-                    str(tenant_id), str(warehouse_id), str(product_id),
+                    str(tenant_id),
+                    str(warehouse_id),
+                    str(product_id),
                     qty=to_dec(alloc_qty, "0.000001"),
-                    allow_negative=False, lot=lot, expires_at=exp,
+                    allow_negative=False,
+                    lot=lot,
+                    expires_at=exp,
                 )
                 cogs_total += alloc_cogs
         else:  # avg
             _state = self._costing.apply_outbound(
-                str(tenant_id), str(warehouse_id), str(product_id),
-                qty=qty_dec, allow_negative=False,
+                str(tenant_id),
+                str(warehouse_id),
+                str(product_id),
+                qty=qty_dec,
+                allow_negative=False,
                 initial_qty=to_dec(current_qty, "0.000001"),
                 initial_avg_cost=fallback_cost,
             )
             cogs_total = qty_dec * _state.avg_cost
 
-        cogs_unit = to_dec(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else to_dec(0, "0.000001")
+        cogs_unit = (
+            to_dec(cogs_total / qty_dec, "0.000001") if qty_dec > 0 else to_dec(0, "0.000001")
+        )
 
         net_total = to_dec(qty_sold, "0.000001") * to_dec(unit_price, "0.0001")
         net_total = net_total * (Decimal("1") - (to_dec(discount_pct, "0.01") / 100))
         net_total = to_dec(net_total, "0.01")
         cogs_money = to_dec(cogs_total, "0.01")
         gross_profit = to_dec(net_total - cogs_money, "0.01")
-        gross_margin = to_dec(gross_profit / net_total, "0.0001") if net_total > 0 else to_dec(0, "0.0001")
+        gross_margin = (
+            to_dec(gross_profit / net_total, "0.0001") if net_total > 0 else to_dec(0, "0.0001")
+        )
 
         self.db.execute(
             text(
@@ -368,8 +392,14 @@ class CheckoutService:
                 "SET net_total = :net, cogs_unit = :cu, cogs_total = :ct, "
                 "gross_profit = :gp, gross_margin_pct = :gmp WHERE id = :id"
             ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-            {"id": line_id, "net": float(net_total), "cu": float(cogs_unit),
-             "ct": float(cogs_money), "gp": float(gross_profit), "gmp": float(gross_margin)},
+            {
+                "id": line_id,
+                "net": float(net_total),
+                "cu": float(cogs_unit),
+                "ct": float(cogs_money),
+                "gp": float(gross_profit),
+                "gmp": float(gross_margin),
+            },
         )
 
         if current_qty - qty_sold < 0:
@@ -402,10 +432,15 @@ class CheckoutService:
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
                 ),
                 {
-                    "tid": tenant_id, "pid": product_id, "wid": warehouse_id,
-                    "q": alloc_qty, "rid": receipt_id,
-                    "lot": lot, "exp": exp,
-                    "uc": float(cogs_unit), "tc": float(alloc_cost),
+                    "tid": tenant_id,
+                    "pid": product_id,
+                    "wid": warehouse_id,
+                    "q": alloc_qty,
+                    "rid": receipt_id,
+                    "lot": lot,
+                    "exp": exp,
+                    "uc": float(cogs_unit),
+                    "tc": float(alloc_cost),
                     "occurred_at": datetime.now(UTC),
                 },
             )
@@ -439,12 +474,16 @@ class CheckoutService:
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
                 bindparam("wid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": receipt_id, "tid": tenant_id, "gt": float(total), "tt": float(tax), "wid": warehouse_id},
+            {
+                "id": receipt_id,
+                "tid": tenant_id,
+                "gt": float(total),
+                "tt": float(tax),
+                "wid": warehouse_id,
+            },
         )
 
-    def _create_documents(
-        self, receipt_id: UUID, tenant_id: UUID, invoice_series: str
-    ) -> dict:
+    def _create_documents(self, receipt_id: UUID, tenant_id: UUID, invoice_series: str) -> dict:
         """Crea documentos complementarios (factura, venta). Best-effort — no aborta el pago."""
         documents: dict = {}
         try:

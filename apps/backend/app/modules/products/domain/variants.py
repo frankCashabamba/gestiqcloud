@@ -21,9 +21,7 @@ class ProductAttribute(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
-    __table_args__ = (
-        Index("uq_product_attr_tenant_name", "tenant_id", "name", unique=True),
-    )
+    __table_args__ = (Index("uq_product_attr_tenant_name", "tenant_id", "name", unique=True),)
 
 
 class ProductVariant(Base):
@@ -31,7 +29,12 @@ class ProductVariant(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
-    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     sku = Column(String(50), nullable=True)
     attributes = Column(JSONB, nullable=False, default=dict)  # {"Talla": "M", "Color": "Rojo"}
     price_override = Column(Numeric(12, 2), nullable=True)
@@ -40,9 +43,19 @@ class ProductVariant(Base):
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     __table_args__ = (
-        Index("uq_product_variant_sku", "tenant_id", "sku", unique=True, postgresql_where="sku IS NOT NULL"),
+        Index(
+            "uq_product_variant_sku",
+            "tenant_id",
+            "sku",
+            unique=True,
+            postgresql_where="sku IS NOT NULL",
+        ),
         Index("ix_product_variants_product", "tenant_id", "product_id"),
     )
