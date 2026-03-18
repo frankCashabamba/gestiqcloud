@@ -3,19 +3,16 @@ import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SectorLayout from './components/SectorLayout'
 import { useMisModulos } from '../hooks/useMisModulos'
+import { canonicalizeCompanyModuleKey } from '../lib/companyModuleKeys'
 
 function buildSlug(name?: string, url?: string, slug?: string): string {
-  if (slug) return slug.toLowerCase()
+  if (slug) return canonicalizeCompanyModuleKey(slug)
   if (url) {
     const normalized = url.startsWith('/') ? url.slice(1) : url
     const segment = normalized.split('/')[0] || normalized
-    return segment.toLowerCase()
+    return canonicalizeCompanyModuleKey(segment)
   }
-  return (name || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/['-?]/g, '')
-    .replace(/\s+/g, '')
+  return canonicalizeCompanyModuleKey(name || '')
 }
 
 const kpiCard = (key: string, title: string, helper: string) => (
@@ -47,13 +44,13 @@ const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
 
   const kpis = useMemo(() => {
     const items: React.ReactNode[] = []
-    if (allowedSlugs.has('ventas')) {
+    if (allowedSlugs.has('sales')) {
       items.push(kpiCard('sales', t('defaultDashboard.kpis.sales.title'), t('defaultDashboard.kpis.sales.help')))
     }
-    if (allowedSlugs.has('gastos')) {
+    if (allowedSlugs.has('expenses')) {
       items.push(kpiCard('expenses', t('defaultDashboard.kpis.expenses.title'), t('defaultDashboard.kpis.expenses.help')))
     }
-    if (allowedSlugs.has('facturacion')) {
+    if (allowedSlugs.has('invoicing')) {
       items.push(kpiCard('invoices', t('defaultDashboard.kpis.invoices.title'), t('defaultDashboard.kpis.invoices.help')))
     }
     if (!items.length) {

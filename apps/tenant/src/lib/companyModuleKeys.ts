@@ -47,15 +47,50 @@ const MODULE_KEY_ALIASES: Record<string, string> = {
   templates: 'templates',
 }
 
-export function canonicalizeCompanyModuleKey(value: string): string {
-  const normalized = (value || '')
+const MODULE_FOLDER_BY_KEY: Record<string, string> = {
+  accounting: 'accounting',
+  copilot: 'copilot',
+  crm: 'crm',
+  customers: 'customers',
+  einvoicing: 'einvoicing',
+  expenses: 'expenses',
+  finance: 'finances',
+  hr: 'hr',
+  imports: 'importador',
+  inventory: 'inventory',
+  invoicing: 'billing',
+  manufacturing: 'productions',
+  notifications: 'notifications',
+  pos: 'pos',
+  products: 'products',
+  purchases: 'purchases',
+  reconciliation: 'reconciliation',
+  reports: 'reports',
+  sales: 'sales',
+  settings: 'settings',
+  suppliers: 'suppliers',
+  templates: 'templates',
+  users: 'users',
+  webhooks: 'webhooks',
+}
+
+export function normalizeCompanyModuleKey(value: string): string {
+  return (value || '')
     .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, '')
+}
 
+export function canonicalizeCompanyModuleKey(value: string): string {
+  const normalized = normalizeCompanyModuleKey(value)
   return MODULE_KEY_ALIASES[normalized] || normalized
+}
+
+export function getCompanyModuleFolder(value: string): string {
+  const canonical = canonicalizeCompanyModuleKey(value)
+  return MODULE_FOLDER_BY_KEY[canonical] || canonical
 }
 
 export function hasCompanyModuleEnabled(enabledModules: string[], moduleKey: string): boolean {

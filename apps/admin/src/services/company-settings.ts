@@ -60,6 +60,36 @@ export type CompanyLimits = {
   allow_custom_roles?: boolean;
 };
 
+export type CompanyPlan = {
+  id: string;
+  name: string;
+  display_name?: string | null;
+  price_monthly: number;
+  price_yearly?: number | null;
+  max_users: number;
+  max_branches: number;
+  included_modules: string[];
+  features: Record<string, any>;
+};
+
+export type CompanySubscription = {
+  id: string;
+  plan: CompanyPlan | null;
+  status: string;
+  billing_cycle: string;
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+  trial_ends_at?: string | null;
+  canceled_at?: string | null;
+};
+
+export type CompanyFeatureFlags = {
+  tenant_id: string;
+  flags: Record<string, boolean>;
+  source: Record<string, string>;
+  tenant_overrides: Record<string, boolean>;
+};
+
 export async function getCompanySettings(tenantId: string): Promise<CompanySettings> {
   const response = await api.get(`/v1/admin/companies/${tenantId}/company/settings`);
   return response.data;
@@ -77,6 +107,58 @@ export async function getCompanyLimits(tenantId: string): Promise<CompanyLimits>
 
 export async function updateCompanyLimits(tenantId: string, limits: CompanyLimits) {
   const response = await api.put(`/v1/admin/companies/${tenantId}/company/settings/limits`, limits);
+  return response.data;
+}
+
+export async function getCompanyBillingPlans(tenantId: string): Promise<CompanyPlan[]> {
+  const response = await api.get(`/v1/admin/companies/${tenantId}/billing/plans`);
+  return response.data;
+}
+
+export async function getCompanySubscription(tenantId: string): Promise<CompanySubscription | null> {
+  const response = await api.get(`/v1/admin/companies/${tenantId}/billing/subscription`);
+  return response.data;
+}
+
+export async function subscribeCompany(
+  tenantId: string,
+  payload: { plan_id: string; billing_cycle?: 'monthly' | 'yearly'; return_url?: string | null }
+) {
+  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/subscribe`, payload);
+  return response.data;
+}
+
+export async function changeCompanyPlan(
+  tenantId: string,
+  payload: { new_plan_id: string; billing_cycle?: 'monthly' | 'yearly' | null }
+) {
+  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/change-plan`, payload);
+  return response.data;
+}
+
+export async function cancelCompanySubscription(tenantId: string) {
+  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/cancel`);
+  return response.data;
+}
+
+export async function openCompanyBillingPortal(
+  tenantId: string,
+  payload: { return_url?: string | null } = {}
+) {
+  const response = await api.post(`/v1/admin/companies/${tenantId}/billing/portal`, payload);
+  return response.data;
+}
+
+export async function getCompanyFeatureFlags(tenantId: string): Promise<CompanyFeatureFlags> {
+  const response = await api.get(`/v1/admin/companies/${tenantId}/feature-flags`);
+  return response.data;
+}
+
+export async function updateCompanyFeatureFlags(
+  tenantId: string,
+  payload: { overrides: Record<string, boolean | null> }
+): Promise<CompanyFeatureFlags> {
+  const response = await api.put(`/v1/admin/companies/${tenantId}/feature-flags`, payload);
   return response.data;
 }
 

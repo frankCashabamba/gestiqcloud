@@ -3,125 +3,38 @@ import { listMisModulos, listModulosSeleccionablesPorEmpresa, type Modulo } from
 import { useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import i18n from '../i18n'
-
-const SLUG_CANONICAL: Record<string, string> = {
-  ventas: 'sales',
-  sales: 'sales',
-  productos: 'products',
-  products: 'products',
-  clientes: 'clients',
-  customers: 'clients',
-  clients: 'clients',
-  proveedores: 'suppliers',
-  suppliers: 'suppliers',
-  inventario: 'inventory',
-  inventory: 'inventory',
-  facturacion: 'invoicing',
-  invoicing: 'invoicing',
-  billing: 'invoicing',
-  reportes: 'reports',
-  reports: 'reports',
-  configuracion: 'settings',
-  settings: 'settings',
-  usuarios: 'users',
-  users: 'users',
-  pos: 'pos',
-  tpv: 'pos',
-  contabilidad: 'accounting',
-  accounting: 'accounting',
-  compras: 'purchases',
-  purchases: 'purchases',
-  gastos: 'expenses',
-  expenses: 'expenses',
-  rrhh: 'hr',
-  hr: 'hr',
-  importador: 'importer',
-  importer: 'importer',
-  imports: 'importer',
-  importaciones: 'importer',
-  produccion: 'production',
-  production: 'production',
-  productions: 'production',
-  manufacturing: 'production',
-  finanzas: 'finances',
-  finance: 'finances',
-  finances: 'finances',
-  webhooks: 'webhooks',
-  reconciliation: 'reconciliation',
-  conciliacion: 'reconciliation',
-  conciliacionbancaria: 'reconciliation',
-  templates: 'templates',
-}
-
-function normalizeSlug(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '')
-}
-
-function canonicalizeSlug(value: string): string {
-  const normalized = normalizeSlug(value)
-  return SLUG_CANONICAL[normalized] || normalized
-}
+import { canonicalizeCompanyModuleKey } from '../lib/companyModuleKeys'
 
 function toSlug(m: Modulo): string {
-  if (m.slug) return canonicalizeSlug(m.slug)
+  if (m.slug) return canonicalizeCompanyModuleKey(m.slug)
   if (m.url) {
     const u = m.url.trim()
     const s = u.startsWith('/') ? u.slice(1) : u
     const seg = s.split('/')[0] || s
-    return canonicalizeSlug(seg)
+    return canonicalizeCompanyModuleKey(seg)
   }
-  return canonicalizeSlug(m.name || '')
+  return canonicalizeCompanyModuleKey(m.name || '')
 }
 
 const MODULE_NAME_KEYS: Record<string, string> = {
   dashboard: 'nav.dashboard',
-  ventas: 'nav.sales',
   sales: 'nav.sales',
-  productos: 'nav.products',
   products: 'nav.products',
-  clientes: 'nav.clients',
   customers: 'nav.clients',
-  clients: 'nav.clients',
   suppliers: 'nav.suppliers',
-  proveedores: 'nav.suppliers',
-  inventario: 'nav.inventory',
   inventory: 'nav.inventory',
-  facturacion: 'nav.invoicing',
   invoicing: 'nav.invoicing',
-  billing: 'nav.invoicing',
-  reportes: 'nav.reports',
   reports: 'nav.reports',
-  configuracion: 'nav.settings',
   settings: 'nav.settings',
-  usuarios: 'nav.users',
   users: 'nav.users',
   pos: 'nav.pos',
-  tpv: 'nav.pos',
-
-  contabilidad: 'modules.accounting',
   accounting: 'modules.accounting',
-  compras: 'modules.purchases',
   purchases: 'modules.purchases',
-  gastos: 'modules.expenses',
   expenses: 'modules.expenses',
-  rrhh: 'modules.hr',
   hr: 'modules.hr',
-  importador: 'modules.importer',
-  importer: 'modules.importer',
   imports: 'modules.importer',
-  importaciones: 'modules.importer',
-  produccion: 'modules.manufacturing',
-  production: 'modules.manufacturing',
-  productions: 'modules.manufacturing',
   manufacturing: 'modules.manufacturing',
-  finanzas: 'modules.finances',
   finance: 'modules.finances',
-  finances: 'modules.finances',
   webhooks: 'modules.webhooks',
   einvoicing: 'modules.einvoicing',
   reconciliation: 'modules.reconciliation',

@@ -6,17 +6,21 @@ import os
 import subprocess
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import inspect
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from app.config.database import SessionLocal, get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.services.migration_runner import (
+    idempotent_migrations_script as _idempotent_migrations_script,
+)
+from app.services.migration_runner import inline_migrations_allowed as _inline_migrations_allowed
+from app.services.migration_runner import repo_root as _repo_root
+from app.services.migration_runner import sql_migrations_status as _sql_migrations_status
 
 router = APIRouter(dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))])
 log = logging.getLogger("app.admin.ops")
@@ -31,76 +35,6 @@ migration_state = {
     "error": None,
     "run_id": None,
 }
-
-_RUNNER_RELATIVE_PATH = Path("ops") / "scripts" / "migrate_all_migrations_idempotent.py"
-_MIGRATIONS_RELATIVE_PATH = Path("ops") / "migrations"
-
-
-def _env_truthy(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _inline_migrations_allowed() -> bool:
-    return _env_truthy("ALLOW_INLINE_MIGRATIONS", True)
-
-
-def _candidate_repo_roots() -> list[Path]:
-    candidates: list[Path] = []
-    seen: set[Path] = set()
-
-    def _push(path: Path | None) -> None:
-        if path is None:
-            return
-        try:
-            resolved = path.resolve()
-        except Exception:
-            resolved = path
-        if resolved in seen:
-            return
-        seen.add(resolved)
-        candidates.append(resolved)
-
-    for env_name in ("GESTIQ_REPO_ROOT", "REPO_ROOT"):
-        raw = os.getenv(env_name)
-        if raw:
-            _push(Path(raw))
-
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        _push(parent)
-
-    cwd = Path.cwd()
-    _push(cwd)
-    for parent in cwd.parents:
-        _push(parent)
-
-    backend_dir = here.parents[3]
-    _push(backend_dir.parent.parent)
-    return candidates
-
-
-def _find_existing_relative_path(relative_path: Path) -> Path | None:
-    for root in _candidate_repo_roots():
-        candidate = root / relative_path
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def _repo_root() -> Path:
-    script_path = _find_existing_relative_path(_RUNNER_RELATIVE_PATH)
-    if script_path is not None:
-        return script_path.parents[2]
-
-    migrations_dir = _find_existing_relative_path(_MIGRATIONS_RELATIVE_PATH)
-    if migrations_dir is not None:
-        return migrations_dir.parents[1]
-
-    backend_dir = Path(__file__).resolve().parents[3]
-    return backend_dir.parent.parent
 
 
 def _db_is_postgres(db: Session | None) -> bool:
@@ -148,68 +82,6 @@ def _ensure_admin_migration_runs_table(db: Session | None) -> None:
         db.commit()
     except Exception:
         pass
-
-
-def _idempotent_migrations_script() -> Path:
-    override = os.getenv("GESTIQ_MIGRATION_SCRIPT") or os.getenv("INLINE_MIGRATIONS_SCRIPT")
-    if override:
-        return Path(override).expanduser().resolve()
-    discovered = _find_existing_relative_path(_RUNNER_RELATIVE_PATH)
-    if discovered is not None:
-        return discovered
-    return _repo_root() / _RUNNER_RELATIVE_PATH
-
-
-def _list_sql_migration_names() -> list[str]:
-    migrations_dir = _repo_root() / "ops" / "migrations"
-    if not migrations_dir.exists():
-        return []
-    names = [
-        item.name
-        for item in migrations_dir.iterdir()
-        if item.is_dir() and not item.name.startswith("_") and (item / "up.sql").exists()
-    ]
-    names.sort(key=lambda name: (0 if "complete_consolidated_schema" in name else 1, name))
-    return names
-
-
-def _load_applied_sql_migration_names(db: Session | None) -> set[str]:
-    if db is None or not db.bind:
-        return set()
-    try:
-        inspector = inspect(db.bind)
-        schema = "public" if _db_is_postgres(db) else None
-        if not inspector.has_table("_migrations", schema=schema):
-            return set()
-        table_name = _qualified_table_name(db, "_migrations")
-        rows = db.execute(sql_text(f"SELECT name FROM {table_name}")).fetchall()
-        return {str(row[0]) for row in rows if row and row[0]}
-    except Exception:
-        return set()
-
-
-def _sql_migrations_status(
-    db: Session | None = None,
-) -> tuple[bool, int, list[str], int]:
-    names = _list_sql_migration_names()
-    if not names:
-        return (False, 0, [], 0)
-
-    owns_session = db is None
-    session = db
-    if session is None:
-        session = SessionLocal()
-
-    try:
-        applied = _load_applied_sql_migration_names(session)
-        pending = [name for name in names if name not in applied]
-        applied_count = len([name for name in names if name in applied])
-        return (len(pending) > 0, len(pending), pending, applied_count)
-    except Exception:
-        return (True, len(names), names, 0)
-    finally:
-        if owns_session and session is not None:
-            session.close()
 
 
 def _format_subprocess_failure(prefix: str, exc: subprocess.CalledProcessError) -> str:

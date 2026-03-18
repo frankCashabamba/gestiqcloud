@@ -78,11 +78,4 @@ export async function getBusinessCategoryByCode(
  * Hook alternativo para cargar categorías en componentes
  * (simplificado para uso directo)
  */
-export function useBusinessCategories() {
-  return {
-    getAll: getBusinessCategories,
-    getByCode: getBusinessCategoryByCode,
-  }
-}
-
 export const getByCode = getBusinessCategoryByCode

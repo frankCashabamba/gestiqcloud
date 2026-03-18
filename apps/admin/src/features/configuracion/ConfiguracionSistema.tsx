@@ -62,6 +62,13 @@ function Index() {
             iconSize="sm"
           />
           <AdminCard
+            href="/admin/companies"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Suscripciones por empresa"
+            description="Accede al listado de empresas para gestionar billing, planes y portal de pago por tenant."
+            iconSize="sm"
+          />
+          <AdminCard
             href="tipo-negocio"
             iconSrc="/icons/empresas.png"
             title="Tipos de negocio"

@@ -11,7 +11,7 @@ const SESSION_WARN_AFTER_MS = 9 * 60_000
 const SESSION_RESPONSE_WINDOW_MS = 60_000
 
 export default function CompanyShell() {
-  const { logout } = useAuth()
+  const { logout, profile, loading } = useAuth()
   const { t } = useTranslation('common')
   const useAuthHook = useAuth
   const { empresa } = useParams()
@@ -19,6 +19,17 @@ export default function CompanyShell() {
   const prefix = empresa ? `/${empresa}` : ''
   const year = new Date().getFullYear()
   const [brand, setBrand] = useState<{ name?: string; logoUrl?: string | null }>({})
+
+  // Detecta sesión de otro tenant: si el slug en la URL no coincide con el token activo, forzar logout
+  useEffect(() => {
+    if (loading || !empresa || !profile) return
+    const tokenSlug = profile.empresa_slug
+    if (tokenSlug && tokenSlug !== empresa) {
+      logout().then(() => {
+        window.location.replace(`/login`)
+      })
+    }
+  }, [loading, empresa, profile?.empresa_slug])
 
   const isPosRoute = location.pathname.endsWith('/pos') || location.pathname.includes('/pos/')
 

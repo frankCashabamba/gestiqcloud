@@ -111,7 +111,7 @@ interface CompanyConfigData {
   settings: CompanySettings
   categories: Category[]
   enabled_modules: string[]
-  features: Features
+  features: Features & Record<string, boolean | number | undefined>
   sector: Sector
 }
 
@@ -133,6 +133,16 @@ interface CompanyConfigContextValue {
 }
 
 const CompanyConfigContext = createContext<CompanyConfigContextValue | undefined>(undefined)
+
+function mergeResolvedFeatureFlags(
+  baseFeatures: Record<string, any> | undefined,
+  resolvedFlags: Record<string, boolean> | undefined,
+): Features & Record<string, boolean | number | undefined> {
+  return {
+    ...(baseFeatures || {}),
+    ...(resolvedFlags || {}),
+  } as Features & Record<string, boolean | number | undefined>
+}
 
 export function CompanyConfigProvider({ children }: { children: ReactNode }) {
   const { token, loading: authLoading } = useAuth()
@@ -161,11 +171,15 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
       setLoading(true)
       setError(null)
 
-      const response = await apiFetch('/api/v1/company/settings/config') as any
+      const [response, featureFlagsResponse] = await Promise.all([
+        apiFetch('/api/v1/company/settings/config') as Promise<any>,
+        apiFetch('/api/v1/feature-flags').catch(() => null) as Promise<any>,
+      ])
       if (loadSeq !== loadSeqRef.current) return
       const mapped: CompanyConfigData = {
         ...response,
         company: response?.tenant,
+        features: mergeResolvedFeatureFlags(response?.features, featureFlagsResponse?.flags),
       }
 
       const lang = normalizeLang(mapped?.settings?.locale)

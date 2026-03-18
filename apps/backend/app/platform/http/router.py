@@ -210,8 +210,16 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.modules.products.variants.router", "router"), prefix="/tenant")
     # Empresas
     _mount_empresas(r)
+    include_router_safe(r, ("app.modules.billing.interface.http.admin", "router"), prefix="/admin")
     # Onboarding initialization
     include_router_safe(r, ("app.modules.onboarding.interface.http.tenant", "router"))
+    # Tenant subscription billing
+    include_router_safe(
+        r, ("app.modules.billing.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    include_router_safe(
+        r, ("app.modules.billing.interface.http.tenant", "webhook_router"), prefix="/tenant"
+    )
     # Alta de empresas: usar router moderno únicamente
 
     # Clientes (mount under /tenant to align FE endpoints)
@@ -403,6 +411,11 @@ def build_api_router() -> APIRouter:
     # Copilot (tenant-first)
     include_router_safe(
         r, ("app.modules.copilot.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Feature Flags
+    include_router_safe(
+        r, ("app.modules.feature_flags.interface.http.admin", "router"), prefix="/admin"
     )
 
     # Branches (Sucursales)

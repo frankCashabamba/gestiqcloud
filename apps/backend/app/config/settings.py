@@ -101,6 +101,17 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     SECRET_KEY: SecretStr = Field(..., json_schema_extra={"env": "SECRET_KEY"})
 
+    @field_validator("debug", mode="before")
+    @classmethod
+    def normalize_debug(cls, v):
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            if normalized in {"release", "production", "prod", "off", "false", "0", "no"}:
+                return False
+            if normalized in {"debug", "development", "dev", "on", "true", "1", "yes"}:
+                return True
+        return v
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: SecretStr) -> SecretStr:

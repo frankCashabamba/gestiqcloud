@@ -15,6 +15,7 @@ const SectorStart = lazy(() => import('../pages/SectorStart'))
 const EmpresaLoader = lazy(() => import('../pages/EmpresaLoader'))
 const Onboarding = lazy(() => import('../pages/Onboarding'))
 const SetPassword = lazy(() => import('../pages/SetPassword'))
+const Signup = lazy(() => import('../pages/Signup'))
 const ErrorPage = lazy(() => import('../pages/ErrorPage'))
 const Unauthorized = lazy(() => import('../pages/Unauthorized'))
 const ModuleLoader = lazy(() => import('../modules/ModuleLoader'))
@@ -64,6 +65,7 @@ export default function App() {
             </Route>
           </Route>
           <Route path='/login' element={<Login />} />
+          <Route path='/signup' element={<Signup />} />
           <Route path='/set-password' element={<SetPassword />} />
           <Route path='/error' element={<ErrorPage />} />
           <Route path='/unauthorized' element={<Unauthorized />} />

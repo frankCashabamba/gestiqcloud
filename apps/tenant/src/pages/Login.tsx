@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEnv } from '@ui/env'
 import { resolveTenantPath } from '../lib/tenantNavigation'
@@ -179,6 +179,13 @@ export default function Login() {
                 )}
                 {submitting ? t('login.signingIn') : t('login.signIn')}
               </button>
+
+              <div className="text-center text-sm text-slate-500">
+                <span>No tienes cuenta? </span>
+                <Link to="/signup" className="font-semibold text-[var(--gc-primary)] hover:underline">
+                  Crear empresa
+                </Link>
+              </div>
             </form>
 
             <footer className="mt-12 text-center text-xs text-slate-400">

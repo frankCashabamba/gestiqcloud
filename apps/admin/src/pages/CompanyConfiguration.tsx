@@ -51,6 +51,16 @@ import {
     getCompanyLimits,
     updateCompanyLimits,
     CompanyLimits,
+    getCompanyBillingPlans,
+    getCompanySubscription,
+    subscribeCompany,
+    changeCompanyPlan,
+    cancelCompanySubscription,
+    openCompanyBillingPortal,
+    getCompanyFeatureFlags,
+    updateCompanyFeatureFlags,
+    type CompanyPlan,
+    type CompanySubscription,
 } from '../services/company-settings';
 import { listSectores, type Sector } from '../services/configuracion/sectores';
 import { getEmpresa } from '../services/empresa';
@@ -116,6 +126,14 @@ export default function CompanyConfiguration() {
     const [selectedPlantillaCode, setSelectedPlantillaCode] = useState<string>('');
     const [limits, setLimits] = useState<CompanyLimits>({ user_limit: 10, allow_custom_roles: true });
     const [limitsLoading, setLimitsLoading] = useState(false);
+    const [billingPlans, setBillingPlans] = useState<CompanyPlan[]>([]);
+    const [subscription, setSubscription] = useState<CompanySubscription | null>(null);
+    const [billingLoading, setBillingLoading] = useState(false);
+    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+    const [featureFlagsLoading, setFeatureFlagsLoading] = useState(false);
+    const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({});
+    const [featureFlagSources, setFeatureFlagSources] = useState<Record<string, string>>({});
+    const [featureFlagOverrides, setFeatureFlagOverrides] = useState<Record<string, boolean | null>>({});
 
     // Certificate upload states
     // CatÃ¡logos dinÃ¡micos
@@ -171,11 +189,26 @@ export default function CompanyConfiguration() {
             setLimitsLoading(true);
             const limitsData = await getCompanyLimits(id);
             setLimits(limitsData || { user_limit: 10, allow_custom_roles: true });
+            setBillingLoading(true);
+            setFeatureFlagsLoading(true);
+            const [plansData, subscriptionData, featureFlagsData] = await Promise.all([
+                getCompanyBillingPlans(id).catch(() => []),
+                getCompanySubscription(id).catch(() => null),
+                getCompanyFeatureFlags(id).catch(() => null),
+            ]);
+            setBillingPlans(plansData);
+            setSubscription(subscriptionData);
+            setBillingCycle(subscriptionData?.billing_cycle === 'yearly' ? 'yearly' : 'monthly');
+            setFeatureFlags(featureFlagsData?.flags || {});
+            setFeatureFlagSources(featureFlagsData?.source || {});
+            setFeatureFlagOverrides(featureFlagsData?.tenant_overrides || {});
         } catch (err: any) {
             setError(err.message || 'Error cargando configuración');
         } finally {
             setLoading(false);
             setLimitsLoading(false);
+            setBillingLoading(false);
+            setFeatureFlagsLoading(false);
         }
     };
 
@@ -270,6 +303,92 @@ export default function CompanyConfiguration() {
         setTabValue(newValue);
     };
 
+    const refreshBilling = async () => {
+        if (!id) return;
+        try {
+            setBillingLoading(true);
+            const [plansData, subscriptionData] = await Promise.all([
+                getCompanyBillingPlans(id).catch(() => []),
+                getCompanySubscription(id).catch(() => null),
+            ]);
+            setBillingPlans(plansData);
+            setSubscription(subscriptionData);
+            setBillingCycle(subscriptionData?.billing_cycle === 'yearly' ? 'yearly' : 'monthly');
+        } catch (err: any) {
+            setError(err.message || 'Error cargando suscripciÃ³n');
+        } finally {
+            setBillingLoading(false);
+        }
+    };
+
+    const handleSubscribeCompany = async (planId: string) => {
+        if (!id) return;
+        try {
+            setBillingLoading(true);
+            const result = await subscribeCompany(id, {
+                plan_id: planId,
+                billing_cycle: billingCycle,
+                return_url: window.location.href,
+            });
+            if (result?.checkout_url) {
+                window.location.href = result.checkout_url;
+                return;
+            }
+            await refreshBilling();
+            setSuccess('SuscripciÃ³n creada correctamente');
+        } catch (err: any) {
+            setError(err?.response?.data?.detail || err?.message || 'Error creando suscripciÃ³n');
+        } finally {
+            setBillingLoading(false);
+        }
+    };
+
+    const handleChangeCompanyPlan = async (planId: string) => {
+        if (!id) return;
+        try {
+            setBillingLoading(true);
+            await changeCompanyPlan(id, { new_plan_id: planId, billing_cycle: billingCycle });
+            await refreshBilling();
+            setSuccess('Plan actualizado correctamente');
+        } catch (err: any) {
+            setError(err?.response?.data?.detail || err?.message || 'Error actualizando el plan');
+        } finally {
+            setBillingLoading(false);
+        }
+    };
+
+    const handleCancelCompanySubscription = async () => {
+        if (!id) return;
+        if (!window.confirm('¿Cancelar la suscripción de esta empresa?')) return;
+        try {
+            setBillingLoading(true);
+            await cancelCompanySubscription(id);
+            await refreshBilling();
+            setSuccess('SuscripciÃ³n cancelada correctamente');
+        } catch (err: any) {
+            setError(err?.response?.data?.detail || err?.message || 'Error cancelando suscripciÃ³n');
+        } finally {
+            setBillingLoading(false);
+        }
+    };
+
+    const handleOpenBillingPortal = async () => {
+        if (!id) return;
+        try {
+            setBillingLoading(true);
+            const result = await openCompanyBillingPortal(id, { return_url: window.location.href });
+            if (result?.portal_url) {
+                window.location.href = result.portal_url;
+                return;
+            }
+            setError('No se pudo abrir el portal de facturaciÃ³n');
+        } catch (err: any) {
+            setError(err?.response?.data?.detail || err?.message || 'Error abriendo el portal de facturaciÃ³n');
+        } finally {
+            setBillingLoading(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!id) return;
 
@@ -285,6 +404,9 @@ export default function CompanyConfiguration() {
             await updateCompanyLimits(id, {
                 user_limit: limits.user_limit,
                 allow_custom_roles: limits.allow_custom_roles,
+            });
+            await updateCompanyFeatureFlags(id, {
+                overrides: featureFlagOverrides,
             });
 
             // Recargar configuración para confirmar el guardado
@@ -446,6 +568,8 @@ export default function CompanyConfiguration() {
                 >
                     <Tab label="Plantilla" />
                     <Tab label="Limites" />
+                    <Tab label="Suscripción" />
+                    <Tab label="Feature Flags" />
                 </Tabs>
 
                 {/* Tab 0: Plantilla */}
@@ -553,6 +677,207 @@ export default function CompanyConfiguration() {
                                 />
                             </Grid>
                         </Grid>
+                    )}
+                </TabPanel>
+
+                <TabPanel value={tabValue} index={2}>
+                    <Typography variant="h6" gutterBottom>
+                        SuscripciÃ³n de la empresa
+                    </Typography>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Gestiona el plan contratado de esta empresa desde admin.
+                    </Alert>
+                    {billingLoading ? (
+                        <CircularProgress size={20} />
+                    ) : (
+                        <Box>
+                            <Box sx={{ mb: 3, maxWidth: 260 }}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Ciclo de facturaciÃ³n</InputLabel>
+                                    <Select
+                                        value={billingCycle}
+                                        label="Ciclo de facturaciÃ³n"
+                                        onChange={(e) => setBillingCycle(e.target.value as 'monthly' | 'yearly')}
+                                    >
+                                        <MenuItem value="monthly">Mensual</MenuItem>
+                                        <MenuItem value="yearly">Anual</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Box>
+                            {subscription ? (
+                                <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                                        Plan actual: {subscription.plan?.display_name || subscription.plan?.name || 'Sin plan'}
+                                    </Typography>
+                                    <Box display="flex" gap={1} alignItems="center" flexWrap="wrap" mt={1}>
+                                        <Chip
+                                            label={subscription.status}
+                                            color={
+                                                subscription.status === 'active'
+                                                    ? 'success'
+                                                    : subscription.status === 'trialing'
+                                                      ? 'info'
+                                                      : subscription.status === 'past_due'
+                                                        ? 'warning'
+                                                        : 'default'
+                                            }
+                                        />
+                                        <Chip
+                                            label={subscription.billing_cycle === 'yearly' ? 'Anual' : 'Mensual'}
+                                            variant="outlined"
+                                        />
+                                    </Box>
+                                    {subscription.current_period_end && (
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                            RenovaciÃ³n / fin de acceso: {new Date(subscription.current_period_end).toLocaleDateString()}
+                                        </Typography>
+                                    )}
+                                    {subscription.trial_ends_at && (
+                                        <Typography variant="body2" color="text.secondary">
+                                            Trial hasta: {new Date(subscription.trial_ends_at).toLocaleDateString()}
+                                        </Typography>
+                                    )}
+                                    <Box mt={2}>
+                                        <Box display="flex" gap={1} flexWrap="wrap">
+                                            <Button variant="outlined" onClick={handleOpenBillingPortal}>
+                                                Portal de facturaciÃ³n
+                                            </Button>
+                                            <Button color="warning" variant="outlined" onClick={handleCancelCompanySubscription}>
+                                                Cancelar suscripciÃ³n
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                </Paper>
+                            ) : (
+                                <Alert severity="warning" sx={{ mb: 3 }}>
+                                    Esta empresa no tiene una suscripciÃ³n activa.
+                                </Alert>
+                            )}
+
+                            <Grid container spacing={2}>
+                                {billingPlans.map((plan) => {
+                                    const isCurrent = plan.id === subscription?.plan?.id;
+                                    return (
+                                        <Grid key={plan.id} size={{ xs: 12, md: 4 }}>
+                                            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                                    {plan.display_name || plan.name}
+                                                </Typography>
+                                                <Typography variant="h5" sx={{ mt: 1 }}>
+                                                    ${billingCycle === 'yearly' ? (plan.price_yearly ?? plan.price_monthly) : plan.price_monthly}
+                                                    <Typography component="span" variant="body2" color="text.secondary">
+                                                        {billingCycle === 'yearly' ? '/aÃ±o' : '/mes'}
+                                                    </Typography>
+                                                </Typography>
+                                                {plan.price_yearly ? (
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        ${plan.price_yearly}/aÃ±o
+                                                    </Typography>
+                                                ) : null}
+                                                <Typography variant="body2" sx={{ mt: 2 }}>
+                                                    Usuarios: {plan.max_users}
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                    Sucursales: {plan.max_branches}
+                                                </Typography>
+                                                <Box display="flex" gap={0.5} flexWrap="wrap" mt={1.5}>
+                                                    {(plan.included_modules || []).map((moduleName) => (
+                                                        <Chip key={`${plan.id}-${moduleName}`} label={moduleName} size="small" variant="outlined" />
+                                                    ))}
+                                                </Box>
+                                                <Box mt={2}>
+                                                    {isCurrent ? (
+                                                        <Button fullWidth variant="contained" disabled>
+                                                            Plan actual
+                                                        </Button>
+                                                    ) : subscription ? (
+                                                        <Button fullWidth variant="contained" onClick={() => handleChangeCompanyPlan(plan.id)}>
+                                                            Cambiar a este plan
+                                                        </Button>
+                                                    ) : (
+                                                        <Button fullWidth variant="contained" onClick={() => handleSubscribeCompany(plan.id)}>
+                                                            Crear suscripciÃ³n
+                                                        </Button>
+                                                    )}
+                                                </Box>
+                                            </Paper>
+                                        </Grid>
+                                    );
+                                })}
+                            </Grid>
+                        </Box>
+                    )}
+                </TabPanel>
+
+                <TabPanel value={tabValue} index={3}>
+                    <Typography variant="h6" gutterBottom>
+                        Feature flags del tenant
+                    </Typography>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Override manual por tenant. Default elimina el override y deja actuar a entorno, pais, plan o valores globales.
+                    </Alert>
+                    {featureFlagsLoading ? (
+                        <CircularProgress size={20} />
+                    ) : (
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>Flag</TableCell>
+                                    <TableCell>Efectivo</TableCell>
+                                    <TableCell>Fuente</TableCell>
+                                    <TableCell>Override tenant</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {Object.keys(featureFlags).sort().map((flagName) => (
+                                    <TableRow key={flagName}>
+                                        <TableCell sx={{ fontFamily: 'monospace' }}>{flagName}</TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                size="small"
+                                                label={featureFlags[flagName] ? 'enabled' : 'disabled'}
+                                                color={featureFlags[flagName] ? 'success' : 'default'}
+                                                variant={featureFlags[flagName] ? 'filled' : 'outlined'}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                size="small"
+                                                label={featureFlagSources[flagName] || 'default'}
+                                                variant="outlined"
+                                            />
+                                        </TableCell>
+                                        <TableCell sx={{ minWidth: 200 }}>
+                                            <FormControl fullWidth size="small">
+                                                <Select
+                                                    value={
+                                                        featureFlagOverrides[flagName] === true
+                                                            ? 'true'
+                                                            : featureFlagOverrides[flagName] === false
+                                                                ? 'false'
+                                                                : 'default'
+                                                    }
+                                                    onChange={(e) => {
+                                                        const value = e.target.value;
+                                                        setFeatureFlagOverrides((prev) => ({
+                                                            ...prev,
+                                                            [flagName]:
+                                                                value === 'default'
+                                                                    ? null
+                                                                    : value === 'true',
+                                                        }));
+                                                    }}
+                                                >
+                                                    <MenuItem value="default">Default</MenuItem>
+                                                    <MenuItem value="true">Enabled</MenuItem>
+                                                    <MenuItem value="false">Disabled</MenuItem>
+                                                </Select>
+                                            </FormControl>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     )}
                 </TabPanel>
 

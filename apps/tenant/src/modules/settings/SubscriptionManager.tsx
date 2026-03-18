@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { TENANT_BILLING } from '@shared/endpoints'
 import tenantApi from '../../shared/api/client'
 import { useToast } from '../../shared/toast'
 
@@ -30,21 +31,33 @@ export default function SubscriptionManager() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [loading, setLoading] = useState(true)
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
   useEffect(() => {
     Promise.all([
-      tenantApi.get('/api/v1/tenant/billing/plans').then(r => r.data).catch(() => []),
-      tenantApi.get('/api/v1/tenant/billing/subscription').then(r => r.data).catch(() => null),
-    ]).then(([p, s]) => {
-      setPlans(p)
-      setSubscription(s)
-    }).finally(() => setLoading(false))
+      tenantApi.get(TENANT_BILLING.plans).then(r => r.data).catch(() => []),
+      tenantApi.get(TENANT_BILLING.subscription).then(r => r.data).catch(() => null),
+    ])
+      .then(([p, s]) => {
+        setPlans(p)
+        setSubscription(s)
+        setBillingCycle(s?.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   const handleSubscribe = async (planId: string) => {
     try {
-      await tenantApi.post('/api/v1/tenant/billing/subscribe', { plan_id: planId, billing_cycle: 'monthly' })
-      success('Suscripción activada')
+      const { data } = await tenantApi.post(TENANT_BILLING.subscribe, {
+        plan_id: planId,
+        billing_cycle: billingCycle,
+        return_url: window.location.href,
+      })
+      if (data?.checkout_url) {
+        window.location.href = data.checkout_url
+        return
+      }
+      success('Suscripcion activada')
       window.location.reload()
     } catch {
       showError('Error al suscribirse')
@@ -53,7 +66,10 @@ export default function SubscriptionManager() {
 
   const handleChangePlan = async (planId: string) => {
     try {
-      await tenantApi.post('/api/v1/tenant/billing/change-plan', { new_plan_id: planId })
+      await tenantApi.post(TENANT_BILLING.changePlan, {
+        new_plan_id: planId,
+        billing_cycle: billingCycle,
+      })
       success('Plan actualizado')
       window.location.reload()
     } catch {
@@ -62,13 +78,26 @@ export default function SubscriptionManager() {
   }
 
   const handleCancel = async () => {
-    if (!confirm('¿Cancelar suscripción? Podrás seguir usando el sistema hasta fin del período.')) return
+    if (!window.confirm('Cancelar suscripcion? Podras seguir usando el sistema hasta fin del periodo.')) return
     try {
-      await tenantApi.post('/api/v1/tenant/billing/cancel')
-      success('Suscripción cancelada')
+      await tenantApi.post(TENANT_BILLING.cancel)
+      success('Suscripcion cancelada')
       window.location.reload()
     } catch {
       showError('Error al cancelar')
+    }
+  }
+
+  const handleOpenPortal = async () => {
+    try {
+      const { data } = await tenantApi.post(TENANT_BILLING.portal, { return_url: window.location.href })
+      if (data?.portal_url) {
+        window.location.href = data.portal_url
+        return
+      }
+      showError('No se pudo abrir el portal de facturacion')
+    } catch {
+      showError('Error al abrir el portal de facturacion')
     }
   }
 
@@ -85,22 +114,40 @@ export default function SubscriptionManager() {
 
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold">💳 Suscripción y Planes</h2>
+      <h2 className="text-2xl font-bold">Suscripcion y planes</h2>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-gray-700">Ciclo:</span>
+        <button
+          onClick={() => setBillingCycle('monthly')}
+          className={`rounded-full px-3 py-1 text-sm ${billingCycle === 'monthly' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+        >
+          Mensual
+        </button>
+        <button
+          onClick={() => setBillingCycle('yearly')}
+          className={`rounded-full px-3 py-1 text-sm ${billingCycle === 'yearly' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+        >
+          Anual
+        </button>
+      </div>
 
       {subscription && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-start">
+        <div className="rounded-lg bg-white p-6 shadow">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h3 className="text-lg font-semibold">Plan actual: {subscription.plan?.display_name || subscription.plan?.name || 'Sin plan'}</h3>
-              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge[subscription.status] || 'bg-gray-100'}`}>
+              <h3 className="text-lg font-semibold">
+                Plan actual: {subscription.plan?.display_name || subscription.plan?.name || 'Sin plan'}
+              </h3>
+              <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge[subscription.status] || 'bg-gray-100'}`}>
                 {subscription.status}
               </span>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="mt-2 text-sm text-gray-500">
                 Ciclo: {subscription.billing_cycle === 'yearly' ? 'Anual' : 'Mensual'}
               </p>
               {subscription.current_period_end && (
                 <p className="text-sm text-gray-500">
-                  Próxima renovación: {new Date(subscription.current_period_end).toLocaleDateString()}
+                  Proxima renovacion: {new Date(subscription.current_period_end).toLocaleDateString()}
                 </p>
               )}
               {subscription.trial_ends_at && (
@@ -109,60 +156,67 @@ export default function SubscriptionManager() {
                 </p>
               )}
             </div>
-            {subscription.status !== 'canceled' && (
-              <button onClick={handleCancel} className="text-sm text-red-600 hover:underline">
-                Cancelar suscripción
+            <div className="flex flex-col items-start gap-2 md:items-end">
+              <button onClick={handleOpenPortal} className="text-sm text-blue-600 hover:underline">
+                Portal de facturacion
               </button>
-            )}
+              {subscription.status !== 'canceled' && (
+                <button onClick={handleCancel} className="text-sm text-red-600 hover:underline">
+                  Cancelar suscripcion
+                </button>
+              )}
+            </div>
           </div>
           {subscription.plan && (
             <div className="mt-4 text-sm text-gray-600">
-              <p>Usuarios máx: {subscription.plan.max_users} | Sucursales máx: {subscription.plan.max_branches}</p>
-              <p>Módulos: {subscription.plan.included_modules.join(', ') || 'Todos'}</p>
+              <p>Usuarios max: {subscription.plan.max_users} | Sucursales max: {subscription.plan.max_branches}</p>
+              <p>Modulos: {subscription.plan.included_modules.join(', ') || 'Todos'}</p>
             </div>
           )}
         </div>
       )}
 
       <h3 className="text-xl font-semibold">Planes disponibles</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {plans.map(plan => {
           const isCurrent = plan.id === currentPlanId
+          const displayedPrice = billingCycle === 'yearly' ? (plan.price_yearly ?? plan.price_monthly) : plan.price_monthly
           return (
-            <div key={plan.id} className={`bg-white rounded-lg shadow p-6 border-2 ${isCurrent ? 'border-blue-500' : 'border-transparent'}`}>
+            <div key={plan.id} className={`rounded-lg border-2 bg-white p-6 shadow ${isCurrent ? 'border-blue-500' : 'border-transparent'}`}>
               <h4 className="text-lg font-bold">{plan.display_name || plan.name}</h4>
-              <p className="text-3xl font-bold mt-2">
-                ${plan.price_monthly}<span className="text-sm font-normal text-gray-500">/mes</span>
+              <p className="mt-2 text-3xl font-bold">
+                ${displayedPrice}
+                <span className="text-sm font-normal text-gray-500">{billingCycle === 'yearly' ? '/ano' : '/mes'}</span>
               </p>
               {plan.price_yearly && (
-                <p className="text-sm text-gray-500">${plan.price_yearly}/año</p>
+                <p className="text-sm text-gray-500">${plan.price_yearly}/ano</p>
               )}
               <div className="mt-4 space-y-2 text-sm">
-                <p>👤 Hasta {plan.max_users} usuarios</p>
-                <p>🏢 Hasta {plan.max_branches} sucursales</p>
+                <p>Hasta {plan.max_users} usuarios</p>
+                <p>Hasta {plan.max_branches} sucursales</p>
                 {plan.included_modules.length > 0 && (
                   <div>
-                    <p className="font-medium">Módulos incluidos:</p>
-                    <ul className="list-disc list-inside text-gray-600">
-                      {plan.included_modules.map(m => <li key={m}>{m}</li>)}
+                    <p className="font-medium">Modulos incluidos:</p>
+                    <ul className="list-inside list-disc text-gray-600">
+                      {plan.included_modules.map(moduleName => <li key={moduleName}>{moduleName}</li>)}
                     </ul>
                   </div>
                 )}
               </div>
               <div className="mt-6">
                 {isCurrent ? (
-                  <span className="block text-center py-2 bg-blue-100 text-blue-800 rounded font-medium">Plan actual</span>
+                  <span className="block rounded bg-blue-100 py-2 text-center font-medium text-blue-800">Plan actual</span>
                 ) : subscription ? (
                   <button
                     onClick={() => handleChangePlan(plan.id)}
-                    className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    className="w-full rounded bg-blue-600 py-2 text-white hover:bg-blue-700"
                   >
                     Cambiar a este plan
                   </button>
                 ) : (
                   <button
                     onClick={() => handleSubscribe(plan.id)}
-                    className="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    className="w-full rounded bg-green-600 py-2 text-white hover:bg-green-700"
                   >
                     Suscribirse
                   </button>
@@ -172,7 +226,7 @@ export default function SubscriptionManager() {
           )
         })}
         {plans.length === 0 && (
-          <p className="col-span-3 text-center text-gray-500 py-8">No hay planes disponibles</p>
+          <p className="col-span-3 py-8 text-center text-gray-500">No hay planes disponibles</p>
         )}
       </div>
     </div>

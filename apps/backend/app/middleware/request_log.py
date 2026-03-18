@@ -10,6 +10,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.core.log_context import clear_context, set_request_context, set_tenant_context
+from app.telemetry.metrics import record_request
+
 logger = logging.getLogger("app.request")
 
 
@@ -26,13 +29,20 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         req_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
         client_rev = request.headers.get("X-Client-Revision")
         client_ver = request.headers.get("X-Client-Version")
+        tenant_id = None
+        user_id = None
         # expone en request.state y propaga en respuesta
         try:
             request.state.request_id = req_id
         except Exception:
             pass
+        set_request_context(req_id)
 
-        resp: Response = await call_next(request)
+        try:
+            resp: Response = await call_next(request)
+        except Exception:
+            clear_context()
+            raise
 
         dur_ms = int((time.perf_counter() - start) * 1000)
         resp.headers.setdefault("X-Request-ID", req_id)
@@ -42,16 +52,17 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             resp.headers.setdefault("X-Client-Version", client_ver)
 
         try:
-            # Try to include tenant/user from access_claims
-            tenant_id = None
-            user_id = None
-            try:
-                claims = getattr(request.state, "access_claims", None) or {}
-                if isinstance(claims, dict):
-                    tenant_id = claims.get("tenant_id")
-                    user_id = claims.get("user_id")
-            except Exception:
-                pass
+            claims = getattr(request.state, "access_claims", None) or {}
+            if isinstance(claims, dict):
+                tenant_id = claims.get("tenant_id")
+                user_id = claims.get("user_id")
+        except Exception:
+            pass
+        if tenant_id:
+            set_tenant_context(str(tenant_id))
+
+        try:
+            record_request(request.method, request.url.path, resp.status_code, dur_ms / 1000)
 
             logger.info(
                 _json(
@@ -72,7 +83,9 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
                 )
             )
         except Exception:
-            # no interrumpir el ciclo por logging
+            # no interrumpir el ciclo por logging/métricas
             pass
+        finally:
+            clear_context()
 
         return resp

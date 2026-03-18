@@ -4,6 +4,7 @@ export const TENANT_AUTH = {
   csrf: '/api/v1/tenant/auth/csrf',
   logout: '/api/v1/tenant/auth/logout',
   setPassword: '/api/v1/tenant/auth/set-password',
+  signup: '/api/v1/tenant/auth/signup',
 }
 
 export const TENANT_MODULES = {
@@ -45,6 +46,15 @@ export const TENANT_BANKS = {
 
 export const TENANT_ONBOARDING = {
   init: '/api/v1/tenant/onboarding/init',
+}
+
+export const TENANT_BILLING = {
+  plans: '/api/v1/tenant/billing/plans',
+  subscription: '/api/v1/tenant/billing/subscription',
+  subscribe: '/api/v1/tenant/billing/subscribe',
+  changePlan: '/api/v1/tenant/billing/change-plan',
+  cancel: '/api/v1/tenant/billing/cancel',
+  portal: '/api/v1/tenant/billing/portal',
 }
 
 export const TENANT_USERS = {

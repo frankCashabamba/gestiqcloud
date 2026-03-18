@@ -1,8 +1,9 @@
 import logging
+import uuid
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -18,10 +19,14 @@ from app.core.deps import set_tenant_scope
 from app.core.i18n import t
 from app.core.jwt_provider import get_token_service as get_shared_token_service
 from app.core.perm_loader import build_tenant_claims
+from app.models.company.company_settings import CompanySettings
 from app.models.company.company_user import CompanyUser
+from app.models.tenant import Tenant
+from app.modules.company.application.use_cases import create_company_admin_user
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
 from app.modules.identity.infrastructure.tenant_refresh_repo import TenantSqlRefreshTokenRepo
+from app.shared.utils import slugify
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 log = logging.getLogger("app.auth.tenant")
@@ -35,6 +40,41 @@ class LoginTenant(BaseModel):
 class SetPasswordIn(BaseModel):
     token: str
     password: str
+
+
+class SignupTenant(BaseModel):
+    company_name: str = Field(min_length=2, max_length=100)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(default="", max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=255)
+    country_code: str | None = Field(default=None, max_length=2)
+    default_language: str = Field(default="es", max_length=10)
+    timezone: str = Field(default="Europe/Madrid", max_length=50)
+    currency: str = Field(default="EUR", max_length=10)
+    sector_template_name: str | None = Field(default=None, max_length=255)
+
+
+def _unique_slug(db: Session, company_name: str) -> str:
+    base = slugify(company_name) or f"empresa-{uuid.uuid4().hex[:6]}"
+    candidate = base
+    counter = 2
+    while db.query(Tenant).filter(Tenant.slug == candidate).first():
+        candidate = f"{base}-{counter}"
+        counter += 1
+    return candidate
+
+
+def _unique_username(db: Session, email: str, first_name: str, last_name: str) -> str:
+    base = slugify(f"{first_name}-{last_name}") or slugify(email.split("@", 1)[0]) or "admin"
+    candidate = base
+    counter = 2
+    while (
+        db.query(CompanyUser).filter(func.lower(CompanyUser.username) == candidate.lower()).first()
+    ):
+        candidate = f"{base}{counter}"
+        counter += 1
+    return candidate
 
 
 @router.post("/login")
@@ -434,3 +474,88 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
         "username": getattr(user, "username", None),
         "requires_onboarding": requires_onboarding,
     }
+
+
+@router.post("/signup")
+def tenant_signup(payload: SignupTenant, db: Session = Depends(get_db)):
+    company_name = payload.company_name.strip()
+    email = str(payload.email).strip().lower()
+    password = payload.password.strip()
+
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="weak_password")
+
+    try:
+        with temp_rls_bypass(db):
+            existing = (
+                db.query(CompanyUser)
+                .filter(
+                    or_(
+                        func.lower(CompanyUser.email) == email,
+                        func.lower(CompanyUser.username)
+                        == _unique_username(
+                            db, email, payload.first_name, payload.last_name
+                        ).lower(),
+                    )
+                )
+                .first()
+            )
+            if existing:
+                raise HTTPException(status_code=409, detail="user_email_or_username_taken")
+
+            tenant = Tenant(
+                id=uuid.uuid4(),
+                name=company_name,
+                slug=_unique_slug(db, company_name),
+                country_code=(payload.country_code or "").strip().upper() or None,
+                base_currency=(payload.currency or "").strip().upper() or None,
+                sector_template_name=(payload.sector_template_name or "").strip() or None,
+                active=True,
+                primary_color="#4f46e5",
+            )
+            db.add(tenant)
+            db.flush()
+
+            user = create_company_admin_user(
+                db,
+                tenant_id=tenant.id,
+                first_name=payload.first_name.strip(),
+                last_name=payload.last_name.strip(),
+                email=email,
+                username=_unique_username(db, email, payload.first_name, payload.last_name),
+                password=password,
+            )
+            if hasattr(user, "is_verified"):
+                user.is_verified = True
+
+            db.add(
+                CompanySettings(
+                    tenant_id=tenant.id,
+                    default_language=(payload.default_language or "es").strip(),
+                    timezone=(payload.timezone or "Europe/Madrid").strip(),
+                    currency=(payload.currency or "EUR").strip().upper(),
+                    primary_color="#4f46e5",
+                    secondary_color="#ffffff",
+                    company_name=company_name,
+                    settings={"onboarding_complete": False},
+                )
+            )
+            db.commit()
+
+        return {
+            "ok": True,
+            "email": email,
+            "tenant_id": str(tenant.id),
+            "tenant_slug": tenant.slug,
+            "requires_onboarding": True,
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        log.exception("tenant.signup.error")
+        raise HTTPException(status_code=500, detail="signup_failed")

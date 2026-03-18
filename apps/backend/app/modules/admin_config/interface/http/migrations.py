@@ -1,12 +1,10 @@
 """Router for schema migrations management."""
 
-import logging
 import os
-import subprocess
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -14,61 +12,103 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.services.migration_runner import (
+    list_sql_migration_names,
+    load_applied_sql_migration_names,
+    migration_friendly_name,
+)
 
 router = APIRouter(
     prefix="/migrations",
     tags=["migrations"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
-logger = logging.getLogger("app.migrations")
+
+
+def _schema_migrations_ddl(db: Session) -> str:
+    if db.bind and db.bind.dialect.name == "postgresql":
+        return """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                id            SERIAL PRIMARY KEY,
+                version       VARCHAR NOT NULL UNIQUE,
+                name          VARCHAR,
+                status        VARCHAR NOT NULL DEFAULT 'pending',
+                mode          VARCHAR,
+                started_at    TIMESTAMPTZ,
+                completed_at  TIMESTAMPTZ,
+                executed_by   VARCHAR,
+                execution_time_ms INTEGER,
+                error_message TEXT,
+                applied_order INTEGER,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+    return """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            version       VARCHAR NOT NULL UNIQUE,
+            name          VARCHAR,
+            status        VARCHAR NOT NULL DEFAULT 'pending',
+            mode          VARCHAR,
+            started_at    TIMESTAMP,
+            completed_at  TIMESTAMP,
+            executed_by   VARCHAR,
+            execution_time_ms INTEGER,
+            error_message TEXT,
+            applied_order INTEGER,
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """
 
 
 def _ensure_schema_migrations_table(db: Session) -> None:
     """Crea schema_migrations si no existe y la siembra desde _migrations."""
     try:
-        db.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    id            SERIAL PRIMARY KEY,
-                    version       VARCHAR NOT NULL UNIQUE,
-                    name          VARCHAR,
-                    status        VARCHAR NOT NULL DEFAULT 'pending',
-                    mode          VARCHAR,
-                    started_at    TIMESTAMPTZ,
-                    completed_at  TIMESTAMPTZ,
-                    executed_by   VARCHAR,
-                    execution_time_ms INTEGER,
-                    error_message TEXT,
-                    applied_order INTEGER,
-                    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-                    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-                )
-                """
-            )
-        )
+        db.execute(text(_schema_migrations_ddl(db)))
         # Sembrar desde _migrations (runner idempotente) si la tabla existe,
-        # y actualizar filas existentes que ya fueron aplicadas.
-        db.execute(
-            text(
-                """
-                INSERT INTO schema_migrations (version, name, status, completed_at, created_at, updated_at)
-                SELECT
-                    name AS version,
-                    name,
-                    'success',
-                    applied_at,
-                    applied_at,
-                    applied_at
-                FROM _migrations
-                ON CONFLICT (version) DO UPDATE SET
-                    status       = 'success',
-                    completed_at = COALESCE(schema_migrations.completed_at, EXCLUDED.completed_at),
-                    updated_at   = now()
-                WHERE schema_migrations.status != 'success'
-                """
+        applied_versions = load_applied_sql_migration_names(db)
+        known_versions = set(list_sql_migration_names()) | applied_versions
+        for version in sorted(known_versions):
+            status_value = "success" if version in applied_versions else "pending"
+            db.execute(
+                text(
+                    """
+                    INSERT INTO schema_migrations (
+                        version, name, status, completed_at, created_at, updated_at
+                    )
+                    VALUES (
+                        :version,
+                        :name,
+                        :status,
+                        :completed_at,
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (version) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        status = CASE
+                            WHEN EXCLUDED.status = 'success' THEN 'success'
+                            WHEN schema_migrations.status IN ('running', 'failed', 'ignored')
+                                THEN schema_migrations.status
+                            ELSE EXCLUDED.status
+                        END,
+                        completed_at = CASE
+                            WHEN EXCLUDED.status = 'success'
+                                THEN COALESCE(schema_migrations.completed_at, EXCLUDED.completed_at)
+                            ELSE schema_migrations.completed_at
+                        END,
+                        updated_at = CURRENT_TIMESTAMP
+                    """
+                ),
+                {
+                    "version": version,
+                    "name": migration_friendly_name(version),
+                    "status": status_value,
+                    "completed_at": datetime.now(UTC) if status_value == "success" else None,
+                },
             )
-        )
         db.commit()
     except Exception:
         db.rollback()
@@ -101,11 +141,6 @@ class MigrationExecuteResponse(BaseModel):
     message: str
     job_id: str | None = None
     migrations_applied: int = 0
-
-
-def _migration_friendly_name(migration_dir: Path) -> str:
-    parts = migration_dir.name.split("_", 2)
-    return parts[2] if len(parts) >= 3 else migration_dir.name
 
 
 @router.get("/history", response_model=list[MigrationRecord])
@@ -199,143 +234,23 @@ async def get_migration_status(
 async def execute_migrations(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(with_access_claims),
 ):
     """
-    Execute pending migrations.
-
-    If RENDER_MIGRATE_JOB_ID is configured, triggers Render job.
-    Otherwise, executes locally with bootstrap_imports.py.
+    Trigger the same idempotent SQL runner used by the admin ops button.
     """
-    render_job_id = os.getenv("RENDER_MIGRATE_JOB_ID")
-    render_api_key = os.getenv("RENDER_API_KEY")
+    from app.routers.admin import ops as admin_ops
 
-    user_email = current_user.get("email") or current_user.get("sub")
-
-    if render_job_id and render_api_key:
-        try:
-            import httpx
-
-            response = httpx.post(
-                f"https://api.render.com/v1/jobs/{render_job_id}/runs",
-                headers={"Authorization": f"Bearer {render_api_key}"},
-                timeout=10.0,
-            )
-
-            if response.status_code == 201:
-                _job_data = response.json()
-
-                return MigrationExecuteResponse(
-                    ok=True,
-                    message="Migration job triggered on Render",
-                    job_id=render_job_id,
-                    migrations_applied=0,
-                )
-            else:
-                logger.error(f"Error triggering Render job: {response.status_code} {response.text}")
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Error triggering Render job: {response.status_code}",
-                )
-        except Exception as e:
-            logger.error(f"Error executing migration on Render: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error executing migration: {str(e)}",
-            )
-    else:
-
-        def run_local_migrations():
-            try:
-                try:
-                    mig_root = os.getenv("MIGRATIONS_DIR", "ops/migrations")
-                    root = Path(mig_root)
-                    if root.exists():
-                        for d in sorted(
-                            [p for p in root.iterdir() if p.is_dir() and (p / "up.sql").exists()],
-                            key=lambda p: p.name,
-                        ):
-                            version = d.name
-                            friendly = _migration_friendly_name(d)
-                            db.execute(
-                                text(
-                                    """
-                                    INSERT INTO schema_migrations(version, name, status, created_at, updated_at, applied_order)
-                                    VALUES (:v, :n, 'pending', NOW(), NOW(), (
-                                      SELECT COALESCE(MAX(applied_order), 0) + 1 FROM schema_migrations
-                                    ))
-                                    ON CONFLICT (version) DO NOTHING
-                                    """
-                                ),
-                                {"v": version, "n": friendly},
-                            )
-                        db.commit()
-                except Exception as e:
-                    logger.warning(f"Could not pre-register migrations: {e}")
-
-                db.execute(
-                    text(
-                        """
-                        UPDATE schema_migrations
-                        SET status = 'running', started_at = NOW(), executed_by = :user
-                        WHERE status = 'pending'
-                    """
-                    ),
-                    {"user": user_email},
-                )
-                db.commit()
-
-                result = subprocess.run(
-                    [
-                        "python",
-                        "/scripts/py/bootstrap_imports.py",
-                        "--dir",
-                        "/ops/migrations",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    cwd=os.getcwd(),
-                )
-
-                if result.returncode == 0:
-                    db.execute(
-                        text(
-                            """
-                            UPDATE schema_migrations
-                            SET status = 'success', completed_at = NOW()
-                            WHERE status = 'running'
-                        """
-                        )
-                    )
-                    db.commit()
-                    logger.info(f"Migrations executed successfully by {user_email}")
-                else:
-                    db.execute(
-                        text(
-                            """
-                            UPDATE schema_migrations
-                            SET status = 'failed',
-                                completed_at = NOW(),
-                                error_message = :error
-                            WHERE status = 'running'
-                        """
-                        ),
-                        {"error": result.stderr[:1000]},
-                    )
-                    db.commit()
-                    logger.error(f"Migration error: {result.stderr}")
-
-            except Exception as e:
-                logger.error(f"Error executing migrations: {e}")
-                db.rollback()
-
-        background_tasks.add_task(run_local_migrations)
-
-        return MigrationExecuteResponse(
-            ok=True,
-            message="Migrations in progress (local execution)",
-            migrations_applied=0,
-        )
+    payload = admin_ops.trigger_migrations(background_tasks=background_tasks, db=db)
+    return MigrationExecuteResponse(
+        ok=bool(payload.get("ok")),
+        message=(
+            "Migrations in progress (idempotent runner)"
+            if payload.get("started")
+            else str(payload.get("message") or "sin_migraciones_pendientes")
+        ),
+        job_id=payload.get("run_id") or payload.get("job_id"),
+        migrations_applied=0,
+    )
 
 
 @router.get("/pending")
@@ -396,7 +311,7 @@ async def mark_migration_status(
     try:
         mig_root = os.getenv("MIGRATIONS_DIR", "ops/migrations")
         d = Path(mig_root) / version
-        friendly = _migration_friendly_name(d) if d.exists() else version
+        friendly = migration_friendly_name(d if d.exists() else version)
     except Exception:
         friendly = version
 
