@@ -115,6 +115,12 @@ class ImpDocumento(Base):
     batch_items: Mapped[list[ImpBatchItem]] = relationship(
         "ImpBatchItem", back_populates="documento", cascade="all, delete-orphan"
     )
+    staging_lines: Mapped[list["ImpStagingLine"]] = relationship(
+        "ImpStagingLine", back_populates="documento", cascade="all, delete-orphan"
+    )
+    iterations: Mapped[list["ImpIteration"]] = relationship(
+        "ImpIteration", back_populates="documento", cascade="all, delete-orphan"
+    )
 
 
 class ImpBatchImport(Base):
@@ -284,3 +290,133 @@ class IcuRecipeSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     recipe: Mapped[IcuRecipe] = relationship("IcuRecipe", back_populates="snapshots")
+
+
+class ImpStagingLine(Base):
+    __tablename__ = "imp_staging_line"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    documento_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("imp_documento.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    line_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    sheet_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    raw_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default=text("'{}'"))
+    normalized_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'PENDING'"),
+        comment="PENDING, VALID, IMPORTED, INVALID, REVIEW, SKIPPED, REPROCESS"
+    )
+    target_table: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    target_id: Mapped[uuid.UUID | None] = mapped_column(UUID_COL, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    campos_revision: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    documento: Mapped["ImpDocumento"] = relationship("ImpDocumento", back_populates="staging_lines")
+    error_logs: Mapped[list["ImpLineErrorLog"]] = relationship(
+        "ImpLineErrorLog", back_populates="staging_line", cascade="all, delete-orphan"
+    )
+
+
+class ImpIteration(Base):
+    __tablename__ = "imp_iteration"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    documento_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("imp_documento.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    iteration_num: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    scope: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'ALL'")
+    )
+    scope_filter: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    lines_attempted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lines_imported: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lines_errored: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lines_skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prev_iteration_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("imp_iteration.id", ondelete="SET NULL"), nullable=True
+    )
+    improvement: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    llm_model: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("icu_recipe_snapshot.id", ondelete="SET NULL"), nullable=True
+    )
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'RUNNING'"),
+        comment="RUNNING, DONE, PARTIAL, NO_IMPROVEMENT, ABORTED"
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    initiated_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    documento: Mapped["ImpDocumento"] = relationship("ImpDocumento", back_populates="iterations")
+    error_logs: Mapped[list["ImpLineErrorLog"]] = relationship(
+        "ImpLineErrorLog", back_populates="iteration", cascade="all, delete-orphan"
+    )
+
+
+class ImpLineErrorLog(Base):
+    __tablename__ = "imp_line_error_log"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    staging_line_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("imp_staging_line.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    iteration_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("imp_iteration.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    error_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    field_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    staging_line: Mapped["ImpStagingLine"] = relationship("ImpStagingLine", back_populates="error_logs")
+    iteration: Mapped["ImpIteration"] = relationship("ImpIteration", back_populates="error_logs")
+
+
+class ImpReviewSession(Base):
+    __tablename__ = "imp_review_session"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    documento_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("imp_documento.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    initiated_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    filter_estados: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    filter_error_codes: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    filter_campos: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    filter_lines: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    filter_sheet: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    preview_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'PENDING'")
+    )
+    linked_iteration_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("imp_iteration.id", ondelete="SET NULL"), nullable=True
+    )

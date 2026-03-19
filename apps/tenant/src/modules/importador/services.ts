@@ -826,3 +826,244 @@ export async function fetchSaveCapabilities(): Promise<Record<string, boolean>> 
   const { data } = await api.get('/api/v1/importador/save-capabilities')
   return data
 }
+
+// ─── Iterative Reprocessing Types ──────────────────────────────────────────
+
+export interface StagingLineSummary {
+  pending: number
+  valid: number
+  imported: number
+  invalid: number
+  review: number
+  skipped: number
+  reprocess: number
+}
+
+export interface StagingLine {
+  id: string
+  line_number: number
+  sheet_name: string | null
+  raw_data: Record<string, unknown>
+  normalized_data: Record<string, unknown> | null
+  estado: 'PENDING' | 'VALID' | 'IMPORTED' | 'INVALID' | 'REVIEW' | 'SKIPPED' | 'REPROCESS'
+  error_code: string | null
+  error_detail: string | null
+  campos_revision: string[] | null
+  target_table: string | null
+  target_id: string | null
+  imported_at: string | null
+  updated_at: string
+}
+
+export interface IterationScope {
+  mode: 'ALL' | 'SELECTIVE'
+  filter_estados: string[]
+  filter_error_codes: string[]
+  filter_campos: string[]
+  filter_lines: number[]
+  filter_sheet: string | null
+}
+
+export interface IterationResult {
+  iteration_id: string
+  iteration_num: number
+  estado: 'DONE' | 'PARTIAL' | 'NO_IMPROVEMENT' | 'ABORTED'
+  improvement: boolean
+  lines_attempted: number
+  lines_imported: number
+  lines_errored: number
+  lines_skipped: number
+  remaining: StagingLineSummary
+  can_retry: boolean
+  message: string | null
+}
+
+export interface IterationRecord {
+  id: string
+  iteration_num: number
+  scope: string
+  scope_filter: IterationScope | null
+  lines_attempted: number
+  lines_imported: number
+  lines_errored: number
+  lines_skipped: number
+  improvement: boolean | null
+  estado: string
+  started_at: string
+  completed_at: string | null
+  initiated_by: string | null
+}
+
+export interface FieldStat {
+  field: string
+  total_lines: number
+  filled: number
+  empty: number
+  with_error: number
+  sample_values: string[]
+  related_error_codes: string[]
+  suggested_for_reprocess: boolean
+  fill_rate: number
+}
+
+export interface FieldAnalysis {
+  total_lines_analyzed: number
+  fields: FieldStat[]
+  suggested_reprocess_fields: string[]
+  error_summary: Record<string, number>
+}
+
+export interface ReviewSession {
+  id: string
+  documento_id: string
+  filter_estados: string[]
+  filter_error_codes: string[]
+  filter_campos: string[]
+  filter_lines: number[]
+  filter_sheet: string | null
+  preview_count: number
+  estado: string
+  created_at: string
+  linked_iteration_id: string | null
+}
+
+// ─── Iterative Reprocessing API Functions ──────────────────────────────────
+
+const BASE = '/api/v1/tenant/importador'
+
+export async function fetchStagingSummary(documentoId: string): Promise<StagingLineSummary> {
+  const r = await fetch(`${BASE}/documents/${documentoId}/staging/summary`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function fetchStagingLines(
+  documentoId: string,
+  params: {
+    estado?: string[]
+    error_code?: string
+    sheet?: string
+    limit?: number
+    offset?: number
+  } = {}
+): Promise<StagingLine[]> {
+  const qs = new URLSearchParams()
+  params.estado?.forEach(e => qs.append('estado', e))
+  if (params.error_code) qs.set('error_code', params.error_code)
+  if (params.sheet) qs.set('sheet', params.sheet)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const r = await fetch(`${BASE}/documents/${documentoId}/staging?${qs}`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function fetchFieldAnalysis(
+  documentoId: string,
+  params: { estados?: string[]; error_codes?: string[]; sheet?: string } = {}
+): Promise<FieldAnalysis> {
+  const qs = new URLSearchParams()
+  ;(params.estados ?? ['INVALID', 'PENDING', 'REVIEW']).forEach(e => qs.append('estados', e))
+  params.error_codes?.forEach(e => qs.append('error_codes', e))
+  if (params.sheet) qs.set('sheet', params.sheet)
+  const r = await fetch(`${BASE}/documents/${documentoId}/staging/field-analysis?${qs}`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function fetchIterations(documentoId: string): Promise<IterationRecord[]> {
+  const r = await fetch(`${BASE}/documents/${documentoId}/iterations`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function runIteration(
+  documentoId: string,
+  scope: Partial<IterationScope> = {}
+): Promise<IterationResult> {
+  const body: { scope: IterationScope } = {
+    scope: {
+      mode: scope.mode ?? 'ALL',
+      filter_estados: scope.filter_estados ?? [],
+      filter_error_codes: scope.filter_error_codes ?? [],
+      filter_campos: scope.filter_campos ?? [],
+      filter_lines: scope.filter_lines ?? [],
+      filter_sheet: scope.filter_sheet ?? null,
+    },
+  }
+  const r = await fetch(`${BASE}/documents/${documentoId}/iterate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function createReviewSession(
+  documentoId: string,
+  filters: {
+    filter_estados?: string[]
+    filter_error_codes?: string[]
+    filter_campos?: string[]
+    filter_lines?: number[]
+    filter_sheet?: string | null
+  }
+): Promise<ReviewSession> {
+  const r = await fetch(`${BASE}/documents/${documentoId}/review-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(filters),
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function runReviewSession(
+  documentoId: string,
+  sessionId: string
+): Promise<IterationResult> {
+  const r = await fetch(
+    `${BASE}/documents/${documentoId}/review-session/${sessionId}/run`,
+    { method: 'POST' }
+  )
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function patchStagingLine(
+  documentoId: string,
+  lineId: string,
+  patch: {
+    estado?: 'REPROCESS' | 'REVIEW' | 'SKIPPED'
+    campos_revision?: string[] | null
+    normalized_data?: Record<string, unknown> | null
+  }
+): Promise<StagingLine> {
+  const r = await fetch(`${BASE}/documents/${documentoId}/staging/${lineId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function bulkPatchStagingLines(
+  documentoId: string,
+  lineIds: string[],
+  estado: 'REPROCESS' | 'REVIEW' | 'SKIPPED',
+  camposRevision?: string[]
+): Promise<{ updated: number; estado: string }> {
+  const r = await fetch(`${BASE}/documents/${documentoId}/staging/bulk`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      line_ids: lineIds,
+      estado,
+      campos_revision: camposRevision ?? null,
+    }),
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

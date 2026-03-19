@@ -127,6 +127,7 @@ async def _run_processing(
         resolve_auto_recipe_from_text,
     )
     from app.modules.importador.canonical_document import build_document_projection
+    from app.modules.importador.field_alias_loader import get_field_aliases
     from app.modules.importador.document_fields import (
         detect_document_currency,
         detect_document_date,
@@ -355,10 +356,12 @@ async def _run_processing(
 
                 current_snapshot = _recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
             learning_version_applied = get_snapshot_learning_version(current_snapshot)
+            _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,
                 source_format=extraction.get("format", tipo_archivo),
+                field_aliases=_field_aliases,
             )
             model_used = analysis.get("model_used") or "unknown"
             raw_ai_json = _json_safe(
@@ -407,6 +410,14 @@ async def _run_processing(
                     "recipe_snapshot_id": resolved_snapshot_id,
                 },
             )
+
+            # Poblar staging lines para habilitar el reprocesado iterativo.
+            if isinstance(datos_extraidos, dict):
+                from .services.iteration_service import upsert_staging_lines_from_extraction
+                _n = upsert_staging_lines_from_extraction(db, doc.id, doc.tenant_id, datos_extraidos)
+                if _n:
+                    logger.info("Staging: %d líneas creadas para doc %s", _n, doc.id)
+
             for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="REVIEW"):
                 crud.refresh_batch_status(db, batch_id)
                 publish_batch_update(db, batch_id)

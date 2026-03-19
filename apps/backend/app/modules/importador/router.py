@@ -42,6 +42,15 @@ from .document_fields import (
     safe_floatish,
 )
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
+from .services.product_matching import (
+    _norm_import_text,
+    _strip_pack_tokens,
+    _infer_pack_conversion_factor,
+    _get_line_values,
+    _find_product_by_id,
+    _append_import_alias,
+    _build_document_line_matches,
+)
 from .product_import_service import build_product_candidates, save_product_candidates
 from . import recipe_crud
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
@@ -69,19 +78,35 @@ from .schemas import (
     SyncRecipeSheetResponse,
     SyncRecipesResponse,
     UploadResponse,
+    BulkStagingPatch,
+    FieldAnalysisResponse,
+    IterationResultOut,
+    IterationScopeIn,
+    IterationOut,
+    ReviewSessionCreate,
+    ReviewSessionOut,
+    RunIterationRequest,
+    StagingLinePatch,
+    StagingLineOut,
+    StagingLineSummary,
 )
+from .services.iteration_service import (
+    build_field_analysis,
+    count_lines_for_scope,
+    count_staging_lines,
+    fetch_lines_for_scope,
+    get_last_iteration,
+    load_error_affected_fields,
+    run_iteration,
+    update_staging_line_estado,
+    upsert_staging_lines_from_extraction,
+)
+from .field_alias_loader import get_field_aliases
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
-
-PACK_UNIT_PATTERN = re.compile(
-    r"(?<![a-z0-9])(\d+(?:[.,]\d+)?)\s*(kg|kilos?|kilogramos?|g|gr|gramos?|"
-    r"lb|lbs|libras?|oz|onzas?|ton|toneladas?|l|lt|ltr|litros?|ml|mililitros?)\b",
-    re.IGNORECASE,
-)
-
 
 def _json_safe(obj):
     if isinstance(obj, (datetime.datetime, datetime.date)):
@@ -106,253 +131,6 @@ def _tenant_id(request: Request) -> UUID:
 def _user_id(request: Request) -> str:
     claims = getattr(request.state, "access_claims", None) or {}
     return str(claims.get("user_id", "unknown"))
-
-
-def _norm_import_text(value: str) -> str:
-    text = unicodedata.normalize("NFKD", str(value or ""))
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = re.sub(r"[^a-z0-9]+", " ", text.strip().lower())
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def _strip_pack_tokens(value: str) -> str:
-    stripped = PACK_UNIT_PATTERN.sub(" ", str(value or ""))
-    return _norm_import_text(stripped)
-
-
-def _infer_pack_conversion_factor(description: str, product_unit: str | None) -> float:
-    from app.services.unit_catalog_service import normalize_operational_unit
-    from app.utils.unit_converter import are_compatible_units, convert
-
-    normalized_product_unit = normalize_operational_unit(product_unit, default="uds")
-    if normalized_product_unit == "uds":
-        return 1.0
-
-    matches = PACK_UNIT_PATTERN.findall(str(description or ""))
-    for raw_qty, raw_unit in reversed(matches):
-        try:
-            pack_qty = float(str(raw_qty).replace(",", "."))
-        except ValueError:
-            continue
-        if pack_qty <= 0:
-            continue
-        normalized_pack_unit = normalize_operational_unit(raw_unit, default=raw_unit)
-        if normalized_pack_unit == normalized_product_unit:
-            return pack_qty
-        try:
-            if are_compatible_units(normalized_pack_unit, normalized_product_unit):
-                return float(convert(pack_qty, normalized_pack_unit, normalized_product_unit))
-        except ValueError:
-            continue
-    return 1.0
-
-
-def _get_line_values(item: dict) -> tuple[str, float, float]:
-    description = str(item.get("description") or item.get("descripcion") or "").strip()
-    qty = float(item.get("quantity") or item.get("cantidad") or 0)
-    unit_price = float(
-        item.get("unit_price") or item.get("precio_unitario") or item.get("precio") or 0
-    )
-    return description, qty, unit_price
-
-
-def _find_product_by_id(db: Session, tenant_id: UUID, product_id: UUID | str | None):
-    from app.models.core.products import Product
-
-    if not product_id:
-        return None
-    try:
-        product_id = UUID(str(product_id))
-    except (TypeError, ValueError):
-        return None
-    return (
-        db.query(Product)
-        .filter(
-            Product.tenant_id == tenant_id,
-            Product.id == product_id,
-            Product.active == True,  # noqa: E712
-        )
-        .first()
-    )
-
-
-def _append_import_alias(product, description: str, factor: float, unit: str | None = None) -> None:
-    description = str(description or "").strip()
-    if not description:
-        return
-    aliases = product.import_aliases if isinstance(product.import_aliases, list) else []
-    normalized_description = _norm_import_text(description)
-    for alias in aliases:
-        if not isinstance(alias, dict):
-            continue
-        if _norm_import_text(str(alias.get("name") or "")) == normalized_description:
-            return
-    aliases.append(
-        {
-            "name": description,
-            "factor": float(factor or 1),
-            "unit": str(unit or product.unit or "").strip() or None,
-        }
-    )
-    product.import_aliases = aliases
-
-
-def _score_product_candidate(description: str, product) -> tuple[float, str | None, float]:
-    from difflib import SequenceMatcher
-
-    desc_norm = _norm_import_text(description)
-    desc_core = _strip_pack_tokens(description)
-    if not desc_norm:
-        return 0.0, None, 1.0
-
-    best_score = 0.0
-    best_reason: str | None = None
-    best_factor = 1.0
-    inferred_factor = _infer_pack_conversion_factor(description, getattr(product, "unit", None))
-
-    aliases = product.import_aliases if isinstance(product.import_aliases, list) else []
-    for alias in aliases:
-        if not isinstance(alias, dict):
-            continue
-        alias_name = _norm_import_text(str(alias.get("name") or ""))
-        if not alias_name:
-            continue
-        if alias_name == desc_norm:
-            return 0.99, "alias_exact", float(alias.get("factor") or 1)
-        if alias_name in desc_norm or desc_norm in alias_name:
-            score = 0.94
-        else:
-            score = SequenceMatcher(None, desc_norm, alias_name).ratio() * 0.88
-        if score > best_score:
-            best_score = score
-            best_reason = "alias"
-            best_factor = float(alias.get("factor") or 1)
-
-    product_name = _norm_import_text(getattr(product, "name", ""))
-    product_core = _strip_pack_tokens(getattr(product, "name", ""))
-    if product_name == desc_norm and 0.93 > best_score:
-        best_score = 0.93
-        best_reason = "name_exact"
-        best_factor = inferred_factor
-    if desc_core and product_core and desc_core == product_core and 0.91 > best_score:
-        best_score = 0.91
-        best_reason = "core_exact"
-        best_factor = inferred_factor
-    if (
-        product_name
-        and (desc_norm in product_name or product_name in desc_norm)
-        and 0.84 > best_score
-    ):
-        best_score = 0.84
-        best_reason = "name_partial"
-        best_factor = inferred_factor
-    if (
-        desc_core
-        and product_core
-        and (desc_core in product_core or product_core in desc_core)
-        and 0.81 > best_score
-    ):
-        best_score = 0.81
-        best_reason = "core_partial"
-        best_factor = inferred_factor
-
-    similarity = SequenceMatcher(None, desc_norm, product_name).ratio() if product_name else 0.0
-    if desc_core and product_core:
-        similarity = max(similarity, SequenceMatcher(None, desc_core, product_core).ratio())
-    if similarity >= 0.52:
-        fuzzy_score = min(similarity * 0.78, 0.79)
-        if fuzzy_score > best_score:
-            best_score = fuzzy_score
-            best_reason = "fuzzy"
-            best_factor = inferred_factor
-
-    return best_score, best_reason, best_factor
-
-
-def _build_document_line_matches(
-    db: Session,
-    tenant_id: UUID,
-    doc,
-    *,
-    line_matches: list[SaveDocumentLineMatch] | None = None,
-    limit_per_line: int = 5,
-) -> list[DocumentLineMatchOut]:
-    from app.models.core.products import Product
-
-    data = _get_doc_import_data(doc)
-    line_items = _extract_document_line_items(data)
-    selected_by_index = {
-        int(match.line_index): match
-        for match in (line_matches or [])
-        if getattr(match, "line_index", None) is not None
-    }
-    products = (
-        db.query(Product)
-        .filter(Product.tenant_id == str(tenant_id), Product.active == True)  # noqa: E712
-        .all()
-    )
-
-    output: list[DocumentLineMatchOut] = []
-    for index, item in enumerate(line_items):
-        description, qty, unit_price = _get_line_values(item)
-        if not description or qty <= 0:
-            continue
-
-        ranked: list[tuple[float, str, float, object]] = []
-        for product in products:
-            score, reason, factor = _score_product_candidate(description, product)
-            if score <= 0:
-                continue
-            ranked.append((score, reason or "candidate", factor, product))
-        ranked.sort(key=lambda row: (-row[0], getattr(row[3], "name", "")))
-
-        selected_match = selected_by_index.get(index)
-        selected_product = (
-            _find_product_by_id(db, tenant_id, selected_match.product_id)
-            if selected_match
-            else None
-        )
-        selected_reason = "manual" if selected_product else None
-        selected_factor = (
-            _infer_pack_conversion_factor(description, getattr(selected_product, "unit", None))
-            if selected_product
-            else 1.0
-        )
-
-        if not selected_product and ranked:
-            top_score, top_reason, top_factor, top_product = ranked[0]
-            if top_score >= 0.84:
-                selected_product = top_product
-                selected_reason = top_reason
-                selected_factor = top_factor
-
-        candidates = [
-            ProductMatchCandidateOut(
-                product_id=product.id,
-                name=product.name,
-                sku=product.sku,
-                unit=product.unit or "unit",
-                stock=float(product.stock or 0),
-                score=round(score, 4),
-                reason=reason,
-                inferred_factor=float(factor or 1),
-            )
-            for score, reason, factor, product in ranked[:limit_per_line]
-        ]
-        output.append(
-            DocumentLineMatchOut(
-                line_index=index,
-                description=description,
-                quantity=qty,
-                unit_price=unit_price,
-                selected_product_id=selected_product.id if selected_product else None,
-                selected_reason=selected_reason,
-                inferred_factor=float(selected_factor or 1),
-                candidates=candidates,
-            )
-        )
-
-    return output
 
 
 def _get_doc_import_data(doc) -> dict:
@@ -1402,10 +1180,12 @@ async def upload_files(
                 if isinstance(sheet_profiles, (dict, list))
                 else sheet_profiles
             )
+            _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,
                 source_format=extraction.get("format", tipo_archivo),
+                field_aliases=_field_aliases,
             )
             learning_version_applied = get_snapshot_learning_version(recipe_snapshot)
             model_used = analysis.get("model_used") or "unknown"
@@ -1456,6 +1236,18 @@ async def upload_files(
                     "recipe_snapshot_id": resolved_snapshot_id,
                 },
             )
+
+            # Poblar staging lines para habilitar el reprocesado iterativo.
+            # Idempotente: si ya existen (rerun del mismo doc) las ignora.
+            if isinstance(datos_extraidos, dict):
+                _n_staging = upsert_staging_lines_from_extraction(
+                    db, doc.id, tenant_id, datos_extraidos
+                )
+                if _n_staging:
+                    logger.info(
+                        "Staging: %d líneas creadas para doc %s", _n_staging, doc.id
+                    )
+
             db.commit()
 
             results.append(
@@ -2474,3 +2266,340 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
     total = sum(deleted.values())
     logger.info("purge_all_importador tenant=%s deleted=%s", tenant_id, deleted)
     return {"deleted_total": total, "tables": deleted}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ENDPOINTS DE REPROCESADO ITERATIVO
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@router.get(
+    "/documents/{doc_id}/staging/summary",
+    response_model=StagingLineSummary,
+    dependencies=protected,
+)
+def get_staging_summary(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
+    """Estado actual de todas las líneas de staging de un documento."""
+    _tenant_id(request)  # verifica acceso
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    return count_staging_lines(db, doc_id)
+
+
+@router.get(
+    "/documents/{doc_id}/staging",
+    response_model=list[StagingLineOut],
+    dependencies=protected,
+)
+def list_staging_lines(
+    doc_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    estado: list[str] = Query(default=[]),
+    error_code: str | None = Query(default=None),
+    sheet: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    """Lista líneas de staging con filtros. Base para la tabla de revisión."""
+    _tenant_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    from sqlalchemy import select
+    from app.models.importador import ImpStagingLine
+
+    q = select(ImpStagingLine).where(ImpStagingLine.documento_id == doc_id)
+    if estado:
+        q = q.where(ImpStagingLine.estado.in_(estado))
+    if error_code:
+        q = q.where(ImpStagingLine.error_code == error_code)
+    if sheet:
+        q = q.where(ImpStagingLine.sheet_name == sheet)
+    q = q.order_by(ImpStagingLine.line_number).limit(limit).offset(offset)
+    return list(db.scalars(q).all())
+
+
+@router.get(
+    "/documents/{doc_id}/staging/field-analysis",
+    response_model=FieldAnalysisResponse,
+    dependencies=protected,
+)
+def get_field_analysis(
+    doc_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    estados: list[str] = Query(default=["INVALID", "PENDING", "REVIEW"]),
+    error_codes: list[str] = Query(default=[]),
+    sheet: str | None = Query(default=None),
+):
+    """
+    Analiza qué campos tienen problemas en las líneas indicadas.
+    Paso previo OBLIGATORIO antes de elegir qué campos reprocesar.
+    Muestra al usuario el estado real de sus datos — no una lista genérica.
+    """
+    _tenant_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    scope = IterationScopeIn(
+        mode="SELECTIVE",
+        filter_estados=estados,
+        filter_error_codes=error_codes,
+        filter_sheet=sheet,
+    )
+    lines = fetch_lines_for_scope(db, doc_id, scope)
+    error_map = load_error_affected_fields(db)
+    analysis = build_field_analysis(lines, error_map)
+    return analysis
+
+
+@router.get(
+    "/documents/{doc_id}/iterations",
+    response_model=list[IterationOut],
+    dependencies=protected,
+)
+def list_iterations(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
+    """Historial de todas las iteraciones de un documento."""
+    _tenant_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    from sqlalchemy import select
+    from app.models.importador import ImpIteration
+
+    return list(
+        db.scalars(
+            select(ImpIteration)
+            .where(ImpIteration.documento_id == doc_id)
+            .order_by(ImpIteration.iteration_num)
+        ).all()
+    )
+
+
+@router.post(
+    "/documents/{doc_id}/iterate",
+    response_model=IterationResultOut,
+    dependencies=protected,
+)
+def iterate_document(
+    doc_id: UUID,
+    body: RunIterationRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Ejecuta una iteración de reprocesado sobre el documento.
+    Solo procesa las líneas que corresponden al scope.
+    Solo modifica los campos seleccionados — preserva todo lo demás.
+    """
+    tenant_id = _tenant_id(request)
+    user_id = _user_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    aliases = get_field_aliases(db, tenant_id=tenant_id)
+    result = run_iteration(db, doc, tenant_id, user_id, body.scope, aliases)
+    db.commit()
+    return result
+
+
+@router.post(
+    "/documents/{doc_id}/review-session",
+    response_model=ReviewSessionOut,
+    dependencies=protected,
+)
+def create_review_session(
+    doc_id: UUID,
+    body: ReviewSessionCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Crea una sesión de revisión selectiva.
+    Calcula preview_count: cuántas líneas afecta el scope antes de ejecutar.
+    El usuario puede revisar el impacto antes de confirmar.
+    """
+    tenant_id = _tenant_id(request)
+    user_id = _user_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    scope = IterationScopeIn(
+        mode="SELECTIVE" if any([
+            body.filter_estados, body.filter_error_codes,
+            body.filter_campos, body.filter_lines, body.filter_sheet,
+        ]) else "ALL",
+        filter_estados=body.filter_estados,
+        filter_error_codes=body.filter_error_codes,
+        filter_campos=body.filter_campos,
+        filter_lines=body.filter_lines,
+        filter_sheet=body.filter_sheet,
+    )
+    preview_count = count_lines_for_scope(db, doc_id, scope)
+
+    from app.models.importador import ImpReviewSession
+    session = ImpReviewSession(
+        tenant_id=tenant_id,
+        documento_id=doc_id,
+        initiated_by=user_id,
+        filter_estados=body.filter_estados,
+        filter_error_codes=body.filter_error_codes,
+        filter_campos=body.filter_campos,
+        filter_lines=body.filter_lines,
+        filter_sheet=body.filter_sheet,
+        preview_count=preview_count,
+        estado="PENDING",
+    )
+    db.add(session)
+    db.flush()
+    db.commit()
+    return session
+
+
+@router.post(
+    "/documents/{doc_id}/review-session/{session_id}/run",
+    response_model=IterationResultOut,
+    dependencies=protected,
+)
+def run_review_session(
+    doc_id: UUID,
+    session_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Ejecuta la iteración definida por la sesión de revisión."""
+    tenant_id = _tenant_id(request)
+    user_id = _user_id(request)
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    from sqlalchemy import select
+    from app.models.importador import ImpReviewSession
+
+    session = db.scalars(
+        select(ImpReviewSession).where(
+            ImpReviewSession.id == session_id,
+            ImpReviewSession.documento_id == doc_id,
+        )
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesión de revisión no encontrada")
+    if session.estado != "PENDING":
+        raise HTTPException(
+            status_code=400,
+            detail=f"La sesión ya fue ejecutada (estado: {session.estado})",
+        )
+
+    scope = IterationScopeIn(
+        mode="SELECTIVE" if any([
+            session.filter_estados, session.filter_error_codes,
+            session.filter_campos, session.filter_lines, session.filter_sheet,
+        ]) else "ALL",
+        filter_estados=list(session.filter_estados or []),
+        filter_error_codes=list(session.filter_error_codes or []),
+        filter_campos=list(session.filter_campos or []),
+        filter_lines=list(session.filter_lines or []),
+        filter_sheet=session.filter_sheet,
+    )
+
+    aliases = get_field_aliases(db, tenant_id=tenant_id)
+    session.estado = "RUNNING"
+    db.flush()
+
+    result = run_iteration(db, doc, tenant_id, user_id, scope, aliases)
+
+    session.estado = "DONE"
+    session.linked_iteration_id = result.iteration_id
+    db.commit()
+    return result
+
+
+@router.patch(
+    "/documents/{doc_id}/staging/{line_id}",
+    response_model=StagingLineOut,
+    dependencies=protected,
+)
+def patch_staging_line(
+    doc_id: UUID,
+    line_id: UUID,
+    body: StagingLinePatch,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    El usuario corrige una línea individual manualmente.
+    Puede cambiar el estado, los campos en revisión, o los datos normalizados.
+    """
+    _tenant_id(request)
+    from sqlalchemy import select
+    from app.models.importador import ImpStagingLine
+
+    line = db.scalars(
+        select(ImpStagingLine).where(
+            ImpStagingLine.id == line_id,
+            ImpStagingLine.documento_id == doc_id,
+        )
+    ).first()
+    if not line:
+        raise HTTPException(status_code=404, detail="Línea de staging no encontrada")
+
+    if body.estado is not None:
+        line.estado = body.estado
+    if body.campos_revision is not None:
+        line.campos_revision = body.campos_revision
+    if body.normalized_data is not None:
+        existing = dict(line.normalized_data or {})
+        existing.update(body.normalized_data)
+        line.normalized_data = existing
+
+    db.flush()
+    db.commit()
+    return line
+
+
+@router.patch(
+    "/documents/{doc_id}/staging/bulk",
+    response_model=dict,
+    dependencies=protected,
+)
+def bulk_patch_staging_lines(
+    doc_id: UUID,
+    body: BulkStagingPatch,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Marca múltiples líneas para reprocesar/revisar/omitir en bloque.
+    El usuario selecciona líneas en la tabla y aplica una acción.
+    """
+    _tenant_id(request)
+    from sqlalchemy import select
+    from app.models.importador import ImpStagingLine
+
+    lines = list(
+        db.scalars(
+            select(ImpStagingLine).where(
+                ImpStagingLine.documento_id == doc_id,
+                ImpStagingLine.id.in_([str(lid) for lid in body.line_ids]),
+            )
+        ).all()
+    )
+
+    updated = 0
+    for line in lines:
+        line.estado = body.estado
+        if body.campos_revision is not None:
+            line.campos_revision = body.campos_revision
+        updated += 1
+
+    db.flush()
+    db.commit()
+    return {"updated": updated, "estado": body.estado}

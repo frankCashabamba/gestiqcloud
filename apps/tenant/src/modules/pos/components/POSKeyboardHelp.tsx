@@ -1,23 +1,47 @@
 /**
  * POSKeyboardHelp - Overlay con atajos de teclado disponibles
  */
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  getBulkPricingShortcutItems,
+  type BulkPricingItem,
+} from '../bakeryShortcuts'
 
-export function POSKeyboardHelp() {
+interface POSKeyboardHelpProps {
+  bulkPricingItems?: BulkPricingItem[]
+}
+
+export function POSKeyboardHelp({ bulkPricingItems = [] }: POSKeyboardHelpProps) {
   const { t } = useTranslation(['pos', 'common'])
   const [isOpen, setIsOpen] = useState(false)
 
-  const SHORTCUTS = [
-    { key: 'F2', action: t('pos:keyboard.searchProduct') },
-    { key: 'F4', action: t('pos:keyboard.selectCustomer') },
-    { key: 'F6', action: t('pos:keyboard.globalDiscount') },
-    { key: 'F8', action: t('pos:keyboard.suspendSale') },
-    { key: 'F9', action: t('pos:keyboard.openPayment') },
-    { key: 'Enter', action: t('pos:keyboard.confirmPayment') },
-    { key: 'Esc', action: t('pos:keyboard.closeModal') },
-    { key: '↑↓', action: t('pos:keyboard.navigateLists') },
-  ]
+  const shortcuts = useMemo(() => {
+    const base = [
+      { key: 'F2', action: t('pos:keyboard.searchProduct') },
+      { key: 'F4', action: t('pos:keyboard.selectCustomer') },
+      { key: 'F6', action: t('pos:keyboard.globalDiscount') },
+      { key: 'F8', action: t('pos:keyboard.suspendSale') },
+      { key: 'F9', action: t('pos:keyboard.openPayment') },
+      { key: 'Enter', action: t('pos:keyboard.confirmPayment') },
+      { key: 'Esc', action: t('pos:keyboard.closeModal') },
+      { key: '↑↓', action: t('pos:keyboard.navigateLists') },
+    ]
+
+    const bakery = getBulkPricingShortcutItems(bulkPricingItems).map((item) => ({
+      key: `${item.shortcut_letter} / ${item.shortcut_letter}${item.shortcut_letter}`,
+      action: `${item.product_name || item.product_id} · F1-F10 multiplica conjuntos`,
+    }))
+
+    if (bakery.length > 0) {
+      base.push({
+        key: 'Letra + F1-F10',
+        action: 'Panaderia: 1 a 10 conjuntos configurados',
+      })
+    }
+
+    return [...base, ...bakery]
+  }, [bulkPricingItems, t])
 
   return (
     <>
@@ -43,8 +67,8 @@ export function POSKeyboardHelp() {
             </div>
 
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {SHORTCUTS.map((shortcut) => (
-                <div key={shortcut.key} className="flex gap-3">
+              {shortcuts.map((shortcut) => (
+                <div key={`${shortcut.key}-${shortcut.action}`} className="flex gap-3">
                   <kbd className="flex-shrink-0 bg-gray-800 text-white px-3 py-1 rounded font-mono font-bold text-sm">
                     {shortcut.key}
                   </kbd>

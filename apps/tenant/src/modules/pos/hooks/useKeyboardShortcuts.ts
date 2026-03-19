@@ -1,21 +1,21 @@
 /**
  * useKeyboardShortcuts - Sistema de atajos de teclado para POS
- * F2: Búsqueda | F4: Cliente | F5: Reanudar | F6: Descuento | F8: Suspender | F9: Pago
+ * F2: BÃºsqueda | F4: Cliente | F5: Reanudar | F6: Descuento | F8: Suspender | F9: Pago
  * Enter: Confirmar | Esc: Cerrar/Volver
  */
 import { useEffect } from 'react'
 
 interface KeyboardHandlers {
-  onF2?: () => void        // Buscar producto
-  onF4?: () => void        // Seleccionar cliente
-  onF5?: () => void        // Reanudar ticket
-  onF6?: () => void        // Descuento global
-  onF8?: () => void        // Suspender venta
-  onF9?: () => void        // Abrir pago
-  onEnter?: () => void     // Confirmar pago
-  onEscape?: () => void    // Cerrar modal
-  onArrowUp?: () => void   // Navegar arriba en lista
-  onArrowDown?: () => void // Navegar abajo en lista
+  onF2?: () => void
+  onF4?: () => void
+  onF5?: () => void
+  onF6?: () => void
+  onF8?: () => void
+  onF9?: () => void
+  onEnter?: () => void
+  onEscape?: () => void
+  onArrowUp?: () => void
+  onArrowDown?: () => void
 }
 
 export function useKeyboardShortcuts(handlers: KeyboardHandlers, enabled = true) {
@@ -23,32 +23,29 @@ export function useKeyboardShortcuts(handlers: KeyboardHandlers, enabled = true)
     if (!enabled) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // No interceptar si estamos escribiendo en input (excepto búsqueda con F2)
+      if (e.defaultPrevented) return
+
       const target = e.target as HTMLElement
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
       const isContentEditable = target.contentEditable === 'true'
 
-      // F2: Búsqueda (siempre funciona, incluso en inputs)
       if (e.code === 'F2') {
         e.preventDefault()
         handlers.onF2?.()
         return
       }
 
-      // Si estamos en un input, solo permitir algunos atajos
       if (isInput || isContentEditable) {
         if (e.key === 'Escape') {
           handlers.onEscape?.()
         }
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-          // Ctrl+Enter en input = Confirmar
           e.preventDefault()
           handlers.onEnter?.()
         }
         return
       }
 
-      // Resto de atajos
       switch (e.code) {
         case 'F4':
           e.preventDefault()

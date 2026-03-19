@@ -55,41 +55,47 @@ def safe_floatish(value: Any) -> float | None:
         return None
 
 
-def detect_document_total(data: dict[str, Any] | None) -> float | None:
-    return safe_floatish(
-        get_data_value(
-            data,
-            "total_amount",
-            "monto_total",
-            "total",
-            "amount",
-            "importe",
-            "grand_total",
-            "total_general",
-        ),
-    )
+def detect_document_total(
+    data: dict[str, Any] | None,
+    aliases: list[str] | None = None,
+) -> float | None:
+    keys = aliases or [
+        "total_amount", "monto_total", "total", "amount",
+        "importe", "grand_total", "total_general",
+    ]
+    return safe_floatish(get_data_value(data, *keys))
 
 
-def detect_document_subtotal(data: dict[str, Any] | None) -> float | None:
-    return safe_floatish(
-        get_data_value(data, "subtotal", "base_imponible", "neto", "monto", "amount_before_tax"),
-    )
+def detect_document_subtotal(
+    data: dict[str, Any] | None,
+    aliases: list[str] | None = None,
+) -> float | None:
+    keys = aliases or ["subtotal", "base_imponible", "neto", "monto", "amount_before_tax"]
+    return safe_floatish(get_data_value(data, *keys))
 
 
-def detect_document_tax(data: dict[str, Any] | None) -> float | None:
-    return safe_floatish(
-        get_data_value(data, "tax_amount", "iva", "tax", "vat", "impuesto", "igv"),
-    )
+def detect_document_tax(
+    data: dict[str, Any] | None,
+    aliases: list[str] | None = None,
+) -> float | None:
+    keys = aliases or ["tax_amount", "iva", "tax", "vat", "impuesto", "igv"]
+    return safe_floatish(get_data_value(data, *keys))
 
 
-def detect_document_currency(data: dict[str, Any] | None) -> str | None:
-    value = get_data_value(data, "moneda", "currency", "divisa")
+def detect_document_currency(
+    data: dict[str, Any] | None,
+    aliases: list[str] | None = None,
+) -> str | None:
+    keys = aliases or ["moneda", "currency", "divisa"]
+    value = get_data_value(data, *keys)
     return str(value).strip() if value is not None else None
 
 
-def detect_document_payment_method(data: dict[str, Any] | None) -> str | None:
-    value = get_data_value(
-        data,
+def detect_document_payment_method(
+    data: dict[str, Any] | None,
+    aliases: list[str] | None = None,
+) -> str | None:
+    keys = aliases or [
         "payment_method",
         "payment_type",
         "payment_terms",
@@ -105,7 +111,8 @@ def detect_document_payment_method(data: dict[str, Any] | None) -> str | None:
         "condicion_pago",
         "condiciones_pago",
         "terms_of_payment",
-    )
+    ]
+    value = get_data_value(data, *keys)
     if isinstance(value, list):
         tokens = [str(item).strip() for item in value if str(item).strip()]
         return ", ".join(tokens) if tokens else None
@@ -124,8 +131,12 @@ def detect_document_payment_method(data: dict[str, Any] | None) -> str | None:
     return text or None
 
 
-def detect_document_date(data: dict[str, Any] | None) -> str | None:
-    value = get_data_value(data, "issue_date", "fecha", "date", "invoice_date", "expense_date")
+def detect_document_date(
+    data: dict[str, Any] | None,
+    aliases: list[str] | None = None,
+) -> str | None:
+    keys = aliases or ["issue_date", "fecha", "date", "invoice_date", "expense_date"]
+    value = get_data_value(data, *keys)
     if value is None:
         return None
     s = str(value).strip()[:20]

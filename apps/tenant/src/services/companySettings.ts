@@ -1,4 +1,5 @@
 import tenantApi from '../shared/api/client'
+import type { BulkPricingItem } from '../modules/pos/bakeryShortcuts'
 
 export type PosTheme = 'corporate-dark' | 'soft-dark' | 'light'
 
@@ -39,6 +40,7 @@ export interface CompanySettings {
       require_buyer_data?: boolean
       auto_create_wholesale?: boolean
     }
+    bulk_pricing_items?: BulkPricingItem[]
   }
   invoice_config?: {
     serie_factura?: string

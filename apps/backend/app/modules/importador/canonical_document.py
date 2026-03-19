@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .constants import INTERNAL_STRUCTURAL_KEYS
 from .document_fields import (
     detect_document_currency,
     detect_document_date,
@@ -14,20 +15,6 @@ from .document_fields import (
 
 CANONICAL_DOCUMENT_SCHEMA_VERSION = "importador.canonical.v1"
 
-_SYSTEM_KEYS = {
-    "filas",
-    "total_filas",
-    "columnas",
-    "columnas_norm",
-    "hojas",
-    "sheet_usada",
-    "metadata",
-    "metadata_por_hoja",
-    "filas_por_hoja",
-    "filas_por_hoja_count",
-    "perfiles_hojas",
-}
-
 
 def _clean_text(value: Any) -> str | None:
     if value is None:
@@ -36,15 +23,15 @@ def _clean_text(value: Any) -> str | None:
     return text or None
 
 
-def _pick_line_items(data: dict[str, Any] | None) -> list[dict[str, Any]]:
-    raw = get_data_value(data, "line_items", "items", "detalle", "filas_detalle")
+def _pick_line_items(
+    data: dict[str, Any] | None,
+    aliases: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    keys = aliases or ["line_items", "items", "detalle", "filas_detalle"]
+    raw = get_data_value(data, *keys)
     if not isinstance(raw, list):
         return []
-    items: list[dict[str, Any]] = []
-    for entry in raw:
-        if isinstance(entry, dict):
-            items.append(dict(entry))
-    return items
+    return [dict(entry) for entry in raw if isinstance(entry, dict)]
 
 
 def build_canonical_document(
@@ -52,48 +39,45 @@ def build_canonical_document(
     *,
     doc_type: str | None = None,
     source_format: str | None = None,
+    field_aliases: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
+    """
+    Construye el documento canónico a partir de datos extraídos.
+    Todos los aliases de campos se toman de field_aliases (cargado desde imp_field_alias en BD).
+    Si field_aliases es None o vacío, los detectores de document_fields.py aplican sus propios
+    defaults internos como fallback de último recurso.
+    """
     payload: dict[str, Any] = {"schema_version": CANONICAL_DOCUMENT_SCHEMA_VERSION}
     if not isinstance(data, dict):
         return payload
 
+    fa = field_aliases or {}
+
     vendor_name = _clean_text(
-        get_data_value(data, "vendor", "vendor_name", "supplier", "proveedor", "emisor")
+        get_data_value(data, *(fa.get("vendor") or []))
     )
     vendor_tax_id = _clean_text(
-        get_data_value(data, "vendor_tax_id", "supplier_tax_id", "tax_id", "ruc", "ruc_proveedor")
+        get_data_value(data, *(fa.get("vendor_tax_id") or []))
     )
-    customer_name = _clean_text(get_data_value(data, "customer", "customer_name", "cliente"))
+    customer_name = _clean_text(
+        get_data_value(data, *(fa.get("customer") or []))
+    )
     customer_tax_id = _clean_text(
-        get_data_value(data, "customer_tax_id", "client_tax_id", "ruc_cliente")
+        get_data_value(data, *(fa.get("customer_tax_id") or []))
     )
     doc_number = _clean_text(
-        get_data_value(
-            data,
-            "document_number",
-            "doc_number",
-            "invoice_number",
-            "numero_documento",
-            "numero_factura",
-            "numero",
-        )
+        get_data_value(data, *(fa.get("doc_number") or []))
     )
-    issue_date = detect_document_date(data)
-    subtotal = detect_document_subtotal(data)
-    tax_amount = detect_document_tax(data)
-    total_amount = detect_document_total(data)
-    currency_code = _clean_text(detect_document_currency(data))
-    payment_method = _clean_text(detect_document_payment_method(data))
+    issue_date = detect_document_date(data, aliases=fa.get("issue_date") or None)
+    subtotal = detect_document_subtotal(data, aliases=fa.get("subtotal") or None)
+    tax_amount = detect_document_tax(data, aliases=fa.get("tax_amount") or None)
+    total_amount = detect_document_total(data, aliases=fa.get("total_amount") or None)
+    currency_code = _clean_text(detect_document_currency(data, aliases=fa.get("currency") or None))
+    payment_method = _clean_text(detect_document_payment_method(data, aliases=fa.get("payment_method") or None))
     payment_terms = _clean_text(
-        get_data_value(
-            data,
-            "payment_terms",
-            "terms_of_payment",
-            "condiciones_pago",
-            "condicion_pago",
-        )
+        get_data_value(data, *(fa.get("payment_terms") or []))
     )
-    line_items = _pick_line_items(data)
+    line_items = _pick_line_items(data, aliases=fa.get("line_items") or None)
 
     payload["document"] = {
         "type": _clean_text(doc_type),
@@ -112,79 +96,18 @@ def build_canonical_document(
     payload["payments"] = {"method": payment_method, "terms": payment_terms}
     payload["line_items"] = line_items
 
-    consumed = {
-        "vendor",
-        "vendor_name",
-        "supplier",
-        "proveedor",
-        "emisor",
-        "vendor_tax_id",
-        "supplier_tax_id",
-        "tax_id",
-        "ruc",
-        "ruc_proveedor",
-        "customer",
-        "customer_name",
-        "cliente",
-        "customer_tax_id",
-        "client_tax_id",
-        "ruc_cliente",
-        "document_number",
-        "doc_number",
-        "invoice_number",
-        "numero_documento",
-        "numero_factura",
-        "numero",
-        "issue_date",
-        "fecha",
-        "date",
-        "invoice_date",
-        "expense_date",
-        "subtotal",
-        "base_imponible",
-        "neto",
-        "monto",
-        "amount_before_tax",
-        "tax_amount",
-        "iva",
-        "tax",
-        "vat",
-        "impuesto",
-        "igv",
-        "total_amount",
-        "monto_total",
-        "total",
-        "amount",
-        "importe",
-        "grand_total",
-        "total_general",
-        "currency",
-        "moneda",
-        "divisa",
-        "payment_method",
-        "payment_type",
-        "payment_terms",
-        "payment_mode",
-        "metodo_pago",
-        "metodo_de_pago",
-        "forma_pago",
-        "forma_de_pago",
-        "tipo_pago",
-        "tipo_de_pago",
-        "medio_pago",
-        "medio_de_pago",
-        "condicion_pago",
-        "condiciones_pago",
-        "terms_of_payment",
-        "line_items",
-        "items",
-        "detalle",
-        "filas_detalle",
-    }
+    # El conjunto de campos "consumidos" se construye dinámicamente desde los aliases de BD.
+    # Así, cualquier alias nuevo en imp_field_alias queda excluido de extensions automáticamente.
+    consumed: set[str] = set(fa.keys())
+    for aliases_list in fa.values():
+        consumed.update(aliases_list)
+
     extensions = {
         str(key): value
         for key, value in data.items()
-        if str(key) not in consumed and str(key) not in _SYSTEM_KEYS and not str(key).startswith("_")
+        if str(key) not in consumed
+        and str(key) not in INTERNAL_STRUCTURAL_KEYS
+        and not str(key).startswith("_")
     }
     if extensions:
         payload["extensions"] = extensions
@@ -197,8 +120,14 @@ def build_document_projection(
     *,
     doc_type: str | None = None,
     source_format: str | None = None,
+    field_aliases: dict[str, list[str]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    canonical = build_canonical_document(data, doc_type=doc_type, source_format=source_format)
+    canonical = build_canonical_document(
+        data,
+        doc_type=doc_type,
+        source_format=source_format,
+        field_aliases=field_aliases,
+    )
     vendor = canonical.get("vendor") if isinstance(canonical.get("vendor"), dict) else {}
     document = canonical.get("document") if isinstance(canonical.get("document"), dict) else {}
     totals = canonical.get("totals") if isinstance(canonical.get("totals"), dict) else {}

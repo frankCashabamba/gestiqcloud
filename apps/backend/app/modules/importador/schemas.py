@@ -320,3 +320,154 @@ class SnapshotOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ─────── Iterative Reprocessing Schemas ───────────────────────────────────
+
+
+class StagingLineSummary(BaseModel):
+    pending: int = 0
+    valid: int = 0
+    imported: int = 0
+    invalid: int = 0
+    review: int = 0
+    skipped: int = 0
+    reprocess: int = 0
+
+    @property
+    def total(self) -> int:
+        return sum([
+            self.pending, self.valid, self.imported,
+            self.invalid, self.review, self.skipped, self.reprocess,
+        ])
+
+    @property
+    def resolvable(self) -> int:
+        return self.pending + self.invalid + self.review + self.reprocess
+
+
+class StagingLineOut(BaseModel):
+    id: UUID
+    line_number: int
+    sheet_name: str | None = None
+    raw_data: dict
+    normalized_data: dict | None = None
+    estado: str
+    error_code: str | None = None
+    error_detail: str | None = None
+    campos_revision: list[str] | None = None
+    target_table: str | None = None
+    target_id: UUID | None = None
+    imported_at: datetime | None = None
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class IterationScopeIn(BaseModel):
+    mode: Literal["ALL", "SELECTIVE"] = "ALL"
+    filter_estados: list[str] = Field(default_factory=list)
+    filter_error_codes: list[str] = Field(default_factory=list)
+    filter_campos: list[str] = Field(default_factory=list)
+    filter_lines: list[int] = Field(default_factory=list)
+    filter_sheet: str | None = None
+
+
+class IterationOut(BaseModel):
+    id: UUID
+    iteration_num: int
+    scope: str
+    scope_filter: dict | None = None
+    lines_attempted: int = 0
+    lines_imported: int = 0
+    lines_errored: int = 0
+    lines_skipped: int = 0
+    improvement: bool | None = None
+    estado: str
+    started_at: datetime
+    completed_at: datetime | None = None
+    initiated_by: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class IterationResultOut(BaseModel):
+    iteration_id: UUID
+    iteration_num: int
+    estado: str
+    improvement: bool
+    lines_attempted: int
+    lines_imported: int
+    lines_errored: int
+    lines_skipped: int
+    remaining: StagingLineSummary
+    can_retry: bool
+    message: str | None = None
+
+
+class ReuploadResponse(BaseModel):
+    documento_id: UUID
+    action: Literal["FULLY_IMPORTED", "READY_TO_ITERATE", "NEW_FILE"]
+    message: str
+    stats: StagingLineSummary
+    can_reprocess: bool
+    suggested_scope: IterationScopeIn | None = None
+
+
+class RunIterationRequest(BaseModel):
+    scope: IterationScopeIn = Field(default_factory=IterationScopeIn)
+
+
+class ReviewSessionCreate(BaseModel):
+    filter_estados: list[str] = Field(default_factory=list)
+    filter_error_codes: list[str] = Field(default_factory=list)
+    filter_campos: list[str] = Field(default_factory=list)
+    filter_lines: list[int] = Field(default_factory=list)
+    filter_sheet: str | None = None
+
+
+class ReviewSessionOut(BaseModel):
+    id: UUID
+    documento_id: UUID
+    filter_estados: list[str]
+    filter_error_codes: list[str]
+    filter_campos: list[str]
+    filter_lines: list[int]
+    filter_sheet: str | None = None
+    preview_count: int
+    estado: str
+    created_at: datetime
+    linked_iteration_id: UUID | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class BulkStagingPatch(BaseModel):
+    line_ids: list[UUID] = Field(min_length=1)
+    estado: Literal["REPROCESS", "REVIEW", "SKIPPED"]
+    campos_revision: list[str] | None = None
+
+
+class StagingLinePatch(BaseModel):
+    estado: Literal["REPROCESS", "REVIEW", "SKIPPED"] | None = None
+    campos_revision: list[str] | None = None
+    normalized_data: dict | None = None
+
+
+class FieldStatOut(BaseModel):
+    field: str
+    total_lines: int
+    filled: int
+    empty: int
+    with_error: int
+    sample_values: list[str]
+    related_error_codes: list[str]
+    suggested_for_reprocess: bool
+    fill_rate: float
+
+
+class FieldAnalysisResponse(BaseModel):
+    total_lines_analyzed: int
+    fields: list[FieldStatOut]
+    suggested_reprocess_fields: list[str]
+    error_summary: dict[str, int]

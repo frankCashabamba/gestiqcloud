@@ -6,18 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from . import crud, recipe_crud
-
-_SKIP_KEYS = {
-    "filas",
-    "total_filas",
-    "columnas",
-    "columnas_norm",
-    "hojas",
-    "sheet_usada",
-    "metadata",
-    "filas_por_hoja",
-    "filas_por_hoja_count",
-}
+from .constants import INTERNAL_STRUCTURAL_KEYS
 
 
 def _is_scalar_learning_value(value: Any) -> bool:
@@ -37,7 +26,7 @@ def build_learning_field_descriptions(
 ) -> dict[str, str]:
     hints: dict[str, str] = {}
     for key, confirmed_val in datos_confirmados.items():
-        if key in _SKIP_KEYS or str(key).startswith("_"):
+        if key in INTERNAL_STRUCTURAL_KEYS or str(key).startswith("_"):
             continue
         original_val = datos_extraidos.get(key)
         confirmed_text = _normalize_scalar(confirmed_val)

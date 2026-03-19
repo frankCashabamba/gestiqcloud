@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useImportReprocess } from '../hooks/useImportReprocess'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
@@ -38,6 +39,8 @@ export default function DocumentDetail() {
     : null
   const [activeSheet, setActiveSheet] = useState<string | null>(null)
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
+  const reprocess = useImportReprocess(id ?? '')
+  const [selectedFields, setSelectedFields] = useState<string[]>([])
 
   useEffect(() => { fetchSaveCapabilities().then(setCapabilities).catch(() => {}) }, [])
 
@@ -46,6 +49,7 @@ export default function DocumentDetail() {
     setLoading(true)
     try { setDoc(await fetchDocument(id)) } catch { setError(t('docDetail.errorLoading')) }
     setLoading(false)
+    void reprocess.refreshSummary()
   }
 
   useEffect(() => { load() }, [id])
@@ -734,6 +738,259 @@ export default function DocumentDetail() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Reprocesado iterativo */}
+      {reprocess.summary && (
+        (reprocess.summary.pending + reprocess.summary.invalid + reprocess.summary.review + reprocess.summary.reprocess + reprocess.summary.valid + reprocess.summary.imported) > 0
+      ) && (
+        <div style={{ ...section, marginTop: '1rem' }}>
+          {/* Cabecera */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <h3 style={{ margin: 0 }}>Reprocesado iterativo</h3>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {reprocess.summary.pending > 0 && (
+                <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#E5E7EB', color: '#374151' }}>
+                  Pendientes: {reprocess.summary.pending}
+                </span>
+              )}
+              {reprocess.summary.invalid > 0 && (
+                <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FEE2E2', color: '#991B1B' }}>
+                  Con error: {reprocess.summary.invalid}
+                </span>
+              )}
+              {reprocess.summary.review > 0 && (
+                <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FEF3C7', color: '#92400E' }}>
+                  En revisión: {reprocess.summary.review}
+                </span>
+              )}
+              {reprocess.summary.reprocess > 0 && (
+                <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FFEDD5', color: '#9A3412' }}>
+                  Para reprocesar: {reprocess.summary.reprocess}
+                </span>
+              )}
+              {reprocess.summary.valid > 0 && (
+                <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#DCFCE7', color: '#166534' }}>
+                  Válidas: {reprocess.summary.valid}
+                </span>
+              )}
+              {reprocess.summary.imported > 0 && (
+                <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#14532D', color: '#fff' }}>
+                  Importadas: {reprocess.summary.imported}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Error global del hook */}
+          {reprocess.error && (
+            <div style={{ padding: '0.5rem 0.75rem', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 6, marginBottom: '0.75rem', fontSize: 13, color: '#991B1B' }}>
+              {reprocess.error}
+            </div>
+          )}
+
+          {/* Paso 1 — Inspeccionar */}
+          {(reprocess.summary.pending + reprocess.summary.invalid + reprocess.summary.review + reprocess.summary.reprocess) > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <button
+                disabled={reprocess.isLoading}
+                onClick={() => { void reprocess.inspectFields() }}
+                style={{
+                  padding: '0.45rem 1rem',
+                  background: reprocess.isLoading ? '#94A3B8' : '#6366F1',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: reprocess.isLoading ? 'not-allowed' : 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {reprocess.isLoading ? 'Analizando...' : 'Inspeccionar campos detectados'}
+              </button>
+            </div>
+          )}
+
+          {/* Tabla de campos detectados */}
+          {reprocess.fieldAnalysis && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              {reprocess.fieldAnalysis.error_summary && Object.keys(reprocess.fieldAnalysis.error_summary).length > 0 && (
+                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
+                  Errores detectados: {Object.entries(reprocess.fieldAnalysis.error_summary).map(([k, v]) => `${k} (${v})`).join(', ')}
+                </div>
+              )}
+              <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Campo</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600, minWidth: 120 }}>% Relleno</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Vacíos</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Con error</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Muestra</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center', color: '#374151', fontWeight: 600 }}>✓</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reprocess.fieldAnalysis.fields.map(field => {
+                      const fillPct = Math.round((field.fill_rate ?? 0) * 100)
+                      return (
+                        <tr
+                          key={field.field}
+                          style={{
+                            borderBottom: '1px solid #f3f4f6',
+                            background: field.suggested_for_reprocess ? '#FEFCE8' : undefined,
+                          }}
+                        >
+                          <td style={{ padding: '0.35rem 0.6rem', fontWeight: 600, color: '#111827' }}>{field.field}</td>
+                          <td style={{ padding: '0.35rem 0.6rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ flex: 1, background: '#E5E7EB', borderRadius: 999, height: 8, minWidth: 60 }}>
+                                <div style={{ width: `${fillPct}%`, background: fillPct >= 80 ? '#10B981' : fillPct >= 50 ? '#F59E0B' : '#EF4444', height: '100%', borderRadius: 999 }}></div>
+                              </div>
+                              <span style={{ fontSize: 11, color: '#6B7280', whiteSpace: 'nowrap' }}>{fillPct}%</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.35rem 0.6rem', textAlign: 'right', color: field.empty > 0 ? '#92400E' : '#9CA3AF' }}>{field.empty}</td>
+                          <td style={{ padding: '0.35rem 0.6rem', textAlign: 'right', color: field.with_error > 0 ? '#991B1B' : '#9CA3AF' }}>{field.with_error}</td>
+                          <td style={{ padding: '0.35rem 0.6rem', color: '#6B7280', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {field.sample_values[0] ?? '—'}
+                          </td>
+                          <td style={{ padding: '0.35rem 0.6rem', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedFields.includes(field.field)}
+                              onChange={e => {
+                                setSelectedFields(prev =>
+                                  e.target.checked
+                                    ? [...prev, field.field]
+                                    : prev.filter(f => f !== field.field)
+                                )
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ marginTop: '0.6rem' }}>
+                <button
+                  disabled={selectedFields.length === 0 || reprocess.isLoading}
+                  onClick={() => { void reprocess.buildReviewSession({ filter_campos: selectedFields }) }}
+                  style={{
+                    padding: '0.45rem 1rem',
+                    background: selectedFields.length === 0 ? '#D1D5DB' : '#0EA5E9',
+                    color: selectedFields.length === 0 ? '#9CA3AF' : '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: selectedFields.length === 0 || reprocess.isLoading ? 'not-allowed' : 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  Crear sesión con {selectedFields.length} campo{selectedFields.length !== 1 ? 's' : ''} seleccionado{selectedFields.length !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Sesión activa */}
+          {reprocess.activeSession && (
+            <div style={{ padding: '0.75rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14 }}>
+              <div style={{ color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
+                Sesión creada · {reprocess.activeSession.preview_count} líneas se verán afectadas · Campos: {(reprocess.activeSession.filter_campos ?? []).join(', ')}
+              </div>
+              <button
+                disabled={reprocess.isRunning}
+                onClick={() => { void reprocess.executeSession(reprocess.activeSession!.id) }}
+                style={{
+                  padding: '0.45rem 1rem',
+                  background: reprocess.isRunning ? '#94A3B8' : '#10B981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: reprocess.isRunning ? 'not-allowed' : 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {reprocess.isRunning ? 'Ejecutando...' : 'Ejecutar reprocesado'}
+              </button>
+            </div>
+          )}
+
+          {/* Resultado de la última iteración */}
+          {reprocess.lastResult && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div style={{
+                padding: '0.75rem',
+                background: reprocess.lastResult.improvement ? '#DCFCE7' : '#FFEDD5',
+                border: `1px solid ${reprocess.lastResult.improvement ? '#86EFAC' : '#FED7AA'}`,
+                borderRadius: 8,
+                fontSize: 14,
+              }}>
+                <div style={{ fontWeight: 600, color: reprocess.lastResult.improvement ? '#166534' : '#9A3412', marginBottom: 4 }}>
+                  {reprocess.lastResult.improvement ? '✓ Mejora detectada' : 'Sin mejora — revisa los campos manualmente'}
+                </div>
+                <div style={{ color: '#374151', fontSize: 13, marginBottom: 4 }}>
+                  Intentadas: {reprocess.lastResult.lines_attempted} · Válidas: {reprocess.lastResult.lines_imported} · Con error: {reprocess.lastResult.lines_errored}
+                </div>
+                {reprocess.lastResult.estado === 'DONE' && (
+                  <div style={{ color: '#166534', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Todas las líneas procesadas</div>
+                )}
+                {reprocess.lastResult.message && (
+                  <div style={{ color: '#6B7280', fontSize: 12 }}>{reprocess.lastResult.message}</div>
+                )}
+                {reprocess.lastResult.can_retry && (
+                  <button
+                    onClick={() => {
+                      void reprocess.refreshSummary()
+                      setSelectedFields([])
+                    }}
+                    style={{
+                      marginTop: 8,
+                      padding: '0.35rem 0.75rem',
+                      background: '#6B7280',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Volver a inspeccionar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Botón rápido — reprocesar todo pendiente */}
+          {reprocess.totalResolvable > 0 && (
+            <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: '0.75rem' }}>
+              <button
+                disabled={reprocess.isRunning || reprocess.isLoading}
+                onClick={() => { void reprocess.iterate() }}
+                style={{
+                  padding: '0.4rem 0.9rem',
+                  background: reprocess.isRunning || reprocess.isLoading ? '#94A3B8' : '#64748B',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: reprocess.isRunning || reprocess.isLoading ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  opacity: 0.85,
+                }}
+              >
+                Reprocesar todo ({reprocess.totalResolvable} líneas)
+              </button>
+            </div>
+          )}
         </div>
       )}
 

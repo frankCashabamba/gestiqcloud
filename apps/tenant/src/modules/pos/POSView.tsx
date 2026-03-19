@@ -630,7 +630,7 @@ export default function POSView() {
                 </div>
             )}
 
-            <POSKeyboardHelp />
+            <POSKeyboardHelp bulkPricingItems={(companySettings?.pos_config as any)?.bulk_pricing_items || []} />
 
             <PendingReceiptsModal isOpen={showPendingModal} shiftId={currentShift?.id || undefined} onClose={() => setShowPendingModal(false)} canManage={isCompanyAdmin} onPaid={() => { }} />
 

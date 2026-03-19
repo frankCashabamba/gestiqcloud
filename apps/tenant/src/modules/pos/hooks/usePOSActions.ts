@@ -40,6 +40,14 @@ import type { Producto as Product } from '../../products/productsApi'
 import type { POSPayment } from '../../../types/pos'
 import { POS_DRAFT_KEY } from '../../../constants/storage'
 import { POS_THEME_KEY, normalizePosTheme, type CartItem, type POSState } from './usePOSState'
+import {
+    getBakeryShortcutMultiplierFromFunctionKey,
+    getBulkPricingShortcutItems,
+    MAX_BAKERY_SHORTCUTS,
+    normalizeBakeryShortcutLetter,
+    sanitizeBulkPricingItem,
+    type BulkPricingItem,
+} from '../bakeryShortcuts'
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -73,7 +81,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         setShowInvoiceModal, setShowDiscountModal, setShowResumeTicketModal,
         setShowCreateProductModal, showCreateProductModal,
         setShowPendingModal, setShowPrintPreview,
-        setQuickInputState,
+        quickInputState, setQuickInputState,
         // Print
         setAndPersistLastPrintJob, setPrintHtml, docPrintFormat,
         setSkipPrint, skipPrint,
@@ -104,6 +112,21 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         tax: 0,
         total: 0,
     })
+    const bakeryShortcutBufferRef = useRef('')
+    const bakeryShortcutTimerRef = useRef<number | null>(null)
+
+    const bulkPricingItems = useMemo(
+        () =>
+            (((companySettings?.pos_config as any)?.bulk_pricing_items || []) as BulkPricingItem[]).map(
+                sanitizeBulkPricingItem
+            ),
+        [companySettings]
+    )
+
+    const bulkShortcutItems = useMemo(
+        () => getBulkPricingShortcutItems(bulkPricingItems),
+        [bulkPricingItems]
+    )
 
     useEffect(() => {
         if (cart.length === 0) {
@@ -120,11 +143,10 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
 
         const calculateTotals = async () => {
             try {
-                const bulkItems: any[] = (companySettings?.pos_config as any)?.bulk_pricing_items || []
                 const lines: { qty: number; unit_price: number; tax_rate: number; discount_pct: number }[] = []
 
                 for (const item of cart) {
-                    const bulkCfg = bulkItems.find((b: any) => b.product_id === item.product_id)
+                    const bulkCfg = bulkPricingItems.find((b) => b.product_id === item.product_id)
                     if (bulkCfg && bulkCfg.quantity > 0) {
                         const bulkQty = Number(bulkCfg.quantity)
                         const bulkPrice = Number(bulkCfg.unit_price)
@@ -160,7 +182,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             }
         }
         calculateTotals()
-    }, [cart, globalDiscountPct])
+    }, [cart, globalDiscountPct, bulkPricingItems, products])
 
     // ------------------------------------------------------------------
     // Tipos de identificación y política de comprador
@@ -253,6 +275,9 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     const normalizeCode = (value?: string | null) =>
         (value || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '').trim().toUpperCase()
 
+    const normalizeText = (value?: string | null) =>
+        (value || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '').trim().toUpperCase()
+
     const round2 = (value: number) => Math.round(value * 100) / 100
 
     const normalizeCurrencyCode = (raw?: string): string => {
@@ -326,8 +351,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
 
     const getPricingForProduct = (product: Product, qty: number, packKey = 'unit') => {
         const basePrice = Number(product.price ?? 0) || 0
-        const bulkItems: any[] = (companySettings?.pos_config as any)?.bulk_pricing_items || []
-        const bulkCfg = bulkItems.find((b: any) => b.product_id === product.id)
+        const bulkCfg = bulkPricingItems.find((b) => b.product_id === product.id)
         if (bulkCfg && bulkCfg.quantity > 0) {
             const bulkQty = Number(bulkCfg.quantity)
             const bulkPrice = Number(bulkCfg.unit_price)
@@ -429,7 +453,8 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         setQuickInputState((prev) => ({ ...prev, open: false, onConfirm: undefined, multiline: false }))
     }
 
-    const addToCart = useCallback((product: Product, opts?: { ignoreReorder?: boolean }) => {
+    const addUnitsToCart = useCallback((product: Product, unitsToAdd = 1, opts?: { ignoreReorder?: boolean }) => {
+        const normalizedUnits = Math.max(1, Math.floor(Number(unitsToAdd) || 1))
         const existing = cart.find((item) => item.product_id === product.id)
         let basePrice = Number(product.price ?? 0)
         if ((!Number.isFinite(basePrice) || basePrice <= 0) && existing && existing.price > 0) basePrice = existing.price
@@ -449,7 +474,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                     closeQuickInput()
                     const pricedProduct = { ...product, price: enteredPrice }
                     setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, price: enteredPrice } : p)))
-                    addToCart(pricedProduct, opts)
+                    addUnitsToCart(pricedProduct, normalizedUnits, opts)
                     toast.info(t('pos:messages.priceEnteredForSale', { defaultValue: 'Price applied for this sale' }), {
                         action: {
                             label: t('common:save', { defaultValue: 'Save' }),
@@ -470,7 +495,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         }
 
         const productWithPrice = { ...product, price: basePrice }
-        const nextQty = existing ? existing.qty + 1 : 1
+        const nextQty = existing ? existing.qty + normalizedUnits : normalizedUnits
         if (violatesStockPolicy(productWithPrice, nextQty, opts)) return
 
         if (existing) {
@@ -484,13 +509,17 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                 name: product.name,
                 price: basePrice,
                 iva_tasa: (productWithPrice as any).iva_tasa ?? defaultTaxPct,
-                qty: 1,
+                qty: normalizedUnits,
                 discount_pct: 0,
                 categoria: productWithPrice.category || (productWithPrice.product_metadata?.categoria as any),
             }
-            setCart([...cart, applyPricingToCartItem(baseItem, productWithPrice, 1)])
+            setCart([...cart, applyPricingToCartItem(baseItem, productWithPrice, normalizedUnits)])
         }
-    }, [cart, products, isWholesaleCustomer, defaultTaxPct, companySettings])
+    }, [cart, defaultTaxPct, applyPricingToCartItem, t, toast])
+
+    const addToCart = useCallback((product: Product, opts?: { ignoreReorder?: boolean }) => {
+        addUnitsToCart(product, 1, opts)
+    }, [addUnitsToCart])
 
     const updateQty = (index: number, delta: number) => {
         setCart(cart.map((item, i) => {
@@ -547,6 +576,70 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         })
     }
 
+    const resetBakeryShortcutBuffer = useCallback(() => {
+        bakeryShortcutBufferRef.current = ''
+        if (bakeryShortcutTimerRef.current) {
+            window.clearTimeout(bakeryShortcutTimerRef.current)
+            bakeryShortcutTimerRef.current = null
+        }
+    }, [])
+
+    const resolveBakeryShortcutProduct = useCallback(async (item: BulkPricingItem) => {
+        const byId = products.find((entry) => String(entry.id) === String(item.product_id))
+        if (byId) return byId
+
+        const targetName = normalizeText(item.product_name)
+        if (targetName) {
+            const localByName = products.find((entry) => normalizeText(entry.name) === targetName)
+            if (localByName) return localByName
+        }
+
+        const query = String(item.product_name || item.product_id || '').trim()
+        if (!query) return null
+
+        try {
+            const remoteMatches = await searchProducts(query)
+            const remoteExact =
+                remoteMatches.find((entry) => String(entry.id) === String(item.product_id)) ||
+                remoteMatches.find((entry) => normalizeText(entry.name) === targetName) ||
+                remoteMatches[0]
+            if (!remoteExact) return null
+
+            setProducts((prev) => {
+                const exists = prev.some((entry) => String(entry.id) === String(remoteExact.id))
+                return exists ? prev : [remoteExact, ...prev]
+            })
+            return remoteExact
+        } catch {
+            return null
+        }
+    }, [products])
+
+    const applyBakeryShortcut = useCallback(async (shortcutLetter: string, multiplier: number) => {
+        const item = bulkShortcutItems.find((entry) => entry.shortcut_letter === shortcutLetter)
+        if (!item || item.quantity <= 0) return false
+        const product = await resolveBakeryShortcutProduct(item)
+        if (!product) {
+            toast.warning(`Producto no disponible para el atajo ${shortcutLetter}: ${item.product_name || item.product_id}`)
+            return false
+        }
+        addUnitsToCart(product, item.quantity * multiplier)
+        return true
+    }, [bulkShortcutItems, resolveBakeryShortcutProduct, addUnitsToCart, toast])
+
+    const flushBakeryShortcutBuffer = useCallback(async (multiplierOverride?: number) => {
+        const buffer = bakeryShortcutBufferRef.current
+        if (!buffer) return false
+        const shortcutLetter = normalizeBakeryShortcutLetter(buffer[0] || '')
+        const multiplier = Math.min(
+            multiplierOverride || buffer.length || 1,
+            MAX_BAKERY_SHORTCUTS
+        )
+        resetBakeryShortcutBuffer()
+        if (!shortcutLetter) return false
+        return await applyBakeryShortcut(shortcutLetter, multiplier)
+    }, [applyBakeryShortcut, resetBakeryShortcutBuffer])
+
     // ------------------------------------------------------------------
     // Barcode handlers
     // ------------------------------------------------------------------
@@ -582,6 +675,82 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         }
     }
 
+    useEffect(() => {
+        if (
+            bulkShortcutItems.length === 0 ||
+            state.showPaymentModal ||
+            showBuyerModal ||
+            state.showInvoiceModal ||
+            state.showDiscountModal ||
+            state.showResumeTicketModal ||
+            showCreateProductModal ||
+            quickInputState.open
+        ) {
+            resetBakeryShortcutBuffer()
+            return
+        }
+
+        const handler = (e: KeyboardEvent) => {
+            if (e.defaultPrevented) return
+            const target = e.target as HTMLElement | null
+            const tag = target?.tagName?.toLowerCase()
+            const isSearchInput = target === state.searchInputRef.current
+            if ((!isSearchInput && tag === 'input') || tag === 'textarea' || target?.isContentEditable) return
+            if (e.ctrlKey || e.altKey || e.metaKey) return
+
+            const multiplier = getBakeryShortcutMultiplierFromFunctionKey(e.code)
+            if (multiplier !== null && bakeryShortcutBufferRef.current) {
+                e.preventDefault()
+                e.stopImmediatePropagation()
+                void flushBakeryShortcutBuffer(multiplier)
+                return
+            }
+
+            if (e.key.length !== 1) return
+            const shortcutLetter = normalizeBakeryShortcutLetter(e.key)
+            if (!shortcutLetter) return
+            const hasShortcut = bulkShortcutItems.some((item) => item.shortcut_letter === shortcutLetter)
+            if (!hasShortcut) {
+                if (bakeryShortcutBufferRef.current) void flushBakeryShortcutBuffer()
+                return
+            }
+
+            const currentLetter = normalizeBakeryShortcutLetter(bakeryShortcutBufferRef.current[0] || '')
+            const nextCount =
+                currentLetter === shortcutLetter ? bakeryShortcutBufferRef.current.length + 1 : 1
+            bakeryShortcutBufferRef.current = shortcutLetter.repeat(
+                Math.min(nextCount, MAX_BAKERY_SHORTCUTS)
+            )
+
+            if (bakeryShortcutTimerRef.current) {
+                window.clearTimeout(bakeryShortcutTimerRef.current)
+            }
+            bakeryShortcutTimerRef.current = window.setTimeout(() => {
+                void flushBakeryShortcutBuffer()
+            }, 700)
+
+            e.preventDefault()
+            e.stopImmediatePropagation()
+        }
+
+        window.addEventListener('keydown', handler)
+        return () => {
+            window.removeEventListener('keydown', handler)
+            resetBakeryShortcutBuffer()
+        }
+    }, [
+        bulkShortcutItems,
+        flushBakeryShortcutBuffer,
+        quickInputState.open,
+        resetBakeryShortcutBuffer,
+        showBuyerModal,
+        showCreateProductModal,
+        state.showDiscountModal,
+        state.showInvoiceModal,
+        state.showPaymentModal,
+        state.showResumeTicketModal,
+    ])
+
     // Listener global de lector de barras (hardware)
     useEffect(() => {
         const resetBuffer = () => {
@@ -590,6 +759,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         }
 
         const handler = (e: KeyboardEvent) => {
+            if (e.defaultPrevented) return
             const target = e.target as HTMLElement | null
             const tag = target?.tagName?.toLowerCase()
             if (tag === 'input' || tag === 'textarea' || (target as HTMLElement | null)?.isContentEditable) return

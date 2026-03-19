@@ -163,6 +163,10 @@ def _learning_min_confidence() -> float:
     raw = (os.getenv("IMPORTADOR_CACHE_MIN_CONFIDENCE") or "").strip()
     if not raw:
         return 0.6
+    try:
+        return max(0.0, min(1.0, float(raw)))
+    except ValueError:
+        return 0.6
 
 
 def _coerce_learning_version(value: object) -> int:
@@ -209,10 +213,6 @@ def should_reprocess_existing_document(db: Session, doc) -> bool:
 
     applied_version = get_document_applied_learning_version(getattr(doc, "raw_ai_json", None))
     return applied_version < current_version
-    try:
-        return max(0.0, min(1.0, float(raw)))
-    except ValueError:
-        return 0.6
 
 
 def get_snapshot_learning(

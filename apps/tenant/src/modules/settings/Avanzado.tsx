@@ -7,19 +7,18 @@ import { getErrorMessage, useToast } from '../../shared/toast'
 import { useAuth } from '../../auth/AuthContext'
 import { NUMBERING_DEFAULTS, resetToDefaults } from '../../constants/defaults'
 import { useDocTypes } from '../../hooks/useGlobalCatalogs'
+import {
+    getBakeryShortcutValidationError,
+    normalizeBakeryShortcutLetter,
+    sanitizeBulkPricingItem,
+    type BulkPricingItem,
+} from '../pos/bakeryShortcuts'
 
 type InventoryForm = {
     track_lots?: boolean
     track_expiry?: boolean
     allow_negative_stock?: boolean
     reorder_point_default?: number | null
-}
-
-type BulkPricingItem = {
-    product_id: string
-    product_name?: string
-    quantity: number
-    unit_price: number
 }
 
 type PosForm = {
@@ -101,6 +100,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
         product_id: '',
         quantity: 6,
         unit_price: 1.0,
+        shortcut_letter: '',
     })
 
     const { items: docTypesCatalog } = useDocTypes()
@@ -131,7 +131,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
             const tax = (posConfig as any).tax || {}
             const receipt = (posConfig as any).receipt || {}
             const storeCredit = (posConfig as any).store_credit || {}
-            const bulkPricingItems = (posConfig as any).bulk_pricing_items || []
+            const bulkPricingItems = ((posConfig as any).bulk_pricing_items || []).map(sanitizeBulkPricingItem)
             const taxDefault = toNumberOrNull(tax.default_rate)
             const taxDefaultPct =
                 taxDefault === null ? null : taxDefault <= 1 ? taxDefault * 100 : taxDefault
@@ -319,8 +319,10 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                             : Number(pos.return_window_days),
                     bulk_pricing_items: (pos.bulk_pricing_items || []).map((item: any) => ({
                         product_id: item.product_id,
+                        product_name: item.product_name,
                         quantity: Number(item.quantity) || 1,
                         unit_price: Number(item.unit_price) || 0,
+                        shortcut_letter: normalizeBakeryShortcutLetter(item.shortcut_letter) || null,
                     })),
                     store_credit: {
                         enabled: !!pos.store_credit_enabled,
@@ -601,8 +603,12 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                         <p className="text-sm text-gray-600 mb-4">
                             Configura el precio fijo para una cantidad específica de cada producto (ej: 6 tapapados por $1)
                         </p>
+                        <p className="text-xs text-gray-500 mb-4">
+                            Cada producto puede tener una letra. En el POS puedes usar `T`, `TT` o `T + F2`
+                            para vender 1, 2 o mas conjuntos. Solo se permiten 10 letras distintas.
+                        </p>
 
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4 p-3 bg-gray-50 rounded">
                             <div>
                                 <label className="block text-sm mb-1 font-medium">{t('settings:advanced.selectProduct')}</label>
                                 <select
@@ -661,6 +667,22 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                     step="0.01"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm mb-1 font-medium">Tecla</label>
+                                <input
+                                    className="border px-2 py-1 w-full rounded uppercase"
+                                    type="text"
+                                    placeholder="T"
+                                    value={bulkPricingForm.shortcut_letter || ''}
+                                    onChange={(e) =>
+                                        setBulkPricingForm((prev) => ({
+                                            ...prev,
+                                            shortcut_letter: normalizeBakeryShortcutLetter(e.target.value),
+                                        }))
+                                    }
+                                    maxLength={1}
+                                />
+                            </div>
                             <div className="flex items-end">
                                 <button
                                     className="bg-green-600 text-white px-3 py-1.5 rounded w-full disabled:opacity-60"
@@ -682,12 +704,22 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             return
                                         }
 
+                                        const shortcutError = getBakeryShortcutValidationError(
+                                            pos.bulk_pricing_items || [],
+                                            bulkPricingForm.shortcut_letter,
+                                            bulkPricingForm.product_id
+                                        )
+                                        if (shortcutError) {
+                                            error(shortcutError)
+                                            return
+                                        }
+
                                         shouldAutoSaveBulk.current = true
                                         setPos((prev) => ({
                                             ...prev,
                                             bulk_pricing_items: [
                                                 ...(prev.bulk_pricing_items || []),
-                                                bulkPricingForm,
+                                                sanitizeBulkPricingItem(bulkPricingForm),
                                             ],
                                         }))
 
@@ -695,6 +727,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             product_id: '',
                                             quantity: 6,
                                             unit_price: 1.0,
+                                            shortcut_letter: '',
                                         })
                                     }}
                                     disabled={productsLoading || !bulkPricingForm.product_id}
@@ -712,6 +745,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         <th className="text-left px-3 py-2">{t('settings:advanced.product')}</th>
                                         <th className="text-right px-3 py-2">{t('settings:advanced.quantity')}</th>
                                         <th className="text-right px-3 py-2">{t('settings:advanced.price')}</th>
+                                        <th className="text-right px-3 py-2">Tecla</th>
                                         <th className="text-right px-3 py-2">Precio/Unidad</th>
                                         <th className="text-right px-3 py-2">Acción</th>
                                     </tr>
@@ -729,6 +763,15 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                                     </td>
                                                     <td className="px-3 py-2 text-right">{item.quantity}</td>
                                                     <td className="px-3 py-2 text-right">${item.unit_price.toFixed(2)}</td>
+                                                    <td className="px-3 py-2 text-right">
+                                                        {item.shortcut_letter ? (
+                                                            <span className="inline-flex items-center rounded bg-slate-100 px-2 py-1 font-mono text-xs font-semibold">
+                                                                {item.shortcut_letter}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
+                                                        )}
+                                                    </td>
                                                     <td className="px-3 py-2 text-right">${pricePerUnit.toFixed(4)}</td>
                                                     <td className="px-3 py-2 text-right">
                                                         <button
@@ -753,7 +796,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         <tr>
                                             <td
                                                 className="px-3 py-4 text-center text-slate-500 text-sm"
-                                                colSpan={5}
+                                                colSpan={6}
                                             >
                                                 No hay productos configurados. Agrega uno arriba.
                                             </td>
