@@ -29,10 +29,13 @@ from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
     get_snapshot_learning,
+    get_snapshot_learning_version,
     remember_snapshot_learning,
     resolve_auto_recipe,
     resolve_auto_recipe_from_text,
+    should_reprocess_existing_document,
 )
+from .canonical_document import build_document_projection
 from .document_fields import (
     detect_document_currency,
     detect_document_date,
@@ -51,6 +54,7 @@ from .schemas import (
     RunResponse,
     SnapshotOut,
 )
+from .snapshot_learning import bootstrap_learning_from_existing_document
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +186,12 @@ async def run_import(
             if force
             else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
         )
-        if existing and existing.estado in ("CONFIRMED", "REVIEW"):
+        reuse_existing = bool(existing and existing.estado in ("CONFIRMED", "REVIEW"))
+        if reuse_existing:
+            bootstrap_learning_from_existing_document(db, existing, user_id)
+        if reuse_existing and should_reprocess_existing_document(db, existing):
+            reuse_existing = False
+        if reuse_existing:
             crud.add_log(
                 db,
                 existing.id,
@@ -503,11 +512,44 @@ async def run_import(
                         force_new=force,
                     )
                 )
-                if not local_recipe_config and auto_rc2:
-                    local_recipe_config = auto_rc2
                 if post_snap_id and not local_snapshot_id:
                     local_snapshot_id = post_snap_id
+                if auto_rc2 and not auto_recipe_created and not local_recipe_config:
+                    rerun_analysis = await analyze_document(
+                        llm_content,
+                        filename,
+                        extraction.get("format", tipo_archivo),
+                        has_structured_rows=False,
+                        recipe_config=auto_rc2,
+                        image_bytes=(
+                            bytes(vision_image_bytes)
+                            if (is_image_doc or is_scanned_pdf) and vision_image_bytes
+                            else None
+                        ),
+                    )
+                    rerun_normalized = _normalize_analysis_output(rerun_analysis)
+                    rerun_fields = rerun_normalized["fields"]
+                    if isinstance(rerun_fields, dict) and rerun_fields:
+                        analysis = rerun_analysis
+                        normalized_analysis = rerun_normalized
+                        tipo_doc = str(rerun_normalized["doc_type"])
+                        confianza = float(rerun_normalized["confidence"])
+                        razonamiento = str(rerun_normalized["reasoning"])
+                        analysis_fields = rerun_fields
+                        requiere_revision = confianza < CONFIDENCE_THRESHOLD
+                        datos_extraidos = rerun_fields
+                        local_recipe_config = auto_rc2
 
+            current_snapshot = None
+            current_snapshot_id = local_snapshot_id or resolved_snapshot_id
+            if current_snapshot_id:
+                current_snapshot = recipe_crud.get_snapshot(db, UUID(str(current_snapshot_id)))
+            learning_version_applied = get_snapshot_learning_version(current_snapshot)
+            canonical_document, projection = build_document_projection(
+                datos_extraidos if isinstance(datos_extraidos, dict) else {},
+                doc_type=tipo_doc,
+                source_format=extraction.get("format", tipo_archivo),
+            )
             model_used = analysis.get("model_used") or "unknown"
             raw_ai_json = {
                 "run": {
@@ -522,11 +564,13 @@ async def run_import(
                         "force": force,
                         "force_clean_reimport": force_clean_reimport,
                         "explicit_recipe_context": explicit_recipe_context,
+                        "learning_version_applied": learning_version_applied,
                         "generated_auto_snapshot_id": (
                             str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None
                         ),
                         "generated_auto_snapshot_mode": generated_auto_mode,
                     },
+                    "learning_version_applied": learning_version_applied,
                     "model": model_used,
                 },
                 "analysis": {
@@ -542,6 +586,7 @@ async def run_import(
                         list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
                     ),
                 },
+                "canonical_document": canonical_document,
             }
 
             datos_extraidos = (
@@ -566,35 +611,7 @@ async def run_import(
                     "requiere_revision": requiere_revision,
                     "datos_extraidos": datos_extraidos,
                     "estado": "REVIEW",
-                    "proveedor_detectado": (
-                        get_data_value(
-                            datos_extraidos, "proveedor", "vendor_name", "supplier", "emisor"
-                        )
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "ruc_detectado": (
-                        get_data_value(
-                            datos_extraidos, "ruc", "tax_id", "supplier_tax_id", "vendor_tax_id"
-                        )
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "monto_total": (
-                        detect_document_total(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "moneda": (
-                        detect_document_currency(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "fecha_documento": (
-                        detect_document_date(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
+                    **projection,
                     "llm_model": model_used,
                     "raw_ai_json": raw_ai_json,
                     "fingerprint_json": sheet_profiles,

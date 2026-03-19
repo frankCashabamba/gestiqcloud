@@ -92,6 +92,13 @@ function getDocumentData(raw: Record<string, unknown>): Record<string, unknown> 
   return {}
 }
 
+function getCanonicalDocument(raw: Record<string, unknown>): Record<string, unknown> {
+  const ai = raw.raw_ai_json
+  if (!ai || typeof ai !== 'object') return {}
+  const canonical = (ai as Record<string, unknown>).canonical_document
+  return canonical && typeof canonical === 'object' ? canonical as Record<string, unknown> : {}
+}
+
 function getDocumentValue(data: Record<string, unknown>, ...keys: string[]): unknown {
   const normalized: Record<string, unknown> = {}
   for (const [rawKey, value] of Object.entries(data || {})) {
@@ -150,19 +157,32 @@ function normalizeSyncedSheets(raw: unknown): Documento['synced_sheets'] {
 function normalizeDocument(raw: unknown): Documento {
   const data = (raw || {}) as Record<string, unknown>
   const importData = getDocumentData(data)
+  const canonical = getCanonicalDocument(data)
+  const canonicalDocument = canonical.document && typeof canonical.document === 'object'
+    ? canonical.document as Record<string, unknown>
+    : {}
+  const canonicalTotals = canonical.totals && typeof canonical.totals === 'object'
+    ? canonical.totals as Record<string, unknown>
+    : {}
+  const canonicalCurrency = canonical.currency && typeof canonical.currency === 'object'
+    ? canonical.currency as Record<string, unknown>
+    : {}
   const inferredTotal = parseNumberish(getDocumentValue(importData, 'total_amount', 'monto_total', 'total', 'amount', 'importe', 'grand_total'))
   const inferredCurrency = getDocumentValue(importData, 'currency', 'moneda', 'divisa')
   const inferredDate = getDocumentValue(importData, 'issue_date', 'fecha', 'date', 'invoice_date', 'expense_date')
+  const canonicalTotal = parseNumberish(canonicalTotals.total)
+  const canonicalCurrencyCode = typeof canonicalCurrency.code === 'string' ? canonicalCurrency.code : undefined
+  const canonicalIssueDate = typeof canonicalDocument.issue_date === 'string' ? canonicalDocument.issue_date : undefined
 
   return {
     ...(data as Documento),
-    monto_total: data.monto_total != null ? Number(data.monto_total) : inferredTotal,
+    monto_total: data.monto_total != null ? Number(data.monto_total) : (inferredTotal ?? canonicalTotal),
     moneda: typeof data.moneda === 'string' && data.moneda.trim()
       ? data.moneda
-      : (typeof inferredCurrency === 'string' ? inferredCurrency : undefined),
+      : (typeof inferredCurrency === 'string' ? inferredCurrency : canonicalCurrencyCode),
     fecha_documento: typeof data.fecha_documento === 'string' && data.fecha_documento.trim()
       ? data.fecha_documento
-      : (typeof inferredDate === 'string' ? inferredDate : undefined),
+      : (typeof inferredDate === 'string' ? inferredDate : canonicalIssueDate),
     synced_sheets: normalizeSyncedSheets(data.synced_sheets),
   }
 }

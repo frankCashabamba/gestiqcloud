@@ -75,6 +75,31 @@ function normalizeText(value: unknown): string {
     .trim()
 }
 
+function extractPaymentMethodText(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => extractPaymentMethodText(item))
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  if (value && typeof value === 'object') {
+    const row = value as Record<string, unknown>
+    for (const key of ['name', 'label', 'value', 'description', 'method', 'type']) {
+      const candidate = extractPaymentMethodText(row[key])
+      if (candidate) return candidate
+    }
+    return ''
+  }
+
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  return raw.replace(
+    /^(payment\s*(method|type|terms?)|metodo\s+de\s+pago|forma\s+de\s+pago|tipo\s+de\s+pago|medio\s+de\s+pago|condiciones?\s+de\s+pago)\s*[:\-]\s*/i,
+    '',
+  ).trim()
+}
+
 function scorePaymentMethod(rawNorm: string, method: PaymentMethod): number {
   const nameNorm = normalizeText(method.name)
   const descriptionNorm = normalizeText(method.description || '')
@@ -102,13 +127,13 @@ function pickPaymentMethodId(
 ): string {
   if (methods.length === 0) return ''
 
-  const raw = String(rawValue || '').trim()
-  if (!raw) return fallbackId || methods[0]?.id || ''
+  const raw = extractPaymentMethodText(rawValue)
+  if (!raw) return fallbackId || ''
   const rawNorm = normalizeText(raw)
   const byId = methods.find((method) => method.id === raw)
   if (byId) return byId.id
 
-  let bestId = fallbackId || methods[0]?.id || ''
+  let bestId = fallbackId || ''
   let bestScore = -1
 
   for (const method of methods) {
@@ -120,7 +145,7 @@ function pickPaymentMethodId(
     }
   }
 
-  return bestScore >= 0.78 ? bestId : (fallbackId || methods[0]?.id || '')
+  return bestScore >= 0.78 ? bestId : (fallbackId || '')
 }
 
 function buildInferredDefaults(
@@ -139,10 +164,23 @@ function buildInferredDefaults(
     'payments',
     'payment',
     'payment_method',
+    'payment_type',
+    'payment_terms',
     'metodo_pago',
+    'metodo_de_pago',
+    'forma_pago',
+    'forma_de_pago',
+    'tipo_pago',
+    'tipo_de_pago',
+    'medio_pago',
+    'medio_de_pago',
+    'condicion_pago',
+    'condiciones_pago',
     'metodo',
   )
-  const fallbackMethodId = methods[0]?.id || ''
+  const fallbackMethodId = typeof saveMeta.payment_method_id === 'string'
+    ? saveMeta.payment_method_id
+    : ''
   const savedStatus = typeof saveMeta.payment_status === 'string' && ['pending', 'partial', 'paid'].includes(saveMeta.payment_status)
     ? saveMeta.payment_status as DocumentPaymentStatus
     : null
@@ -440,7 +478,11 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
         onClose()
       }
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'No se pudo guardar el documento.')
+      const raw = err?.response?.data?.detail
+      const detail = Array.isArray(raw)
+        ? raw.map((e: any) => e.msg ?? JSON.stringify(e)).join(' | ')
+        : typeof raw === 'string' ? raw : null
+      setError(detail || err?.message || 'No se pudo guardar el documento.')
     } finally {
       setSaving(false)
     }

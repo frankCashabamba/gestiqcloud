@@ -163,7 +163,7 @@ class SaveDocumentRequest(BaseModel):
     paid_amount: float | None = Field(default=None, ge=0)
     pending_amount: float | None = Field(default=None, ge=0)
     payment_method: str | None = Field(default=None, max_length=64)
-    payment_method_id: UUID | None = None
+    payment_method_id: UUID | str | None = None
     paid_at: str | None = None
     notes: str | None = None
     update_stock: bool = False

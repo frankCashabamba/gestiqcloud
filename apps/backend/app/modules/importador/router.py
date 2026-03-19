@@ -21,10 +21,20 @@ from app.core.authz import require_scope
 
 from . import crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-from .auto_recipe import resolve_auto_recipe
+from .analysis_normalizer import _normalize_analysis_output
+from .auto_recipe import (
+    get_snapshot_learning,
+    get_snapshot_learning_version,
+    remember_snapshot_learning,
+    resolve_auto_recipe,
+    resolve_auto_recipe_from_text,
+    should_reprocess_existing_document,
+)
+from .canonical_document import build_document_projection
 from .document_fields import (
     detect_document_currency,
     detect_document_date,
+    detect_document_payment_method,
     detect_document_subtotal,
     detect_document_tax,
     detect_document_total,
@@ -33,7 +43,9 @@ from .document_fields import (
 )
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .product_import_service import build_product_candidates, save_product_candidates
+from . import recipe_crud
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
+from .snapshot_learning import bootstrap_learning_from_existing_document, learn_from_confirmed_payload
 from .schemas import (
     BatchDetailOut,
     BatchSummaryOut,
@@ -206,7 +218,7 @@ def _score_product_candidate(description: str, product) -> tuple[float, str | No
         if not alias_name:
             continue
         if alias_name == desc_norm:
-            return float(0.99), "alias_exact", float(alias.get("factor") or 1)
+            return 0.99, "alias_exact", float(alias.get("factor") or 1)
         if alias_name in desc_norm or desc_norm in alias_name:
             score = 0.94
         else:
@@ -226,13 +238,20 @@ def _score_product_candidate(description: str, product) -> tuple[float, str | No
         best_score = 0.91
         best_reason = "core_exact"
         best_factor = inferred_factor
-    if product_name and (desc_norm in product_name or product_name in desc_norm) and 0.84 > best_score:
+    if (
+        product_name
+        and (desc_norm in product_name or product_name in desc_norm)
+        and 0.84 > best_score
+    ):
         best_score = 0.84
         best_reason = "name_partial"
         best_factor = inferred_factor
-    if desc_core and product_core and (
-        desc_core in product_core or product_core in desc_core
-    ) and 0.81 > best_score:
+    if (
+        desc_core
+        and product_core
+        and (desc_core in product_core or product_core in desc_core)
+        and 0.81 > best_score
+    ):
         best_score = 0.81
         best_reason = "core_partial"
         best_factor = inferred_factor
@@ -289,7 +308,9 @@ def _build_document_line_matches(
 
         selected_match = selected_by_index.get(index)
         selected_product = (
-            _find_product_by_id(db, tenant_id, selected_match.product_id) if selected_match else None
+            _find_product_by_id(db, tenant_id, selected_match.product_id)
+            if selected_match
+            else None
         )
         selected_reason = "manual" if selected_product else None
         selected_factor = (
@@ -417,6 +438,20 @@ def _first_non_empty(*values):
             if not value:
                 continue
         return value
+    return None
+
+
+def _get_document_payment_method(data: dict) -> str | None:
+    detected = detect_document_payment_method(data)
+    if detected:
+        return detected
+    save_meta = data.get("_save")
+    if isinstance(save_meta, dict):
+        saved_method = save_meta.get("payment_method")
+        if saved_method is not None:
+            text = str(saved_method).strip()
+            if text:
+                return text
     return None
 
 
@@ -640,6 +675,12 @@ def _resolve_payment_method(
     if not raw:
         return None, None
 
+    raw = re.sub(
+        r"^(payment\s*(method|type|terms?)|metodo\s+de\s+pago|forma\s+de\s+pago|tipo\s+de\s+pago|medio\s+de\s+pago|condiciones?\s+de\s+pago)\s*[:\-]\s*",
+        "",
+        raw,
+        flags=re.IGNORECASE,
+    ).strip()
     raw_norm = _norm_import_text(raw)
     if not raw_norm:
         return None, None
@@ -700,11 +741,12 @@ def _save_document_to_expense(
         total = round(float(subtotal or 0.0) + float(vat or 0.0), 2)
 
     payment = _normalize_payment_details(total, body)
+    detected_payment_method = _get_document_payment_method(data)
     payment_method, _payment_method_id = _resolve_payment_method(
         db,
         tenant_id,
         getattr(body, "payment_method_id", None),
-        body.payment_method,
+        body.payment_method or detected_payment_method,
     )
 
     supplier_id, supplier_name = _lookup_supplier(db, tenant_id, doc, data)
@@ -831,7 +873,9 @@ def _save_document_to_purchase(
     data = _get_doc_import_data(doc)
     line_items = _extract_document_line_items(data)
     line_match_map = {
-        int(match.line_index): match for match in (line_matches or []) if match.product_id is not None
+        int(match.line_index): match
+        for match in (line_matches or [])
+        if match.product_id is not None
     }
 
     logger.info(
@@ -1029,7 +1073,9 @@ def _save_document_to_purchase(
             )
             lines_matched += 1
             if selected_match and selected_match.persist_alias:
-                _append_import_alias(product, description, conv_factor, getattr(product, "unit", None))
+                _append_import_alias(
+                    product, description, conv_factor, getattr(product, "unit", None)
+                )
                 db.add(product)
         else:
             if description and product is None:
@@ -1111,7 +1157,12 @@ async def upload_files(
             if force
             else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
         )
-        if existing and existing.estado in ("CONFIRMED", "REVIEW"):
+        reuse_existing = bool(existing and existing.estado in ("CONFIRMED", "REVIEW"))
+        if reuse_existing:
+            bootstrap_learning_from_existing_document(db, existing, user_id)
+        if reuse_existing and should_reprocess_existing_document(db, existing):
+            reuse_existing = False
+        if reuse_existing:
             # Reutiliza resultado anterior para ahorrar tiempo
             crud.add_log(
                 db, existing.id, "SKIP_DUPLICATE", user_id, {"reason": "same hash_or_name"}
@@ -1169,6 +1220,9 @@ async def upload_files(
             # (podría tener prompts de clasificaciones incorrectas anteriores)
             resolved_snapshot_id = None
             resolution_mode = "zero_shot"
+            recipe_snapshot = None
+            recipe_config: dict = {}
+            cached_analysis = None
             if sheet_profiles:
                 _, resolved_snapshot_id, resolution_mode, _, _ = resolve_auto_recipe(
                     db,
@@ -1176,6 +1230,21 @@ async def upload_files(
                     sheet_profiles,
                     user_id,
                 )
+                if resolved_snapshot_id:
+                    recipe_snapshot = recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
+                    if recipe_snapshot and isinstance(recipe_snapshot.content_json, dict):
+                        recipe_config = {
+                            "prompt_system": recipe_snapshot.content_json.get("prompt_system"),
+                            "prompt_user": recipe_snapshot.content_json.get("prompt_user"),
+                            "model": recipe_snapshot.content_json.get("model"),
+                            "field_descriptions": recipe_snapshot.content_json.get(
+                                "field_descriptions"
+                            ),
+                        }
+                        cached_analysis = get_snapshot_learning(
+                            recipe_snapshot,
+                            structured_only=True,
+                        )
 
             # Contenido para el LLM
             if has_structured:
@@ -1193,18 +1262,44 @@ async def upload_files(
                 vision_image_bytes = file_bytes if tipo_archivo in ("JPG", "PNG", "IMG") else None
 
             # LLM con prompt genérico limpio (sin recipe_config que pueda sesgar la clasificación)
-            analysis = await analyze_document(
-                llm_content,
-                filename,
-                extraction.get("format", tipo_archivo),
-                has_structured_rows=has_structured,
-                recipe_config={},
-                image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
-            )
+            if cached_analysis:
+                analysis = {
+                    **cached_analysis,
+                    "fields": {},
+                    "is_table": True,
+                    "columns": [],
+                    "model_used": "snapshot-cache",
+                    "prompt_sent": "",
+                    "raw_response": "snapshot-cache",
+                }
+            else:
+                analysis = await analyze_document(
+                    llm_content,
+                    filename,
+                    extraction.get("format", tipo_archivo),
+                    has_structured_rows=has_structured,
+                    recipe_config=recipe_config,
+                    image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
+                )
 
-            tipo_doc = analysis.get("doc_type", "OTHER")
-            confianza = float(analysis.get("confidence", 0.0))
+            normalized_analysis = _normalize_analysis_output(analysis)
+            tipo_doc = str(normalized_analysis["doc_type"])
+            confianza = float(normalized_analysis["confidence"])
             requiere_revision = confianza < CONFIDENCE_THRESHOLD
+            razonamiento = str(normalized_analysis["reasoning"])
+            analysis_fields = normalized_analysis["fields"]
+
+            if has_structured and recipe_snapshot:
+                remember_snapshot_learning(
+                    db,
+                    recipe_snapshot,
+                    {
+                        "doc_type": tipo_doc,
+                        "confidence": confianza,
+                        "reasoning": razonamiento,
+                    },
+                    structured_only=True,
+                )
 
             crud.add_log(
                 db,
@@ -1214,7 +1309,7 @@ async def upload_files(
                 {
                     "tipo_documento": tipo_doc,
                     "confianza": confianza,
-                    "razonamiento": analysis.get("reasoning", ""),
+                    "razonamiento": razonamiento,
                     "model_used": analysis.get("model_used"),
                 },
             )
@@ -1244,7 +1339,46 @@ async def upload_files(
                 }
             else:
                 # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
-                datos_extraidos = analysis.get("fields") or {}
+                datos_extraidos = analysis_fields or {}
+                auto_recipe_created = False
+                if tipo_doc != "OTHER":
+                    auto_recipe_config, post_snapshot_id, _, auto_recipe_created, _ = (
+                        resolve_auto_recipe_from_text(
+                            db,
+                            tenant_id,
+                            tipo_doc,
+                            datos_extraidos,
+                            extraction.get("format", tipo_archivo),
+                            user_id,
+                            force_new=force,
+                        )
+                    )
+                    if post_snapshot_id:
+                        resolved_snapshot_id = post_snapshot_id
+                        recipe_snapshot = recipe_crud.get_snapshot(
+                            db, UUID(str(post_snapshot_id))
+                        )
+                    if auto_recipe_config and not auto_recipe_created:
+                        rerun_analysis = await analyze_document(
+                            llm_content,
+                            filename,
+                            extraction.get("format", tipo_archivo),
+                            has_structured_rows=False,
+                            recipe_config=auto_recipe_config,
+                            image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
+                        )
+                        rerun_normalized = _normalize_analysis_output(rerun_analysis)
+                        rerun_fields = rerun_normalized["fields"]
+                        if isinstance(rerun_fields, dict) and rerun_fields:
+                            analysis = rerun_analysis
+                            normalized_analysis = rerun_normalized
+                            tipo_doc = str(rerun_normalized["doc_type"])
+                            confianza = float(rerun_normalized["confidence"])
+                            requiere_revision = confianza < CONFIDENCE_THRESHOLD
+                            razonamiento = str(rerun_normalized["reasoning"])
+                            analysis_fields = rerun_fields
+                            datos_extraidos = rerun_fields
+                            recipe_config = auto_recipe_config
 
             crud.add_log(
                 db,
@@ -1268,6 +1402,41 @@ async def upload_files(
                 if isinstance(sheet_profiles, (dict, list))
                 else sheet_profiles
             )
+            canonical_document, projection = build_document_projection(
+                datos_extraidos if isinstance(datos_extraidos, dict) else {},
+                doc_type=tipo_doc,
+                source_format=extraction.get("format", tipo_archivo),
+            )
+            learning_version_applied = get_snapshot_learning_version(recipe_snapshot)
+            model_used = analysis.get("model_used") or "unknown"
+            raw_ai_json = _json_safe(
+                {
+                    "run": {
+                        "recipe_resolution": {
+                            "used": resolution_mode,
+                            "recipe_snapshot_id": (
+                                str(resolved_snapshot_id) if resolved_snapshot_id else None
+                            ),
+                            "learning_version_applied": learning_version_applied,
+                        },
+                        "learning_version_applied": learning_version_applied,
+                        "model": model_used,
+                    },
+                    "analysis": {
+                        "prompt": analysis.get("prompt_sent", ""),
+                        "raw_response": analysis.get("raw_response", ""),
+                        "parsed": {
+                            "tipo_documento": tipo_doc,
+                            "confianza": confianza,
+                            "razonamiento": razonamiento,
+                        },
+                        "campos_extraidos": (
+                            list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                        ),
+                    },
+                    "canonical_document": canonical_document,
+                }
+            )
 
             crud.update_documento(
                 db,
@@ -1279,47 +1448,11 @@ async def upload_files(
                     "requiere_revision": requiere_revision,
                     "datos_extraidos": datos_extraidos,
                     "estado": "REVIEW",
-                    "proveedor_detectado": (
-                        get_data_value(
-                            datos_extraidos,
-                            "vendor",
-                            "proveedor",
-                            "vendor_name",
-                            "supplier",
-                            "emisor",
-                        )
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "ruc_detectado": (
-                        get_data_value(
-                            datos_extraidos,
-                            "vendor_tax_id",
-                            "ruc",
-                            "tax_id",
-                            "supplier_tax_id",
-                            "ruc_proveedor",
-                        )
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "monto_total": (
-                        detect_document_total(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "moneda": (
-                        detect_document_currency(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "fecha_documento": (
-                        detect_document_date(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
+                    **projection,
                     "fingerprint_json": sheet_profiles,
                     "sheet_profiles_json": sheet_profiles,
+                    "llm_model": model_used,
+                    "raw_ai_json": raw_ai_json,
                     "recipe_snapshot_id": resolved_snapshot_id,
                 },
             )
@@ -1426,60 +1559,8 @@ class SyncRecipesRequest(BaseModel):
 
 
 def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id: str) -> None:
-    """Update the associated recipe snapshot's field_descriptions based on user corrections.
-
-    Compares datos_extraidos vs datos_confirmados to detect which fields the user
-    corrected, then stores those hints so future extractions improve.
-    """
-    from . import recipe_crud
-
-    if not doc.recipe_snapshot_id:
-        return
-    datos_extraidos = doc.datos_extraidos or {}
-    if not isinstance(datos_extraidos, dict) or not isinstance(datos_confirmados, dict):
-        return
-
-    skip_keys = {
-        "filas",
-        "total_filas",
-        "columnas",
-        "columnas_norm",
-        "hojas",
-        "sheet_usada",
-        "metadata",
-        "filas_por_hoja",
-        "filas_por_hoja_count",
-    }
-    corrections: dict[str, str] = {}
-    for key, confirmed_val in datos_confirmados.items():
-        if key in skip_keys or key.startswith("_"):
-            continue
-        original_val = datos_extraidos.get(key)
-        if confirmed_val != original_val and confirmed_val is not None:
-            corrections[key] = (
-                f"User corrected '{key}': expected '{confirmed_val}' (was '{original_val}')"
-            )
-
-    if not corrections:
-        return
-
-    snap = recipe_crud.get_snapshot(db, doc.recipe_snapshot_id)
-    if not snap or not snap.content_json:
-        return
-
-    content = dict(snap.content_json)
-    fd = dict(content.get("field_descriptions") or {})
-    fd.update(corrections)
-    content["field_descriptions"] = fd
-    snap.content_json = content
-
-    crud.add_log(
-        db,
-        doc.id,
-        "LEARN",
-        user_id,
-        {"corrections": corrections, "snapshot_id": str(snap.id)},
-    )
+    """Persist learned hints from a confirmed document into its snapshot."""
+    learn_from_confirmed_payload(db, doc, datos_confirmados, user_id)
 
 
 @router.post("/documents/{doc_id}/confirm", response_model=DocumentoOut, dependencies=protected)
@@ -1691,7 +1772,9 @@ def get_document_line_match_candidates(
     return DocumentLineMatchesResponse(lines=_build_document_line_matches(db, tenant_id, doc))
 
 
-@router.post("/documents/{doc_id}/save", response_model=SaveDocumentResponse, dependencies=protected)
+@router.post(
+    "/documents/{doc_id}/save", response_model=SaveDocumentResponse, dependencies=protected
+)
 def save_document(
     doc_id: UUID,
     body: SaveDocumentRequest,
@@ -1804,11 +1887,12 @@ def save_document(
     resolved_payment_method = None
     resolved_payment_method_id = None
     if destination != "recipe":
+        detected_payment_method = _get_document_payment_method(_get_doc_import_data(doc))
         resolved_payment_method, resolved_payment_method_id = _resolve_payment_method(
             db,
             doc.tenant_id,
             body.payment_method_id,
-            body.payment_method,
+            body.payment_method or detected_payment_method,
         )
 
     payment_snapshot = (
@@ -1827,7 +1911,9 @@ def save_document(
         "paid_amount": payment_snapshot.get("paid_amount"),
         "pending_amount": payment_snapshot.get("pending_amount"),
         "payment_method": resolved_payment_method,
-        "payment_method_id": str(resolved_payment_method_id) if resolved_payment_method_id else None,
+        "payment_method_id": (
+            str(resolved_payment_method_id) if resolved_payment_method_id else None
+        ),
         "paid_at": body.paid_at,
         "notes": body.notes,
         "line_matches": [

@@ -121,9 +121,12 @@ async def _run_processing(
     from app.modules.importador.ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
     from app.modules.importador.auto_recipe import (
         get_snapshot_learning,
+        get_snapshot_learning_version,
         remember_snapshot_learning,
         resolve_auto_recipe,
+        resolve_auto_recipe_from_text,
     )
+    from app.modules.importador.canonical_document import build_document_projection
     from app.modules.importador.document_fields import (
         detect_document_currency,
         detect_document_date,
@@ -174,6 +177,7 @@ async def _run_processing(
                     break
 
             resolved_snapshot_id = None
+            explicit_recipe_context = bool(recipe_snapshot_id)
             if sheet_profiles:
                 _, resolved_snapshot_id, _, _, _ = resolve_auto_recipe(
                     db, tenant_id, sheet_profiles, user_id
@@ -286,6 +290,42 @@ async def _run_processing(
                 }
             else:
                 datos_extraidos = analysis.get("fields") or {}
+                auto_recipe_created = False
+                if tipo_doc != "OTHER" and not explicit_recipe_context:
+                    auto_recipe_config, post_snapshot_id, _, auto_recipe_created, _ = (
+                        resolve_auto_recipe_from_text(
+                            db,
+                            tenant_id,
+                            tipo_doc,
+                            datos_extraidos,
+                            extraction.get("format", tipo_archivo),
+                            user_id,
+                            force_new=force,
+                        )
+                    )
+                    if post_snapshot_id:
+                        resolved_snapshot_id = post_snapshot_id
+                    if auto_recipe_config and not auto_recipe_created:
+                        rerun_analysis = await analyze_document(
+                            llm_content,
+                            filename,
+                            extraction.get("format", tipo_archivo),
+                            has_structured_rows=False,
+                            recipe_config=auto_recipe_config,
+                            image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
+                        )
+                        rerun_doc_type = str(rerun_analysis.get("doc_type", tipo_doc) or tipo_doc)
+                        rerun_confidence = float(
+                            rerun_analysis.get("confidence", confianza or 0.0) or 0.0
+                        )
+                        rerun_fields = rerun_analysis.get("fields") or {}
+                        if isinstance(rerun_fields, dict) and rerun_fields:
+                            analysis = rerun_analysis
+                            tipo_doc = rerun_doc_type
+                            confianza = rerun_confidence
+                            requiere_revision = confianza < CONFIDENCE_THRESHOLD
+                            datos_extraidos = rerun_fields
+                            recipe_config = auto_recipe_config
 
             crud.add_log(
                 db,
@@ -309,6 +349,45 @@ async def _run_processing(
                 if isinstance(sheet_profiles, (dict, list))
                 else sheet_profiles
             )
+            current_snapshot = recipe_snapshot
+            if current_snapshot is None and resolved_snapshot_id:
+                from app.modules.importador import recipe_crud as _recipe_crud
+
+                current_snapshot = _recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
+            learning_version_applied = get_snapshot_learning_version(current_snapshot)
+            canonical_document, projection = build_document_projection(
+                datos_extraidos if isinstance(datos_extraidos, dict) else {},
+                doc_type=tipo_doc,
+                source_format=extraction.get("format", tipo_archivo),
+            )
+            model_used = analysis.get("model_used") or "unknown"
+            raw_ai_json = _json_safe(
+                {
+                    "run": {
+                        "recipe_resolution": {
+                            "recipe_snapshot_id": (
+                                str(resolved_snapshot_id) if resolved_snapshot_id else None
+                            ),
+                            "learning_version_applied": learning_version_applied,
+                        },
+                        "learning_version_applied": learning_version_applied,
+                        "model": model_used,
+                    },
+                    "analysis": {
+                        "prompt": analysis.get("prompt_sent", ""),
+                        "raw_response": analysis.get("raw_response", ""),
+                        "parsed": {
+                            "tipo_documento": tipo_doc,
+                            "confianza": confianza,
+                            "razonamiento": analysis.get("reasoning", ""),
+                        },
+                        "campos_extraidos": (
+                            list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                        ),
+                    },
+                    "canonical_document": canonical_document,
+                }
+            )
 
             crud.update_documento(
                 db,
@@ -320,48 +399,11 @@ async def _run_processing(
                     "requiere_revision": requiere_revision,
                     "datos_extraidos": datos_extraidos,
                     "estado": "REVIEW",
-                    "proveedor_detectado": (
-                        get_data_value(
-                            datos_extraidos,
-                            "vendor",
-                            "proveedor",
-                            "vendor_name",
-                            "supplier",
-                            "emisor",
-                        )
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "ruc_detectado": (
-                        get_data_value(
-                            datos_extraidos,
-                            "vendor_tax_id",
-                            "ruc",
-                            "tax_id",
-                            "supplier_tax_id",
-                            "ruc_proveedor",
-                        )
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "monto_total": (
-                        detect_document_total(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "moneda": (
-                        detect_document_currency(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
-                    "fecha_documento": (
-                        detect_document_date(datos_extraidos)
-                        if isinstance(datos_extraidos, dict)
-                        else None
-                    ),
+                    **projection,
                     "fingerprint_json": sheet_profiles,
                     "sheet_profiles_json": sheet_profiles,
-                    "llm_model": analysis.get("model_used"),
+                    "llm_model": model_used,
+                    "raw_ai_json": raw_ai_json,
                     "recipe_snapshot_id": resolved_snapshot_id,
                 },
             )

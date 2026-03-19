@@ -87,6 +87,43 @@ def detect_document_currency(data: dict[str, Any] | None) -> str | None:
     return str(value).strip() if value is not None else None
 
 
+def detect_document_payment_method(data: dict[str, Any] | None) -> str | None:
+    value = get_data_value(
+        data,
+        "payment_method",
+        "payment_type",
+        "payment_terms",
+        "payment_mode",
+        "metodo_pago",
+        "metodo_de_pago",
+        "forma_pago",
+        "forma_de_pago",
+        "tipo_pago",
+        "tipo_de_pago",
+        "medio_pago",
+        "medio_de_pago",
+        "condicion_pago",
+        "condiciones_pago",
+        "terms_of_payment",
+    )
+    if isinstance(value, list):
+        tokens = [str(item).strip() for item in value if str(item).strip()]
+        return ", ".join(tokens) if tokens else None
+    if isinstance(value, dict):
+        for candidate_key in ("name", "label", "value", "description", "method", "type"):
+            candidate = value.get(candidate_key)
+            if candidate is None:
+                continue
+            text = str(candidate).strip()
+            if text:
+                return text
+        return None
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def detect_document_date(data: dict[str, Any] | None) -> str | None:
     value = get_data_value(data, "issue_date", "fecha", "date", "invoice_date", "expense_date")
     if value is None:

@@ -1,6 +1,6 @@
 """Finance Module - HTTP API (Tenant)"""
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import Decimal
 from uuid import UUID
 
@@ -383,5 +383,5 @@ def get_balances(
         bancos_total=max(bancos_total, 0),
         total_disponible=max(caja_total, 0) + max(bancos_total, 0),
         pendiente_conciliar=pendiente_conciliar,
-        ultimo_update=datetime.now(timezone.utc).isoformat(),
+        ultimo_update=datetime.now(UTC).isoformat(),
     )

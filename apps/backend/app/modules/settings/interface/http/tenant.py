@@ -198,7 +198,9 @@ def get_theme_tokens(
         cfg = None
         try:
             cfg = (
-                db.query(ConfiguracionEmpresa).filter(ConfiguracionEmpresa.tenant_id == emp.id).first()
+                db.query(ConfiguracionEmpresa)
+                .filter(ConfiguracionEmpresa.tenant_id == emp.id)
+                .first()
             )
         except Exception:
             cfg = None

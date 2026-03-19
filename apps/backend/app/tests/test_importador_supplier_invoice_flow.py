@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
 from decimal import Decimal
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,11 +16,11 @@ from app.models.importador import ImpDocumento
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
 from app.modules.importador.router import (
+    SaveDocumentLineMatch,
     SaveDocumentRequest,
     SaveDocumentResponse,
-    SaveDocumentLineMatch,
-    _save_document_to_purchase,
     _save_document_to_expense,
+    _save_document_to_purchase,
     save_document,
 )
 
@@ -153,7 +153,9 @@ def test_save_document_to_purchase_uses_manual_line_match_and_persists_alias(
         user_id=str(uuid4()),
         doc=document,
         update_stock=True,
-        line_matches=[SaveDocumentLineMatch(line_index=0, product_id=product.id, persist_alias=True)],
+        line_matches=[
+            SaveDocumentLineMatch(line_index=0, product_id=product.id, persist_alias=True)
+        ],
     )
     db.flush()
     db.refresh(product)
@@ -295,3 +297,64 @@ def test_save_document_to_expense_uses_tenant_payment_method_from_table(
     assert expense.payment_method == "Transferencia bancaria"
     assert expense.notes is not None
     assert "Metodo de pago: Transferencia bancaria" in expense.notes
+
+
+def test_save_document_to_expense_falls_back_to_detected_payment_method_from_document(
+    db: Session, tenant_minimal
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    payment_account = ChartOfAccounts(
+        tenant_id=tenant_id,
+        code="1.1.1.03",
+        name="Caja principal",
+        type="ASSET",
+        level=4,
+        can_post=True,
+        active=True,
+        debit_balance=Decimal("0"),
+        credit_balance=Decimal("0"),
+        balance=Decimal("0"),
+    )
+    db.add(payment_account)
+    db.flush()
+
+    payment_method = PaymentMethod(
+        tenant_id=tenant_id,
+        name="Transferencia bancaria",
+        description="Transferencia o deposito",
+        account_id=payment_account.id,
+        is_active=True,
+    )
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-detecta-pago.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        fecha_documento="2026-03-19",
+        monto_total=2145.0,
+        datos_confirmados={
+            "numero_factura": "FAC-005",
+            "concepto": "Compra de harina",
+            "payment_method": "Forma de pago: Transferencia bancaria",
+        },
+    )
+    db.add_all([payment_method, document])
+    db.commit()
+
+    result = _save_document_to_expense(
+        db=db,
+        tenant_id=tenant_id,
+        user_id=str(uuid4()),
+        doc=document,
+        body=SaveDocumentRequest(
+            destination="expense",
+            payment_status="paid",
+        ),
+    )
+    db.commit()
+
+    expense = db.query(Expense).filter(Expense.id == UUID(str(result.record_id))).first()
+
+    assert expense is not None
+    assert expense.payment_method == "Transferencia bancaria"

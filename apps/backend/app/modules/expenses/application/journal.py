@@ -22,8 +22,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.accounting.pos_settings import PaymentMethod
 from app.models.accounting.chart_of_accounts import ChartOfAccounts, JournalEntry
+from app.models.accounting.pos_settings import PaymentMethod
 from app.models.expenses.expense import Expense
 from app.modules.accounting.application.journal_service import JournalLineIn, create_posted_entry
 

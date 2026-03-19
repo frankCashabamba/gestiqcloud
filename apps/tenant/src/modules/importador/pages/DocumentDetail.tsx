@@ -5,6 +5,11 @@ import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
+function getCurrentDocumentData(doc: Documento | null): Record<string, unknown> {
+  const source = doc?.datos_confirmados || doc?.datos_extraidos
+  return source && typeof source === 'object' ? source as Record<string, unknown> : {}
+}
+
 export default function DocumentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -60,7 +65,7 @@ export default function DocumentDetail() {
 
   // Selección automática de hoja cuando llega un documento nuevo
   useEffect(() => {
-    const datos = (doc?.datos_extraidos || {}) as Record<string, unknown>
+    const datos = getCurrentDocumentData(doc)
     const sheetMap = datos?.filas_por_hoja && typeof datos.filas_por_hoja === 'object'
       ? Object.keys(datos.filas_por_hoja as Record<string, unknown>)
       : []
@@ -167,7 +172,7 @@ export default function DocumentDetail() {
   if (loading) return <div style={{ padding: '1.5rem' }}>{t('docDetail.loading')}</div>
   if (!doc) return <div style={{ padding: '1.5rem' }}>{t('docDetail.notFound')}</div>
 
-  const datos = (doc.datos_extraidos || {}) as Record<string, unknown>
+  const datos = getCurrentDocumentData(doc)
   const filasPorHoja = (datos.filas_por_hoja || {}) as Record<string, Record<string, unknown>[]>
   const sheets = Object.keys(filasPorHoja || {})
   const sheetCounts = (datos.filas_por_hoja_count || {}) as Record<string, number>
@@ -482,7 +487,19 @@ export default function DocumentDetail() {
             <h3 style={{ marginTop: 0 }}>📊 Datos Detectados</h3>
             {doc.proveedor_detectado && <p><strong>Proveedor:</strong> {doc.proveedor_detectado}</p>}
             {doc.ruc_detectado && <p><strong>RUC:</strong> {doc.ruc_detectado}</p>}
-            {doc.monto_total != null && <p><strong>Monto:</strong> {doc.moneda || '$'} {doc.monto_total.toFixed(2)}</p>}
+            {doc.monto_total != null && (
+              <p>
+                <strong>Monto:</strong>{' '}
+                {(() => {
+                  const currency = [
+                    doc.moneda,
+                    typeof datos.currency === 'string' ? datos.currency : null,
+                    typeof datos.moneda === 'string' ? datos.moneda : null,
+                  ].find((value) => typeof value === 'string' && value.trim())
+                  return `${currency ? `${String(currency).trim()} ` : ''}${doc.monto_total.toFixed(2)}`
+                })()}
+              </p>
+            )}
             {doc.fecha_documento && <p><strong>Fecha:</strong> {doc.fecha_documento}</p>}
           </div>
           {doc.error_detalle && (

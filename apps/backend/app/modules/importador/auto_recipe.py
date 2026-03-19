@@ -59,7 +59,16 @@ def find_snapshot_by_hash(db: Session, tenant_id: UUID, fp_hash: str):
         .order_by(Snap.created_at.desc())
         .limit(1)
     )
-    return db.scalars(stmt).first()
+    found = db.scalars(stmt).first()
+    if found:
+        return found
+
+    fallback_stmt = select(Snap).where(Snap.tenant_id == tenant_id).order_by(Snap.created_at.desc())
+    for snap in db.scalars(fallback_stmt):
+        content = snap.content_json if isinstance(snap.content_json, dict) else {}
+        if str(content.get("fingerprint_hash") or "").strip() == fp_hash:
+            return snap
+    return None
 
 
 def _auto_prompts_excel(headers_flat: list[str]) -> dict:
@@ -154,6 +163,52 @@ def _learning_min_confidence() -> float:
     raw = (os.getenv("IMPORTADOR_CACHE_MIN_CONFIDENCE") or "").strip()
     if not raw:
         return 0.6
+
+
+def _coerce_learning_version(value: object) -> int:
+    try:
+        version = int(value or 0)
+    except (TypeError, ValueError):
+        version = 0
+    return max(0, version)
+
+
+def get_snapshot_learning_version(snapshot: IcuRecipeSnapshot | None) -> int:
+    if snapshot is None or not isinstance(snapshot.content_json, dict):
+        return 0
+    return _coerce_learning_version(snapshot.content_json.get("learning_version"))
+
+
+def get_document_applied_learning_version(raw_ai_json: dict | None) -> int:
+    if not isinstance(raw_ai_json, dict):
+        return 0
+
+    run = raw_ai_json.get("run")
+    if isinstance(run, dict):
+        direct = run.get("learning_version_applied")
+        if direct is not None:
+            return _coerce_learning_version(direct)
+        recipe_resolution = run.get("recipe_resolution")
+        if isinstance(recipe_resolution, dict):
+            return _coerce_learning_version(recipe_resolution.get("learning_version_applied"))
+    return 0
+
+
+def should_reprocess_existing_document(db: Session, doc) -> bool:
+    snapshot_id = getattr(doc, "recipe_snapshot_id", None)
+    if not snapshot_id:
+        return False
+
+    snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
+    if snapshot is None:
+        return False
+
+    current_version = get_snapshot_learning_version(snapshot)
+    if current_version <= 0:
+        return False
+
+    applied_version = get_document_applied_learning_version(getattr(doc, "raw_ai_json", None))
+    return applied_version < current_version
     try:
         return max(0.0, min(1.0, float(raw)))
     except ValueError:
@@ -209,13 +264,34 @@ def remember_snapshot_learning(
     content = dict(snapshot.content_json or {})
     learned = dict(content.get("learned_analysis") or {})
     cache_key = "structured" if structured_only else "default"
-    learned[cache_key] = {
+    candidate = {
         "doc_type": doc_type,
         "confidence": confidence,
         "reasoning": str(analysis.get("reasoning") or "").strip(),
         "updated_at": datetime.now(UTC).isoformat(),
     }
+    previous = learned.get(cache_key)
+    previous_cmp = (
+        {
+            "doc_type": previous.get("doc_type"),
+            "confidence": previous.get("confidence"),
+            "reasoning": previous.get("reasoning"),
+        }
+        if isinstance(previous, dict)
+        else None
+    )
+    candidate_cmp = {
+        "doc_type": candidate["doc_type"],
+        "confidence": candidate["confidence"],
+        "reasoning": candidate["reasoning"],
+    }
+    if previous_cmp == candidate_cmp:
+        return
+
+    learned[cache_key] = candidate
     content["learned_analysis"] = learned
+    content["learning_version"] = _coerce_learning_version(content.get("learning_version")) + 1
+    content["learning_updated_at"] = candidate["updated_at"]
     snapshot.content_json = content
     db.flush()
 
@@ -261,6 +337,7 @@ def resolve_auto_recipe(
             snap.content_json.get("model")
             or (snap.content_json.get("model_config") or {}).get("model")
         ),
+        "field_descriptions": snap.content_json.get("field_descriptions"),
     }
     return recipe_config, snap.id, "auto_fingerprint", created, recipe_name
 
@@ -313,5 +390,6 @@ def resolve_auto_recipe_from_text(
         "prompt_system": snap.content_json.get("prompt_system"),
         "prompt_user": snap.content_json.get("prompt_user"),
         "model": snap.content_json.get("model"),
+        "field_descriptions": snap.content_json.get("field_descriptions"),
     }
     return recipe_config, snap.id, "auto_text_fingerprint", was_created, recipe_name

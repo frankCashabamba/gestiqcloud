@@ -232,6 +232,36 @@ def _clean_vision_fields(fields: dict) -> None:
                     except (ValueError, TypeError):
                         pass
 
+    for key in ("payment_method", "payment_terms"):
+        val = fields.get(key)
+        if isinstance(val, str):
+            cleaned = re.sub(
+                r"^(payment\s*(method|type|terms?)|metodo\s+de\s+pago|forma\s+de\s+pago|tipo\s+de\s+pago)\s*[:\-]\s*",
+                "",
+                val.strip(),
+                flags=re.IGNORECASE,
+            )
+            fields[key] = cleaned or val.strip()
+
+
+def _build_additional_field_hints(recipe_config: dict | None) -> str:
+    rc = recipe_config or {}
+    field_descriptions = rc.get("field_descriptions") or {}
+    if not isinstance(field_descriptions, dict):
+        return ""
+
+    lines: list[str] = []
+    for raw_key, raw_value in field_descriptions.items():
+        key = str(raw_key or "").strip()
+        value = str(raw_value or "").strip()
+        if not key or not value or key in {"subtotal", "tax_amount"}:
+            continue
+        lines.append(f'- "{key}": {value}')
+
+    if not lines:
+        return ""
+    return "Learned hints from previously confirmed similar documents:\n" + "\n".join(lines)
+
 
 def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1024) -> bytes:
     """Resize image so its longest side is at most max_dim pixels.
@@ -314,6 +344,7 @@ async def _analyze_with_vision(
     _fd = rc.get("field_descriptions") or {}
     _f_subtotal = _fd.get("subtotal") or "taxable base before tax. Number or null"
     _f_tax = _fd.get("tax_amount") or "total tax (VAT/IVA/IGV/GST). Number or null if absent"
+    learned_hints = _build_additional_field_hints(recipe_config)
 
     current_year = datetime.datetime.now().year
 
@@ -341,6 +372,8 @@ async def _analyze_with_vision(
         f'    "subtotal": {_f_subtotal},\n'
         f'    "tax_amount": {_f_tax},\n'
         '    "currency": "ISO 4217 — Ecuador=USD, Peru=PEN, Chile=CLP, Colombia=COP, Spain=EUR",\n'
+        '    "payment_method": "cash, transfer, card, credit, cheque, etc. as printed on the document, or null",\n'
+        '    "payment_terms": "payment condition/terms if visible (e.g. contado, credito 30 dias), or null",\n'
         '    "line_items": [\n'
         '      {"description": "product name only", "quantity": 50.00, "unit_price": 42.90, "total_price": 2145.00}\n'
         "    ]\n"
@@ -352,6 +385,7 @@ async def _analyze_with_vision(
         f"- YEAR: We are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100}). Double-check!\n"
         "- doc_number: use the FULL number with series/sequence as printed.\n"
         "- customer: read the ACTUAL customer name, not the field label.\n"
+        "- payment_method/payment_terms: extract them when the document shows them.\n"
         "- line_items: only list actual PRODUCTS, not the customer name.\n"
         "- Tax IDs: digits only, no slashes or special characters.\n"
         "- Do NOT invent data absent from the document. Use null for missing fields."
@@ -360,6 +394,8 @@ async def _analyze_with_vision(
     custom_user = rc.get("prompt_user")
     if custom_user:
         user_prompt += f"\n\nAdditional instructions:\n{custom_user}"
+    if learned_hints:
+        user_prompt += f"\n\n{learned_hints}"
 
     img_b64 = base64.b64encode(_resize_image_for_vision(image_bytes)).decode("utf-8")
 
@@ -475,6 +511,7 @@ async def analyze_document(
     _f_tax = _fd.get("tax_amount") or (
         "total tax amount (VAT/IVA/IGV/GST/TVA or equivalent). Use 0 if present but zero. Number or null if absent"
     )
+    learned_hints = _build_additional_field_hints(recipe_config)
 
     tabular_note = (
         "NOTE: Content is already pre-processed as a structured table. "
@@ -515,6 +552,8 @@ async def analyze_document(
         f'    "subtotal": {_f_subtotal},\n'
         f'    "tax_amount": {_f_tax},\n'
         '    "currency": "ISO 4217 code (USD, EUR, GBP, CNY, MXN…) or null",\n'
+        '    "payment_method": "payment method/type exactly as printed (cash, transfer, card, credit, cheque, etc.) or null",\n'
+        '    "payment_terms": "payment condition/terms if visible (contado, credito, net 30, etc.) or null",\n'
         '    "line_items": [\n'
         '      {"description": "...", "quantity": number, "unit_price": number, "total_price": number}\n'
         "    ]\n"
@@ -526,6 +565,7 @@ async def analyze_document(
         "- total_amount = GRAND TOTAL at the bottom (not a quantity of items).\n"
         "- vendor = the entity that ISSUES/SIGNS the document.\n"
         "- If is_table=true: only fill 'columns'; in 'fields' include issue_date and total_amount if visible.\n"
+        "- payment_method/payment_terms: extract them when visible instead of omitting them.\n"
         "- Dates: YYYY-MM-DD. Amounts: number with dot decimal (e.g. 2145.00). Missing fields: null.\n"
         f"- YEAR: We are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100}). Double-check!\n"
         "- Do NOT invent data absent from the document."
@@ -534,6 +574,8 @@ async def analyze_document(
     custom_user_prompt = rc.get("prompt_user")
     if custom_user_prompt:
         user_prompt += f"\n\nAdditional extraction instructions:\n{custom_user_prompt}"
+    if learned_hints:
+        user_prompt += f"\n\n{learned_hints}"
 
     full_prompt = system_prompt.rstrip() + "\n\n" + user_prompt
 

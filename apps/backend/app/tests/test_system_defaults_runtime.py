@@ -68,7 +68,9 @@ def test_theme_endpoint_preserves_company_colors_over_global_defaults(client: Te
 def test_theme_endpoint_prioritizes_authenticated_tenant_over_empresa_query(client: TestClient, db):
     slug_a = f"pan-{uuid4().hex[:8]}"
     slug_b = f"taller-{uuid4().hex[:8]}"
-    tenant_a = Tenant(id=uuid4(), name="Panaderia Demo", slug=slug_a, sector_template_name="panaderia")
+    tenant_a = Tenant(
+        id=uuid4(), name="Panaderia Demo", slug=slug_a, sector_template_name="panaderia"
+    )
     tenant_b = Tenant(id=uuid4(), name="Taller Demo", slug=slug_b, sector_template_name="taller")
     db.add_all([tenant_a, tenant_b])
     db.flush()

@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.models.importador import ImpBatchImport, ImpBatchItem
 
 from . import crud
+from .auto_recipe import should_reprocess_existing_document
 from .ocr_service import detect_file_type
+from .snapshot_learning import bootstrap_learning_from_existing_document
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +193,15 @@ async def enqueue_async_batch(
         if not force:
             existing = crud.find_existing_documento(db, tenant_id, filename, file_size, file_hash)
             if existing and existing.estado in ("PENDING", "PROCESSING", "CONFIRMED", "REVIEW"):
+                if existing.estado in ("CONFIRMED", "REVIEW"):
+                    bootstrap_learning_from_existing_document(db, existing, user_id)
+                if existing.estado in ("CONFIRMED", "REVIEW") and should_reprocess_existing_document(
+                    db, existing
+                ):
+                    existing = None
+                if existing is None:
+                    staged_uploads.append((filename, file_bytes, file_size, file_hash, tipo_archivo))
+                    continue
                 existing_matches.append((existing, filename, file_size, file_hash))
                 continue
 

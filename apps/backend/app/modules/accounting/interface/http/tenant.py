@@ -34,6 +34,7 @@ from app.models.accounting.chart_of_accounts import ChartOfAccounts as PlanCuent
 from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable
 from app.models.accounting.chart_of_accounts import JournalEntryLine as AsientoLinea
 from app.models.accounting.pos_settings import PaymentMethod, TenantAccountingSettings
+from app.models.core.global_catalogs import PaymentMethodTemplate
 from app.schemas.accounting import (
     AsientoContableCreate,
     AsientoContableList,
@@ -637,15 +638,34 @@ async def list_payment_methods(
     methods = (
         db.query(PaymentMethod).filter_by(tenant_id=tid).order_by(PaymentMethod.name.asc()).all()
     )
+    if methods:
+        return [
+            {
+                "id": str(m.id),
+                "name": m.name,
+                "description": m.description,
+                "account_id": str(m.account_id),
+                "is_active": m.is_active,
+            }
+            for m in methods
+        ]
+
+    # Fallback: devolver plantillas del sistema cuando el tenant no tiene métodos propios
+    templates = (
+        db.query(PaymentMethodTemplate)
+        .filter_by(active=True)
+        .order_by(PaymentMethodTemplate.name.asc())
+        .all()
+    )
     return [
         {
-            "id": str(m.id),
-            "name": m.name,
-            "description": m.description,
-            "account_id": str(m.account_id),
-            "is_active": m.is_active,
+            "id": str(t.id),
+            "name": t.name,
+            "description": t.description,
+            "account_id": "",
+            "is_active": True,
         }
-        for m in methods
+        for t in templates
     ]
 
 
