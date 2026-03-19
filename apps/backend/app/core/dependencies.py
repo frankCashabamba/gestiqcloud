@@ -16,6 +16,23 @@ def get_db(request: Request) -> Iterator[Session]:
     yield from _get_db(request)
 
 
+def get_tenant_uuid(request: Request) -> UUID:
+    """
+    Extract tenant_id UUID from JWT claims already set by auth middleware.
+
+    Use this as a plain call inside sync route handlers:
+        tenant_id = get_tenant_uuid(request)
+
+    Raises HTTPException(401) if claims are missing or tenant_id is invalid.
+    """
+    claims = getattr(request.state, "access_claims", None) or {}
+    raw = claims.get("tenant_id") if isinstance(claims, dict) else None
+    try:
+        return UUID(str(raw))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="tenant_id inválido")
+
+
 async def get_tenant_id_from_token(request: Request) -> UUID:
     """
     Extract tenant_id from JWT token in request.

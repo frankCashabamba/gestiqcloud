@@ -145,13 +145,13 @@ const RetailDashboard: React.FC = () => {
   const handleCreatePromotion = () => {
     if (!isModuleEnabled('ventas')) return
     logDashboardAction({ action: 'quick_action.create_promotion' })
-    navigate(buildRoute({ route: 'ventas.promotions', empresa }))
+    navigate(buildRoute({ route: 'sales.promotions', empresa }))
   }
 
   const handleNewCustomer = () => {
     if (!isModuleEnabled('clientes')) return
     logDashboardAction({ action: 'quick_action.new_customer' })
-    navigate(buildRoute({ route: 'clientes.new', empresa }))
+    navigate(buildRoute({ route: 'customers.new', empresa }))
   }
 
   const handleCashClose = () => {
@@ -163,19 +163,19 @@ const RetailDashboard: React.FC = () => {
   const handleInventory = () => {
     if (!isModuleEnabled('inventario')) return
     logDashboardAction({ action: 'action.inventory' })
-    navigate(buildRoute({ route: 'inventario.list', empresa }))
+    navigate(buildRoute({ route: 'inventory.list', empresa }))
   }
 
   const handleReplenishment = () => {
     if (!isModuleEnabled('inventario')) return
     logDashboardAction({ action: 'action.replenishment' })
-    navigate(buildRoute({ route: 'inventario.replenishment', empresa }))
+    navigate(buildRoute({ route: 'inventory.replenishment', empresa }))
   }
 
   const handleGoToCustomers = () => {
     if (!isModuleEnabled('clientes')) return
     logDashboardAction({ action: 'action.go_to_customers' })
-    navigate(buildRoute({ route: 'clientes.list', empresa }))
+    navigate(buildRoute({ route: 'customers.list', empresa }))
   }
 
   // ─────────────────────────────────────────────────────────
@@ -206,17 +206,17 @@ const RetailDashboard: React.FC = () => {
   const customLinks: CustomLink[] = [
     isModuleEnabled('inventario') && {
       label: t('customLinks.stockReplenishment'),
-      href: buildRoute({ route: 'inventario.replenishment', empresa }),
+      href: buildRoute({ route: 'inventory.replenishment', empresa }),
       icon: 'S',
     },
     isModuleEnabled('ventas') && {
       label: t('customLinks.promotions'),
-      href: buildRoute({ route: 'ventas.promotions', empresa }),
+      href: buildRoute({ route: 'sales.promotions', empresa }),
       icon: 'P',
     },
     isModuleEnabled('reportes') && {
       label: t('customLinks.salesAnalysis'),
-      href: buildRoute({ route: 'reportes.analysis', empresa }),
+      href: buildRoute({ route: 'reports.analysis', empresa }),
       icon: 'A',
     },
   ].filter(Boolean) as CustomLink[]
@@ -312,7 +312,7 @@ const RetailDashboard: React.FC = () => {
               {t('cardActions.replenishment')}
             </button>
             <button
-              onClick={() => navigate(buildRoute({ route: 'clientes.list', empresa }))}
+              onClick={() => navigate(buildRoute({ route: 'customers.list', empresa }))}
               disabled={!isModuleEnabled('clientes')}
               className="link"
               title={

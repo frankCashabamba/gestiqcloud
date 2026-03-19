@@ -19,7 +19,7 @@ UPDATE global_action_permissions SET key = REPLACE(key, 'reports.', 'reportes.')
 
 UPDATE company_roles
 SET permissions = (
-  SELECT jsonb_object_agg(
+  SELECT json_object_agg(
     CASE key
       WHEN 'users'       THEN 'usuarios'
       WHEN 'production'  THEN 'produccion'
@@ -32,7 +32,7 @@ SET permissions = (
     END,
     value
   )
-  FROM jsonb_each(permissions)
+  FROM json_each(permissions)
 )
 WHERE permissions IS NOT NULL
   AND permissions::text ~ '"(users|production|billing|customers|finances|hr|reports)"';

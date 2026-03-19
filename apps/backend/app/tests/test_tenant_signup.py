@@ -25,8 +25,7 @@ def test_tenant_signup_creates_company_and_allows_login(client, db):
 
     row = db.execute(
         text(
-            "SELECT name, slug, country_code, base_currency "
-            "FROM tenants WHERE id = :tenant_id"
+            "SELECT name, slug, country_code, base_currency " "FROM tenants WHERE id = :tenant_id"
         ),
         {"tenant_id": payload["tenant_id"]},
     ).first()

@@ -31,12 +31,12 @@ UPDATE global_action_permissions SET key = REPLACE(key, 'finanzas.', 'finances.'
 UPDATE global_action_permissions SET key = REPLACE(key, 'rrhh.', 'hr.'),               module = 'hr'          WHERE key LIKE 'rrhh.%';
 UPDATE global_action_permissions SET key = REPLACE(key, 'reportes.', 'reports.'),      module = 'reports'     WHERE key LIKE 'reportes.%';
 
--- 2. Normalize keys stored inside company_roles.permissions JSONB
---    This updates the top-level keys of the JSONB permission dicts
+-- 2. Normalize keys stored inside company_roles.permissions JSON
+--    This updates the top-level keys of the JSON permission dicts
 --    e.g. {"usuarios": {"create": true}} → {"users": {"create": true}}
 UPDATE company_roles
 SET permissions = (
-  SELECT jsonb_object_agg(
+  SELECT json_object_agg(
     CASE key
       WHEN 'usuarios'    THEN 'users'
       WHEN 'produccion'  THEN 'production'
@@ -49,7 +49,7 @@ SET permissions = (
     END,
     value
   )
-  FROM jsonb_each(permissions)
+  FROM json_each(permissions)
 )
 WHERE permissions IS NOT NULL
   AND permissions::text ~ '"(usuarios|produccion|facturacion|clientes|finanzas|rrhh|reportes)"';

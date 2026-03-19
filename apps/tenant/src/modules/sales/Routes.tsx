@@ -22,6 +22,7 @@ export default function VentasRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="new" element={<Navigate to="../nueva" replace />} />
         <Route path=":id" element={<VentaDetail />} />
         <Route
           path=":id/editar"

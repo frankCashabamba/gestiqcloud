@@ -6,6 +6,8 @@ import datetime
 import hashlib
 import logging
 import os
+import re
+import unicodedata
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -37,12 +39,16 @@ from .schemas import (
     BatchSummaryOut,
     ConfirmRequest,
     DashboardStats,
+    DocumentLineMatchesResponse,
+    DocumentLineMatchOut,
     DocumentoDetailOut,
     DocumentoListOut,
     DocumentoOut,
     EditFieldsRequest,
+    ProductMatchCandidateOut,
     SaveDailyLogRequest,
     SaveDailyLogResponse,
+    SaveDocumentLineMatch,
     SaveDocumentRequest,
     SaveDocumentResponse,
     SaveProductsFromDocumentRequest,
@@ -57,15 +63,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
-SUPPORTED_PAYMENT_METHODS = {
-    "bank",
-    "cash",
-    "card",
-    "transfer",
-    "direct_debit",
-    "check",
-    "other",
-}
+
+PACK_UNIT_PATTERN = re.compile(
+    r"(?<![a-z0-9])(\d+(?:[.,]\d+)?)\s*(kg|kilos?|kilogramos?|g|gr|gramos?|"
+    r"lb|lbs|libras?|oz|onzas?|ton|toneladas?|l|lt|ltr|litros?|ml|mililitros?)\b",
+    re.IGNORECASE,
+)
 
 
 def _json_safe(obj):
@@ -93,9 +96,254 @@ def _user_id(request: Request) -> str:
     return str(claims.get("user_id", "unknown"))
 
 
+def _norm_import_text(value: str) -> str:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^a-z0-9]+", " ", text.strip().lower())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _strip_pack_tokens(value: str) -> str:
+    stripped = PACK_UNIT_PATTERN.sub(" ", str(value or ""))
+    return _norm_import_text(stripped)
+
+
+def _infer_pack_conversion_factor(description: str, product_unit: str | None) -> float:
+    from app.services.unit_catalog_service import normalize_operational_unit
+    from app.utils.unit_converter import are_compatible_units, convert
+
+    normalized_product_unit = normalize_operational_unit(product_unit, default="uds")
+    if normalized_product_unit == "uds":
+        return 1.0
+
+    matches = PACK_UNIT_PATTERN.findall(str(description or ""))
+    for raw_qty, raw_unit in reversed(matches):
+        try:
+            pack_qty = float(str(raw_qty).replace(",", "."))
+        except ValueError:
+            continue
+        if pack_qty <= 0:
+            continue
+        normalized_pack_unit = normalize_operational_unit(raw_unit, default=raw_unit)
+        if normalized_pack_unit == normalized_product_unit:
+            return pack_qty
+        try:
+            if are_compatible_units(normalized_pack_unit, normalized_product_unit):
+                return float(convert(pack_qty, normalized_pack_unit, normalized_product_unit))
+        except ValueError:
+            continue
+    return 1.0
+
+
+def _get_line_values(item: dict) -> tuple[str, float, float]:
+    description = str(item.get("description") or item.get("descripcion") or "").strip()
+    qty = float(item.get("quantity") or item.get("cantidad") or 0)
+    unit_price = float(
+        item.get("unit_price") or item.get("precio_unitario") or item.get("precio") or 0
+    )
+    return description, qty, unit_price
+
+
+def _find_product_by_id(db: Session, tenant_id: UUID, product_id: UUID | str | None):
+    from app.models.core.products import Product
+
+    if not product_id:
+        return None
+    try:
+        product_id = UUID(str(product_id))
+    except (TypeError, ValueError):
+        return None
+    return (
+        db.query(Product)
+        .filter(
+            Product.tenant_id == tenant_id,
+            Product.id == product_id,
+            Product.active == True,  # noqa: E712
+        )
+        .first()
+    )
+
+
+def _append_import_alias(product, description: str, factor: float, unit: str | None = None) -> None:
+    description = str(description or "").strip()
+    if not description:
+        return
+    aliases = product.import_aliases if isinstance(product.import_aliases, list) else []
+    normalized_description = _norm_import_text(description)
+    for alias in aliases:
+        if not isinstance(alias, dict):
+            continue
+        if _norm_import_text(str(alias.get("name") or "")) == normalized_description:
+            return
+    aliases.append(
+        {
+            "name": description,
+            "factor": float(factor or 1),
+            "unit": str(unit or product.unit or "").strip() or None,
+        }
+    )
+    product.import_aliases = aliases
+
+
+def _score_product_candidate(description: str, product) -> tuple[float, str | None, float]:
+    from difflib import SequenceMatcher
+
+    desc_norm = _norm_import_text(description)
+    desc_core = _strip_pack_tokens(description)
+    if not desc_norm:
+        return 0.0, None, 1.0
+
+    best_score = 0.0
+    best_reason: str | None = None
+    best_factor = 1.0
+    inferred_factor = _infer_pack_conversion_factor(description, getattr(product, "unit", None))
+
+    aliases = product.import_aliases if isinstance(product.import_aliases, list) else []
+    for alias in aliases:
+        if not isinstance(alias, dict):
+            continue
+        alias_name = _norm_import_text(str(alias.get("name") or ""))
+        if not alias_name:
+            continue
+        if alias_name == desc_norm:
+            return float(0.99), "alias_exact", float(alias.get("factor") or 1)
+        if alias_name in desc_norm or desc_norm in alias_name:
+            score = 0.94
+        else:
+            score = SequenceMatcher(None, desc_norm, alias_name).ratio() * 0.88
+        if score > best_score:
+            best_score = score
+            best_reason = "alias"
+            best_factor = float(alias.get("factor") or 1)
+
+    product_name = _norm_import_text(getattr(product, "name", ""))
+    product_core = _strip_pack_tokens(getattr(product, "name", ""))
+    if product_name == desc_norm and 0.93 > best_score:
+        best_score = 0.93
+        best_reason = "name_exact"
+        best_factor = inferred_factor
+    if desc_core and product_core and desc_core == product_core and 0.91 > best_score:
+        best_score = 0.91
+        best_reason = "core_exact"
+        best_factor = inferred_factor
+    if product_name and (desc_norm in product_name or product_name in desc_norm) and 0.84 > best_score:
+        best_score = 0.84
+        best_reason = "name_partial"
+        best_factor = inferred_factor
+    if desc_core and product_core and (
+        desc_core in product_core or product_core in desc_core
+    ) and 0.81 > best_score:
+        best_score = 0.81
+        best_reason = "core_partial"
+        best_factor = inferred_factor
+
+    similarity = SequenceMatcher(None, desc_norm, product_name).ratio() if product_name else 0.0
+    if desc_core and product_core:
+        similarity = max(similarity, SequenceMatcher(None, desc_core, product_core).ratio())
+    if similarity >= 0.52:
+        fuzzy_score = min(similarity * 0.78, 0.79)
+        if fuzzy_score > best_score:
+            best_score = fuzzy_score
+            best_reason = "fuzzy"
+            best_factor = inferred_factor
+
+    return best_score, best_reason, best_factor
+
+
+def _build_document_line_matches(
+    db: Session,
+    tenant_id: UUID,
+    doc,
+    *,
+    line_matches: list[SaveDocumentLineMatch] | None = None,
+    limit_per_line: int = 5,
+) -> list[DocumentLineMatchOut]:
+    from app.models.core.products import Product
+
+    data = _get_doc_import_data(doc)
+    line_items = _extract_document_line_items(data)
+    selected_by_index = {
+        int(match.line_index): match
+        for match in (line_matches or [])
+        if getattr(match, "line_index", None) is not None
+    }
+    products = (
+        db.query(Product)
+        .filter(Product.tenant_id == str(tenant_id), Product.active == True)  # noqa: E712
+        .all()
+    )
+
+    output: list[DocumentLineMatchOut] = []
+    for index, item in enumerate(line_items):
+        description, qty, unit_price = _get_line_values(item)
+        if not description or qty <= 0:
+            continue
+
+        ranked: list[tuple[float, str, float, object]] = []
+        for product in products:
+            score, reason, factor = _score_product_candidate(description, product)
+            if score <= 0:
+                continue
+            ranked.append((score, reason or "candidate", factor, product))
+        ranked.sort(key=lambda row: (-row[0], getattr(row[3], "name", "")))
+
+        selected_match = selected_by_index.get(index)
+        selected_product = (
+            _find_product_by_id(db, tenant_id, selected_match.product_id) if selected_match else None
+        )
+        selected_reason = "manual" if selected_product else None
+        selected_factor = (
+            _infer_pack_conversion_factor(description, getattr(selected_product, "unit", None))
+            if selected_product
+            else 1.0
+        )
+
+        if not selected_product and ranked:
+            top_score, top_reason, top_factor, top_product = ranked[0]
+            if top_score >= 0.84:
+                selected_product = top_product
+                selected_reason = top_reason
+                selected_factor = top_factor
+
+        candidates = [
+            ProductMatchCandidateOut(
+                product_id=product.id,
+                name=product.name,
+                sku=product.sku,
+                unit=product.unit or "unit",
+                stock=float(product.stock or 0),
+                score=round(score, 4),
+                reason=reason,
+                inferred_factor=float(factor or 1),
+            )
+            for score, reason, factor, product in ranked[:limit_per_line]
+        ]
+        output.append(
+            DocumentLineMatchOut(
+                line_index=index,
+                description=description,
+                quantity=qty,
+                unit_price=unit_price,
+                selected_product_id=selected_product.id if selected_product else None,
+                selected_reason=selected_reason,
+                inferred_factor=float(selected_factor or 1),
+                candidates=candidates,
+            )
+        )
+
+    return output
+
+
 def _get_doc_import_data(doc) -> dict:
     data = doc.datos_confirmados or doc.datos_extraidos or {}
     return data if isinstance(data, dict) else {}
+
+
+def _extract_document_line_items(data: dict) -> list[dict]:
+    line_items = data.get("line_items") or data.get("lineas") or data.get("items") or []
+    if not isinstance(line_items, list):
+        return []
+    return [item for item in line_items if isinstance(item, dict)]
 
 
 def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
@@ -345,6 +593,87 @@ def _parse_document_date(value) -> datetime.date:
     return datetime.date.today()
 
 
+def _resolve_payment_method(
+    db: Session,
+    tenant_id: UUID,
+    payment_method_id: UUID | str | None = None,
+    payment_method: str | None = None,
+):
+    from difflib import SequenceMatcher
+
+    from app.models.accounting.pos_settings import PaymentMethod
+
+    try:
+        tenant_id = UUID(str(tenant_id))
+    except (TypeError, ValueError):
+        return None, None
+
+    methods = (
+        db.query(PaymentMethod)
+        .filter(
+            PaymentMethod.tenant_id == tenant_id,
+            PaymentMethod.is_active == True,  # noqa: E712
+        )
+        .order_by(PaymentMethod.name.asc())
+        .all()
+    )
+    if not methods:
+        legacy_value = str(payment_method or "").strip()
+        if legacy_value:
+            try:
+                UUID(legacy_value)
+            except (TypeError, ValueError):
+                return legacy_value, None
+        return None, None
+
+    if payment_method_id:
+        try:
+            wanted_id = UUID(str(payment_method_id))
+        except (TypeError, ValueError):
+            wanted_id = None
+        if wanted_id:
+            for method in methods:
+                if method.id == wanted_id:
+                    return method.name, method.id
+
+    raw = str(payment_method or "").strip()
+    if not raw:
+        return None, None
+
+    raw_norm = _norm_import_text(raw)
+    if not raw_norm:
+        return None, None
+
+    best_method = None
+    best_score = 0.0
+    for method in methods:
+        name_norm = _norm_import_text(method.name)
+        description_norm = _norm_import_text(method.description or "")
+        score = 0.0
+
+        if raw_norm == name_norm:
+            score = 1.0
+        elif description_norm and raw_norm == description_norm:
+            score = 0.96
+        elif name_norm and (raw_norm in name_norm or name_norm in raw_norm):
+            score = 0.9
+        elif description_norm and (raw_norm in description_norm or description_norm in raw_norm):
+            score = 0.84
+        else:
+            candidate_text = " ".join(part for part in [name_norm, description_norm] if part)
+            similarity = SequenceMatcher(None, raw_norm, candidate_text).ratio()
+            if similarity >= 0.62:
+                score = min(similarity, 0.79)
+
+        if score > best_score:
+            best_score = score
+            best_method = method
+
+    if best_method and best_score >= 0.78:
+        return best_method.name, best_method.id
+    return None, None
+
+
 def _save_document_to_expense(
     db: Session,
     tenant_id: UUID,
@@ -371,10 +700,11 @@ def _save_document_to_expense(
         total = round(float(subtotal or 0.0) + float(vat or 0.0), 2)
 
     payment = _normalize_payment_details(total, body)
-    payment_method = (
-        body.payment_method.strip().lower()
-        if body.payment_method and body.payment_method.strip().lower() in SUPPORTED_PAYMENT_METHODS
-        else None
+    payment_method, _payment_method_id = _resolve_payment_method(
+        db,
+        tenant_id,
+        getattr(body, "payment_method_id", None),
+        body.payment_method,
     )
 
     supplier_id, supplier_name = _lookup_supplier(db, tenant_id, doc, data)
@@ -488,6 +818,7 @@ def _save_document_to_purchase(
     warehouse_id: UUID | None = None,
     notes: str | None = None,
     update_stock: bool = True,
+    line_matches: list[SaveDocumentLineMatch] | None = None,
 ) -> dict:
     """Core purchase creation logic for document saves to purchases."""
     from decimal import ROUND_HALF_UP, Decimal
@@ -498,9 +829,10 @@ def _save_document_to_purchase(
     from app.services.inventory_costing import InventoryCostingService
 
     data = _get_doc_import_data(doc)
-    line_items = data.get("line_items") or data.get("lineas") or data.get("items") or []
-    if not line_items or not isinstance(line_items, list):
-        line_items = []
+    line_items = _extract_document_line_items(data)
+    line_match_map = {
+        int(match.line_index): match for match in (line_matches or []) if match.product_id is not None
+    }
 
     logger.info(
         "save_purchase: tenant=%s update_stock=%s line_items=%d warehouse_id=%s",
@@ -613,24 +945,28 @@ def _save_document_to_purchase(
     def _dec(v) -> Decimal:
         return Decimal(str(v or 0)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
 
-    for item in line_items:
-        if not isinstance(item, dict):
-            continue
-        description = str(item.get("description") or item.get("descripcion") or "").strip()
-        qty = float(item.get("quantity") or item.get("cantidad") or 0)
-        unit_price = float(
-            item.get("unit_price") or item.get("precio_unitario") or item.get("precio") or 0
-        )
+    for line_index, item in enumerate(line_items):
+        description, qty, unit_price = _get_line_values(item)
         total_price = float(
             item.get("total_price") or item.get("total") or item.get("importe") or qty * unit_price
         )
         if not description or qty <= 0:
             continue
 
-        product, conv_factor = _match_product(db, tenant_id, description)
+        selected_match = line_match_map.get(line_index)
+        if selected_match:
+            product = _find_product_by_id(db, tenant_id, selected_match.product_id)
+            conv_factor = (
+                _infer_pack_conversion_factor(description, getattr(product, "unit", None))
+                if product
+                else 1.0
+            )
+        else:
+            product, conv_factor = _match_product(db, tenant_id, description)
         stock_qty = qty * conv_factor  # convert invoice qty to inventory units
         logger.info(
-            "save_purchase line: desc='%s' qty=%s matched=%s conv=%s stock_only=%s",
+            "save_purchase line: index=%s desc='%s' qty=%s matched=%s conv=%s stock_only=%s",
+            line_index,
             description,
             qty,
             product.name if product else None,
@@ -692,6 +1028,9 @@ def _save_document_to_purchase(
                 )
             )
             lines_matched += 1
+            if selected_match and selected_match.persist_alias:
+                _append_import_alias(product, description, conv_factor, getattr(product, "unit", None))
+                db.add(product)
         else:
             if description and product is None:
                 unmatched.append(description)
@@ -1335,9 +1674,24 @@ def sync_recipes(
     )
 
 
-@router.post(
-    "/documents/{doc_id}/save", response_model=SaveDocumentResponse, dependencies=protected
+@router.get(
+    "/documents/{doc_id}/line-match-candidates",
+    response_model=DocumentLineMatchesResponse,
+    dependencies=protected,
 )
+def get_document_line_match_candidates(
+    doc_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    doc = crud.get_documento(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    tenant_id = _tenant_id(request)
+    return DocumentLineMatchesResponse(lines=_build_document_line_matches(db, tenant_id, doc))
+
+
+@router.post("/documents/{doc_id}/save", response_model=SaveDocumentResponse, dependencies=protected)
 def save_document(
     doc_id: UUID,
     body: SaveDocumentRequest,
@@ -1393,6 +1747,7 @@ def save_document(
             warehouse_id=body.warehouse_id,
             notes=body.notes,
             update_stock=body.update_stock,
+            line_matches=body.line_matches,
         )
         # Also create expense record for payment tracking
         expense_result = _save_document_to_expense(
@@ -1406,6 +1761,7 @@ def save_document(
                 paid_amount=body.paid_amount,
                 pending_amount=body.pending_amount,
                 payment_method=body.payment_method,
+                payment_method_id=body.payment_method_id,
                 paid_at=body.paid_at,
                 notes=body.notes,
             ),
@@ -1413,17 +1769,19 @@ def save_document(
         record_ids = [str(purchase_result["purchase_id"])]
         if expense_result.record_id:
             record_ids.append(expense_result.record_id)
+        purchase_message = purchase_result.get("message", "Compra registrada.")
+        expense_message = (
+            f"Gasto creado ({body.payment_status})."
+            if expense_result.status == "created"
+            else "El gasto ya existia y no se duplico."
+        )
         result = SaveDocumentResponse(
             target="purchases",
             destination="supplier_invoice",
             status=purchase_result["status"],
             record_id=str(purchase_result["purchase_id"]),
             record_ids=record_ids,
-            message=(
-                f"Compra registrada y gasto creado ({body.payment_status})."
-                if expense_result.status == "created"
-                else purchase_result.get("message", "Compra registrada.")
-            ),
+            message=f"{purchase_message} {expense_message}".strip(),
         )
     else:
         result = _save_document_to_expense(
@@ -1437,9 +1795,20 @@ def save_document(
                 paid_amount=body.paid_amount,
                 pending_amount=body.pending_amount,
                 payment_method=body.payment_method,
+                payment_method_id=body.payment_method_id,
                 paid_at=body.paid_at,
                 notes=body.notes,
             ),
+        )
+
+    resolved_payment_method = None
+    resolved_payment_method_id = None
+    if destination != "recipe":
+        resolved_payment_method, resolved_payment_method_id = _resolve_payment_method(
+            db,
+            doc.tenant_id,
+            body.payment_method_id,
+            body.payment_method,
         )
 
     payment_snapshot = (
@@ -1457,9 +1826,18 @@ def save_document(
         "payment_status": payment_snapshot.get("status"),
         "paid_amount": payment_snapshot.get("paid_amount"),
         "pending_amount": payment_snapshot.get("pending_amount"),
-        "payment_method": body.payment_method,
+        "payment_method": resolved_payment_method,
+        "payment_method_id": str(resolved_payment_method_id) if resolved_payment_method_id else None,
         "paid_at": body.paid_at,
         "notes": body.notes,
+        "line_matches": [
+            {
+                "line_index": match.line_index,
+                "product_id": str(match.product_id) if match.product_id else None,
+                "persist_alias": bool(match.persist_alias),
+            }
+            for match in body.line_matches
+        ],
         "saved_at": datetime.datetime.now(datetime.UTC).isoformat(),
     }
     crud.update_documento(
@@ -1485,7 +1863,10 @@ def save_document(
             "payment_status": payment_snapshot.get("status"),
             "paid_amount": payment_snapshot.get("paid_amount"),
             "pending_amount": payment_snapshot.get("pending_amount"),
-            "payment_method": body.payment_method,
+            "payment_method": resolved_payment_method,
+            "payment_method_id": (
+                str(resolved_payment_method_id) if resolved_payment_method_id else None
+            ),
             "paid_at": body.paid_at,
         },
     )
@@ -1857,18 +2238,10 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
       [{"name": "HARINA TRADICION PREMIUM 50 KG", "factor": 50, "unit": "kg"}, ...]
     factor = how many inventory-units per 1 invoice-unit.
     """
-    import re
-    import unicodedata
-
     from app.models.core.products import Product
 
-    def _norm(s: str) -> str:
-        s = unicodedata.normalize("NFKD", str(s or ""))
-        s = "".join(c for c in s if not unicodedata.combining(c))
-        s = re.sub(r"[^a-z0-9]+", " ", s.strip().lower())
-        return re.sub(r"\s+", " ", s).strip()
-
-    desc_norm = _norm(description)
+    desc_norm = _norm_import_text(description)
+    desc_core = _strip_pack_tokens(description)
     if not desc_norm:
         return None, 1.0
 
@@ -1886,7 +2259,7 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
         for alias in aliases:
             if not isinstance(alias, dict):
                 continue
-            alias_name = _norm(str(alias.get("name") or ""))
+            alias_name = _norm_import_text(str(alias.get("name") or ""))
             if not alias_name:
                 continue
             if alias_name == desc_norm or alias_name in desc_norm or desc_norm in alias_name:
@@ -1895,14 +2268,26 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
 
     # 2) Exact name match
     for p in products:
-        if _norm(p.name) == desc_norm:
-            return p, 1.0
+        if _norm_import_text(p.name) == desc_norm:
+            factor = _infer_pack_conversion_factor(description, getattr(p, "unit", None))
+            return p, factor
 
     # 3) Substring match
     for p in products:
-        pn = _norm(p.name)
+        pn = _norm_import_text(p.name)
         if desc_norm in pn or pn in desc_norm:
-            return p, 1.0
+            factor = _infer_pack_conversion_factor(description, getattr(p, "unit", None))
+            return p, factor
+
+    # 4) Core-name match ignoring presentation tokens like "50 KG"
+    if desc_core:
+        for p in products:
+            pn_core = _strip_pack_tokens(p.name)
+            if not pn_core:
+                continue
+            if desc_core == pn_core or desc_core in pn_core or pn_core in desc_core:
+                factor = _infer_pack_conversion_factor(description, getattr(p, "unit", None))
+                return p, factor
 
     return None, 1.0
 

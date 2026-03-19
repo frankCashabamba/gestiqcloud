@@ -1,0 +1,2 @@
+ALTER TABLE IF EXISTS expenses
+ALTER COLUMN payment_method TYPE VARCHAR(50);

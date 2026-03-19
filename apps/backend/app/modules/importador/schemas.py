@@ -151,16 +151,24 @@ class UploadResponse(BaseModel):
     datos_extraidos: dict | None = None
 
 
+class SaveDocumentLineMatch(BaseModel):
+    line_index: int = Field(ge=0)
+    product_id: UUID | None = None
+    persist_alias: bool = True
+
+
 class SaveDocumentRequest(BaseModel):
     destination: Literal["recipe", "expense", "supplier_invoice"] | None = None
     payment_status: Literal["pending", "partial", "paid"] = "pending"
     paid_amount: float | None = Field(default=None, ge=0)
     pending_amount: float | None = Field(default=None, ge=0)
-    payment_method: str | None = Field(default=None, max_length=32)
+    payment_method: str | None = Field(default=None, max_length=64)
+    payment_method_id: UUID | None = None
     paid_at: str | None = None
     notes: str | None = None
     update_stock: bool = False
     warehouse_id: UUID | None = None
+    line_matches: list[SaveDocumentLineMatch] = Field(default_factory=list)
 
 
 class SaveDocumentResponse(BaseModel):
@@ -170,6 +178,32 @@ class SaveDocumentResponse(BaseModel):
     record_id: str | None = None
     record_ids: list[str] = Field(default_factory=list)
     message: str | None = None
+
+
+class ProductMatchCandidateOut(BaseModel):
+    product_id: UUID
+    name: str
+    sku: str | None = None
+    unit: str
+    stock: float = 0
+    score: float = Field(default=0, ge=0, le=1)
+    reason: str
+    inferred_factor: float = Field(default=1, gt=0)
+
+
+class DocumentLineMatchOut(BaseModel):
+    line_index: int = Field(ge=0)
+    description: str
+    quantity: float = 0
+    unit_price: float = 0
+    selected_product_id: UUID | None = None
+    selected_reason: str | None = None
+    inferred_factor: float = Field(default=1, gt=0)
+    candidates: list[ProductMatchCandidateOut] = Field(default_factory=list)
+
+
+class DocumentLineMatchesResponse(BaseModel):
+    lines: list[DocumentLineMatchOut] = Field(default_factory=list)
 
 
 class SaveDailyLogRequest(BaseModel):

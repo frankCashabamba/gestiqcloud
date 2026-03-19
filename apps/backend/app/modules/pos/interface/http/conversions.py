@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.core.dependencies import get_tenant_uuid
 from app.db.rls import ensure_rls
 from app.modules.shared.services import DocumentConverter
 
@@ -27,13 +28,6 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
-
-
-def _tenant_uuid(request: Request) -> UUID:
-    try:
-        return UUID(str(request.state.access_claims.get("tenant_id")))
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="tenant_id inválido")
 
 
 class InvoiceFromReceiptRequest(BaseModel):
@@ -98,7 +92,7 @@ def create_invoice_from_pos_receipt(
             "message": "Factura A-2024-000456 creada desde recibo R-0123"
         }
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     # Validar UUIDs
     try:
@@ -191,7 +185,7 @@ def get_invoice_from_receipt(receipt_id: str, request: Request, db: Session = De
 
     Returns 404 si el recibo no tiene factura.
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         receipt_uuid = UUID(receipt_id)
@@ -245,7 +239,7 @@ def unlink_invoice_from_receipt(receipt_id: str, request: Request, db: Session =
 
     Returns 403 si la factura ya está emitida/pagada.
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         receipt_uuid = UUID(receipt_id)

@@ -218,19 +218,47 @@ export type SaveDocumentPayload = {
   payment_status?: DocumentPaymentStatus
   paid_amount?: number
   pending_amount?: number
-  payment_method?: 'cash' | 'bank' | 'card' | 'transfer' | 'direct_debit' | 'check' | 'other'
+  payment_method?: string
+  payment_method_id?: string
   paid_at?: string
   notes?: string
   update_stock?: boolean
+  line_matches?: Array<{
+    line_index: number
+    product_id?: string | null
+    persist_alias?: boolean
+  }>
 }
 
 export type SaveDocumentResult = {
   target: 'recipes' | 'purchases' | 'expenses'
   destination: DocumentSaveDestination
-  status: 'created' | 'updated' | 'skipped'
+  status: 'created' | 'updated' | 'skipped' | 'stock_updated'
   record_id?: string
   record_ids: string[]
   message?: string
+}
+
+export type ProductMatchCandidate = {
+  product_id: string
+  name: string
+  sku?: string | null
+  unit: string
+  stock: number
+  score: number
+  reason: string
+  inferred_factor: number
+}
+
+export type DocumentLineMatch = {
+  line_index: number
+  description: string
+  quantity: number
+  unit_price: number
+  selected_product_id?: string | null
+  selected_reason?: string | null
+  inferred_factor: number
+  candidates: ProductMatchCandidate[]
 }
 
 export function suggestSaveDestination(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>): DocumentSaveDestination {
@@ -475,7 +503,9 @@ export async function saveDocument(id: string, payload: SaveDocumentPayload): Pr
   const destination = String(raw.destination || payload.destination || 'expense')
   const statusRaw = String(raw.status || 'created')
   const status: SaveDocumentResult['status'] =
-    statusRaw === 'updated' || statusRaw === 'skipped' ? statusRaw : 'created'
+    statusRaw === 'updated' || statusRaw === 'skipped' || statusRaw === 'stock_updated'
+      ? statusRaw
+      : 'created'
 
   return {
     target: raw.target === 'recipes' ? 'recipes' : raw.target === 'purchases' ? 'purchases' : 'expenses',
@@ -485,6 +515,32 @@ export async function saveDocument(id: string, payload: SaveDocumentPayload): Pr
     record_ids: Array.isArray(raw.record_ids) ? raw.record_ids.map((item) => String(item)) : [],
     message: raw.message ? String(raw.message) : undefined,
   }
+}
+
+export async function fetchDocumentLineMatchCandidates(id: string): Promise<DocumentLineMatch[]> {
+  const { data } = await api.get(`/api/v1/importador/documents/${id}/line-match-candidates`)
+  const lines = Array.isArray(data?.lines) ? data.lines : []
+  return lines.map((raw: Record<string, unknown>) => ({
+    line_index: Number(raw.line_index ?? 0),
+    description: String(raw.description ?? ''),
+    quantity: Number(raw.quantity ?? 0),
+    unit_price: Number(raw.unit_price ?? 0),
+    selected_product_id: raw.selected_product_id ? String(raw.selected_product_id) : null,
+    selected_reason: raw.selected_reason ? String(raw.selected_reason) : null,
+    inferred_factor: Number(raw.inferred_factor ?? 1) || 1,
+    candidates: Array.isArray(raw.candidates)
+      ? raw.candidates.map((candidate: Record<string, unknown>) => ({
+          product_id: String(candidate.product_id ?? ''),
+          name: String(candidate.name ?? ''),
+          sku: candidate.sku ? String(candidate.sku) : null,
+          unit: String(candidate.unit ?? 'unit'),
+          stock: Number(candidate.stock ?? 0),
+          score: Number(candidate.score ?? 0),
+          reason: String(candidate.reason ?? 'candidate'),
+          inferred_factor: Number(candidate.inferred_factor ?? 1) || 1,
+        }))
+      : [],
+  }))
 }
 
 export async function fetchDashboard(): Promise<DashboardStats> {

@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { listPaymentMethods, type PaymentMethod } from '../../accounting/services'
 import {
   canSaveDocument,
+  fetchDocumentLineMatchCandidates,
   fetchSaveCapabilities,
   saveDocument,
   suggestSaveDestination,
+  type DocumentLineMatch,
   type DocumentPaymentStatus,
   type Documento,
   type SaveDocumentPayload,
@@ -16,16 +19,6 @@ type SaveDocumentModalProps = {
   onClose: () => void
   onSaved?: (result: SaveDocumentResult) => void
 }
-
-const paymentMethods: Array<NonNullable<SaveDocumentPayload['payment_method']>> = [
-  'bank',
-  'cash',
-  'card',
-  'transfer',
-  'direct_debit',
-  'check',
-  'other',
-]
 
 function formatMoney(value: number | null): string {
   return value == null || Number.isNaN(value) ? '' : value.toFixed(2)
@@ -73,22 +66,152 @@ function parseMoney(value: unknown): number | null {
   return Number.isFinite(numeric) ? numeric : null
 }
 
-function inferPaymentMethod(value: unknown): NonNullable<SaveDocumentPayload['payment_method']> {
-  const raw = String(value || '').trim().toLowerCase()
-  if (!raw) return 'bank'
-  if (raw.includes('cash') || raw.includes('efectivo')) return 'cash'
-  if (raw.includes('card') || raw.includes('tarjeta')) return 'card'
-  if (raw.includes('transfer') || raw.includes('transferencia')) return 'transfer'
-  if (raw.includes('direct debit') || raw.includes('debito directo') || raw.includes('direct_debit')) return 'direct_debit'
-  if (raw.includes('check') || raw.includes('cheque')) return 'check'
-  if (raw.includes('bank') || raw.includes('banco')) return 'bank'
-  return 'other'
+function normalizeText(value: unknown): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function scorePaymentMethod(rawNorm: string, method: PaymentMethod): number {
+  const nameNorm = normalizeText(method.name)
+  const descriptionNorm = normalizeText(method.description || '')
+  if (!rawNorm || !nameNorm) return 0
+  if (rawNorm === nameNorm) return 1
+  if (descriptionNorm && rawNorm === descriptionNorm) return 0.96
+  if (rawNorm.includes(nameNorm) || nameNorm.includes(rawNorm)) return 0.9
+  if (descriptionNorm && (rawNorm.includes(descriptionNorm) || descriptionNorm.includes(rawNorm))) {
+    return 0.84
+  }
+
+  const rawTokens = new Set(rawNorm.split(' ').filter(Boolean))
+  const candidateTokens = new Set(`${nameNorm} ${descriptionNorm}`.split(' ').filter(Boolean))
+  const common = Array.from(rawTokens).filter((token) => candidateTokens.has(token)).length
+  if (common > 0) {
+    return Math.min(common / Math.max(rawTokens.size, 1), 0.8)
+  }
+  return 0
+}
+
+function pickPaymentMethodId(
+  rawValue: unknown,
+  methods: PaymentMethod[],
+  fallbackId = '',
+): string {
+  if (methods.length === 0) return ''
+
+  const raw = String(rawValue || '').trim()
+  if (!raw) return fallbackId || methods[0]?.id || ''
+  const rawNorm = normalizeText(raw)
+  const byId = methods.find((method) => method.id === raw)
+  if (byId) return byId.id
+
+  let bestId = fallbackId || methods[0]?.id || ''
+  let bestScore = -1
+
+  for (const method of methods) {
+    const score = scorePaymentMethod(rawNorm, method)
+
+    if (score > bestScore) {
+      bestScore = score
+      bestId = method.id
+    }
+  }
+
+  return bestScore >= 0.78 ? bestId : (fallbackId || methods[0]?.id || '')
+}
+
+function buildInferredDefaults(
+  doc: Documento | null,
+  totalAmount: number | null,
+  methods: PaymentMethod[],
+) {
+  const data = getDocumentData(doc)
+  const saveMeta = data._save && typeof data._save === 'object'
+    ? data._save as Record<string, unknown>
+    : {}
+  const rawPayments = getDocumentValue(
+    data,
+    'pagos',
+    'pago',
+    'payments',
+    'payment',
+    'payment_method',
+    'metodo_pago',
+    'metodo',
+  )
+  const fallbackMethodId = methods[0]?.id || ''
+  const savedStatus = typeof saveMeta.payment_status === 'string' && ['pending', 'partial', 'paid'].includes(saveMeta.payment_status)
+    ? saveMeta.payment_status as DocumentPaymentStatus
+    : null
+  const savedPaid = parseMoney(saveMeta.paid_amount)
+  const savedPending = parseMoney(saveMeta.pending_amount)
+  const paidFromText = parseMoney(rawPayments)
+  const paidAtValue = typeof saveMeta.paid_at === 'string' && saveMeta.paid_at.trim()
+    ? saveMeta.paid_at.slice(0, 10)
+    : new Date().toISOString().slice(0, 10)
+
+  let paymentStatus: DocumentPaymentStatus = savedStatus || 'pending'
+  let paid = savedPaid
+  let pending = savedPending
+
+  if (!savedStatus && paidFromText != null) {
+    if (totalAmount != null) {
+      if (paidFromText <= 0.005) paymentStatus = 'pending'
+      else if (paidFromText + 0.01 >= totalAmount) paymentStatus = 'paid'
+      else paymentStatus = 'partial'
+    } else if (paidFromText > 0) {
+      paymentStatus = 'paid'
+    }
+    paid = paid ?? paidFromText
+  }
+
+  if (paymentStatus === 'paid') {
+    paid = paid ?? totalAmount
+    pending = 0
+  } else if (paymentStatus === 'pending') {
+    paid = 0
+    pending = pending ?? totalAmount
+  } else if (paymentStatus === 'partial' && totalAmount != null) {
+    if (paid == null && pending != null) paid = Math.max(totalAmount - pending, 0)
+    if (pending == null && paid != null) pending = Math.max(totalAmount - paid, 0)
+  }
+
+  return {
+    paymentStatus,
+    paymentMethodId: pickPaymentMethodId(
+      saveMeta.payment_method_id ?? saveMeta.payment_method ?? rawPayments,
+      methods,
+      fallbackMethodId,
+    ),
+    paidAmount: paymentStatus === 'partial' && paid == null ? '' : formatMoney(paid),
+    pendingAmount: paymentStatus === 'paid' ? '0.00' : formatMoney(pending),
+    paidAt: paidAtValue,
+    notes: typeof saveMeta.notes === 'string' ? saveMeta.notes : '',
+  }
+}
+
+function getMatchReasonLabel(reason: string | null | undefined): string {
+  switch (reason) {
+    case 'manual': return 'Seleccion manual'
+    case 'alias_exact': return 'Alias exacto'
+    case 'alias': return 'Alias sugerido'
+    case 'name_exact': return 'Nombre exacto'
+    case 'core_exact': return 'Nombre base'
+    case 'name_partial': return 'Nombre parcial'
+    case 'core_partial': return 'Base parcial'
+    case 'fuzzy': return 'Parecido'
+    default: return 'Sin vinculo'
+  }
 }
 
 export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveDocumentModalProps) {
   const [destination, setDestination] = useState<'recipe' | 'expense' | 'supplier_invoice'>('expense')
   const [paymentStatus, setPaymentStatus] = useState<DocumentPaymentStatus>('pending')
-  const [paymentMethod, setPaymentMethod] = useState<NonNullable<SaveDocumentPayload['payment_method']>>('bank')
+  const [paymentMethodId, setPaymentMethodId] = useState('')
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [paidAmount, setPaidAmount] = useState('')
   const [pendingAmount, setPendingAmount] = useState('')
   const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10))
@@ -98,6 +221,10 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   const [saving, setSaving] = useState(false)
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
   const [updateStock, setUpdateStock] = useState(false)
+  const [lineMatches, setLineMatches] = useState<DocumentLineMatch[]>([])
+  const [lineMatchSelection, setLineMatchSelection] = useState<Record<number, string>>({})
+  const [persistAliasByLine, setPersistAliasByLine] = useState<Record<number, boolean>>({})
+  const [loadingLineMatches, setLoadingLineMatches] = useState(false)
 
   const lineItems = useMemo(() => {
     const data = getDocumentData(doc)
@@ -114,73 +241,36 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
     const data = getDocumentData(doc)
     return parseMoney(getDocumentValue(data, 'monto_total', 'total', 'amount', 'importe', 'grand_total', 'total_general'))
   }, [doc])
-
-  const inferredDefaults = useMemo(() => {
-    const data = getDocumentData(doc)
-    const saveMeta = data._save && typeof data._save === 'object'
-      ? data._save as Record<string, unknown>
-      : {}
-    const rawPayments = getDocumentValue(data, 'pagos', 'pago', 'payments', 'payment', 'payment_method', 'metodo_pago', 'metodo')
-    const savedMethod = typeof saveMeta.payment_method === 'string' && paymentMethods.includes(saveMeta.payment_method as NonNullable<SaveDocumentPayload['payment_method']>)
-      ? saveMeta.payment_method as NonNullable<SaveDocumentPayload['payment_method']>
-      : null
-    const savedStatus = typeof saveMeta.payment_status === 'string' && ['pending', 'partial', 'paid'].includes(saveMeta.payment_status)
-      ? saveMeta.payment_status as DocumentPaymentStatus
-      : null
-    const savedPaid = parseMoney(saveMeta.paid_amount)
-    const savedPending = parseMoney(saveMeta.pending_amount)
-    const paidFromText = parseMoney(rawPayments)
-    const paidAtValue = typeof saveMeta.paid_at === 'string' && saveMeta.paid_at.trim()
-      ? saveMeta.paid_at.slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
-
-    let paymentStatus: DocumentPaymentStatus = savedStatus || 'pending'
-    let paid = savedPaid
-    let pending = savedPending
-
-    if (!savedStatus && paidFromText != null) {
-      if (totalAmount != null) {
-        if (paidFromText <= 0.005) paymentStatus = 'pending'
-        else if (paidFromText + 0.01 >= totalAmount) paymentStatus = 'paid'
-        else paymentStatus = 'partial'
-      } else if (paidFromText > 0) {
-        paymentStatus = 'paid'
-      }
-      paid = paid ?? paidFromText
-    }
-
-    if (paymentStatus === 'paid') {
-      paid = paid ?? totalAmount
-      pending = 0
-    } else if (paymentStatus === 'pending') {
-      paid = 0
-      pending = pending ?? totalAmount
-    } else if (paymentStatus === 'partial' && totalAmount != null) {
-      if (paid == null && pending != null) paid = Math.max(totalAmount - pending, 0)
-      if (pending == null && paid != null) pending = Math.max(totalAmount - paid, 0)
-    }
-
-    return {
-      paymentStatus,
-      paymentMethod: savedMethod || inferPaymentMethod(rawPayments),
-      paidAmount: paymentStatus === 'partial' && paid == null ? '' : formatMoney(paid),
-      pendingAmount: paymentStatus === 'paid' ? '0.00' : formatMoney(pending),
-      paidAt: paidAtValue,
-      notes: typeof saveMeta.notes === 'string' ? saveMeta.notes : '',
-    }
-  }, [doc, totalAmount])
+  const activePaymentMethods = useMemo(
+    () => paymentMethods.filter((method) => method.is_active !== false),
+    [paymentMethods],
+  )
+  const inferredDefaults = useMemo(
+    () => buildInferredDefaults(doc, totalAmount, activePaymentMethods),
+    [doc, totalAmount, activePaymentMethods],
+  )
 
   useEffect(() => {
     if (!open || !doc) return
+
+    const initialDefaults = buildInferredDefaults(doc, totalAmount, activePaymentMethods)
+    const suggested = suggestSaveDestination(doc)
+
     fetchSaveCapabilities().then(setCapabilities).catch(() => {})
+    listPaymentMethods()
+      .then((methods) => setPaymentMethods(Array.isArray(methods) ? methods : []))
+      .catch(() => setPaymentMethods([]))
+
     setUpdateStock(false)
     setSaveMessage('')
-    const suggested = suggestSaveDestination(doc)
+    setLineMatches([])
+    setLineMatchSelection({})
+    setPersistAliasByLine({})
     setDestination(suggested)
-    setPaymentStatus(inferredDefaults.paymentStatus)
-    setPaymentMethod(inferredDefaults.paymentMethod)
-    setPaidAt(inferredDefaults.paidAt)
-    setNotes(inferredDefaults.notes)
+    setPaymentStatus(initialDefaults.paymentStatus)
+    setPaymentMethodId(initialDefaults.paymentMethodId)
+    setPaidAt(initialDefaults.paidAt)
+    setNotes(initialDefaults.notes)
     setError('')
 
     if (suggested === 'recipe') {
@@ -189,15 +279,71 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
       return
     }
 
-    setPaidAmount(inferredDefaults.paidAmount)
-    setPendingAmount(inferredDefaults.pendingAmount)
-  }, [open, doc, totalAmount, inferredDefaults])
+    setPaidAmount(initialDefaults.paidAmount)
+    setPendingAmount(initialDefaults.pendingAmount)
+  }, [open, doc?.id])
+
+  useEffect(() => {
+    if (!open || !doc || activePaymentMethods.length === 0) return
+
+    const nextMethodId = buildInferredDefaults(doc, totalAmount, activePaymentMethods).paymentMethodId
+    setPaymentMethodId((current) => {
+      if (current && activePaymentMethods.some((method) => method.id === current)) return current
+      return nextMethodId
+    })
+  }, [open, doc?.id, totalAmount, activePaymentMethods])
+
+  useEffect(() => {
+    if (!open || !doc?.id || !hasStockItems) return
+    let cancelled = false
+    setLoadingLineMatches(true)
+    fetchDocumentLineMatchCandidates(doc.id)
+      .then((rows) => {
+        if (cancelled) return
+        setLineMatches(rows)
+        const nextSelection: Record<number, string> = {}
+        const nextPersist: Record<number, boolean> = {}
+        for (const row of rows) {
+          nextSelection[row.line_index] = row.selected_product_id || ''
+          nextPersist[row.line_index] = true
+        }
+        setLineMatchSelection(nextSelection)
+        setPersistAliasByLine(nextPersist)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setLineMatches([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingLineMatches(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, doc?.id, hasStockItems])
 
   if (!open || !doc) return null
   if (!canSaveDocument(doc)) return null
 
   const canSaveInvoice = capabilities.purchases || capabilities.invoicing
   const canSaveExpense = capabilities.expenses !== false
+  const effectiveLineMatches = lineMatches.length > 0
+    ? lineMatches
+    : lineItems.map((item, index) => ({
+        line_index: index,
+        description: String(item.description ?? item.descripcion ?? ''),
+        quantity: Number(item.quantity ?? item.cantidad ?? 0),
+        unit_price: Number(item.unit_price ?? item.precio_unitario ?? item.precio ?? 0),
+        selected_product_id: null,
+        selected_reason: null,
+        inferred_factor: 1,
+        candidates: [],
+      }))
+  const matchedLines = effectiveLineMatches.filter((row) => {
+    const selectedId = lineMatchSelection[row.line_index]
+    return typeof selectedId === 'string' && selectedId.trim().length > 0
+  }).length
+  const unmatchedLines = Math.max(effectiveLineMatches.length - matchedLines, 0)
 
   const handlePaymentStatusChange = (nextStatus: DocumentPaymentStatus) => {
     setPaymentStatus(nextStatus)
@@ -253,10 +399,19 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
 
     try {
       const payload: SaveDocumentPayload = { destination, update_stock: updateStock && canUpdateStock }
+      if (destination === 'supplier_invoice' && updateStock && canUpdateStock) {
+        payload.line_matches = effectiveLineMatches
+          .map((row) => ({
+            line_index: row.line_index,
+            product_id: lineMatchSelection[row.line_index] || null,
+            persist_alias: persistAliasByLine[row.line_index] !== false,
+          }))
+          .filter((row) => row.product_id)
+      }
 
       if (destination !== 'recipe') {
         payload.payment_status = paymentStatus
-        payload.payment_method = paymentMethod
+        payload.payment_method_id = paymentMethodId || undefined
         payload.paid_at = paymentStatus === 'paid' ? paidAt : undefined
         payload.notes = notes.trim() || undefined
 
@@ -368,6 +523,102 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
             </label>
           )}
 
+          {destination === 'supplier_invoice' && hasStockItems && (
+            <div style={matchPanel}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Vincular lineas con productos</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    Elige el producto correcto por linea. Si lo vinculas manualmente, se guarda como alias para próximas facturas.
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: unmatchedLines > 0 ? '#92400e' : '#166534', fontWeight: 600 }}>
+                  {matchedLines}/{effectiveLineMatches.length} lineas vinculadas
+                </div>
+              </div>
+
+              {loadingLineMatches ? (
+                <div style={hintBox}>Buscando productos parecidos...</div>
+              ) : (
+                <div style={matchTableWrap}>
+                  <table style={matchTable}>
+                    <thead>
+                      <tr>
+                        <th style={matchTh}>Linea</th>
+                        <th style={matchTh}>Producto detectado</th>
+                        <th style={matchTh}>Candidatos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {effectiveLineMatches.map((row) => {
+                        const selectedId = lineMatchSelection[row.line_index] || ''
+                        const selectedCandidate = row.candidates.find((candidate) => candidate.product_id === selectedId)
+                        const selectedReason = selectedId
+                          ? (selectedId === row.selected_product_id
+                              ? row.selected_reason
+                              : selectedCandidate?.reason || 'manual')
+                          : null
+                        return (
+                          <tr key={row.line_index}>
+                            <td style={matchTdCompact}>
+                              <div style={{ fontWeight: 600, color: '#0f172a' }}>#{row.line_index + 1}</div>
+                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                                +{row.quantity} x {row.unit_price ? row.unit_price.toFixed(2) : '0.00'}
+                              </div>
+                            </td>
+                            <td style={matchTd}>
+                              <div style={{ fontWeight: 600, color: '#0f172a' }}>{row.description}</div>
+                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                                {selectedReason ? getMatchReasonLabel(selectedReason) : 'Sin vinculo'} · factor {Number(selectedCandidate?.inferred_factor ?? row.inferred_factor ?? 1).toFixed(2)}
+                              </div>
+                            </td>
+                            <td style={matchTd}>
+                              <select
+                                value={selectedId}
+                                onChange={(e) => setLineMatchSelection((prev) => ({ ...prev, [row.line_index]: e.target.value }))}
+                                style={{ ...input, minWidth: 260 }}
+                                disabled={saving}
+                              >
+                                <option value="">Sin vincular</option>
+                                {row.candidates.map((candidate) => (
+                                  <option key={candidate.product_id} value={candidate.product_id}>
+                                    {candidate.name}{candidate.sku ? ` (${candidate.sku})` : ''} · {candidate.unit} · {Math.round(candidate.score * 100)}%
+                                  </option>
+                                ))}
+                              </select>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: 12, color: '#64748b' }}>
+                                  {row.candidates.length > 0
+                                    ? row.candidates.slice(0, 3).map((candidate) => candidate.name).join(', ')
+                                    : 'No se encontraron candidatos.'}
+                                </div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={persistAliasByLine[row.line_index] !== false}
+                                    onChange={(e) => setPersistAliasByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
+                                    disabled={saving || !selectedId}
+                                  />
+                                  Guardar alias
+                                </label>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {updateStock && unmatchedLines > 0 && (
+                <div style={warnBox}>
+                  Hay {unmatchedLines} linea(s) sin vincular. La compra y el gasto se guardarán, pero esas lineas no entrarán al stock hasta que elijas un producto.
+                </div>
+              )}
+            </div>
+          )}
+
           {destination !== 'recipe' && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
@@ -388,14 +639,20 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                 <label style={field}>
                   <span style={label}>Metodo</span>
                   <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as NonNullable<SaveDocumentPayload['payment_method']>)}
+                    value={paymentMethodId}
+                    onChange={(e) => setPaymentMethodId(e.target.value)}
                     style={input}
                     disabled={saving}
                   >
-                    {paymentMethods.map((method) => (
-                      <option key={method} value={method}>{method}</option>
-                    ))}
+                    {activePaymentMethods.length === 0 ? (
+                      <option value="">Sin metodos configurados</option>
+                    ) : (
+                      activePaymentMethods.map((method) => (
+                        <option key={method.id} value={method.id}>
+                          {method.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </label>
 
@@ -494,15 +751,19 @@ const overlay: React.CSSProperties = {
   justifyContent: 'center',
   padding: '1rem',
   zIndex: 50,
+  overflowY: 'auto',
 }
 
 const modal: React.CSSProperties = {
   width: '100%',
   maxWidth: 720,
+  maxHeight: 'calc(100vh - 2rem)',
   background: '#fff',
   borderRadius: 14,
   boxShadow: '0 22px 48px rgba(15, 23, 42, 0.22)',
   overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
 }
 
 const header: React.CSSProperties = {
@@ -511,12 +772,17 @@ const header: React.CSSProperties = {
   alignItems: 'flex-start',
   padding: '1rem 1.1rem',
   borderBottom: '1px solid #e2e8f0',
+  flexShrink: 0,
+  background: '#fff',
 }
 
 const body: React.CSSProperties = {
   display: 'grid',
   gap: 16,
   padding: '1rem 1.1rem',
+  overflowY: 'auto',
+  minHeight: 0,
+  flex: '1 1 auto',
 }
 
 const footer: React.CSSProperties = {
@@ -525,6 +791,9 @@ const footer: React.CSSProperties = {
   gap: 8,
   padding: '0.9rem 1.1rem 1rem',
   borderTop: '1px solid #e2e8f0',
+  flexShrink: 0,
+  background: '#fff',
+  boxShadow: '0 -10px 20px rgba(15, 23, 42, 0.06)',
 }
 
 const field: React.CSSProperties = {
@@ -584,6 +853,47 @@ const summaryBox: React.CSSProperties = {
   border: '1px solid #bfdbfe',
   color: '#1e3a8a',
   fontSize: 13,
+}
+
+const matchPanel: React.CSSProperties = {
+  display: 'grid',
+  gap: 12,
+  padding: '0.9rem',
+  borderRadius: 12,
+  border: '1px solid #dbeafe',
+  background: '#f8fbff',
+}
+
+const matchTableWrap: React.CSSProperties = {
+  overflowX: 'auto',
+}
+
+const matchTable: React.CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+}
+
+const matchTh: React.CSSProperties = {
+  textAlign: 'left',
+  fontSize: 12,
+  color: '#64748b',
+  fontWeight: 700,
+  padding: '0.55rem 0.5rem',
+  borderBottom: '1px solid #dbeafe',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+}
+
+const matchTd: React.CSSProperties = {
+  verticalAlign: 'top',
+  padding: '0.7rem 0.5rem',
+  borderBottom: '1px solid #e2e8f0',
+}
+
+const matchTdCompact: React.CSSProperties = {
+  ...matchTd,
+  width: 84,
+  whiteSpace: 'nowrap',
 }
 
 const errorBox: React.CSSProperties = {

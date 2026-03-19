@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.core.dependencies import get_tenant_uuid
 from app.db.rls import ensure_rls
 from app.modules.inventory.application.stock_transfer_service import StockTransferService
 
@@ -24,15 +25,6 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
-
-
-def _tenant_uuid(request: Request) -> UUID:
-    """Extract tenant_id from request"""
-    raw = getattr(request.state, "access_claims", {}).get("tenant_id")
-    try:
-        return UUID(str(raw))
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid tenant_id")
 
 
 class StockTransferCreateRequest(BaseModel):
@@ -83,7 +75,7 @@ def create_transfer(
 
     Returns the created transfer in DRAFT status.
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         service = StockTransferService(db)
@@ -125,7 +117,7 @@ def list_transfers(
     - **limit**: Max results per page (max 500)
     - **offset**: Pagination offset
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         service = StockTransferService(db)
@@ -158,7 +150,7 @@ def get_transfer(
     db: Session = Depends(get_db),
 ):
     """Get a specific stock transfer by ID"""
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         service = StockTransferService(db)
@@ -185,7 +177,7 @@ def start_transfer(
     - Requires transfer to be in DRAFT status
     - Validates stock availability
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         service = StockTransferService(db)
@@ -213,7 +205,7 @@ def complete_transfer(
     - Requires transfer to be in IN_TRANSIT status
     - Updates completed_at timestamp
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         service = StockTransferService(db)
@@ -241,7 +233,7 @@ def cancel_transfer(
     - Cannot cancel COMPLETED transfers
     - Sets status to CANCELLED
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     try:
         service = StockTransferService(db)

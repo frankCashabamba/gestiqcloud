@@ -11,7 +11,7 @@ Este documento define una guía práctica de desarrollo para **GestiQCloud**, co
 - calidad de producto
 - preparación para salida a mercado
 
-No está orientado a inversión ni marketing.  
+No está orientado a inversión ni marketing.
 Está pensado para servir como **documento interno de ejecución** para desarrollo.
 
 ---
@@ -577,7 +577,7 @@ No va bien si:
 
 GestiQCloud ya parece tener una base técnica fuerte. El siguiente paso de desarrollo no es “construir más”, sino **cerrar riesgos, simplificar, monetizar y endurecer lo existente**.
 
-La prioridad correcta no es el módulo número 26.  
+La prioridad correcta no es el módulo número 26.
 La prioridad correcta es esta:
 
 1. seguridad multi-tenant

@@ -11,7 +11,6 @@ import { DashboardContable } from './components/DashboardContable'
 import { LibroDiario } from './components/LibroDiario'
 import { LibroMayor } from './components/LibroMayor'
 import { PerdidasGanancias } from './components/PerdidasGanancias'
-import { ConciliacionBancaria } from './components/ConciliacionBancaria'
 import PosAccountingSettings from './components/PosAccountingSettings'
 import PaymentMethods from './components/PaymentMethods'
 
@@ -29,7 +28,6 @@ export default function ContabilidadRoutes() {
                 <Route path="libro-diario" element={<LibroDiario />} />
                 <Route path="libro-mayor" element={<LibroMayor />} />
                 <Route path="pyl" element={<PerdidasGanancias />} />
-                <Route path="conciliacion" element={<ConciliacionBancaria />} />
                 <Route path="plan-contable" element={<ChartOfAccountsList />} />
                 <Route path="pos-config" element={<PosAccountingSettings />} />
                 <Route path="pos-payment-methods" element={<PaymentMethods />} />

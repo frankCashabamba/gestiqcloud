@@ -105,7 +105,8 @@ export default function DocumentList() {
   }, [backgroundActive, filter])
 
   const handleSaved = (result: SaveDocumentResult) => {
-    const targetLabel = result.target === 'recipes' ? 'recetas' : 'gastos'
+    const targetLabel =
+      result.target === 'recipes' ? 'recetas' : result.target === 'purchases' ? 'compras' : 'gastos'
     setFeedback(result.message || `Documento guardado en ${targetLabel}.`)
     void loadDocuments()
   }

@@ -56,8 +56,6 @@ export function useCurrency() {
 
         const sym = normalized ? extractSymbol(normalized) : ''
 
-        console.log('[useCurrency] Company currency:', tenant?.base_currency, 'Normalized:', normalized, 'Symbol:', sym)
-
         setCurrency(normalized)
         setSymbol(sym)
       } catch (e) {

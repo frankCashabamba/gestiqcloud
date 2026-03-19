@@ -13,20 +13,12 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.audit_events import audit_event
 from app.core.authz import require_scope
+from app.core.dependencies import get_tenant_uuid
 from app.db.rls import ensure_rls
 from app.models.core.document import Document
 from app.models.core.facturacion import Invoice
 from app.modules.invoicing import schemas
 from app.modules.invoicing.crud import factura_crud
-
-
-def _tenant_uuid(request: Request) -> UUID:
-    raw = getattr(request.state, "access_claims", {}).get("tenant_id")
-    try:
-        return UUID(str(raw))
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="tenant_id inválido")
-
 
 router = APIRouter(
     prefix="/invoicing",
@@ -50,7 +42,7 @@ def listar_facturas_principales(
 ):
     from datetime import datetime
 
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     # ── 1. Facturas del módulo clásico (Invoice) ──────────────────────────────
     old_invoices = factura_crud.obtener_facturas_principales(
@@ -227,7 +219,7 @@ def crear_factura(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
     created = factura_crud.create_with_lineas(db, tenant_id, factura)
     try:
         claims = getattr(request.state, "access_claims", None)
@@ -259,7 +251,7 @@ def actualizar_factura(
     """Actualizar factura en borrador"""
     from sqlalchemy.orm import joinedload
 
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     factura_uuid = factura_id
     invoice = (
@@ -310,7 +302,7 @@ def actualizar_factura(
 @router.delete("/{factura_id}")
 def anular_factura(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Anular factura (soft delete)"""
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     factura_uuid = factura_id
     invoice = (
@@ -357,7 +349,7 @@ def emitir_factura(
 ):
     from sqlalchemy.orm import joinedload
 
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
     issued = factura_crud.emitir_factura(db, tenant_id, factura_id)
     # Reload with relations
     issued = (
@@ -397,7 +389,7 @@ def obtener_factura_por_id(
 ):
     from sqlalchemy.orm import joinedload
 
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
     factura = (
         db.query(Invoice)
         .options(
@@ -512,7 +504,7 @@ def descargar_pdf(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
     factura = db.query(Invoice).filter_by(id=factura_id, tenant_id=tenant_id).first()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
@@ -552,7 +544,7 @@ def descargar_pdf(
 @router.patch("/{factura_id}/marcar-cobrada")
 def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Marca una venta a crédito (PENDING_PAYMENT) como cobrada (ISSUED)."""
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
     doc = (
         db.query(Document)
         .filter(Document.id == factura_id, Document.tenant_id == tenant_id)

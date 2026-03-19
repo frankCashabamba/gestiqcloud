@@ -30,7 +30,7 @@ export const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({
     // Logging
     logDashboardAction({
       action: `quick_action.${action.id}`,
-      usuario: 'current_user', // Reemplazar con usuario real
+      user: 'current_user', // Reemplazar con usuario real
       metadata: {
         label: action.label,
         module: action.requiresModule,

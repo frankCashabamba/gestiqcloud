@@ -17,9 +17,7 @@ def _login_headers(client, user_email: str) -> dict[str, str]:
 
 
 def _seed_company_settings(db, tenant_id):
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     if settings:
         return settings
     settings = CompanySettings(

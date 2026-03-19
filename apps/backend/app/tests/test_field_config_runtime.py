@@ -2,9 +2,24 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.core.jwt_provider import get_token_service
 from app.models.company.company import SectorTemplate
 from app.models.core.ui_field_config import SectorFieldDefault
 from app.models.tenant import Tenant
+
+
+def _tenant_headers(tenant: Tenant, slug: str) -> dict[str, str]:
+    token = get_token_service().issue_access(
+        {
+            "user_id": str(uuid4()),
+            "tenant_id": str(tenant.id),
+            "empresa_slug": slug,
+            "scope": "tenant",
+            "kind": "tenant",
+            "sub": "tenant@example.com",
+        }
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_admin_sector_fields_for_clientes_are_seeded_into_db(client: TestClient, db):
@@ -104,6 +119,33 @@ def test_company_field_config_reads_legacy_products_module_rows(client: TestClie
     body = response.json()
     field_names = [item["field"] for item in body["items"]]
     assert "sku" in field_names
+
+
+def test_company_field_config_prioritizes_authenticated_tenant_over_empresa_query(
+    client: TestClient, db
+):
+    retail_slug = f"retail-{uuid4().hex[:8]}"
+    bakery_slug = f"bakery-{uuid4().hex[:8]}"
+    retail = Tenant(id=uuid4(), name="Retail Co", slug=retail_slug, sector_template_name="retail")
+    bakery = Tenant(
+        id=uuid4(),
+        name="Panaderia Co",
+        slug=bakery_slug,
+        sector_template_name="panaderia",
+    )
+    db.add_all([retail, bakery])
+    db.commit()
+
+    response = client.get(
+        f"/api/v1/company/settings/fields?module=clientes&empresa={retail_slug}",
+        headers=_tenant_headers(bakery, bakery_slug),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    field_names = [item["field"] for item in body["items"]]
+    assert "contacto_nombre" in field_names
+    assert "whatsapp" not in field_names
 
 
 def test_admin_sector_fields_seed_suppliers_from_template_config(client: TestClient, db):

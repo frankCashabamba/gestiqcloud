@@ -26,8 +26,8 @@ from app.modules.billing.service import (
     get_price_id_for_cycle,
     get_stripe_module,
     load_billing_contact,
-    load_plan,
     load_existing_customer_id,
+    load_plan,
     resolve_return_url,
     stripe_is_configured,
     stripe_status_to_local,
@@ -158,7 +158,9 @@ def subscribe_admin(
     if stripe_is_configured() and price_id:
         email, company_name = load_billing_contact(db, tenant_id)
         customer_id = ensure_stripe_customer(db, tenant_id, email, company_name)
-        return_url = resolve_return_url(request, f"/admin/companies/{tenant_id}/config", payload.return_url)
+        return_url = resolve_return_url(
+            request, f"/admin/companies/{tenant_id}/config", payload.return_url
+        )
         stripe = get_stripe_module()
         session = stripe.checkout.Session.create(
             mode="subscription",
@@ -257,7 +259,7 @@ def change_plan_admin(tenant_id: str, payload: ChangePlanIn, db: Session = Depen
     if stripe_subscription_id and stripe_is_configured() and price_id:
         stripe = get_stripe_module()
         subscription = stripe.Subscription.retrieve(stripe_subscription_id)
-        items = ((subscription.get("items") or {}).get("data") or [])
+        items = (subscription.get("items") or {}).get("data") or []
         if not items:
             raise HTTPException(status_code=409, detail="stripe_subscription_items_missing")
         updated = stripe.Subscription.modify(
@@ -408,6 +410,8 @@ def create_billing_portal_admin(
         raise HTTPException(status_code=404, detail="stripe_customer_not_found")
 
     stripe = get_stripe_module()
-    return_url = resolve_return_url(request, f"/admin/companies/{tenant_id}/config", payload.return_url)
+    return_url = resolve_return_url(
+        request, f"/admin/companies/{tenant_id}/config", payload.return_url
+    )
     session = stripe.billing_portal.Session.create(customer=customer_id, return_url=return_url)
     return {"portal_url": session.get("url"), "customer_id": customer_id}

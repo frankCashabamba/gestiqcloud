@@ -19,9 +19,10 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.models.accounting.pos_settings import PaymentMethod
 from app.models.accounting.chart_of_accounts import ChartOfAccounts, JournalEntry
 from app.models.expenses.expense import Expense
 from app.modules.accounting.application.journal_service import JournalLineIn, create_posted_entry
@@ -104,14 +105,39 @@ def _expense_accounts(
     expense_acct = _resolve_account(db, tenant_id, exp_code, exp_name, exp_type)
 
     is_paid = str(status or "").lower() in ("paid",)
-    pm = str(payment_method or "").lower()
-    if is_paid and pm in _PAYMENT_ACCOUNTS:
-        cnt_code, cnt_name, cnt_type = _PAYMENT_ACCOUNTS[pm]
-    else:
+    contra_acct = None
+    if is_paid:
+        contra_acct = _resolve_payment_account(db, tenant_id, payment_method)
+    if not contra_acct:
         cnt_code, cnt_name, cnt_type = _DEFAULT_PAYABLES
-    contra_acct = _resolve_account(db, tenant_id, cnt_code, cnt_name, cnt_type)
+        contra_acct = _resolve_account(db, tenant_id, cnt_code, cnt_name, cnt_type)
 
     return expense_acct, contra_acct
+
+
+def _resolve_payment_account(
+    db: Session,
+    tenant_id: UUID,
+    payment_method: str | None,
+) -> ChartOfAccounts | None:
+    pm = str(payment_method or "").strip()
+    if not pm:
+        return None
+
+    stmt = select(PaymentMethod).where(
+        PaymentMethod.tenant_id == tenant_id,
+        PaymentMethod.is_active == True,  # noqa: E712
+        func.lower(PaymentMethod.name) == pm.lower(),
+    )
+    configured_method = db.execute(stmt).scalars().first()
+    if configured_method:
+        return db.get(ChartOfAccounts, configured_method.account_id)
+
+    legacy_method = _PAYMENT_ACCOUNTS.get(pm.lower())
+    if not legacy_method:
+        return None
+    cnt_code, cnt_name, cnt_type = legacy_method
+    return _resolve_account(db, tenant_id, cnt_code, cnt_name, cnt_type)
 
 
 def _find_existing_entry(db: Session, expense_id: UUID) -> JournalEntry | None:

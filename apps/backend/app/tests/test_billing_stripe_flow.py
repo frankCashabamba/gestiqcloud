@@ -108,7 +108,9 @@ def test_tenant_subscribe_returns_checkout_url(client, db, usuario_empresa_facto
     )
 
     monkeypatch.setattr(tenant_billing, "stripe_is_configured", lambda: True)
-    monkeypatch.setattr(tenant_billing, "ensure_stripe_customer", lambda *args, **kwargs: "cus_test_123")
+    monkeypatch.setattr(
+        tenant_billing, "ensure_stripe_customer", lambda *args, **kwargs: "cus_test_123"
+    )
     monkeypatch.setattr(tenant_billing, "get_stripe_module", lambda: fake_stripe)
 
     response = client.post(
@@ -211,7 +213,9 @@ def test_stripe_webhook_checkout_completed_upserts_subscription(client, db, monk
     monkeypatch.setattr(
         tenant_billing,
         "get_stripe_module",
-        lambda: SimpleNamespace(Subscription=SimpleNamespace(retrieve=lambda _sid: fake_subscription)),
+        lambda: SimpleNamespace(
+            Subscription=SimpleNamespace(retrieve=lambda _sid: fake_subscription)
+        ),
     )
 
     response = client.post(

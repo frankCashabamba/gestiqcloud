@@ -342,7 +342,7 @@ def _sector_kpis_payload(
             FROM products p
             LEFT JOIN stock_items si ON si.product_id = p.id
             WHERE {tenant_clause('p.tenant_id::text')}
-            AND COALESCE(si.qty_on_hand, 0) < 5
+            AND COALESCE(si.qty, 0) < 5
             LIMIT 10
         """
             ),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import text
@@ -10,6 +11,7 @@ from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.core.jwt_provider import get_token_service
 from app.models.company.company_settings import CompanySettings
 from app.models.company.settings import ConfiguracionEmpresa
 from app.models.core.ui_field_config import SectorFieldDefault, TenantFieldConfig
@@ -26,6 +28,7 @@ from app.services.system_defaults_service import get_system_default_text
 
 router = APIRouter()
 admin_router = APIRouter(prefix="/admin/field-config", tags=["admin-field-config"])
+token_service = get_token_service()
 
 
 def _normalize_sector_slug(name: str | None) -> str | None:
@@ -90,6 +93,60 @@ def _first_non_empty(*values: str | None) -> str | None:
     return None
 
 
+def _request_access_claims(request: Request | None) -> dict[str, object] | None:
+    if request is None:
+        return None
+
+    auth = (request.headers.get("Authorization") or "").strip()
+    token = auth.split(" ", 1)[1].strip() if auth.startswith("Bearer ") else ""
+    if not token:
+        token = (request.cookies.get("access_token") or "").strip()
+    if not token:
+        return None
+
+    try:
+        claims = token_service.decode_and_validate(token, expected_type="access")
+    except Exception:
+        return None
+    return claims if isinstance(claims, dict) else None
+
+
+def _request_tenant_id(request: Request | None) -> UUID | None:
+    claims = _request_access_claims(request)
+    tenant_id = claims.get("tenant_id") if isinstance(claims, dict) else None
+    if not tenant_id:
+        return None
+    try:
+        return UUID(str(tenant_id))
+    except (TypeError, ValueError):
+        return None
+
+
+def _lookup_empresa(db: Session, empresa: str | None) -> Empresa | None:
+    if not empresa:
+        return None
+    return (
+        db.query(Empresa)
+        .filter((Empresa.slug == empresa) | (Empresa.name == empresa))
+        .order_by(Empresa.created_at.asc())
+        .first()
+    )
+
+
+def _resolve_empresa(
+    db: Session,
+    *,
+    request: Request | None = None,
+    empresa: str | None = None,
+) -> Empresa | None:
+    tenant_id = _request_tenant_id(request)
+    if tenant_id:
+        emp = db.query(Empresa).filter(Empresa.id == tenant_id).first()
+        if emp:
+            return emp
+    return _lookup_empresa(db, empresa)
+
+
 def _theme_defaults(db: Session) -> dict[str, object]:
     return {
         "colors": {
@@ -122,7 +179,11 @@ def _theme_defaults(db: Session) -> dict[str, object]:
 
 
 @router.get("/theme")
-def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(default=None)):
+def get_theme_tokens(
+    request: Request,
+    db: Session = Depends(get_db),
+    empresa: str | None = Query(default=None),
+):
     """Return design tokens for theming the tenant UI.
 
     Usa `Tenant.sector_template_name` como fuente del sector (normalizado y
@@ -132,28 +193,22 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
     """
     defaults = _theme_defaults(db)
 
-    if empresa:
-        emp = (
-            db.query(Empresa).filter(Empresa.slug == empresa).first()
-        )
+    emp = _resolve_empresa(db, request=request, empresa=empresa)
+    if emp:
         cfg = None
-        if emp:
-            try:
-                cfg = (
-                    db.query(ConfiguracionEmpresa)
-                    .filter(ConfiguracionEmpresa.tenant_id == emp.id)
-                    .first()
-                )
-            except Exception:
-                cfg = None
+        try:
+            cfg = (
+                db.query(ConfiguracionEmpresa).filter(ConfiguracionEmpresa.tenant_id == emp.id).first()
+            )
+        except Exception:
+            cfg = None
         company_settings = None
-        if emp:
-            try:
-                company_settings = (
-                    db.query(CompanySettings).filter(CompanySettings.tenant_id == emp.id).first()
-                )
-            except Exception:
-                company_settings = None
+        try:
+            company_settings = (
+                db.query(CompanySettings).filter(CompanySettings.tenant_id == emp.id).first()
+            )
+        except Exception:
+            company_settings = None
 
         brand_name = emp.name if emp else ""
         logo_url = _first_non_empty(
@@ -211,6 +266,7 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
 
 @router.get("/fields")
 def get_field_config(
+    request: Request,
     module: str = Query(..., description="Module key, e.g., 'clientes'"),
     empresa: str | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -224,19 +280,16 @@ def get_field_config(
     module = canonical_field_module_key(module)
     tenant_id = None
     sector = "default"
-    if empresa:
-        emp = (
-            db.query(Empresa).filter((Empresa.slug == empresa) | (Empresa.name == empresa)).first()
+    emp = _resolve_empresa(db, request=request, empresa=empresa)
+    if emp:
+        tenant_id = getattr(emp, "id", None)
+        raw_sector = (
+            getattr(emp, "sector_template_name", None)
+            or getattr(emp, "sector_plantilla_nombre", None)
+            or getattr(emp, "plantilla_inicio", None)
+            or "default"
         )
-        if emp:
-            tenant_id = getattr(emp, "id", None)
-            raw_sector = (
-                getattr(emp, "sector_template_name", None)
-                or getattr(emp, "sector_plantilla_nombre", None)
-                or getattr(emp, "plantilla_inicio", None)
-                or "default"
-            )
-            sector = resolve_sector_code(db, raw_sector)
+        sector = resolve_sector_code(db, raw_sector)
 
     ensure_sector_field_defaults_seeded(db, module=module, sector=sector)
 

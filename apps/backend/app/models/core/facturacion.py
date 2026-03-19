@@ -245,47 +245,6 @@ class BankTransaction(Base):
         self.status = value
 
 
-class LegacyPayment(Base):
-    """Legacy payment allocation model (bank transaction <-> invoice)."""
-
-    __tablename__ = "payments"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
-        "tenant_id", UUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True
-    )
-    # Legacy payment rows were historically sparse and now coexist with the
-    # finance `payments` model on the same table when running under SQLite
-    # tests (`extend_existing=True`). Keep the legacy-only columns nullable so
-    # the newer finance workflow can persist rows without inventing bank
-    # reconciliation data.
-    bank_tx_id: Mapped[uuid.UUID | None] = mapped_column(
-        "bank_tx_id",
-        UUID(as_uuid=True),
-        ForeignKey("bank_transactions.id"),
-        index=True,
-        nullable=True,
-    )
-    invoice_id: Mapped[uuid.UUID | None] = mapped_column(
-        "invoice_id",
-        UUID(as_uuid=True),
-        ForeignKey("invoices.id"),
-        index=True,
-        nullable=True,
-    )
-    date: Mapped[date | None] = mapped_column(Date(), nullable=True)
-    applied_amount: Mapped[float | None] = mapped_column("applied_amount", nullable=True)
-    notes: Mapped[str] = mapped_column("notes", String, nullable=True)
-
-    # Relationships
-    bank_tx: Mapped[BankTransaction] = relationship(BankTransaction)
-    invoice: Mapped[Invoice] = relationship(Invoice)
-
-
-# Backward-compat import alias.
-Payment = LegacyPayment
-
-
 class InternalTransfer(Base):
     """Internal transfer between accounts model."""
 

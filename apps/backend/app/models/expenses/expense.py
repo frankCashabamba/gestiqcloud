@@ -46,9 +46,9 @@ class Expense(Base):
         nullable=True,
     )
     payment_method: Mapped[str | None] = mapped_column(
-        String(20),
+        String(50),
         nullable=True,
-        # cash, transfer, card, direct_debit
+        # nombre del metodo de pago configurado por tenant
     )
     invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(

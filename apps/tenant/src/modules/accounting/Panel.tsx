@@ -13,7 +13,6 @@ const NAV_LINKS = [
   { to: 'plan-contable', labelKey: 'accounting.nav.chartOfAccounts' },
   { to: 'pos-config', labelKey: 'accounting.nav.posConfig' },
   { to: 'pos-payment-methods', labelKey: 'accounting.nav.paymentMethods' },
-  { to: 'conciliacion', labelKey: 'accounting.nav.bankReconciliation' },
 ]
 
 export function MovimientosPage() {

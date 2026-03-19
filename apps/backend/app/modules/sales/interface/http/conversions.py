@@ -8,8 +8,6 @@ Permite convertir documentos entre tipos:
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -17,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.core.dependencies import get_tenant_uuid
 from app.db.rls import ensure_rls
 from app.modules.shared.services import DocumentConverter
 
@@ -29,14 +28,6 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
-
-
-def _tenant_uuid(request: Request) -> UUID:
-    raw = getattr(request.state, "access_claims", {}).get("tenant_id")
-    try:
-        return UUID(str(raw))
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="tenant_id inválido")
 
 
 class InvoiceFromOrderRequest(BaseModel):
@@ -92,7 +83,7 @@ def create_invoice_from_sales_order(
             "message": "Factura A-2024-000123 creada exitosamente"
         }
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     converter = DocumentConverter(db)
 
@@ -151,7 +142,7 @@ def get_invoice_from_order(order_id: int, request: Request, db: Session = Depend
 
     Returns 404 si la orden no tiene factura.
     """
-    tenant_id = _tenant_uuid(request)
+    tenant_id = get_tenant_uuid(request)
 
     from sqlalchemy import text
 

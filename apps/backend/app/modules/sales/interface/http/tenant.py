@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.core.dependencies import get_tenant_uuid
 from app.db.rls import ensure_rls
 from app.models.core.clients import Client
 from app.models.inventory.stock import StockItem, StockMove
@@ -29,19 +30,6 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
-
-
-def _tenant_uuid(request: Request) -> UUID:
-    try:
-        claims = getattr(request.state, "access_claims", None) or {}
-        tid = claims.get("tenant_id") if isinstance(claims, dict) else None
-        if tid is None:
-            raise HTTPException(status_code=401, detail="tenant_id invalido")
-        return UUID(str(tid))
-    except HTTPException:
-        raise
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="tenant_id invalido")
 
 
 def _uuid_or_none(value: str | None) -> UUID | None:
@@ -123,7 +111,7 @@ def list_orders(
     offset: int = 0,
 ):
     """Listar órdenes de venta"""
-    tenant_uuid = _tenant_uuid(request)
+    tenant_uuid = get_tenant_uuid(request)
     query = (
         db.query(SalesOrder, Client.name)
         .outerjoin(Client, Client.id == SalesOrder.customer_id)
@@ -166,7 +154,7 @@ def get_order(
     db: Session = Depends(get_db),
 ):
     """Obtener orden de venta por ID"""
-    tenant_uuid = _tenant_uuid(request)
+    tenant_uuid = get_tenant_uuid(request)
 
     try:
         order_uuid = UUID(str(order_id))
@@ -205,7 +193,7 @@ def get_order(
 def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends(get_db)):
     if not payload.items:
         raise HTTPException(status_code=400, detail="items_required")
-    tenant_uuid = _tenant_uuid(request)
+    tenant_uuid = get_tenant_uuid(request)
     default_tax_rate = resolve_tenant_default_tax_rate(db, tenant_uuid)
     so = SalesOrder(
         customer_id=_uuid_or_none(payload.customer_id),
@@ -307,7 +295,7 @@ def confirm_order(
     if request is None:
         raise HTTPException(status_code=401, detail="tenant_id invalido")
 
-    tenant_uuid = _tenant_uuid(request)
+    tenant_uuid = get_tenant_uuid(request)
 
     try:
         so_id = UUID(str(order_id))
@@ -387,7 +375,7 @@ class DeliveryCreateIn(BaseModel):
 
 @deliveries_router.post("/", response_model=dict, status_code=201)
 def create_delivery(payload: DeliveryCreateIn, request: Request, db: Session = Depends(get_db)):
-    tenant_uuid = _tenant_uuid(request)
+    tenant_uuid = get_tenant_uuid(request)
     so = db.get(SalesOrder, payload.order_id)
     if not so or so.status != "confirmed":
         raise HTTPException(status_code=400, detail="order_not_confirmed")
@@ -414,7 +402,7 @@ def do_delivery(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    tenant_uuid = _tenant_uuid(request)
+    tenant_uuid = get_tenant_uuid(request)
     d = db.get(Delivery, delivery_id)
     if not d or d.status != DeliveryStatus.PENDING.value:
         raise HTTPException(status_code=404, detail="delivery_not_pending")
@@ -499,7 +487,7 @@ def cancel_order(
     if request is None:
         raise HTTPException(status_code=401, detail="tenant_id invalido")
 
-    tenant_uuid = _tenant_uuid(request)
+    tenant_uuid = get_tenant_uuid(request)
 
     try:
         so_id = UUID(str(order_id))

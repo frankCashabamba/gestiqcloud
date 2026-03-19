@@ -1,5 +1,6 @@
 import { apiFetch } from '../lib/http'
 import { env } from '../env'
+import { TOKEN_KEY } from '../constants/storage'
 
 export type ThemeResponse = { brand?: { name?: string; logoUrl?: string | null } } & Record<string, any>
 
@@ -14,7 +15,41 @@ function isFresh(entry?: CacheEntry) {
 }
 
 function cacheKey(empresa?: string | null) {
-  return empresa ? `empresa:${empresa}` : 'default'
+  const tenantId = getActiveTenantId()
+  if (empresa && tenantId) return `empresa:${empresa}:tenant:${tenantId}`
+  if (empresa) return `empresa:${empresa}`
+  if (tenantId) return `tenant:${tenantId}`
+  return 'default'
+}
+
+function sanitizeToken(token?: string | null) {
+  const value = String(token || '').trim()
+  return value.split('.').length >= 3 ? value : ''
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+  let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+  while (base64.length % 4 !== 0) base64 += '='
+  try {
+    return JSON.parse(atob(base64)) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function getActiveTenantId(): string {
+  try {
+    const token =
+      sanitizeToken(sessionStorage.getItem(TOKEN_KEY)) ||
+      sanitizeToken(localStorage.getItem('authToken'))
+    if (!token) return ''
+    const payload = decodeJwtPayload(token)
+    return typeof payload?.tenant_id === 'string' ? payload.tenant_id : ''
+  } catch {
+    return ''
+  }
 }
 
 function readLocalStorage(key: string): CacheEntry | undefined {

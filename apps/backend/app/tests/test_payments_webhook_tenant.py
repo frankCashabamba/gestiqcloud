@@ -8,8 +8,8 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
 
+from app.core.dependencies import get_tenant_uuid
 from app.modules.reconciliation.interface.http.payments import _resolve_webhook_tenant_id
-from app.modules.sales.interface.http.tenant import _tenant_uuid
 
 
 def test_resolve_webhook_tenant_id_uses_payload_metadata(db):
@@ -83,6 +83,6 @@ def test_sales_tenant_uuid_rejects_malformed_claim():
     request = SimpleNamespace(state=SimpleNamespace(access_claims={"tenant_id": "bad-tenant"}))
 
     with pytest.raises(HTTPException) as exc:
-        _tenant_uuid(request)
+        get_tenant_uuid(request)
 
     assert exc.value.status_code == 401

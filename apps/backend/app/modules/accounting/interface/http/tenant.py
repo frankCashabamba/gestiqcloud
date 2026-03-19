@@ -741,7 +741,7 @@ async def delete_payment_method(
 @router.get("/journal-entries", response_model=AsientoContableList)
 async def list_asientos(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=500),
     fecha_desde: date | None = None,
     fecha_hasta: date | None = None,
     status: str | None = Query(None, pattern="^(DRAFT|POSTED)$"),
@@ -943,7 +943,7 @@ async def contabilizar_asiento(
 @router.get("/transactions", response_model=AsientoContableList)
 async def list_movimientos(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=500),
     fecha_desde: date | None = None,
     fecha_hasta: date | None = None,
     db: Session = Depends(get_db),

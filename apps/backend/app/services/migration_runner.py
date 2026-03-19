@@ -99,7 +99,9 @@ def list_sql_migration_dirs() -> list[Path]:
         for item in migrations_dir.iterdir()
         if item.is_dir() and not item.name.startswith("_") and (item / "up.sql").exists()
     ]
-    items.sort(key=lambda item: (0 if "complete_consolidated_schema" in item.name else 1, item.name))
+    items.sort(
+        key=lambda item: (0 if "complete_consolidated_schema" in item.name else 1, item.name)
+    )
     return items
 
 
