@@ -1,7 +1,10 @@
-"""Carga aliases de campos canónicos desde la base de datos.
+"""Carga aliases y definiciones de campos canónicos desde la base de datos.
 
-Los aliases viven en imp_field_alias (tenant_id=NULL para globales).
-Caché de 5 minutos. Fuente de verdad única: imp_field_alias en BD.
+Fuente de verdad única:
+  - imp_field_alias   → {campo: [alias, ...]}
+  - imp_canonical_field → {campo: {type, projection_column}}
+
+Caché de 5 minutos por tabla.
 """
 
 from __future__ import annotations
@@ -15,8 +18,11 @@ logger = logging.getLogger("importador.field_alias_loader")
 
 _CACHE_TTL = 300  # segundos
 
-_cache: dict[str, list[str]] = {}
-_cache_ts: float = 0.0
+_alias_cache: dict[str, list[str]] = {}
+_alias_cache_ts: float = 0.0
+
+_field_cache: dict[str, dict] = {}
+_field_cache_ts: float = 0.0
 
 
 def get_field_aliases(
@@ -27,13 +33,12 @@ def get_field_aliases(
     """Retorna {campo_canonico: [alias, ...]} desde BD, caché 5 min.
 
     Si la BD es inalcanzable retorna {} y registra el error.
-    La fuente de verdad son los registros en imp_field_alias.
     """
-    global _cache, _cache_ts
+    global _alias_cache, _alias_cache_ts
 
     now = time.monotonic()
-    if _cache and (now - _cache_ts) < _CACHE_TTL:
-        return _cache
+    if _alias_cache and (now - _alias_cache_ts) < _CACHE_TTL:
+        return _alias_cache
 
     try:
         from sqlalchemy import text as sa_text
@@ -60,12 +65,61 @@ def get_field_aliases(
                 if alias not in result[field]:
                     result[field].append(alias)
 
-        _cache = result
-        _cache_ts = now
+        _alias_cache = result
+        _alias_cache_ts = now
         return result
 
     except Exception as exc:
         logger.error("No se pudieron cargar field aliases desde BD: %s", exc)
+        return {}
+
+
+def get_canonical_fields(
+    db: Any,
+    *,
+    tenant_id: UUID | None = None,
+) -> dict[str, dict]:
+    """Retorna {campo: {type: str, projection_column: str|None}} desde BD, caché 5 min.
+
+    type puede ser: text | numeric | date | payment_method | list
+    projection_column: columna de ImpDocumento donde proyectar, o None.
+    Si la BD es inalcanzable retorna {} y registra el error.
+    """
+    global _field_cache, _field_cache_ts
+
+    now = time.monotonic()
+    if _field_cache and (now - _field_cache_ts) < _CACHE_TTL:
+        return _field_cache
+
+    try:
+        from sqlalchemy import text as sa_text
+
+        rows = db.execute(
+            sa_text(
+                """
+                SELECT name, field_type, projection_column
+                FROM imp_canonical_field
+                WHERE active = TRUE
+                ORDER BY sort_order DESC, name
+                """
+            )
+        ).fetchall()
+
+        result: dict[str, dict] = {}
+        for row in rows:
+            name = str(row[0] or "").strip()
+            if name:
+                result[name] = {
+                    "type": str(row[1] or "text").strip(),
+                    "projection_column": str(row[2]).strip() if row[2] else None,
+                }
+
+        _field_cache = result
+        _field_cache_ts = now
+        return result
+
+    except Exception as exc:
+        logger.error("No se pudieron cargar canonical fields desde BD: %s", exc)
         return {}
 
 
@@ -76,11 +130,11 @@ def get_aliases_for_field(
     tenant_id: UUID | None = None,
 ) -> list[str]:
     """Retorna la lista de aliases para un campo canónico específico."""
-    aliases = get_field_aliases(db, tenant_id=tenant_id)
-    return aliases.get(field, [])
+    return get_field_aliases(db, tenant_id=tenant_id).get(field, [])
 
 
 def invalidate_cache() -> None:
     """Fuerza recarga desde BD en la próxima llamada."""
-    global _cache_ts
-    _cache_ts = 0.0
+    global _alias_cache_ts, _field_cache_ts
+    _alias_cache_ts = 0.0
+    _field_cache_ts = 0.0

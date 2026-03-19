@@ -101,7 +101,7 @@ from .services.iteration_service import (
     update_staging_line_estado,
     upsert_staging_lines_from_extraction,
 )
-from .field_alias_loader import get_field_aliases
+from .field_alias_loader import get_canonical_fields, get_field_aliases
 
 logger = logging.getLogger(__name__)
 
@@ -1176,11 +1176,13 @@ async def upload_files(
                 else sheet_profiles
             )
             _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
+            _canonical_fields = get_canonical_fields(db)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,
                 source_format=extraction.get("format", tipo_archivo),
                 field_aliases=_field_aliases,
+                canonical_fields=_canonical_fields,
             )
             learning_version_applied = get_snapshot_learning_version(recipe_snapshot)
             model_used = analysis.get("model_used") or "unknown"

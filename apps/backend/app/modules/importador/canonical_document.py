@@ -3,15 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .constants import INTERNAL_STRUCTURAL_KEYS
-from .document_fields import (
-    detect_document_currency,
-    detect_document_date,
-    detect_document_payment_method,
-    detect_document_subtotal,
-    detect_document_tax,
-    detect_document_total,
-    get_data_value,
-)
+from .document_fields import get_data_value, safe_floatish
 
 CANONICAL_DOCUMENT_SCHEMA_VERSION = "importador.canonical.v1"
 
@@ -23,16 +15,51 @@ def _clean_text(value: Any) -> str | None:
     return text or None
 
 
-def _pick_line_items(
-    data: dict[str, Any] | None,
-    aliases: list[str] | None = None,
-) -> list[dict[str, Any]]:
-    if not aliases:
-        return []
+def _normalize_date(value: Any) -> str | None:
+    if value is None:
+        return None
+    s = str(value).strip()[:20]
+    if "T" in s:
+        s = s.split("T")[0]
+    return s or None
+
+
+def _extract_by_type(
+    data: dict[str, Any],
+    field_type: str,
+    aliases: list[str],
+) -> Any:
+    """Extrae y convierte el valor de data según el tipo de campo."""
     raw = get_data_value(data, *aliases)
-    if not isinstance(raw, list):
-        return []
-    return [dict(entry) for entry in raw if isinstance(entry, dict)]
+
+    if field_type == "numeric":
+        return safe_floatish(raw)
+
+    if field_type == "date":
+        return _normalize_date(raw)
+
+    if field_type == "payment_method":
+        if isinstance(raw, list):
+            tokens = [str(item).strip() for item in raw if str(item).strip()]
+            return ", ".join(tokens) if tokens else None
+        if isinstance(raw, dict):
+            for key in ("name", "label", "value", "description", "method", "type"):
+                candidate = raw.get(key)
+                if candidate is not None:
+                    text = str(candidate).strip()
+                    if text:
+                        return text
+            return None
+        return _clean_text(raw)
+
+    if field_type == "list":
+        if not isinstance(raw, list):
+            return None
+        items = [dict(entry) for entry in raw if isinstance(entry, dict)]
+        return items if items else None
+
+    # default: text
+    return _clean_text(raw)
 
 
 def build_canonical_document(
@@ -41,64 +68,50 @@ def build_canonical_document(
     doc_type: str | None = None,
     source_format: str | None = None,
     field_aliases: dict[str, list[str]] | None = None,
+    canonical_fields: dict[str, dict] | None = None,
 ) -> dict[str, Any]:
     """
-    Construye el documento canónico a partir de datos extraídos.
-    Todos los aliases de campos se toman de field_aliases (cargado desde imp_field_alias en BD).
-    Si field_aliases es None o vacío, los detectores de document_fields.py aplican sus propios
-    defaults internos como fallback de último recurso.
+    Construye el documento canónico de forma completamente dinámica.
+
+    Itera sobre TODOS los campos definidos en imp_canonical_field (canonical_fields)
+    y busca sus valores usando los aliases de imp_field_alias (field_aliases).
+    No hay ningún nombre de campo canónico escrito explícitamente en este código.
+
+    Args:
+        data:             Datos extraídos del fichero (dict plano o con filas_por_hoja).
+        doc_type:         Tipo de documento detectado.
+        source_format:    Formato de origen (xlsx, pdf, xml, ...).
+        field_aliases:    {campo: [alias, ...]} — de imp_field_alias en BD.
+        canonical_fields: {campo: {type, projection_column}} — de imp_canonical_field en BD.
     """
     payload: dict[str, Any] = {"schema_version": CANONICAL_DOCUMENT_SCHEMA_VERSION}
     if not isinstance(data, dict):
         return payload
 
     fa = field_aliases or {}
+    cf = canonical_fields or {}
 
-    vendor_name = _clean_text(
-        get_data_value(data, *(fa.get("vendor") or []))
-    )
-    vendor_tax_id = _clean_text(
-        get_data_value(data, *(fa.get("vendor_tax_id") or []))
-    )
-    customer_name = _clean_text(
-        get_data_value(data, *(fa.get("customer") or []))
-    )
-    customer_tax_id = _clean_text(
-        get_data_value(data, *(fa.get("customer_tax_id") or []))
-    )
-    doc_number = _clean_text(
-        get_data_value(data, *(fa.get("doc_number") or []))
-    )
-    issue_date = detect_document_date(data, aliases=fa.get("issue_date") or None)
-    subtotal = detect_document_subtotal(data, aliases=fa.get("subtotal") or None)
-    tax_amount = detect_document_tax(data, aliases=fa.get("tax_amount") or None)
-    total_amount = detect_document_total(data, aliases=fa.get("total_amount") or None)
-    currency_code = _clean_text(detect_document_currency(data, aliases=fa.get("currency") or None))
-    payment_method = _clean_text(detect_document_payment_method(data, aliases=fa.get("payment_method") or None))
-    payment_terms = _clean_text(
-        get_data_value(data, *(fa.get("payment_terms") or []))
-    )
-    line_items = _pick_line_items(data, aliases=fa.get("line_items") or None)
+    fields: dict[str, Any] = {}
 
-    payload["document"] = {
-        "type": _clean_text(doc_type),
-        "number": doc_number,
-        "issue_date": issue_date,
-        "source_format": _clean_text(source_format),
-    }
-    payload["vendor"] = {"name": vendor_name, "tax_id": vendor_tax_id}
-    payload["customer"] = {"name": customer_name, "tax_id": customer_tax_id}
-    payload["totals"] = {
-        "subtotal": subtotal,
-        "tax": tax_amount,
-        "total": total_amount,
-    }
-    payload["currency"] = {"code": currency_code}
-    payload["payments"] = {"method": payment_method, "terms": payment_terms}
-    payload["line_items"] = line_items
+    # Iterar sobre TODOS los campos canónicos definidos en BD
+    for field_name, field_config in cf.items():
+        aliases = fa.get(field_name)
+        if not aliases:
+            continue
+        field_type = field_config.get("type", "text")
+        value = _extract_by_type(data, field_type, aliases)
+        if value is not None:
+            fields[field_name] = value
 
-    # El conjunto de campos "consumidos" se construye dinámicamente desde los aliases de BD.
-    # Así, cualquier alias nuevo en imp_field_alias queda excluido de extensions automáticamente.
+    # Metadata del documento (no son campos canónicos, son de contexto)
+    if doc_type:
+        fields["_doc_type"] = _clean_text(doc_type)
+    if source_format:
+        fields["_source_format"] = _clean_text(source_format)
+
+    payload["fields"] = fields
+
+    # Extensions: claves del dato original no cubiertas por ningún alias
     consumed: set[str] = set(fa.keys())
     for aliases_list in fa.values():
         consumed.update(aliases_list)
@@ -122,23 +135,31 @@ def build_document_projection(
     doc_type: str | None = None,
     source_format: str | None = None,
     field_aliases: dict[str, list[str]] | None = None,
+    canonical_fields: dict[str, dict] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    Construye el documento canónico y la proyección para ImpDocumento.
+
+    La proyección mapea cada campo con projection_column definido en imp_canonical_field
+    al valor extraído. La asignación a columnas de ImpDocumento es completamente dinámica:
+    ningún nombre de columna está escrito en este código.
+    """
     canonical = build_canonical_document(
         data,
         doc_type=doc_type,
         source_format=source_format,
         field_aliases=field_aliases,
+        canonical_fields=canonical_fields,
     )
-    vendor = canonical.get("vendor") if isinstance(canonical.get("vendor"), dict) else {}
-    document = canonical.get("document") if isinstance(canonical.get("document"), dict) else {}
-    totals = canonical.get("totals") if isinstance(canonical.get("totals"), dict) else {}
-    currency = canonical.get("currency") if isinstance(canonical.get("currency"), dict) else {}
 
-    projection = {
-        "proveedor_detectado": _clean_text(vendor.get("name")),
-        "ruc_detectado": _clean_text(vendor.get("tax_id")),
-        "monto_total": totals.get("total"),
-        "moneda": _clean_text(currency.get("code")),
-        "fecha_documento": _clean_text(document.get("issue_date")),
-    }
+    fields = canonical.get("fields", {})
+    cf = canonical_fields or {}
+
+    # Proyección dinámica: solo los campos que tienen projection_column definida en BD
+    projection: dict[str, Any] = {}
+    for field_name, field_config in cf.items():
+        proj_col = field_config.get("projection_column")
+        if proj_col and field_name in fields:
+            projection[proj_col] = fields[field_name]
+
     return canonical, projection

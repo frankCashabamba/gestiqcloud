@@ -36,7 +36,7 @@ from .auto_recipe import (
     should_reprocess_existing_document,
 )
 from .canonical_document import build_document_projection
-from .field_alias_loader import get_field_aliases
+from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .document_fields import (
     detect_document_currency,
     detect_document_date,
@@ -547,11 +547,13 @@ async def run_import(
                 current_snapshot = recipe_crud.get_snapshot(db, UUID(str(current_snapshot_id)))
             learning_version_applied = get_snapshot_learning_version(current_snapshot)
             _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
+            _canonical_fields = get_canonical_fields(db)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,
                 source_format=extraction.get("format", tipo_archivo),
                 field_aliases=_field_aliases,
+                canonical_fields=_canonical_fields,
             )
             model_used = analysis.get("model_used") or "unknown"
             raw_ai_json = {

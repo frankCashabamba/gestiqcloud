@@ -127,7 +127,7 @@ async def _run_processing(
         resolve_auto_recipe_from_text,
     )
     from app.modules.importador.canonical_document import build_document_projection
-    from app.modules.importador.field_alias_loader import get_field_aliases
+    from app.modules.importador.field_alias_loader import get_canonical_fields, get_field_aliases
     from app.modules.importador.document_fields import (
         detect_document_currency,
         detect_document_date,
@@ -357,11 +357,13 @@ async def _run_processing(
                 current_snapshot = _recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
             learning_version_applied = get_snapshot_learning_version(current_snapshot)
             _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
+            _canonical_fields = get_canonical_fields(db)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,
                 source_format=extraction.get("format", tipo_archivo),
                 field_aliases=_field_aliases,
+                canonical_fields=_canonical_fields,
             )
             model_used = analysis.get("model_used") or "unknown"
             raw_ai_json = _json_safe(
