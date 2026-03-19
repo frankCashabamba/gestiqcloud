@@ -1,5 +1,4 @@
-// apps/tenant/src/modules/inventario/manifest.ts
-export const inventarioManifest = {
+export const inventoryManifest = {
   id: 'inventory',
   name: 'Inventory',
   icon: '📦',
@@ -18,5 +17,4 @@ export const inventarioManifest = {
   ],
 }
 
-// Alias para compatibilidad
-export const manifest = inventarioManifest
+export const manifest = inventoryManifest

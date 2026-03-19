@@ -22,14 +22,14 @@ describe('MODULES registry', () => {
     expect(productsModule).toBeDefined()
   })
 
-  it('should contain ventas module', () => {
-    const ventasModule = MODULES.find(m => m.id === 'ventas')
-    expect(ventasModule).toBeDefined()
+  it('should contain sales module', () => {
+    const salesModule = MODULES.find(m => m.id === 'sales')
+    expect(salesModule).toBeDefined()
   })
 
-  it('should contain inventario module', () => {
-    const inventarioModule = MODULES.find(m => m.id === 'inventario')
-    expect(inventarioModule).toBeDefined()
+  it('should contain inventory module', () => {
+    const inventoryModule = MODULES.find(m => m.id === 'inventory')
+    expect(inventoryModule).toBeDefined()
   })
 
   it('should contain crm module', () => {

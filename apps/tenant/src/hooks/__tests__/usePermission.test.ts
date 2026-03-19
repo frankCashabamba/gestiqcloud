@@ -23,7 +23,7 @@ vi.mock('../../lib/http', () => ({
   apiFetch: vi.fn(async () => ({
     permisos: {
       billing: { read: true, create: true, delete: false },
-      usuarios: { read: true, update: false },
+      users: { read: true, update: false },
       pos: { read: true, write: true },
     },
   })),

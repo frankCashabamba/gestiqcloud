@@ -18,9 +18,9 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('ModuleLoader', () => {
-  it('blocks finance aliases when the module is not enabled', async () => {
+  it('blocks finance aliases even when the canonical module is enabled', async () => {
     useMisModulosMock.mockReturnValue({
-      allowedSlugs: new Set(['sales']),
+      allowedSlugs: new Set(['finance']),
       loading: false,
     })
 

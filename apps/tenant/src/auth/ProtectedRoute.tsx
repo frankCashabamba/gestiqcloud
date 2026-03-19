@@ -21,7 +21,7 @@ import { usePermission } from '../hooks/usePermission'
  */
 
 export interface ProtectedRouteProps {
-  /** Permiso requerido: "usuarios:create" o separado: ("usuarios", "create") */
+  /** Permiso requerido: "users:create" o separado: ("users", "create") */
   permission: string
   /** Segundo parte del permiso si se pasa separado */
   action?: string

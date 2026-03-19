@@ -134,7 +134,7 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
 
     if empresa:
         emp = (
-            db.query(Empresa).filter((Empresa.slug == empresa) | (Empresa.name == empresa)).first()
+            db.query(Empresa).filter(Empresa.slug == empresa).first()
         )
         cfg = None
         if emp:

@@ -7,10 +7,10 @@ const RecetasList = React.lazy(() => import('./RecetasList'))
 const Rutas = React.lazy(() => import('./Rutas'))
 
 export const manifest = {
-    id: 'produccion',
-    name: 'Producción',
+    id: 'production',
+    name: 'Production',
     version: '1.0.0',
-    permissions: ['produccion.read', 'produccion.write'],
+    permissions: ['production.read', 'production.write'],
     routes: [
         { path: '/production', element: RecetasList },
         { path: '/production/recipes', element: RecetasList },
@@ -22,7 +22,7 @@ export const manifest = {
         { path: '/production/routes/new', element: OrderForm },
     ],
     menu: {
-        title: 'Producción',
+        title: 'Production',
         icon: '🏭',
         route: '/production/recipes',
         order: 50

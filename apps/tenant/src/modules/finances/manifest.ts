@@ -7,7 +7,7 @@ export const manifest = {
   id: 'finances',
   name: 'Finance',
   version: '1.0.0',
-  permissions: ['finanzas.read', 'finanzas.write'],
+  permissions: ['finances.read', 'finances.write'],
   routes: [
     { path: '/finance/cash-registers', element: CajaList },
     { path: '/finance/bank-accounts', element: BancoList }

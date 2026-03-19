@@ -16,7 +16,7 @@ const REPORT_CARDS = [
   {
     key: 'inventario',
     icon: '📦',
-    titleKey: 'reportes:dashboard.inventory',
+    titleKey: 'reports:dashboard.inventory',
     description: 'Estado actual del inventario, valorización y alertas de stock bajo.',
     exportType: 'inventory_status',
   },
@@ -30,7 +30,7 @@ const REPORT_CARDS = [
   {
     key: 'resultado-real',
     icon: 'R$',
-    titleKey: 'reportes:realResult.shortTitle',
+    titleKey: 'reports:realResult.shortTitle',
     description: 'Ventas reales menos costo real y gastos reales, incluyendo nomina posteada.',
   },
   {
@@ -50,7 +50,7 @@ function getReportCardTitle(card: ReportCard, t: (key: string) => string) {
 
 export default function ReportsDashboard() {
   const nav = useNavigate()
-  const { t } = useTranslation(['reportes', 'common'])
+  const { t } = useTranslation(['reports', 'common'])
   const { success, error: toastError } = useToast()
   const [history, setHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,10 +99,10 @@ export default function ReportsDashboard() {
       <div className="tabs">
         <button className="active">Dashboard</button>
         <button onClick={() => nav('ventas')}>Ventas</button>
-        <button onClick={() => nav('inventario')}>{t('reportes:dashboard.inventory')}</button>
+        <button onClick={() => nav('inventario')}>{t('reports:dashboard.inventory')}</button>
         <button onClick={() => nav('financiero')}>Financiero</button>
-        <button onClick={() => nav('resultado-real')}>{t('reportes:realResult.shortTitle')}</button>
-        <button onClick={() => nav('margenes')}>{t('reportes:dashboard.margins')}</button>
+        <button onClick={() => nav('resultado-real')}>{t('reports:realResult.shortTitle')}</button>
+        <button onClick={() => nav('margenes')}>{t('reports:dashboard.margins')}</button>
       </div>
 
       {/* Report type cards */}
@@ -161,11 +161,11 @@ export default function ReportsDashboard() {
           <table>
             <thead>
               <tr>
-                <th>{t('reportes:dashboard.name')}</th>
+                <th>{t('reports:dashboard.name')}</th>
                 <th>Tipo</th>
                 <th>Formato</th>
                 <th>Filas</th>
-                <th>{t('reportes:dashboard.status')}</th>
+                <th>{t('reports:dashboard.status')}</th>
               </tr>
             </thead>
             <tbody>

@@ -22,7 +22,7 @@ vi.mock('../../hooks/usePermissionLabel', () => ({
     return (permission: string) => {
       const labels: Record<string, string> = {
         'billing:create': 'Crear factura',
-        'usuarios:delete': 'Eliminar usuario',
+        'users:delete': 'Eliminar usuario',
       }
       return labels[permission] || permission
     }
@@ -47,7 +47,7 @@ describe('ProtectedButton', () => {
 
   it('should render disabled button when user does not have permission', () => {
     const { container } = render(
-      <ProtectedButton permission="usuarios:delete">
+      <ProtectedButton permission="users:delete">
         Delete User
       </ProtectedButton>
     )
@@ -77,7 +77,7 @@ describe('ProtectedButton', () => {
     const onClick = vi.fn()
 
     const { container } = render(
-      <ProtectedButton permission="usuarios:delete" onClick={onClick}>
+      <ProtectedButton permission="users:delete" onClick={onClick}>
         Delete User
       </ProtectedButton>
     )
@@ -90,7 +90,7 @@ describe('ProtectedButton', () => {
 
   it('should show tooltip with permission label when disabled', () => {
     const { container } = render(
-      <ProtectedButton permission="usuarios:delete">
+      <ProtectedButton permission="users:delete">
         Delete User
       </ProtectedButton>
     )

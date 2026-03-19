@@ -36,7 +36,7 @@ describe('ProtectedRoute', () => {
 
   it('should render fallback when user does not have permission', () => {
     render(
-      <ProtectedRoute permission="usuarios:delete" fallback={<div data-testid="fallback">No Access</div>}>
+      <ProtectedRoute permission="users:delete" fallback={<div data-testid="fallback">No Access</div>}>
         <div data-testid="content">Protected Content</div>
       </ProtectedRoute>
     )
@@ -47,7 +47,7 @@ describe('ProtectedRoute', () => {
 
   it('should render default unauthorized message when no fallback provided', () => {
     render(
-      <ProtectedRoute permission="usuarios:delete">
+      <ProtectedRoute permission="users:delete">
         <div data-testid="content">Protected Content</div>
       </ProtectedRoute>
     )

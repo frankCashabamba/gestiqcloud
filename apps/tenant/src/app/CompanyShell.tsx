@@ -25,6 +25,7 @@ export default function CompanyShell() {
     if (loading || !empresa || !profile) return
     const tokenSlug = profile.empresa_slug
     if (tokenSlug && tokenSlug !== empresa) {
+      invalidateCompanyThemeCache()
       logout().then(() => {
         window.location.replace(`/login`)
       })

@@ -105,21 +105,21 @@ export const SECTOR_CONFIGS: Record<SectorType, SectorConfig> = {
     icon: 'R',
     defaultKPIs: ['ventas_dia', 'stock_rotacion', 'comparativa_semana'],
     defaultAlerts: ['stock_critico', 'compras_atrasadas', 'cartera_vencida', 'margen_negativo'],
-    enabledModules: ['dashboard', 'pos', 'ventas', 'inventario', 'clientes', 'facturas'],
+    enabledModules: ['dashboard', 'pos', 'sales', 'inventory', 'customers', 'billing'],
   },
   panaderia: {
     name: 'Panadería Pro',
     icon: 'P',
     defaultKPIs: ['ventas_dia', 'produccion', 'stock_materias'],
     defaultAlerts: ['vencimiento_productos', 'stock_critico', 'falta_materiales'],
-    enabledModules: ['dashboard', 'pos', 'inventario', 'produccion'],
+    enabledModules: ['dashboard', 'pos', 'inventory', 'production'],
   },
   taller: {
     name: 'Taller Pro',
     icon: 'T',
     defaultKPIs: ['ordenes_pendientes', 'ingresos', 'repuestos'],
     defaultAlerts: ['ordenes_retrasadas', 'repuestos_faltantes'],
-    enabledModules: ['dashboard', 'ordenes', 'inventario', 'clientes'],
+    enabledModules: ['dashboard', 'ordenes', 'inventory', 'customers'],
   },
 }
 

@@ -1,7 +1,7 @@
 import { lazy } from 'react'
 
 export const manifest = {
-  id: 'usuarios',
+  id: 'users',
   name: 'Users',
   icon: '👤',
   color: '#6366F1',

@@ -1,17 +1,16 @@
-// apps/tenant/src/modules/products/manifest.ts
-export const productosManifest = {
+export const productsManifest = {
   id: 'products',
-  name: 'Productos',
+  name: 'Products',
   icon: '📦',
   path: '/products',
   enabled: true,
   requiredRole: 'operario',
-  description: 'Catálogo de productos y servicios con configuración dinámica por sector',
+  description: 'Product and service catalog with dynamic sector configuration',
   features: [
-    'Configuración de campos por sector (panadería, retail, taller)',
-    'Importación masiva desde Excel',
-    'Gestión de precios e impuestos',
-    'Códigos de barras y SKU',
-    'Exportación a CSV',
+    'Field configuration by sector (bakery, retail, workshop)',
+    'Bulk import from Excel',
+    'Price and tax management',
+    'Barcodes and SKU',
+    'CSV export',
   ],
 }

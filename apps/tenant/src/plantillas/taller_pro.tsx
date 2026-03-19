@@ -31,7 +31,7 @@ const TallerDashboard: React.FC = () => {
   const { modules } = useMisModulos()
 
   const shouldLoadKPIs = modules.some((m) =>
-    ['ventas', 'finanzas', 'facturacion'].includes((m.slug || '').toLowerCase())
+    ['sales', 'finances', 'billing'].includes((m.slug || '').toLowerCase())
   )
   const { data: kpisData, loading: kpisLoading } = useTallerKPIs({ enabled: shouldLoadKPIs })
 

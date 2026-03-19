@@ -24,12 +24,12 @@ interface Module {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  sales: 'Ventas',
-  operations: 'Operaciones',
-  finance: 'Finanzas',
-  people: 'RRHH',
-  analytics: 'Analítica',
-  config: 'Configuración',
+  sales: 'Sales',
+  operations: 'Operations',
+  finance: 'Finance',
+  people: 'HR',
+  analytics: 'Analytics',
+  config: 'Settings',
   core: 'Core'
 }
 

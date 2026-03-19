@@ -92,7 +92,7 @@ export async function fetchCompanyTheme(empresa?: string | null): Promise<ThemeR
       throw err
     })
 
-  if (lsCached?.data && Object.keys(lsCached.data).length > 0) {
+  if (lsCached?.data && Object.keys(lsCached.data).length > 0 && isFresh(lsCached)) {
     cache.set(key, { ts: lsCached.ts, data: lsCached.data, inflight })
     return lsCached.data
   }

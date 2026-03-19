@@ -24,8 +24,8 @@ import posEn from '../locales/en/pos.json'
 import posEs from '../locales/es/pos.json'
 import productsEn from '../locales/en/products.json'
 import productsEs from '../locales/es/products.json'
-import reportesEn from '../locales/en/reportes.json'
-import reportesEs from '../locales/es/reportes.json'
+import reportsEn from '../locales/en/reports.json'
+import reportsEs from '../locales/es/reports.json'
 import settingsEn from '../locales/en/settings.json'
 import settingsEs from '../locales/es/settings.json'
 import suppliersEn from '../locales/en/suppliers.json'
@@ -86,7 +86,7 @@ const resources = {
     permissions: permissionsEn,
     pos: posEn,
     products: productsEn,
-    reportes: reportesEn,
+    reports: reportsEn,
     settings: settingsEn,
     suppliers: suppliersEn,
     costing: costingEn,
@@ -112,7 +112,7 @@ const resources = {
     permissions: permissionsEs,
     pos: posEs,
     products: productsEs,
-    reportes: reportesEs,
+    reports: reportsEs,
     settings: settingsEs,
     suppliers: suppliersEs,
     costing: costingEs,
@@ -145,7 +145,7 @@ i18n
       'permissions',
       'pos',
       'products',
-      'reportes',
+      'reports',
       'settings',
       'suppliers',
       'costing',

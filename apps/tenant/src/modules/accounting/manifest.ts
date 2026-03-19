@@ -1,4 +1,4 @@
-export const contabilidadManifest = {
+export const accountingManifest = {
     id: 'accounting',
     name: 'Accounting',
     icon: '📊',

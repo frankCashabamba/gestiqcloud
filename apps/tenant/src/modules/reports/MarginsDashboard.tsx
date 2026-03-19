@@ -31,7 +31,7 @@ const formatPct = (v: number) => `${(v * 100).toFixed(2)}%`
 
 export default function MarginsDashboard() {
   const { empresa } = useParams()
-  const { t } = useTranslation(['reportes', 'common'])
+  const { t } = useTranslation(['reports', 'common'])
   const can = usePermission()
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null)
   const [fromDate, setFromDate] = useState(() => toISO(addDays(new Date(), -30)))
@@ -123,29 +123,29 @@ export default function MarginsDashboard() {
     <div className="reports-shell">
       <div className="reports-hero">
         <div>
-          <h1>{t('reportes:margins.title')}</h1>
-          <p>{t('reportes:margins.subtitle')}</p>
+          <h1>{t('reports:margins.title')}</h1>
+          <p>{t('reports:margins.subtitle')}</p>
         </div>
         <div className="reports-filters">
           <div className="field">
-            <label>{t('reportes:margins.filters.from')}</label>
+            <label>{t('reports:margins.filters.from')}</label>
             <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>{t('reportes:margins.filters.to')}</label>
+            <label>{t('reports:margins.filters.to')}</label>
             <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>{t('reportes:margins.filters.warehouse')}</label>
+            <label>{t('reports:margins.filters.warehouse')}</label>
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">{t('reportes:all')}</option>
+              <option value="">{t('reports:all')}</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>{w.name}</option>
               ))}
             </select>
           </div>
           <div className="field">
-            <label>{t('reportes:margins.filters.threshold')}</label>
+            <label>{t('reports:margins.filters.threshold')}</label>
             <input
               type="number"
               min={0}
@@ -160,26 +160,26 @@ export default function MarginsDashboard() {
 
       <div className="reports-cards">
         <div className="card">
-          <span>{t('reportes:margins.cards.netSales')}</span>
+          <span>{t('reports:margins.cards.netSales')}</span>
           <strong>{formatMoney(totals.sales, companySettings)}</strong>
         </div>
         <div className="card">
-          <span>{t('reportes:margins.cards.cogs')}</span>
+          <span>{t('reports:margins.cards.cogs')}</span>
           <strong>{formatMoney(totals.cogs, companySettings)}</strong>
         </div>
         <div className="card highlight">
-          <span>{t('reportes:margins.cards.grossProfit')}</span>
+          <span>{t('reports:margins.cards.grossProfit')}</span>
           <strong>{formatMoney(totals.profit, companySettings)}</strong>
         </div>
         <div className="card">
-          <span>{t('reportes:margins.cards.grossMargin')}</span>
+          <span>{t('reports:margins.cards.grossMargin')}</span>
           <strong>{formatPct(totals.margin)}</strong>
         </div>
       </div>
 
       <div className="reports-grid">
          <div className="panel">
-           <h3>{t('reportes:topProfit')}</h3>
+           <h3>{t('reports:topProfit')}</h3>
            {topByProfit.map((r) => (
              <div key={r.product_id} className="row">
                <span>{productNameById(r.product_id)}</span>
@@ -188,7 +188,7 @@ export default function MarginsDashboard() {
            ))}
          </div>
          <div className="panel">
-           <h3>{t('reportes:worstMargin')}</h3>
+           <h3>{t('reports:worstMargin')}</h3>
            {worstByMargin.map((r) => (
              <div key={r.product_id} className="row">
                <span>{productNameById(r.product_id)}</span>
@@ -197,14 +197,14 @@ export default function MarginsDashboard() {
            ))}
          </div>
          <div className="panel">
-           <h3>{t('reportes:alerts')}</h3>
-           <p>{t('reportes:lowMargin')}: {alerts.low.length}</p>
-           <p>{t('reportes:negativeProfit')}: {alerts.negative.length}</p>
+           <h3>{t('reports:alerts')}</h3>
+           <p>{t('reports:lowMargin')}: {alerts.low.length}</p>
+           <p>{t('reports:negativeProfit')}: {alerts.negative.length}</p>
          </div>
        </div>
 
        <div className="tabs">
-          <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>{t('reportes:margins.tabs.products')}</button>
+          <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>{t('reports:margins.tabs.products')}</button>
         </div>
 
         {loading ? <div className="panel">{t('common:loading')}</div> : null}
@@ -215,11 +215,11 @@ export default function MarginsDashboard() {
           <table>
             <thead>
               <tr>
-                <th>{t('reportes:margins.table.product')}</th>
-                <th>{t('reportes:margins.table.netSales')}</th>
-                <th>{t('reportes:margins.table.cogs')}</th>
-                <th>{t('reportes:margins.table.profit')}</th>
-                <th>{t('reportes:margins.table.margin')}</th>
+                <th>{t('reports:margins.table.product')}</th>
+                <th>{t('reports:margins.table.netSales')}</th>
+                <th>{t('reports:margins.table.cogs')}</th>
+                <th>{t('reports:margins.table.profit')}</th>
+                <th>{t('reports:margins.table.margin')}</th>
               </tr>
             </thead>
             <tbody>

@@ -6,34 +6,37 @@ import {
 } from '../lib/companyModuleKeys'
 
 describe('CompanyConfigContext module aliases', () => {
-  it('canonicalizes production aliases to manufacturing', () => {
-    expect(canonicalizeCompanyModuleKey('production')).toBe('manufacturing')
-    expect(canonicalizeCompanyModuleKey('produccion')).toBe('manufacturing')
+  it('keeps canonical english module ids unchanged', () => {
     expect(canonicalizeCompanyModuleKey('manufacturing')).toBe('manufacturing')
+    expect(canonicalizeCompanyModuleKey('finance')).toBe('finance')
+    expect(canonicalizeCompanyModuleKey('imports')).toBe('imports')
+    expect(canonicalizeCompanyModuleKey('customers')).toBe('customers')
   })
 
-  it('canonicalizes finance, imports and customers aliases to backend IDs', () => {
-    expect(canonicalizeCompanyModuleKey('finanzas')).toBe('finance')
-    expect(canonicalizeCompanyModuleKey('finances')).toBe('finance')
-    expect(canonicalizeCompanyModuleKey('importador')).toBe('imports')
-    expect(canonicalizeCompanyModuleKey('clientes')).toBe('customers')
-    expect(canonicalizeCompanyModuleKey('clients')).toBe('customers')
+  it('does not translate legacy aliases to canonical ids', () => {
+    expect(canonicalizeCompanyModuleKey('production')).toBe('production')
+    expect(canonicalizeCompanyModuleKey('produccion')).toBe('produccion')
+    expect(canonicalizeCompanyModuleKey('finanzas')).toBe('finanzas')
+    expect(canonicalizeCompanyModuleKey('finances')).toBe('finances')
+    expect(canonicalizeCompanyModuleKey('importador')).toBe('importador')
+    expect(canonicalizeCompanyModuleKey('clientes')).toBe('clientes')
+    expect(canonicalizeCompanyModuleKey('clients')).toBe('clients')
   })
 
-  it('matches enabled manufacturing module through production aliases', () => {
+  it('matches only canonical enabled manufacturing module ids', () => {
     const enabledModules = ['manufacturing']
 
-    expect(hasCompanyModuleEnabled(enabledModules, 'production')).toBe(true)
-    expect(hasCompanyModuleEnabled(enabledModules, 'produccion')).toBe(true)
     expect(hasCompanyModuleEnabled(enabledModules, 'manufacturing')).toBe(true)
+    expect(hasCompanyModuleEnabled(enabledModules, 'production')).toBe(false)
+    expect(hasCompanyModuleEnabled(enabledModules, 'produccion')).toBe(false)
     expect(hasCompanyModuleEnabled(enabledModules, 'inventory')).toBe(false)
   })
 
-  it('matches enabled finance module through finance aliases', () => {
+  it('matches only canonical enabled finance module ids', () => {
     const enabledModules = ['finance']
 
-    expect(hasCompanyModuleEnabled(enabledModules, 'finanzas')).toBe(true)
-    expect(hasCompanyModuleEnabled(enabledModules, 'finances')).toBe(true)
     expect(hasCompanyModuleEnabled(enabledModules, 'finance')).toBe(true)
+    expect(hasCompanyModuleEnabled(enabledModules, 'finanzas')).toBe(false)
+    expect(hasCompanyModuleEnabled(enabledModules, 'finances')).toBe(false)
   })
 })

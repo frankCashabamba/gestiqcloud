@@ -12,7 +12,7 @@ const formatMoney = (n: number) => `$${n.toLocaleString('es', { minimumFractionD
 
 export default function SalesReport() {
   const nav = useNavigate()
-  const { t } = useTranslation(['reportes', 'common'])
+  const { t } = useTranslation(['reports', 'common'])
   const { success, error: toastError } = useToast()
   const [dateFrom, setDateFrom] = useState(() => toISO(addDays(new Date(), -30)))
   const [dateTo, setDateTo] = useState(() => toISO(new Date()))
@@ -93,7 +93,7 @@ export default function SalesReport() {
       <div className="tabs">
         <button onClick={() => nav('..')}>Dashboard</button>
         <button className="active">Ventas</button>
-        <button onClick={() => nav('../inventario')}>{t('reportes:nav.inventory')}</button>
+        <button onClick={() => nav('../inventario')}>{t('reports:nav.inventory')}</button>
         <button onClick={() => nav('../financiero')}>Financiero</button>
         <button onClick={() => nav('../margenes')}>Márgenes</button>
       </div>
@@ -127,11 +127,11 @@ export default function SalesReport() {
       {summary && (
         <div className="reports-cards">
           <div className="card highlight">
-            <span>{t('reportes:sales.totalSales')}</span>
+            <span>{t('reports:sales.totalSales')}</span>
             <strong>{formatMoney(summary.total_sales ?? summary.total_ventas ?? 0)}</strong>
           </div>
           <div className="card">
-            <span>{t('reportes:sales.totalItems')}</span>
+            <span>{t('reports:sales.totalItems')}</span>
             <strong>{summary.total_items ?? summary.total_productos ?? 0}</strong>
           </div>
           <div className="card">
@@ -149,7 +149,7 @@ export default function SalesReport() {
       {loading ? (
         <div className="panel muted">Cargando reporte...</div>
       ) : !report ? (
-        <div className="panel muted">{t('reportes:sales.selectRange')}</div>
+        <div className="panel muted">{t('reports:sales.selectRange')}</div>
       ) : report.data.rows.length === 0 ? (
         <div className="panel muted">No hay datos para el período seleccionado.</div>
       ) : (

@@ -9,7 +9,7 @@ export const manifest = {
   id: 'hr',
   name: 'HR',
   version: '1.0.0',
-  permissions: ['rrhh.read', 'rrhh.write'],
+  permissions: ['hr.read', 'hr.write'],
   routes: [
     { path: '/hr', element: PanelRRHH },
     { path: '/hr/vacations', element: VacacionesList },

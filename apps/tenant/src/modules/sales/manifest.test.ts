@@ -3,9 +3,9 @@
  */
 import { manifest } from './manifest'
 
-describe('Ventas manifest', () => {
+describe('Sales manifest', () => {
   it('should have correct id', () => {
-    expect(manifest.id).toBe('ventas')
+    expect(manifest.id).toBe('sales')
   })
 
   it('should have name property', () => {
@@ -47,12 +47,12 @@ describe('Ventas manifest', () => {
   it('should have route for list view', () => {
     const listRoute = manifest.routes.find(r => r.path === '')
     expect(listRoute).toBeDefined()
-    expect(listRoute?.label).toBe('Todas')
+    expect(listRoute?.label).toBe('All')
   })
 
   it('should have route for new sale', () => {
-    const newRoute = manifest.routes.find(r => r.path === 'nueva')
+    const newRoute = manifest.routes.find(r => r.path === 'new')
     expect(newRoute).toBeDefined()
-    expect(newRoute?.label).toBe('Nueva')
+    expect(newRoute?.label).toBe('New')
   })
 })

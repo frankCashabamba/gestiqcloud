@@ -7,7 +7,7 @@ export const manifest = {
   id: 'billing',
   name: 'Invoicing',
   version: '1.0.0',
-  permissions: ['facturacion.read', 'facturacion.write', 'facturacion.einvoice'],
+  permissions: ['billing.read', 'billing.write', 'billing.einvoice'],
   routes: [
     { path: '/invoicing', element: FacturasList },
     { path: '/invoicing/new', element: FacturasForm },

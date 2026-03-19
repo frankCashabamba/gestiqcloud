@@ -723,7 +723,48 @@ Variantes*       → Productos
 | B8 frontend | Módulo restaurante completo | `restaurant/TablesView.tsx`, `restaurant/OrderView.tsx`, `restaurant/services.ts`, `restaurant/Routes.tsx` |
 | D-IA11 frontend | UI historial conversaciones copilot | `CopilotChatWidget.tsx` actualizado con panel de historial |
 
-### 8.9 Tareas Pendientes (solo tests y docs — código completado)
+### 8.9 Normalización de IDs internos a inglés canónico (2026-03-18)
+
+Se completó la migración de todos los identificadores legacy en español a sus equivalentes canónicos en inglés. Esto afecta **manifests**, **permission keys**, **i18n namespaces**, **plantillas/services**, **backend permission guards** y **tests**.
+
+#### Mapeo de IDs aplicado
+
+| Legacy (ES) | Canónico (EN) | Capas afectadas |
+|-------------|---------------|-----------------|
+| `usuarios` | `users` | manifest id, permission keys, backend guards, locale keys, tests |
+| `produccion` | `production` | manifest id/name/permissions, API field queries, locale keys |
+| `facturacion` | `billing` | manifest permissions, locale keys |
+| `clientes` | `customers` | manifest name/permissions, API field queries, navigation |
+| `finanzas` | `finances` | manifest permissions |
+| `rrhh` | `hr` | manifest permissions |
+| `reportes` | `reports` | manifest id/name, i18n namespace rename, translation keys |
+| `inventarioManifest` | `inventoryManifest` | export name, index imports |
+| `contabilidadManifest` | `accountingManifest` | export name |
+| `productosManifest` | `productsManifest` | export name, index imports |
+| `Configuracion` | `Settings` | manifest name/menu title |
+| `ventas` (nav/sector) | `sales` | navigation service, sector configs, quick actions |
+
+#### Archivos modificados (~35 files)
+
+**Manifests** (10): users, productions, billing, customers, inventory, accounting, reports, settings, hr, finances, products, crm, index.ts
+
+**Permission keys** (7): locales/es/permissions.json, locales/en/permissions.json, backend permissions.py, Routes.tsx, ProtectedRoute.tsx, ProtectedButton.tsx, tests
+
+**i18n** (3): i18n/index.ts, locales/en/reportes.json → reports.json, locales/es/reportes.json → reports.json
+
+**Plantillas/navigation** (3): navigationService.ts, dashboard.ts, taller_pro.tsx, DashboardPro.tsx
+
+**Reports** (6): ReportsDashboard, SalesReport, InventoryReport, FinancialReport, RealProfitReport, MarginsDashboard
+
+**Settings** (2): ModulosPanel.tsx, SubscriptionManager.test.tsx
+
+**Forms** (2): customers/Form.tsx, productions/OrderForm.tsx
+
+**Tests** (5): manifests.test.ts, index.test.ts, manifest.test.ts, ProtectedButton.test.tsx, ProtectedRoute.test.tsx, usePermission.test.ts
+
+**Migration** (1): `2026-03-18_002_normalize_permission_keys_to_english` — normalizes `global_action_permissions` keys and `company_roles.permissions` JSONB
+
+### 8.10 Tareas Pendientes (solo tests y docs — código completado)
 
 | Task | Descripción | Tipo |
 |------|------------|------|

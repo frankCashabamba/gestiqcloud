@@ -13,7 +13,7 @@ const formatPct = (n: number) => `${n.toFixed(2)}%`
 
 export default function FinancialReport() {
   const nav = useNavigate()
-  const { t } = useTranslation(['reportes', 'common'])
+  const { t } = useTranslation(['reports', 'common'])
   const { success, error: toastError } = useToast()
   const [dateFrom, setDateFrom] = useState(() => toISO(addDays(new Date(), -30)))
   const [dateTo, setDateTo] = useState(() => toISO(new Date()))
@@ -99,7 +99,7 @@ export default function FinancialReport() {
       <div className="tabs">
         <button onClick={() => nav('..')}>Dashboard</button>
         <button onClick={() => nav('../ventas')}>Ventas</button>
-        <button onClick={() => nav('../inventario')}>{t('reportes:nav.inventory')}</button>
+        <button onClick={() => nav('../inventario')}>{t('reports:nav.inventory')}</button>
         <button className="active">Financiero</button>
         <button onClick={() => nav('../margenes')}>Márgenes</button>
       </div>
@@ -133,7 +133,7 @@ export default function FinancialReport() {
       {loading ? (
         <div className="panel muted">Cargando reporte...</div>
       ) : !report ? (
-        <div className="panel muted">{t('reportes:financial.selectRange')}</div>
+        <div className="panel muted">{t('reports:financial.selectRange')}</div>
       ) : (
         <>
           <div className="reports-cards">

@@ -14,7 +14,7 @@ const SubscriptionManager = React.lazy(() => import('./SubscriptionManager'))
 
 export const manifest = {
   id: 'settings',
-  name: 'Configuracion',
+  name: 'Settings',
   version: '1.1.0',
   permissions: ['settings.read', 'settings.write'],
   routes: [
@@ -31,7 +31,7 @@ export const manifest = {
     { path: '/settings/subscription', element: SubscriptionManager },
   ],
   menu: {
-    title: 'Configuracion',
+    title: 'Settings',
     icon: 'settings',
     route: '/settings',
     order: 65,

@@ -40,7 +40,7 @@ describe('SubscriptionManager', () => {
               price_yearly: 290,
               max_users: 10,
               max_branches: 3,
-              included_modules: ['ventas'],
+              included_modules: ['sales'],
               features: {},
             },
           ],

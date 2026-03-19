@@ -5,16 +5,16 @@ const ClientesForm = React.lazy(() => import('./Form'))
 
 export const manifest = {
   id: 'customers',
-  name: 'Clientes',
+  name: 'Customers',
   version: '1.0.0',
-  permissions: ['clientes.read', 'clientes.write'],
+  permissions: ['customers.read', 'customers.write'],
   routes: [
     { path: '/clients', element: ClientesList },
     { path: '/clients/new', element: ClientesForm },
     { path: '/clients/:id/edit', element: ClientesForm }
   ],
   menu: {
-    title: 'Clientes',
+    title: 'Customers',
     icon: '👥',
     route: '/clients',
     order: 35

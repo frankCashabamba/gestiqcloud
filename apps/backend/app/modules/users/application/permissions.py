@@ -84,25 +84,25 @@ def require_perm_create_tenant_user(
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
-    return _require_perm("usuarios:create", db, current_user)
+    return _require_perm("users:create", db, current_user)
 
 
 def require_perm_update_tenant_user(
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
-    return _require_perm("usuarios:update", db, current_user)
+    return _require_perm("users:update", db, current_user)
 
 
 def require_perm_delete_tenant_user(
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
-    return _require_perm("usuarios:delete", db, current_user)
+    return _require_perm("users:delete", db, current_user)
 
 
 def require_perm_set_password_tenant_user(
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
-    return _require_perm("usuarios:set_password", db, current_user)
+    return _require_perm("users:set_password", db, current_user)

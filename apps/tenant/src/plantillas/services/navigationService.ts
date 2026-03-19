@@ -6,15 +6,15 @@
 export type RetailRoute =
   | 'pos.new'
   | 'pos.cash-close'
-  | 'ventas.promotions'
-  | 'ventas.list'
-  | 'clientes.new'
-  | 'clientes.list'
-  | 'inventario.list'
-  | 'inventario.replenishment'
-  | 'inventario.count-cycle'
-  | 'reportes.analysis'
-  | 'reportes.sales'
+  | 'sales.promotions'
+  | 'sales.list'
+  | 'customers.new'
+  | 'customers.list'
+  | 'inventory.list'
+  | 'inventory.replenishment'
+  | 'inventory.count-cycle'
+  | 'reports.analysis'
+  | 'reports.sales'
 
 export interface NavigationConfig {
   route: RetailRoute
@@ -28,15 +28,15 @@ export interface NavigationConfig {
 const ROUTE_MAP: Record<RetailRoute, string> = {
   'pos.new': '/pos/new',
   'pos.cash-close': '/pos/cash-close',
-  'ventas.promotions': '/ventas/promotions',
-  'ventas.list': '/ventas',
-  'clientes.new': '/clientes/new',
-  'clientes.list': '/clientes',
-  'inventario.list': '/inventario',
-  'inventario.replenishment': '/inventario/replenishment',
-  'inventario.count-cycle': '/inventario/count-cycle',
-  'reportes.analysis': '/reportes/analysis',
-  'reportes.sales': '/reportes/sales',
+  'sales.promotions': '/sales/promotions',
+  'sales.list': '/sales',
+  'customers.new': '/customers/new',
+  'customers.list': '/customers',
+  'inventory.list': '/inventory',
+  'inventory.replenishment': '/inventory/replenishment',
+  'inventory.count-cycle': '/inventory/count-cycle',
+  'reports.analysis': '/reports/analysis',
+  'reports.sales': '/reports/sales',
 }
 
 /**
@@ -104,7 +104,7 @@ export const RETAIL_QUICK_ACTIONS: QuickActionConfig[] = [
     id: 'create-promotion',
     label: 'Create promotion',
     icon: '%',
-    module: 'ventas',
+    module: 'sales',
     mode: 'modal',
     modalComponent: 'CreatePromotionModal',
   },
@@ -112,9 +112,9 @@ export const RETAIL_QUICK_ACTIONS: QuickActionConfig[] = [
     id: 'new-customer',
     label: 'New customer',
     icon: '@',
-    module: 'clientes',
+    module: 'customers',
     mode: 'navigate',
-    route: 'clientes.new',
+    route: 'customers.new',
   },
   // Nota: "Price update" y "Cycle count" eliminados (botones muertos)
   // Agregar cuando haya módulos específicos para estas funcionalidades
@@ -126,21 +126,21 @@ export const RETAIL_QUICK_ACTIONS: QuickActionConfig[] = [
 export const RETAIL_CUSTOM_LINKS = (enabledModules: string[]) => {
   const links = [
     {
-      module: 'inventario',
+      module: 'inventory',
       label: 'Stock replenishment',
-      route: 'inventario.replenishment' as RetailRoute,
+      route: 'inventory.replenishment' as RetailRoute,
       icon: 'S',
     },
     {
-      module: 'ventas',
+      module: 'sales',
       label: 'Promotions',
-      route: 'ventas.promotions' as RetailRoute,
+      route: 'sales.promotions' as RetailRoute,
       icon: 'P',
     },
     {
-      module: 'reportes',
+      module: 'reports',
       label: 'Sales analysis',
-      route: 'reportes.analysis' as RetailRoute,
+      route: 'reports.analysis' as RetailRoute,
       icon: 'A',
     },
   ]
@@ -157,15 +157,15 @@ export function getRequiredModule(route: RetailRoute): string {
   const moduleMap: Record<RetailRoute, string> = {
     'pos.new': 'pos',
     'pos.cash-close': 'pos',
-    'ventas.promotions': 'ventas',
-    'ventas.list': 'ventas',
-    'clientes.new': 'clientes',
-    'clientes.list': 'clientes',
-    'inventario.list': 'inventario',
-    'inventario.replenishment': 'inventario',
-    'inventario.count-cycle': 'inventario',
-    'reportes.analysis': 'reportes',
-    'reportes.sales': 'reportes',
+    'sales.promotions': 'sales',
+    'sales.list': 'sales',
+    'customers.new': 'customers',
+    'customers.list': 'customers',
+    'inventory.list': 'inventory',
+    'inventory.replenishment': 'inventory',
+    'inventory.count-cycle': 'inventory',
+    'reports.analysis': 'reports',
+    'reports.sales': 'reports',
   }
 
   return moduleMap[route] || 'unknown'
@@ -189,8 +189,8 @@ export const MESSAGES = {
 export interface DashboardAuditLog {
   action: string
   timestamp: string
-  usuario?: string
-  empresa?: string
+  user?: string
+  company?: string
   metadata?: Record<string, any>
 }
 

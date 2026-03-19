@@ -20,7 +20,7 @@ import { usePermissionLabel } from '../hooks/usePermissionLabel'
 
 export interface ProtectedButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Permiso requerido: "usuarios:create" */
+  /** Permiso requerido: "users:create" */
   permission: string
   /** Acción separada (opcional) */
   action?: string

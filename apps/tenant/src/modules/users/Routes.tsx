@@ -9,15 +9,15 @@ import { listUsuarios } from './services'
 export default function UsuariosRoutes() {
   return (
     <ProtectedRoute
-      permission="usuarios:read"
-      fallback={<PermissionDenied permission="usuarios:read" />}
+      permission="users:read"
+      fallback={<PermissionDenied permission="users:read" />}
     >
       <Routes>
         <Route index element={<GuardedList />} />
         <Route
           path="nuevo"
           element={
-            <ProtectedRoute permission="usuarios:create">
+            <ProtectedRoute permission="users:create">
               <UsuarioForm />
             </ProtectedRoute>
           }
@@ -25,7 +25,7 @@ export default function UsuariosRoutes() {
         <Route
           path=":id/editar"
           element={
-            <ProtectedRoute permission="usuarios:update">
+            <ProtectedRoute permission="users:update">
               <UsuarioForm />
             </ProtectedRoute>
           }

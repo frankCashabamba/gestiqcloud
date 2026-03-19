@@ -3,12 +3,12 @@ import { Users, TrendingUp, Target, Calendar } from 'lucide-react'
 export const crmManifest = {
   id: 'crm',
   name: 'CRM',
-  description: 'Gestión de relaciones con clientes',
+  description: 'Customer relationship management',
   icon: Users,
   color: '#10B981',
   enabled: true,
   order: 50,
-  category: 'ventas',
+  category: 'sales',
   routes: [
     {
       path: '/crm',
@@ -33,7 +33,7 @@ export const crmManifest = {
         permissions: ['crm:leads:read'],
       },
       {
-        label: 'Oportunidades',
+        label: 'Opportunities',
         path: '/crm/opportunities',
         icon: Calendar,
         permissions: ['crm:opportunities:read'],

@@ -40,9 +40,9 @@ describe('POS manifest', () => {
   })
 })
 
-describe('Ventas manifest', () => {
+describe('Sales manifest', () => {
   it('should export manifest with required properties', async () => {
-    const { manifest } = await import('../modules/ventas/manifest')
+    const { manifest } = await import('../modules/sales/manifest')
 
     expect(manifest).toHaveProperty('id')
     expect(manifest).toHaveProperty('name')
@@ -50,18 +50,18 @@ describe('Ventas manifest', () => {
   })
 
   it('should have correct id', async () => {
-    const { manifest } = await import('../modules/ventas/manifest')
-    expect(manifest.id).toBe('ventas')
+    const { manifest } = await import('../modules/sales/manifest')
+    expect(manifest.id).toBe('sales')
   })
 
   it('should have routes array', async () => {
-    const { manifest } = await import('../modules/ventas/manifest')
+    const { manifest } = await import('../modules/sales/manifest')
     expect(Array.isArray(manifest.routes)).toBe(true)
     expect(manifest.routes.length).toBeGreaterThan(0)
   })
 
   it('should have icon and color', async () => {
-    const { manifest } = await import('../modules/ventas/manifest')
+    const { manifest } = await import('../modules/sales/manifest')
     expect(manifest.icon).toBeDefined()
     expect(manifest.color).toBeDefined()
   })
@@ -80,16 +80,16 @@ describe('Productos manifest', () => {
   })
 })
 
-describe('Inventario manifest', () => {
-  it('should export inventarioManifest', async () => {
-    const { inventarioManifest } = await import('../modules/inventario/manifest')
-    expect(inventarioManifest).toBeDefined()
+describe('Inventory manifest', () => {
+  it('should export inventoryManifest', async () => {
+    const { inventoryManifest } = await import('../modules/inventory/manifest')
+    expect(inventoryManifest).toBeDefined()
   })
 
   it('should have required properties', async () => {
-    const { inventarioManifest } = await import('../modules/inventario/manifest')
-    expect(inventarioManifest).toHaveProperty('id')
-    expect(inventarioManifest).toHaveProperty('name')
+    const { inventoryManifest } = await import('../modules/inventory/manifest')
+    expect(inventoryManifest).toHaveProperty('id')
+    expect(inventoryManifest).toHaveProperty('name')
   })
 })
 
@@ -106,37 +106,37 @@ describe('CRM manifest', () => {
   })
 })
 
-describe('Compras manifest', () => {
+describe('Purchases manifest', () => {
   it('should export manifest', async () => {
-    const { manifest } = await import('../modules/compras/manifest')
+    const { manifest } = await import('../modules/purchases/manifest')
     expect(manifest).toBeDefined()
   })
 })
 
-describe('Proveedores manifest', () => {
+describe('Suppliers manifest', () => {
   it('should export manifest', async () => {
-    const { manifest } = await import('../modules/proveedores/manifest')
+    const { manifest } = await import('../modules/suppliers/manifest')
     expect(manifest).toBeDefined()
   })
 })
 
-describe('Gastos manifest', () => {
+describe('Expenses manifest', () => {
   it('should export manifest', async () => {
-    const { manifest } = await import('../modules/gastos/manifest')
+    const { manifest } = await import('../modules/expenses/manifest')
     expect(manifest).toBeDefined()
   })
 })
 
-describe('Usuarios manifest', () => {
+describe('Users manifest', () => {
   it('should export manifest', async () => {
-    const { manifest } = await import('../modules/usuarios/manifest')
+    const { manifest } = await import('../modules/users/manifest')
     expect(manifest).toBeDefined()
   })
 })
 
-describe('Reportes manifest', () => {
+describe('Reports manifest', () => {
   it('should export manifest', async () => {
-    const { manifest } = await import('../modules/reportes/manifest')
+    const { manifest } = await import('../modules/reports/manifest')
     expect(manifest).toBeDefined()
   })
 })

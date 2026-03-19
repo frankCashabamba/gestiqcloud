@@ -154,3 +154,7 @@ export function useBusinessCategoryByCode(code: string | null | undefined) {
 /**
  * Limpiar cache manualmente (si es necesario)
  */
+export function clearBusinessCategoriesCache() {
+  categoryCache.data = null
+  categoryCache.timestamp = null
+}
