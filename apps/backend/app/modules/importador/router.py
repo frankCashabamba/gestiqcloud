@@ -138,11 +138,12 @@ def _get_doc_import_data(doc) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _extract_document_line_items(data: dict) -> list[dict]:
-    line_items = data.get("line_items") or data.get("lineas") or data.get("items") or []
-    if not isinstance(line_items, list):
+def _extract_document_line_items(data: dict, aliases: list[str] | None = None) -> list[dict]:
+    keys = aliases or []
+    raw = get_data_value(data, *keys) if keys else None
+    if not isinstance(raw, list):
         return []
-    return [item for item in line_items if isinstance(item, dict)]
+    return [item for item in raw if isinstance(item, dict)]
 
 
 def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
@@ -219,8 +220,8 @@ def _first_non_empty(*values):
     return None
 
 
-def _get_document_payment_method(data: dict) -> str | None:
-    detected = detect_document_payment_method(data)
+def _get_document_payment_method(data: dict, aliases: list[str] | None = None) -> str | None:
+    detected = detect_document_payment_method(data, aliases=aliases)
     if detected:
         return detected
     save_meta = data.get("_save")
@@ -308,13 +309,14 @@ def _lookup_supplier(
 ) -> tuple[UUID | None, str | None]:
     from app.models.suppliers.supplier import Supplier
 
+    fa = get_field_aliases(db, tenant_id=tenant_id)
     supplier_name = _first_non_empty(
         doc.proveedor_detectado,
-        get_data_value(data, "proveedor", "vendor_name", "vendor", "supplier", "emisor", "issuer"),
+        get_data_value(data, *(fa.get("vendor") or [])),
     )
     supplier_tax_id = _first_non_empty(
         doc.ruc_detectado,
-        get_data_value(data, "ruc", "tax_id", "vendor_tax_id", "supplier_tax_id", "ruc_proveedor"),
+        get_data_value(data, *(fa.get("vendor_tax_id") or [])),
     )
 
     supplier = None
@@ -385,9 +387,9 @@ def _compose_expense_notes(
     return "\n".join(line for line in lines if line)
 
 
-def _get_document_total(doc) -> float | None:
+def _get_document_total(doc, aliases: list[str] | None = None) -> float | None:
     data = _get_doc_import_data(doc)
-    return _first_non_empty(doc.monto_total, detect_document_total(data))
+    return _first_non_empty(doc.monto_total, detect_document_total(data, aliases=aliases))
 
 
 def _parse_document_date(value) -> datetime.date:
@@ -503,10 +505,11 @@ def _save_document_to_expense(
     from app.models.expenses.expense import Expense
     from app.modules.expenses.infrastructure.repositories import ExpenseRepo
 
+    fa = get_field_aliases(db, tenant_id=tenant_id)
     data = _get_doc_import_data(doc)
-    total = _get_document_total(doc)
-    vat = detect_document_tax(data) or 0.0
-    subtotal = detect_document_subtotal(data)
+    total = _get_document_total(doc, aliases=fa.get("total_amount"))
+    vat = detect_document_tax(data, aliases=fa.get("tax_amount")) or 0.0
+    subtotal = detect_document_subtotal(data, aliases=fa.get("subtotal"))
 
     if subtotal is None and total is not None:
         subtotal = max(total - vat, 0.0)
@@ -519,7 +522,7 @@ def _save_document_to_expense(
         total = round(float(subtotal or 0.0) + float(vat or 0.0), 2)
 
     payment = _normalize_payment_details(total, body)
-    detected_payment_method = _get_document_payment_method(data)
+    detected_payment_method = _get_document_payment_method(data, aliases=fa.get("payment_method"))
     payment_method, _payment_method_id = _resolve_payment_method(
         db,
         tenant_id,
@@ -529,20 +532,10 @@ def _save_document_to_expense(
 
     supplier_id, supplier_name = _lookup_supplier(db, tenant_id, doc, data)
     invoice_number = _first_non_empty(
-        get_data_value(
-            data,
-            "numero_factura",
-            "invoice_number",
-            "invoice_no",
-            "numero",
-            "factura",
-            "comprobante",
-        ),
+        get_data_value(data, *(fa.get("doc_number") or [])),
     )
     concept = _first_non_empty(
-        get_data_value(
-            data, "concepto", "descripcion", "detalle", "description", "notes", "productos"
-        ),
+        get_data_value(data, *(fa.get("concept") or [])),
     )
     if not concept:
         prefix = "Factura proveedor" if body.destination == "supplier_invoice" else "Gasto"
@@ -552,14 +545,14 @@ def _save_document_to_expense(
     expense_date = _parse_document_date(
         _first_non_empty(
             doc.fecha_documento,
-            detect_document_date(data),
+            detect_document_date(data, aliases=fa.get("issue_date")),
             datetime.date.today().isoformat(),
         )
     )
     category = str(
         _first_non_empty(
             "supplier_invoice" if body.destination == "supplier_invoice" else None,
-            get_data_value(data, "category", "categoria"),
+            get_data_value(data, *(fa.get("category") or [])),
             "expense",
         )
     )[:50]
@@ -570,7 +563,7 @@ def _save_document_to_expense(
         payment,
         payment_method,
         body.paid_at,
-        body.notes or get_data_value(data, "notes", "nota", "observaciones"),
+        body.notes or get_data_value(data, *(fa.get("concept") or [])),
     )
 
     existing_expense = None
@@ -648,8 +641,9 @@ def _save_document_to_purchase(
     from app.models.purchases.purchase import Purchase, PurchaseLine
     from app.services.inventory_costing import InventoryCostingService
 
+    fa = get_field_aliases(db, tenant_id=tenant_id)
     data = _get_doc_import_data(doc)
-    line_items = _extract_document_line_items(data)
+    line_items = _extract_document_line_items(data, aliases=fa.get("line_items"))
     line_match_map = {
         int(match.line_index): match
         for match in (line_matches or [])
@@ -690,18 +684,19 @@ def _save_document_to_purchase(
     logger.info("save_purchase: warehouse=%s", warehouse.id if warehouse else None)
 
     doc_number = str(
-        _first_non_empty(
-            get_data_value(data, "doc_number", "numero_factura", "invoice_number", "invoice_no")
-        )
+        _first_non_empty(get_data_value(data, *(fa.get("doc_number") or [])))
         or doc.nombre_archivo
     )[:50]
     purchase_date = _parse_document_date(
-        _first_non_empty(doc.fecha_documento, detect_document_date(data))
+        _first_non_empty(
+            doc.fecha_documento,
+            detect_document_date(data, aliases=fa.get("issue_date")),
+        )
     )
     supplier_id, supplier_name = _lookup_supplier(db, tenant_id, doc, data)
-    total = _get_document_total(doc) or 0.0
-    vat = detect_document_tax(data) or 0.0
-    subtotal = detect_document_subtotal(data)
+    total = _get_document_total(doc, aliases=fa.get("total_amount")) or 0.0
+    vat = detect_document_tax(data, aliases=fa.get("tax_amount")) or 0.0
+    subtotal = detect_document_subtotal(data, aliases=fa.get("subtotal"))
     if subtotal is None:
         subtotal = max(total - vat, 0.0)
 

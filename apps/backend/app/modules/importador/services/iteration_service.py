@@ -335,11 +335,12 @@ def validate_normalized_line(
     """
     import re
 
-    efa = error_affected_fields or {
-        "MISSING_AMOUNT": ["total_amount"],
-        "INVALID_DATE":   ["issue_date"],
-    }
+    # Sin reglas configuradas desde BD no se aplica ninguna validación.
+    # La fuente de verdad es imp_error_code.
+    if not error_affected_fields:
+        return []
 
+    efa = error_affected_fields
     errors = []
 
     for amount_field in efa.get("MISSING_AMOUNT", ["total_amount"]):
@@ -447,7 +448,10 @@ def build_field_analysis(
 
 
 def load_error_affected_fields(db: Session) -> dict[str, list[str]]:
-    """Carga desde BD el mapa {error_code: [campos afectados]}."""
+    """Carga desde BD el mapa {error_code: [campos afectados]}.
+
+    Fuente de verdad: imp_error_code. Si la BD falla retorna {} y registra el error.
+    """
     try:
         from sqlalchemy import text as sa_text
         rows = db.execute(
@@ -455,12 +459,8 @@ def load_error_affected_fields(db: Session) -> dict[str, list[str]]:
         ).fetchall()
         return {str(row[0]): list(row[1] or []) for row in rows}
     except Exception as exc:
-        logger.warning("Could not load error affected fields: %s", exc)
-        return {
-            "MISSING_AMOUNT": ["total_amount"],
-            "INVALID_DATE": ["issue_date"],
-            "MISSING_VENDOR": ["vendor", "vendor_tax_id"],
-        }
+        logger.error("No se pudieron cargar error_affected_fields desde BD: %s", exc)
+        return {}
 
 
 # ─── Punto de entrada principal ───────────────────────────────────────────

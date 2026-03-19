@@ -27,8 +27,9 @@ def _pick_line_items(
     data: dict[str, Any] | None,
     aliases: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    keys = aliases or ["line_items", "items", "detalle", "filas_detalle"]
-    raw = get_data_value(data, *keys)
+    if not aliases:
+        return []
+    raw = get_data_value(data, *aliases)
     if not isinstance(raw, list):
         return []
     return [dict(entry) for entry in raw if isinstance(entry, dict)]
