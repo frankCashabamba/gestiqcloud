@@ -9,11 +9,11 @@ import {
   patchStagingLine,
   runIteration,
   runReviewSession,
-  type FieldAnalysis,
+  type IterationScope,
   type IterationRecord,
   type IterationResult,
-  type IterationScope,
   type ReviewSession,
+  type FieldAnalysis,
   type StagingLine,
   type StagingLineSummary,
 } from '../services'
@@ -31,8 +31,13 @@ interface ReprocessState {
 }
 
 const EMPTY_SUMMARY: StagingLineSummary = {
-  pending: 0, valid: 0, imported: 0,
-  invalid: 0, review: 0, skipped: 0, reprocess: 0,
+  pending: 0,
+  valid: 0,
+  imported: 0,
+  invalid: 0,
+  review: 0,
+  skipped: 0,
+  reprocess: 0,
 }
 
 export function useImportReprocess(documentoId: string) {
@@ -62,20 +67,17 @@ export function useImportReprocess(documentoId: string) {
     try {
       const lines = await fetchStagingLines(documentoId, params)
       setState(s => ({ ...s, lines }))
+      return lines
     } catch (e) {
       setError(String(e))
+      return []
     } finally {
       setLoading(false)
     }
   }, [documentoId])
 
-  /**
-   * Paso 1: Inspección de campos ANTES de elegir qué reprocesar.
-   * Muestra qué campos tienen problemas en las líneas seleccionadas.
-   * Sin esto, el usuario elegiría campos a ciegas.
-   */
   const inspectFields = useCallback(async (
-    estados: string[] = ['INVALID', 'PENDING', 'REVIEW'],
+    estados: string[] = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS'],
     errorCodes: string[] = [],
     sheet?: string,
   ) => {
@@ -102,15 +104,11 @@ export function useImportReprocess(documentoId: string) {
     return iterations
   }, [documentoId])
 
-  /**
-   * Paso 2: Crear sesión de revisión con los campos elegidos por el usuario.
-   * Retorna preview_count: cuántas líneas se verán afectadas.
-   * El usuario confirma antes de ejecutar.
-   */
   const buildReviewSession = useCallback(async (filters: {
     filter_estados?: string[]
     filter_error_codes?: string[]
-    filter_campos?: string[]       // ← los campos que el usuario eligió en la inspección
+    filter_campos?: string[]
+    filter_columns?: string[]
     filter_lines?: number[]
     filter_sheet?: string | null
   }) => {
@@ -127,10 +125,6 @@ export function useImportReprocess(documentoId: string) {
     }
   }, [documentoId])
 
-  /**
-   * Paso 3: Ejecutar la sesión confirmada por el usuario.
-   * Solo procesa los campos elegidos. Preserva todo lo demás.
-   */
   const executeSession = useCallback(async (sessionId: string) => {
     setState(s => ({ ...s, isRunning: true, error: null }))
     try {
@@ -151,7 +145,6 @@ export function useImportReprocess(documentoId: string) {
     }
   }, [documentoId, refreshSummary, loadIterations])
 
-  /** Iteración directa sin sesión — para "reprocesar todo pendiente" */
   const iterate = useCallback(async (scope: Partial<IterationScope> = {}) => {
     setState(s => ({ ...s, isRunning: true, error: null }))
     try {
@@ -167,7 +160,6 @@ export function useImportReprocess(documentoId: string) {
     }
   }, [documentoId, refreshSummary, loadIterations])
 
-  /** Marcar líneas individuales para reprocesar campos concretos */
   const markForReprocess = useCallback(async (
     lineIds: string[],
     campos?: string[],
@@ -176,7 +168,6 @@ export function useImportReprocess(documentoId: string) {
     await refreshSummary()
   }, [documentoId, refreshSummary])
 
-  /** Corregir una línea manualmente y marcarla para reprocesar */
   const correctLine = useCallback(async (
     lineId: string,
     normalizedData: Record<string, unknown>,
@@ -189,7 +180,7 @@ export function useImportReprocess(documentoId: string) {
     })
     setState(s => ({
       ...s,
-      lines: s.lines.map(l => l.id === lineId ? updated : l),
+      lines: s.lines.map(line => line.id === lineId ? updated : line),
     }))
     await refreshSummary()
     return updated
@@ -205,9 +196,9 @@ export function useImportReprocess(documentoId: string) {
     totalResolvable,
     refreshSummary,
     loadLines,
-    inspectFields,      // Paso 1: ver campos reales
-    buildReviewSession, // Paso 2: definir scope con campos elegidos
-    executeSession,     // Paso 3: ejecutar
+    inspectFields,
+    buildReviewSession,
+    executeSession,
     iterate,
     markForReprocess,
     correctLine,

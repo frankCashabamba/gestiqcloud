@@ -369,6 +369,7 @@ class IterationScopeIn(BaseModel):
     filter_estados: list[str] = Field(default_factory=list)
     filter_error_codes: list[str] = Field(default_factory=list)
     filter_campos: list[str] = Field(default_factory=list)
+    filter_columns: list[str] = Field(default_factory=list)
     filter_lines: list[int] = Field(default_factory=list)
     filter_sheet: str | None = None
 
@@ -422,6 +423,7 @@ class ReviewSessionCreate(BaseModel):
     filter_estados: list[str] = Field(default_factory=list)
     filter_error_codes: list[str] = Field(default_factory=list)
     filter_campos: list[str] = Field(default_factory=list)
+    filter_columns: list[str] = Field(default_factory=list)
     filter_lines: list[int] = Field(default_factory=list)
     filter_sheet: str | None = None
 
@@ -432,6 +434,7 @@ class ReviewSessionOut(BaseModel):
     filter_estados: list[str]
     filter_error_codes: list[str]
     filter_campos: list[str]
+    filter_columns: list[str]
     filter_lines: list[int]
     filter_sheet: str | None = None
     preview_count: int

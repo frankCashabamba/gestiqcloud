@@ -14,15 +14,13 @@ import datetime
 import logging
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.importador import (
     ImpDocumento,
     ImpIteration,
     ImpLineErrorLog,
-    ImpReviewSession,
     ImpStagingLine,
 )
 from ..schemas import (
@@ -32,6 +30,43 @@ from ..schemas import (
 )
 
 logger = logging.getLogger("importador.iteration_service")
+
+_DOCUMENT_SHEET_SENTINEL = "__document__"
+
+
+def _insert_staging_line_idempotent(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    doc_id: UUID,
+    line_number: int,
+    sheet_name: str,
+    raw_data: dict,
+) -> int:
+    existing = db.scalar(
+        select(ImpStagingLine.id)
+        .where(
+            ImpStagingLine.documento_id == doc_id,
+            ImpStagingLine.line_number == line_number,
+            ImpStagingLine.sheet_name == sheet_name,
+        )
+        .limit(1)
+    )
+    if existing:
+        return 0
+
+    db.add(
+        ImpStagingLine(
+            tenant_id=tenant_id,
+            documento_id=doc_id,
+            line_number=line_number,
+            sheet_name=sheet_name,
+            raw_data=raw_data,
+            estado="PENDING",
+        )
+    )
+    db.flush()
+    return 1
 
 
 # ─── Creación inicial de staging lines ───────────────────────────────────
@@ -51,8 +86,6 @@ def upsert_staging_lines_from_extraction(
     - Excel/CSV: una línea por fila en cada hoja (filas_por_hoja).
     - PDF/XML/imagen/TXT: una línea con el documento completo como raw_data.
     """
-    _Line = ImpStagingLine
-
     if not isinstance(datos_extraidos, dict):
         return 0
 
@@ -69,40 +102,26 @@ def upsert_staging_lines_from_extraction(
             for line_number, raw_row in enumerate(rows, start=1):
                 if not isinstance(raw_row, dict):
                     continue
-                stmt = (
-                    pg_insert(_Line)
-                    .values(
-                        tenant_id=tenant_id,
-                        documento_id=doc_id,
-                        line_number=line_number,
-                        sheet_name=sheet_name,
-                        raw_data=raw_row,
-                        estado="PENDING",
-                    )
-                    .on_conflict_do_nothing(
-                        index_elements=["documento_id", "line_number", "sheet_name"]
-                    )
+                inserted += _insert_staging_line_idempotent(
+                    db,
+                    tenant_id=tenant_id,
+                    doc_id=doc_id,
+                    line_number=line_number,
+                    sheet_name=sheet_name,
+                    raw_data=raw_row,
                 )
-                result = db.execute(stmt)
-                inserted += result.rowcount
     else:
         # Documento no tabular (PDF/XML/imagen): una única línea con el cuerpo completo.
-        stmt = (
-            pg_insert(_Line)
-            .values(
-                tenant_id=tenant_id,
-                documento_id=doc_id,
-                line_number=1,
-                sheet_name=None,
-                raw_data=datos_extraidos,
-                estado="PENDING",
-            )
-            .on_conflict_do_nothing(
-                index_elements=["documento_id", "line_number", "sheet_name"]
-            )
+        # PostgreSQL permite duplicados cuando una columna UNIQUE es NULL; usamos un
+        # sentinel estable para conservar idempotencia real en reintentos del mismo doc.
+        inserted = _insert_staging_line_idempotent(
+            db,
+            tenant_id=tenant_id,
+            doc_id=doc_id,
+            line_number=1,
+            sheet_name=_DOCUMENT_SHEET_SENTINEL,
+            raw_data=datos_extraidos,
         )
-        result = db.execute(stmt)
-        inserted = result.rowcount
 
     return inserted
 
@@ -149,13 +168,29 @@ def fetch_lines_for_scope(
             conditions.append(ImpStagingLine.line_number.in_(scope.filter_lines))
         if scope.filter_sheet:
             conditions.append(ImpStagingLine.sheet_name == scope.filter_sheet)
+        if scope.filter_columns:
+            column_conditions = []
+            for column in scope.filter_columns:
+                if not column:
+                    continue
+                key_token = f'"{column}"'
+                column_conditions.append(ImpStagingLine.raw_data.cast(String).contains(key_token))
+                column_conditions.append(
+                    ImpStagingLine.normalized_data.cast(String).contains(key_token)
+                )
+            if column_conditions:
+                conditions.append(or_(*column_conditions))
         if scope.filter_campos:
+            field_conditions = [
+                ImpStagingLine.campos_revision.cast(String).contains(field)
+                for field in scope.filter_campos
+                if field
+            ]
             conditions.append(
                 or_(
                     ImpStagingLine.campos_revision.is_(None),
-                    ImpStagingLine.campos_revision.cast(str).contains(
-                        scope.filter_campos[0]
-                    ),
+                    ImpStagingLine.campos_revision.cast(String) == "null",
+                    *field_conditions,
                 )
             )
         if conditions:

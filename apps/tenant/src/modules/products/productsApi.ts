@@ -49,6 +49,7 @@ export type Producto = {
   active: boolean
   stock: number
   unit: string
+  is_raw_material?: boolean
   suggested_price?: number | null
   use_suggested_price?: boolean
   product_metadata?: Record<string, any> | null
@@ -110,6 +111,7 @@ export async function listProductos(hideOutOfStock: boolean = false): Promise<Pr
     active: Boolean(p.active ?? true),
     stock: Number(p.stock ?? 0) || 0,
     unit: p.unit || 'unit',
+    is_raw_material: Boolean(p.is_raw_material ?? false),
     suggested_price: p.suggested_price ?? null,
     use_suggested_price: Boolean(p.use_suggested_price ?? false),
     product_metadata: p.product_metadata ?? null,
@@ -152,6 +154,7 @@ export async function createProducto(data: Partial<Producto>): Promise<Producto>
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
         unit: String((cleanPayload as any).unit || 'unit'),
+        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
         created_at: new Date().toISOString(),
       }
     }
@@ -171,6 +174,7 @@ export async function createProducto(data: Partial<Producto>): Promise<Producto>
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
         unit: String((cleanPayload as any).unit || 'unit'),
+        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
         created_at: new Date().toISOString(),
       }
     }
@@ -199,6 +203,7 @@ export async function updateProducto(id: string, data: Partial<Producto>): Promi
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
         unit: String((cleanPayload as any).unit || 'unit'),
+        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -218,6 +223,7 @@ export async function updateProducto(id: string, data: Partial<Producto>): Promi
         active: Boolean((cleanPayload as any).active ?? true),
         stock: Number((cleanPayload as any).stock ?? 0) || 0,
         unit: String((cleanPayload as any).unit || 'unit'),
+        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }

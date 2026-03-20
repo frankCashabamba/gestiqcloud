@@ -99,6 +99,7 @@ from app.schemas.recipes import (
     RecipeStepUpdate,
     RecipeUpdate,
 )
+from app.services.product_raw_materials import sync_product_as_raw_material_from_recipe_line
 from app.services.cost_periods_service import CostPeriodsService
 from app.services.recipe_calculator import (
     calculate_production_time,
@@ -1501,6 +1502,21 @@ def create_recipe(
                 line_order=ing_data.line_order if ing_data.line_order is not None else idx,
             )
             db.add(ingrediente)
+            ingredient_product = (
+                db.query(ProductModel)
+                .filter(
+                    ProductModel.id == ing_data.product_id,
+                    ProductModel.tenant_id == tenant_id,
+                )
+                .first()
+            )
+            sync_product_as_raw_material_from_recipe_line(
+                db,
+                tenant_id=tenant_id,
+                product=ingredient_product,
+                unit=ing_data.unit,
+                package_unit=ing_data.package_unit,
+            )
     db.commit()
     db.refresh(recipe)
     try:
@@ -1563,6 +1579,21 @@ def update_recipe(
                 line_order=ing_data.get("line_order", idx),
             )
             db.add(ingrediente)
+            ingredient_product = (
+                db.query(Product)
+                .filter(
+                    Product.id == ing_data["product_id"],
+                    Product.tenant_id == tenant_id,
+                )
+                .first()
+            )
+            sync_product_as_raw_material_from_recipe_line(
+                db,
+                tenant_id=tenant_id,
+                product=ingredient_product,
+                unit=ing_data["unit"],
+                package_unit=ing_data["package_unit"],
+            )
 
     db.commit()
     db.refresh(recipe)
@@ -1640,6 +1671,18 @@ def add_recipe_ingredient(
         line_order=next_order,
     )
     db.add(ingrediente)
+    ingredient_product = (
+        db.query(Product)
+        .filter(Product.id == payload.product_id, Product.tenant_id == tenant_id)
+        .first()
+    )
+    sync_product_as_raw_material_from_recipe_line(
+        db,
+        tenant_id=tenant_id,
+        product=ingredient_product,
+        unit=payload.unit,
+        package_unit=payload.package_unit,
+    )
     db.commit()
     db.refresh(ingrediente)
 
@@ -1662,6 +1705,7 @@ def update_recipe_ingredient(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
+    tenant_id = UUID(claims["tenant_id"])
     ingrediente = (
         db.query(RecipeIngredient)
         .filter(
@@ -1694,6 +1738,25 @@ def update_recipe_ingredient(
 
     for field, value in data.items():
         setattr(ingrediente, field, value)
+
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
+    if not recipe:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
+    ingredient_product = (
+        db.query(Product)
+        .filter(
+            Product.id == ingrediente.product_id,
+            Product.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    sync_product_as_raw_material_from_recipe_line(
+        db,
+        tenant_id=tenant_id,
+        product=ingredient_product,
+        unit=ingrediente.unit,
+        package_unit=ingrediente.package_unit,
+    )
 
     db.commit()
     db.refresh(ingrediente)

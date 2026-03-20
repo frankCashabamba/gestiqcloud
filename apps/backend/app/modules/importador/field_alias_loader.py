@@ -18,8 +18,8 @@ logger = logging.getLogger("importador.field_alias_loader")
 
 _CACHE_TTL = 300  # segundos
 
-_alias_cache: dict[str, list[str]] = {}
-_alias_cache_ts: float = 0.0
+_alias_cache_by_tenant: dict[str, dict[str, list[str]]] = {}
+_alias_cache_ts_by_tenant: dict[str, float] = {}
 
 _field_cache: dict[str, dict] = {}
 _field_cache_ts: float = 0.0
@@ -34,11 +34,14 @@ def get_field_aliases(
 
     Si la BD es inalcanzable retorna {} y registra el error.
     """
-    global _alias_cache, _alias_cache_ts
+    global _alias_cache_by_tenant, _alias_cache_ts_by_tenant
 
     now = time.monotonic()
-    if _alias_cache and (now - _alias_cache_ts) < _CACHE_TTL:
-        return _alias_cache
+    cache_key = str(tenant_id) if tenant_id else "__global__"
+    cached = _alias_cache_by_tenant.get(cache_key)
+    cached_ts = _alias_cache_ts_by_tenant.get(cache_key, 0.0)
+    if cached and (now - cached_ts) < _CACHE_TTL:
+        return cached
 
     try:
         from sqlalchemy import text as sa_text
@@ -65,8 +68,8 @@ def get_field_aliases(
                 if alias not in result[field]:
                     result[field].append(alias)
 
-        _alias_cache = result
-        _alias_cache_ts = now
+        _alias_cache_by_tenant[cache_key] = result
+        _alias_cache_ts_by_tenant[cache_key] = now
         return result
 
     except Exception as exc:
@@ -135,6 +138,7 @@ def get_aliases_for_field(
 
 def invalidate_cache() -> None:
     """Fuerza recarga desde BD en la próxima llamada."""
-    global _alias_cache_ts, _field_cache_ts
-    _alias_cache_ts = 0.0
+    global _alias_cache_by_tenant, _alias_cache_ts_by_tenant, _field_cache_ts
+    _alias_cache_by_tenant = {}
+    _alias_cache_ts_by_tenant = {}
     _field_cache_ts = 0.0

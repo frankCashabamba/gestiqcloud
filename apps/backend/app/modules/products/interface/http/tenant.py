@@ -18,6 +18,10 @@ from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem
 from app.models.inventory.warehouse import Warehouse
+from app.services.product_raw_materials import (
+    ensure_products_raw_material_column,
+    validate_raw_material_unit,
+)
 
 router = APIRouter(
     prefix="/products",
@@ -117,6 +121,7 @@ class ProductCreate(BaseModel):
     active: bool = True
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool = False
+    is_raw_material: bool = False
     product_metadata: dict | None = None
     import_aliases: list | None = None
 
@@ -135,6 +140,7 @@ class ProductUpdate(BaseModel):
     active: bool | None = None
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool | None = None
+    is_raw_material: bool | None = None
     product_metadata: dict | None = None
     import_aliases: list | None = None
 
@@ -154,6 +160,7 @@ class ProductOut(BaseModel):
     active: bool = True
     suggested_price: float | None = None
     use_suggested_price: bool = False
+    is_raw_material: bool = False
     product_metadata: dict | None = None
     import_aliases: list | None = None
 
@@ -237,6 +244,7 @@ def _to_product_out_row(row: Product, real_stock: float | None = None) -> Produc
         use_suggested_price=(
             bool(row.use_suggested_price) if row.use_suggested_price is not None else False
         ),
+        is_raw_material=bool(getattr(row, "is_raw_material", False)),
         product_metadata=row.product_metadata,
         import_aliases=row.import_aliases,
     )
@@ -731,9 +739,16 @@ def _generate_next_sku(db: Session, tenant_id: str, categoria: str | None) -> st
 
 @router.post("", response_model=ProductOut, status_code=201, dependencies=protected)
 def create_product(payload: ProductCreate, request: Request, db: Session = Depends(get_db)):
+    ensure_products_raw_material_column(db)
     tenant_id = _empresa_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="missing_tenant")
+    validate_raw_material_unit(
+        db,
+        tenant_id=tenant_id,
+        is_raw_material=payload.is_raw_material,
+        unit=payload.unit,
+    )
     category_name = _normalize_category_name(payload.category)
     category_id = payload.category_id or _resolve_category_id(db, tenant_id, category_name)
 
@@ -754,6 +769,7 @@ def create_product(payload: ProductCreate, request: Request, db: Session = Depen
         active=True if payload.active is None else payload.active,
         suggested_price=payload.suggested_price,
         use_suggested_price=payload.use_suggested_price,
+        is_raw_material=payload.is_raw_material,
         product_metadata=payload.product_metadata,
         import_aliases=payload.import_aliases,
         tenant_id=tenant_id,
@@ -781,6 +797,7 @@ def update_product(
     product_id: str, payload: ProductUpdate, request: Request, db: Session = Depends(get_db)
 ):
     """Actualizar producto (soporta UUID)"""
+    ensure_products_raw_material_column(db)
     tenant_id = _empresa_id_from_request(request)
 
     # Intentar UUID primero
@@ -831,10 +848,19 @@ def update_product(
         obj.suggested_price = payload.suggested_price
     if payload.use_suggested_price is not None:
         obj.use_suggested_price = payload.use_suggested_price
+    if payload.is_raw_material is not None:
+        obj.is_raw_material = payload.is_raw_material
     if payload.product_metadata is not None:
         obj.product_metadata = payload.product_metadata
     if payload.import_aliases is not None:
         obj.import_aliases = payload.import_aliases
+
+    validate_raw_material_unit(
+        db,
+        tenant_id=tenant_id,
+        is_raw_material=bool(getattr(obj, "is_raw_material", False)),
+        unit=obj.unit,
+    )
 
     db.add(obj)
     db.commit()

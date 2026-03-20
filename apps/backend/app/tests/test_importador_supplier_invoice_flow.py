@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -234,6 +235,39 @@ def test_save_document_supplier_invoice_message_surfaces_stock_warning_when_unma
     assert result.message is not None
     assert "No se actualiz" in result.message
     assert "Gasto creado (pending)." in result.message
+
+
+def test_save_document_requires_confirmation_before_supplier_invoice_save(
+    db: Session, tenant_minimal
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-sin-confirmar.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        fecha_documento="2026-03-19",
+        monto_total=2145.0,
+        datos_extraidos={
+            "numero_factura": "FAC-RAW-001",
+            "line_items": [{"description": "HARINA", "quantity": 1, "unit_price": 10.0}],
+        },
+        datos_confirmados=None,
+    )
+    db.add(document)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        save_document(
+            document.id,
+            SaveDocumentRequest(destination="supplier_invoice"),
+            _fake_request(tenant_id),
+            db,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert "confirmar" in str(exc_info.value.detail).lower()
 
 
 def test_save_document_to_expense_uses_tenant_payment_method_from_table(

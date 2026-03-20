@@ -380,6 +380,12 @@ def seed_sector_config(request):
                         "label": "Días de caducidad",
                     },
                     {
+                        "field": "is_raw_material",
+                        "required": False,
+                        "ord": 55,
+                        "label": "Materia prima",
+                    },
+                    {
                         "field": "ingredientes",
                         "required": False,
                         "ord": 60,

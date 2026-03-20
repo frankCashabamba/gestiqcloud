@@ -6,6 +6,7 @@ export default function UploadPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const reimportMode = searchParams.get('reimport')
+  const sourceDocumentId = searchParams.get('documentId')
   const forceRequested = reimportMode === 'clean' || reimportMode === 'force'
 
   return (
@@ -22,7 +23,7 @@ export default function UploadPage() {
 
       {forceRequested && (
         <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, color: '#1d4ed8', fontSize: 13 }}>
-          Reimportacion limpia activada. Vuelve a subir el archivo original; si no eliges una plantilla manual, se reprocesara con prompt generico y sin reutilizar auto-plantillas previas para sesgar la clasificacion.
+          Reimportacion limpia activada{sourceDocumentId ? ` para el documento ${sourceDocumentId}` : ''}. Vuelve a subir el archivo original; si el contenido es el mismo hash, el sistema reprocesara el mismo documento sin duplicarlo. Si no eliges una plantilla manual, se reprocesara con prompt generico y sin reutilizar auto-plantillas previas para sesgar la clasificacion.
         </div>
       )}
 

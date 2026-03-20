@@ -27,6 +27,7 @@ class TestSectorDefaults:
         # Campos específicos panadería
         assert "peso_unitario" in field_names
         assert "caducidad_dias" in field_names
+        assert "is_raw_material" in field_names
         assert "ingredientes" in field_names
         assert "receta_id" in field_names
 

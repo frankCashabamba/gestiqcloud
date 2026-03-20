@@ -33,17 +33,10 @@ from .auto_recipe import (
     remember_snapshot_learning,
     resolve_auto_recipe,
     resolve_auto_recipe_from_text,
-    should_reprocess_existing_document,
 )
 from .canonical_document import build_document_projection
 from .field_alias_loader import get_canonical_fields, get_field_aliases
-from .document_fields import (
-    detect_document_currency,
-    detect_document_date,
-    detect_document_total,
-    get_data_value,
-    safe_floatish,
-)
+from .document_fields import safe_floatish
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .schemas import (
     DraftCreate,
@@ -182,16 +175,17 @@ async def run_import(
         tipo_archivo = tipo_archivo or detect_file_type(filename)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-        existing = (
-            None
-            if force
-            else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
+        reuse_existing = bool(
+            existing
+            and (
+                existing.estado in ("PENDING", "PROCESSING")
+                or (existing.estado in ("CONFIRMED", "REVIEW") and not force)
+            )
         )
-        reuse_existing = bool(existing and existing.estado in ("CONFIRMED", "REVIEW"))
         if reuse_existing:
             bootstrap_learning_from_existing_document(db, existing, user_id)
-        if reuse_existing and should_reprocess_existing_document(db, existing):
-            reuse_existing = False
         if reuse_existing:
             crud.add_log(
                 db,
@@ -219,19 +213,42 @@ async def run_import(
             )
             return
 
-        doc = crud.create_documento(
-            db,
-            {
-                "tenant_id": tenant_id,
-                "nombre_archivo": filename,
-                "tipo_archivo": tipo_archivo,
-                "tamanio_bytes": len(file_bytes),
-                "hash_sha256": file_hash,
-                "estado": "PROCESSING",
-                "usuario_id": user_id,
-                "recipe_snapshot_id": resolved_snapshot_id,
-            },
-        )
+        predecessor = None
+        if exact_hash_match and existing and (
+            existing.estado == "FAILED"
+            or (existing.estado in ("CONFIRMED", "REVIEW") and force)
+            or (existing.estado == "REVIEW" and not reuse_existing)
+        ):
+            doc = existing
+            crud.reset_documento_for_reprocess(
+                db,
+                doc,
+                estado="PROCESSING",
+                recipe_snapshot_id=resolved_snapshot_id,
+                clear_recipe_snapshot=resolved_snapshot_id is None,
+            )
+        else:
+            predecessor = crud.find_latest_documento_by_name(
+                db,
+                tenant_id,
+                filename,
+                exclude_hash_sha256=file_hash,
+            )
+            doc = crud.create_documento(
+                db,
+                {
+                    "tenant_id": tenant_id,
+                    "nombre_archivo": filename,
+                    "tipo_archivo": tipo_archivo,
+                    "tamanio_bytes": len(file_bytes),
+                    "hash_sha256": file_hash,
+                    "estado": "PROCESSING",
+                    "usuario_id": user_id,
+                    "recipe_snapshot_id": resolved_snapshot_id,
+                },
+            )
+            if predecessor and predecessor.id != doc.id:
+                crud.link_documento_successor(db, predecessor.id, doc.id)
         crud.add_log(
             db,
             doc.id,

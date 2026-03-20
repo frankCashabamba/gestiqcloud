@@ -5,17 +5,76 @@ from __future__ import annotations
 import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, delete, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.importador import ImpBatchImport, ImpBatchItem, ImpDocumento, ImpLogCambios
+from app.models.importador import (
+    ImpBatchImport,
+    ImpBatchItem,
+    ImpDocumento,
+    ImpIteration,
+    ImpLineErrorLog,
+    ImpLogCambios,
+    ImpReviewSession,
+    ImpStagingLine,
+)
+
+_REPROCESS_CLEAN_FIELDS = {
+    "texto_ocr": None,
+    "tipo_documento_detectado": None,
+    "confianza_clasificacion": None,
+    "requiere_revision": False,
+    "datos_extraidos": None,
+    "datos_confirmados": None,
+    "error_detalle": None,
+    "proveedor_detectado": None,
+    "ruc_detectado": None,
+    "monto_total": None,
+    "moneda": None,
+    "fecha_documento": None,
+    "synced_recipe_id": None,
+    "fingerprint_json": None,
+    "sheet_profiles_json": None,
+    "llm_model": None,
+    "raw_ai_json": None,
+}
+
+
+def _is_document_hash_unique_violation(exc: IntegrityError) -> bool:
+    message = str(exc).lower()
+    return (
+        "uq_imp_documento_tenant_hash" in message
+        or "imp_documento.tenant_id, imp_documento.hash_sha256" in message
+        or "duplicate key value violates unique constraint" in message
+        or "unique constraint failed: imp_documento.tenant_id, imp_documento.hash_sha256" in message
+    )
 
 
 def create_documento(db: Session, data: dict) -> ImpDocumento:
     obj = ImpDocumento(**data)
-    db.add(obj)
-    db.flush()
-    return obj
+    tenant_id = data.get("tenant_id")
+    nombre_archivo = str(data.get("nombre_archivo") or "")
+    tamanio_bytes = int(data.get("tamanio_bytes") or 0)
+    hash_sha256 = data.get("hash_sha256")
+    try:
+        with db.begin_nested():
+            db.add(obj)
+            db.flush()
+        return obj
+    except IntegrityError as exc:
+        if not hash_sha256 or not tenant_id or not _is_document_hash_unique_violation(exc):
+            raise
+    existing = find_existing_documento(
+        db,
+        tenant_id,
+        nombre_archivo,
+        tamanio_bytes,
+        hash_sha256,
+    )
+    if existing:
+        return existing
+    raise
 
 
 def create_batch(db: Session, data: dict) -> ImpBatchImport:
@@ -102,6 +161,36 @@ def update_documento(db: Session, doc: ImpDocumento, data: dict) -> ImpDocumento
         setattr(doc, k, v)
     db.flush()
     return doc
+
+
+def clear_document_iteration_state(db: Session, documento_id: UUID) -> None:
+    iteration_ids = list(
+        db.scalars(select(ImpIteration.id).where(ImpIteration.documento_id == documento_id)).all()
+    )
+    if iteration_ids:
+        db.execute(delete(ImpLineErrorLog).where(ImpLineErrorLog.iteration_id.in_(iteration_ids)))
+    db.execute(delete(ImpReviewSession).where(ImpReviewSession.documento_id == documento_id))
+    db.execute(delete(ImpIteration).where(ImpIteration.documento_id == documento_id))
+    db.execute(delete(ImpStagingLine).where(ImpStagingLine.documento_id == documento_id))
+    db.flush()
+
+
+def reset_documento_for_reprocess(
+    db: Session,
+    doc: ImpDocumento,
+    *,
+    estado: str,
+    recipe_snapshot_id: UUID | None | object = None,
+    clear_recipe_snapshot: bool = False,
+) -> ImpDocumento:
+    clear_document_iteration_state(db, doc.id)
+    payload = dict(_REPROCESS_CLEAN_FIELDS)
+    payload["estado"] = estado
+    if clear_recipe_snapshot:
+        payload["recipe_snapshot_id"] = None
+    elif recipe_snapshot_id is not None:
+        payload["recipe_snapshot_id"] = recipe_snapshot_id
+    return update_documento(db, doc, payload)
 
 
 def update_batch(db: Session, batch: ImpBatchImport, data: dict) -> ImpBatchImport:
@@ -247,8 +336,18 @@ def find_existing_documento(
 ) -> ImpDocumento | None:
     """Busca un documento ya subido para dedupe.
 
-    Prioridad: hash (si se pasa) > filename+size.
+    Prioridad: hash exacto. El nombre del fichero es solo heurística de apoyo
+    para registros legacy que no tengan hash persistido.
     """
+    status_priority = case(
+        (ImpDocumento.estado == "CONFIRMED", 0),
+        (ImpDocumento.estado == "REVIEW", 1),
+        (ImpDocumento.estado == "PENDING", 2),
+        (ImpDocumento.estado == "PROCESSING", 3),
+        (ImpDocumento.estado == "FAILED", 4),
+        else_=5,
+    )
+
     if hash_sha256:
         doc = db.scalars(
             select(ImpDocumento)
@@ -258,7 +357,7 @@ def find_existing_documento(
                     ImpDocumento.hash_sha256 == hash_sha256,
                 )
             )
-            .order_by(ImpDocumento.created_at.desc())
+            .order_by(status_priority.asc(), ImpDocumento.created_at.desc())
             .limit(1)
         ).first()
         if doc:
@@ -271,11 +370,61 @@ def find_existing_documento(
                 ImpDocumento.tenant_id == tenant_id,
                 ImpDocumento.nombre_archivo == nombre_archivo,
                 ImpDocumento.tamanio_bytes == tamanio_bytes,
+                ImpDocumento.hash_sha256.is_(None),
             )
         )
-        .order_by(ImpDocumento.created_at.desc())
+        .order_by(status_priority.asc(), ImpDocumento.created_at.desc())
         .limit(1)
     ).first()
+
+
+def find_latest_documento_by_name(
+    db: Session,
+    tenant_id: UUID,
+    nombre_archivo: str,
+    *,
+    exclude_hash_sha256: str | None = None,
+) -> ImpDocumento | None:
+    q = select(ImpDocumento).where(
+        and_(
+            ImpDocumento.tenant_id == tenant_id,
+            ImpDocumento.nombre_archivo == nombre_archivo,
+        )
+    )
+    if exclude_hash_sha256:
+        q = q.where(
+            (ImpDocumento.hash_sha256.is_(None))
+            | (ImpDocumento.hash_sha256 != exclude_hash_sha256)
+        )
+    return db.scalars(q.order_by(ImpDocumento.created_at.desc()).limit(1)).first()
+
+
+def link_documento_successor(
+    db: Session,
+    predecessor_id: UUID,
+    successor_id: UUID,
+    *,
+    reason: str = "same_name_new_hash",
+) -> None:
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO imp_documento_successor (predecessor_id, successor_id, reason)
+                VALUES (:predecessor_id, :successor_id, :reason)
+                ON CONFLICT (predecessor_id, successor_id) DO NOTHING
+                """
+            ),
+            {
+                "predecessor_id": str(predecessor_id),
+                "successor_id": str(successor_id),
+                "reason": reason,
+            },
+        )
+        db.flush()
+    except Exception:
+        # El versionado es complementario; no debe romper la subida principal.
+        return
 
 
 def touch_batch_items_for_document(

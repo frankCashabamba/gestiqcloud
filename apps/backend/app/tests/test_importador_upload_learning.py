@@ -6,6 +6,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from uuid import uuid4
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
@@ -157,7 +158,7 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
     assert stored.datos_extraidos["payment_method"] == "Transferencia bancaria"
     assert stored.raw_ai_json["run"]["learning_version_applied"] == 2
     assert (
-        stored.raw_ai_json["canonical_document"]["payments"]["method"]
+        stored.raw_ai_json["canonical_document"]["extensions"]["payment_method"]
         == "Transferencia bancaria"
     )
     assert len(analyze_calls) == 2
@@ -165,7 +166,7 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
     assert "field_descriptions" in analyze_calls[1]
 
 
-def test_enqueue_async_batch_bootstraps_learning_and_reprocesses_duplicate(
+def test_enqueue_async_batch_bootstraps_learning_and_reuses_same_hash_document(
     db: Session, tenant_minimal, monkeypatch
 ):
     tenant_id = tenant_minimal["tenant_id"]
@@ -232,9 +233,149 @@ def test_enqueue_async_batch_bootstraps_learning_and_reprocesses_duplicate(
     )
 
     assert len(result) == 1
-    assert str(result[0]["id"]) != str(existing.id)
+    assert str(result[0]["id"]) == str(existing.id)
     all_docs = db.query(ImpDocumento).filter(ImpDocumento.nombre_archivo == filename).all()
-    assert len(all_docs) == 2
+    assert len(all_docs) == 1
     db.refresh(snapshot)
     assert snapshot.content_json["learning_version"] == 1
     assert "payment_method" in (snapshot.content_json.get("field_descriptions") or {})
+
+
+def test_upload_files_links_same_name_new_hash_as_successor(
+    db: Session, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS imp_documento_successor (
+                predecessor_id TEXT NOT NULL,
+                successor_id TEXT NOT NULL,
+                reason TEXT,
+                UNIQUE(predecessor_id, successor_id)
+            )
+            """
+        )
+    )
+    db.commit()
+
+    existing = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-versionada.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=120,
+        hash_sha256=hashlib.sha256(b"%PDF-1.4 old").hexdigest(),
+        estado="CONFIRMED",
+        usuario_id="tester",
+        datos_confirmados={"currency": "PEN", "total_amount": 100.0},
+    )
+    db.add(existing)
+    db.commit()
+
+    async def fake_extract_text_from_file(_file_bytes: bytes, _filename: str):
+        return {
+            "text": "Factura nueva",
+            "structured_data": None,
+            "format": "PDF",
+        }
+
+    async def fake_analyze_document(*_args, **_kwargs):
+        return {
+            "doc_type": "INVOICE",
+            "confidence": 0.95,
+            "reasoning": "test",
+            "fields": {"currency": "PEN", "total_amount": 150.0},
+            "model_used": "test-model",
+            "prompt_sent": "test",
+            "raw_response": "{}",
+        }
+
+    monkeypatch.setattr(
+        "app.modules.importador.router.extract_text_from_file",
+        fake_extract_text_from_file,
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.router.analyze_document",
+        fake_analyze_document,
+    )
+
+    upload = UploadFile(BytesIO(b"%PDF-1.4 new"), filename="factura-versionada.pdf")
+    result = asyncio.run(
+        upload_files(
+            request=_fake_request(tenant_id),
+            files=[upload],
+            force=False,
+            db=db,
+        )
+    )
+
+    assert len(result) == 1
+    assert str(result[0].id) != str(existing.id)
+    link = db.execute(
+        text(
+            """
+            SELECT predecessor_id, successor_id, reason
+            FROM imp_documento_successor
+            WHERE predecessor_id = :predecessor_id
+            """
+        ),
+        {"predecessor_id": str(existing.id)},
+    ).first()
+    assert link is not None
+    assert str(link.successor_id) == str(result[0].id)
+    assert link.reason == "same_name_new_hash"
+
+
+def test_enqueue_async_batch_force_reprocesses_same_hash_without_creating_duplicate(
+    db: Session, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    file_bytes = b"%PDF-1.4 confirmed"
+    filename = "factura-confirmada.pdf"
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    existing = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo=filename,
+        tipo_archivo="PDF",
+        tamanio_bytes=len(file_bytes),
+        hash_sha256=file_hash,
+        estado="CONFIRMED",
+        usuario_id="tester",
+        datos_extraidos={"currency": "PEN", "total_amount": 2145.0},
+        datos_confirmados={"currency": "PEN", "total_amount": 2145.0},
+        raw_ai_json={"run": {"learning_version_applied": 1}},
+    )
+    db.add(existing)
+    db.commit()
+
+    class _DummyTask:
+        def delay(self, **kwargs):
+            return kwargs
+
+    monkeypatch.setattr("app.modules.importador.tasks.store_payload", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.modules.importador.tasks.process_document_task", _DummyTask())
+    monkeypatch.setattr(
+        "app.modules.importador.batch_service._ensure_batch_tracking_storage",
+        lambda _db: True,
+    )
+
+    upload = UploadFile(BytesIO(file_bytes), filename=filename)
+
+    result = asyncio.run(
+        enqueue_async_batch(
+            files=[upload],
+            tenant_id=tenant_id,
+            user_id=str(uuid4()),
+            force=True,
+            recipe_snapshot_id=None,
+            db=db,
+        )
+    )
+
+    db.refresh(existing)
+    assert len(result) == 1
+    assert str(result[0]["id"]) == str(existing.id)
+    assert existing.estado == "PENDING"
+    assert existing.datos_confirmados is None
+    assert db.query(ImpDocumento).filter(ImpDocumento.nombre_archivo == filename).count() == 1

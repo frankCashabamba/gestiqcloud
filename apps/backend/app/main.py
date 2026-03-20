@@ -204,6 +204,22 @@ async def lifespan(app: FastAPI):
             exc_info=True,
         )
 
+    try:
+        from app.config.database import SessionLocal
+        from app.services.product_raw_materials import (
+            backfill_bakery_raw_material_products,
+            ensure_products_raw_material_column,
+        )
+
+        with SessionLocal() as db:
+            ensure_products_raw_material_column(db)
+            backfill_bakery_raw_material_products(db)
+    except Exception:
+        logging.getLogger("app.startup").warning(
+            "Raw-material product bootstrap failed; continuing startup",
+            exc_info=True,
+        )
+
     # Evitar que la descarga de assets bloquee el bind del puerto en plataformas con timeouts estrictos
     skip_docs_assets = str(os.getenv("DOCS_ASSETS_SKIP", "0")).lower() in ("1", "true", "yes")
     try:

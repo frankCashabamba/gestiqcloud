@@ -112,6 +112,7 @@ class TestProductionIntegration:
         field_names = [f["field"] for f in productos]
 
         assert "receta_id" in field_names
+        assert "is_raw_material" in field_names
         assert "caducidad_dias" in field_names  # Para productos de producción
 
     def test_production_is_restaurante_compatible(self, db):

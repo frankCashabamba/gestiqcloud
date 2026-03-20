@@ -36,7 +36,7 @@ const EXCEL_EXTENSIONS = new Set(['.xlsx', '.xls'])
 const MAX_IMPORT_FILE_SIZE_MB = 16
 const MAX_IMPORT_FILE_SIZE_BYTES = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024
 const TERMINAL_BATCH_STATES = new Set(['COMPLETED', 'FAILED', 'PARTIAL'])
-const TERMINAL_DOCUMENT_STATES = new Set(['REVIEW', 'CONFIRMED', 'REJECTED'])
+const TERMINAL_DOCUMENT_STATES = new Set(['REVIEW', 'CONFIRMED', 'FAILED'])
 const UPLOADER_SESSION_KEY = 'importador.uploader.session.v1'
 
 const FILE_ICONS: Record<string, string> = {
@@ -246,7 +246,6 @@ export default function ImportUploader({
           || item.estado === 'REVIEW'
           || item.estado === 'CONFIRMED'
           || item.estado === 'FAILED'
-          || item.estado === 'REJECTED'
         )
       ) {
         return true

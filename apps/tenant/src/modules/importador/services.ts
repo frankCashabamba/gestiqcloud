@@ -442,6 +442,12 @@ export function canSaveDocument(doc: Pick<Documento, 'tipo_documento_detectado' 
     && !_matchesAny(tipo, _categoryKeywords.payroll  ?? [])
 }
 
+export function hasConfirmedDocumentData(
+  doc: Pick<Documento, 'datos_confirmados'>
+): boolean {
+  return Boolean(doc.datos_confirmados && Object.keys(doc.datos_confirmados).length > 0)
+}
+
 export function canSaveProductsSheet(
   docCategory: DocCategory,
   sheetName: string | null,
@@ -860,6 +866,7 @@ export interface IterationScope {
   filter_estados: string[]
   filter_error_codes: string[]
   filter_campos: string[]
+  filter_columns: string[]
   filter_lines: number[]
   filter_sheet: string | null
 }
@@ -919,6 +926,7 @@ export interface ReviewSession {
   filter_estados: string[]
   filter_error_codes: string[]
   filter_campos: string[]
+  filter_columns: string[]
   filter_lines: number[]
   filter_sheet: string | null
   preview_count: number
@@ -929,12 +937,11 @@ export interface ReviewSession {
 
 // ─── Iterative Reprocessing API Functions ──────────────────────────────────
 
-const BASE = '/api/v1/tenant/importador'
+const ITERATION_BASE = '/api/v1/importador'
 
 export async function fetchStagingSummary(documentoId: string): Promise<StagingLineSummary> {
-  const r = await fetch(`${BASE}/documents/${documentoId}/staging/summary`)
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/staging/summary`)
+  return data
 }
 
 export async function fetchStagingLines(
@@ -947,34 +954,35 @@ export async function fetchStagingLines(
     offset?: number
   } = {}
 ): Promise<StagingLine[]> {
-  const qs = new URLSearchParams()
-  params.estado?.forEach(e => qs.append('estado', e))
-  if (params.error_code) qs.set('error_code', params.error_code)
-  if (params.sheet) qs.set('sheet', params.sheet)
-  if (params.limit) qs.set('limit', String(params.limit))
-  if (params.offset) qs.set('offset', String(params.offset))
-  const r = await fetch(`${BASE}/documents/${documentoId}/staging?${qs}`)
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/staging`, {
+    params: {
+      estado: params.estado,
+      error_code: params.error_code,
+      sheet: params.sheet,
+      limit: params.limit,
+      offset: params.offset,
+    },
+  })
+  return data
 }
 
 export async function fetchFieldAnalysis(
   documentoId: string,
   params: { estados?: string[]; error_codes?: string[]; sheet?: string } = {}
 ): Promise<FieldAnalysis> {
-  const qs = new URLSearchParams()
-  ;(params.estados ?? ['INVALID', 'PENDING', 'REVIEW']).forEach(e => qs.append('estados', e))
-  params.error_codes?.forEach(e => qs.append('error_codes', e))
-  if (params.sheet) qs.set('sheet', params.sheet)
-  const r = await fetch(`${BASE}/documents/${documentoId}/staging/field-analysis?${qs}`)
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/staging/field-analysis`, {
+    params: {
+      estados: params.estados ?? ['INVALID', 'PENDING', 'REVIEW'],
+      error_codes: params.error_codes,
+      sheet: params.sheet,
+    },
+  })
+  return data
 }
 
 export async function fetchIterations(documentoId: string): Promise<IterationRecord[]> {
-  const r = await fetch(`${BASE}/documents/${documentoId}/iterations`)
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/iterations`)
+  return data
 }
 
 export async function runIteration(
@@ -987,17 +995,13 @@ export async function runIteration(
       filter_estados: scope.filter_estados ?? [],
       filter_error_codes: scope.filter_error_codes ?? [],
       filter_campos: scope.filter_campos ?? [],
+      filter_columns: scope.filter_columns ?? [],
       filter_lines: scope.filter_lines ?? [],
       filter_sheet: scope.filter_sheet ?? null,
     },
   }
-  const r = await fetch(`${BASE}/documents/${documentoId}/iterate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const { data } = await api.post(`${ITERATION_BASE}/documents/${documentoId}/iterate`, body)
+  return data
 }
 
 export async function createReviewSession(
@@ -1006,29 +1010,23 @@ export async function createReviewSession(
     filter_estados?: string[]
     filter_error_codes?: string[]
     filter_campos?: string[]
+    filter_columns?: string[]
     filter_lines?: number[]
     filter_sheet?: string | null
   }
 ): Promise<ReviewSession> {
-  const r = await fetch(`${BASE}/documents/${documentoId}/review-session`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(filters),
-  })
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const { data } = await api.post(`${ITERATION_BASE}/documents/${documentoId}/review-session`, filters)
+  return data
 }
 
 export async function runReviewSession(
   documentoId: string,
   sessionId: string
 ): Promise<IterationResult> {
-  const r = await fetch(
-    `${BASE}/documents/${documentoId}/review-session/${sessionId}/run`,
-    { method: 'POST' }
+  const { data } = await api.post(
+    `${ITERATION_BASE}/documents/${documentoId}/review-session/${sessionId}/run`
   )
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  return data
 }
 
 export async function patchStagingLine(
@@ -1040,13 +1038,8 @@ export async function patchStagingLine(
     normalized_data?: Record<string, unknown> | null
   }
 ): Promise<StagingLine> {
-  const r = await fetch(`${BASE}/documents/${documentoId}/staging/${lineId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const { data } = await api.patch(`${ITERATION_BASE}/documents/${documentoId}/staging/${lineId}`, patch)
+  return data
 }
 
 export async function bulkPatchStagingLines(
@@ -1055,15 +1048,10 @@ export async function bulkPatchStagingLines(
   estado: 'REPROCESS' | 'REVIEW' | 'SKIPPED',
   camposRevision?: string[]
 ): Promise<{ updated: number; estado: string }> {
-  const r = await fetch(`${BASE}/documents/${documentoId}/staging/bulk`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      line_ids: lineIds,
-      estado,
-      campos_revision: camposRevision ?? null,
-    }),
+  const { data } = await api.patch(`${ITERATION_BASE}/documents/${documentoId}/staging/bulk`, {
+    line_ids: lineIds,
+    estado,
+    campos_revision: camposRevision ?? null,
   })
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  return data
 }

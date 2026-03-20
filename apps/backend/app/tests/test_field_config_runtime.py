@@ -95,6 +95,21 @@ def test_company_field_config_uses_products_alias_for_tenant_sector(client: Test
     assert "color" in field_names
 
 
+def test_company_field_config_includes_raw_material_for_bakery_products(client: TestClient, db):
+    tenant = Tenant(
+        id=uuid4(), name="Bakery Products", slug="bakery-products", sector_template_name="panaderia"
+    )
+    db.add(tenant)
+    db.commit()
+
+    response = client.get("/api/v1/company/settings/fields?module=products&empresa=bakery-products")
+
+    assert response.status_code == 200
+    body = response.json()
+    field_names = [item["field"] for item in body["items"]]
+    assert "is_raw_material" in field_names
+
+
 def test_company_field_config_reads_legacy_products_module_rows(client: TestClient, db):
     tenant = Tenant(
         id=uuid4(), name="Legacy Products", slug="legacy-products", sector_template_name="legacy"

@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.models.importador import ImpBatchImport, ImpBatchItem
 
 from . import crud
-from .auto_recipe import should_reprocess_existing_document
 from .ocr_service import detect_file_type
 from .snapshot_learning import bootstrap_learning_from_existing_document
 
@@ -150,8 +149,9 @@ async def enqueue_async_batch(
         )
 
     active_docs = crud.count_documentos_en_estados(db, tenant_id, ("PENDING", "PROCESSING"))
-    staged_uploads: list[tuple[str, bytes, int, str, str]] = []
+    staged_uploads: list[tuple[str, bytes, int, str, str, object | None]] = []
     existing_matches: list[tuple[object, str, int, str]] = []
+    rerun_existing: list[tuple[object, str, bytes, int, str, str]] = []
     batch_size_bytes = 0
 
     for file in files:
@@ -190,31 +190,45 @@ async def enqueue_async_batch(
                 )
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-        if not force:
-            existing = crud.find_existing_documento(db, tenant_id, filename, file_size, file_hash)
-            if existing and existing.estado in ("PENDING", "PROCESSING", "CONFIRMED", "REVIEW"):
-                if existing.estado in ("CONFIRMED", "REVIEW"):
-                    bootstrap_learning_from_existing_document(db, existing, user_id)
-                if existing.estado in ("CONFIRMED", "REVIEW") and should_reprocess_existing_document(
-                    db, existing
-                ):
-                    existing = None
-                if existing is None:
-                    staged_uploads.append((filename, file_bytes, file_size, file_hash, tipo_archivo))
-                    continue
+        existing = None if force and not file_hash else crud.find_existing_documento(
+            db, tenant_id, filename, file_size, file_hash
+        )
+        exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
+        if existing:
+            if existing.estado in ("CONFIRMED", "REVIEW"):
+                bootstrap_learning_from_existing_document(db, existing, user_id)
+
+            if existing.estado in ("PENDING", "PROCESSING"):
                 existing_matches.append((existing, filename, file_size, file_hash))
                 continue
 
-        staged_uploads.append((filename, file_bytes, file_size, file_hash, tipo_archivo))
+            if existing.estado in ("CONFIRMED", "REVIEW") and not force:
+                existing_matches.append((existing, filename, file_size, file_hash))
+                continue
 
-    if not staged_uploads and not existing_matches:
+            if exact_hash_match and existing.estado in ("FAILED", "REVIEW", "CONFIRMED"):
+                rerun_existing.append(
+                    (existing, filename, file_bytes, file_size, file_hash, tipo_archivo)
+                )
+                continue
+
+        predecessor = crud.find_latest_documento_by_name(
+            db,
+            tenant_id,
+            filename,
+            exclude_hash_sha256=file_hash,
+        )
+        staged_uploads.append((filename, file_bytes, file_size, file_hash, tipo_archivo, predecessor))
+
+    if not staged_uploads and not existing_matches and not rerun_existing:
         raise HTTPException(status_code=400, detail="No hay archivos validos para importar.")
-    if active_docs + len(staged_uploads) > max_queue_per_tenant:
+    queued_docs = len(staged_uploads) + len(rerun_existing)
+    if active_docs + queued_docs > max_queue_per_tenant:
         raise HTTPException(
             status_code=429,
             detail=(
                 f"Cola del importador llena para este tenant: {active_docs} en curso y "
-                f"{len(staged_uploads)} nuevos. Limite actual: {max_queue_per_tenant}."
+                f"{queued_docs} nuevos. Limite actual: {max_queue_per_tenant}."
             ),
         )
 
@@ -225,7 +239,7 @@ async def enqueue_async_batch(
         "tenant_id": tenant_id,
         "usuario_id": user_id,
         "estado": "PENDING",
-        "total_items": len(existing_matches) + len(staged_uploads),
+        "total_items": len(existing_matches) + len(staged_uploads) + len(rerun_existing),
         "force_reprocess": force,
         "recipe_snapshot_id": _coerce_uuid(recipe_snapshot_id),
     }
@@ -268,9 +282,66 @@ async def enqueue_async_batch(
         )
     db.commit()
 
-    for offset, (filename, file_bytes, file_size, file_hash, tipo_archivo) in enumerate(
+    rerun_start = len(existing_matches)
+    for offset, (existing, filename, file_bytes, file_size, file_hash, tipo_archivo) in enumerate(
+        rerun_existing,
+        start=rerun_start,
+    ):
+        crud.reset_documento_for_reprocess(
+            db,
+            existing,
+            estado="PENDING",
+            clear_recipe_snapshot=True,
+        )
+        batch_item = crud.create_batch_item(
+            db,
+            {
+                "batch_id": batch.id,
+                "tenant_id": tenant_id,
+                "documento_id": existing.id,
+                "nombre_archivo": filename,
+                "tamanio_bytes": file_size,
+                "hash_sha256": file_hash,
+                "orden": offset,
+                "estado": "PENDING",
+            },
+        )
+        crud.add_log(
+            db,
+            existing.id,
+            "REPROCESS",
+            user_id,
+            {"filename": filename, "size": file_size, "mode": "async", "batch_id": str(batch.id)},
+        )
+        db.commit()
+
+        await asyncio.to_thread(store_payload, str(existing.id), file_bytes)
+        if process_document_task:
+            process_document_task.delay(
+                doc_id=str(existing.id),
+                tenant_id=str(tenant_id),
+                user_id=user_id,
+                filename=filename,
+                tipo_archivo=tipo_archivo,
+                recipe_snapshot_id=str(recipe_snapshot_id) if recipe_snapshot_id else None,
+                force=force,
+            )
+        else:
+            logger.warning("Celery no disponible; dejando documento %s en PENDING", existing.id)
+
+        results.append(
+            {
+                "id": existing.id,
+                "batch_id": batch.id,
+                "batch_item_id": batch_item.id,
+                "estado": "PENDING",
+                "nombre_archivo": filename,
+            }
+        )
+
+    for offset, (filename, file_bytes, file_size, file_hash, tipo_archivo, predecessor) in enumerate(
         staged_uploads,
-        start=len(existing_matches),
+        start=rerun_start + len(rerun_existing),
     ):
         doc = crud.create_documento(
             db,
@@ -284,6 +355,8 @@ async def enqueue_async_batch(
                 "usuario_id": user_id,
             },
         )
+        if predecessor and predecessor.id != doc.id:
+            crud.link_documento_successor(db, predecessor.id, doc.id)
         batch_item = crud.create_batch_item(
             db,
             {

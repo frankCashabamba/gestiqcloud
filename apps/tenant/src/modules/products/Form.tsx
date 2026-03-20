@@ -38,6 +38,7 @@ export default function ProductoForm() {
         active: true,
         stock: 0,
         unit: 'unit',
+        is_raw_material: false,
     })
     const { success, error } = useToast()
     const [fields, setFields] = useState<FieldCfg[] | null>(null)
@@ -98,6 +99,11 @@ export default function ProductoForm() {
         }
     }, [])
 
+    const isBakerySector = useMemo(
+        () => (fields || []).some((cfg) => ['peso_unitario', 'caducidad_dias', 'ingredientes', 'receta_id'].includes(cfg.field)),
+        [fields]
+    )
+
     const fieldList = useMemo(() => {
         const base: FieldCfg[] = [
             { field: 'sku', visible: true, required: false, ord: 10, label: t('products:form.sku'), type: 'text', help: t('products:form.skuHelp') },
@@ -106,6 +112,7 @@ export default function ProductoForm() {
             { field: 'description', visible: true, required: false, ord: 25, label: t('products:form.description'), type: 'textarea' },
             { field: 'price', visible: true, required: true, ord: 30, label: `${t('products:form.price')} (${currencySymbol})`, type: 'number' },
             { field: 'stock', visible: true, required: false, ord: 35, label: t('products:form.stock'), type: 'number' },
+            { field: 'is_raw_material', visible: isBakerySector, required: false, ord: 37, label: t('products:form.rawMaterial', 'Materia prima'), type: 'boolean', help: t('products:form.rawMaterialHelp', 'Marca este producto si se usa como ingrediente o insumo de producción.') },
             { field: 'tax_rate', visible: true, required: false, ord: 40, label: t('products:form.tax'), type: 'number' },
             { field: 'active', visible: true, required: false, ord: 50, label: t('products:form.active'), type: 'boolean' },
             { field: 'import_aliases', visible: false, required: false, ord: 90, label: t('products:form.importAliases', 'Alias de importación'), type: 'import_aliases', help: t('products:form.importAliasesHelp', 'Nombres alternativos en facturas de proveedor con factor de conversión.') },
@@ -127,7 +134,7 @@ export default function ProductoForm() {
             })
 
         return Array.from(map.values()).sort((a, b) => (a.ord || 999) - (b.ord || 999))
-    }, [fields, currencySymbol])
+    }, [fields, currencySymbol, isBakerySector, t])
 
     const suggestedPrice = Number((form as any).suggested_price ?? 0) || 0
     const useSuggestedPrice = Boolean((form as any).use_suggested_price)
@@ -247,6 +254,12 @@ export default function ProductoForm() {
             // Validación de precio
             if (form.price !== undefined && form.price < 0) {
                 throw new Error(t('products:form.priceNegativeError'))
+            }
+
+            const normalizedUnit = String(form.unit || '').trim().toLowerCase()
+            const genericUnits = new Set(['', 'unit', 'units'])
+            if (isBakerySector && Boolean(form.is_raw_material) && genericUnits.has(normalizedUnit)) {
+                throw new Error('Las materias primas de panaderia deben usar una unidad explicita como kg, g, L, ml o uds.')
             }
 
             const metadata = { ...(((form.product_metadata ?? {}) as Record<string, unknown>) ?? {}) }

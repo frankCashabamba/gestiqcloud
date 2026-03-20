@@ -4,6 +4,7 @@ import SaveDocumentModal from '../components/SaveDocumentModal'
 import {
   canSaveDocument,
   fetchDocuments,
+  hasConfirmedDocumentData,
   purgeAllImportador,
   suggestSaveDestination,
   type Documento,
@@ -243,7 +244,10 @@ export default function DocumentList() {
               )}
 
               {docs.map((doc) => {
-                const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && doc.estado !== 'REJECTED'
+                const destination = suggestSaveDestination(doc)
+                const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && (
+                  destination === 'recipe' || hasConfirmedDocumentData(doc)
+                )
                 return (
                   <tr
                     key={doc.id}
@@ -280,7 +284,7 @@ export default function DocumentList() {
                           background: saveEnabled ? '#0f766e' : '#cbd5e1',
                           cursor: saveEnabled ? 'pointer' : 'not-allowed',
                         }}
-                        title={saveEnabled ? getSaveLabel(doc) : 'Tipo no soportado para guardado directo'}
+                        title={saveEnabled ? getSaveLabel(doc) : 'Tipo no soportado o documento sin confirmar'}
                       >
                         {saveEnabled ? getSaveLabel(doc) : 'Sin destino'}
                       </button>

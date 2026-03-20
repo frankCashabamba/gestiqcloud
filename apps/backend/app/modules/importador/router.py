@@ -7,7 +7,6 @@ import hashlib
 import logging
 import os
 import re
-import unicodedata
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -28,11 +27,9 @@ from .auto_recipe import (
     remember_snapshot_learning,
     resolve_auto_recipe,
     resolve_auto_recipe_from_text,
-    should_reprocess_existing_document,
 )
 from .canonical_document import build_document_projection
 from .document_fields import (
-    detect_document_currency,
     detect_document_date,
     detect_document_payment_method,
     detect_document_subtotal,
@@ -61,12 +58,10 @@ from .schemas import (
     ConfirmRequest,
     DashboardStats,
     DocumentLineMatchesResponse,
-    DocumentLineMatchOut,
     DocumentoDetailOut,
     DocumentoListOut,
     DocumentoOut,
     EditFieldsRequest,
-    ProductMatchCandidateOut,
     SaveDailyLogRequest,
     SaveDailyLogResponse,
     SaveDocumentLineMatch,
@@ -95,10 +90,8 @@ from .services.iteration_service import (
     count_lines_for_scope,
     count_staging_lines,
     fetch_lines_for_scope,
-    get_last_iteration,
     load_error_affected_fields,
     run_iteration,
-    update_staging_line_estado,
     upsert_staging_lines_from_extraction,
 )
 from .field_alias_loader import get_canonical_fields, get_field_aliases
@@ -138,9 +131,29 @@ def _get_doc_import_data(doc) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _get_confirmed_doc_import_data(doc) -> dict:
+    data = doc.datos_confirmados or {}
+    return data if isinstance(data, dict) else {}
+
+
+def _require_confirmed_doc_import_data(doc, destination: str) -> dict:
+    data = _get_confirmed_doc_import_data(doc)
+    if data:
+        return data
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            "Debes confirmar el documento antes de guardarlo en "
+            f"{destination}."
+        ),
+    )
+
+
 def _extract_document_line_items(data: dict, aliases: list[str] | None = None) -> list[dict]:
     keys = aliases or []
     raw = get_data_value(data, *keys) if keys else None
+    if not isinstance(raw, list):
+        raw = data.get("line_items") or data.get("lineas") or data.get("items")
     if not isinstance(raw, list):
         return []
     return [item for item in raw if isinstance(item, dict)]
@@ -224,6 +237,11 @@ def _get_document_payment_method(data: dict, aliases: list[str] | None = None) -
     detected = detect_document_payment_method(data, aliases=aliases)
     if detected:
         return detected
+    direct_value = data.get("payment_method")
+    if direct_value is not None:
+        text = str(direct_value).strip()
+        if text:
+            return text
     save_meta = data.get("_save")
     if isinstance(save_meta, dict):
         saved_method = save_meta.get("payment_method")
@@ -925,16 +943,17 @@ async def upload_files(
         tipo_archivo = tipo_archivo or detect_file_type(filename)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-        existing = (
-            None
-            if force
-            else crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
+        reuse_existing = bool(
+            existing
+            and (
+                existing.estado in ("PENDING", "PROCESSING")
+                or (existing.estado in ("CONFIRMED", "REVIEW") and not force)
+            )
         )
-        reuse_existing = bool(existing and existing.estado in ("CONFIRMED", "REVIEW"))
         if reuse_existing:
             bootstrap_learning_from_existing_document(db, existing, user_id)
-        if reuse_existing and should_reprocess_existing_document(db, existing):
-            reuse_existing = False
         if reuse_existing:
             # Reutiliza resultado anterior para ahorrar tiempo
             crud.add_log(
@@ -953,19 +972,54 @@ async def upload_files(
             )
             return
 
-        doc = crud.create_documento(
-            db,
-            {
-                "tenant_id": tenant_id,
-                "nombre_archivo": filename,
-                "tipo_archivo": tipo_archivo,
-                "tamanio_bytes": len(file_bytes),
-                "hash_sha256": file_hash,
-                "estado": "PROCESSING",
-                "usuario_id": user_id,
-            },
-        )
-        crud.add_log(db, doc.id, "UPLOAD", user_id, {"filename": filename, "size": len(file_bytes)})
+        predecessor = None
+        if exact_hash_match and existing and (
+            existing.estado == "FAILED"
+            or (existing.estado in ("CONFIRMED", "REVIEW") and force)
+            or (existing.estado == "REVIEW" and not reuse_existing)
+        ):
+            doc = existing
+            crud.reset_documento_for_reprocess(
+                db,
+                doc,
+                estado="PROCESSING",
+                clear_recipe_snapshot=True,
+            )
+            crud.add_log(
+                db,
+                doc.id,
+                "REPROCESS",
+                user_id,
+                {"filename": filename, "size": len(file_bytes), "mode": "in_place"},
+            )
+        else:
+            predecessor = crud.find_latest_documento_by_name(
+                db,
+                tenant_id,
+                filename,
+                exclude_hash_sha256=file_hash,
+            )
+            doc = crud.create_documento(
+                db,
+                {
+                    "tenant_id": tenant_id,
+                    "nombre_archivo": filename,
+                    "tipo_archivo": tipo_archivo,
+                    "tamanio_bytes": len(file_bytes),
+                    "hash_sha256": file_hash,
+                    "estado": "PROCESSING",
+                    "usuario_id": user_id,
+                },
+            )
+            if predecessor and predecessor.id != doc.id:
+                crud.link_documento_successor(db, predecessor.id, doc.id)
+            crud.add_log(
+                db,
+                doc.id,
+                "UPLOAD",
+                user_id,
+                {"filename": filename, "size": len(file_bytes)},
+            )
         db.commit()
 
         try:
@@ -1576,9 +1630,14 @@ def save_document(
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     destination = body.destination or _infer_save_destination(doc, db)
+    doc_import_data = (
+        _require_confirmed_doc_import_data(doc, destination)
+        if destination in ("expense", "supplier_invoice")
+        else _get_doc_import_data(doc)
+    )
 
     if destination == "recipe":
-        data = _get_doc_import_data(doc)
+        data = doc_import_data
         available_sheets = get_available_recipe_sheets(data)
         if not available_sheets:
             raise HTTPException(
@@ -1676,7 +1735,7 @@ def save_document(
     resolved_payment_method = None
     resolved_payment_method_id = None
     if destination != "recipe":
-        detected_payment_method = _get_document_payment_method(_get_doc_import_data(doc))
+        detected_payment_method = _get_document_payment_method(doc_import_data)
         resolved_payment_method, resolved_payment_method_id = _resolve_payment_method(
             db,
             doc.tenant_id,
@@ -1689,7 +1748,7 @@ def save_document(
         if destination != "recipe"
         else {"status": None, "paid_amount": None, "pending_amount": None}
     )
-    confirmed = dict(_get_doc_import_data(doc))
+    confirmed = dict(doc_import_data)
     confirmed["_save"] = {
         "destination": destination,
         "target": result.target,
@@ -2431,11 +2490,12 @@ def create_review_session(
     scope = IterationScopeIn(
         mode="SELECTIVE" if any([
             body.filter_estados, body.filter_error_codes,
-            body.filter_campos, body.filter_lines, body.filter_sheet,
+            body.filter_campos, body.filter_columns, body.filter_lines, body.filter_sheet,
         ]) else "ALL",
         filter_estados=body.filter_estados,
         filter_error_codes=body.filter_error_codes,
         filter_campos=body.filter_campos,
+        filter_columns=body.filter_columns,
         filter_lines=body.filter_lines,
         filter_sheet=body.filter_sheet,
     )
@@ -2449,6 +2509,7 @@ def create_review_session(
         filter_estados=body.filter_estados,
         filter_error_codes=body.filter_error_codes,
         filter_campos=body.filter_campos,
+        filter_columns=body.filter_columns,
         filter_lines=body.filter_lines,
         filter_sheet=body.filter_sheet,
         preview_count=preview_count,
@@ -2498,11 +2559,12 @@ def run_review_session(
     scope = IterationScopeIn(
         mode="SELECTIVE" if any([
             session.filter_estados, session.filter_error_codes,
-            session.filter_campos, session.filter_lines, session.filter_sheet,
+            session.filter_campos, session.filter_columns, session.filter_lines, session.filter_sheet,
         ]) else "ALL",
         filter_estados=list(session.filter_estados or []),
         filter_error_codes=list(session.filter_error_codes or []),
         filter_campos=list(session.filter_campos or []),
+        filter_columns=list(session.filter_columns or []),
         filter_lines=list(session.filter_lines or []),
         filter_sheet=session.filter_sheet,
     )

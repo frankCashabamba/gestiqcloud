@@ -4,11 +4,45 @@ import { useTranslation } from 'react-i18next'
 import { useImportReprocess } from '../hooks/useImportReprocess'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
-import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, hasConfirmedDocumentData, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
 function getCurrentDocumentData(doc: Documento | null): Record<string, unknown> {
   const source = doc?.datos_confirmados || doc?.datos_extraidos
   return source && typeof source === 'object' ? source as Record<string, unknown> : {}
+}
+
+const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS'] as const
+
+function toggleStringValue(values: string[], value: string, checked: boolean): string[] {
+  if (!value) return values
+  return checked
+    ? (values.includes(value) ? values : [...values, value])
+    : values.filter(item => item !== value)
+}
+
+function toggleNumberValue(values: number[], value: number, checked: boolean): number[] {
+  return checked
+    ? (values.includes(value) ? values : [...values, value])
+    : values.filter(item => item !== value)
+}
+
+function getObjectKeys(value: unknown): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.keys(value as Record<string, unknown>).filter(Boolean)
+}
+
+function getStagingLineColumns(line: StagingLine): string[] {
+  return Array.from(new Set([
+    ...getObjectKeys(line.raw_data),
+    ...getObjectKeys(line.normalized_data),
+  ])).sort((a, b) => a.localeCompare(b))
+}
+
+function formatSelection(values: Array<string | number>, emptyLabel: string): string {
+  if (!values.length) return emptyLabel
+  const items = values.map(value => String(value))
+  if (items.length <= 4) return items.join(', ')
+  return `${items.slice(0, 4).join(', ')} +${items.length - 4}`
 }
 
 export default function DocumentDetail() {
@@ -41,6 +75,9 @@ export default function DocumentDetail() {
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
   const reprocess = useImportReprocess(id ?? '')
   const [selectedFields, setSelectedFields] = useState<string[]>([])
+  const [selectedErrorCodes, setSelectedErrorCodes] = useState<string[]>([])
+  const [selectedLineNumbers, setSelectedLineNumbers] = useState<number[]>([])
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([])
 
   useEffect(() => { fetchSaveCapabilities().then(setCapabilities).catch(() => {}) }, [])
 
@@ -80,6 +117,31 @@ export default function DocumentDetail() {
       setActiveSheet(null)
     }
   }, [doc?.id])
+
+  useEffect(() => {
+    setSelectedFields([])
+    setSelectedErrorCodes([])
+    setSelectedLineNumbers([])
+    setSelectedColumns([])
+  }, [doc?.id])
+
+  const resetSelectiveFilters = () => {
+    setSelectedFields([])
+    setSelectedErrorCodes([])
+    setSelectedLineNumbers([])
+    setSelectedColumns([])
+  }
+
+  const handleInspectReprocess = async () => {
+    await Promise.all([
+      reprocess.inspectFields([...REPROCESSABLE_STATES], [], activeSheet || undefined),
+      reprocess.loadLines({
+        estado: [...REPROCESSABLE_STATES],
+        sheet: activeSheet || undefined,
+        limit: 200,
+      }),
+    ])
+  }
 
   const handleConfirm = async () => {
     if (!id || !doc) return
@@ -200,8 +262,9 @@ export default function DocumentDetail() {
   const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
   const isSynced = syncedCount > 0
   const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
-  const saveEnabled = canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && doc.estado !== 'REJECTED'
   const saveDestination = suggestSaveDestination(doc)
+  const requiresConfirmedSave = saveDestination !== 'recipe'
+  const saveEnabled = canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && (!requiresConfirmedSave || hasConfirmedDocumentData(doc))
   const docCategory = getDocCategory(doc, sheets)
   const activeSheetRows = (() => {
     if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
@@ -249,6 +312,26 @@ export default function DocumentDetail() {
     auto_text_fingerprint: 'Auto-plantilla texto',
     force_clean: 'Reimportacion limpia',
   } as Record<string, string>)[aiModeKey] || aiModeKey
+  const reprocessableLines = reprocess.lines.filter(line => REPROCESSABLE_STATES.includes(line.estado as (typeof REPROCESSABLE_STATES)[number]))
+  const availableErrorCodes = Array.from(new Set([
+    ...Object.keys(reprocess.fieldAnalysis?.error_summary || {}),
+    ...reprocessableLines
+      .map(line => line.error_code)
+      .filter((code): code is string => Boolean(code)),
+  ])).sort((a, b) => a.localeCompare(b))
+  const availableColumns = Array.from(new Set(
+    reprocessableLines.flatMap(line => getStagingLineColumns(line))
+  )).sort((a, b) => a.localeCompare(b))
+  const hasSelectiveFilters = selectedFields.length > 0
+    || selectedErrorCodes.length > 0
+    || selectedLineNumbers.length > 0
+    || selectedColumns.length > 0
+  const reviewSessionLabel = [
+    `Campos: ${formatSelection(selectedFields, 'todos')}`,
+    `Columnas: ${formatSelection(selectedColumns, 'todas')}`,
+    `Errores: ${formatSelection(selectedErrorCodes, 'todos')}`,
+    `Lineas: ${formatSelection(selectedLineNumbers, 'todas')}`,
+  ].join(' · ')
 
   const handleSaved = (_result: SaveDocumentResult) => {
     void load()
@@ -385,7 +468,7 @@ export default function DocumentDetail() {
                 {savingDailyLog ? t('docDetail.buttons.savingDailyLog') : dailyLogResult ? t('docDetail.buttons.resaveDailyLog') : t('docDetail.buttons.saveDailyLog')}
               </button>
               <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280' }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280' }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -406,7 +489,7 @@ export default function DocumentDetail() {
                 {syncing ? '...' : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
               </button>
               <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -423,7 +506,7 @@ export default function DocumentDetail() {
                   <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -440,7 +523,7 @@ export default function DocumentDetail() {
                   <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
 
@@ -463,7 +546,7 @@ export default function DocumentDetail() {
                 </>
               )}
               <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate('../upload?reimport=force')} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
         </div>
@@ -795,7 +878,7 @@ export default function DocumentDetail() {
             <div style={{ marginBottom: '0.75rem' }}>
               <button
                 disabled={reprocess.isLoading}
-                onClick={() => { void reprocess.inspectFields() }}
+                onClick={() => { void handleInspectReprocess() }}
                 style={{
                   padding: '0.45rem 1rem',
                   background: reprocess.isLoading ? '#94A3B8' : '#6366F1',
@@ -807,7 +890,7 @@ export default function DocumentDetail() {
                   fontWeight: 600,
                 }}
               >
-                {reprocess.isLoading ? 'Analizando...' : 'Inspeccionar campos detectados'}
+                {reprocess.isLoading ? 'Analizando...' : 'Inspeccionar campos, columnas, lineas y errores'}
               </button>
             </div>
           )}
@@ -818,6 +901,67 @@ export default function DocumentDetail() {
               {reprocess.fieldAnalysis.error_summary && Object.keys(reprocess.fieldAnalysis.error_summary).length > 0 && (
                 <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
                   Errores detectados: {Object.entries(reprocess.fieldAnalysis.error_summary).map(([k, v]) => `${k} (${v})`).join(', ')}
+                </div>
+              )}
+              {availableErrorCodes.length > 0 && (
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Tipos de error</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {availableErrorCodes.map(code => {
+                      const checked = selectedErrorCodes.includes(code)
+                      const errorCount = reprocess.fieldAnalysis?.error_summary?.[code]
+                        ?? reprocessableLines.filter(line => line.error_code === code).length
+                      return (
+                        <label
+                          key={code}
+                          style={{
+                            ...selectionChip,
+                            background: checked ? '#FEE2E2' : '#fff',
+                            borderColor: checked ? '#EF4444' : '#E5E7EB',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              setSelectedErrorCodes(prev => toggleStringValue(prev, code, e.target.checked))
+                            }}
+                          />
+                          <span>{code}</span>
+                          <span style={{ color: '#6B7280' }}>({errorCount})</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {availableColumns.length > 0 && (
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Columnas detectadas</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {availableColumns.map(column => {
+                      const checked = selectedColumns.includes(column)
+                      return (
+                        <label
+                          key={column}
+                          style={{
+                            ...selectionChip,
+                            background: checked ? '#E0F2FE' : '#fff',
+                            borderColor: checked ? '#0EA5E9' : '#E5E7EB',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              setSelectedColumns(prev => toggleStringValue(prev, column, e.target.checked))
+                            }}
+                          />
+                          <span>{column}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
               <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
@@ -862,11 +1006,7 @@ export default function DocumentDetail() {
                               type="checkbox"
                               checked={selectedFields.includes(field.field)}
                               onChange={e => {
-                                setSelectedFields(prev =>
-                                  e.target.checked
-                                    ? [...prev, field.field]
-                                    : prev.filter(f => f !== field.field)
-                                )
+                                setSelectedFields(prev => toggleStringValue(prev, field.field, e.target.checked))
                               }}
                             />
                           </td>
@@ -876,23 +1016,86 @@ export default function DocumentDetail() {
                   </tbody>
                 </table>
               </div>
+              {reprocessableLines.length > 0 && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                    Lineas detectadas ({reprocessableLines.length})
+                  </div>
+                  <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto', padding: '0.5rem', border: '1px solid #E5E7EB', borderRadius: 8, background: '#F9FAFB' }}>
+                    {reprocessableLines.map(line => {
+                      const checked = selectedLineNumbers.includes(line.line_number)
+                      const preview = Object.entries(line.normalized_data || line.raw_data || {})
+                        .slice(0, 3)
+                        .map(([key, value]) => `${key}: ${String(value)}`)
+                        .join(' · ')
+                      return (
+                        <label
+                          key={line.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                            padding: '0.45rem 0.55rem',
+                            borderRadius: 6,
+                            border: `1px solid ${checked ? '#38BDF8' : '#E5E7EB'}`,
+                            background: checked ? '#F0F9FF' : '#fff',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              setSelectedLineNumbers(prev => toggleNumberValue(prev, line.line_number, e.target.checked))
+                            }}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 2 }}>
+                              <strong>Linea {line.line_number}</strong>
+                              <span style={{ color: '#6B7280' }}>{line.sheet_name || '__document__'}</span>
+                              <span style={{ color: line.error_code ? '#B91C1C' : '#6B7280' }}>
+                                {line.error_code || line.estado}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {preview || 'Sin vista previa'}
+                            </div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <div style={{ marginTop: '0.6rem' }}>
                 <button
-                  disabled={selectedFields.length === 0 || reprocess.isLoading}
-                  onClick={() => { void reprocess.buildReviewSession({ filter_campos: selectedFields }) }}
+                  disabled={!hasSelectiveFilters || reprocess.isLoading}
+                  onClick={() => {
+                    void reprocess.buildReviewSession({
+                      filter_estados: [...REPROCESSABLE_STATES],
+                      filter_error_codes: selectedErrorCodes,
+                      filter_campos: selectedFields,
+                      filter_columns: selectedColumns,
+                      filter_lines: selectedLineNumbers,
+                      filter_sheet: activeSheet || null,
+                    })
+                  }}
                   style={{
                     padding: '0.45rem 1rem',
-                    background: selectedFields.length === 0 ? '#D1D5DB' : '#0EA5E9',
-                    color: selectedFields.length === 0 ? '#9CA3AF' : '#fff',
+                    background: !hasSelectiveFilters ? '#D1D5DB' : '#0EA5E9',
+                    color: !hasSelectiveFilters ? '#9CA3AF' : '#fff',
                     border: 'none',
                     borderRadius: 6,
-                    cursor: selectedFields.length === 0 || reprocess.isLoading ? 'not-allowed' : 'pointer',
+                    cursor: !hasSelectiveFilters || reprocess.isLoading ? 'not-allowed' : 'pointer',
                     fontSize: 14,
                     fontWeight: 600,
                   }}
                 >
-                  Crear sesión con {selectedFields.length} campo{selectedFields.length !== 1 ? 's' : ''} seleccionado{selectedFields.length !== 1 ? 's' : ''}
+                  Crear sesión selectiva
                 </button>
+                <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
+                  {reviewSessionLabel}
+                </div>
               </div>
             </div>
           )}
@@ -902,6 +1105,12 @@ export default function DocumentDetail() {
             <div style={{ padding: '0.75rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14 }}>
               <div style={{ color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
                 Sesión creada · {reprocess.activeSession.preview_count} líneas se verán afectadas · Campos: {(reprocess.activeSession.filter_campos ?? []).join(', ')}
+              </div>
+              <div style={{ fontSize: 12, color: '#1E3A8A', marginBottom: 8 }}>
+                Campos: {formatSelection(reprocess.activeSession.filter_campos ?? [], 'todos')}
+                {' · '}Columnas: {formatSelection(reprocess.activeSession.filter_columns ?? [], 'todas')}
+                {' · '}Errores: {formatSelection(reprocess.activeSession.filter_error_codes ?? [], 'todos')}
+                {' · '}Lineas: {formatSelection(reprocess.activeSession.filter_lines ?? [], 'todas')}
               </div>
               <button
                 disabled={reprocess.isRunning}
@@ -948,7 +1157,7 @@ export default function DocumentDetail() {
                   <button
                     onClick={() => {
                       void reprocess.refreshSummary()
-                      setSelectedFields([])
+                      resetSelectiveFilters()
                     }}
                     style={{
                       marginTop: 8,
@@ -1023,5 +1232,6 @@ export default function DocumentDetail() {
 
 const section: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', background: '#fff' }
 const actionBtn: React.CSSProperties = { padding: '0.5rem 1rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }
+const selectionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.35rem 0.55rem', border: '1px solid #E5E7EB', borderRadius: 999, cursor: 'pointer', fontSize: 12 }
 const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 13, fontWeight: 600 }
 const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444' }

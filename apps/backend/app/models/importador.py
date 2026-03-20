@@ -115,10 +115,10 @@ class ImpDocumento(Base):
     batch_items: Mapped[list[ImpBatchItem]] = relationship(
         "ImpBatchItem", back_populates="documento", cascade="all, delete-orphan"
     )
-    staging_lines: Mapped[list["ImpStagingLine"]] = relationship(
+    staging_lines: Mapped[list[ImpStagingLine]] = relationship(
         "ImpStagingLine", back_populates="documento", cascade="all, delete-orphan"
     )
-    iterations: Mapped[list["ImpIteration"]] = relationship(
+    iterations: Mapped[list[ImpIteration]] = relationship(
         "ImpIteration", back_populates="documento", cascade="all, delete-orphan"
     )
 
@@ -322,8 +322,8 @@ class ImpStagingLine(Base):
     )
     imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    documento: Mapped["ImpDocumento"] = relationship("ImpDocumento", back_populates="staging_lines")
-    error_logs: Mapped[list["ImpLineErrorLog"]] = relationship(
+    documento: Mapped[ImpDocumento] = relationship("ImpDocumento", back_populates="staging_lines")
+    error_logs: Mapped[list[ImpLineErrorLog]] = relationship(
         "ImpLineErrorLog", back_populates="staging_line", cascade="all, delete-orphan"
     )
 
@@ -365,8 +365,8 @@ class ImpIteration(Base):
     initiated_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    documento: Mapped["ImpDocumento"] = relationship("ImpDocumento", back_populates="iterations")
-    error_logs: Mapped[list["ImpLineErrorLog"]] = relationship(
+    documento: Mapped[ImpDocumento] = relationship("ImpDocumento", back_populates="iterations")
+    error_logs: Mapped[list[ImpLineErrorLog]] = relationship(
         "ImpLineErrorLog", back_populates="iteration", cascade="all, delete-orphan"
     )
 
@@ -390,8 +390,8 @@ class ImpLineErrorLog(Base):
     resolved_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    staging_line: Mapped["ImpStagingLine"] = relationship("ImpStagingLine", back_populates="error_logs")
-    iteration: Mapped["ImpIteration"] = relationship("ImpIteration", back_populates="error_logs")
+    staging_line: Mapped[ImpStagingLine] = relationship("ImpStagingLine", back_populates="error_logs")
+    iteration: Mapped[ImpIteration] = relationship("ImpIteration", back_populates="error_logs")
 
 
 class ImpReviewSession(Base):
@@ -411,6 +411,7 @@ class ImpReviewSession(Base):
     filter_estados: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
     filter_error_codes: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
     filter_campos: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    filter_columns: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
     filter_lines: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
     filter_sheet: Mapped[str | None] = mapped_column(String(200), nullable=True)
     preview_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
