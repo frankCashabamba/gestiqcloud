@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -142,17 +143,33 @@ def _ensure_receipt_stock_item(
     ).first()
     if row:
         return row
-    row = StockItem(
-        warehouse_id=warehouse_id,
-        product_id=product_id,
-        qty=0,
-        tenant_id=tenant_id,
-        lot=lot,
-        expires_at=expires_at,
-    )
-    db.add(row)
-    db.flush()
-    return row
+    try:
+        with db.begin_nested():  # savepoint — handles concurrent insert race
+            row = StockItem(
+                warehouse_id=warehouse_id,
+                product_id=product_id,
+                qty=0,
+                tenant_id=tenant_id,
+                lot=lot,
+                expires_at=expires_at,
+            )
+            db.add(row)
+            db.flush()
+        return row
+    except IntegrityError:
+        # Another transaction inserted the same row concurrently; fetch it
+        row = _stock_item_query(
+            db,
+            tenant_id=tenant_id,
+            warehouse_id=warehouse_id,
+            product_id=product_id,
+            lot=lot,
+            expires_at=expires_at,
+            for_update=True,
+        ).first()
+        if row:
+            return row
+        raise
 
 
 def _resolve_issue_stock_item(

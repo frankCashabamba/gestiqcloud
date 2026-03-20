@@ -11,16 +11,18 @@ import { test, expect, Page } from '@playwright/test';
 // ---------------------------------------------------------------------------
 
 async function loginIfNeeded(page: Page) {
-  const url = page.url();
-  if (url.includes('/login') || url === 'about:blank') {
-    const email = process.env.E2E_EMAIL || 'demo@gestiqcloud.com';
-    const password = process.env.E2E_PASSWORD || 'demo1234';
-    await page.goto('/login');
-    await page.locator('input[type="email"], input[name="email"]').fill(email);
-    await page.locator('input[type="password"]').fill(password);
-    await page.getByRole('button', { name: /login|iniciar|entrar|sign in/i }).click();
-    await page.waitForURL(/\/(dashboard|home|pos|\/)?$/, { timeout: 10000 }).catch(() => {});
-  }
+  // Navigate to login directly and wait for the form to be present
+  await page.goto('/login');
+  const emailInput = page.locator('input[name="identificador"], input[type="email"], input[name="email"]');
+  const isLoginPage = await emailInput.isVisible({ timeout: 5000 }).catch(() => false);
+  if (!isLoginPage) return; // already authenticated, redirected away
+
+  const email = process.env.E2E_EMAIL || 'demo@gestiqcloud.com';
+  const password = process.env.E2E_PASSWORD || 'demo1234';
+  await emailInput.fill(email);
+  await page.locator('input[type="password"]').fill(password);
+  await page.getByRole('button', { name: /login|iniciar|entrar|sign in/i }).click();
+  await page.waitForURL(/\/(dashboard|home|pos|compras|purchases|\/?$)/, { timeout: 10000 }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -29,7 +31,6 @@ async function loginIfNeeded(page: Page) {
 
 test.describe('C-T7: Purchase → Reception → Inventory Flow', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
     await loginIfNeeded(page);
   });
 

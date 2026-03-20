@@ -328,8 +328,11 @@
         "suspendSale": "Suspender venta (Mesa/Referencia)",
         "confirmPayment": "Confirmar pago (en modal)",
         "navigateLists": "Navegar en listas",
+        "bakeryShortcutKey": "Letra",
+        "bakeryShortcutDescription": "Panaderia: agrega 1 conjunto al instante. Repite la letra para sumar mas.",
+        "bakeryShortcutItem": "{{product}} · {{quantity}} uds por ${{price}}",
         "title": "Atajos de Teclado",
-        "shortcutsButton": "Atajos de teclado (F1)",
+        "shortcutsButton": "Atajos de teclado",
         "tip": "💡 Consejo: Usa F2 + lector de códigos de barras para agilizar las ventas"
     },
     "refund": {

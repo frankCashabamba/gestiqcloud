@@ -143,12 +143,17 @@ export default function PaymentModal({
         for (const line of receiptLines) {
           const lineId = String(line.id || '')
           if (!lineId) continue
-          nextOptions[lineId] = (stockByProduct.get(String(line.product_id)) || []).map((item) => ({
-            key: buildLotOptionKey(item.lot || null, item.expires_at || null),
-            lot: item.lot || null,
-            expires_at: item.expires_at || null,
-            qty: Number(item.qty || 0),
-          }))
+          const grouped = new Map<string, LotOption>()
+          for (const item of stockByProduct.get(String(line.product_id)) || []) {
+            const key = buildLotOptionKey(item.lot || null, item.expires_at || null)
+            const existing = grouped.get(key)
+            if (existing) {
+              existing.qty += Number(item.qty || 0)
+            } else {
+              grouped.set(key, { key, lot: item.lot || null, expires_at: item.expires_at || null, qty: Number(item.qty || 0) })
+            }
+          }
+          nextOptions[lineId] = Array.from(grouped.values())
         }
 
         setStockOptionsByLine(nextOptions)

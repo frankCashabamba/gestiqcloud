@@ -604,8 +604,8 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                             Configura el precio fijo para una cantidad específica de cada producto (ej: 6 tapapados por $1)
                         </p>
                         <p className="text-xs text-gray-500 mb-4">
-                            Cada producto puede tener una letra. En el POS puedes usar `T`, `TT` o `T + F2`
-                            para vender 1, 2 o mas conjuntos. Solo se permiten 10 letras distintas.
+                            Cada producto puede tener una letra. En el POS esa letra vende 1 conjunto al instante;
+                            si necesitas mas, pulsa la misma letra varias veces. Solo se permiten 10 letras distintas.
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4 p-3 bg-gray-50 rounded">

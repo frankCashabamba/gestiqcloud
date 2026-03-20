@@ -31,15 +31,6 @@ export const getBulkPricingShortcutItems = (items?: BulkPricingItem[] | null): B
         .map(sanitizeBulkPricingItem)
         .filter((item) => !!item.shortcut_letter)
 
-export const getBakeryShortcutMultiplierFromFunctionKey = (code: string): number | null => {
-    const match = /^F([1-9]|10)$/i.exec((code || '').trim())
-    if (!match) return null
-    const multiplier = Number(match[1])
-    return Number.isFinite(multiplier) && multiplier >= 1 && multiplier <= MAX_BAKERY_SHORTCUTS
-        ? multiplier
-        : null
-}
-
 export const getBakeryShortcutValidationError = (
     items: BulkPricingItem[],
     nextShortcutLetter?: string | null,

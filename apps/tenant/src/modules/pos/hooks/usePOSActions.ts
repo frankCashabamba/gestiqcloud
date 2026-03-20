@@ -7,7 +7,7 @@
  * Los hooks de plataforma (useTranslation, useToast, etc.) se consumen aquí
  * para evitar que POSView deba importarlos directamente.
  */
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDocumentIDTypes } from '../../../hooks/useDocumentIDTypes'
 import { useToast } from '../../../shared/toast'
@@ -41,9 +41,7 @@ import type { POSPayment } from '../../../types/pos'
 import { POS_DRAFT_KEY } from '../../../constants/storage'
 import { POS_THEME_KEY, normalizePosTheme, type CartItem, type POSState } from './usePOSState'
 import {
-    getBakeryShortcutMultiplierFromFunctionKey,
     getBulkPricingShortcutItems,
-    MAX_BAKERY_SHORTCUTS,
     normalizeBakeryShortcutLetter,
     sanitizeBulkPricingItem,
     type BulkPricingItem,
@@ -112,8 +110,6 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         tax: 0,
         total: 0,
     })
-    const bakeryShortcutBufferRef = useRef('')
-    const bakeryShortcutTimerRef = useRef<number | null>(null)
 
     const bulkPricingItems = useMemo(
         () =>
@@ -495,14 +491,17 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         }
 
         const productWithPrice = { ...product, price: basePrice }
-        const nextQty = existing ? existing.qty + normalizedUnits : normalizedUnits
-        if (violatesStockPolicy(productWithPrice, nextQty, opts)) return
+        setCart((prev) => {
+            const existingItem = prev.find((item) => item.product_id === product.id)
+            const nextQty = existingItem ? existingItem.qty + normalizedUnits : normalizedUnits
+            if (violatesStockPolicy(productWithPrice, nextQty, opts)) return prev
 
-        if (existing) {
-            setCart(cart.map((item) =>
-                item.product_id === product.id ? applyPricingToCartItem(item, productWithPrice, nextQty) : item
-            ))
-        } else {
+            if (existingItem) {
+                return prev.map((item) =>
+                    item.product_id === product.id ? applyPricingToCartItem(item, productWithPrice, nextQty) : item
+                )
+            }
+
             const baseItem: CartItem = {
                 product_id: product.id,
                 sku: product.sku || '',
@@ -513,8 +512,8 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                 discount_pct: 0,
                 categoria: productWithPrice.category || (productWithPrice.product_metadata?.categoria as any),
             }
-            setCart([...cart, applyPricingToCartItem(baseItem, productWithPrice, normalizedUnits)])
-        }
+            return [...prev, applyPricingToCartItem(baseItem, productWithPrice, normalizedUnits)]
+        })
     }, [cart, defaultTaxPct, applyPricingToCartItem, t, toast])
 
     const addToCart = useCallback((product: Product, opts?: { ignoreReorder?: boolean }) => {
@@ -576,14 +575,6 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         })
     }
 
-    const resetBakeryShortcutBuffer = useCallback(() => {
-        bakeryShortcutBufferRef.current = ''
-        if (bakeryShortcutTimerRef.current) {
-            window.clearTimeout(bakeryShortcutTimerRef.current)
-            bakeryShortcutTimerRef.current = null
-        }
-    }, [])
-
     const resolveBakeryShortcutProduct = useCallback(async (item: BulkPricingItem) => {
         const byId = products.find((entry) => String(entry.id) === String(item.product_id))
         if (byId) return byId
@@ -626,19 +617,6 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         addUnitsToCart(product, item.quantity * multiplier)
         return true
     }, [bulkShortcutItems, resolveBakeryShortcutProduct, addUnitsToCart, toast])
-
-    const flushBakeryShortcutBuffer = useCallback(async (multiplierOverride?: number) => {
-        const buffer = bakeryShortcutBufferRef.current
-        if (!buffer) return false
-        const shortcutLetter = normalizeBakeryShortcutLetter(buffer[0] || '')
-        const multiplier = Math.min(
-            multiplierOverride || buffer.length || 1,
-            MAX_BAKERY_SHORTCUTS
-        )
-        resetBakeryShortcutBuffer()
-        if (!shortcutLetter) return false
-        return await applyBakeryShortcut(shortcutLetter, multiplier)
-    }, [applyBakeryShortcut, resetBakeryShortcutBuffer])
 
     // ------------------------------------------------------------------
     // Barcode handlers
@@ -686,7 +664,6 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             showCreateProductModal ||
             quickInputState.open
         ) {
-            resetBakeryShortcutBuffer()
             return
         }
 
@@ -698,51 +675,25 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             if ((!isSearchInput && tag === 'input') || tag === 'textarea' || target?.isContentEditable) return
             if (e.ctrlKey || e.altKey || e.metaKey) return
 
-            const multiplier = getBakeryShortcutMultiplierFromFunctionKey(e.code)
-            if (multiplier !== null && bakeryShortcutBufferRef.current) {
-                e.preventDefault()
-                e.stopImmediatePropagation()
-                void flushBakeryShortcutBuffer(multiplier)
-                return
-            }
-
             if (e.key.length !== 1) return
             const shortcutLetter = normalizeBakeryShortcutLetter(e.key)
             if (!shortcutLetter) return
             const hasShortcut = bulkShortcutItems.some((item) => item.shortcut_letter === shortcutLetter)
-            if (!hasShortcut) {
-                if (bakeryShortcutBufferRef.current) void flushBakeryShortcutBuffer()
-                return
-            }
-
-            const currentLetter = normalizeBakeryShortcutLetter(bakeryShortcutBufferRef.current[0] || '')
-            const nextCount =
-                currentLetter === shortcutLetter ? bakeryShortcutBufferRef.current.length + 1 : 1
-            bakeryShortcutBufferRef.current = shortcutLetter.repeat(
-                Math.min(nextCount, MAX_BAKERY_SHORTCUTS)
-            )
-
-            if (bakeryShortcutTimerRef.current) {
-                window.clearTimeout(bakeryShortcutTimerRef.current)
-            }
-            bakeryShortcutTimerRef.current = window.setTimeout(() => {
-                void flushBakeryShortcutBuffer()
-            }, 700)
+            if (!hasShortcut) return
 
             e.preventDefault()
             e.stopImmediatePropagation()
+            void applyBakeryShortcut(shortcutLetter, 1)
         }
 
         window.addEventListener('keydown', handler)
         return () => {
             window.removeEventListener('keydown', handler)
-            resetBakeryShortcutBuffer()
         }
     }, [
+        applyBakeryShortcut,
         bulkShortcutItems,
-        flushBakeryShortcutBuffer,
         quickInputState.open,
-        resetBakeryShortcutBuffer,
         showBuyerModal,
         showCreateProductModal,
         state.showDiscountModal,

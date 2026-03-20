@@ -328,8 +328,11 @@
         "suspendSale": "Suspend sale (Table/Reference)",
         "confirmPayment": "Confirm payment (in modal)",
         "navigateLists": "Navigate lists",
+        "bakeryShortcutKey": "Letter",
+        "bakeryShortcutDescription": "Bakery: adds 1 configured bundle instantly. Repeat the letter to add more.",
+        "bakeryShortcutItem": "{{product}} · {{quantity}} units for ${{price}}",
         "title": "Keyboard Shortcuts",
-        "shortcutsButton": "Keyboard shortcuts (F1)",
+        "shortcutsButton": "Keyboard shortcuts",
         "tip": "💡 Tip: Use F2 + barcode reader to speed up sales"
     },
     "refund": {

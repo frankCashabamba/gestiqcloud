@@ -95,7 +95,7 @@ function extractPaymentMethodText(value: unknown): string {
   const raw = String(value || '').trim()
   if (!raw) return ''
   return raw.replace(
-    /^(payment\s*(method|type|terms?)|metodo\s+de\s+pago|forma\s+de\s+pago|tipo\s+de\s+pago|medio\s+de\s+pago|condiciones?\s+de\s+pago)\s*[:\-]\s*/i,
+    /^(payment\s*(method|type|terms?)|metodo\s+de\s+pago|forma\s+de\s+pago|tipo\s+de\s+pago|medio\s+de\s+pago|condiciones?\s+de\s+pago)\s*[:-]\s*/i,
     '',
   ).trim()
 }
