@@ -43,6 +43,57 @@ _DEFAULT_FILE_SUPPORT = {
     },
 }
 
+_DEFAULT_PROMPT_CONFIG = {
+    "extraction_system": (
+        "You are a universal accounting document analyzer. "
+        "Always respond with valid JSON using the configured canonical fields."
+    ),
+    "structured_table_note": (
+        "NOTE: Content is already pre-processed as a structured table. "
+        "If you recognize a list or table, set is_table=true and provide clean column names. "
+        "Do NOT return individual rows."
+    ),
+    "doc_type_instruction": (
+        "A short uppercase label describing the document type in English. "
+        "Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable."
+    ),
+    "critical_rules": [
+        "The document may be in any language. Read it as-is and map to the configured canonical fields.",
+        "total_amount must represent the grand total, not a quantity.",
+        "vendor is the entity that issues or signs the document.",
+        "If is_table=true, return columns and only visible summary values in fields.",
+        "Extract payment_method and payment_terms when visible.",
+        "Dates must use YYYY-MM-DD. Amounts must use dot decimal notation. Missing fields must be null.",
+        "Do not invent data absent from the document.",
+    ],
+}
+
+_DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG = {
+    "summary_names": ["total", "subtotal", "resumen", "sum", "totales"],
+    "name_keywords": [
+        "producto", "nombre", "descripcion", "description", "item",
+        "articulo", "product", "name", "denominacion",
+    ],
+    "price_keywords": [
+        "precio unitario", "unit price", "precio venta", "sale price",
+        "pvp", "price", "precio", "valor",
+    ],
+    "price_reject_keywords": ["total", "importe total", "subtotal"],
+    "cost_keywords": ["costo", "cost", "compra", "purchase"],
+    "sku_keywords": ["sku", "codigo", "code", "ean", "barcode", "referencia", "ref"],
+    "category_keywords": ["categoria", "category", "familia", "grupo", "linea"],
+    "description_keywords": ["descripcion", "description", "detalle", "detalle producto"],
+    "explicit_stock_keywords": [
+        "stock", "existencia", "disponible", "inventario", "saldo", "cantidad stock",
+    ],
+    "ambiguous_stock_keywords": ["cantidad", "qty", "quantity", "unidades", "units"],
+    "operational_keywords": ["venta", "diaria", "sobrante", "produc", "consumo", "merma"],
+    "sheet_hint_keywords": [
+        "product", "producto", "productos", "catalog", "catalogo",
+        "inventory", "inventario", "stock", "price list", "lista precios",
+    ],
+}
+
 
 def _cache_get(key: str) -> dict | None:
     entry = _cache.get(key)
@@ -143,6 +194,61 @@ def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
             logger.warning("No se pudo cargar importador.file_support desde BD: %s", exc)
 
     return _DEFAULT_FILE_SUPPORT
+
+
+def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
+    cached = _cache_get("prompt_config")
+    if cached is not None:
+        return cached
+
+    if db is not None:
+        try:
+            rows = _load_module_rows(db, "importador.prompt_config")
+            config = dict(_DEFAULT_PROMPT_CONFIG)
+            for row in rows:
+                key = str(row.field).strip()
+                if key in {"extraction_system", "structured_table_note", "doc_type_instruction"}:
+                    value = str(row.help or "").strip()
+                    if value:
+                        config[key] = value
+                elif key == "critical_rules" and isinstance(row.options, list):
+                    values = [str(value).strip() for value in row.options if str(value).strip()]
+                    if values:
+                        config[key] = values
+            return _cache_set("prompt_config", config)
+        except Exception as exc:
+            logger.warning("No se pudo cargar importador.prompt_config desde BD: %s", exc)
+
+    return _DEFAULT_PROMPT_CONFIG
+
+
+def load_product_sheet_detection_config(db: Any | None = None) -> dict[str, list[str]]:
+    cached = _cache_get("product_sheet_detection")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    if db is not None:
+        try:
+            rows = _load_module_rows(db, "importador.product_sheet_detection")
+            config = {
+                key: list(value)
+                for key, value in _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG.items()
+            }
+            for row in rows:
+                key = str(row.field).strip()
+                if not key or not isinstance(row.options, list):
+                    continue
+                values = [str(value).strip().lower() for value in row.options if str(value).strip()]
+                if values:
+                    config[key] = values
+            return _cache_set("product_sheet_detection", config)  # type: ignore[return-value]
+        except Exception as exc:
+            logger.warning(
+                "No se pudo cargar importador.product_sheet_detection desde BD: %s",
+                exc,
+            )
+
+    return _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG
 
 
 def invalidate_runtime_config_cache() -> None:

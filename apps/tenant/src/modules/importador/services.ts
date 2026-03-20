@@ -65,7 +65,9 @@ let dashboardRequest: Promise<DashboardStats> | null = null
 let recipesRequest: Promise<Recipe[]> | null = null
 let docCategoryKeywordsRequest: Promise<void> | null = null
 let fileSupportRequest: Promise<FileSupportConfig> | null = null
+let productSheetConfigRequest: Promise<void> | null = null
 let docCategoryKeywordsLoaded = false
+let productSheetConfigLoaded = false
 const importBatchListRequests = new Map<string, Promise<ImportBatch[]>>()
 const IMPORTADOR_UPLOADER_SESSION_KEY = 'importador.uploader.session.v1'
 
@@ -317,23 +319,6 @@ export type DocCategory =
   | 'payroll'
   | 'other'
 
-// UI-side category keyword map.
-// Source of truth is sector_field_defaults in DB (module='importador.doc_categories').
-// These are a client-side snapshot used for button rendering — not critical routing.
-// Update via DB migration; this map is a best-effort local copy for offline/instant rendering.
-const _legacyCategoryKeywordsSnapshot: Record<string, string[]> = {
-  recipe:    ['COSTING', 'COSTEO', 'RECIPE', 'RECETA', 'KALKULATION', 'CALCUL_COUT', 'FOOD_COST', 'FICHA_TECNICA'],
-  receipt:   ['RECEIPT', 'TICKET', 'VOUCHER', 'RECIBO', 'BOLETA', 'TICKETDEVENTA', 'REÇU', 'QUITTUNG', 'NOTA_VENTA'],
-  invoice:   ['INVOICE', 'FACTURA', 'RECHNUNG', 'FATTURA', 'FATURA', 'FACTURE',
-              'CREDIT_NOTE', 'NOTA_CREDITO', 'PURCHASE_ORDER', 'ORDEN_COMPRA',
-              'QUOTE', 'PRESUPUESTO', 'PROFORMA', 'DELIVERY_NOTE', 'DEVIS', 'LIEFERSCHEIN', 'NOTA_FISCAL'],
-  inventory: ['INVENTORY', 'INVENTARIO', 'INVENTAR', 'PRICE_LIST', 'LISTA_PRECIOS',
-              'PREISLISTE', 'CATALOGUE', 'CATALOGO', 'STOCK', 'BESTANDSLISTE'],
-  bank:      ['BANK_STATEMENT', 'EXTRACTO_BANCARIO', 'KONTOAUSZUG', 'BANK_MOVEMENTS',
-              'MOVIMIENTOS_BANCARIOS', 'ACCOUNT_STATEMENT', 'RELEVÉ', 'EXTRAIT'],
-  payroll:   ['PAYROLL', 'NOMINA', 'PLANILLA', 'LOHNABRECHNUNG', 'BULLETIN_PAIE', 'LIQUIDACION'],
-}
-
 /** Override the local category keyword map with server-fetched data. */
 export function setDocCategoryKeywords(map: Record<string, string[]>) {
   _categoryKeywords = map
@@ -343,6 +328,36 @@ export type FileSupportConfig = {
   accepted_extensions: string[]
   image_extensions: string[]
   type_map: Record<string, string>
+}
+
+export type ProductSheetDetectionConfig = {
+  summary_names: string[]
+  name_keywords: string[]
+  price_keywords: string[]
+  price_reject_keywords: string[]
+  cost_keywords: string[]
+  sku_keywords: string[]
+  category_keywords: string[]
+  description_keywords: string[]
+  explicit_stock_keywords: string[]
+  ambiguous_stock_keywords: string[]
+  operational_keywords: string[]
+  sheet_hint_keywords: string[]
+}
+
+let _productSheetDetection: ProductSheetDetectionConfig = {
+  summary_names: [],
+  name_keywords: [],
+  price_keywords: [],
+  price_reject_keywords: [],
+  cost_keywords: [],
+  sku_keywords: [],
+  category_keywords: [],
+  description_keywords: [],
+  explicit_stock_keywords: [],
+  ambiguous_stock_keywords: [],
+  operational_keywords: [],
+  sheet_hint_keywords: [],
 }
 
 
@@ -363,74 +378,9 @@ function _matchesLooseKeyword(value: string, keywords: string[]): boolean {
   return keywords.some((keyword) => value === keyword || value.includes(keyword))
 }
 
-const _productSheetKeywords = [
-  'product',
-  'producto',
-  'productos',
-  'catalog',
-  'catalogo',
-  'inventory',
-  'inventario',
-  'stock',
-  'price list',
-  'lista precios',
-]
-
-const _productNameKeywords = [
-  'producto',
-  'product',
-  'nombre',
-  'articulo',
-  'item',
-  'descripcion',
-  'description',
-  'denominacion',
-]
-
-const _productPriceKeywords = [
-  'precio',
-  'price',
-  'pvp',
-  'precio unitario',
-  'precio venta',
-  'sale price',
-  'unit price',
-  'valor',
-]
-
-const _productStockKeywords = [
-  'stock',
-  'existencia',
-  'inventario',
-  'disponible',
-  'saldo',
-  'cantidad stock',
-]
-
-const _productCostKeywords = [
-  'costo',
-  'cost',
-  'compra',
-  'purchase',
-]
-
-const _productSkuKeywords = [
-  'sku',
-  'codigo',
-  'code',
-  'barcode',
-  'ean',
-  'referencia',
-  'ref',
-]
-
-const _productCategoryKeywords = [
-  'categoria',
-  'category',
-  'familia',
-  'grupo',
-  'linea',
-]
+export function setProductSheetDetectionConfig(config: ProductSheetDetectionConfig) {
+  _productSheetDetection = config
+}
 
 export function getDocCategory(
   doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>,
@@ -483,15 +433,15 @@ export function canSaveProductsSheet(
   const normalizedKeys = columnKeys.map(_normalizeLoose).filter(Boolean)
   if (!normalizedKeys.length) return false
 
-  const hasName = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productNameKeywords))
+  const hasName = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSheetDetection.name_keywords))
   if (!hasName) return false
 
-  const hasSheetHint = _matchesLooseKeyword(normalizedSheet, _productSheetKeywords)
-  const hasPrice = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productPriceKeywords))
-  const hasStock = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productStockKeywords))
-  const hasCost = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productCostKeywords))
-  const hasSku = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSkuKeywords))
-  const hasCategory = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productCategoryKeywords))
+  const hasSheetHint = _matchesLooseKeyword(normalizedSheet, _productSheetDetection.sheet_hint_keywords)
+  const hasPrice = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSheetDetection.price_keywords))
+  const hasStock = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSheetDetection.explicit_stock_keywords))
+  const hasCost = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSheetDetection.cost_keywords))
+  const hasSku = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSheetDetection.sku_keywords))
+  const hasCategory = normalizedKeys.some((key) => _matchesLooseKeyword(key, _productSheetDetection.category_keywords))
 
   if (docCategory === 'inventory') return hasName
   return hasSheetHint || hasPrice || hasStock || hasCost || hasSku || hasCategory
@@ -798,13 +748,49 @@ export async function loadDocCategoryKeywords(): Promise<void> {
         docCategoryKeywordsLoaded = true
       }
     } catch {
-      // Keep using the local snapshot for non-critical UI hints.
+      // Leave category hints empty if runtime config is unavailable.
     } finally {
       docCategoryKeywordsRequest = null
     }
   })()
 
   return docCategoryKeywordsRequest
+}
+
+function _normalizeStringArray(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.map((value) => _normalizeLoose(String(value))).filter(Boolean) : []
+}
+
+export async function loadProductSheetDetectionConfig(): Promise<void> {
+  if (productSheetConfigLoaded) return
+  if (productSheetConfigRequest) return productSheetConfigRequest
+
+  productSheetConfigRequest = (async () => {
+    try {
+      const { data } = await api.get(TENANT_IMPORTADOR.productSheetConfig)
+      setProductSheetDetectionConfig({
+        summary_names: _normalizeStringArray(data?.summary_names),
+        name_keywords: _normalizeStringArray(data?.name_keywords),
+        price_keywords: _normalizeStringArray(data?.price_keywords),
+        price_reject_keywords: _normalizeStringArray(data?.price_reject_keywords),
+        cost_keywords: _normalizeStringArray(data?.cost_keywords),
+        sku_keywords: _normalizeStringArray(data?.sku_keywords),
+        category_keywords: _normalizeStringArray(data?.category_keywords),
+        description_keywords: _normalizeStringArray(data?.description_keywords),
+        explicit_stock_keywords: _normalizeStringArray(data?.explicit_stock_keywords),
+        ambiguous_stock_keywords: _normalizeStringArray(data?.ambiguous_stock_keywords),
+        operational_keywords: _normalizeStringArray(data?.operational_keywords),
+        sheet_hint_keywords: _normalizeStringArray(data?.sheet_hint_keywords),
+      })
+      productSheetConfigLoaded = true
+    } catch {
+      // Leave product-sheet hints empty if runtime config is unavailable.
+    } finally {
+      productSheetConfigRequest = null
+    }
+  })()
+
+  return productSheetConfigRequest
 }
 
 export async function fetchFileSupportConfig(): Promise<FileSupportConfig> {

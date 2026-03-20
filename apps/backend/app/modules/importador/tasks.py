@@ -129,7 +129,12 @@ async def _run_processing(
     from app.modules.importador.canonical_document import build_document_projection
     from app.modules.importador.field_alias_loader import get_canonical_fields, get_field_aliases
     from app.modules.importador.ocr_service import extract_text_from_file
-    from app.modules.importador.runtime_config import load_doc_type_patterns
+    from app.modules.importador.product_import_service import looks_like_product_document
+    from app.modules.importador.runtime_config import (
+        load_doc_type_patterns,
+        load_product_sheet_detection_config,
+        load_prompt_config,
+    )
 
     with SessionLocal() as db:
         # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
@@ -229,6 +234,7 @@ async def _run_processing(
                 }
             else:
                 _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+                _prompt_config = load_prompt_config(db)
                 analysis = await analyze_document(
                     llm_content,
                     filename,
@@ -238,6 +244,7 @@ async def _run_processing(
                     image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
                     fallback_patterns=load_doc_type_patterns(db),
                     canonical_fields=_canonical_fields,
+                    prompt_config=_prompt_config,
                 )
 
             tipo_doc = analysis.get("doc_type", "OTHER")
@@ -287,6 +294,18 @@ async def _run_processing(
                     "metadata_por_hoja": sheet_metadata_raw,
                     "sheet_usada": sheet_used_str,
                 }
+                if looks_like_product_document(
+                    datos_extraidos,
+                    sheet_name=sheet_used_str,
+                    detection_config=load_product_sheet_detection_config(db),
+                ) and tipo_doc not in {
+                    "INVENTORY",
+                    "PRICE_LIST",
+                    "PRODUCT_LIST",
+                    "PRODUCTS",
+                }:
+                    tipo_doc = "INVENTORY"
+                    requiere_revision = True
             else:
                 datos_extraidos = analysis.get("fields") or {}
                 auto_recipe_created = False
@@ -314,6 +333,7 @@ async def _run_processing(
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
                             fallback_patterns=load_doc_type_patterns(db),
                             canonical_fields=_canonical_fields,
+                            prompt_config=_prompt_config,
                         )
                         rerun_doc_type = str(rerun_analysis.get("doc_type", tipo_doc) or tipo_doc)
                         rerun_confidence = float(

@@ -17,70 +17,7 @@ from app.modules.products.interface.http.tenant import (
     _normalize_category_name,
     _resolve_category_id,
 )
-
-SUMMARY_NAMES = {
-    "total",
-    "subtotal",
-    "resumen",
-    "sum",
-    "totales",
-}
-
-NAME_KEYWORDS = (
-    "producto",
-    "nombre",
-    "descripcion",
-    "description",
-    "item",
-    "articulo",
-    "product",
-    "name",
-    "denominacion",
-)
-PRICE_KEYWORDS = (
-    "precio unitario",
-    "unit price",
-    "precio venta",
-    "sale price",
-    "pvp",
-    "price",
-    "precio",
-    "valor",
-)
-PRICE_REJECT_KEYWORDS = ("total", "importe total", "subtotal")
-COST_KEYWORDS = ("costo", "cost", "compra", "purchase")
-SKU_KEYWORDS = ("sku", "codigo", "code", "ean", "barcode", "referencia", "ref")
-CATEGORY_KEYWORDS = ("categoria", "category", "familia", "grupo", "linea")
-DESCRIPTION_KEYWORDS = ("descripcion", "description", "detalle", "detalle producto")
-EXPLICIT_STOCK_KEYWORDS = (
-    "stock",
-    "existencia",
-    "disponible",
-    "inventario",
-    "saldo",
-    "cantidad stock",
-)
-AMBIGUOUS_STOCK_KEYWORDS = ("cantidad", "qty", "quantity", "unidades", "units")
-OPERATIONAL_KEYWORDS = (
-    "venta",
-    "diaria",
-    "sobrante",
-    "produc",
-    "consumo",
-    "merma",
-)
-SHEET_HINT_KEYWORDS = (
-    "product",
-    "producto",
-    "productos",
-    "catalog",
-    "catalogo",
-    "inventory",
-    "inventario",
-    "stock",
-    "price list",
-    "lista precios",
-)
+from .runtime_config import load_product_sheet_detection_config
 
 
 @dataclass
@@ -171,8 +108,8 @@ def _select_document_rows(
 
 def _pick_key(
     keys: list[str],
-    keywords: tuple[str, ...],
-    reject_keywords: tuple[str, ...] = (),
+    keywords: list[str],
+    reject_keywords: list[str] | tuple[str, ...] = (),
 ) -> str | None:
     best_key: str | None = None
     best_score = 0
@@ -194,8 +131,8 @@ def _pick_key(
     return best_key
 
 
-def _infer_stock_key(keys: list[str]) -> str | None:
-    explicit = _pick_key(keys, EXPLICIT_STOCK_KEYWORDS)
+def _infer_stock_key(keys: list[str], config: dict[str, list[str]]) -> str | None:
+    explicit = _pick_key(keys, config["explicit_stock_keywords"])
     if explicit:
         return explicit
 
@@ -206,17 +143,17 @@ def _infer_stock_key(keys: list[str]) -> str | None:
             return key
 
     has_operational_columns = any(
-        keyword in key for key in keys for keyword in OPERATIONAL_KEYWORDS
+        keyword in key for key in keys for keyword in config["operational_keywords"]
     )
     if has_operational_columns:
         return None
 
-    return _pick_key(keys, AMBIGUOUS_STOCK_KEYWORDS)
+    return _pick_key(keys, config["ambiguous_stock_keywords"])
 
 
-def _is_summary_name(name: str, row: dict[str, Any]) -> bool:
+def _is_summary_name(name: str, row: dict[str, Any], summary_names: set[str]) -> bool:
     normalized_name = _norm(name)
-    if normalized_name in SUMMARY_NAMES:
+    if normalized_name in summary_names:
         return True
     if not normalized_name:
         return True
@@ -224,12 +161,12 @@ def _is_summary_name(name: str, row: dict[str, Any]) -> bool:
     normalized_text_values = [
         _norm(value) for value in row.values() if isinstance(value, str) and _norm(value)
     ]
-    if any(value in SUMMARY_NAMES for value in normalized_text_values if value != normalized_name):
+    if any(value in summary_names for value in normalized_text_values if value != normalized_name):
         return True
 
     numeric_values = [_safe_float(value) for key, value in row.items() if key != "sheet"]
     meaningful_numeric_values = [value for value in numeric_values if value not in (None, 0.0)]
-    if normalized_name not in SUMMARY_NAMES and meaningful_numeric_values:
+    if normalized_name not in summary_names and meaningful_numeric_values:
         return False
 
     name_text = str(name or "").strip()
@@ -238,6 +175,7 @@ def _is_summary_name(name: str, row: dict[str, Any]) -> bool:
 
 def _looks_like_product_table(
     resolved_sheet: str | None,
+    sheet_hint_keywords: list[str],
     *,
     name_key: str | None,
     price_key: str | None,
@@ -250,7 +188,7 @@ def _looks_like_product_table(
         return False
 
     normalized_sheet = _norm(resolved_sheet)
-    has_sheet_hint = any(keyword in normalized_sheet for keyword in SHEET_HINT_KEYWORDS)
+    has_sheet_hint = any(keyword in normalized_sheet for keyword in sheet_hint_keywords)
     return any(
         (
             has_sheet_hint,
@@ -268,7 +206,10 @@ def build_product_candidates(
     sheet_name: str | None = None,
     row_indexes: list[int] | None = None,
     default_category_name: str | None = None,
+    detection_config: dict[str, list[str]] | None = None,
 ) -> tuple[list[ProductCandidate], str | None]:
+    config = detection_config or load_product_sheet_detection_config()
+    summary_names = set(config["summary_names"])
     rows_raw, resolved_sheet = _select_document_rows(datos, sheet_name)
     dict_rows = [row for row in rows_raw if isinstance(row, dict)]
     if not dict_rows:
@@ -279,18 +220,19 @@ def build_product_candidates(
     if not keys:
         return [], resolved_sheet
 
-    name_key = _pick_key(keys, NAME_KEYWORDS)
+    name_key = _pick_key(keys, config["name_keywords"])
     if not name_key:
         return [], resolved_sheet
 
-    price_key = _pick_key(keys, PRICE_KEYWORDS, PRICE_REJECT_KEYWORDS)
-    stock_key = _infer_stock_key(keys)
-    cost_key = _pick_key(keys, COST_KEYWORDS)
-    sku_key = _pick_key(keys, SKU_KEYWORDS)
-    category_key = _pick_key(keys, CATEGORY_KEYWORDS)
-    description_key = _pick_key(keys, DESCRIPTION_KEYWORDS)
+    price_key = _pick_key(keys, config["price_keywords"], config["price_reject_keywords"])
+    stock_key = _infer_stock_key(keys, config)
+    cost_key = _pick_key(keys, config["cost_keywords"])
+    sku_key = _pick_key(keys, config["sku_keywords"])
+    category_key = _pick_key(keys, config["category_keywords"])
+    description_key = _pick_key(keys, config["description_keywords"])
     if not _looks_like_product_table(
         resolved_sheet,
+        config["sheet_hint_keywords"],
         name_key=name_key,
         price_key=price_key,
         stock_key=stock_key,
@@ -311,7 +253,7 @@ def build_product_candidates(
     for index in selected_indexes:
         row = normalized_rows[index]
         raw_name = str(row.get(name_key) or "").strip()
-        if not raw_name or _is_summary_name(raw_name, row):
+        if not raw_name or _is_summary_name(raw_name, row, summary_names):
             continue
 
         price = _safe_float(row.get(price_key)) if price_key else None
@@ -352,6 +294,20 @@ def build_product_candidates(
         )
 
     return candidates, resolved_sheet
+
+
+def looks_like_product_document(
+    datos: dict[str, Any],
+    *,
+    sheet_name: str | None = None,
+    detection_config: dict[str, list[str]] | None = None,
+) -> bool:
+    candidates, _ = build_product_candidates(
+        datos,
+        sheet_name=sheet_name,
+        detection_config=detection_config,
+    )
+    return bool(candidates)
 
 
 def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float) -> None:

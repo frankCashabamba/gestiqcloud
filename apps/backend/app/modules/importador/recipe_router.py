@@ -38,7 +38,12 @@ from .canonical_document import build_document_projection
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .document_fields import safe_floatish
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
-from .runtime_config import load_doc_type_patterns
+from .product_import_service import looks_like_product_document
+from .runtime_config import (
+    load_doc_type_patterns,
+    load_product_sheet_detection_config,
+    load_prompt_config,
+)
 from .schemas import (
     DraftCreate,
     DraftOut,
@@ -395,6 +400,7 @@ async def run_import(
                 }
             else:
                 _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+                _prompt_config = load_prompt_config(db)
                 analysis = await analyze_document(
                     llm_content,
                     filename,
@@ -408,6 +414,7 @@ async def run_import(
                     ),
                     fallback_patterns=load_doc_type_patterns(db),
                     canonical_fields=_canonical_fields,
+                    prompt_config=_prompt_config,
                 )
             normalized_analysis = _normalize_analysis_output(analysis)
 
@@ -515,6 +522,18 @@ async def run_import(
                         k: v[:200] for k, v in filas_por_hoja.items()
                     }
                     datos_extraidos["filas_por_hoja_count"] = filas_count
+                if looks_like_product_document(
+                    datos_extraidos,
+                    sheet_name=sheet_used,
+                    detection_config=load_product_sheet_detection_config(db),
+                ) and tipo_doc not in {
+                    "INVENTORY",
+                    "PRICE_LIST",
+                    "PRODUCT_LIST",
+                    "PRODUCTS",
+                }:
+                    tipo_doc = "INVENTORY"
+                    requiere_revision = True
             else:
                 # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
                 datos_extraidos = analysis_fields or {}
@@ -550,6 +569,7 @@ async def run_import(
                         ),
                         fallback_patterns=load_doc_type_patterns(db),
                         canonical_fields=_canonical_fields,
+                        prompt_config=_prompt_config,
                     )
                     rerun_normalized = _normalize_analysis_output(rerun_analysis)
                     rerun_fields = rerun_normalized["fields"]

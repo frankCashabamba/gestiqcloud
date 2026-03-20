@@ -158,8 +158,9 @@ async def cache_set(key: str, value: Any, ttl: int = CacheTTL.MEDIUM) -> bool:
 
     try:
         serialized = json.dumps(value, default=str)
-        await client.setex(key, ttl, serialized)
-        logger.debug(f"Cache SET: {key} (TTL: {ttl}s)")
+        ttl_seconds = max(1, int(ttl))
+        await client.setex(key, ttl_seconds, serialized)
+        logger.debug(f"Cache SET: {key} (TTL: {ttl_seconds}s)")
         return True
     except Exception as e:
         logger.warning(f"Error escribiendo cache [{key}]: {e}")

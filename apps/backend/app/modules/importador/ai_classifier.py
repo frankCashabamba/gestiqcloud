@@ -118,9 +118,16 @@ def _build_structured_classification_prompt(
     filename: str,
     format_hint: str,
     recipe_config: dict | None,
+    prompt_config: dict[str, Any] | None = None,
 ) -> str:
     rc = recipe_config or {}
+    pc = prompt_config or {}
     system_prefix = str(rc.get("prompt_system") or "").strip()
+    doc_type_instruction = str(
+        pc.get("doc_type_instruction")
+        or "Use concise uppercase labels such as INVOICE, RECEIPT, CREDIT_NOTE, "
+        "BANK_STATEMENT, BANK_MOVEMENTS, INVENTORY, PRICE_LIST, COSTING, PAYROLL, OTHER."
+    ).strip()
     current_year = datetime.datetime.now().year
 
     prompt = (
@@ -130,8 +137,7 @@ def _build_structured_classification_prompt(
         f"File: {filename} | Format: {format_hint}\n"
         f"Current year: {current_year}\n\n"
         f"Structured preview:\n{content[:2500]}\n\n"
-        "Use concise uppercase labels such as INVOICE, RECEIPT, CREDIT_NOTE, "
-        "BANK_STATEMENT, BANK_MOVEMENTS, INVENTORY, PRICE_LIST, COSTING, PAYROLL, OTHER."
+        f"{doc_type_instruction}"
     )
 
     if system_prefix:
@@ -188,9 +194,16 @@ async def _analyze_structured_document(
     format_hint: str,
     recipe_config: dict | None = None,
     fallback_patterns: dict[str, list[str]] | None = None,
+    prompt_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Cheap classification path for already structured datasets."""
-    prompt = _build_structured_classification_prompt(content, filename, format_hint, recipe_config)
+    prompt = _build_structured_classification_prompt(
+        content,
+        filename,
+        format_hint,
+        recipe_config,
+        prompt_config=prompt_config,
+    )
 
     try:
         response = await AIService.query(
@@ -389,6 +402,14 @@ async def _analyze_with_vision(
     _f_subtotal = _fd.get("subtotal") or "taxable base before tax. Number or null"
     _f_tax = _fd.get("tax_amount") or "total tax (VAT/IVA/IGV/GST). Number or null if absent"
     learned_hints = _build_additional_field_hints(recipe_config)
+    dynamic_fields_prompt = _build_dynamic_fields_prompt(
+        None,
+        {
+            **_fd,
+            "subtotal": _f_subtotal,
+            "tax_amount": _f_tax,
+        },
+    )
 
     current_year = datetime.datetime.now().year
 
@@ -405,22 +426,8 @@ async def _analyze_with_vision(
         '  "reasoning": "brief explanation",\n'
         '  "is_table": false,\n'
         '  "columns": [],\n'
-        '  "fields": {\n'
-        '    "vendor": "issuing/selling party company name",\n'
-        '    "vendor_tax_id": "RUC/NIT/CIF/tax ID of the ISSUER — digits only, no slashes",\n'
-        '    "customer": "receiving/buying party FULL name as printed",\n'
-        '    "customer_tax_id": "RUC/CI/tax ID of the BUYER — digits only, no slashes",\n'
-        '    "doc_number": "full document/invoice number including series (e.g. 001-001-000120085)",\n'
-        '    "issue_date": "YYYY-MM-DD — read the YEAR very carefully (20XX not 201X)",\n'
-        '    "total_amount": 2145.00,\n'
-        f'    "subtotal": {_f_subtotal},\n'
-        f'    "tax_amount": {_f_tax},\n'
-        '    "currency": "ISO 4217 — Ecuador=USD, Peru=PEN, Chile=CLP, Colombia=COP, Spain=EUR",\n'
-        '    "payment_method": "cash, transfer, card, credit, cheque, etc. as printed on the document, or null",\n'
-        '    "payment_terms": "payment condition/terms if visible (e.g. contado, credito 30 dias), or null",\n'
-        '    "line_items": [\n'
-        '      {"description": "product name only", "quantity": 50.00, "unit_price": 42.90, "total_price": 2145.00}\n'
-        "    ]\n"
+        '  \"fields\": {\n'
+        f"{dynamic_fields_prompt}\n"
         "  }\n"
         "}\n"
         "CRITICAL RULES:\n"
@@ -501,6 +508,7 @@ async def analyze_document(
     image_bytes: bytes | None = None,
     fallback_patterns: dict[str, list[str]] | None = None,
     canonical_fields: dict[str, dict] | None = None,
+    prompt_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -535,6 +543,7 @@ async def analyze_document(
             format_hint,
             recipe_config,
             fallback_patterns=fallback_patterns,
+            prompt_config=prompt_config,
         )
 
     if not has_structured_rows and _should_use_vision_fallback(content, format_hint, image_bytes):
@@ -545,13 +554,11 @@ async def analyze_document(
             return vision_result
 
     rc = recipe_config or {}
+    pc = prompt_config or {}
 
-    system_prompt = rc.get("prompt_system") or (
+    system_prompt = rc.get("prompt_system") or pc.get("extraction_system") or (
         "You are a universal accounting document analyzer. "
-        "You identify and extract information from ANY type of document regardless of language: "
-        "invoices, inventories, payrolls, bank statements, price lists, budgets, "
-        "purchase orders, costing sheets, receipts, contracts, etc. "
-        "Always respond with valid JSON using the exact output keys specified, regardless of the document language."
+        "Always respond with valid JSON using the configured canonical fields."
     )
 
     # Field descriptions can be customized per tenant via recipe_config["field_descriptions"].
@@ -574,9 +581,7 @@ async def analyze_document(
     )
 
     tabular_note = (
-        "NOTE: Content is already pre-processed as a structured table. "
-        "If you recognize a list or table, set is_table=true and provide clean column names. "
-        "Do NOT return individual rows.\n\n"
+        f"{pc.get('structured_table_note') or 'Structured table input.'}\n\n"
         if has_structured_rows
         else ""
     )
@@ -584,6 +589,30 @@ async def analyze_document(
     content_limit = 4000 if has_structured_rows else 7000
 
     current_year = datetime.datetime.now().year
+    doc_type_instruction = str(
+        pc.get("doc_type_instruction")
+        or "A short uppercase label describing the document type in English. "
+        "Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable."
+    ).strip()
+    configured_rules = [
+        str(rule).strip()
+        for rule in (pc.get("critical_rules") or [])
+        if str(rule).strip()
+    ]
+    if not configured_rules:
+        configured_rules = [
+            "The document may be in any language. Read it as-is and map to the configured canonical fields.",
+            "total_amount must represent the grand total, not a quantity.",
+            "vendor is the entity that issues or signs the document.",
+            "If is_table=true, return columns and only visible summary values in fields.",
+            "Extract payment_method and payment_terms when visible.",
+            "Dates must use YYYY-MM-DD. Amounts must use dot decimal notation. Missing fields must be null.",
+            "Do not invent data absent from the document.",
+        ]
+    configured_rules.append(
+        f"YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100})."
+    )
+    critical_rules_text = "\n".join(f"- {rule}" for rule in configured_rules)
 
     user_prompt = (
         f"{tabular_note}"
@@ -592,53 +621,22 @@ async def analyze_document(
         f"Content:\n{content[:content_limit]}\n\n"
         "Analyze the document and respond ONLY with valid JSON:\n"
         "{\n"
-        '  "doc_type": "A short uppercase label describing the document type in English. '
-        "Use standard terms when they clearly apply (e.g. INVOICE, RECEIPT, TICKET, CREDIT_NOTE, "
-        "PURCHASE_ORDER, QUOTE, DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, "
-        "BANK_STATEMENT, BANK_MOVEMENTS) or any descriptive label that fits (e.g. EXPENSE_REPORT, "
-        'CONTRACT, PROFORMA, CUSTOMS_DECLARATION). Use OTHER only if truly unclassifiable.",\n'
+        f'  "doc_type": "{doc_type_instruction}",\n'
         '  "confidence": 0.0-1.0,\n'
         '  "reasoning": "brief explanation of classification",\n'
         '  "is_table": true or false,\n'
         '  "columns": ["col1", "col2"],\n'
         '  "fields": {\n'
-        '    "vendor": "issuing/selling party name — regardless of document language",\n'
-        '    "vendor_tax_id": "tax ID / VAT / RUC / SIRET / USt-IdNr of the issuer, or null",\n'
-        '    "customer": "receiving/buying party name, or null",\n'
-        '    "customer_tax_id": "tax ID of the buyer, or null",\n'
-        '    "doc_number": "document reference number, or null",\n'
-        '    "issue_date": "YYYY-MM-DD or null",\n'
-        '    "total_amount": NUMBER — the GRAND TOTAL at the END of the document (not a product quantity),\n'
-        f'    "subtotal": {_f_subtotal},\n'
-        f'    "tax_amount": {_f_tax},\n'
-        '    "currency": "ISO 4217 code (USD, EUR, GBP, CNY, MXN…) or null",\n'
-        '    "payment_method": "payment method/type exactly as printed (cash, transfer, card, credit, cheque, etc.) or null",\n'
-        '    "payment_terms": "payment condition/terms if visible (contado, credito, net 30, etc.) or null",\n'
-        '    "line_items": [\n'
-        '      {"description": "...", "quantity": number, "unit_price": number, "total_price": number}\n'
-        "    ]\n"
+        f"{dynamic_fields_prompt}\n"
         "  }\n"
         "}\n"
         "CRITICAL rules:\n"
-        "- The document may be in ANY language (Spanish, French, Chinese, Arabic, German…). "
-        "  Read whatever is there and map to the output keys above — do NOT require English input.\n"
-        "- total_amount = GRAND TOTAL at the bottom (not a quantity of items).\n"
-        "- vendor = the entity that ISSUES/SIGNS the document.\n"
-        "- If is_table=true: only fill 'columns'; in 'fields' include issue_date and total_amount if visible.\n"
-        "- payment_method/payment_terms: extract them when visible instead of omitting them.\n"
-        "- Dates: YYYY-MM-DD. Amounts: number with dot decimal (e.g. 2145.00). Missing fields: null.\n"
-        f"- YEAR: We are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100}). Double-check!\n"
-        "- Do NOT invent data absent from the document."
+        f"{critical_rules_text}"
     )
 
     custom_user_prompt = rc.get("prompt_user")
     if custom_user_prompt:
         user_prompt += f"\n\nAdditional extraction instructions:\n{custom_user_prompt}"
-    if canonical_fields:
-        user_prompt += (
-            "\n\nConfigured canonical fields from database (prefer these keys and types):\n"
-            + dynamic_fields_prompt
-        )
     if learned_hints:
         user_prompt += f"\n\n{learned_hints}"
 

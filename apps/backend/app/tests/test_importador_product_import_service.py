@@ -6,6 +6,7 @@ from app.modules.importador import product_import_service
 from app.modules.importador.product_import_service import (
     ProductCandidate,
     build_product_candidates,
+    looks_like_product_document,
     save_product_candidates,
 )
 
@@ -97,6 +98,76 @@ def test_build_product_candidates_rejects_generic_name_only_tables():
 
     assert sheet_name == "PERSONAL"
     assert candidates == []
+
+
+def test_build_product_candidates_supports_runtime_detection_config():
+    datos = {
+        "filas_por_hoja": {
+            "ARTICULOS": [
+                {
+                    "Articulo": "Harina premium",
+                    "PVP": 42.9,
+                    "Existencia": 50,
+                }
+            ]
+        }
+    }
+
+    candidates, sheet_name = build_product_candidates(
+        datos,
+        sheet_name="ARTICULOS",
+        row_indexes=[0],
+        detection_config={
+            "summary_names": ["total", "subtotal"],
+            "name_keywords": ["articulo"],
+            "price_keywords": ["pvp"],
+            "price_reject_keywords": ["total"],
+            "cost_keywords": ["costo"],
+            "sku_keywords": ["sku"],
+            "category_keywords": ["categoria"],
+            "description_keywords": ["descripcion"],
+            "explicit_stock_keywords": ["existencia"],
+            "ambiguous_stock_keywords": ["cantidad"],
+            "operational_keywords": ["venta"],
+            "sheet_hint_keywords": ["articulos"],
+        },
+    )
+
+    assert sheet_name == "ARTICULOS"
+    assert len(candidates) == 1
+    assert candidates[0].name == "Harina premium"
+    assert candidates[0].price == 42.9
+    assert candidates[0].stock == 50.0
+
+
+def test_looks_like_product_document_returns_true_for_detected_inventory_sheet():
+    datos = {
+        "filas_por_hoja": {
+            "ARTICULOS": [
+                {"Articulo": "Harina premium", "PVP": 42.9, "Existencia": 50},
+            ]
+        },
+        "sheet_usada": "ARTICULOS",
+    }
+
+    assert looks_like_product_document(
+        datos,
+        sheet_name="ARTICULOS",
+        detection_config={
+            "summary_names": ["total", "subtotal"],
+            "name_keywords": ["articulo"],
+            "price_keywords": ["pvp"],
+            "price_reject_keywords": ["total"],
+            "cost_keywords": ["costo"],
+            "sku_keywords": ["sku"],
+            "category_keywords": ["categoria"],
+            "description_keywords": ["descripcion"],
+            "explicit_stock_keywords": ["existencia"],
+            "ambiguous_stock_keywords": ["cantidad"],
+            "operational_keywords": ["venta"],
+            "sheet_hint_keywords": ["articulos"],
+        },
+    )
 
 
 def test_save_product_candidates_skips_existing_products_and_forwards_category(db, monkeypatch):

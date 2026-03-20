@@ -5,11 +5,12 @@ import UploadPage from './pages/UploadPage'
 import DocumentDetail from './pages/DocumentDetail'
 import DocumentList from './pages/DocumentList'
 import RecipeManager from './pages/RecipeManager'
-import { loadDocCategoryKeywords } from './services'
+import { loadDocCategoryKeywords, loadProductSheetDetectionConfig } from './services'
 
 export default function ImportadorRoutes() {
   useEffect(() => {
     void loadDocCategoryKeywords()
+    void loadProductSheetDetectionConfig()
   }, [])
 
   return (

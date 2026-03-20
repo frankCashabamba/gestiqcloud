@@ -48,10 +48,19 @@ from .services.product_matching import (
     _append_import_alias,
     _build_document_line_matches,
 )
-from .product_import_service import build_product_candidates, save_product_candidates
+from .product_import_service import (
+    build_product_candidates,
+    looks_like_product_document,
+    save_product_candidates,
+)
 from . import recipe_crud
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
-from .runtime_config import load_doc_type_patterns, load_file_support_config
+from .runtime_config import (
+    load_doc_type_patterns,
+    load_file_support_config,
+    load_product_sheet_detection_config,
+    load_prompt_config,
+)
 from .snapshot_learning import bootstrap_learning_from_existing_document, learn_from_confirmed_payload
 from .schemas import (
     BatchDetailOut,
@@ -1102,6 +1111,7 @@ async def upload_files(
                 }
             else:
                 _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+                _prompt_config = load_prompt_config(db)
                 analysis = await analyze_document(
                     llm_content,
                     filename,
@@ -1111,6 +1121,7 @@ async def upload_files(
                     image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
                     fallback_patterns=load_doc_type_patterns(db),
                     canonical_fields=_canonical_fields,
+                    prompt_config=_prompt_config,
                 )
 
             normalized_analysis = _normalize_analysis_output(analysis)
@@ -1168,6 +1179,25 @@ async def upload_files(
                     "metadata_por_hoja": sheet_metadata_raw,
                     "sheet_usada": sheet_used_str,
                 }
+                product_sheet_config = load_product_sheet_detection_config(db)
+                if looks_like_product_document(
+                    datos_extraidos,
+                    sheet_name=sheet_used_str,
+                    detection_config=product_sheet_config,
+                ) and tipo_doc not in {"INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS"}:
+                    tipo_doc = "INVENTORY"
+                    requiere_revision = True
+                    crud.add_log(
+                        db,
+                        doc.id,
+                        "CLASSIFY_OVERRIDE",
+                        user_id,
+                        {
+                            "reason": "product_sheet_detection",
+                            "tipo_documento": tipo_doc,
+                            "sheet": sheet_used_str,
+                        },
+                    )
             else:
                 # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
                 datos_extraidos = analysis_fields or {}
@@ -1199,6 +1229,7 @@ async def upload_files(
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
                             fallback_patterns=load_doc_type_patterns(db),
                             canonical_fields=_canonical_fields,
+                            prompt_config=_prompt_config,
                         )
                         rerun_normalized = _normalize_analysis_output(rerun_analysis)
                         rerun_fields = rerun_normalized["fields"]
@@ -1907,6 +1938,7 @@ def save_document_as_products(
         sheet_name=body.sheet_name,
         row_indexes=body.row_indexes,
         default_category_name=body.category_name,
+        detection_config=load_product_sheet_detection_config(db),
     )
     if not candidates:
         raise HTTPException(
@@ -2001,6 +2033,11 @@ def get_doc_categories(db: Session = Depends(get_db)):
 @router.get("/file-support", dependencies=protected)
 def get_file_support(db: Session = Depends(get_db)):
     return load_file_support_config(db)
+
+
+@router.get("/product-sheet-config", dependencies=protected)
+def get_product_sheet_config(db: Session = Depends(get_db)):
+    return load_product_sheet_detection_config(db)
 
 
 @router.get("/dashboard", response_model=DashboardStats, dependencies=protected)

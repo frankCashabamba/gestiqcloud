@@ -57,3 +57,22 @@ def test_normalize_analysis_output_falls_back_for_missing_or_invalid_values():
         "reasoning": "",
         "fields": {},
     }
+
+
+@pytest.mark.no_db
+def test_normalize_analysis_output_scales_percentage_confidence_to_unit_interval():
+    result = _normalize_analysis_output(
+        {
+            "doc_type": "inventory",
+            "confidence": 95,
+            "reasoning": "Spreadsheet looked highly consistent",
+            "fields": {},
+        }
+    )
+
+    assert result == {
+        "doc_type": "INVENTORY",
+        "confidence": 0.95,
+        "reasoning": "Spreadsheet looked highly consistent",
+        "fields": {},
+    }

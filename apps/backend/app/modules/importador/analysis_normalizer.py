@@ -21,6 +21,9 @@ def _normalize_analysis_output(analysis: dict[str, object]) -> dict[str, object]
         confidence = float(raw_confidence if raw_confidence is not None else 0.0)
     except (TypeError, ValueError):
         confidence = 0.0
+    if confidence > 1.0 and confidence <= 100.0:
+        confidence = confidence / 100.0
+    confidence = max(0.0, min(1.0, confidence))
 
     raw_reasoning = _pick_analysis_value(analysis, "reasoning", "razonamiento")
     reasoning = str(raw_reasoning or "").strip()
