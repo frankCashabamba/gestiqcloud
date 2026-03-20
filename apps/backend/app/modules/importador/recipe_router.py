@@ -35,8 +35,8 @@ from .auto_recipe import (
     resolve_auto_recipe_from_text,
 )
 from .canonical_document import build_document_projection
-from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .document_fields import safe_floatish
+from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
@@ -220,10 +220,14 @@ async def run_import(
             return
 
         predecessor = None
-        if exact_hash_match and existing and (
-            existing.estado == "FAILED"
-            or (existing.estado in ("CONFIRMED", "REVIEW") and force)
-            or (existing.estado == "REVIEW" and not reuse_existing)
+        if (
+            exact_hash_match
+            and existing
+            and (
+                existing.estado == "FAILED"
+                or (existing.estado in ("CONFIRMED", "REVIEW") and force)
+                or (existing.estado == "REVIEW" and not reuse_existing)
+            )
         ):
             doc = existing
             crud.reset_documento_for_reprocess(

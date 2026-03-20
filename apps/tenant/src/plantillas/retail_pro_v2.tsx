@@ -119,13 +119,13 @@ const RetailDashboard: React.FC = () => {
   }
 
   const handleCreatePromotion = () => {
-    if (!isModuleEnabled('ventas')) return
-    navigate(`/${empresa}/ventas/promotions`)
+    if (!isModuleEnabled('sales')) return
+    navigate(`/${empresa}/sales/promotions`)
   }
 
   const handleNewCustomer = () => {
-    if (!isModuleEnabled('clientes')) return
-    navigate(`/${empresa}/clientes/new`)
+    if (!isModuleEnabled('customers')) return
+    navigate(`/${empresa}/customers/new`)
   }
 
   const handleCashClose = () => {
@@ -137,13 +137,13 @@ const RetailDashboard: React.FC = () => {
   }
 
   const handleInventory = () => {
-    if (!isModuleEnabled('inventario')) return
-    navigate(`/${empresa}/inventario`)
+    if (!isModuleEnabled('inventory')) return
+    navigate(`/${empresa}/inventory`)
   }
 
   const handleReplenishment = () => {
-    if (!isModuleEnabled('inventario')) return
-    navigate(`/${empresa}/inventario/replenishment`)
+    if (!isModuleEnabled('inventory')) return
+    navigate(`/${empresa}/inventory/replenishment`)
   }
 
   // ─────────────────────────────────────────────────────────
@@ -162,17 +162,17 @@ const RetailDashboard: React.FC = () => {
       id: 'create-promotion',
       label: 'Create promotion',
       icon: '%',
-      disabled: !isModuleEnabled('ventas'),
+      disabled: !isModuleEnabled('sales'),
       action: handleCreatePromotion,
-      requiresModule: 'ventas',
+      requiresModule: 'sales',
     },
     {
       id: 'new-customer',
       label: 'New customer',
       icon: '@',
-      disabled: !isModuleEnabled('clientes'),
+      disabled: !isModuleEnabled('customers'),
       action: handleNewCustomer,
-      requiresModule: 'clientes',
+      requiresModule: 'customers',
     },
   ]
   // Nota: Eliminados "Price update" (#price-update) y "Cycle count" (#count)
@@ -183,16 +183,16 @@ const RetailDashboard: React.FC = () => {
   // Custom Links (Sidebar)
   // ─────────────────────────────────────────────────────────
   const customLinks: CustomLink[] = [
-    isModuleEnabled('inventario') && { label: 'Stock replenishment', href: `/${empresa}/inventario/replenishment`, icon: 'S' },
-    isModuleEnabled('ventas') && { label: 'Promotions', href: `/${empresa}/ventas/promotions`, icon: 'P' },
-    isModuleEnabled('reportes') && { label: 'Sales analysis', href: `/${empresa}/reportes/analysis`, icon: 'A' },
+    isModuleEnabled('inventory') && { label: 'Stock replenishment', href: `/${empresa}/inventory/replenishment`, icon: 'S' },
+    isModuleEnabled('sales') && { label: 'Promotions', href: `/${empresa}/sales/promotions`, icon: 'P' },
+    isModuleEnabled('reports') && { label: 'Sales analysis', href: `/${empresa}/reports/analysis`, icon: 'A' },
   ].filter(Boolean) as CustomLink[]
 
   return (
     <DashboardPro sectorName="Retail ERP" sectorIcon="R" customLinks={customLinks}>
       <h1>Retail dashboard</h1>
 
-      {modules.length === 1 && isModuleEnabled('clientes') && (
+      {modules.length === 1 && isModuleEnabled('customers') && (
         <section
           className="card full-width"
           style={{ background: 'linear-gradient(135deg, var(--primary), var(--focus))', color: '#fff', padding: '40px', textAlign: 'center' }}
@@ -202,7 +202,7 @@ const RetailDashboard: React.FC = () => {
             Start by adding your customers. Other modules will unlock as you progress.
           </p>
           <button
-            onClick={() => navigate(`/${empresa}/clientes`)}
+            onClick={() => navigate(`/${empresa}/customers`)}
             style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600, border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' }}
           >
             Go to Customers
@@ -234,25 +234,25 @@ const RetailDashboard: React.FC = () => {
             </button>
             <button
               onClick={handleInventory}
-              disabled={!isModuleEnabled('inventario')}
+              disabled={!isModuleEnabled('inventory')}
               className="link"
-              title={!isModuleEnabled('inventario') ? 'Inventory module required' : ''}
+              title={!isModuleEnabled('inventory') ? 'Inventory module required' : ''}
             >
               Inventory
             </button>
             <button
               onClick={handleReplenishment}
-              disabled={!isModuleEnabled('inventario')}
+              disabled={!isModuleEnabled('inventory')}
               className="link"
-              title={!isModuleEnabled('inventario') ? 'Inventory module required' : ''}
+              title={!isModuleEnabled('inventory') ? 'Inventory module required' : ''}
             >
               Replenishment
             </button>
             <button
-              onClick={() => navigate(`/${empresa}/clientes`)}
-              disabled={!isModuleEnabled('clientes')}
+              onClick={() => navigate(`/${empresa}/customers`)}
+              disabled={!isModuleEnabled('customers')}
               className="link"
-              title={!isModuleEnabled('clientes') ? 'Customers module required' : ''}
+              title={!isModuleEnabled('customers') ? 'Customers module required' : ''}
             >
               Customers
             </button>
@@ -260,7 +260,7 @@ const RetailDashboard: React.FC = () => {
         </section>
 
         {/* Sales Today Card */}
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-6">
             <h3>Sales today</h3>
             <div className="kpi-grid">
@@ -283,7 +283,7 @@ const RetailDashboard: React.FC = () => {
         )}
 
         {/* Weekly Comparison Card */}
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-6">
             <h3>Weekly comparison</h3>
             <div className="kpi-grid">
@@ -306,7 +306,7 @@ const RetailDashboard: React.FC = () => {
         )}
 
         {/* Stock Rotation Card */}
-        {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventory') && (
           <section className="card col-4">
             <h3>Stock rotation</h3>
             <div className="list-compact">

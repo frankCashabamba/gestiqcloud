@@ -343,11 +343,12 @@ export function useResolvedCompanyFeatures(): Features {
     ),
     pos_receipt_width_mm: features?.pos_receipt_width_mm ?? 58,
     pos_return_window_days: features?.pos_return_window_days ?? 15,
-    production_enabled: resolveFeatureFlag(
-      features?.production_enabled,
-      sectorFeatures.production ?? sectorFeatures.recipes,
-      productionModuleEnabled,
-    ),
+    production_enabled:
+      productionModuleEnabled ||
+      resolveFeatureFlag(
+        features?.production_enabled,
+        sectorFeatures.production ?? sectorFeatures.recipes,
+      ),
     production_batch_tracking: resolveFeatureFlag(
       features?.production_batch_tracking,
       sectorFeatures.production_batch_tracking ?? sectorFeatures.batch_tracking,

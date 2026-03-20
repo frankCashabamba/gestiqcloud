@@ -44,9 +44,7 @@ def test_upsert_staging_lines_from_extraction_is_idempotent_for_non_tabular_docs
     assert rows[0].sheet_name == "__document__"
 
 
-def test_fetch_lines_for_scope_matches_any_selected_field(
-    db: Session, tenant_minimal
-):
+def test_fetch_lines_for_scope_matches_any_selected_field(db: Session, tenant_minimal):
     tenant_id = tenant_minimal["tenant_id"]
     document = ImpDocumento(
         tenant_id=tenant_id,
@@ -106,9 +104,7 @@ def test_fetch_lines_for_scope_matches_any_selected_field(
     assert [line.line_number for line in lines] == [1, 2, 4]
 
 
-def test_fetch_lines_for_scope_matches_selected_columns(
-    db: Session, tenant_minimal
-):
+def test_fetch_lines_for_scope_matches_selected_columns(db: Session, tenant_minimal):
     tenant_id = tenant_minimal["tenant_id"]
     document = ImpDocumento(
         tenant_id=tenant_id,

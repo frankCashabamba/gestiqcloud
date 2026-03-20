@@ -13,11 +13,15 @@ from app.services.product_raw_materials import sync_product_as_raw_material_from
 
 
 def _request_for_tenant(tenant_id: str):
-    return SimpleNamespace(state=SimpleNamespace(tenant_id=tenant_id, access_claims={"tenant_id": tenant_id}))
+    return SimpleNamespace(
+        state=SimpleNamespace(tenant_id=tenant_id, access_claims={"tenant_id": tenant_id})
+    )
 
 
 def test_create_product_rejects_generic_unit_for_bakery_raw_material(db):
-    tenant = Tenant(id=uuid4(), name="Panaderia Test", slug="pan-raw", sector_template_name="panaderia")
+    tenant = Tenant(
+        id=uuid4(), name="Panaderia Test", slug="pan-raw", sector_template_name="panaderia"
+    )
     db.add(tenant)
     db.commit()
 

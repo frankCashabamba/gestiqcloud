@@ -393,8 +393,7 @@ def find_latest_documento_by_name(
     )
     if exclude_hash_sha256:
         q = q.where(
-            (ImpDocumento.hash_sha256.is_(None))
-            | (ImpDocumento.hash_sha256 != exclude_hash_sha256)
+            (ImpDocumento.hash_sha256.is_(None)) | (ImpDocumento.hash_sha256 != exclude_hash_sha256)
         )
     return db.scalars(q.order_by(ImpDocumento.created_at.desc()).limit(1)).first()
 
@@ -437,27 +436,35 @@ def list_documento_versions(db: Session, documento_id: UUID) -> list[dict]:
             while frontier:
                 current_id, depth = frontier.pop(0)
                 if direction == "predecessor":
-                    rows = db.execute(
-                        text(
-                            """
+                    rows = (
+                        db.execute(
+                            text(
+                                """
                             SELECT predecessor_id AS related_id, reason
                             FROM imp_documento_successor
                             WHERE successor_id = :documento_id
                             """
-                        ),
-                        {"documento_id": current_id},
-                    ).mappings().all()
+                            ),
+                            {"documento_id": current_id},
+                        )
+                        .mappings()
+                        .all()
+                    )
                 else:
-                    rows = db.execute(
-                        text(
-                            """
+                    rows = (
+                        db.execute(
+                            text(
+                                """
                             SELECT successor_id AS related_id, reason
                             FROM imp_documento_successor
                             WHERE predecessor_id = :documento_id
                             """
-                        ),
-                        {"documento_id": current_id},
-                    ).mappings().all()
+                            ),
+                            {"documento_id": current_id},
+                        )
+                        .mappings()
+                        .all()
+                    )
 
                 for row in rows:
                     related_id = str(row["related_id"])

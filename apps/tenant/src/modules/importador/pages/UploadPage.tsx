@@ -10,20 +10,58 @@ export default function UploadPage() {
   const forceRequested = reimportMode === 'clean' || reimportMode === 'force'
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 860 }}>
+    <div style={{ padding: '1.5rem', maxWidth: 1080, display: 'grid', gap: '1rem' }}>
       <button
         onClick={() => navigate(-1)}
-        style={{ marginBottom: '1rem', cursor: 'pointer', border: 'none', background: 'none', fontSize: 14, color: '#6366F1' }}
+        style={{
+          width: 'fit-content',
+          cursor: 'pointer',
+          border: '1px solid #dbe4f0',
+          background: '#fff',
+          fontSize: 14,
+          color: '#0f172a',
+          padding: '0.5rem 0.8rem',
+          borderRadius: 12,
+          boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
+        }}
       >
         {'<-'} Volver
       </button>
-      <div style={{ marginBottom: '1.25rem' }}>
-        <h2 style={{ margin: 0 }}>Importar Documentos Contables</h2>
-      </div>
+
+      <section
+        style={{
+          borderRadius: 28,
+          padding: '1.35rem',
+          background: 'linear-gradient(135deg, #fffdf8 0%, #eef6ff 52%, #ffffff 100%)',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 22px 40px rgba(15, 23, 42, 0.06)',
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0f766e', marginBottom: 6 }}>
+          Entrada de documentos
+        </div>
+        <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>Subir archivos al importador</h1>
+        <p style={{ margin: '0.55rem 0 0', fontSize: 15, color: '#475569', maxWidth: 780 }}>
+          Carga facturas, imagenes, hojas de calculo y otros documentos compatibles. El sistema los prepara para revision y luego podras guardarlos en su destino.
+        </p>
+      </section>
 
       {forceRequested && (
-        <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, color: '#1d4ed8', fontSize: 13 }}>
-          Reimportacion limpia activada{sourceDocumentId ? ` para el documento ${sourceDocumentId}` : ''}. Vuelve a subir el archivo original; si el contenido es el mismo hash, el sistema reprocesara el mismo documento sin duplicarlo. Si no eliges una plantilla manual, se reprocesara con prompt generico y sin reutilizar auto-plantillas previas para sesgar la clasificacion.
+        <div
+          style={{
+            padding: '0.95rem 1rem',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: 18,
+            color: '#1d4ed8',
+            fontSize: 14,
+          }}
+        >
+          <div style={{ fontWeight: 800 }}>Modo volver a procesar</div>
+          <div style={{ marginTop: 4 }}>
+            Vuelve a subir el archivo original para revisar de nuevo ese documento sin crear duplicados
+            {sourceDocumentId ? ` (${sourceDocumentId}).` : '.'}
+          </div>
         </div>
       )}
 

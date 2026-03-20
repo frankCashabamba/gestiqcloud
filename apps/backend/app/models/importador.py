@@ -11,11 +11,13 @@ Tablas:
 """
 
 from __future__ import annotations
+
 import uuid
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -307,8 +309,10 @@ class ImpStagingLine(Base):
     raw_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default=text("'{}'"))
     normalized_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     estado: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default=text("'PENDING'"),
-        comment="PENDING, VALID, IMPORTED, INVALID, REVIEW, SKIPPED, REPROCESS"
+        String(20),
+        nullable=False,
+        server_default=text("'PENDING'"),
+        comment="PENDING, VALID, IMPORTED, INVALID, REVIEW, SKIPPED, REPROCESS",
     )
     target_table: Mapped[str | None] = mapped_column(String(50), nullable=True)
     target_id: Mapped[uuid.UUID | None] = mapped_column(UUID_COL, nullable=True)
@@ -339,9 +343,7 @@ class ImpIteration(Base):
         ForeignKey("imp_documento.id", ondelete="CASCADE"), nullable=False, index=True
     )
     iteration_num: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    scope: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default=text("'ALL'")
-    )
+    scope: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'ALL'"))
     scope_filter: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     lines_attempted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     lines_imported: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -356,8 +358,10 @@ class ImpIteration(Base):
         ForeignKey("icu_recipe_snapshot.id", ondelete="SET NULL"), nullable=True
     )
     estado: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default=text("'RUNNING'"),
-        comment="RUNNING, DONE, PARTIAL, NO_IMPROVEMENT, ABORTED"
+        String(20),
+        nullable=False,
+        server_default=text("'RUNNING'"),
+        comment="RUNNING, DONE, PARTIAL, NO_IMPROVEMENT, ABORTED",
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -389,7 +393,9 @@ class ImpLineErrorLog(Base):
     resolved_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    staging_line: Mapped[ImpStagingLine] = relationship("ImpStagingLine", back_populates="error_logs")
+    staging_line: Mapped[ImpStagingLine] = relationship(
+        "ImpStagingLine", back_populates="error_logs"
+    )
     iteration: Mapped[ImpIteration] = relationship("ImpIteration", back_populates="error_logs")
 
 

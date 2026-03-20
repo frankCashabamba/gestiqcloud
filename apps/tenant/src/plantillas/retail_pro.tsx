@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDashboardKPIs } from '../hooks/useDashboardKPIs'
 import { useMisModulos } from '../hooks/useMisModulos'
 import { getCurrentShift, getShiftSummary, listRegisters } from '../modules/pos/services'
@@ -26,13 +27,14 @@ interface KPIData {
 }
 
 const RetailDashboard: React.FC = () => {
+  const { t } = useTranslation(['dashboard', 'common'])
   const { modules } = useMisModulos()
   const { symbol: currencySymbol } = useCurrency()
   const [openShift, setOpenShift] = useState<POSShift | null>(null)
   const [openSummary, setOpenSummary] = useState<ShiftSummary | null>(null)
 
   const shouldLoadKPIs = modules.some((m) =>
-    ['ventas', 'pos', 'facturacion'].includes((m.slug || '').toLowerCase())
+    ['sales', 'pos', 'facturacion'].includes((m.slug || '').toLowerCase())
   )
   const { data: kpisData, loading: kpisLoading } = useDashboardKPIs({ periodo: 'today', enabled: shouldLoadKPIs })
 
@@ -89,17 +91,17 @@ const RetailDashboard: React.FC = () => {
   const customLinks: Array<{ label: string; href: string; icon: string }> = []
 
   return (
-    <DashboardPro sectorName="Retail ERP" sectorIcon="R" customLinks={customLinks}>
-      <h1>Retail dashboard</h1>
+    <DashboardPro sectorName={t('dashboard:retail.sectorName')} sectorIcon="R" customLinks={customLinks}>
+      <h1>{t('dashboard:retail.title')}</h1>
 
-      {modules.length === 1 && isModuleEnabled('clientes') && (
+      {modules.length === 1 && isModuleEnabled('customers') && (
         <section
           className="card full-width"
           style={{ background: 'linear-gradient(135deg, var(--primary), var(--focus))', color: '#fff', padding: '40px', textAlign: 'center' }}
         >
-          <h2 style={{ margin: 0, fontSize: '24px' }}>Welcome to your ERP</h2>
+          <h2 style={{ margin: 0, fontSize: '24px' }}>{t('dashboard:retail.welcomeTitle')}</h2>
           <p style={{ marginTop: '12px', opacity: 0.9 }}>
-            Start by adding your customers. Other modules will unlock as you progress.
+            {t('dashboard:retail.welcomeDesc')}
           </p>
         </section>
       )}
@@ -107,10 +109,10 @@ const RetailDashboard: React.FC = () => {
       <div className="dashboard-grid">
         <section className="card full-width">
           <div className="card__header">
-            <h3>Today overview</h3>
+            <h3>{t('dashboard:retail.dayStatus')}</h3>
             <div className="pills">
               <span className={`pill ${openShift ? 'pill--ok' : ''}`}>
-                {openShift ? 'Store open' : 'Store closed'}
+                {openShift ? t('dashboard:retail.storeOpen') : t('dashboard:retail.storeClosed')}
               </span>
               <span className="pill">{ventasTickets} tickets</span>
               <span className="pill">Avg ticket: {currencySymbol}{ventasTicketMedio.toFixed(2)}</span>
@@ -118,9 +120,9 @@ const RetailDashboard: React.FC = () => {
           </div>
         </section>
 
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-6">
-            <h3>Sales today</h3>
+            <h3>{t('dashboard:retail.salesToday')}</h3>
             <div className="kpi-grid">
               <div className="kpi">
                 <span className="kpi__label">Total</span>
@@ -140,16 +142,16 @@ const RetailDashboard: React.FC = () => {
           </section>
         )}
 
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-6">
-            <h3>Weekly comparison</h3>
+            <h3>{t('dashboard:retail.weeklyComparison')}</h3>
             <div className="kpi-grid">
               <div className="kpi">
-                <span className="kpi__label">This week</span>
+                <span className="kpi__label">{t('dashboard:retail.thisWeek')}</span>
                 <span className="kpi__value">${comparativa.actual?.toFixed(2) || '0.00'}</span>
               </div>
               <div className="kpi">
-                <span className="kpi__label">Last week</span>
+                <span className="kpi__label">{t('dashboard:retail.lastWeek')}</span>
                 <span className="kpi__value">${comparativa.anterior?.toFixed(2) || '0.00'}</span>
               </div>
               <div className="kpi">
@@ -162,13 +164,13 @@ const RetailDashboard: React.FC = () => {
           </section>
         )}
 
-        {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventory') && (
           <section className="card col-4">
-            <h3>Stock rotation</h3>
+            <h3>{t('dashboard:retail.stockRotation')}</h3>
             <div className="list-compact">
-              <li>High rotation: {stock.productos_alta_rotacion || 0} products</li>
-              <li>Low rotation: {stock.productos_baja_rotacion || 0} products</li>
-              <li>Replenish now: {stock.reposicion_necesaria || 0}</li>
+              <li>{t('dashboard:retail.highRotation')}: {stock.productos_alta_rotacion || 0} products</li>
+              <li>{t('dashboard:retail.lowRotation')}: {stock.productos_baja_rotacion || 0} products</li>
+              <li>{t('dashboard:retail.replenishNow')}: {stock.reposicion_necesaria || 0}</li>
             </div>
           </section>
         )}

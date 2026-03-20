@@ -143,13 +143,13 @@ const RetailDashboard: React.FC = () => {
   }
 
   const handleCreatePromotion = () => {
-    if (!isModuleEnabled('ventas')) return
+    if (!isModuleEnabled('sales')) return
     logDashboardAction({ action: 'quick_action.create_promotion' })
     navigate(buildRoute({ route: 'sales.promotions', empresa }))
   }
 
   const handleNewCustomer = () => {
-    if (!isModuleEnabled('clientes')) return
+    if (!isModuleEnabled('customers')) return
     logDashboardAction({ action: 'quick_action.new_customer' })
     navigate(buildRoute({ route: 'customers.new', empresa }))
   }
@@ -161,19 +161,19 @@ const RetailDashboard: React.FC = () => {
   }
 
   const handleInventory = () => {
-    if (!isModuleEnabled('inventario')) return
+    if (!isModuleEnabled('inventory')) return
     logDashboardAction({ action: 'action.inventory' })
     navigate(buildRoute({ route: 'inventory.list', empresa }))
   }
 
   const handleReplenishment = () => {
-    if (!isModuleEnabled('inventario')) return
+    if (!isModuleEnabled('inventory')) return
     logDashboardAction({ action: 'action.replenishment' })
     navigate(buildRoute({ route: 'inventory.replenishment', empresa }))
   }
 
   const handleGoToCustomers = () => {
-    if (!isModuleEnabled('clientes')) return
+    if (!isModuleEnabled('customers')) return
     logDashboardAction({ action: 'action.go_to_customers' })
     navigate(buildRoute({ route: 'customers.list', empresa }))
   }
@@ -186,17 +186,17 @@ const RetailDashboard: React.FC = () => {
       id: 'create-promotion',
       label: t('quickActions.createPromotion'),
       icon: '%',
-      disabled: !isModuleEnabled('ventas'),
+      disabled: !isModuleEnabled('sales'),
       action: handleCreatePromotion,
-      requiresModule: 'ventas',
+      requiresModule: 'sales',
     },
     {
       id: 'new-customer',
       label: t('quickActions.newCustomer'),
       icon: '@',
-      disabled: !isModuleEnabled('clientes'),
+      disabled: !isModuleEnabled('customers'),
       action: handleNewCustomer,
-      requiresModule: 'clientes',
+      requiresModule: 'customers',
     },
   ]
 
@@ -204,17 +204,17 @@ const RetailDashboard: React.FC = () => {
   // Custom Links (Sidebar) Configuration
   // ─────────────────────────────────────────────────────────
   const customLinks: CustomLink[] = [
-    isModuleEnabled('inventario') && {
+    isModuleEnabled('inventory') && {
       label: t('customLinks.stockReplenishment'),
       href: buildRoute({ route: 'inventory.replenishment', empresa }),
       icon: 'S',
     },
-    isModuleEnabled('ventas') && {
+    isModuleEnabled('sales') && {
       label: t('customLinks.promotions'),
       href: buildRoute({ route: 'sales.promotions', empresa }),
       icon: 'P',
     },
-    isModuleEnabled('reportes') && {
+    isModuleEnabled('reports') && {
       label: t('customLinks.salesAnalysis'),
       href: buildRoute({ route: 'reports.analysis', empresa }),
       icon: 'A',
@@ -231,7 +231,7 @@ const RetailDashboard: React.FC = () => {
       customLinks={customLinks}
     >
       {/* Welcome Card (Only when single module 'clientes' enabled) */}
-      {modules.length === 1 && isModuleEnabled('clientes') && (
+      {modules.length === 1 && isModuleEnabled('customers') && (
         <section
           className="card full-width retail-welcome-card"
           style={{
@@ -289,10 +289,10 @@ const RetailDashboard: React.FC = () => {
           <div className="card__actions">
             <button
               onClick={handleInventory}
-              disabled={!isModuleEnabled('inventario')}
+              disabled={!isModuleEnabled('inventory')}
               className="link"
               title={
-                !isModuleEnabled('inventario')
+                !isModuleEnabled('inventory')
                   ? t('moduleRequired', { module: 'Inventory' })
                   : ''
               }
@@ -301,10 +301,10 @@ const RetailDashboard: React.FC = () => {
             </button>
             <button
               onClick={handleReplenishment}
-              disabled={!isModuleEnabled('inventario')}
+              disabled={!isModuleEnabled('inventory')}
               className="link"
               title={
-                !isModuleEnabled('inventario')
+                !isModuleEnabled('inventory')
                   ? t('moduleRequired', { module: 'Inventory' })
                   : ''
               }
@@ -313,10 +313,10 @@ const RetailDashboard: React.FC = () => {
             </button>
             <button
               onClick={() => navigate(buildRoute({ route: 'customers.list', empresa }))}
-              disabled={!isModuleEnabled('clientes')}
+              disabled={!isModuleEnabled('customers')}
               className="link"
               title={
-                !isModuleEnabled('clientes')
+                !isModuleEnabled('customers')
                   ? t('moduleRequired', { module: 'Customers' })
                   : ''
               }
@@ -327,7 +327,7 @@ const RetailDashboard: React.FC = () => {
         </section>
 
         {/* Sales Today Card */}
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-6 retail-kpi-card">
             <h3>{t('cardHeaders.salesToday')}</h3>
             <div className="kpi-grid">
@@ -355,7 +355,7 @@ const RetailDashboard: React.FC = () => {
         )}
 
         {/* Weekly Comparison Card */}
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-6 retail-kpi-card">
             <h3>{t('cardHeaders.weeklyComparison')}</h3>
             <div className="kpi-grid">
@@ -384,7 +384,7 @@ const RetailDashboard: React.FC = () => {
         )}
 
         {/* Stock Rotation Card */}
-        {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventory') && (
           <section className="card col-4 retail-stock-card">
             <h3>{t('cardHeaders.stockRotation')}</h3>
             <div className="list-compact">

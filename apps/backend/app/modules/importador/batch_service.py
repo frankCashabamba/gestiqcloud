@@ -190,8 +190,10 @@ async def enqueue_async_batch(
                 )
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-        existing = None if force and not file_hash else crud.find_existing_documento(
-            db, tenant_id, filename, file_size, file_hash
+        existing = (
+            None
+            if force and not file_hash
+            else crud.find_existing_documento(db, tenant_id, filename, file_size, file_hash)
         )
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         if existing:
@@ -218,7 +220,9 @@ async def enqueue_async_batch(
             filename,
             exclude_hash_sha256=file_hash,
         )
-        staged_uploads.append((filename, file_bytes, file_size, file_hash, tipo_archivo, predecessor))
+        staged_uploads.append(
+            (filename, file_bytes, file_size, file_hash, tipo_archivo, predecessor)
+        )
 
     if not staged_uploads and not existing_matches and not rerun_existing:
         raise HTTPException(status_code=400, detail="No hay archivos validos para importar.")
@@ -276,7 +280,12 @@ async def enqueue_async_batch(
             existing.id,
             "SKIP_DUPLICATE",
             user_id,
-            {"filename": filename, "size": file_size, "mode": "async", "reason": "same hash_or_name"},
+            {
+                "filename": filename,
+                "size": file_size,
+                "mode": "async",
+                "reason": "same hash_or_name",
+            },
         )
         results.append(
             {
@@ -353,7 +362,14 @@ async def enqueue_async_batch(
             }
         )
 
-    for offset, (filename, file_bytes, file_size, file_hash, tipo_archivo, predecessor) in enumerate(
+    for offset, (
+        filename,
+        file_bytes,
+        file_size,
+        file_hash,
+        tipo_archivo,
+        predecessor,
+    ) in enumerate(
         staged_uploads,
         start=rerun_start + len(rerun_existing),
     ):

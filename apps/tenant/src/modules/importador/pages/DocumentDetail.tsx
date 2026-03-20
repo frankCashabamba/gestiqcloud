@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useImportReprocess } from '../hooks/useImportReprocess'
@@ -12,6 +12,44 @@ function getCurrentDocumentData(doc: Documento | null): Record<string, unknown> 
 }
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
+
+const FIELD_LABELS: Record<string, string> = {
+  vendor: 'Proveedor',
+  vendor_tax_id: 'RUC proveedor',
+  customer: 'Cliente',
+  customer_tax_id: 'Documento cliente',
+  category: 'Categoria',
+  concept: 'Concepto',
+  currency: 'Moneda',
+  subtotal: 'Subtotal',
+  tax_amount: 'Impuesto',
+  total_amount: 'Total',
+  payment_terms: 'Importe reportado',
+  payment_method: 'Forma de pago',
+  issue_date: 'Fecha de emision',
+  due_date: 'Fecha de vencimiento',
+  doc_number: 'Numero de documento',
+  invoice_number: 'Numero de factura',
+  reference: 'Referencia',
+  description: 'Descripcion',
+  product: 'Producto',
+  quantity: 'Cantidad',
+  qty: 'Cantidad',
+  unit_price: 'Precio unitario',
+  line_total: 'Total de linea',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  REVIEW: 'Por revisar',
+  CONFIRMED: 'Confirmado',
+  FAILED: 'Con error',
+  PROCESSING: 'Procesando',
+  PENDING: 'En cola',
+  INVALID: 'Con error',
+  REPROCESS: 'Pendiente de nueva revision',
+  VALID: 'Valido',
+  IMPORTED: 'Guardado',
+}
 
 function toggleStringValue(values: string[], value: string, checked: boolean): string[] {
   if (!value) return values
@@ -43,6 +81,65 @@ function formatSelection(values: Array<string | number>, emptyLabel: string): st
   const items = values.map(value => String(value))
   if (items.length <= 4) return items.join(', ')
   return `${items.slice(0, 4).join(', ')} +${items.length - 4}`
+}
+
+function formatFieldLabel(key: string): string {
+  if (!key) return ''
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key]
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+type ActivityItem = {
+  id: string
+  title: string
+  when: string
+  note?: string
+}
+
+function summarizeLogDetail(action: string, detail: Record<string, unknown> | null | undefined): string | undefined {
+  if (!detail || typeof detail !== 'object') return undefined
+  if (action === 'UPLOAD') {
+    const filename = typeof detail.filename === 'string' ? detail.filename : null
+    return filename ? `Archivo: ${filename}` : undefined
+  }
+  if (action === 'REPROCESS') {
+    const mode = typeof detail.mode === 'string' ? detail.mode : null
+    return mode === 'async' || mode === 'in_place' ? 'Se volvió a procesar el documento.' : undefined
+  }
+  if (action === 'EDIT') {
+    const fields = Array.isArray(detail.changed_fields) ? detail.changed_fields.map(String).filter(Boolean) : []
+    return fields.length ? `Campos actualizados: ${fields.join(', ')}` : 'Se actualizaron los datos del documento.'
+  }
+  if (action === 'SAVE_DESTINATION') {
+    const target = typeof detail.target === 'string' ? detail.target : null
+    const status = typeof detail.status === 'string' ? detail.status : null
+    if (target && status === 'created') return `Se guardó en ${target}.`
+    if (target) return `Destino: ${target}.`
+  }
+  return undefined
+}
+
+function buildUserActivity(logs: LogCambio[] | undefined): ActivityItem[] {
+  if (!logs?.length) return []
+  const visibleActions: Record<string, string> = {
+    UPLOAD: 'Documento subido',
+    EDIT: 'Datos editados',
+    CONFIRM: 'Documento confirmado',
+    REJECT: 'Documento rechazado',
+    REPROCESS: 'Reprocesado solicitado',
+    SAVE_DESTINATION: 'Documento guardado',
+  }
+
+  return logs
+    .filter((log) => Boolean(visibleActions[log.accion]))
+    .map((log) => ({
+      id: log.id,
+      title: visibleActions[log.accion],
+      when: new Date(log.created_at).toLocaleString(),
+      note: summarizeLogDetail(log.accion, log.detalle as Record<string, unknown> | null | undefined),
+    }))
 }
 
 export default function DocumentDetail() {
@@ -78,6 +175,7 @@ export default function DocumentDetail() {
   const [selectedErrorCodes, setSelectedErrorCodes] = useState<string[]>([])
   const [selectedLineNumbers, setSelectedLineNumbers] = useState<number[]>([])
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
+  const lastVisibilityReloadRef = useRef(0)
 
   useEffect(() => { fetchSaveCapabilities().then(setCapabilities).catch(() => {}) }, [])
   useEffect(() => { if (id) void reprocess.loadIterations() }, [id])
@@ -93,14 +191,15 @@ export default function DocumentDetail() {
   useEffect(() => { load() }, [id])
 
   useEffect(() => {
-    const reloadOnFocus = () => { void load() }
     const reloadOnVisibility = () => {
-      if (!document.hidden) void load()
+      if (document.hidden) return
+      const now = Date.now()
+      if (now - lastVisibilityReloadRef.current < 15000) return
+      lastVisibilityReloadRef.current = now
+      void load()
     }
-    window.addEventListener('focus', reloadOnFocus)
     document.addEventListener('visibilitychange', reloadOnVisibility)
     return () => {
-      window.removeEventListener('focus', reloadOnFocus)
       document.removeEventListener('visibilitychange', reloadOnVisibility)
     }
   }, [id])
@@ -298,21 +397,6 @@ export default function DocumentDetail() {
   })()
   const canSaveProducts = activeSheetRows.length > 0
     && canSaveProductsSheet(docCategory, activeSheet, activeNormKeys)
-  const rawAi = (doc.raw_ai_json || {}) as Record<string, unknown>
-  const rawRun = ((rawAi.run as Record<string, unknown> | undefined) || {})
-  const rawRecipeResolution = ((rawRun.recipe_resolution as Record<string, unknown> | undefined) || {})
-  const aiModeKey = typeof rawRecipeResolution.used === 'string'
-    ? rawRecipeResolution.used
-    : (doc.recipe_snapshot_id ? 'snapshot' : 'zero_shot')
-  const aiModeLabel = ({
-    zero_shot: 'Zero-shot',
-    snapshot: 'Snapshot',
-    draft: 'Borrador',
-    recipe_latest: 'Receta',
-    auto_fingerprint: 'Auto-plantilla',
-    auto_text_fingerprint: 'Auto-plantilla texto',
-    force_clean: 'Reimportacion limpia',
-  } as Record<string, string>)[aiModeKey] || aiModeKey
   const reprocessableLines = reprocess.lines.filter(line => REPROCESSABLE_STATES.includes(line.estado as (typeof REPROCESSABLE_STATES)[number]))
   const availableErrorCodes = Array.from(new Set([
     ...Object.keys(reprocess.fieldAnalysis?.error_summary || {}),
@@ -336,11 +420,12 @@ export default function DocumentDetail() {
     ...(isDocumentScopedReprocess ? selectedColumns : []),
   ])).sort((a, b) => a.localeCompare(b))
   const reviewSessionLabel = [
-    `Campos: ${formatSelection(effectiveSelectedFields, 'todos')}`,
+    `Datos: ${formatSelection(effectiveSelectedFields, 'todos')}`,
     `Columnas: ${formatSelection(selectedColumns, 'todas')}`,
-    `Errores: ${formatSelection(selectedErrorCodes, 'todos')}`,
-    `Lineas: ${formatSelection(selectedLineNumbers, 'todas')}`,
+    `Problemas: ${formatSelection(selectedErrorCodes, 'todos')}`,
+    `Elementos: ${formatSelection(selectedLineNumbers, 'todos')}`,
   ].join(' · ')
+  const activityItems = buildUserActivity(doc?.logs)
 
   const handleSaved = (_result: SaveDocumentResult) => {
     void load()
@@ -456,7 +541,7 @@ export default function DocumentDetail() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>📄 {doc.nombre_archivo}</h2>
+          <h2 style={{ marginBottom: 4, fontSize: 28, lineHeight: 1.1 }}>{doc.nombre_archivo}</h2>
           <div style={{ display: 'flex', gap: '0.75rem', fontSize: 13, color: '#6b7280' }}>
             <span>{doc.tipo_archivo}</span>
             <span>{Math.round(Number(doc.tamanio_bytes ?? 0) / 1024)} KB</span>
@@ -485,9 +570,12 @@ export default function DocumentDetail() {
           {docCategory === 'recipe' && (
             <>
               {isSynced && syncedRecipeId && (
-                <a href="../../produccion/recetas" style={{ ...actionBtn, background: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                <button
+                  onClick={() => navigate('../../manufacturing/recetas')}
+                  style={{ ...actionBtn, background: '#059669' }}
+                >
                   {t('docDetail.buttons.viewRecipe')}
-                </a>
+                </button>
               )}
               {hasMultiSheetDocument && unsyncedSheets.length > 0 && (
                 <button onClick={handleSyncAll} disabled={syncingAll || syncing} style={{ ...actionBtn, background: '#0f766e' }}>
@@ -570,9 +658,9 @@ export default function DocumentDetail() {
 
       {/* Status badge */}
       <div style={{ marginBottom: '1rem' }}>
-        <span style={{ ...statusBadge, background: statusColor[doc.estado] || '#9CA3AF' }}>{doc.estado}</span>
-        {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 6, fontSize: 13 }}>{doc.tipo_documento_detectado}</span>}
-        {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Confianza: {confPct}%</span>}
+        <span style={{ ...statusBadge, background: statusColor[doc.estado] || '#9CA3AF' }}>{STATUS_LABELS[doc.estado] || doc.estado}</span>
+        {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }}>{doc.tipo_documento_detectado}</span>}
+        {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Revision sugerida: {confPct}%</span>}
       </div>
 
       {/* Split view */}
@@ -580,7 +668,7 @@ export default function DocumentDetail() {
         {/* Left: Document info */}
         <div style={{ flex: 1, minWidth: 300 }}>
           <div style={section}>
-            <h3 style={{ marginTop: 0 }}>📊 Datos Detectados</h3>
+            <h3 style={{ marginTop: 0 }}>Resumen del documento</h3>
             {doc.proveedor_detectado && <p><strong>Proveedor:</strong> {doc.proveedor_detectado}</p>}
             {doc.ruc_detectado && <p><strong>RUC:</strong> {doc.ruc_detectado}</p>}
             {doc.monto_total != null && (
@@ -600,7 +688,7 @@ export default function DocumentDetail() {
           </div>
           {doc.error_detalle && (
             <div style={{ ...section, background: '#FEF2F2', border: '1px solid #FECACA' }}>
-              <h3 style={{ marginTop: 0, color: '#991B1B' }}>❌ Error</h3>
+              <h3 style={{ marginTop: 0, color: '#991B1B' }}>Incidencia detectada</h3>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{doc.error_detalle}</pre>
             </div>
           )}
@@ -626,7 +714,7 @@ export default function DocumentDetail() {
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <h3 style={{ margin: 0 }}>Filas del documento</h3>
+                        <h3 style={{ margin: 0 }}>Contenido detectado</h3>
                         {sheets.length > 0 && (
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {sheets.map(s => {
@@ -646,14 +734,14 @@ export default function DocumentDetail() {
                                   }}
                                 >
                                   {s} <span style={{ color: '#64748b' }}>({sheetCounts[s] ?? '-'})</span>
-                                  {isSheetSynced && <span style={{ marginLeft: 6, color: '#047857', fontWeight: 600 }}>Sync</span>}
+                                  {isSheetSynced && <span style={{ marginLeft: 6, color: '#047857', fontWeight: 600 }}>Guardada</span>}
                                 </button>
                               )
                             })}
                           </div>
                         )}
                       </div>
-                      <span style={{ fontSize: 12, color: '#6b7280' }}>{totalFilasSheet} filas · {visibleIdxs.length} columnas</span>
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>{totalFilasSheet} filas · {visibleIdxs.length} columnas visibles</span>
                     </div>
                     <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 10 }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -693,7 +781,7 @@ export default function DocumentDetail() {
                     )}
                     {datos.metadata && typeof datos.metadata === 'object' && (!activeSheet || activeSheet === (datos.sheet_usada as string)) && (
                       <div style={{ marginTop: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.75rem', fontSize: 13 }}>
-                        <strong style={{ color: '#0f172a' }}>Cabecera detectada</strong>
+                        <strong style={{ color: '#0f172a' }}>Informacion adicional</strong>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px 12px', marginTop: 8 }}>
                           {Object.entries(datos.metadata as Record<string, unknown>).map(([k, v]) => (
                             <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? '—')}</div>
@@ -707,12 +795,12 @@ export default function DocumentDetail() {
             ) : (
               // Vista de campos para FACTURA, RECIBO, etc.
               <>
-                <h3 style={{ marginTop: 0 }}>{t('docDetail.extractedFields', 'Extracted Fields')}</h3>
+                <h3 style={{ marginTop: 0 }}>Datos del documento</h3>
                 {editMode ? (
                   <div>
                     {Object.entries(editFields).map(([key, val]) => (
                       <label key={key} style={{ display: 'flex', flexDirection: 'column', marginBottom: '0.5rem', fontSize: 13 }}>
-                        <span style={{ color: '#6b7280', fontWeight: 600 }}>{key}</span>
+                        <span style={{ color: '#6b7280', fontWeight: 600 }}>{formatFieldLabel(key)}</span>
                         <input value={val} onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))} style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }} />
                       </label>
                     ))}
@@ -727,7 +815,7 @@ export default function DocumentDetail() {
                       <tbody>
                         {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && (typeof v !== 'object' || v === null)).map(([key, val]) => (
                           <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{key}</td>
+                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{formatFieldLabel(key)}</td>
                             <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '—')}</td>
                           </tr>
                         ))}
@@ -741,7 +829,7 @@ export default function DocumentDetail() {
                       if (!Array.isArray(items) || items.length === 0) return null
                       return (
                         <div style={{ marginTop: '0.75rem' }}>
-                          <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 4 }}>Line items ({items.length})</div>
+                          <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 4 }}>Detalle ({items.length})</div>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                             <thead>
                               <tr style={{ background: '#f9fafb' }}>
@@ -773,63 +861,31 @@ export default function DocumentDetail() {
         </div>
       </div>
 
-      {/* CA-03/CA-05: AI Configuration used */}
-      <div style={{ ...section, marginTop: '1rem' }}>
-        <h3 style={{ marginTop: 0 }}>🤖 Configuración IA</h3>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: 14 }}>
-          <div>
-            <span style={{ color: '#6b7280', fontWeight: 600 }}>Modo: </span>
-            <span style={{ background: '#e0e7ff', padding: '2px 8px', borderRadius: 6 }}>
-              {aiModeLabel}
-            </span>
-          </div>
-          {doc.llm_model && (
-            <div>
-              <span style={{ color: '#6b7280', fontWeight: 600 }}>Modelo: </span>
-              <span>{doc.llm_model}</span>
-            </div>
-          )}
-          {doc.recipe_snapshot_id && (
-            <div>
-              <span style={{ color: '#6b7280', fontWeight: 600 }}>Snapshot: </span>
-              <span style={{ fontSize: 12, fontFamily: 'monospace' }}>{doc.recipe_snapshot_id}</span>
-            </div>
-          )}
-        </div>
-        {doc.raw_ai_json && (
-          <details style={{ marginTop: '0.75rem' }}>
-            <summary style={{ cursor: 'pointer', color: '#6366F1', fontSize: 13 }}>Ver prompts y respuestas AI</summary>
-            <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, background: '#f9fafb', padding: '0.75rem', borderRadius: 6, marginTop: '0.5rem', maxHeight: 400, overflow: 'auto' }}>
-              {JSON.stringify(doc.raw_ai_json, null, 2)}
-            </pre>
-          </details>
-        )}
-      </div>
-
-      {/* Audit trail */}
-      {doc.logs && doc.logs.length > 0 && (
+      {activityItems.length > 0 && (
         <div style={{ ...section, marginTop: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>📋 Historial de Cambios</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ textAlign: 'left', padding: 4, color: '#6b7280' }}>Acción</th>
-                <th style={{ textAlign: 'left', padding: 4, color: '#6b7280' }}>Usuario</th>
-                <th style={{ textAlign: 'left', padding: 4, color: '#6b7280' }}>Fecha</th>
-                <th style={{ textAlign: 'left', padding: 4, color: '#6b7280' }}>Detalle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {doc.logs.map((l: LogCambio) => (
-                <tr key={l.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: 4 }}><span style={{ background: '#e0e7ff', padding: '1px 6px', borderRadius: 4 }}>{l.accion}</span></td>
-                  <td style={{ padding: 4 }}>{l.usuario_id || '—'}</td>
-                  <td style={{ padding: 4 }}>{new Date(l.created_at).toLocaleString()}</td>
-                  <td style={{ padding: 4, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.detalle ? JSON.stringify(l.detalle).substring(0, 100) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <h3 style={{ marginTop: 0 }}>Actividad reciente</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {activityItems.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '0.75rem 0.9rem',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 10,
+                  background: '#F9FAFB',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{item.title}</div>
+                  {item.note && <div style={{ marginTop: 4, fontSize: 12, color: '#6B7280' }}>{item.note}</div>}
+                </div>
+                <div style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{item.when}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -873,14 +929,18 @@ export default function DocumentDetail() {
         </div>
       )}
 
-      {/* Reprocesado iterativo */}
+      {/* Mejora de datos */}
       {reprocess.summary && (
         (reprocess.summary.pending + reprocess.summary.invalid + reprocess.summary.review + reprocess.summary.reprocess + reprocess.summary.valid + reprocess.summary.imported) > 0
       ) && (
         <div style={{ ...section, marginTop: '1rem' }}>
-          {/* Cabecera */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            <h3 style={{ margin: 0 }}>Reprocesado iterativo</h3>
+            <div>
+              <h3 style={{ margin: 0 }}>Mejorar datos detectados</h3>
+              <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
+                Usa esta seccion para volver a revisar solo las partes dudosas del documento.
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {reprocess.summary.pending > 0 && (
                 <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#E5E7EB', color: '#374151' }}>
@@ -889,40 +949,38 @@ export default function DocumentDetail() {
               )}
               {reprocess.summary.invalid > 0 && (
                 <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FEE2E2', color: '#991B1B' }}>
-                  Con error: {reprocess.summary.invalid}
+                  Con problema: {reprocess.summary.invalid}
                 </span>
               )}
               {reprocess.summary.review > 0 && (
                 <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FEF3C7', color: '#92400E' }}>
-                  En revisión: {reprocess.summary.review}
+                  En revision: {reprocess.summary.review}
                 </span>
               )}
               {reprocess.summary.reprocess > 0 && (
                 <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FFEDD5', color: '#9A3412' }}>
-                  Para reprocesar: {reprocess.summary.reprocess}
+                  Pendientes de nueva revision: {reprocess.summary.reprocess}
                 </span>
               )}
               {reprocess.summary.valid > 0 && (
                 <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#DCFCE7', color: '#166534' }}>
-                  Válidas: {reprocess.summary.valid}
+                  Correctas: {reprocess.summary.valid}
                 </span>
               )}
               {reprocess.summary.imported > 0 && (
                 <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#14532D', color: '#fff' }}>
-                  Importadas: {reprocess.summary.imported}
+                  Guardadas: {reprocess.summary.imported}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Error global del hook */}
           {reprocess.error && (
             <div style={{ padding: '0.5rem 0.75rem', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 6, marginBottom: '0.75rem', fontSize: 13, color: '#991B1B' }}>
               {reprocess.error}
             </div>
           )}
 
-          {/* Paso 1 — Inspeccionar */}
           {(reprocess.summary.pending + reprocess.summary.invalid + reprocess.summary.review + reprocess.summary.reprocess) > 0 && (
             <div style={{ marginBottom: '0.75rem' }}>
               <button
@@ -939,22 +997,21 @@ export default function DocumentDetail() {
                   fontWeight: 600,
                 }}
               >
-                {reprocess.isLoading ? 'Analizando...' : 'Inspeccionar campos, columnas, lineas y errores'}
+                {reprocess.isLoading ? 'Revisando...' : 'Ver sugerencias de mejora'}
               </button>
             </div>
           )}
 
-          {/* Tabla de campos detectados */}
           {reprocess.fieldAnalysis && (
             <div style={{ marginBottom: '0.75rem' }}>
               {reprocess.fieldAnalysis.error_summary && Object.keys(reprocess.fieldAnalysis.error_summary).length > 0 && (
                 <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
-                  Errores detectados: {Object.entries(reprocess.fieldAnalysis.error_summary).map(([k, v]) => `${k} (${v})`).join(', ')}
+                  Problemas detectados: {Object.entries(reprocess.fieldAnalysis.error_summary).map(([k, v]) => `${k} (${v})`).join(', ')}
                 </div>
               )}
               {availableErrorCodes.length > 0 && (
                 <div style={{ marginBottom: '0.75rem' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Tipos de error</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Filtrar por problema</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {availableErrorCodes.map(code => {
                       const checked = selectedErrorCodes.includes(code)
@@ -986,7 +1043,7 @@ export default function DocumentDetail() {
               )}
               {availableColumns.length > 0 && (
                 <div style={{ marginBottom: '0.75rem' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Columnas detectadas</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Columnas disponibles</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {availableColumns.map(column => {
                       const checked = selectedColumns.includes(column)
@@ -1017,12 +1074,12 @@ export default function DocumentDetail() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Campo</th>
-                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600, minWidth: 120 }}>% Relleno</th>
-                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Vacíos</th>
-                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Con error</th>
-                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Muestra</th>
-                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center', color: '#374151', fontWeight: 600 }}>✓</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Dato</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600, minWidth: 120 }}>Cobertura</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Sin valor</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Con problema</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Ejemplo</th>
+                      <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center', color: '#374151', fontWeight: 600 }}>Revisar</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1036,7 +1093,7 @@ export default function DocumentDetail() {
                             background: field.suggested_for_reprocess ? '#FEFCE8' : undefined,
                           }}
                         >
-                          <td style={{ padding: '0.35rem 0.6rem', fontWeight: 600, color: '#111827' }}>{field.field}</td>
+                          <td style={{ padding: '0.35rem 0.6rem', fontWeight: 600, color: '#111827' }}>{formatFieldLabel(field.field)}</td>
                           <td style={{ padding: '0.35rem 0.6rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <div style={{ flex: 1, background: '#E5E7EB', borderRadius: 999, height: 8, minWidth: 60 }}>
@@ -1068,7 +1125,7 @@ export default function DocumentDetail() {
               {reprocessableLines.length > 0 && (
                 <div style={{ marginTop: '0.75rem' }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                    Lineas detectadas ({reprocessableLines.length})
+                    Elementos disponibles ({reprocessableLines.length})
                   </div>
                   <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto', padding: '0.5rem', border: '1px solid #E5E7EB', borderRadius: 8, background: '#F9FAFB' }}>
                     {reprocessableLines.map(line => {
@@ -1100,7 +1157,7 @@ export default function DocumentDetail() {
                           />
                           <div style={{ minWidth: 0 }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 2 }}>
-                              <strong>Linea {line.line_number}</strong>
+                              <strong>Elemento {line.line_number}</strong>
                               <span style={{ color: '#6B7280' }}>{line.sheet_name || '__document__'}</span>
                               <span style={{ color: line.error_code ? '#B91C1C' : '#6B7280' }}>
                                 {line.error_code || line.estado}
@@ -1140,7 +1197,7 @@ export default function DocumentDetail() {
                     fontWeight: 600,
                   }}
                 >
-                  Crear sesión selectiva
+                  Crear revision enfocada
                 </button>
                 <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
                   {reviewSessionLabel}
@@ -1153,13 +1210,13 @@ export default function DocumentDetail() {
           {reprocess.activeSession && (
             <div style={{ padding: '0.75rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14 }}>
               <div style={{ color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
-                Sesión creada · {reprocess.activeSession.preview_count} líneas se verán afectadas · Campos: {(reprocess.activeSession.filter_campos ?? []).join(', ')}
+                Revision creada · {reprocess.activeSession.preview_count} elemento(s) se veran afectados
               </div>
               <div style={{ fontSize: 12, color: '#1E3A8A', marginBottom: 8 }}>
-                Campos: {formatSelection(reprocess.activeSession.filter_campos ?? [], 'todos')}
+                Datos: {formatSelection(reprocess.activeSession.filter_campos ?? [], 'todos')}
                 {' · '}Columnas: {formatSelection(reprocess.activeSession.filter_columns ?? [], 'todas')}
-                {' · '}Errores: {formatSelection(reprocess.activeSession.filter_error_codes ?? [], 'todos')}
-                {' · '}Lineas: {formatSelection(reprocess.activeSession.filter_lines ?? [], 'todas')}
+                {' · '}Problemas: {formatSelection(reprocess.activeSession.filter_error_codes ?? [], 'todos')}
+                {' · '}Elementos: {formatSelection(reprocess.activeSession.filter_lines ?? [], 'todos')}
               </div>
               <button
                 disabled={reprocess.isRunning}
@@ -1175,7 +1232,7 @@ export default function DocumentDetail() {
                   fontWeight: 600,
                 }}
               >
-                {reprocess.isRunning ? 'Ejecutando...' : 'Ejecutar reprocesado'}
+                {reprocess.isRunning ? 'Aplicando revision...' : 'Aplicar esta revision'}
               </button>
             </div>
           )}
@@ -1191,13 +1248,13 @@ export default function DocumentDetail() {
                 fontSize: 14,
               }}>
                 <div style={{ fontWeight: 600, color: reprocess.lastResult.improvement ? '#166534' : '#9A3412', marginBottom: 4 }}>
-                  {reprocess.lastResult.improvement ? '✓ Mejora detectada' : 'Sin mejora — revisa los campos manualmente'}
+                  {reprocess.lastResult.improvement ? 'Mejora detectada' : 'No hubo cambio util; revisa los datos manualmente'}
                 </div>
                 <div style={{ color: '#374151', fontSize: 13, marginBottom: 4 }}>
-                  Intentadas: {reprocess.lastResult.lines_attempted} · Válidas: {reprocess.lastResult.lines_imported} · Con error: {reprocess.lastResult.lines_errored}
+                  Revisados: {reprocess.lastResult.lines_attempted} · Correctos: {reprocess.lastResult.lines_imported} · Con problema: {reprocess.lastResult.lines_errored}
                 </div>
                 {reprocess.lastResult.estado === 'DONE' && (
-                  <div style={{ color: '#166534', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Todas las líneas procesadas</div>
+                  <div style={{ color: '#166534', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Todos los elementos seleccionados fueron revisados</div>
                 )}
                 {reprocess.lastResult.message && (
                   <div style={{ color: '#6B7280', fontSize: 12 }}>{reprocess.lastResult.message}</div>
@@ -1231,7 +1288,7 @@ export default function DocumentDetail() {
           {reprocess.iterations.length > 0 && (
             <div style={{ marginBottom: '0.75rem' }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Historial de iteraciones
+                Revisiones anteriores
               </div>
               <div style={{ display: 'grid', gap: 6 }}>
                 {reprocess.iterations.slice(0, 6).map(iteration => (
@@ -1246,11 +1303,11 @@ export default function DocumentDetail() {
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <strong>Iteración {iteration.iteration_num}</strong>
-                      <span style={{ color: '#6B7280' }}>{iteration.estado}</span>
+                      <strong>Revision {iteration.iteration_num}</strong>
+                      <span style={{ color: '#6B7280' }}>{STATUS_LABELS[iteration.estado] || iteration.estado}</span>
                     </div>
                     <div style={{ color: '#374151', marginTop: 4 }}>
-                      Intentadas: {iteration.lines_attempted} · Importables: {iteration.lines_imported} · Con error: {iteration.lines_errored}
+                      Revisados: {iteration.lines_attempted} · Correctos: {iteration.lines_imported} · Con problema: {iteration.lines_errored}
                     </div>
                     <div style={{ color: '#6B7280', marginTop: 4 }}>
                       {new Date(iteration.started_at).toLocaleString()}
@@ -1278,17 +1335,10 @@ export default function DocumentDetail() {
                   opacity: 0.85,
                 }}
               >
-                Reprocesar todo ({reprocess.totalResolvable} líneas)
+                Revisar todo lo pendiente ({reprocess.totalResolvable} elementos)
               </button>
             </div>
           )}
-        </div>
-      )}
-
-      {doc.datos_confirmados && (
-        <div style={{ ...section, marginTop: '1rem', background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-          <h3 style={{ marginTop: 0, color: '#166534' }}>✅ Datos Confirmados</h3>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{JSON.stringify(doc.datos_confirmados, null, 2)}</pre>
         </div>
       )}
 

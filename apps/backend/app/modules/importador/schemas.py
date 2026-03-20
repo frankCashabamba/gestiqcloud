@@ -352,10 +352,17 @@ class StagingLineSummary(BaseModel):
 
     @property
     def total(self) -> int:
-        return sum([
-            self.pending, self.valid, self.imported,
-            self.invalid, self.review, self.skipped, self.reprocess,
-        ])
+        return sum(
+            [
+                self.pending,
+                self.valid,
+                self.imported,
+                self.invalid,
+                self.review,
+                self.skipped,
+                self.reprocess,
+            ]
+        )
 
     @property
     def resolvable(self) -> int:

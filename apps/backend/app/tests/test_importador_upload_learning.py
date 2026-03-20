@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from app.models.importador import ImpDocumento, IcuRecipeSnapshot
+from app.models.importador import IcuRecipeSnapshot, ImpDocumento
 from app.modules.importador import crud
 from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
 from app.modules.importador.batch_service import enqueue_async_batch
@@ -60,7 +60,9 @@ def test_learn_from_confirmation_bumps_learning_version(db: Session, tenant_mini
 
     snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
     assert snapshot is not None
-    assert snapshot.content_json["field_descriptions"]["payment_method"].startswith("User corrected")
+    assert snapshot.content_json["field_descriptions"]["payment_method"].startswith(
+        "User corrected"
+    )
     assert snapshot.content_json["learning_version"] == 1
     assert snapshot.content_json["learning_updated_at"]
 
@@ -109,7 +111,16 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
         canonical_fields: dict | None = None,
         prompt_config: dict | None = None,
     ):
-        del content, filename, format_hint, has_structured_rows, image_bytes, fallback_patterns, canonical_fields, prompt_config
+        del (
+            content,
+            filename,
+            format_hint,
+            has_structured_rows,
+            image_bytes,
+            fallback_patterns,
+            canonical_fields,
+            prompt_config,
+        )
         recipe_config = recipe_config or {}
         analyze_calls.append(recipe_config)
         if recipe_config.get("field_descriptions"):

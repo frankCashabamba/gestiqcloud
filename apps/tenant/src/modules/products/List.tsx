@@ -1024,7 +1024,7 @@ export default function ProductosList() {
                         sector.plantilla?.toLowerCase().includes('bakery')) &&
                         recipeByProduct.has(p.id) && (
                           <Link
-                            to={`/${empresa || ''}/produccion/recetas/${recipeByProduct.get(p.id)}`}
+                            to={`/${empresa || ''}/manufacturing/recetas/${recipeByProduct.get(p.id)}`}
                             className="text-green-600 hover:text-green-800 mr-4"
                             title={t('products:list.viewRecipe')}
                           >

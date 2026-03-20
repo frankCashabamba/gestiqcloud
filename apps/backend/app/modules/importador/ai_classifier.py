@@ -426,7 +426,7 @@ async def _analyze_with_vision(
         '  "reasoning": "brief explanation",\n'
         '  "is_table": false,\n'
         '  "columns": [],\n'
-        '  \"fields\": {\n'
+        '  "fields": {\n'
         f"{dynamic_fields_prompt}\n"
         "  }\n"
         "}\n"
@@ -556,9 +556,13 @@ async def analyze_document(
     rc = recipe_config or {}
     pc = prompt_config or {}
 
-    system_prompt = rc.get("prompt_system") or pc.get("extraction_system") or (
-        "You are a universal accounting document analyzer. "
-        "Always respond with valid JSON using the configured canonical fields."
+    system_prompt = (
+        rc.get("prompt_system")
+        or pc.get("extraction_system")
+        or (
+            "You are a universal accounting document analyzer. "
+            "Always respond with valid JSON using the configured canonical fields."
+        )
     )
 
     # Field descriptions can be customized per tenant via recipe_config["field_descriptions"].
@@ -595,9 +599,7 @@ async def analyze_document(
         "Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable."
     ).strip()
     configured_rules = [
-        str(rule).strip()
-        for rule in (pc.get("critical_rules") or [])
-        if str(rule).strip()
+        str(rule).strip() for rule in (pc.get("critical_rules") or []) if str(rule).strip()
     ]
     if not configured_rules:
         configured_rules = [

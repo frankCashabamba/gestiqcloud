@@ -11,7 +11,6 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-
 PACK_UNIT_PATTERN = re.compile(
     r"(?<![a-z0-9])(\d+(?:[.,]\d+)?)\s*(kg|kilos?|kilogramos?|g|gr|gramos?|"
     r"lb|lbs|libras?|oz|onzas?|ton|toneladas?|l|lt|ltr|litros?|ml|mililitros?)\b",
@@ -189,7 +188,8 @@ def _build_document_line_matches(
     limit_per_line: int = 5,
 ):
     from app.models.core.products import Product
-    from ..schemas import DocumentLineMatchOut, ProductMatchCandidateOut, SaveDocumentLineMatch
+
+    from ..schemas import DocumentLineMatchOut, ProductMatchCandidateOut
 
     data = doc.datos_confirmados or doc.datos_extraidos or {}
     if not isinstance(data, dict):

@@ -99,8 +99,8 @@ from app.schemas.recipes import (
     RecipeStepUpdate,
     RecipeUpdate,
 )
-from app.services.product_raw_materials import sync_product_as_raw_material_from_recipe_line
 from app.services.cost_periods_service import CostPeriodsService
+from app.services.product_raw_materials import sync_product_as_raw_material_from_recipe_line
 from app.services.recipe_calculator import (
     calculate_production_time,
     calculate_purchase_for_production,

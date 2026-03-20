@@ -26,7 +26,7 @@ def _httpdate(dt: datetime) -> str:
 
 def _legacy_deprecation_dependency(response: Response):
     """Inyecta headers de deprecación/retirada para rutas legacy."""
-    from backend.app.config.settings import settings
+    from app.config.settings import settings
 
     # Deprecation: "true" o fecha
     dep = getattr(settings, "LEGACY_DEPRECATION", None)  # puede ser bool|datetime|str

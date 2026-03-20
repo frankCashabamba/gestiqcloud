@@ -19,7 +19,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
-from . import crud
+from . import crud, recipe_crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
@@ -39,22 +39,13 @@ from .document_fields import (
     get_data_value,
     safe_floatish,
 )
+from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
-from .services.product_matching import (
-    _norm_import_text,
-    _strip_pack_tokens,
-    _infer_pack_conversion_factor,
-    _get_line_values,
-    _find_product_by_id,
-    _append_import_alias,
-    _build_document_line_matches,
-)
 from .product_import_service import (
     build_product_candidates,
     looks_like_product_document,
     save_product_candidates,
 )
-from . import recipe_crud
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 from .runtime_config import (
     load_doc_type_patterns,
@@ -62,10 +53,10 @@ from .runtime_config import (
     load_product_sheet_detection_config,
     load_prompt_config,
 )
-from .snapshot_learning import bootstrap_learning_from_existing_document, learn_from_confirmed_payload
 from .schemas import (
     BatchDetailOut,
     BatchSummaryOut,
+    BulkStagingPatch,
     ConfirmRequest,
     DashboardStats,
     DocumentLineMatchesResponse,
@@ -73,6 +64,13 @@ from .schemas import (
     DocumentoListOut,
     DocumentoOut,
     EditFieldsRequest,
+    FieldAnalysisResponse,
+    IterationOut,
+    IterationResultOut,
+    IterationScopeIn,
+    ReviewSessionCreate,
+    ReviewSessionOut,
+    RunIterationRequest,
     SaveDailyLogRequest,
     SaveDailyLogResponse,
     SaveDocumentLineMatch,
@@ -80,21 +78,13 @@ from .schemas import (
     SaveDocumentResponse,
     SaveProductsFromDocumentRequest,
     SaveProductsFromDocumentResponse,
+    StagingLineOut,
+    StagingLinePatch,
+    StagingLineSummary,
     SyncRecipeResponse,
     SyncRecipeSheetResponse,
     SyncRecipesResponse,
     UploadResponse,
-    BulkStagingPatch,
-    FieldAnalysisResponse,
-    IterationResultOut,
-    IterationScopeIn,
-    IterationOut,
-    ReviewSessionCreate,
-    ReviewSessionOut,
-    RunIterationRequest,
-    StagingLinePatch,
-    StagingLineOut,
-    StagingLineSummary,
 )
 from .services.iteration_service import (
     build_field_analysis,
@@ -105,12 +95,25 @@ from .services.iteration_service import (
     run_iteration,
     upsert_staging_lines_from_extraction,
 )
-from .field_alias_loader import get_canonical_fields, get_field_aliases
+from .services.product_matching import (
+    _append_import_alias,
+    _build_document_line_matches,
+    _find_product_by_id,
+    _get_line_values,
+    _infer_pack_conversion_factor,
+    _norm_import_text,
+    _strip_pack_tokens,
+)
+from .snapshot_learning import (
+    bootstrap_learning_from_existing_document,
+    learn_from_confirmed_payload,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
+
 
 def _json_safe(obj):
     if isinstance(obj, (datetime.datetime, datetime.date)):
@@ -153,10 +156,7 @@ def _require_confirmed_doc_import_data(doc, destination: str) -> dict:
         return data
     raise HTTPException(
         status_code=409,
-        detail=(
-            "Debes confirmar el documento antes de guardarlo en "
-            f"{destination}."
-        ),
+        detail=("Debes confirmar el documento antes de guardarlo en " f"{destination}."),
     )
 
 
@@ -713,8 +713,7 @@ def _save_document_to_purchase(
     logger.info("save_purchase: warehouse=%s", warehouse.id if warehouse else None)
 
     doc_number = str(
-        _first_non_empty(get_data_value(data, *(fa.get("doc_number") or [])))
-        or doc.nombre_archivo
+        _first_non_empty(get_data_value(data, *(fa.get("doc_number") or []))) or doc.nombre_archivo
     )[:50]
     purchase_date = _parse_document_date(
         _first_non_empty(
@@ -991,10 +990,14 @@ async def upload_files(
             return
 
         predecessor = None
-        if exact_hash_match and existing and (
-            existing.estado == "FAILED"
-            or (existing.estado in ("CONFIRMED", "REVIEW") and force)
-            or (existing.estado == "REVIEW" and not reuse_existing)
+        if (
+            exact_hash_match
+            and existing
+            and (
+                existing.estado == "FAILED"
+                or (existing.estado in ("CONFIRMED", "REVIEW") and force)
+                or (existing.estado == "REVIEW" and not reuse_existing)
+            )
         ):
             doc = existing
             response_action = "REPROCESS"
@@ -1226,9 +1229,7 @@ async def upload_files(
                     )
                     if post_snapshot_id:
                         resolved_snapshot_id = post_snapshot_id
-                        recipe_snapshot = recipe_crud.get_snapshot(
-                            db, UUID(str(post_snapshot_id))
-                        )
+                        recipe_snapshot = recipe_crud.get_snapshot(db, UUID(str(post_snapshot_id)))
                     if auto_recipe_config and not auto_recipe_created:
                         rerun_analysis = await analyze_document(
                             llm_content,
@@ -1309,7 +1310,9 @@ async def upload_files(
                             "razonamiento": razonamiento,
                         },
                         "campos_extraidos": (
-                            list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                            list(datos_extraidos.keys())
+                            if isinstance(datos_extraidos, dict)
+                            else []
                         ),
                     },
                     "canonical_document": canonical_document,
@@ -1342,9 +1345,7 @@ async def upload_files(
                     db, doc.id, tenant_id, datos_extraidos
                 )
                 if _n_staging:
-                    logger.info(
-                        "Staging: %d líneas creadas para doc %s", _n_staging, doc.id
-                    )
+                    logger.info("Staging: %d líneas creadas para doc %s", _n_staging, doc.id)
 
             db.commit()
 
@@ -2485,6 +2486,7 @@ def list_staging_lines(
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     from sqlalchemy import select
+
     from app.models.importador import ImpStagingLine
 
     q = select(ImpStagingLine).where(ImpStagingLine.documento_id == doc_id)
@@ -2546,6 +2548,7 @@ def list_iterations(doc_id: UUID, request: Request, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     from sqlalchemy import select
+
     from app.models.importador import ImpIteration
 
     return list(
@@ -2609,10 +2612,20 @@ def create_review_session(
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     scope = IterationScopeIn(
-        mode="SELECTIVE" if any([
-            body.filter_estados, body.filter_error_codes,
-            body.filter_campos, body.filter_columns, body.filter_lines, body.filter_sheet,
-        ]) else "ALL",
+        mode=(
+            "SELECTIVE"
+            if any(
+                [
+                    body.filter_estados,
+                    body.filter_error_codes,
+                    body.filter_campos,
+                    body.filter_columns,
+                    body.filter_lines,
+                    body.filter_sheet,
+                ]
+            )
+            else "ALL"
+        ),
         filter_estados=body.filter_estados,
         filter_error_codes=body.filter_error_codes,
         filter_campos=body.filter_campos,
@@ -2623,6 +2636,7 @@ def create_review_session(
     preview_count = count_lines_for_scope(db, doc_id, scope)
 
     from app.models.importador import ImpReviewSession
+
     session = ImpReviewSession(
         tenant_id=tenant_id,
         documento_id=doc_id,
@@ -2661,6 +2675,7 @@ def run_review_session(
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     from sqlalchemy import select
+
     from app.models.importador import ImpReviewSession
 
     session = db.scalars(
@@ -2678,10 +2693,20 @@ def run_review_session(
         )
 
     scope = IterationScopeIn(
-        mode="SELECTIVE" if any([
-            session.filter_estados, session.filter_error_codes,
-            session.filter_campos, session.filter_columns, session.filter_lines, session.filter_sheet,
-        ]) else "ALL",
+        mode=(
+            "SELECTIVE"
+            if any(
+                [
+                    session.filter_estados,
+                    session.filter_error_codes,
+                    session.filter_campos,
+                    session.filter_columns,
+                    session.filter_lines,
+                    session.filter_sheet,
+                ]
+            )
+            else "ALL"
+        ),
         filter_estados=list(session.filter_estados or []),
         filter_error_codes=list(session.filter_error_codes or []),
         filter_campos=list(session.filter_campos or []),
@@ -2721,6 +2746,7 @@ def patch_staging_line(
     """
     _tenant_id(request)
     from sqlalchemy import select
+
     from app.models.importador import ImpStagingLine
 
     line = db.scalars(
@@ -2763,6 +2789,7 @@ def bulk_patch_staging_lines(
     """
     _tenant_id(request)
     from sqlalchemy import select
+
     from app.models.importador import ImpStagingLine
 
     lines = list(

@@ -407,7 +407,9 @@ async def _run_processing(
                             "razonamiento": analysis.get("reasoning", ""),
                         },
                         "campos_extraidos": (
-                            list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
+                            list(datos_extraidos.keys())
+                            if isinstance(datos_extraidos, dict)
+                            else []
                         ),
                     },
                     "canonical_document": canonical_document,
@@ -436,7 +438,10 @@ async def _run_processing(
             # Poblar staging lines para habilitar el reprocesado iterativo.
             if isinstance(datos_extraidos, dict):
                 from .services.iteration_service import upsert_staging_lines_from_extraction
-                _n = upsert_staging_lines_from_extraction(db, doc.id, doc.tenant_id, datos_extraidos)
+
+                _n = upsert_staging_lines_from_extraction(
+                    db, doc.id, doc.tenant_id, datos_extraidos
+                )
                 if _n:
                     logger.info("Staging: %d líneas creadas para doc %s", _n, doc.id)
 

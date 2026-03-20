@@ -4,7 +4,7 @@ import asyncio
 
 from sqlalchemy.orm import Session
 
-from app.models.importador import ImpDocumento, IcuRecipeSnapshot
+from app.models.importador import IcuRecipeSnapshot, ImpDocumento
 from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
 from app.modules.importador.tasks import _run_processing
 
@@ -76,7 +76,16 @@ def test_run_processing_reuses_text_snapshot_learning_for_async_flow(
         canonical_fields: dict | None = None,
         prompt_config: dict | None = None,
     ):
-        del content, filename, format_hint, has_structured_rows, image_bytes, fallback_patterns, canonical_fields, prompt_config
+        del (
+            content,
+            filename,
+            format_hint,
+            has_structured_rows,
+            image_bytes,
+            fallback_patterns,
+            canonical_fields,
+            prompt_config,
+        )
         recipe_config = recipe_config or {}
         analyze_calls.append(recipe_config)
         if recipe_config.get("field_descriptions"):
@@ -106,10 +115,9 @@ def test_run_processing_reuses_text_snapshot_learning_for_async_flow(
             "raw_response": "{}",
         }
 
-    monkeypatch.setattr(
-        "app.config.database.SessionLocal",
-        _SessionFactory(db),
-    )
+    import app.config.database as _db_mod
+
+    monkeypatch.setattr(_db_mod, "SessionLocal", _SessionFactory(db))
     monkeypatch.setattr(
         "app.modules.importador.ocr_service.extract_text_from_file",
         fake_extract_text_from_file,

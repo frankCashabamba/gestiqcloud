@@ -47,7 +47,7 @@ export default function IngredientesMaestros() {
 function IngredientesMaestrosContent() {
   const { empresa } = useParams()
   const navigate = useNavigate()
-  const basePath = `${empresa ? `/${empresa}` : ''}/produccion`
+  const basePath = `${empresa ? `/${empresa}` : ''}/manufacturing`
   const { success, error: toastError } = useToast()
   const { units } = useUnits()
 

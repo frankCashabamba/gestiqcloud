@@ -69,11 +69,11 @@ function fileIcon(name: string) {
 function importActionCopy(action?: string | null) {
   switch (action) {
     case 'REUSED':
-      return { label: 'Duplicado reutilizado', color: '#92400e', bg: '#fef3c7' }
+      return { label: 'Ya existia', color: '#92400e', bg: '#fef3c7' }
     case 'REPROCESS':
-      return { label: 'Reprocesado limpio', color: '#1d4ed8', bg: '#dbeafe' }
+      return { label: 'Procesado otra vez', color: '#1d4ed8', bg: '#dbeafe' }
     case 'CREATED':
-      return { label: 'Nuevo documento', color: '#166534', bg: '#dcfce7' }
+      return { label: 'Nuevo', color: '#166534', bg: '#dcfce7' }
     default:
       return null
   }
@@ -584,13 +584,13 @@ export default function ImportUploader({
     { label: 'Errores', value: errorEntries.length, color: '#EF4444' },
   ], [reviewEntries.length, queueEntries.length, errorEntries.length])
   const headerTitle = processing
-    ? `Encolando ${totalCount} documento${totalCount > 1 ? 's' : ''}...`
+    ? `Preparando ${totalCount} documento${totalCount > 1 ? 's' : ''}...`
     : activeCount > 0
-      ? `Procesando ${activeCount} archivo${activeCount > 1 ? 's' : ''} en segundo plano`
-      : `${entries.length} archivo${entries.length > 1 ? 's' : ''} en esta bandeja`
+      ? `Estamos procesando ${activeCount} archivo${activeCount > 1 ? 's' : ''}`
+      : `${entries.length} archivo${entries.length > 1 ? 's' : ''} listo${entries.length > 1 ? 's' : ''} en esta bandeja`
   const headerMeta = activeBatch
-    ? `${activeBatch.review_items + activeBatch.confirmed_items} resueltos · ${activeBatch.pending_items} en cola · ${activeBatch.failed_items} fallidos`
-    : `Los documentos abiertos con Ver salen automaticamente de esta lista.`
+    ? `${activeBatch.review_items + activeBatch.confirmed_items} listos · ${activeBatch.pending_items} pendientes · ${activeBatch.failed_items} con error`
+    : 'Los documentos abiertos se retiran automaticamente de esta bandeja.'
 
   return (
     <>
@@ -687,13 +687,13 @@ export default function ImportUploader({
         <div className="import-uploader__top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: 4 }}>
-              Preparar importacion
+              Area de carga
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
-              {entries.length > 0 ? 'Sigue cargando documentos a esta bandeja' : 'Sube documentos sueltos o una carpeta completa'}
+              {entries.length > 0 ? 'Sigue agregando archivos a esta bandeja' : 'Sube documentos sueltos o una carpeta completa'}
             </div>
             <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-              {entries.length > 0 ? 'Puedes seguir agregando archivos mientras el sistema procesa en segundo plano.' : 'Arrastra archivos, haz clic para seleccionarlos y lanza la importacion cuando este todo listo.'}
+              {entries.length > 0 ? 'Puedes seguir agregando archivos mientras el sistema trabaja en segundo plano.' : 'Arrastra archivos, haz clic para seleccionarlos y empieza cuando tengas todo listo.'}
             </div>
           </div>
           <div className="import-uploader__tabs" style={{ display: 'inline-flex', gap: '0.55rem', padding: '0.35rem', borderRadius: 16, border: '1px solid #dbeafe', background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)' }}>
@@ -714,7 +714,7 @@ export default function ImportUploader({
                   boxShadow: mode === itemMode ? '0 10px 20px rgba(79, 70, 229, 0.22)' : '0 1px 2px rgba(15, 23, 42, 0.05)',
                 }}
               >
-                {itemMode === 'files' ? 'Archivos individuales' : 'Seleccionar carpeta'}
+                {itemMode === 'files' ? 'Archivos' : 'Carpeta'}
               </button>
             ))}
           </div>
@@ -723,7 +723,7 @@ export default function ImportUploader({
               onClick={clearAll}
               style={{ fontSize: 12, color: '#6b7280', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', padding: '0.45rem 0.8rem', borderRadius: 10, fontWeight: 700 }}
             >
-              Limpiar todo
+              Vaciar bandeja
             </button>
           )}
         </div>
@@ -751,9 +751,9 @@ export default function ImportUploader({
             <div style={{ width: 54, height: 54, margin: '0 auto 0.85rem', borderRadius: 18, background: dragging ? '#6366F1' : 'linear-gradient(180deg, #E0E7FF 0%, #C7D2FE 100%)', color: dragging ? '#fff' : '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, boxShadow: '0 14px 26px rgba(99, 102, 241, 0.16)' }}>
               +
             </div>
-            <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#6366f1' }}>Zona de carga</p>
+            <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#6366f1' }}>Carga directa</p>
             <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Arrastra tus archivos aqui</p>
-            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: '0 0 1rem' }}>o haz clic para seleccionarlos manualmente</p>
+            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: '0 0 1rem' }}>o haz clic para elegirlos manualmente</p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
               {['PDF', 'JPG/PNG', 'HEIC', 'Excel', 'CSV', 'XML', 'TXT'].map((label) => (
                 <span key={label} style={{ padding: '0.22rem 0.55rem', borderRadius: 999, background: '#fff', border: '1px solid #e5e7eb', color: '#64748b', fontSize: 11, fontWeight: 700 }}>
@@ -762,7 +762,7 @@ export default function ImportUploader({
               ))}
             </div>
             <div style={{ marginTop: '0.9rem', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
-              El sistema clasifica y prepara los documentos automaticamente.
+              El sistema organiza cada documento para que luego solo tengas que revisarlo y confirmar.
             </div>
             <input ref={fileRef} type="file" multiple accept={acceptedAttr} onChange={onFileChange} style={{ display: 'none' }} />
           </div>
@@ -784,9 +784,9 @@ export default function ImportUploader({
             <div style={{ width: 54, height: 54, margin: '0 auto 0.85rem', borderRadius: 18, background: 'linear-gradient(180deg, #E0F2FE 0%, #BAE6FD 100%)', color: '#0369A1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, boxShadow: '0 14px 26px rgba(14, 165, 233, 0.14)' }}>
               F
             </div>
-            <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#0284c7' }}>Carga por carpeta</p>
-            <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Importacion por carpeta</p>
-            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: 0 }}>Procesa todos los archivos compatibles contenidos en una misma carpeta</p>
+            <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#0284c7' }}>Carga masiva</p>
+            <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Sube una carpeta completa</p>
+            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: 0 }}>Procesa de una vez todos los archivos compatibles dentro de una misma carpeta</p>
             <input ref={folderRef} type="file" multiple onChange={onFolderChange} style={{ display: 'none' }} {...directoryInputProps} />
           </div>
         )}
@@ -838,9 +838,9 @@ export default function ImportUploader({
 
             <div style={{ display: 'grid', gap: '0.9rem' }}>
               {[
-                { key: 'review', title: 'Por revisar', subtitle: 'Documentos listos para abrir y retirar de la bandeja', entries: reviewEntries },
-                { key: 'queue', title: 'En curso', subtitle: 'Archivos procesandose o pendientes de envio', entries: queueEntries },
-                { key: 'errors', title: 'Errores', subtitle: 'Archivos que requieren una nueva subida o revision', entries: errorEntries },
+                { key: 'review', title: 'Listos para revisar', subtitle: 'Documentos ya preparados para abrir y validar', entries: reviewEntries },
+                { key: 'queue', title: 'En curso', subtitle: 'Archivos procesandose o esperando turno', entries: queueEntries },
+                { key: 'errors', title: 'Necesitan atencion', subtitle: 'Archivos que requieren una nueva subida o una revision', entries: errorEntries },
               ].filter((section) => section.entries.length > 0).map((section) => (
                 <div className="import-uploader__section" key={section.key} style={{ border: '1px solid #E5E7EB', borderRadius: 18, background: '#fff', padding: '0.9rem', boxShadow: '0 10px 22px rgba(15, 23, 42, 0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
@@ -886,7 +886,7 @@ export default function ImportUploader({
                                 {entry.name}
                               </span>
                               <span style={{ padding: '0.15rem 0.45rem', borderRadius: 999, background: tone.badge, color: tone.color, fontSize: 10, fontWeight: 700 }}>
-                                {entry.status === 'done' ? 'Listo para revisar' : entry.status === 'error' ? 'Requiere atencion' : entry.status === 'pending' ? 'Listo para enviar' : 'Procesando'}
+                                {entry.status === 'done' ? 'Listo para revisar' : entry.status === 'error' ? 'Necesita atencion' : entry.status === 'pending' ? 'Listo para enviar' : 'Procesando'}
                               </span>
                               {entry.result?.tipo_documento_detectado && (
                                 <span style={{ padding: '0.15rem 0.45rem', borderRadius: 999, background: '#fff', color: '#475569', border: '1px solid rgba(148, 163, 184, 0.35)', fontSize: 10, fontWeight: 700 }}>
@@ -910,10 +910,10 @@ export default function ImportUploader({
                             </div>
                             <div style={{ marginTop: 4, display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: 11, color: '#64748b' }}>
                               <span>{fmtSize(entry.size)}</span>
-                              {entry.status === 'processing' && <span style={{ color: tone.color }}>Trabajo en segundo plano</span>}
-                              {entry.status === 'pending' && <span style={{ color: tone.color }}>Pendiente de envio</span>}
+                              {entry.status === 'processing' && <span style={{ color: tone.color }}>El sistema lo esta preparando</span>}
+                              {entry.status === 'pending' && <span style={{ color: tone.color }}>Aun no se ha enviado</span>}
                               {entry.status === 'error' && entry.errorMessage && <span style={{ color: tone.color, fontWeight: 600 }}>{entry.errorMessage}</span>}
-                              {entry.status === 'done' && <span style={{ color: tone.color }}>Se retira de la bandeja al abrirlo</span>}
+                              {entry.status === 'done' && <span style={{ color: tone.color }}>Se retirara de la bandeja cuando lo abras</span>}
                             </div>
                             {entry.result?.message && (
                               <div style={{ marginTop: 6, fontSize: 11, color: '#475569' }}>
@@ -930,7 +930,7 @@ export default function ImportUploader({
                                 }}
                                 style={{ padding: '0.42rem 0.8rem', border: '1px solid #4F46E5', borderRadius: 10, background: '#4F46E5', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
                               >
-                                Ver
+                                Abrir
                               </button>
                             )}
                             {entry.status === 'pending' && !processing && (
@@ -954,7 +954,7 @@ export default function ImportUploader({
 
         <div className="import-uploader__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
           <div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Plantilla / Receta <span style={{ color: '#d1d5db' }}>opcional</span></div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Configuracion de lectura <span style={{ color: '#d1d5db' }}>opcional</span></div>
             <select
               className="import-uploader__select"
               value={selectedRecipeId}
@@ -962,7 +962,7 @@ export default function ImportUploader({
               disabled={processing}
               style={{ padding: '0.55rem 0.7rem', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 13, minWidth: 220, background: '#fff' }}
             >
-              <option value="">Auto-detectar (recomendado)</option>
+              <option value="">Elegir automaticamente</option>
               {recipes.map((recipe) => <option key={recipe.id} value={recipe.id}>{recipe.name}</option>)}
             </select>
           </div>
@@ -989,8 +989,8 @@ export default function ImportUploader({
               onChange={(e) => setForceReprocess(e.target.checked)}
               style={{ cursor: 'pointer' }}
             />
-            Reimportacion limpia
-            <span style={{ color: '#d1d5db' }}>(omite dedupe)</span>
+            Volver a procesar archivo
+            <span style={{ color: '#d1d5db' }}>(usa el mismo documento si ya existe)</span>
           </label>
         </div>
 
@@ -1021,14 +1021,14 @@ export default function ImportUploader({
           {processing ? (
             <>
               <Spinner />
-              Encolando {totalCount} documento{totalCount > 1 ? 's' : ''}...
+              Preparando {totalCount} documento{totalCount > 1 ? 's' : ''}...
             </>
           ) : activeCount > 0
             ? `Procesando en segundo plano: ${completedCount + errorCount} de ${totalCount}`
             : pendingCount > 0
-              ? `Importar ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
+              ? `Empezar con ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
               : entries.length > 0
-                ? 'Todo procesado - agrega mas archivos'
+                ? 'Todo listo - puedes agregar mas archivos'
                 : 'Selecciona archivos para comenzar'}
         </button>
 

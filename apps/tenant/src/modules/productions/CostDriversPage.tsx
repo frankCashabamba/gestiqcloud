@@ -47,7 +47,7 @@ function CostDriversPageContent() {
   const { t } = useTranslation(['productions', 'common']);
   const navigate = useNavigate();
   const { empresa } = useParams();
-  const basePath = `${empresa ? `/${empresa}` : ''}/produccion`;
+  const basePath = `${empresa ? `/${empresa}` : ''}/manufacturing`;
 
   const [drivers, setDrivers] = useState<CostDriver[]>([]);
   const [unitTypes, setUnitTypes] = useState<CostDriverUnitType[]>([]);

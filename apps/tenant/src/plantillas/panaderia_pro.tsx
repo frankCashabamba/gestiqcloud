@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { formatCurrency, usePanaderiaKPIs } from '../hooks/useDashboardKPIs'
 import { useMisModulos } from '../hooks/useMisModulos'
 import DashboardPro from './components/DashboardPro'
@@ -102,11 +103,12 @@ const getQuickErrorMessage = (error: any): string => {
     if (flat.length > 0) return flat.join('; ')
   }
   if (typeof error?.message === 'string' && error.message.trim()) return error.message
-  return 'Error en producción rápida'
+  return ''
 }
 
 const PanaderiaDashboard: React.FC = () => {
   const { empresa } = useParams<{ empresa?: string }>()
+  const { t } = useTranslation(['dashboard', 'common'])
   const { modules } = useMisModulos()
 
   const shouldLoadKPIs = modules.some((m) =>
@@ -198,9 +200,9 @@ const PanaderiaDashboard: React.FC = () => {
 
   const prefix = empresa ? `/${empresa}` : ''
   const customLinks = [
-    isProductionEnabled() && { label: 'Recetas', href: `${prefix}/produccion/recetas`, icon: 'R' },
-    isModuleEnabled('inventario') && { label: 'Inventario', href: `${prefix}/inventory`, icon: 'I' },
-    isModuleEnabled('compras') && { label: 'Compras', href: `${prefix}/purchases`, icon: 'P' },
+    isProductionEnabled() && { label: t('dashboard:panaderia.recipes'), href: `${prefix}/manufacturing/recetas`, icon: 'R' },
+    isModuleEnabled('inventory') && { label: t('dashboard:panaderia.inventory'), href: `${prefix}/inventory`, icon: 'I' },
+    isModuleEnabled('purchases') && { label: t('dashboard:panaderia.purchases'), href: `${prefix}/purchases`, icon: 'P' },
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 
   useEffect(() => {
@@ -223,7 +225,7 @@ const PanaderiaDashboard: React.FC = () => {
           setOtherQty(String(Number(list[0].yield_qty || 1)))
         }
       } catch (e: any) {
-        if (!cancelled) setQuickError(getQuickErrorMessage(e) || 'No se pudieron cargar las recetas')
+        if (!cancelled) setQuickError(getQuickErrorMessage(e) || t('dashboard:panaderia.recipesLoadError'))
       } finally {
         if (!cancelled) setQuickLoading(false)
       }
@@ -383,11 +385,11 @@ const PanaderiaDashboard: React.FC = () => {
 
   const handleQuickProduction = async () => {
     if (!selectedRecipe) {
-      setQuickError('Seleccione una receta')
+      setQuickError(t('dashboard:panaderia.selectRecipe'))
       return
     }
     if (!effectiveQty || effectiveQty <= 0) {
-      setQuickError('La cantidad debe ser mayor a 0')
+      setQuickError(t('dashboard:panaderia.quantityGtZero'))
       return
     }
 
@@ -435,27 +437,27 @@ const PanaderiaDashboard: React.FC = () => {
       )
       setQuickOpen(false)
     } catch (e: any) {
-      setQuickError(getQuickErrorMessage(e))
+      setQuickError(getQuickErrorMessage(e) || t('dashboard:panaderia.quickProductionError'))
     } finally {
       setQuickSaving(false)
     }
   }
 
   return (
-    <DashboardPro sectorName="Panadería ERP" sectorIcon="B" customLinks={customLinks}>
-      <h1>Resumen de Panadería</h1>
+    <DashboardPro sectorName={t('dashboard:panaderia.sectorName')} sectorIcon="B" customLinks={customLinks}>
+      <h1>{t('dashboard:panaderia.title')}</h1>
 
-      {modules.length === 1 && isModuleEnabled('clientes') && (
+      {modules.length === 1 && isModuleEnabled('customers') && (
         <section
           className="card full-width"
           style={{ background: 'linear-gradient(135deg, var(--primary), var(--focus))', color: '#fff', padding: '40px', textAlign: 'center' }}
         >
-          <h2 style={{ margin: 0, fontSize: '24px' }}>Bienvenido a su ERP</h2>
+          <h2 style={{ margin: 0, fontSize: '24px' }}>{t('dashboard:panaderia.welcomeTitle')}</h2>
           <p style={{ marginTop: '12px', opacity: 0.9 }}>
-            Comience agregando sus clientes. Otros módulos se habilitarán a medida que avance.
+            {t('dashboard:panaderia.welcomeDesc')}
           </p>
-          <a href={`${prefix}/clients`} className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
-            Ir a Clientes
+          <a href={`${prefix}/customers`} className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
+            {t('dashboard:panaderia.goToCustomers')}
           </a>
         </section>
       )}
@@ -463,12 +465,12 @@ const PanaderiaDashboard: React.FC = () => {
       <div className="dashboard-grid">
         <section className="card full-width">
           <div className="card__header">
-            <h3>Estado del día</h3>
+            <h3>{t('dashboard:panaderia.dayStatus')}</h3>
             <div className="pills">
-              <span className="pill pill--ok">Operativo</span>
-              {isModuleEnabled('ventas') && ventas.hoy && ventas.hoy > 0 && (
+              <span className="pill pill--ok">{t('dashboard:panaderia.operative')}</span>
+              {isModuleEnabled('sales') && ventas.hoy && ventas.hoy > 0 && (
                 <span className="pill">
-                  Ventas hoy: {formatDashboardMoney(ventas.hoy, ventas.moneda)}
+                  {t('dashboard:panaderia.salesToday')} {formatDashboardMoney(ventas.hoy, ventas.moneda)}
                 </span>
               )}
             </div>
@@ -476,7 +478,7 @@ const PanaderiaDashboard: React.FC = () => {
           <div className="card__actions">
             {isModuleEnabled('pos') && (
               <a className="link" href={`${prefix}/pos`}>
-                Abrir POS
+                {t('dashboard:panaderia.openPOS')}
               </a>
             )}
             {isProductionEnabled() && (
@@ -496,27 +498,27 @@ const PanaderiaDashboard: React.FC = () => {
                   setQuickOpen(true)
                 }}
               >
-                Nueva producción
+                {t('dashboard:panaderia.newProduction')}
               </button>
             )}
-            {isProductionEnabled() && <a className="link" href={`${prefix}/produccion/recetas`}>Recetas</a>}
-            {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/sales`}>Ventas</a>}
-            {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clients`}>Clientes</a>}
+            {isProductionEnabled() && <a className="link" href={`${prefix}/manufacturing/recetas`}>{t('dashboard:panaderia.recipes')}</a>}
+            {isModuleEnabled('sales') && <a className="link" href={`${prefix}/sales`}>{t('dashboard:panaderia.sales')}</a>}
+            {isModuleEnabled('customers') && <a className="link" href={`${prefix}/customers`}>{t('dashboard:panaderia.customers')}</a>}
           </div>
           {quickSuccess && <p className="text-sm mt-2" style={{ color: '#166534' }}>{quickSuccess}</p>}
           {quickError && <p className="text-sm mt-2" style={{ color: '#b91c1c' }}>{quickError}</p>}
         </section>
 
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-6">
-            <h3>Ventas de hoy</h3>
+            <h3>{t('dashboard:panaderia.salesTodayCard')}</h3>
             <div className="kpi-grid">
               <div className="kpi">
-                <span className="kpi__label">Hoy</span>
+                <span className="kpi__label">{t('dashboard:panaderia.today')}</span>
                 <span className="kpi__value">{kpisLoading ? '...' : formatDashboardMoney(ventas.hoy, ventas.moneda)}</span>
               </div>
               <div className="kpi">
-                <span className="kpi__label">Ayer</span>
+                <span className="kpi__label">{t('dashboard:panaderia.yesterday')}</span>
                 <span className="kpi__value">{formatDashboardMoney(ventas.ayer, ventas.moneda)}</span>
               </div>
               <div className="kpi">
@@ -529,12 +531,12 @@ const PanaderiaDashboard: React.FC = () => {
           </section>
         )}
 
-        {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventory') && (
           <section className="card col-3">
-            <h3>Stock crítico</h3>
+            <h3>{t('dashboard:panaderia.criticalStock')}</h3>
             <div className="stat-large">
               <span className="stat-large__value">{stock.items || 0}</span>
-              <span className="stat-large__label">productos</span>
+              <span className="stat-large__label">{t('dashboard:panaderia.products')}</span>
             </div>
             {stock.nombres && stock.nombres.length > 0 && (
               <ul className="list-compact">
@@ -546,15 +548,15 @@ const PanaderiaDashboard: React.FC = () => {
           </section>
         )}
 
-        {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventory') && (
           <section className="card col-3">
-            <h3>Merma de hoy</h3>
+            <h3>{t('dashboard:panaderia.wasteToday')}</h3>
             <div className="stat-large">
               <span className="stat-large__value">{mermas.hoy || 0}</span>
-              <span className="stat-large__label">{mermas.unidad || 'uds'}</span>
+              <span className="stat-large__label">{mermas.unidad || t('dashboard:panaderia.units')}</span>
             </div>
             <div className="kpi">
-              <span className="kpi__label">Valor estimado</span>
+              <span className="kpi__label">{t('dashboard:panaderia.estimatedValue')}</span>
               <span className="kpi__value">{formatDashboardMoney(mermas.valor_estimado, mermas.moneda || ventas.moneda)}</span>
             </div>
           </section>
@@ -562,7 +564,7 @@ const PanaderiaDashboard: React.FC = () => {
 
         {isProductionEnabled() && (
           <section className="card col-4">
-            <h3>Hornadas de producción</h3>
+            <h3>{t('dashboard:panaderia.productionBatches')}</h3>
             <div className="progress-stat">
               <div className="progress-stat__header">
                 <span>
@@ -575,18 +577,18 @@ const PanaderiaDashboard: React.FC = () => {
               </div>
             </div>
             <div className="pills">
-              <span className="pill pill--ok">En curso</span>
-              <span className="pill">{hornadasPendientes} pendientes</span>
+              <span className="pill pill--ok">{t('dashboard:panaderia.inProgress')}</span>
+              <span className="pill">{hornadasPendientes} {t('dashboard:panaderia.pending')}</span>
             </div>
           </section>
         )}
 
-        {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventory') && (
           <section className="card col-4">
-            <h3>Ingredientes por vencer</h3>
+            <h3>{t('dashboard:panaderia.expiringIngredients')}</h3>
             <div className="stat-large">
               <span className="stat-large__value">{ingredientes.proximos_7_dias || 0}</span>
-              <span className="stat-large__label">próximos 7 días</span>
+              <span className="stat-large__label">{t('dashboard:panaderia.next7Days')}</span>
             </div>
             {ingredientes.items && ingredientes.items.length > 0 && (
               <ul className="list-compact">
@@ -598,9 +600,9 @@ const PanaderiaDashboard: React.FC = () => {
           </section>
         )}
 
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-4">
-            <h3>Productos más vendidos</h3>
+            <h3>{t('dashboard:panaderia.topProducts')}</h3>
             <div className="table-compact">
               {topProductos.length > 0 ? (
                 <table>
@@ -615,42 +617,42 @@ const PanaderiaDashboard: React.FC = () => {
                   </tbody>
                 </table>
               ) : (
-                <p className="empty-state">Sin datos</p>
+                <p className="empty-state">{t('dashboard:panaderia.noData')}</p>
               )}
             </div>
           </section>
         )}
 
-        {isModuleEnabled('ventas') && (
+        {isModuleEnabled('sales') && (
           <section className="card col-8">
-            <h3>Ventas por hora</h3>
+            <h3>{t('dashboard:panaderia.hourlySales')}</h3>
             <div className="chart-container">
               <div className="chart-placeholder">
                 <canvas id="salesChart" height="200"></canvas>
-                <p className="chart-empty">Gráfico en proceso</p>
+                <p className="chart-empty">{t('dashboard:panaderia.chartInProgress')}</p>
               </div>
             </div>
             <div className="pills">
-              <span className="pill">Real</span>
-              <span className="pill">Pronóstico</span>
-              <span className="pill">Meta</span>
+              <span className="pill">{t('dashboard:panaderia.actual')}</span>
+              <span className="pill">{t('dashboard:panaderia.forecast')}</span>
+              <span className="pill">{t('dashboard:panaderia.target')}</span>
             </div>
           </section>
         )}
 
         <section className="card col-4">
-          <h3>Acciones rápidas</h3>
+          <h3>{t('dashboard:panaderia.quickActions')}</h3>
           <div className="action-grid">
             {isModuleEnabled('pos') && (
               <a href={`${prefix}/pos`} className="action-btn action-btn--primary">
                 <span className="action-btn__icon">P</span>
-                <span>Abrir POS</span>
+                <span>{t('dashboard:panaderia.openPOSAction')}</span>
               </a>
             )}
-            {isModuleEnabled('clientes') && (
-              <a href={`${prefix}/clients`} className="action-btn">
+            {isModuleEnabled('customers') && (
+              <a href={`${prefix}/customers`} className="action-btn">
                 <span className="action-btn__icon">@</span>
-                <span>Nuevo cliente</span>
+                <span>{t('dashboard:panaderia.newCustomer')}</span>
               </a>
             )}
           </div>
@@ -677,12 +679,12 @@ const PanaderiaDashboard: React.FC = () => {
             className="card"
             style={{ width: '100%', maxWidth: 560, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 24 }}>Producción rápida</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 24 }}>{t('dashboard:panaderia.quickProduction')}</h3>
             <p style={{ marginTop: 0, marginBottom: 16, color: '#64748b', fontSize: 14 }}>
-              Producción en dos clics. Los ajustes avanzados quedan ocultos por defecto.
+              {t('dashboard:panaderia.quickProductionDesc')}
             </p>
             {quickLoading ? (
-              <p>Cargando recetas...</p>
+              <p>{t('dashboard:panaderia.loadingRecipes')}</p>
             ) : (
               <>
                 <div style={{ overflowY: 'auto', paddingBottom: 8 }}>
@@ -695,7 +697,7 @@ const PanaderiaDashboard: React.FC = () => {
                   }}
                 >
                   <div>
-                    <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: '#475569' }}>Receta</label>
+                    <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: '#475569' }}>{t('dashboard:panaderia.recipe')}</label>
                     <select
                       style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid #d1d5db', background: '#fff' }}
                       value={selectedRecipeId}
@@ -707,7 +709,7 @@ const PanaderiaDashboard: React.FC = () => {
                       }}
                       disabled={quickSaving}
                     >
-                      {recipes.length === 0 && <option value="">Sin recetas</option>}
+                      {recipes.length === 0 && <option value="">{t('dashboard:panaderia.noRecipes')}</option>}
                       {recipes.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.name}
@@ -723,10 +725,10 @@ const PanaderiaDashboard: React.FC = () => {
                       background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)',
                     }}
                   >
-                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Producto</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{t('dashboard:panaderia.product')}</div>
                     <div style={{ fontWeight: 700, marginBottom: 8 }}>{selectedRecipe?.name || '-'}</div>
                     <div style={{ fontSize: 13, color: '#475569' }}>
-                      Rendimiento base: <strong>{toNumber(selectedRecipe?.yield_qty).toFixed(0)} uds</strong>
+                      {t('dashboard:panaderia.baseYield')} <strong>{toNumber(selectedRecipe?.yield_qty).toFixed(0)} uds</strong>
                     </div>
                   </div>
                 </div>
@@ -739,7 +741,7 @@ const PanaderiaDashboard: React.FC = () => {
                       onChange={() => setQtyMode('same')}
                       disabled={quickSaving}
                     />
-                    Misma cantidad ({selectedRecipe?.yield_qty || 0})
+                    {t('dashboard:panaderia.sameQuantity')} ({selectedRecipe?.yield_qty || 0})
                   </label>
                   <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 14, padding: '10px 12px', borderRadius: 999, border: '1px solid #dbe4ee', background: qtyMode === 'other' ? '#eff6ff' : '#fff' }}>
                     <input
@@ -748,7 +750,7 @@ const PanaderiaDashboard: React.FC = () => {
                       onChange={() => setQtyMode('other')}
                       disabled={quickSaving}
                     />
-                    Otra cantidad
+                    {t('dashboard:panaderia.otherQuantity')}
                   </label>
                   <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 14, padding: '10px 12px', borderRadius: 999, border: '1px solid #dbe4ee', background: qtyMode === 'ingrediente' ? '#eff6ff' : '#fff' }}>
                     <input
@@ -757,7 +759,7 @@ const PanaderiaDashboard: React.FC = () => {
                       onChange={() => setQtyMode('ingrediente')}
                       disabled={quickSaving}
                     />
-                    Por ingrediente
+                    {t('dashboard:panaderia.byIngredient')}
                   </label>
                 </div>
 
@@ -769,7 +771,7 @@ const PanaderiaDashboard: React.FC = () => {
                     value={otherQty}
                     onChange={(e) => setOtherQty(e.target.value)}
                     disabled={quickSaving}
-                    placeholder="Cantidad de unidades a producir"
+                    placeholder={t('dashboard:panaderia.unitsToProducePlaceholder')}
                     style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid #d1d5db', marginBottom: 16 }}
                   />
                 )}
@@ -777,10 +779,10 @@ const PanaderiaDashboard: React.FC = () => {
                 {qtyMode === 'ingrediente' && (
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, marginBottom: 16 }}>
                     {recipeIngredients.length === 0 ? (
-                      <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Cargando ingredientes...</p>
+                      <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>{t('dashboard:panaderia.loadingIngredients')}</p>
                     ) : (
                       <>
-                        <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: '#475569' }}>Ingrediente base</label>
+                        <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: '#475569' }}>{t('dashboard:panaderia.baseIngredient')}</label>
                         <select
                           style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #d1d5db', marginBottom: 10 }}
                           value={selectedIngredientId}
@@ -807,7 +809,7 @@ const PanaderiaDashboard: React.FC = () => {
                         {selectedIngredient && (
                           <>
                             <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: '#475569' }}>
-                              Cantidad disponible
+                              {t('dashboard:panaderia.availableQty')}
                             </label>
                             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                               <input
@@ -842,7 +844,7 @@ const PanaderiaDashboard: React.FC = () => {
                                 Receta usa <strong>{selectedIngredient.qty} {selectedIngredient.unit}</strong>{' → '}{selectedRecipe?.yield_qty || 0} uds
                               </p>
                               {stockLoading ? (
-                                <span style={{ fontSize: 12, color: '#94a3b8' }}>Verificando stock...</span>
+                                <span style={{ fontSize: 12, color: '#94a3b8' }}>{t('dashboard:panaderia.checkingStock')}</span>
                               ) : ingredientStock !== null ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <span style={{
@@ -859,7 +861,7 @@ const PanaderiaDashboard: React.FC = () => {
                                     onClick={handleUseAllStock}
                                     disabled={quickSaving}
                                   >
-                                    Usar todo
+                                    {t('dashboard:panaderia.useAll')}
                                   </button>
                                 </div>
                               ) : null}
@@ -880,24 +882,24 @@ const PanaderiaDashboard: React.FC = () => {
                   }}
                 >
                   <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>Cantidad final</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{t('dashboard:panaderia.finalQuantity')}</div>
                     <div style={{ fontSize: 22, fontWeight: 700 }}>{effectiveQty || 0}</div>
                     <div style={{ fontSize: 12, color: '#64748b' }}>uds</div>
                   </div>
                   <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>Materiales</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{t('dashboard:panaderia.materials')}</div>
                     <div style={{ fontSize: 22, fontWeight: 700 }}>{formatMoney(quickMaterialsTotal)}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{quickCalcLoading ? 'Calculando...' : 'segun receta'}</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{quickCalcLoading ? 'Calculando...' : t('dashboard:panaderia.perRecipe')}</div>
                   </div>
                   <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
                     <div style={{ fontSize: 12, color: '#64748b' }}>Indirectos</div>
                     <div style={{ fontSize: 22, fontWeight: 700 }}>{formatMoney(quickIndirectTotal)}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>editables</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{t('dashboard:panaderia.editable')}</div>
                   </div>
                   <div style={{ border: '1px solid #dbeafe', borderRadius: 12, padding: 12, background: '#eff6ff' }}>
-                    <div style={{ fontSize: 12, color: '#1d4ed8' }}>Costo estimado/u</div>
+                    <div style={{ fontSize: 12, color: '#1d4ed8' }}>{t('dashboard:panaderia.estimatedCostPerUnit')}</div>
                     <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a' }}>{formatMoney(quickUnitEstimated)}</div>
-                    <div style={{ fontSize: 12, color: '#1d4ed8' }}>{formatMoney(quickEstimatedTotal)} total</div>
+                    <div style={{ fontSize: 12, color: '#1d4ed8' }}>{formatMoney(quickEstimatedTotal)} {t('dashboard:panaderia.total')}</div>
                   </div>
                 </div>
 
@@ -911,14 +913,14 @@ const PanaderiaDashboard: React.FC = () => {
                     : ingredientStock
                   return inputGrams > stockGrams && inputGrams > 0 ? (
                     <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#b91c1c' }}>
-                      ⚠️ La cantidad ingresada supera el stock disponible ({ingredientStock.toFixed(2)} {selectedIngredient.unit}). La producción podría fallar por falta de ingredientes.
+                      {t('dashboard:panaderia.stockWarning', { available: `${ingredientStock.toFixed(2)} ${selectedIngredient.unit}` })}
                     </div>
                   ) : null
                 })()}
 
                 {/* Campo de merma — simple y opcional */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <label style={{ fontSize: 13, color: '#475569', whiteSpace: 'nowrap' }}>Merma (uds):</label>
+                  <label style={{ fontSize: 13, color: '#475569', whiteSpace: 'nowrap' }}>{t('dashboard:panaderia.wasteUnits')}</label>
                   <input
                     type="number"
                     min={0}
@@ -929,7 +931,7 @@ const PanaderiaDashboard: React.FC = () => {
                     placeholder="0"
                     style={{ width: 80, padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14 }}
                   />
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>unidades que no salieron bien (opcional)</span>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>{t('dashboard:panaderia.wasteDesc')}</span>
                 </div>
 
                 <div
@@ -947,8 +949,8 @@ const PanaderiaDashboard: React.FC = () => {
                 >
                   <div style={{ fontSize: 13, color: '#475569' }}>
                     {quickCalculation?.tiempo_estimado
-                      ? `Tiempo estimado: ${toNumber(quickCalculation.tiempo_estimado.tiempo_total_horas).toFixed(1)} h`
-                      : 'La orden se creará, iniciará y completará automáticamente.'}
+                      ? `${t('dashboard:panaderia.estimatedTime')} ${toNumber(quickCalculation.tiempo_estimado.tiempo_total_horas).toFixed(1)} h`
+                      : t('dashboard:panaderia.autoCompleteDesc')}
                   </div>
                   <button
                     type="button"
@@ -956,7 +958,7 @@ const PanaderiaDashboard: React.FC = () => {
                     onClick={() => setQuickAdvancedOpen((prev) => !prev)}
                     disabled={quickSaving}
                   >
-                    {quickAdvancedOpen ? 'Ocultar ajustes' : 'Ver ajustes'}
+                    {quickAdvancedOpen ? t('dashboard:panaderia.hideSettings') : t('dashboard:panaderia.showSettings')}
                   </button>
                 </div>
 
@@ -964,11 +966,11 @@ const PanaderiaDashboard: React.FC = () => {
                   <>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, marginBottom: 16, overflow: 'hidden' }}>
                   <div style={{ padding: '12px 14px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 600 }}>
-                    Materiales a consumir
+                    {t('dashboard:panaderia.materialsToConsume')}
                   </div>
                   <div style={{ maxHeight: 190, overflowY: 'auto' }}>
                     {quickCalcLoading ? (
-                      <p style={{ padding: 14, margin: 0, color: '#64748b' }}>Calculando materiales...</p>
+                      <p style={{ padding: 14, margin: 0, color: '#64748b' }}>{t('dashboard:panaderia.calculatingMaterials')}</p>
                     ) : quickCalculation?.ingredientes?.length ? (
                       quickCalculation.ingredientes.map((item, index) => (
                         <div
@@ -992,7 +994,7 @@ const PanaderiaDashboard: React.FC = () => {
                         </div>
                       ))
                     ) : (
-                      <p style={{ padding: 14, margin: 0, color: '#64748b' }}>Selecciona una receta y cantidad para ver el cálculo.</p>
+                      <p style={{ padding: 14, margin: 0, color: '#64748b' }}>{t('dashboard:panaderia.selectRecipeAndQty')}</p>
                     )}
                   </div>
                 </div>
@@ -1025,8 +1027,8 @@ const PanaderiaDashboard: React.FC = () => {
                     {quickCostLines.length === 0 ? (
                       <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
                         {quickDrivers.length === 0
-                          ? 'No hay drivers de costo configurados.'
-                          : 'La receta no tiene costos indirectos cargados. Puedes añadirlos manualmente.'}
+                          ? t('dashboard:panaderia.noCostDrivers')
+                          : t('dashboard:panaderia.noIndirectCosts')}
                       </p>
                     ) : (
                       quickCostLines.map((line) => (

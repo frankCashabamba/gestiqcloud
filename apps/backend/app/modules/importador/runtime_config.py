@@ -20,8 +20,21 @@ _DEFAULT_DOC_TYPE_PATTERNS: dict[str, list[str]] = {
 
 _DEFAULT_FILE_SUPPORT = {
     "accepted_extensions": [
-        ".pdf", ".png", ".jpg", ".jpeg", ".heic", ".heif", ".tiff", ".bmp", ".gif",
-        ".xlsx", ".xls", ".csv", ".xml", ".txt", ".zip",
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".heic",
+        ".heif",
+        ".tiff",
+        ".bmp",
+        ".gif",
+        ".xlsx",
+        ".xls",
+        ".csv",
+        ".xml",
+        ".txt",
+        ".zip",
     ],
     "image_extensions": [".png", ".jpg", ".jpeg", ".heic", ".heif", ".tiff", ".bmp", ".gif"],
     "type_map": {
@@ -71,12 +84,25 @@ _DEFAULT_PROMPT_CONFIG = {
 _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG = {
     "summary_names": ["total", "subtotal", "resumen", "sum", "totales"],
     "name_keywords": [
-        "producto", "nombre", "descripcion", "description", "item",
-        "articulo", "product", "name", "denominacion",
+        "producto",
+        "nombre",
+        "descripcion",
+        "description",
+        "item",
+        "articulo",
+        "product",
+        "name",
+        "denominacion",
     ],
     "price_keywords": [
-        "precio unitario", "unit price", "precio venta", "sale price",
-        "pvp", "price", "precio", "valor",
+        "precio unitario",
+        "unit price",
+        "precio venta",
+        "sale price",
+        "pvp",
+        "price",
+        "precio",
+        "valor",
     ],
     "price_reject_keywords": ["total", "importe total", "subtotal"],
     "cost_keywords": ["costo", "cost", "compra", "purchase"],
@@ -84,13 +110,26 @@ _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG = {
     "category_keywords": ["categoria", "category", "familia", "grupo", "linea"],
     "description_keywords": ["descripcion", "description", "detalle", "detalle producto"],
     "explicit_stock_keywords": [
-        "stock", "existencia", "disponible", "inventario", "saldo", "cantidad stock",
+        "stock",
+        "existencia",
+        "disponible",
+        "inventario",
+        "saldo",
+        "cantidad stock",
     ],
     "ambiguous_stock_keywords": ["cantidad", "qty", "quantity", "unidades", "units"],
     "operational_keywords": ["venta", "diaria", "sobrante", "produc", "consumo", "merma"],
     "sheet_hint_keywords": [
-        "product", "producto", "productos", "catalog", "catalogo",
-        "inventory", "inventario", "stock", "price list", "lista precios",
+        "product",
+        "producto",
+        "productos",
+        "catalog",
+        "catalogo",
+        "inventory",
+        "inventario",
+        "stock",
+        "price list",
+        "lista precios",
     ],
 }
 
@@ -164,9 +203,7 @@ def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
                 options = row.options
                 if key in {"accepted_extensions", "image_extensions"} and isinstance(options, list):
                     config[key] = [
-                        str(value).strip().lower()
-                        for value in options
-                        if str(value).strip()
+                        str(value).strip().lower() for value in options if str(value).strip()
                     ]
                 elif key == "type_map":
                     if isinstance(options, dict):
@@ -231,8 +268,7 @@ def load_product_sheet_detection_config(db: Any | None = None) -> dict[str, list
         try:
             rows = _load_module_rows(db, "importador.product_sheet_detection")
             config = {
-                key: list(value)
-                for key, value in _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG.items()
+                key: list(value) for key, value in _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG.items()
             }
             for row in rows:
                 key = str(row.field).strip()

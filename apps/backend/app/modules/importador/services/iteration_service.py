@@ -18,21 +18,13 @@ from uuid import UUID
 from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.importador import (
-    ImpDocumento,
-    ImpIteration,
-    ImpLineErrorLog,
-    ImpStagingLine,
-)
+from app.models.importador import ImpDocumento, ImpIteration, ImpLineErrorLog, ImpStagingLine
+
 from ..ai_classifier import analyze_document
 from ..analysis_normalizer import _normalize_analysis_output
 from ..canonical_document import build_document_projection
 from ..runtime_config import load_doc_type_patterns, load_prompt_config
-from ..schemas import (
-    IterationResultOut,
-    IterationScopeIn,
-    StagingLineSummary,
-)
+from ..schemas import IterationResultOut, IterationScopeIn, StagingLineSummary
 
 logger = logging.getLogger("importador.iteration_service")
 
@@ -235,11 +227,7 @@ def _reextract_document_scope_fields(
         return {}
 
     canonical_meta = canonical_fields or {}
-    narrowed_fields = {
-        field: canonical_meta.get(field, {})
-        for field in selected_fields
-        if field
-    }
+    narrowed_fields = {field: canonical_meta.get(field, {}) for field in selected_fields if field}
     if not narrowed_fields:
         return {}
 
@@ -435,6 +423,7 @@ def normalize_line_fields(
             if raw_value:
                 s = str(raw_value).strip()[:10]
                 import re
+
                 if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
                     result[campo] = s
         elif field_type == "list":
@@ -478,27 +467,33 @@ def validate_normalized_line(
     for amount_field in efa.get("MISSING_AMOUNT", ["total_amount"]):
         value = normalized.get(amount_field)
         if value is None:
-            errors.append({
-                "code": "MISSING_AMOUNT",
-                "detail": f"El campo {amount_field} es obligatorio y no se encontró.",
-                "field": amount_field,
-            })
+            errors.append(
+                {
+                    "code": "MISSING_AMOUNT",
+                    "detail": f"El campo {amount_field} es obligatorio y no se encontró.",
+                    "field": amount_field,
+                }
+            )
         elif isinstance(value, (int, float)) and float(value) <= 0:
-            errors.append({
-                "code": "MISSING_AMOUNT",
-                "detail": f"El monto {amount_field} debe ser mayor que cero (valor: {value}).",
-                "field": amount_field,
-            })
+            errors.append(
+                {
+                    "code": "MISSING_AMOUNT",
+                    "detail": f"El monto {amount_field} debe ser mayor que cero (valor: {value}).",
+                    "field": amount_field,
+                }
+            )
 
     for date_field in efa.get("INVALID_DATE", ["issue_date"]):
         date_value = normalized.get(date_field)
         if date_value is not None:
             if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(date_value)):
-                errors.append({
-                    "code": "INVALID_DATE",
-                    "detail": f"La fecha '{date_value}' en {date_field} no tiene formato YYYY-MM-DD.",
-                    "field": date_field,
-                })
+                errors.append(
+                    {
+                        "code": "INVALID_DATE",
+                        "detail": f"La fecha '{date_value}' en {date_field} no tiene formato YYYY-MM-DD.",
+                        "field": date_field,
+                    }
+                )
 
     return errors
 
@@ -586,6 +581,7 @@ def load_error_affected_fields(db: Session) -> dict[str, list[str]]:
     """
     try:
         from sqlalchemy import text as sa_text
+
         rows = db.execute(
             sa_text("SELECT code, affected_fields FROM imp_error_code WHERE active = TRUE")
         ).fetchall()
@@ -616,18 +612,21 @@ def run_iteration(
     from .. import crud
 
     prev = get_last_iteration(db, doc.id)
-    iteration = create_iteration(db, {
-        "tenant_id": tenant_id,
-        "documento_id": doc.id,
-        "iteration_num": (prev.iteration_num + 1) if prev else 1,
-        "scope": scope.mode,
-        "scope_filter": scope.model_dump() if scope.mode == "SELECTIVE" else None,
-        "prev_iteration_id": prev.id if prev else None,
-        "llm_model": getattr(doc, "llm_model", None),
-        "snapshot_id": getattr(doc, "recipe_snapshot_id", None),
-        "initiated_by": user_id,
-        "estado": "RUNNING",
-    })
+    iteration = create_iteration(
+        db,
+        {
+            "tenant_id": tenant_id,
+            "documento_id": doc.id,
+            "iteration_num": (prev.iteration_num + 1) if prev else 1,
+            "scope": scope.mode,
+            "scope_filter": scope.model_dump() if scope.mode == "SELECTIVE" else None,
+            "prev_iteration_id": prev.id if prev else None,
+            "llm_model": getattr(doc, "llm_model", None),
+            "snapshot_id": getattr(doc, "recipe_snapshot_id", None),
+            "initiated_by": user_id,
+            "estado": "RUNNING",
+        },
+    )
 
     lines = fetch_lines_for_scope(db, doc.id, scope)
     campos_revision = scope.filter_campos or None
@@ -657,25 +656,30 @@ def run_iteration(
                         canonical_fields,
                     )
                 )
-            errors = validate_normalized_line(normalized, error_affected_fields=error_affected_fields)
+            errors = validate_normalized_line(
+                normalized, error_affected_fields=error_affected_fields
+            )
 
             if errors:
                 first_error = errors[0]
                 update_staging_line_estado(
-                    db, line, "INVALID",
+                    db,
+                    line,
+                    "INVALID",
                     error_code=first_error["code"],
                     error_detail=first_error["detail"],
                     normalized_data=normalized,
                 )
                 for err in errors:
                     log_line_error(
-                        db, line, iteration,
-                        err["code"], err["detail"], err.get("field")
+                        db, line, iteration, err["code"], err["detail"], err.get("field")
                     )
                 errored += 1
             else:
                 update_staging_line_estado(
-                    db, line, "VALID",
+                    db,
+                    line,
+                    "VALID",
                     normalized_data=normalized,
                     error_code=None,
                 )
@@ -684,7 +688,9 @@ def run_iteration(
         except Exception as exc:
             logger.error("Error processing line %s: %s", line.line_number, exc)
             update_staging_line_estado(
-                db, line, "INVALID",
+                db,
+                line,
+                "INVALID",
                 error_code="SYSTEM_ERROR",
                 error_detail=str(exc),
             )
@@ -710,7 +716,8 @@ def run_iteration(
 
     remaining = count_staging_lines(db, doc.id)
     estado_final = close_iteration(
-        db, iteration,
+        db,
+        iteration,
         lines_attempted=attempted,
         lines_imported=imported,
         lines_errored=errored,
@@ -719,15 +726,21 @@ def run_iteration(
         remaining=remaining,
     )
 
-    crud.add_log(db, doc.id, "ITERATE", user_id, {
-        "iteration_num": iteration.iteration_num,
-        "scope": scope.mode,
-        "attempted": attempted,
-        "imported": imported,
-        "errored": errored,
-        "estado": estado_final,
-        "improvement": improvement,
-    })
+    crud.add_log(
+        db,
+        doc.id,
+        "ITERATE",
+        user_id,
+        {
+            "iteration_num": iteration.iteration_num,
+            "scope": scope.mode,
+            "attempted": attempted,
+            "imported": imported,
+            "errored": errored,
+            "estado": estado_final,
+            "improvement": improvement,
+        },
+    )
 
     message_parts = [f"Iteración {iteration.iteration_num}: {imported} líneas válidas"]
     if errored:

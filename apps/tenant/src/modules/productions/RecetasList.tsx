@@ -37,7 +37,7 @@ function RecetasListContent() {
   const { success, error: toastError } = useToast()
   const navigate = useNavigate()
   const { empresa } = useParams()
-  const basePath = `${empresa ? `/${empresa}` : ''}/produccion`
+  const basePath = `${empresa ? `/${empresa}` : ''}/manufacturing`
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)

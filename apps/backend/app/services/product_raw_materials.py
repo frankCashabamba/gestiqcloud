@@ -32,10 +32,7 @@ def ensure_products_raw_material_column(db: Session) -> None:
 
     if IS_SQLITE:
         db.execute(
-            text(
-                "ALTER TABLE products "
-                "ADD COLUMN is_raw_material BOOLEAN NOT NULL DEFAULT 0"
-            )
+            text("ALTER TABLE products " "ADD COLUMN is_raw_material BOOLEAN NOT NULL DEFAULT 0")
         )
     else:
         db.execute(
@@ -172,9 +169,10 @@ def backfill_bakery_raw_material_products(db: Session) -> int:
             unit=ingredients[0].unit if ingredients else None,
             package_unit=preferred_unit,
         )
-        if bool(getattr(product, "is_raw_material", False)) != changed_before or str(
-            product.unit or ""
-        ) != unit_before:
+        if (
+            bool(getattr(product, "is_raw_material", False)) != changed_before
+            or str(product.unit or "") != unit_before
+        ):
             changed += 1
 
     if changed:
