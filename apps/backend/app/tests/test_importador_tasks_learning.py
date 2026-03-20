@@ -72,8 +72,9 @@ def test_run_processing_reuses_text_snapshot_learning_for_async_flow(
         has_structured_rows: bool = False,
         recipe_config: dict | None = None,
         image_bytes: bytes | None = None,
+        fallback_patterns: dict | None = None,
     ):
-        del content, filename, format_hint, has_structured_rows, image_bytes
+        del content, filename, format_hint, has_structured_rows, image_bytes, fallback_patterns
         recipe_config = recipe_config or {}
         analyze_calls.append(recipe_config)
         if recipe_config.get("field_descriptions"):

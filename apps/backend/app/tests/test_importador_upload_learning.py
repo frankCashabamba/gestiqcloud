@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
 from app.models.importador import ImpDocumento, IcuRecipeSnapshot
+from app.modules.importador import crud
 from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
 from app.modules.importador.batch_service import enqueue_async_batch
 from app.modules.importador.router import _learn_from_confirmation, upload_files
@@ -104,8 +105,9 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
         has_structured_rows: bool = False,
         recipe_config: dict | None = None,
         image_bytes: bytes | None = None,
+        fallback_patterns: dict | None = None,
     ):
-        del content, filename, format_hint, has_structured_rows, image_bytes
+        del content, filename, format_hint, has_structured_rows, image_bytes, fallback_patterns
         recipe_config = recipe_config or {}
         analyze_calls.append(recipe_config)
         if recipe_config.get("field_descriptions"):
@@ -324,6 +326,10 @@ def test_upload_files_links_same_name_new_hash_as_successor(
     assert link is not None
     assert str(link.successor_id) == str(result[0].id)
     assert link.reason == "same_name_new_hash"
+    lineage = crud.list_documento_versions(db, result[0].id)
+    assert len(lineage) == 1
+    assert str(lineage[0]["id"]) == str(existing.id)
+    assert lineage[0]["relation_direction"] == "predecessor"
 
 
 def test_enqueue_async_batch_force_reprocesses_same_hash_without_creating_duplicate(

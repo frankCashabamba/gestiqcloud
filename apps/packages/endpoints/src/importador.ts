@@ -14,6 +14,7 @@ export const TENANT_IMPORTADOR = {
   batchById: (id: string) => `/api/v1/importador/batches/${id}`,
   batchStream: (id: string) => `/api/v1/importador/batches/${id}/stream`,
   docCategories: '/api/v1/importador/doc-categories',
+  fileSupport: '/api/v1/importador/file-support',
   // Recipes
   recipes: '/api/v1/importador/recipes',
   recipeById: (id: string) => `/api/v1/importador/recipes/${id}`,

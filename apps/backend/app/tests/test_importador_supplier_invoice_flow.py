@@ -13,7 +13,7 @@ from app.models.accounting.chart_of_accounts import ChartOfAccounts
 from app.models.accounting.pos_settings import PaymentMethod
 from app.models.core.products import Product
 from app.models.expenses.expense import Expense
-from app.models.importador import ImpDocumento
+from app.models.importador import ImpDocumento, ImpStagingLine
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
 from app.modules.importador.router import (
@@ -268,6 +268,74 @@ def test_save_document_requires_confirmation_before_supplier_invoice_save(
 
     assert exc_info.value.status_code == 409
     assert "confirmar" in str(exc_info.value.detail).lower()
+
+
+def test_save_document_marks_staging_as_imported_with_target(
+    db: Session, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-staging.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        fecha_documento="2026-03-19",
+        monto_total=2145.0,
+        datos_confirmados={
+            "numero_factura": "FAC-STG-001",
+            "line_items": [{"description": "HARINA", "quantity": 1, "unit_price": 10.0}],
+        },
+    )
+    db.add(document)
+    db.flush()
+    line = ImpStagingLine(
+        tenant_id=tenant_id,
+        documento_id=document.id,
+        line_number=1,
+        sheet_name="__document__",
+        raw_data={"numero_factura": "FAC-STG-001"},
+        estado="VALID",
+    )
+    db.add(line)
+    db.commit()
+
+    purchase_id = uuid4()
+    monkeypatch.setattr(
+        "app.modules.importador.router._save_document_to_purchase",
+        lambda **_kwargs: {
+            "purchase_id": purchase_id,
+            "status": "created",
+            "lines_created": 1,
+            "lines_matched": 1,
+            "unmatched_descriptions": [],
+            "warehouse_id": None,
+            "message": "Compra registrada.",
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.router._save_document_to_expense",
+        lambda **_kwargs: SaveDocumentResponse(
+            target="expenses",
+            destination="supplier_invoice",
+            status="created",
+            record_id=str(uuid4()),
+            message="Documento guardado en gastos.",
+        ),
+    )
+
+    save_document(
+        document.id,
+        SaveDocumentRequest(destination="supplier_invoice", payment_status="pending"),
+        _fake_request(tenant_id),
+        db,
+    )
+
+    db.refresh(line)
+    assert line.estado == "IMPORTED"
+    assert line.target_table == "purchases"
+    assert str(line.target_id) == str(purchase_id)
+    assert line.imported_at is not None
 
 
 def test_save_document_to_expense_uses_tenant_payment_method_from_table(

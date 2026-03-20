@@ -89,8 +89,22 @@ class LogCambioOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DocumentoVersionLinkOut(BaseModel):
+    id: UUID
+    nombre_archivo: str
+    estado: str
+    hash_sha256: str | None = None
+    tipo_documento_detectado: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    relation_direction: Literal["predecessor", "successor"]
+    relation_reason: str | None = None
+    depth: int = 1
+
+
 class DocumentoDetailOut(DocumentoOut):
     logs: list[LogCambioOut] = []
+    version_links: list[DocumentoVersionLinkOut] = Field(default_factory=list)
 
 
 class ConfirmRequest(BaseModel):

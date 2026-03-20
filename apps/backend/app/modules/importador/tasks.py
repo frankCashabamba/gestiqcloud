@@ -128,13 +128,8 @@ async def _run_processing(
     )
     from app.modules.importador.canonical_document import build_document_projection
     from app.modules.importador.field_alias_loader import get_canonical_fields, get_field_aliases
-    from app.modules.importador.document_fields import (
-        detect_document_currency,
-        detect_document_date,
-        detect_document_total,
-        get_data_value,
-    )
     from app.modules.importador.ocr_service import extract_text_from_file
+    from app.modules.importador.runtime_config import load_doc_type_patterns
 
     with SessionLocal() as db:
         # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
@@ -240,6 +235,7 @@ async def _run_processing(
                     has_structured_rows=has_structured,
                     recipe_config=recipe_config,
                     image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
+                    fallback_patterns=load_doc_type_patterns(db),
                 )
 
             tipo_doc = analysis.get("doc_type", "OTHER")
@@ -314,6 +310,7 @@ async def _run_processing(
                             has_structured_rows=False,
                             recipe_config=auto_recipe_config,
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
+                            fallback_patterns=load_doc_type_patterns(db),
                         )
                         rerun_doc_type = str(rerun_analysis.get("doc_type", tipo_doc) or tipo_doc)
                         rerun_confidence = float(

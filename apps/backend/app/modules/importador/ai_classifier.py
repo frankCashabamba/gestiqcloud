@@ -144,6 +144,7 @@ async def _analyze_structured_document(
     filename: str,
     format_hint: str,
     recipe_config: dict | None = None,
+    fallback_patterns: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Cheap classification path for already structured datasets."""
     prompt = _build_structured_classification_prompt(content, filename, format_hint, recipe_config)
@@ -161,7 +162,7 @@ async def _analyze_structured_document(
         model_used = response.model or "unknown"
 
         if response.is_error:
-            fallback = _fallback_classify(content, filename)
+            fallback = _fallback_classify(content, filename, fallback_patterns)
             fallback.update({"is_table": True, "columns": [], "fields": {}})
             fallback["raw_response"] = response.error
             fallback["model_used"] = model_used
@@ -180,7 +181,7 @@ async def _analyze_structured_document(
             parsed["prompt_sent"] = prompt[:500]
             return parsed
 
-        fallback = _fallback_classify(content, filename)
+        fallback = _fallback_classify(content, filename, fallback_patterns)
         fallback.update({"is_table": True, "columns": [], "fields": {}})
         fallback["raw_response"] = raw_content
         fallback["model_used"] = model_used
@@ -188,7 +189,7 @@ async def _analyze_structured_document(
         return fallback
     except Exception as exc:
         logger.error("Structured AI analysis error: %s", exc)
-        fallback = _fallback_classify(content, filename)
+        fallback = _fallback_classify(content, filename, fallback_patterns)
         fallback.update({"is_table": True, "columns": [], "fields": {}})
         fallback["raw_response"] = str(exc)
         fallback["model_used"] = "fallback"
@@ -455,6 +456,7 @@ async def analyze_document(
     has_structured_rows: bool = False,
     recipe_config: dict | None = None,
     image_bytes: bytes | None = None,
+    fallback_patterns: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -483,7 +485,13 @@ async def analyze_document(
     }
     """
     if has_structured_rows:
-        return await _analyze_structured_document(content, filename, format_hint, recipe_config)
+        return await _analyze_structured_document(
+            content,
+            filename,
+            format_hint,
+            recipe_config,
+            fallback_patterns=fallback_patterns,
+        )
 
     if not has_structured_rows and _should_use_vision_fallback(content, format_hint, image_bytes):
         vision_result = await _analyze_with_vision(
@@ -594,7 +602,7 @@ async def analyze_document(
 
         if response.is_error:
             logger.warning("AI analysis failed: %s", response.error)
-            fallback = _fallback_classify(content, filename)
+            fallback = _fallback_classify(content, filename, fallback_patterns)
             fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
             fallback["raw_response"] = response.error
             fallback["model_used"] = model_used
@@ -613,7 +621,7 @@ async def analyze_document(
             parsed["prompt_sent"] = full_prompt[:500]
             return parsed
 
-        fallback = _fallback_classify(content, filename)
+        fallback = _fallback_classify(content, filename, fallback_patterns)
         fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
         fallback["raw_response"] = raw_content
         fallback["model_used"] = model_used
@@ -622,7 +630,7 @@ async def analyze_document(
 
     except Exception as exc:
         logger.error("AI analysis error: %s", exc)
-        fallback = _fallback_classify(content, filename)
+        fallback = _fallback_classify(content, filename, fallback_patterns)
         fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
         fallback["raw_response"] = str(exc)
         fallback["model_used"] = "fallback"

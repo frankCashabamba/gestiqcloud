@@ -80,6 +80,7 @@ export default function DocumentDetail() {
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
 
   useEffect(() => { fetchSaveCapabilities().then(setCapabilities).catch(() => {}) }, [])
+  useEffect(() => { if (id) void reprocess.loadIterations() }, [id])
 
   const load = async () => {
     if (!id) return
@@ -824,6 +825,46 @@ export default function DocumentDetail() {
         </div>
       )}
 
+      {doc.version_links && doc.version_links.length > 0 && (
+        <div style={{ ...section, marginTop: '1rem' }}>
+          <h3 style={{ marginTop: 0 }}>Versiones relacionadas</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {doc.version_links.map(link => (
+              <button
+                key={`${link.relation_direction}-${link.id}`}
+                onClick={() => navigate(`../documents/${link.id}`)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '0.65rem 0.8rem',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  background: '#F9FAFB',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                    <strong>{link.relation_direction === 'predecessor' ? 'Anterior' : 'Posterior'}</strong>
+                    <span style={{ color: '#6B7280' }}>{link.estado}</span>
+                    {link.relation_reason && <span style={{ color: '#6B7280' }}>{link.relation_reason}</span>}
+                  </div>
+                  <div style={{ color: '#111827' }}>{link.nombre_archivo}</div>
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>
+                    {new Date(link.created_at).toLocaleString()}
+                    {link.hash_sha256 ? ` · ${link.hash_sha256.slice(0, 12)}...` : ''}
+                  </div>
+                </div>
+                <span style={{ color: '#2563EB', fontWeight: 600 }}>Abrir</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Reprocesado iterativo */}
       {reprocess.summary && (
         (reprocess.summary.pending + reprocess.summary.invalid + reprocess.summary.review + reprocess.summary.reprocess + reprocess.summary.valid + reprocess.summary.imported) > 0
@@ -1179,6 +1220,39 @@ export default function DocumentDetail() {
           )}
 
           {/* Botón rápido — reprocesar todo pendiente */}
+          {reprocess.iterations.length > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                Historial de iteraciones
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {reprocess.iterations.slice(0, 6).map(iteration => (
+                  <div
+                    key={iteration.id}
+                    style={{
+                      padding: '0.55rem 0.7rem',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: 8,
+                      background: '#F9FAFB',
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <strong>Iteración {iteration.iteration_num}</strong>
+                      <span style={{ color: '#6B7280' }}>{iteration.estado}</span>
+                    </div>
+                    <div style={{ color: '#374151', marginTop: 4 }}>
+                      Intentadas: {iteration.lines_attempted} · Importables: {iteration.lines_imported} · Con error: {iteration.lines_errored}
+                    </div>
+                    <div style={{ color: '#6B7280', marginTop: 4 }}>
+                      {new Date(iteration.started_at).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {reprocess.totalResolvable > 0 && (
             <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: '0.75rem' }}>
               <button

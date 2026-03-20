@@ -38,6 +38,7 @@ from .canonical_document import build_document_projection
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .document_fields import safe_floatish
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
+from .runtime_config import load_doc_type_patterns
 from .schemas import (
     DraftCreate,
     DraftOut,
@@ -172,7 +173,7 @@ async def run_import(
 
     async def _process_single(file_bytes: bytes, filename: str, tipo_archivo: str | None = None):
         nonlocal db, tenant_id, user_id, recipe_config, resolution_mode, resolved_snapshot_id, results
-        tipo_archivo = tipo_archivo or detect_file_type(filename)
+        tipo_archivo = tipo_archivo or detect_file_type(filename, db)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
         existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
@@ -404,6 +405,7 @@ async def run_import(
                         if (is_image_doc or is_scanned_pdf) and vision_image_bytes
                         else None
                     ),
+                    fallback_patterns=load_doc_type_patterns(db),
                 )
             normalized_analysis = _normalize_analysis_output(analysis)
 
@@ -544,6 +546,7 @@ async def run_import(
                             if (is_image_doc or is_scanned_pdf) and vision_image_bytes
                             else None
                         ),
+                        fallback_patterns=load_doc_type_patterns(db),
                     )
                     rerun_normalized = _normalize_analysis_output(rerun_analysis)
                     rerun_fields = rerun_normalized["fields"]
@@ -714,7 +717,7 @@ async def run_import(
         if not file_bytes:
             continue
 
-        tipo_archivo = detect_file_type(filename)
+        tipo_archivo = detect_file_type(filename, db)
 
         # Excel/XLS: sin límite de tamaño — openpyxl read_only ignora imágenes
         # embebidas y los row-limits de _extract_excel acotan la memoria real usada.
@@ -755,7 +758,7 @@ async def run_import(
             continue
 
         if tipo_archivo == "ZIP":
-            entries = list(iter_zip_entries(file_bytes))
+            entries = list(iter_zip_entries(file_bytes, db=db))
             if not entries:
                 doc = crud.create_documento(
                     db,
@@ -792,7 +795,7 @@ async def run_import(
                 continue
             for inner_name, inner_bytes in entries:
                 tasks.append(
-                    (inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name))
+                    (inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name, db))
                 )
         else:
             tasks.append((file_bytes, filename, tipo_archivo))

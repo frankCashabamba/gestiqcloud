@@ -51,6 +51,7 @@ from .services.product_matching import (
 from .product_import_service import build_product_candidates, save_product_candidates
 from . import recipe_crud
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
+from .runtime_config import load_doc_type_patterns, load_file_support_config
 from .snapshot_learning import bootstrap_learning_from_existing_document, learn_from_confirmed_payload
 from .schemas import (
     BatchDetailOut,
@@ -940,7 +941,7 @@ async def upload_files(
 
     async def _process_single(file_bytes: bytes, filename: str, tipo_archivo: str | None = None):
         nonlocal db, tenant_id, user_id, results
-        tipo_archivo = tipo_archivo or detect_file_type(filename)
+        tipo_archivo = tipo_archivo or detect_file_type(filename, db)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
         existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
@@ -1107,6 +1108,7 @@ async def upload_files(
                     has_structured_rows=has_structured,
                     recipe_config=recipe_config,
                     image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
+                    fallback_patterns=load_doc_type_patterns(db),
                 )
 
             normalized_analysis = _normalize_analysis_output(analysis)
@@ -1193,6 +1195,7 @@ async def upload_files(
                             has_structured_rows=False,
                             recipe_config=auto_recipe_config,
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
+                            fallback_patterns=load_doc_type_patterns(db),
                         )
                         rerun_normalized = _normalize_analysis_output(rerun_analysis)
                         rerun_fields = rerun_normalized["fields"]
@@ -1321,10 +1324,10 @@ async def upload_files(
     for file in files:
         file_bytes = await file.read()
         filename = file.filename or "sin_nombre"
-        tipo_archivo = detect_file_type(filename)
+        tipo_archivo = detect_file_type(filename, db)
 
         if tipo_archivo == "ZIP":
-            entries = list(iter_zip_entries(file_bytes))
+            entries = list(iter_zip_entries(file_bytes, db=db))
             if not entries:
                 doc = crud.create_documento(
                     db,
@@ -1355,7 +1358,7 @@ async def upload_files(
                 continue
             for inner_name, inner_bytes in entries:
                 await _process_single(
-                    inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name)
+                    inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name, db)
                 )
         else:
             await _process_single(file_bytes, filename, tipo_archivo)
@@ -1389,6 +1392,7 @@ def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
             doc.synced_recipe_id = None
             db.commit()
     doc.synced_sheets = _get_synced_sheet_map(db, doc)
+    doc.version_links = crud.list_documento_versions(db, doc.id)
     return doc
 
 
@@ -1467,6 +1471,12 @@ def sync_recipe(
 
     # Guardar referencia en el documento
     doc.synced_recipe_id = recipe_id
+    crud.mark_document_staging_imported(
+        db,
+        doc.id,
+        target_table="recipes",
+        target_id=recipe_id,
+    )
     crud.add_log(
         db,
         doc.id,
@@ -1587,6 +1597,17 @@ def sync_recipes(
             "sheets": processed_sheet_names,
             "force": force,
         },
+    )
+    primary_recipe_id = None
+    for item in results:
+        if item.recipe_id:
+            primary_recipe_id = item.recipe_id
+            break
+    crud.mark_document_staging_imported(
+        db,
+        doc.id,
+        target_table="recipes",
+        target_id=primary_recipe_id,
     )
     db.commit()
 
@@ -1782,6 +1803,18 @@ def save_document(
             "estado": "CONFIRMED",
         },
     )
+    primary_target_id = None
+    if result.record_id:
+        try:
+            primary_target_id = UUID(str(result.record_id))
+        except (TypeError, ValueError):
+            primary_target_id = None
+    crud.mark_document_staging_imported(
+        db,
+        doc.id,
+        target_table=result.target,
+        target_id=primary_target_id,
+    )
     _sync_batch_projection(db, doc.id, "CONFIRMED")
     crud.add_log(
         db,
@@ -1912,6 +1945,18 @@ def save_document_as_products(
             "requiere_revision": False,
         },
     )
+    primary_product_id = None
+    if result["product_ids"]:
+        try:
+            primary_product_id = UUID(str(result["product_ids"][0]))
+        except (TypeError, ValueError):
+            primary_product_id = None
+    crud.mark_document_staging_imported(
+        db,
+        doc.id,
+        target_table="products",
+        target_id=primary_product_id,
+    )
     _sync_batch_projection(db, doc.id, "CONFIRMED")
     crud.add_log(
         db,
@@ -1948,6 +1993,11 @@ def get_doc_categories(db: Session = Depends(get_db)):
     from .category_loader import get_doc_categories
 
     return get_doc_categories(db)
+
+
+@router.get("/file-support", dependencies=protected)
+def get_file_support(db: Session = Depends(get_db)):
+    return load_file_support_config(db)
 
 
 @router.get("/dashboard", response_model=DashboardStats, dependencies=protected)
@@ -2162,6 +2212,13 @@ async def save_as_daily_log(
         log_date=log_date,
         rows=rows,
     )
+    crud.mark_document_staging_imported(
+        db,
+        doc.id,
+        target_table="daily_production_logs",
+        target_id=None,
+    )
+    db.commit()
     return SaveDailyLogResponse(**result)
 
 

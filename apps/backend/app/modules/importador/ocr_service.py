@@ -16,6 +16,8 @@ from typing import Any
 import openpyxl
 from PIL import Image
 
+from .runtime_config import load_file_support_config
+
 logger = logging.getLogger("importador.ocr")
 
 try:
@@ -25,24 +27,9 @@ try:
 except Exception:
     logger.debug("pillow-heif no disponible; HEIC/HEIF pueden no abrirse", exc_info=True)
 
-SUPPORTED_EXTENSIONS = {
-    ".pdf",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".heic",
-    ".heif",
-    ".tiff",
-    ".bmp",
-    ".gif",
-    ".xlsx",
-    ".xls",
-    ".csv",
-    ".xml",
-    ".txt",
-    ".zip",
-}
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".heic", ".heif", ".tiff", ".bmp", ".gif"}
+_DEFAULT_FILE_SUPPORT = load_file_support_config(None)
+SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
+IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
 
 # UBL 2.1 namespaces
 _UBL_NS = {
@@ -59,25 +46,18 @@ def _image_to_jpeg_bytes(img: Image.Image, *, quality: int = 80) -> bytes:
     return buffer.getvalue()
 
 
-def detect_file_type(filename: str) -> str:
+def _get_file_support_sets(db: Any | None = None) -> tuple[set[str], set[str], dict[str, str]]:
+    config = load_file_support_config(db)
+    return (
+        set(config.get("accepted_extensions") or []),
+        set(config.get("image_extensions") or []),
+        dict(config.get("type_map") or {}),
+    )
+
+
+def detect_file_type(filename: str, db: Any | None = None) -> str:
     ext = Path(filename).suffix.lower()
-    type_map = {
-        ".pdf": "PDF",
-        ".jpg": "JPG",
-        ".jpeg": "JPG",
-        ".png": "PNG",
-        ".heic": "IMG",
-        ".heif": "IMG",
-        ".tiff": "IMG",
-        ".bmp": "IMG",
-        ".gif": "IMG",
-        ".xlsx": "XLSX",
-        ".xls": "XLS",
-        ".csv": "CSV",
-        ".xml": "XML",
-        ".txt": "TXT",
-        ".zip": "ZIP",
-    }
+    _, _, type_map = _get_file_support_sets(db)
     return type_map.get(ext, "UNKNOWN")
 
 
@@ -127,7 +107,10 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
 
 
 def iter_zip_entries(
-    file_bytes: bytes, max_files: int = 20, max_size_bytes: int = 8 * 1024 * 1024
+    file_bytes: bytes,
+    max_files: int = 20,
+    max_size_bytes: int = 8 * 1024 * 1024,
+    db: Any | None = None,
 ) -> Iterable[tuple[str, bytes]]:
     """Itera ficheros válidos dentro de un ZIP.
 
@@ -135,6 +118,7 @@ def iter_zip_entries(
     - Limita número de entradas y tamaño por archivo para evitar OOM.
     - Solo devuelve extensiones soportadas.
     """
+    supported_extensions, _, _ = _get_file_support_sets(db)
     with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
         count = 0
         for info in zf.infolist():
@@ -146,7 +130,7 @@ def iter_zip_entries(
                 )
                 continue
             ext = Path(info.filename).suffix.lower()
-            if ext not in SUPPORTED_EXTENSIONS:
+            if ext not in supported_extensions:
                 logger.warning("Zip entry %s skipped (ext %s no soportada)", info.filename, ext)
                 continue
             with zf.open(info) as fp:

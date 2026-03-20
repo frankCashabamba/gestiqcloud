@@ -427,6 +427,98 @@ def link_documento_successor(
         return
 
 
+def list_documento_versions(db: Session, documento_id: UUID) -> list[dict]:
+    try:
+        visited: set[str] = {str(documento_id)}
+        results: list[dict] = []
+
+        def _append_related(direction: str) -> None:
+            frontier = [(str(documento_id), 1)]
+            while frontier:
+                current_id, depth = frontier.pop(0)
+                if direction == "predecessor":
+                    rows = db.execute(
+                        text(
+                            """
+                            SELECT predecessor_id AS related_id, reason
+                            FROM imp_documento_successor
+                            WHERE successor_id = :documento_id
+                            """
+                        ),
+                        {"documento_id": current_id},
+                    ).mappings().all()
+                else:
+                    rows = db.execute(
+                        text(
+                            """
+                            SELECT successor_id AS related_id, reason
+                            FROM imp_documento_successor
+                            WHERE predecessor_id = :documento_id
+                            """
+                        ),
+                        {"documento_id": current_id},
+                    ).mappings().all()
+
+                for row in rows:
+                    related_id = str(row["related_id"])
+                    if related_id in visited:
+                        continue
+                    try:
+                        lookup_id: UUID | str = UUID(related_id)
+                    except (TypeError, ValueError):
+                        lookup_id = related_id
+                    doc = db.get(ImpDocumento, lookup_id)
+                    if not doc:
+                        continue
+                    visited.add(related_id)
+                    results.append(
+                        {
+                            "id": doc.id,
+                            "nombre_archivo": doc.nombre_archivo,
+                            "estado": doc.estado,
+                            "hash_sha256": doc.hash_sha256,
+                            "created_at": doc.created_at,
+                            "updated_at": doc.updated_at,
+                            "tipo_documento_detectado": doc.tipo_documento_detectado,
+                            "relation_direction": direction,
+                            "relation_reason": row.get("reason"),
+                            "depth": depth,
+                        }
+                    )
+                    frontier.append((related_id, depth + 1))
+
+        _append_related("predecessor")
+        _append_related("successor")
+    except Exception:
+        return []
+
+    return sorted(results, key=lambda row: (int(row["depth"]), row["created_at"]))
+
+
+def mark_document_staging_imported(
+    db: Session,
+    documento_id: UUID,
+    *,
+    target_table: str,
+    target_id: UUID | None = None,
+) -> int:
+    now = datetime.datetime.now(datetime.UTC)
+    rows = db.scalars(
+        select(ImpStagingLine).where(ImpStagingLine.documento_id == documento_id)
+    ).all()
+    updated = 0
+    for line in rows:
+        line.estado = "IMPORTED"
+        line.error_code = None
+        line.error_detail = None
+        line.target_table = target_table
+        line.target_id = target_id
+        line.imported_at = now
+        updated += 1
+    db.flush()
+    return updated
+
+
 def touch_batch_items_for_document(
     db: Session,
     documento_id: UUID,

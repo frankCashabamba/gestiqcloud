@@ -1,12 +1,14 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  fetchFileSupportConfig,
   fetchImportBatch,
   fetchImportBatches,
   fetchRecipes,
   fetchSnapshots,
   runImportAsync,
   streamImportBatch,
+  type FileSupportConfig,
   type ImportBatch,
   type ImportBatchItem,
   type Recipe,
@@ -153,6 +155,7 @@ export default function ImportUploader({
   const [forceReprocess, setForceReprocess] = useState(initialForceReprocess)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [snapshots, setSnapshots] = useState<RecipeSnapshot[]>([])
+  const [fileSupport, setFileSupport] = useState<FileSupportConfig | null>(null)
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
   const [selectedSnapshotId, setSelectedSnapshotId] = useState('')
   const [sessionHydrated, setSessionHydrated] = useState(false)
@@ -201,6 +204,19 @@ export default function ImportUploader({
   useEffect(() => {
     fetchRecipes().then(setRecipes).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    fetchFileSupportConfig().then(setFileSupport).catch(() => {})
+  }, [])
+
+  const acceptedAttr = useMemo(
+    () => (fileSupport?.accepted_extensions?.length ? fileSupport.accepted_extensions.join(',') : ACCEPTED),
+    [fileSupport]
+  )
+  const acceptedExtensions = useMemo(
+    () => new Set((fileSupport?.accepted_extensions?.length ? fileSupport.accepted_extensions : Array.from(ACCEPTED_EXTENSIONS)).map(value => value.toLowerCase())),
+    [fileSupport]
+  )
 
   useEffect(() => {
     if (!sessionHydrated || activeBatchId || userClearedRef.current || !sessionHadDataRef.current) return
@@ -375,7 +391,7 @@ export default function ImportUploader({
     const incoming = Array.from(fileList || []).filter((file) => {
       if (!file || file.size < 0) return false
       const ext = '.' + file.name.split('.').pop()?.toLowerCase()
-      return ACCEPTED_EXTENSIONS.has(ext)
+      return acceptedExtensions.has(ext)
     })
     if (!incoming.length) return
     setEntries((prev) => {
@@ -388,7 +404,7 @@ export default function ImportUploader({
       })
       return merged
     })
-  }, [])
+  }, [acceptedExtensions])
 
   const dismissEntry = (entry: FileEntry) => {
     dismissedEntryKeysRef.current.add(trackedEntryKey(entry))
@@ -729,7 +745,7 @@ export default function ImportUploader({
             <div style={{ marginTop: '0.9rem', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
               El sistema clasifica y prepara los documentos automaticamente.
             </div>
-            <input ref={fileRef} type="file" multiple accept={ACCEPTED} onChange={onFileChange} style={{ display: 'none' }} />
+            <input ref={fileRef} type="file" multiple accept={acceptedAttr} onChange={onFileChange} style={{ display: 'none' }} />
           </div>
         )}
 

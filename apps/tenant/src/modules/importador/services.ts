@@ -27,6 +27,7 @@ export type Documento = {
   updated_at: string
   synced_sheets?: Record<string, { recipe_id?: string; recipe_name?: string; created_at?: string }>
   logs?: LogCambio[]
+  version_links?: DocumentoVersionLink[]
 }
 
 export type LogCambio = {
@@ -35,6 +36,19 @@ export type LogCambio = {
   detalle?: Record<string, unknown>
   usuario_id?: string
   created_at: string
+}
+
+export type DocumentoVersionLink = {
+  id: string
+  nombre_archivo: string
+  estado: string
+  hash_sha256?: string | null
+  tipo_documento_detectado?: string | null
+  created_at: string
+  updated_at: string
+  relation_direction: 'predecessor' | 'successor'
+  relation_reason?: string | null
+  depth: number
 }
 
 export type DashboardStats = {
@@ -48,6 +62,7 @@ export type DashboardStats = {
 let dashboardRequest: Promise<DashboardStats> | null = null
 let recipesRequest: Promise<Recipe[]> | null = null
 let docCategoryKeywordsRequest: Promise<void> | null = null
+let fileSupportRequest: Promise<FileSupportConfig> | null = null
 let docCategoryKeywordsLoaded = false
 const importBatchListRequests = new Map<string, Promise<ImportBatch[]>>()
 const IMPORTADOR_UPLOADER_SESSION_KEY = 'importador.uploader.session.v1'
@@ -320,6 +335,12 @@ let _categoryKeywords: Record<string, string[]> = {
 /** Override the local category keyword map with server-fetched data. */
 export function setDocCategoryKeywords(map: Record<string, string[]>) {
   _categoryKeywords = map
+}
+
+export type FileSupportConfig = {
+  accepted_extensions: string[]
+  image_extensions: string[]
+  type_map: Record<string, string>
 }
 
 
@@ -782,6 +803,34 @@ export async function loadDocCategoryKeywords(): Promise<void> {
   })()
 
   return docCategoryKeywordsRequest
+}
+
+export async function fetchFileSupportConfig(): Promise<FileSupportConfig> {
+  if (fileSupportRequest) return fileSupportRequest
+  fileSupportRequest = (async () => {
+    try {
+      const { data } = await api.get(TENANT_IMPORTADOR.fileSupport)
+      return {
+        accepted_extensions: Array.isArray(data?.accepted_extensions)
+          ? data.accepted_extensions.map((value: unknown) => String(value).toLowerCase())
+          : [],
+        image_extensions: Array.isArray(data?.image_extensions)
+          ? data.image_extensions.map((value: unknown) => String(value).toLowerCase())
+          : [],
+        type_map: data?.type_map && typeof data.type_map === 'object'
+          ? Object.fromEntries(
+              Object.entries(data.type_map as Record<string, unknown>).map(([ext, fileType]) => [
+                String(ext).toLowerCase(),
+                String(fileType).toUpperCase(),
+              ])
+            )
+          : {},
+      }
+    } finally {
+      fileSupportRequest = null
+    }
+  })()
+  return fileSupportRequest
 }
 
 // --- Daily Production Log ---

@@ -165,7 +165,7 @@ async def enqueue_async_batch(
         if file_size <= 0:
             logger.info("Ignorando archivo vacio en importador: %s", filename)
             continue
-        tipo_archivo = detect_file_type(filename)
+        tipo_archivo = detect_file_type(filename, db)
         # Excel/XLS: sin límite de tamaño — openpyxl read_only ignora imágenes
         # embebidas; los row-limits internos acotan la memoria real usada.
         _es_excel = tipo_archivo in ("XLSX", "XLS")
