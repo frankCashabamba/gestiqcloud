@@ -228,6 +228,7 @@ async def _run_processing(
                     "raw_response": "snapshot-cache",
                 }
             else:
+                _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
                 analysis = await analyze_document(
                     llm_content,
                     filename,
@@ -236,6 +237,7 @@ async def _run_processing(
                     recipe_config=recipe_config,
                     image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
                     fallback_patterns=load_doc_type_patterns(db),
+                    canonical_fields=_canonical_fields,
                 )
 
             tipo_doc = analysis.get("doc_type", "OTHER")
@@ -311,6 +313,7 @@ async def _run_processing(
                             recipe_config=auto_recipe_config,
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
                             fallback_patterns=load_doc_type_patterns(db),
+                            canonical_fields=_canonical_fields,
                         )
                         rerun_doc_type = str(rerun_analysis.get("doc_type", tipo_doc) or tipo_doc)
                         rerun_confidence = float(
@@ -354,7 +357,7 @@ async def _run_processing(
                 current_snapshot = _recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
             learning_version_applied = get_snapshot_learning_version(current_snapshot)
             _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-            _canonical_fields = get_canonical_fields(db)
+            _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,

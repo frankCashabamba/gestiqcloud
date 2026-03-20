@@ -30,6 +30,8 @@ export type Documento = {
   version_links?: DocumentoVersionLink[]
 }
 
+let _categoryKeywords: Record<string, string[]> = {}
+
 export type LogCambio = {
   id: string
   accion: string
@@ -319,7 +321,7 @@ export type DocCategory =
 // Source of truth is sector_field_defaults in DB (module='importador.doc_categories').
 // These are a client-side snapshot used for button rendering — not critical routing.
 // Update via DB migration; this map is a best-effort local copy for offline/instant rendering.
-let _categoryKeywords: Record<string, string[]> = {
+const _legacyCategoryKeywordsSnapshot: Record<string, string[]> = {
   recipe:    ['COSTING', 'COSTEO', 'RECIPE', 'RECETA', 'KALKULATION', 'CALCUL_COUT', 'FOOD_COST', 'FICHA_TECNICA'],
   receipt:   ['RECEIPT', 'TICKET', 'VOUCHER', 'RECIBO', 'BOLETA', 'TICKETDEVENTA', 'REÇU', 'QUITTUNG', 'NOTA_VENTA'],
   invoice:   ['INVOICE', 'FACTURA', 'RECHNUNG', 'FATTURA', 'FATURA', 'FACTURE',

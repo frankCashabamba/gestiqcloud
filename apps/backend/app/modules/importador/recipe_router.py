@@ -394,6 +394,7 @@ async def run_import(
                     "raw_response": "snapshot-cache",
                 }
             else:
+                _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
                 analysis = await analyze_document(
                     llm_content,
                     filename,
@@ -406,6 +407,7 @@ async def run_import(
                         else None
                     ),
                     fallback_patterns=load_doc_type_patterns(db),
+                    canonical_fields=_canonical_fields,
                 )
             normalized_analysis = _normalize_analysis_output(analysis)
 
@@ -547,6 +549,7 @@ async def run_import(
                             else None
                         ),
                         fallback_patterns=load_doc_type_patterns(db),
+                        canonical_fields=_canonical_fields,
                     )
                     rerun_normalized = _normalize_analysis_output(rerun_analysis)
                     rerun_fields = rerun_normalized["fields"]
@@ -567,7 +570,7 @@ async def run_import(
                 current_snapshot = recipe_crud.get_snapshot(db, UUID(str(current_snapshot_id)))
             learning_version_applied = get_snapshot_learning_version(current_snapshot)
             _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-            _canonical_fields = get_canonical_fields(db)
+            _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,

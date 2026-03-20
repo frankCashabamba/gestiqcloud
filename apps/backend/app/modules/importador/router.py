@@ -1101,6 +1101,7 @@ async def upload_files(
                     "raw_response": "snapshot-cache",
                 }
             else:
+                _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
                 analysis = await analyze_document(
                     llm_content,
                     filename,
@@ -1109,6 +1110,7 @@ async def upload_files(
                     recipe_config=recipe_config,
                     image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
                     fallback_patterns=load_doc_type_patterns(db),
+                    canonical_fields=_canonical_fields,
                 )
 
             normalized_analysis = _normalize_analysis_output(analysis)
@@ -1196,6 +1198,7 @@ async def upload_files(
                             recipe_config=auto_recipe_config,
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
                             fallback_patterns=load_doc_type_patterns(db),
+                            canonical_fields=_canonical_fields,
                         )
                         rerun_normalized = _normalize_analysis_output(rerun_analysis)
                         rerun_fields = rerun_normalized["fields"]
@@ -1233,7 +1236,7 @@ async def upload_files(
                 else sheet_profiles
             )
             _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-            _canonical_fields = get_canonical_fields(db)
+            _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
             canonical_document, projection = build_document_projection(
                 datos_extraidos if isinstance(datos_extraidos, dict) else {},
                 doc_type=tipo_doc,
@@ -2517,7 +2520,8 @@ def iterate_document(
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     aliases = get_field_aliases(db, tenant_id=tenant_id)
-    result = run_iteration(db, doc, tenant_id, user_id, body.scope, aliases)
+    canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+    result = run_iteration(db, doc, tenant_id, user_id, body.scope, aliases, canonical_fields)
     db.commit()
     return result
 
@@ -2627,10 +2631,11 @@ def run_review_session(
     )
 
     aliases = get_field_aliases(db, tenant_id=tenant_id)
+    canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     session.estado = "RUNNING"
     db.flush()
 
-    result = run_iteration(db, doc, tenant_id, user_id, scope, aliases)
+    result = run_iteration(db, doc, tenant_id, user_id, scope, aliases, canonical_fields)
 
     session.estado = "DONE"
     session.linked_iteration_id = result.iteration_id

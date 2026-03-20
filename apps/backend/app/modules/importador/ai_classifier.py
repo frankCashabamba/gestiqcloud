@@ -139,6 +139,49 @@ def _build_structured_classification_prompt(
     return prompt
 
 
+def _build_dynamic_fields_prompt(
+    canonical_fields: dict[str, dict] | None,
+    field_descriptions: dict[str, str] | None = None,
+) -> str:
+    descriptions = field_descriptions or {}
+    if not canonical_fields:
+        return (
+            '    "vendor": "issuing/selling party name or null",\n'
+            '    "vendor_tax_id": "tax ID of the issuer or null",\n'
+            '    "customer": "receiving/buying party name or null",\n'
+            '    "customer_tax_id": "tax ID of the buyer or null",\n'
+            '    "doc_number": "document reference number or null",\n'
+            '    "issue_date": "YYYY-MM-DD or null",\n'
+            '    "total_amount": NUMBER or null,\n'
+            '    "subtotal": NUMBER or null,\n'
+            '    "tax_amount": NUMBER or null,\n'
+            '    "currency": "ISO 4217 code or null",\n'
+            '    "payment_method": "payment method exactly as printed or null",\n'
+            '    "payment_terms": "payment terms exactly as printed or null",\n'
+            '    "line_items": [{"description":"...","quantity":number,"unit_price":number,"total_price":number}] or []'
+        )
+
+    lines: list[str] = []
+    for field_name in sorted(canonical_fields.keys()):
+        meta = canonical_fields.get(field_name) or {}
+        field_type = str(meta.get("type") or "text").strip().lower()
+        custom_description = str(descriptions.get(field_name) or "").strip()
+        if custom_description:
+            rendered = f'"{custom_description}"'
+        elif field_name == "line_items" or field_type == "list":
+            rendered = '[{"description":"...","quantity":number,"unit_price":number,"total_price":number}] or []'
+        elif field_type == "numeric":
+            rendered = "NUMBER or null"
+        elif field_type == "date":
+            rendered = '"YYYY-MM-DD or null"'
+        elif field_type == "payment_method":
+            rendered = '"payment method exactly as printed or null"'
+        else:
+            rendered = '"text/value as printed or null"'
+        lines.append(f'    "{field_name}": {rendered}')
+    return ",\n".join(lines)
+
+
 async def _analyze_structured_document(
     content: str,
     filename: str,
@@ -457,6 +500,7 @@ async def analyze_document(
     recipe_config: dict | None = None,
     image_bytes: bytes | None = None,
     fallback_patterns: dict[str, list[str]] | None = None,
+    canonical_fields: dict[str, dict] | None = None,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -520,6 +564,14 @@ async def analyze_document(
         "total tax amount (VAT/IVA/IGV/GST/TVA or equivalent). Use 0 if present but zero. Number or null if absent"
     )
     learned_hints = _build_additional_field_hints(recipe_config)
+    dynamic_fields_prompt = _build_dynamic_fields_prompt(
+        canonical_fields,
+        {
+            **_fd,
+            "subtotal": _f_subtotal,
+            "tax_amount": _f_tax,
+        },
+    )
 
     tabular_note = (
         "NOTE: Content is already pre-processed as a structured table. "
@@ -582,6 +634,11 @@ async def analyze_document(
     custom_user_prompt = rc.get("prompt_user")
     if custom_user_prompt:
         user_prompt += f"\n\nAdditional extraction instructions:\n{custom_user_prompt}"
+    if canonical_fields:
+        user_prompt += (
+            "\n\nConfigured canonical fields from database (prefer these keys and types):\n"
+            + dynamic_fields_prompt
+        )
     if learned_hints:
         user_prompt += f"\n\n{learned_hints}"
 

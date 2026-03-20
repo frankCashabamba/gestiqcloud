@@ -106,8 +106,9 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
         recipe_config: dict | None = None,
         image_bytes: bytes | None = None,
         fallback_patterns: dict | None = None,
+        canonical_fields: dict | None = None,
     ):
-        del content, filename, format_hint, has_structured_rows, image_bytes, fallback_patterns
+        del content, filename, format_hint, has_structured_rows, image_bytes, fallback_patterns, canonical_fields
         recipe_config = recipe_config or {}
         analyze_calls.append(recipe_config)
         if recipe_config.get("field_descriptions"):

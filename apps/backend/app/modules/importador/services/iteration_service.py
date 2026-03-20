@@ -309,6 +309,7 @@ def normalize_line_fields(
     line: ImpStagingLine,
     campos_revision: list[str] | None,
     field_aliases: dict[str, list[str]],
+    canonical_fields: dict[str, dict] | None = None,
 ) -> dict:
     """
     Normaliza la línea aplicando aliases de campos.
@@ -326,23 +327,26 @@ def normalize_line_fields(
 
     fields_to_process = campos_revision or list(field_aliases.keys())
 
-    NUMERIC_FIELDS = {"total_amount", "subtotal", "tax_amount"}
-    DATE_FIELDS = {"issue_date"}
+    canonical_meta = canonical_fields or {}
 
     for campo in fields_to_process:
         aliases = field_aliases.get(campo, [campo])
         raw_value = get_data_value(raw, *aliases)
+        field_type = str((canonical_meta.get(campo) or {}).get("type") or "").strip().lower()
 
-        if campo in NUMERIC_FIELDS:
+        if field_type == "numeric":
             parsed = safe_floatish(raw_value)
             if parsed is not None:
                 result[campo] = parsed
-        elif campo in DATE_FIELDS:
+        elif field_type == "date":
             if raw_value:
                 s = str(raw_value).strip()[:10]
                 import re
                 if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
                     result[campo] = s
+        elif field_type == "list":
+            if isinstance(raw_value, list):
+                result[campo] = raw_value
         else:
             if raw_value is not None:
                 cleaned = str(raw_value).strip()
@@ -508,6 +512,7 @@ def run_iteration(
     user_id: str,
     scope: IterationScopeIn,
     field_aliases: dict[str, list[str]],
+    canonical_fields: dict[str, dict] | None = None,
 ) -> IterationResultOut:
     """
     Ejecuta una iteración de importación sobre el subconjunto de líneas definido por scope.
@@ -543,7 +548,12 @@ def run_iteration(
     for line in lines:
         attempted += 1
         try:
-            normalized = normalize_line_fields(line, campos_revision, field_aliases)
+            normalized = normalize_line_fields(
+                line,
+                campos_revision,
+                field_aliases,
+                canonical_fields=canonical_fields,
+            )
             errors = validate_normalized_line(normalized, error_affected_fields=error_affected_fields)
 
             if errors:
