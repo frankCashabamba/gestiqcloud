@@ -271,6 +271,13 @@ async def enqueue_async_batch(
                 "error_detalle": getattr(existing, "error_detalle", None),
             },
         )
+        crud.add_log(
+            db,
+            existing.id,
+            "SKIP_DUPLICATE",
+            user_id,
+            {"filename": filename, "size": file_size, "mode": "async", "reason": "same hash_or_name"},
+        )
         results.append(
             {
                 "id": existing.id,
@@ -278,6 +285,11 @@ async def enqueue_async_batch(
                 "batch_item_id": batch_item.id,
                 "estado": existing.estado,
                 "nombre_archivo": filename,
+                "action": "REUSED",
+                "message": (
+                    "Documento ya existente; se reutilizo el mismo registro. "
+                    "Usa reimportacion limpia para reprocesarlo."
+                ),
             }
         )
     db.commit()
@@ -336,6 +348,8 @@ async def enqueue_async_batch(
                 "batch_item_id": batch_item.id,
                 "estado": "PENDING",
                 "nombre_archivo": filename,
+                "action": "REPROCESS",
+                "message": "Se reproceso el mismo documento sobre el registro existente.",
             }
         )
 
@@ -417,6 +431,8 @@ async def enqueue_async_batch(
                 "batch_item_id": batch_item.id,
                 "estado": "PENDING",
                 "nombre_archivo": filename,
+                "action": "CREATED",
+                "message": "Se creo un nuevo documento para esta importacion.",
             }
         )
 

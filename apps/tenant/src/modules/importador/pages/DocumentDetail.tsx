@@ -11,7 +11,7 @@ function getCurrentDocumentData(doc: Documento | null): Record<string, unknown> 
   return source && typeof source === 'object' ? source as Record<string, unknown> : {}
 }
 
-const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS'] as const
+const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
 
 function toggleStringValue(values: string[], value: string, checked: boolean): string[] {
   if (!value) return values
@@ -320,15 +320,23 @@ export default function DocumentDetail() {
       .map(line => line.error_code)
       .filter((code): code is string => Boolean(code)),
   ])).sort((a, b) => a.localeCompare(b))
-  const availableColumns = Array.from(new Set(
-    reprocessableLines.flatMap(line => getStagingLineColumns(line))
-  )).sort((a, b) => a.localeCompare(b))
+  const isDocumentScopedReprocess = reprocessableLines.length > 0
+    && reprocessableLines.every(line => (line.sheet_name || '__document__') === '__document__')
+  const availableColumns = isDocumentScopedReprocess
+    ? []
+    : Array.from(new Set(
+        reprocessableLines.flatMap(line => getStagingLineColumns(line))
+      )).sort((a, b) => a.localeCompare(b))
   const hasSelectiveFilters = selectedFields.length > 0
     || selectedErrorCodes.length > 0
     || selectedLineNumbers.length > 0
     || selectedColumns.length > 0
+  const effectiveSelectedFields = Array.from(new Set([
+    ...selectedFields,
+    ...(isDocumentScopedReprocess ? selectedColumns : []),
+  ])).sort((a, b) => a.localeCompare(b))
   const reviewSessionLabel = [
-    `Campos: ${formatSelection(selectedFields, 'todos')}`,
+    `Campos: ${formatSelection(effectiveSelectedFields, 'todos')}`,
     `Columnas: ${formatSelection(selectedColumns, 'todas')}`,
     `Errores: ${formatSelection(selectedErrorCodes, 'todos')}`,
     `Lineas: ${formatSelection(selectedLineNumbers, 'todas')}`,
@@ -1113,10 +1121,10 @@ export default function DocumentDetail() {
                   disabled={!hasSelectiveFilters || reprocess.isLoading}
                   onClick={() => {
                     void reprocess.buildReviewSession({
-                      filter_estados: [...REPROCESSABLE_STATES],
+                      filter_estados: [],
                       filter_error_codes: selectedErrorCodes,
-                      filter_campos: selectedFields,
-                      filter_columns: selectedColumns,
+                      filter_campos: effectiveSelectedFields,
+                      filter_columns: isDocumentScopedReprocess ? [] : selectedColumns,
                       filter_lines: selectedLineNumbers,
                       filter_sheet: activeSheet || null,
                     })

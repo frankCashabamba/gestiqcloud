@@ -559,6 +559,8 @@ export type AsyncRunResult = {
   batch_item_id: string
   estado: string
   nombre_archivo: string
+  action?: 'CREATED' | 'REUSED' | 'REPROCESS'
+  message?: string | null
 }
 
 export type ImportBatchItem = {

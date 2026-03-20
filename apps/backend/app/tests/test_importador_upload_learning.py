@@ -238,8 +238,12 @@ def test_enqueue_async_batch_bootstraps_learning_and_reuses_same_hash_document(
 
     assert len(result) == 1
     assert str(result[0]["id"]) == str(existing.id)
+    assert result[0]["action"] == "REUSED"
+    assert "reutilizo el mismo registro" in result[0]["message"]
     all_docs = db.query(ImpDocumento).filter(ImpDocumento.nombre_archivo == filename).all()
     assert len(all_docs) == 1
+    db.refresh(existing)
+    assert any(log.accion == "SKIP_DUPLICATE" for log in existing.logs)
     db.refresh(snapshot)
     assert snapshot.content_json["learning_version"] == 1
     assert "payment_method" in (snapshot.content_json.get("field_descriptions") or {})
@@ -384,6 +388,8 @@ def test_enqueue_async_batch_force_reprocesses_same_hash_without_creating_duplic
     db.refresh(existing)
     assert len(result) == 1
     assert str(result[0]["id"]) == str(existing.id)
+    assert result[0]["action"] == "REPROCESS"
+    assert "reproceso el mismo documento" in result[0]["message"]
     assert existing.estado == "PENDING"
     assert existing.datos_confirmados is None
     assert db.query(ImpDocumento).filter(ImpDocumento.nombre_archivo == filename).count() == 1

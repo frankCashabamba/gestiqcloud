@@ -25,7 +25,13 @@ type FileEntry = {
   docId?: string
   batchItemId?: string
   errorMessage?: string
-  result?: { id: string; estado: string; tipo_documento_detectado?: string }
+  result?: {
+    id: string
+    estado: string
+    tipo_documento_detectado?: string
+    action?: 'CREATED' | 'REUSED' | 'REPROCESS'
+    message?: string | null
+  }
 }
 type PersistedFileEntry = Omit<FileEntry, 'file'>
 type DirectoryInputProps = React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory?: string }
@@ -58,6 +64,19 @@ const FILE_ICONS: Record<string, string> = {
 function fileIcon(name: string) {
   const ext = '.' + name.split('.').pop()?.toLowerCase()
   return FILE_ICONS[ext] || 'FILE'
+}
+
+function importActionCopy(action?: string | null) {
+  switch (action) {
+    case 'REUSED':
+      return { label: 'Duplicado reutilizado', color: '#92400e', bg: '#fef3c7' }
+    case 'REPROCESS':
+      return { label: 'Reprocesado limpio', color: '#1d4ed8', bg: '#dbeafe' }
+    case 'CREATED':
+      return { label: 'Nuevo documento', color: '#166534', bg: '#dcfce7' }
+    default:
+      return null
+  }
 }
 
 function fmtSize(bytes: number) {
@@ -835,6 +854,7 @@ export default function ImportUploader({
                   </div>
                   <div style={{ display: 'grid', gap: '0.7rem', maxHeight: 280, overflowY: 'auto', paddingRight: 2 }}>
                     {section.entries.map((entry) => {
+                      const actionCopy = importActionCopy(entry.result?.action)
                       const tone = entry.status === 'done'
                         ? { bg: '#f0fdf4', border: '#bbf7d0', badge: '#dcfce7', color: '#166534' }
                         : entry.status === 'error'
@@ -873,6 +893,20 @@ export default function ImportUploader({
                                   {entry.result.tipo_documento_detectado}
                                 </span>
                               )}
+                              {actionCopy && (
+                                <span
+                                  style={{
+                                    padding: '0.15rem 0.45rem',
+                                    borderRadius: 999,
+                                    background: actionCopy.bg,
+                                    color: actionCopy.color,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {actionCopy.label}
+                                </span>
+                              )}
                             </div>
                             <div style={{ marginTop: 4, display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: 11, color: '#64748b' }}>
                               <span>{fmtSize(entry.size)}</span>
@@ -881,6 +915,11 @@ export default function ImportUploader({
                               {entry.status === 'error' && entry.errorMessage && <span style={{ color: tone.color, fontWeight: 600 }}>{entry.errorMessage}</span>}
                               {entry.status === 'done' && <span style={{ color: tone.color }}>Se retira de la bandeja al abrirlo</span>}
                             </div>
+                            {entry.result?.message && (
+                              <div style={{ marginTop: 6, fontSize: 11, color: '#475569' }}>
+                                {entry.result.message}
+                              </div>
+                            )}
                           </div>
                           <div className="import-uploader__entry-actions" style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             {entry.status === 'done' && (entry.docId || entry.result?.id) && (

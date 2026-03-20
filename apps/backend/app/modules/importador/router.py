@@ -7,6 +7,7 @@ import hashlib
 import logging
 import os
 import re
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -952,6 +953,8 @@ async def upload_files(
         nonlocal db, tenant_id, user_id, results
         tipo_archivo = tipo_archivo or detect_file_type(filename, db)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
+        response_action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
+        response_message = "Se creo un nuevo documento para esta importacion."
 
         existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
@@ -978,6 +981,11 @@ async def upload_files(
                     confianza_clasificacion=existing.confianza_clasificacion,
                     requiere_revision=existing.requiere_revision,
                     datos_extraidos=existing.datos_extraidos,
+                    action="REUSED",
+                    message=(
+                        "Documento ya existente; se reutilizo el mismo registro. "
+                        "Usa reimportacion limpia para reprocesarlo."
+                    ),
                 )
             )
             return
@@ -989,6 +997,8 @@ async def upload_files(
             or (existing.estado == "REVIEW" and not reuse_existing)
         ):
             doc = existing
+            response_action = "REPROCESS"
+            response_message = "Se reproceso el mismo documento sobre el registro existente."
             crud.reset_documento_for_reprocess(
                 db,
                 doc,
@@ -1346,6 +1356,8 @@ async def upload_files(
                     confianza_clasificacion=confianza,
                     requiere_revision=requiere_revision,
                     datos_extraidos=datos_extraidos,
+                    action=response_action,
+                    message=response_message,
                 )
             )
         except Exception as exc:
@@ -1353,7 +1365,14 @@ async def upload_files(
             crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": str(exc)})
             crud.add_log(db, doc.id, "EXTRACT", user_id, {"error": str(exc)})
             db.commit()
-            results.append(UploadResponse(id=doc.id, estado="FAILED"))
+            results.append(
+                UploadResponse(
+                    id=doc.id,
+                    estado="FAILED",
+                    action=response_action,
+                    message=response_message,
+                )
+            )
 
     for file in files:
         file_bytes = await file.read()
@@ -1387,6 +1406,8 @@ async def upload_files(
                         id=doc.id,
                         estado="FAILED",
                         datos_extraidos={"error": "ZIP vacío o sin ficheros soportados"},
+                        action="CREATED",
+                        message="No se pudo procesar el archivo comprimido.",
                     )
                 )
                 continue
@@ -2332,6 +2353,8 @@ class RunAsyncResponse(BaseModel):
     batch_item_id: UUID
     estado: str
     nombre_archivo: str
+    action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
+    message: str | None = None
 
 
 @router.post("/run-async", response_model=list[RunAsyncResponse], dependencies=protected)

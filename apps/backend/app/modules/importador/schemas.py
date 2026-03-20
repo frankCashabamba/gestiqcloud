@@ -163,6 +163,8 @@ class UploadResponse(BaseModel):
     confianza_clasificacion: float | None = None
     requiere_revision: bool = False
     datos_extraidos: dict | None = None
+    action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
+    message: str | None = None
 
 
 class SaveDocumentLineMatch(BaseModel):

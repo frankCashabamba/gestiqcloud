@@ -11,12 +11,11 @@ Tablas:
 """
 
 from __future__ import annotations
-
 import uuid
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -408,11 +407,19 @@ class ImpReviewSession(Base):
     initiated_by: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    filter_estados: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
-    filter_error_codes: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
-    filter_campos: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    filter_estados: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, server_default=text("'{}'")
+    )
+    filter_error_codes: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, server_default=text("'{}'")
+    )
+    filter_campos: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, server_default=text("'{}'")
+    )
     filter_columns: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
-    filter_lines: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    filter_lines: Mapped[list[int]] = mapped_column(
+        ARRAY(Integer), nullable=False, server_default=text("'{}'")
+    )
     filter_sheet: Mapped[str | None] = mapped_column(String(200), nullable=True)
     preview_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estado: Mapped[str] = mapped_column(

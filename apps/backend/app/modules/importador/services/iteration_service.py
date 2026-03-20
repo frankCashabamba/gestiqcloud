@@ -10,6 +10,7 @@ Gestiona el ciclo de vida de reprocesado iterativo:
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import logging
 from uuid import UUID
@@ -23,6 +24,10 @@ from app.models.importador import (
     ImpLineErrorLog,
     ImpStagingLine,
 )
+from ..ai_classifier import analyze_document
+from ..analysis_normalizer import _normalize_analysis_output
+from ..canonical_document import build_document_projection
+from ..runtime_config import load_doc_type_patterns, load_prompt_config
 from ..schemas import (
     IterationResultOut,
     IterationScopeIn,
@@ -205,6 +210,94 @@ def count_lines_for_scope(db: Session, documento_id: UUID, scope: IterationScope
     """Cuenta cuántas líneas afecta un scope sin cargarlas todas."""
     lines = fetch_lines_for_scope(db, documento_id, scope)
     return len(lines)
+
+
+def _document_scope_fields(scope: IterationScopeIn) -> list[str]:
+    fields: list[str] = []
+    for value in list(scope.filter_campos or []) + list(scope.filter_columns or []):
+        item = str(value).strip()
+        if item and item not in fields:
+            fields.append(item)
+    return fields
+
+
+def _is_document_scope_line(line: ImpStagingLine) -> bool:
+    return (line.sheet_name or _DOCUMENT_SHEET_SENTINEL) == _DOCUMENT_SHEET_SENTINEL
+
+
+def _reextract_document_scope_fields(
+    db: Session,
+    doc: ImpDocumento,
+    selected_fields: list[str],
+    canonical_fields: dict[str, dict] | None,
+) -> dict:
+    if not selected_fields or not str(doc.texto_ocr or "").strip():
+        return {}
+
+    canonical_meta = canonical_fields or {}
+    narrowed_fields = {
+        field: canonical_meta.get(field, {})
+        for field in selected_fields
+        if field
+    }
+    if not narrowed_fields:
+        return {}
+
+    analysis = asyncio.run(
+        analyze_document(
+            str(doc.texto_ocr or ""),
+            doc.nombre_archivo,
+            doc.tipo_archivo,
+            fallback_patterns=load_doc_type_patterns(db),
+            canonical_fields=narrowed_fields,
+            prompt_config=load_prompt_config(db),
+        )
+    )
+    normalized = _normalize_analysis_output(analysis)
+    extracted = normalized.get("fields")
+    if not isinstance(extracted, dict):
+        return {}
+    return {
+        field: extracted[field]
+        for field in selected_fields
+        if field in extracted and extracted[field] not in (None, "", [])
+    }
+
+
+def _sync_document_scope_line_to_document(
+    db: Session,
+    doc: ImpDocumento,
+    line: ImpStagingLine,
+    scope: IterationScopeIn,
+    field_aliases: dict[str, list[str]],
+    canonical_fields: dict[str, dict] | None,
+) -> None:
+    data = dict(doc.datos_extraidos or {})
+    normalized = dict(line.normalized_data or {})
+    if not normalized:
+        return
+
+    selected_fields = _document_scope_fields(scope)
+    fields_to_apply = selected_fields or list(normalized.keys())
+    changed = False
+    for field in fields_to_apply:
+        if field in normalized and data.get(field) != normalized[field]:
+            data[field] = normalized[field]
+            changed = True
+    if not changed:
+        return
+
+    _, projection = build_document_projection(
+        data,
+        doc_type=doc.tipo_documento_detectado,
+        source_format=doc.tipo_archivo,
+        field_aliases=field_aliases,
+        canonical_fields=canonical_fields,
+    )
+    doc.datos_extraidos = data
+    for key, value in projection.items():
+        setattr(doc, key, value)
+    db.flush()
 
 
 def get_last_iteration(db: Session, documento_id: UUID) -> ImpIteration | None:
@@ -538,6 +631,7 @@ def run_iteration(
 
     lines = fetch_lines_for_scope(db, doc.id, scope)
     campos_revision = scope.filter_campos or None
+    document_scope_fields = _document_scope_fields(scope)
     error_affected_fields = load_error_affected_fields(db)
 
     attempted = 0
@@ -554,6 +648,15 @@ def run_iteration(
                 field_aliases,
                 canonical_fields=canonical_fields,
             )
+            if _is_document_scope_line(line) and document_scope_fields:
+                normalized.update(
+                    _reextract_document_scope_fields(
+                        db,
+                        doc,
+                        document_scope_fields,
+                        canonical_fields,
+                    )
+                )
             errors = validate_normalized_line(normalized, error_affected_fields=error_affected_fields)
 
             if errors:
@@ -587,6 +690,17 @@ def run_iteration(
             )
             log_line_error(db, line, iteration, "SYSTEM_ERROR", str(exc))
             errored += 1
+
+    document_line = next((line for line in lines if _is_document_scope_line(line)), None)
+    if document_line and imported > 0:
+        _sync_document_scope_line_to_document(
+            db,
+            doc,
+            document_line,
+            scope,
+            field_aliases,
+            canonical_fields,
+        )
 
     improvement = False
     if prev:
