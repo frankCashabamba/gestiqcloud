@@ -23,13 +23,17 @@ export default function Dashboard() {
   const companyName = empresaInfo?.name || empresa || '—'
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
+  const greeting = hour < 12
+    ? t('pages.dashboard.greetingMorning')
+    : hour < 19
+      ? t('pages.dashboard.greetingAfternoon')
+      : t('pages.dashboard.greetingEvening')
 
   const grouped = useMemo(() => {
     const visible = modules.filter(m => !HIDDEN_SLUGS.has(m.slug || ''))
     const acc: Record<string, typeof modules> = {}
     for (const m of visible) {
-      const cat = (m.categoria || m.category || 'General').toString()
+      const cat = (m.categoria || 'General').toString()
       if (!acc[cat]) acc[cat] = []
       acc[cat].push(m)
     }
@@ -58,8 +62,8 @@ export default function Dashboard() {
         className="flex items-center justify-between w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 py-4 mb-8 transition-colors"
       >
         <div>
-          <p className="font-semibold text-base">Ver resumen del negocio</p>
-          <p className="text-sm text-blue-100 mt-0.5">Ventas, stock, cobros y sugerencias con IA</p>
+          <p className="font-semibold text-base">{t('pages.dashboard.copilotTitle')}</p>
+          <p className="text-sm text-blue-100 mt-0.5">{t('pages.dashboard.copilotSubtitle')}</p>
         </div>
         <span className="text-xl">→</span>
       </Link>

@@ -129,6 +129,7 @@ export function usePOSState() {
     const [showResumeTicketModal, setShowResumeTicketModal] = useState(false)
     const [showCreateProductModal, setShowCreateProductModal] = useState(false)
     const [showPendingModal, setShowPendingModal] = useState(false)
+    const [showWasteModal, setShowWasteModal] = useState(false)
     const [showPrintPreview, setShowPrintPreview] = useState(false)
     const [quickInputState, setQuickInputState] = useState<{
         open: boolean
@@ -446,6 +447,7 @@ export function usePOSState() {
         showResumeTicketModal, setShowResumeTicketModal,
         showCreateProductModal, setShowCreateProductModal,
         showPendingModal, setShowPendingModal,
+        showWasteModal, setShowWasteModal,
         showPrintPreview, setShowPrintPreview,
         quickInputState, setQuickInputState,
 

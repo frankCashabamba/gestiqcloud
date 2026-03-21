@@ -50,6 +50,7 @@ const DEFAULT_TELEGRAM: ChannelState = {
   config: {
     bot_token: '',
     parse_mode: 'HTML',
+    default_recipient: '',
   },
 }
 
@@ -392,6 +393,21 @@ export default function NotificacionesSettings() {
                 setTelegramChannel({
                   ...telegramChannel,
                   config: { ...telegramChannel.config, bot_token: e.target.value },
+                })
+              }
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Chat ID</label>
+            <input
+              className="border px-2 py-1 w-full rounded"
+              type="text"
+              placeholder="-100123456789"
+              value={telegramChannel.config.default_recipient || ''}
+              onChange={(e) =>
+                setTelegramChannel({
+                  ...telegramChannel,
+                  config: { ...telegramChannel.config, default_recipient: e.target.value },
                 })
               }
             />

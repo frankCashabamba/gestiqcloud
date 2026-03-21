@@ -42,7 +42,10 @@
         "dailyReports": "Reportes diarios",
         "holdTicket": "Ticket en espera",
         "resume": "Recuperar",
+        "printQuote": "Imprimir proforma",
         "reprint": "Reimprimir",
+        "expressCash": "Efectivo sin ticket",
+        "expressCashPrint": "Efectivo con ticket",
         "reprintTooltip": "Reimprimir último recibo",
         "pendingPayments": "Cobrar pendientes",
         "online": "Online",
@@ -110,7 +113,9 @@
         "chargeNoReceipt": "Cobrar sin recibo",
         "chargeNoReceiptWithTotal": "Cobrar sin recibo {{amount}} {{currency}}",
         "increment": "Aumentar cantidad",
-        "decrement": "Disminuir cantidad"
+        "decrement": "Disminuir cantidad",
+        "expressCash": "Efectivo sin ticket",
+        "expressCashPrint": "Efectivo + ticket"
     },
     "buyer": {
         "search": "Buscar cliente (nombre, RUC, email)",
@@ -179,6 +184,8 @@
         "completeIdentification": "Completa nombre e identificación del comprador.",
         "emptyCart": "No hay líneas en el carrito",
         "noShiftOpen": "Abre un turno primero",
+        "invalidCartLine": "Hay un producto inválido en el carrito",
+        "negativeTotalNotAllowed": "El total no puede ser negativo",
         "requiresBuyerData": "El total requiere datos del comprador.",
         "emptyCartCheckout": "No hay líneas en el carrito",
         "noShiftCheckout": "Abre un turno primero",
@@ -322,6 +329,9 @@
     "keyboard": {
         "selectCustomer": "Seleccionar cliente",
         "globalDiscount": "Descuento global",
+        "printQuote": "Imprimir proforma (ticket sin pago)",
+        "expressCash": "Cobro express en efectivo — sin ticket, sin modal",
+        "expressCashPrint": "Cobro express en efectivo — imprime ticket",
         "openPayment": "Abrir pago",
         "closeModal": "Cerrar modal / Volver",
         "searchProduct": "Buscar producto (lector barras)",
@@ -454,5 +464,23 @@
         "confirm": "Confirmar",
         "ticketsDeleted": "Tickets pendientes eliminados",
         "clearWarning": "¿Limpiar todos los tickets pendientes? Esta acción no se puede deshacer."
+    },
+    "waste": {
+        "menuLabel": "Merma / Regalo",
+        "title": "Registrar Merma o Regalo",
+        "subtitle": "Descuenta stock sin generar una venta. Queda registrado en movimientos de inventario.",
+        "product": "Producto",
+        "searchPlaceholder": "Buscar producto por nombre o código...",
+        "stock": "Stock",
+        "qty": "Cantidad",
+        "reason": "Motivo",
+        "reasonMerma": "Merma (se cayó / deterioro)",
+        "reasonRegalo": "Regalo / Cortesía",
+        "reasonMuestra": "Muestra / Degustación",
+        "note": "Nota (opcional)",
+        "notePlaceholder": "Ej: se cayó bandeja, pan quemado, cliente VIP...",
+        "confirm": "Registrar",
+        "success": "Registrado: {{qty}} {{name}}",
+        "error": "Error al registrar el ajuste"
     }
 }

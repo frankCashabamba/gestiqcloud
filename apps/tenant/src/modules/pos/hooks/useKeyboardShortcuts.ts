@@ -1,6 +1,7 @@
 /**
  * useKeyboardShortcuts - Sistema de atajos de teclado para POS
- * F2: BÃºsqueda | F4: Cliente | F5: Reanudar | F6: Descuento | F8: Suspender | F9: Pago
+ * F2: Búsqueda | F4: Cliente | F5: Reanudar | F6: Descuento | F7: Proforma
+ * F8: Suspender | F9: Pago | F10: Cobro express (sin ticket) | F11: Cobro express (con ticket)
  * Enter: Confirmar | Esc: Cerrar/Volver
  */
 import { useEffect } from 'react'
@@ -10,8 +11,11 @@ interface KeyboardHandlers {
   onF4?: () => void
   onF5?: () => void
   onF6?: () => void
+  onF7?: () => void
   onF8?: () => void
   onF9?: () => void
+  onF10?: () => void
+  onF11?: () => void
   onEnter?: () => void
   onEscape?: () => void
   onArrowUp?: () => void
@@ -59,6 +63,10 @@ export function useKeyboardShortcuts(handlers: KeyboardHandlers, enabled = true)
           e.preventDefault()
           handlers.onF6?.()
           break
+        case 'F7':
+          e.preventDefault()
+          handlers.onF7?.()
+          break
         case 'F8':
           e.preventDefault()
           handlers.onF8?.()
@@ -66,6 +74,14 @@ export function useKeyboardShortcuts(handlers: KeyboardHandlers, enabled = true)
         case 'F9':
           e.preventDefault()
           handlers.onF9?.()
+          break
+        case 'F10':
+          e.preventDefault()
+          handlers.onF10?.()
+          break
+        case 'F11':
+          e.preventDefault()
+          handlers.onF11?.()
           break
         case 'Enter':
           e.preventDefault()
@@ -85,7 +101,8 @@ export function useKeyboardShortcuts(handlers: KeyboardHandlers, enabled = true)
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    // useCapture=true intercepta antes de que el browser procese F10/F11/etc.
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [handlers, enabled])
 }

@@ -423,10 +423,11 @@ def close_shift(
         if shift[0] != "open":
             raise HTTPException(status_code=400, detail="El turno ya está cerrado")
 
+        # Solo los draft bloquean — los unpaid son ventas a crédito legítimas
         pending = db.execute(
             text(
                 "SELECT COUNT(*) FROM pos_receipts "
-                "WHERE shift_id = :sid AND tenant_id = :tid AND status IN ('draft', 'unpaid')"
+                "WHERE shift_id = :sid AND tenant_id = :tid AND status = 'draft'"
             ).bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -437,7 +438,7 @@ def close_shift(
         if pending and pending > 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"No se puede cerrar el turno. Hay {pending} recibo(s) sin cobrar.",
+                detail=f"No se puede cerrar el turno. Hay {pending} recibo(s) en borrador sin finalizar.",
             )
 
         shift_data = db.execute(
@@ -497,6 +498,21 @@ def close_shift(
                 other_sales += float(amount)
 
         expected_cash = opening_float + cash_sales
+
+        # Ventas a crédito (mayoristas, pago diferido) — no bloquean el cierre
+        credit_pending = float(
+            db.execute(
+                text(
+                    "SELECT COALESCE(SUM(totals), 0) FROM pos_receipts "
+                    "WHERE shift_id = :sid AND tenant_id = :tid AND status = 'unpaid'"
+                ).bindparams(
+                    bindparam("sid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"sid": shift_uuid, "tid": tenant_id},
+            ).scalar()
+            or 0
+        )
 
         tax_total = float(
             db.execute(
@@ -673,6 +689,26 @@ def close_shift(
             except Exception:
                 pass
 
+        # --- Telegram shift-close summary (best-effort, non-blocking) ---
+        try:
+            _enqueue_shift_close_telegram(
+                db=db,
+                tenant_id=tenant_id,
+                shift_uuid=shift_uuid,
+                opened_at=opened_at,
+                total_sales=total_sales,
+                cash_sales=cash_sales,
+                card_sales=card_sales,
+                other_sales=other_sales,
+                tax_total=tax_total,
+                expected_cash=expected_cash,
+                closing_cash=payload.closing_cash,
+                loss_amount=payload.loss_amount or 0,
+                credit_pending=credit_pending,
+            )
+        except Exception as _tg_err:
+            logger.warning("Telegram shift-close notification failed (non-fatal): %s", _tg_err)
+
         result = {
             "status": "closed",
             "expected_cash": expected_cash,
@@ -694,6 +730,111 @@ def close_shift(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al cerrar turno: {str(e)}")
+
+
+def _enqueue_shift_close_telegram(
+    *,
+    db: "Session",
+    tenant_id,
+    shift_uuid,
+    opened_at,
+    total_sales: float,
+    cash_sales: float,
+    card_sales: float,
+    other_sales: float,
+    tax_total: float,
+    expected_cash: float,
+    closing_cash: float,
+    loss_amount: float,
+    credit_pending: float = 0.0,
+) -> None:
+    """
+    Construye el mensaje de resumen de cierre y lo envía directamente por Telegram.
+    Solo actúa si el tenant tiene un canal Telegram activo con default_recipient (chat_id).
+    """
+    from app.models.ai.incident import NotificationChannel
+    from app.modules.notifications.infrastructure._transport import send_telegram
+
+    channel = (
+        db.query(NotificationChannel)
+        .filter(
+            NotificationChannel.tenant_id == tenant_id,
+            NotificationChannel.channel_type == "telegram",
+        )
+        .first()
+    )
+
+    if not channel:
+        logger.info("Shift close Telegram: no hay canal telegram para tenant %s", tenant_id)
+        return
+
+    if not channel.is_active:
+        return
+
+    chat_id = (channel.config or {}).get("default_recipient")
+    if not chat_id:
+        logger.warning("Shift close Telegram: falta default_recipient en config del canal")
+        return
+
+    # --- Stock de productos con receta ---
+    try:
+        recipe_stock_rows = db.execute(
+            text(
+                "SELECT p.name, COALESCE(SUM(si.qty), 0) AS total_qty "
+                "FROM recipes r "
+                "JOIN products p ON p.id = r.product_id "
+                "LEFT JOIN stock_items si ON si.product_id = r.product_id "
+                "   AND si.tenant_id = :tid "
+                "WHERE r.tenant_id = :tid AND r.is_active = TRUE "
+                "GROUP BY p.name "
+                "ORDER BY p.name"
+            ),
+            {"tid": str(tenant_id)},
+        ).fetchall()
+    except Exception as sql_exc:
+        logger.warning("Shift close Telegram: error en query recetas: %s", sql_exc)
+        recipe_stock_rows = []
+
+    # --- Construir mensaje ---
+    opened_str = opened_at.strftime("%d/%m/%Y %H:%M") if opened_at else "—"
+    now_str = datetime.now(UTC).strftime("%H:%M")
+    discrepancy = closing_cash - expected_cash
+    disc_icon = "✅" if abs(discrepancy) < 0.01 else ("🔴" if discrepancy < 0 else "🟡")
+
+    lines = [
+        f"🏪 <b>Cierre de Caja</b>",
+        f"📅 Turno: {opened_str} → {now_str}",
+        "",
+        f"💰 <b>Ventas</b>",
+        f"  Total:      <b>${total_sales:.2f}</b>",
+        f"  Efectivo:   ${cash_sales:.2f}",
+        f"  Tarjeta:    ${card_sales:.2f}",
+    ]
+    if other_sales > 0:
+        lines.append(f"  Otros:      ${other_sales:.2f}")
+    lines += [
+        f"  Impuestos:  ${tax_total:.2f}",
+        "",
+        f"🏦 <b>Caja</b>",
+        f"  Esperado:   ${expected_cash:.2f}",
+        f"  Contado:    ${closing_cash:.2f}",
+        f"  Diferencia: {disc_icon} ${discrepancy:+.2f}",
+    ]
+    if loss_amount > 0:
+        lines.append(f"  Merma:      🔻 ${loss_amount:.2f}")
+    if credit_pending > 0:
+        lines.append(f"  Credito:    🕐 ${credit_pending:.2f} (pend. cobro)")
+
+    if recipe_stock_rows:
+        lines += ["", "🧁 <b>Stock de productos con receta</b>"]
+        for name, qty in recipe_stock_rows:
+            stock_icon = "🟢" if float(qty) > 0 else "🔴"
+            lines.append(f"  {stock_icon} {name}: <b>{float(qty):.1f}</b>")
+
+    message = "\n".join(lines)
+
+    result = send_telegram(channel.config, str(chat_id), message)
+    logger.info("Shift close Telegram: resultado=%s", result)
 
 
 @router.post(

@@ -183,6 +183,7 @@ def _resolve_issue_stock_item(
     lot_specified: bool,
     expires_specified: bool,
     ambiguous_detail: str,
+    auto_pick_first: bool = False,
 ) -> StockItem | None:
     if lot_specified or expires_specified:
         rows = _stock_item_query(
@@ -210,6 +211,9 @@ def _resolve_issue_stock_item(
     ).all()
     positive_rows = [row for row in rows if float(row.qty or 0) > 0]
     if len(positive_rows) > 1:
+        if auto_pick_first:
+            # Para mermas/regalos sin lote especificado: tomar el primero con stock (FIFO)
+            return positive_rows[0]
         raise HTTPException(status_code=409, detail=ambiguous_detail)
     if positive_rows:
         return positive_rows[0]
@@ -479,6 +483,7 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
             lot_specified=payload.lote is not None,
             expires_specified=payload.expires_at is not None,
             ambiguous_detail="lot_required_for_issue",
+            auto_pick_first=payload.lote is None,
         )
         if not row:
             row = StockItem(

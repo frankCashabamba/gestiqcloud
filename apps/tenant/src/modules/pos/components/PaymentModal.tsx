@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getReceipt, payReceipt, redeemStoreCredit, createPaymentLink, type CheckoutResponse } from '../services'
 import { createMovimientoCaja } from '../../finances/services'
@@ -76,6 +76,7 @@ export default function PaymentModal({
   const [stockOptionsByLine, setStockOptionsByLine] = useState<Record<string, LotOption[]>>({})
   const [allocationDrafts, setAllocationDrafts] = useState<Record<string, Record<string, string>>>({})
   const [stockLoading, setStockLoading] = useState(false)
+  const payingRef = useRef(false)
 
   const activeWarehouseId = warehouseId || selectedWarehouse || undefined
 
@@ -245,7 +246,8 @@ export default function PaymentModal({
   )
 
   const handlePay = async () => {
-    if (loading) return
+    if (loading || payingRef.current) return
+    payingRef.current = true
     if (hasWarehouseSelectionIssue()) {
       toast.warning(t('pos:payment.selectWarehouseWarning'))
       return
@@ -446,6 +448,7 @@ export default function PaymentModal({
       }
     } finally {
       setLoading(false)
+      payingRef.current = false
     }
   }
 

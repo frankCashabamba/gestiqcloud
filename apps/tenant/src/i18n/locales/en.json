@@ -994,7 +994,12 @@
       "userLabel": "User:",
       "contractedModules": "Contracted modules",
       "loadingModules": "Loading modules…",
-      "noModules": "No contracted modules for this company."
+      "noModules": "No contracted modules for this company.",
+      "greetingMorning": "Good morning",
+      "greetingAfternoon": "Good afternoon",
+      "greetingEvening": "Good evening",
+      "copilotTitle": "View business summary",
+      "copilotSubtitle": "Sales, stock, payments and AI suggestions"
     },
     "unauthorized": {
       "loading": "Loading…"

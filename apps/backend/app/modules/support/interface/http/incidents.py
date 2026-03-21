@@ -419,11 +419,10 @@ async def create_notification_channel(
 
     new_channel = NotificationChannel(
         tenant_id=tenant_id,
-        channel_type=channel_data.channel_type,
+        channel_type=getattr(channel_data, "channel_type", None) or getattr(channel_data, "tipo", None),
         name=channel_data.name,
         config=channel_data.config,
-        is_active=channel_data.is_active,
-        priority=channel_data.priority,
+        is_active=getattr(channel_data, "is_active", None) if getattr(channel_data, "is_active", None) is not None else getattr(channel_data, "active", True),
     )
 
     db.add(new_channel)
@@ -458,8 +457,10 @@ async def update_notification_channel(
         raise HTTPException(status_code=404, detail="Channel not found")
 
     update_data = channel_update.model_dump(exclude_unset=True)
+    # Map schema field names to ORM column names
+    _field_map = {"active": "is_active", "tipo": "channel_type"}
     for field, value in update_data.items():
-        setattr(channel, field, value)
+        setattr(channel, _field_map.get(field, field), value)
 
     db.commit()
     db.refresh(channel)

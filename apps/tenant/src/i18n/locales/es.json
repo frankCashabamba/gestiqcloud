@@ -1009,7 +1009,12 @@
       "userLabel": "Usuario:",
       "contractedModules": "Módulos contratados",
       "loadingModules": "Cargando módulos…",
-      "noModules": "No hay módulos contratados para esta empresa."
+      "noModules": "No hay módulos contratados para esta empresa.",
+      "greetingMorning": "Buenos días",
+      "greetingAfternoon": "Buenas tardes",
+      "greetingEvening": "Buenas noches",
+      "copilotTitle": "Ver resumen del negocio",
+      "copilotSubtitle": "Ventas, stock, cobros y sugerencias con IA"
     },
     "unauthorized": {
       "loading": "Cargando…"

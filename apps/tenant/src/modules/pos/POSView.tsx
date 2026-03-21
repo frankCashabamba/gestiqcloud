@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import {
     ArrowLeft,
     Clock3,
+    FileText,
     Menu,
     NotebookPen,
     Palette,
@@ -23,6 +24,7 @@ import {
     SearchCheck,
     ShoppingCart,
     Store,
+    Trash2,
     UserRound,
     Wifi,
 } from 'lucide-react'
@@ -39,6 +41,7 @@ import { CatalogSection } from './components/CatalogSection'
 import { CartSection } from './components/CartSection'
 import { DiscountModal } from './components/DiscountModal'
 import { ResumeTicketModal } from './components/ResumeTicketModal'
+import { WasteModal } from './components/WasteModal'
 import { QuickInputModal } from './components/QuickInputModal'
 import PendingReceiptsModal from './components/PendingReceiptsModal'
 import useOfflineSync from './hooks/useOfflineSync'
@@ -96,6 +99,7 @@ export default function POSView() {
         showResumeTicketModal, setShowResumeTicketModal,
         showCreateProductModal, setShowCreateProductModal,
         showPendingModal, setShowPendingModal,
+        showWasteModal, setShowWasteModal,
         showPrintPreview, setShowPrintPreview,
         quickInputState,
         printHtml, setPrintHtml, docPrintFormat, setDocPrintFormat,
@@ -118,8 +122,8 @@ export default function POSView() {
         handleSelectClient, clearSelectedClient, loadClients,
         handleBuyerContinue, beginCheckout, handleCheckout,
         handleQuickConsumerFinal, handleQuickNoTicket, handleQuickInvoice,
-        handlePaymentSuccess, handleHoldTicket, handleResumeTicketConfirm,
-        handleReprintLast, handlePayPending, handleCreateProductQuickSave,
+        handlePaymentSuccess, handlePaymentCancel, handleHoldTicket, handleResumeTicketConfirm,
+        handleReprintLast, handlePrintQuote, handleExpressCash, handlePayPending, handleWasteAdjust, handleCreateProductQuickSave,
         loadRegisters,
     } = actions
 
@@ -162,8 +166,11 @@ export default function POSView() {
         onF4: () => setShowBuyerModal(true),
         onF5: () => setShowResumeTicketModal(true),
         onF6: () => setShowDiscountModal(true),
+        onF7: () => { if (cart.length > 0) handlePrintQuote() },
         onF8: () => handleHoldTicket(),
         onF9: () => { if (cart.length > 0) handleCheckout() },
+        onF10: () => { if (cart.length > 0) void handleExpressCash({ printTicket: false }) },
+        onF11: () => { if (cart.length > 0) void handleExpressCash({ printTicket: true }) },
         onEscape: () => {
             setShowPaymentModal(false)
             setShowBuyerModal(false)
@@ -324,6 +331,10 @@ export default function POSView() {
                             <Store size={14} />
                             {t('pos:header.resume')}
                         </ProtectedButton>
+                        <ProtectedButton permission="pos:read" className="btn sm pos-action-btn" unstyled onClick={() => { handlePrintQuote(); setTopMoreOpen(false) }}>
+                            <FileText size={14} />
+                            {t('pos:header.printQuote')}
+                        </ProtectedButton>
                         <ProtectedButton permission="pos:read" className="btn sm pos-action-btn" unstyled onClick={() => { handleReprintLast(); setTopMoreOpen(false) }}>
                             <Printer size={14} />
                             {t('pos:header.reprint')}
@@ -334,6 +345,10 @@ export default function POSView() {
                                 {t('pos:header.pendingPayments')}
                             </ProtectedButton>
                         )}
+                        <ProtectedButton permission="pos:update" className="btn sm pos-action-btn" unstyled onClick={() => { setShowWasteModal(true); setTopMoreOpen(false) }}>
+                            <Trash2 size={14} />
+                            {t('pos:waste.menuLabel')}
+                        </ProtectedButton>
                     </div>
                 )}
 
@@ -428,6 +443,8 @@ export default function POSView() {
                     onQuickConsumerFinal={() => { void handleQuickConsumerFinal() }}
                     onQuickInvoice={() => { void handleQuickInvoice() }}
                     onQuickNoTicket={() => { void handleQuickNoTicket() }}
+                    onExpressCash={() => { void handleExpressCash({ printTicket: false }) }}
+                    onExpressCashPrint={() => { void handleExpressCash({ printTicket: true }) }}
                 />
 
                 {cart.length > 0 && (
@@ -555,7 +572,7 @@ export default function POSView() {
                     totalAmount={totals.total}
                     warehouseId={headerWarehouseId || undefined}
                     onSuccess={handlePaymentSuccess}
-                    onCancel={() => setShowPaymentModal(false)}
+                    onCancel={handlePaymentCancel}
                     isWholesaleCustomer={isWholesaleCustomer}
                 />
             )}
@@ -639,6 +656,12 @@ export default function POSView() {
             <ResumeTicketModal isOpen={showResumeTicketModal} heldTickets={heldTickets} onConfirm={handleResumeTicketConfirm} onCancel={() => setShowResumeTicketModal(false)} />
 
             <QuickInputModal isOpen={quickInputState.open} title={quickInputState.title} initialValue={quickInputState.value} placeholder={quickInputState.placeholder} type={quickInputState.type} multiline={quickInputState.multiline} onConfirm={(value) => quickInputState.onConfirm?.(value)} onCancel={closeQuickInput} />
+
+            <WasteModal
+                isOpen={showWasteModal}
+                onCancel={() => setShowWasteModal(false)}
+                onConfirm={async (payload) => { setShowWasteModal(false); await handleWasteAdjust(payload) }}
+            />
         </div>
     )
 }

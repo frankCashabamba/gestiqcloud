@@ -544,16 +544,38 @@ def descargar_pdf(
 @router.patch("/{factura_id}/marcar-cobrada")
 def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Marca una venta a crédito (PENDING_PAYMENT) como cobrada (ISSUED)."""
+    from app.modules.documents.application.repository import save_document
+    from app.modules.documents.application.store import store
+
     tenant_id = get_tenant_uuid(request)
     doc = (
         db.query(Document)
         .filter(Document.id == factura_id, Document.tenant_id == tenant_id)
         .first()
     )
-    if not doc:
+    if doc:
+        if doc.status != "PENDING_PAYMENT":
+            raise HTTPException(status_code=400, detail="El documento no está pendiente de cobro")
+        doc.status = "ISSUED"
+        db.commit()
+        return {"ok": True, "id": str(factura_id), "status": "ISSUED"}
+
+    # Fallback: buscar en store en memoria (documento aún no persistido en DB)
+    mem_doc = store.get(str(factura_id))
+    if not mem_doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
-    if doc.status != "PENDING_PAYMENT":
+    if mem_doc.document.status != "PENDING_PAYMENT":
         raise HTTPException(status_code=400, detail="El documento no está pendiente de cobro")
-    doc.status = "ISSUED"
-    db.commit()
+    updated = mem_doc.model_copy(deep=True)
+    updated.document = updated.document.model_copy(update={"status": "ISSUED"})
+    store.put(updated)
+    # Intentar persistir a DB con el nuevo estado
+    save_document(
+        db,
+        tenant_id=str(tenant_id),
+        doc=updated,
+        config_version=None,
+        effective_from=None,
+        country_pack_version=None,
+    )
     return {"ok": True, "id": str(factura_id), "status": "ISSUED"}

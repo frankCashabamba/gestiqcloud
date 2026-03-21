@@ -17,9 +17,10 @@ import {
     listRegisters,
     createRegister,
     createReceipt,
+    deleteReceipt,
+    payReceipt,
     printReceipt,
     addToOutbox,
-    calculateReceiptTotals,
     issueDocument,
     renderDocumentWithFormat,
     type ReceiptTotals,
@@ -31,7 +32,7 @@ import {
     searchProductos as searchProducts,
     updateProducto as updateProduct,
 } from '../../products/productsApi'
-import { getCompanySettings, getDefaultReorderPoint, getDefaultTaxRate, savePosTheme, shouldCreateInvoice } from '../../../services/companySettings'
+import { getCompanySettings, getDefaultReorderPoint, getDefaultTaxRate, formatCurrency, savePosTheme, shouldCreateInvoice } from '../../../services/companySettings'
 import { listWarehouses, adjustStock } from '../../inventory/services'
 import { listUsuarios } from '../../users/services'
 import { createCliente as createCustomer, listClientes as listCustomers } from '../../customers/services'
@@ -100,7 +101,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     } = state
 
     // ------------------------------------------------------------------
-    // Totals (calculados por backend)
+    // Totals (calculados localmente — sin HTTP por keypress)
     // ------------------------------------------------------------------
     const [totals, setTotals] = useState<ReceiptTotals>({
         subtotal: 0,
@@ -124,61 +125,24 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         [bulkPricingItems]
     )
 
+    // Cálculo local determinista — item.price ya incluye bulk pricing blended
     useEffect(() => {
         if (cart.length === 0) {
-            setTotals({
-                subtotal: 0,
-                line_discounts: 0,
-                global_discount: 0,
-                base_after_discounts: 0,
-                tax: 0,
-                total: 0,
-            })
+            setTotals({ subtotal: 0, line_discounts: 0, global_discount: 0, base_after_discounts: 0, tax: 0, total: 0 })
             return
         }
-
-        const calculateTotals = async () => {
-            try {
-                const lines: { qty: number; unit_price: number; tax_rate: number; discount_pct: number }[] = []
-
-                for (const item of cart) {
-                    const bulkCfg = bulkPricingItems.find((b) => b.product_id === item.product_id)
-                    if (bulkCfg && bulkCfg.quantity > 0) {
-                        const bulkQty = Number(bulkCfg.quantity)
-                        const bulkPrice = Number(bulkCfg.unit_price)
-                        const fullSets = Math.floor(item.qty / bulkQty)
-                        const remainder = item.qty % bulkQty
-                        if (fullSets > 0) {
-                            lines.push({ qty: fullSets, unit_price: bulkPrice, tax_rate: item.iva_tasa / 100, discount_pct: item.discount_pct })
-                            if (remainder > 0) {
-                                const basePrice = Number((products.find((p) => p.id === item.product_id) || {}).price || 0)
-                                lines.push({ qty: remainder, unit_price: basePrice, tax_rate: item.iva_tasa / 100, discount_pct: item.discount_pct })
-                            }
-                            continue
-                        }
-                    }
-                    lines.push({ qty: item.qty, unit_price: item.price, tax_rate: item.iva_tasa / 100, discount_pct: item.discount_pct })
-                }
-
-                const calculated = await calculateReceiptTotals({ lines, global_discount_pct: globalDiscountPct })
-                setTotals(calculated)
-            } catch {
-                // Fallback local
-                const r2 = (v: number) => Math.round(v * 100) / 100
-                const subtotal = cart.reduce((sum, item) => sum + r2(item.price * item.qty), 0)
-                const lineDiscounts = cart.reduce((sum, item) => sum + item.price * item.qty * (item.discount_pct / 100), 0)
-                const baseAfterLineDisc = subtotal - lineDiscounts
-                const globalDisc = baseAfterLineDisc * (globalDiscountPct / 100)
-                const base = baseAfterLineDisc - globalDisc
-                const tax = cart.reduce((sum, item) => {
-                    const lineBase = item.price * item.qty * (1 - item.discount_pct / 100)
-                    return sum + lineBase * (item.iva_tasa / 100)
-                }, 0)
-                setTotals({ subtotal, line_discounts: lineDiscounts, global_discount: globalDisc, base_after_discounts: base, tax, total: base + tax })
-            }
-        }
-        calculateTotals()
-    }, [cart, globalDiscountPct, bulkPricingItems, products])
+        const r2 = (v: number) => Math.round(v * 100) / 100
+        const subtotal = cart.reduce((sum, item) => sum + r2(item.price * item.qty), 0)
+        const lineDiscounts = cart.reduce((sum, item) => sum + r2(item.price * item.qty * (item.discount_pct / 100)), 0)
+        const baseAfterLineDisc = r2(subtotal - lineDiscounts)
+        const globalDisc = r2(baseAfterLineDisc * (globalDiscountPct / 100))
+        const base = r2(baseAfterLineDisc - globalDisc)
+        const tax = r2(cart.reduce((sum, item) => {
+            const lineBase = r2(item.price * item.qty * (1 - item.discount_pct / 100))
+            return sum + r2(lineBase * (item.iva_tasa / 100))
+        }, 0))
+        setTotals({ subtotal, line_discounts: lineDiscounts, global_discount: globalDisc, base_after_discounts: base, tax, total: r2(base + tax) })
+    }, [cart, globalDiscountPct])
 
     // ------------------------------------------------------------------
     // Tipos de identificación y política de comprador
@@ -574,6 +538,24 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             },
         })
     }
+
+    // Pre-cargar productos de shortcuts al montar/cambiar config — shortcut nunca hace fetch en tiempo real
+    useEffect(() => {
+        if (bulkShortcutItems.length === 0) return
+        bulkShortcutItems.forEach(async (item) => {
+            const cached = products.find((p) => String(p.id) === String(item.product_id))
+            if (cached) return
+            try {
+                const results = await searchProducts(String(item.product_name || item.product_id))
+                const found =
+                    results.find((p: any) => String(p.id) === String(item.product_id)) ||
+                    results.find((p: any) => normalizeText(p.name) === normalizeText(item.product_name)) ||
+                    results[0]
+                if (found) setProducts((prev) => prev.some((p) => p.id === found.id) ? prev : [found, ...prev])
+            } catch { /* silencioso — se reintenta al presionar la tecla */ }
+        })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bulkShortcutItems.length])
 
     const resolveBakeryShortcutProduct = useCallback(async (item: BulkPricingItem) => {
         const byId = products.find((entry) => String(entry.id) === String(item.product_id))
@@ -987,8 +969,20 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     const canStartCheckout = () => {
         if (cart.length === 0) { toast.warning(t('pos:errors.emptyCart')); return false }
         if (!state.currentShift) { toast.warning(t('pos:errors.noShiftOpen')); return false }
+        const invalidLine = cart.find((item) => !item.product_id || item.qty <= 0)
+        if (invalidLine) { toast.warning(t('pos:errors.invalidCartLine')); return false }
+        if (totals.total < 0) { toast.warning(t('pos:errors.negativeTotalNotAllowed')); return false }
         return true
     }
+
+    const handlePaymentCancel = useCallback(async () => {
+        const id = currentReceiptId
+        setShowPaymentModal(false)
+        setCurrentReceiptId(null)
+        if (id) {
+            try { await deleteReceipt(id) } catch { /* no-op: ya pudo haber sido pagado */ }
+        }
+    }, [currentReceiptId, setShowPaymentModal, setCurrentReceiptId])
 
     const beginCheckout = (opts?: { skipPrint?: boolean }) => {
         if (!canStartCheckout()) return
@@ -1160,6 +1154,188 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             setLoading(false)
         }
     }
+
+    // ------------------------------------------------------------------
+    // Proforma / Cotización sin pago
+    // ------------------------------------------------------------------
+    const handlePrintQuote = useCallback(() => {
+        if (cart.length === 0) { toast.warning(t('pos:errors.emptyCart')); return }
+
+        const empresa = companySettings?.settings?.empresa_nombre || ''
+        const widthPx = companySettings?.pos_config?.receipt?.width_mm === 80 ? '302px' : '220px'
+        const now = new Date()
+        const fecha = now.toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        const hora = now.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+        const fmt = (n: number) => formatCurrency(n, companySettings || undefined)
+
+        const lineRows = cart.map((item) => {
+            const lineTotal = item.qty * item.price * (1 - item.discount_pct / 100)
+            return `
+                <tr><td colspan="3" style="padding-top:5px;font-weight:bold">${item.name}</td></tr>
+                <tr>
+                    <td>${item.qty} × ${fmt(item.price)}</td>
+                    <td style="text-align:center">${item.discount_pct ? `-${item.discount_pct}%` : ''}</td>
+                    <td style="text-align:right">${fmt(lineTotal)}</td>
+                </tr>`
+        }).join('')
+
+        const discountTotal = totals.line_discounts + totals.global_discount
+        const discountRow = discountTotal > 0
+            ? `<tr><td colspan="2">Descuentos</td><td style="text-align:right">-${fmt(discountTotal)}</td></tr>`
+            : ''
+        const taxRow = totals.tax > 0
+            ? `<tr><td colspan="2">IVA</td><td style="text-align:right">${fmt(totals.tax)}</td></tr>`
+            : ''
+
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+        <style>
+            body{font-family:monospace;font-size:12px;width:${widthPx};margin:0;padding:8px}
+            h2,h3,p{margin:2px 0;text-align:center}
+            table{width:100%;border-collapse:collapse}
+            td{vertical-align:top;font-size:11px;padding:1px 2px}
+            .sep{border-top:1px dashed #000;margin:6px 0}
+            .proforma{font-size:10px;text-align:center;border:1px dashed #000;padding:3px;margin:4px 0}
+            .total td{font-weight:bold;font-size:13px;padding-top:4px}
+        </style></head><body>
+            ${empresa ? `<h2>${empresa}</h2>` : ''}
+            <h3>PROFORMA</h3>
+            <div class="proforma">NO ES UN COMPROBANTE DE VENTA</div>
+            <p>${fecha} &nbsp; ${hora}</p>
+            <div class="sep"></div>
+            <table>${lineRows}</table>
+            <div class="sep"></div>
+            <table>
+                <tr><td colspan="2">Subtotal</td><td style="text-align:right">${fmt(totals.subtotal)}</td></tr>
+                ${discountRow}${taxRow}
+                <tr class="total"><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(totals.total)}</td></tr>
+            </table>
+            <div class="sep"></div>
+            <p style="font-size:10px">Válido por 24 horas</p>
+        </body></html>`
+
+        setPrintHtml(html)
+        setShowPrintPreview(true)
+    }, [cart, totals, companySettings, t, toast, setPrintHtml, setShowPrintPreview])
+
+    // ------------------------------------------------------------------
+    // Cobro express en efectivo — sin modal, sin pasos intermedios
+    // F10 = sin ticket | F11 = con ticket
+    // ------------------------------------------------------------------
+    const handleExpressCash = useCallback(async (opts: { printTicket?: boolean } = {}) => {
+        if (!canStartCheckout()) return
+        if (!canUseConsumerFinal) {
+            setBuyerMode('IDENTIFIED')
+            setShowBuyerModal(true)
+            toast.warning(t('pos:errors.requiresBuyerData'))
+            return
+        }
+        try {
+            setLoading(true)
+            const receipt = await createReceipt({
+                register_id: state.selectedRegister.id,
+                shift_id: state.currentShift.id,
+                cashier_id: isCompanyAdmin ? selectedCashierId || undefined : undefined,
+                customer_id: selectedClient ? String(selectedClient.id) : undefined,
+                lines: cart.map((item) => ({
+                    product_id: item.product_id,
+                    qty: item.qty,
+                    unit_price: item.price,
+                    tax_rate: item.iva_tasa / 100,
+                    discount_pct: item.discount_pct,
+                    uom: 'unit',
+                    line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
+                })),
+                metadata: { notes: ticketNotes },
+            } as any)
+
+            const receiptId = receipt.id
+            if (!receiptId) throw new Error('no_receipt_id')
+
+            const warehouseId = await resolveWarehouseForStock()
+            await payReceipt(receiptId, [{ receipt_id: receiptId, method: 'cash', amount: totals.total }], warehouseId ? { warehouse_id: warehouseId } : undefined)
+
+            if (isOnline) {
+                try {
+                    await issueDocument(buildSaleDraft([{ receipt_id: receiptId, method: 'cash', amount: totals.total }]))
+                } catch (err) {
+                    console.warn('Express cash: issue document failed (non-fatal)', err)
+                }
+            }
+
+            if (opts.printTicket) {
+                try {
+                    const width = companySettings?.pos_config?.receipt?.width_mm === 80 ? '80mm' : '58mm'
+                    const html = await printReceipt(receiptId, width)
+                    setPrintHtml(html)
+                    setShowPrintPreview(true)
+                    setAndPersistLastPrintJob({ kind: 'receipt', receiptId, width })
+                } catch (err) {
+                    console.warn('Express cash: print failed (non-fatal)', err)
+                }
+            }
+
+            // Limpieza idéntica a handlePaymentSuccess
+            setCart([])
+            setGlobalDiscountPct(0)
+            setTicketNotes('')
+            setBuyerMode('CONSUMER_FINAL')
+            setBuyerIdType('')
+            state.setBuyerIdNumber('')
+            state.setBuyerName('')
+            state.setBuyerEmail('')
+            localStorage.removeItem(POS_DRAFT_KEY)
+            pendingSaleRef.current = null
+
+            toast.success(t('pos:messages.saleSupervisor'))
+        } catch (error: any) {
+            if (!isOnline) {
+                await addToOutbox({ type: 'receipt', data: { cart, totals } })
+                toast.warning(t('pos:errors.offlineSync'))
+                setCart([])
+            } else {
+                toast.error(error.response?.data?.detail || t('pos:errors.createTicketFailed'))
+            }
+        } finally {
+            setLoading(false)
+        }
+    }, [
+        canStartCheckout, canUseConsumerFinal, cart, totals, isOnline, isCompanyAdmin,
+        selectedCashierId, selectedClient, ticketNotes, companySettings,
+        state, buildSaleDraft, t, toast, resolveWarehouseForStock,
+        setBuyerMode, setShowBuyerModal, setLoading, setCart, setGlobalDiscountPct,
+        setTicketNotes, setBuyerIdType, setPrintHtml, setShowPrintPreview,
+        setAndPersistLastPrintJob, pendingSaleRef,
+    ])
+
+    // ------------------------------------------------------------------
+    // Merma / Regalo / Muestra
+    // ------------------------------------------------------------------
+    const handleWasteAdjust = useCallback(async (payload: {
+        product: { id: string | number; name?: string }
+        qty: number
+        reason: 'merma' | 'regalo' | 'muestra'
+        note: string
+    }) => {
+        try {
+            const warehouseId = await resolveWarehouseForStock()
+            if (!warehouseId) { toast.error(t('pos:errors.noWarehouse', { defaultValue: 'No warehouse configured' })); return }
+            await adjustStock({
+                warehouse_id: warehouseId,
+                product_id: String(payload.product.id),
+                delta: -Math.abs(payload.qty),
+                reason: payload.note
+                    ? `${payload.reason}: ${payload.note}`
+                    : payload.reason,
+            })
+            toast.success(t('pos:waste.success', {
+                defaultValue: 'Registered: {{qty}} {{name}}',
+                qty: payload.qty,
+                name: payload.product.name || '',
+            }))
+        } catch (err: any) {
+            toast.error(err?.response?.data?.detail || t('pos:waste.error', { defaultValue: 'Error registering adjustment' }))
+        }
+    }, [resolveWarehouseForStock, adjustStock, t, toast])
 
     // ------------------------------------------------------------------
     // Pendientes / Caja
@@ -1339,6 +1515,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         handleQuickNoTicket,
         handleQuickInvoice,
         handlePaymentSuccess,
+        handlePaymentCancel,
 
         // Tickets retenidos
         handleHoldTicket,
@@ -1346,7 +1523,11 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
 
         // Impresión
         handleReprintLast,
-       
+        handlePrintQuote,
+        handleExpressCash,
+
+        // Merma / Regalo / Muestra
+        handleWasteAdjust,
 
         // Pendientes
         handlePayPending,

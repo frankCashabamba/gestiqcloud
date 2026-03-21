@@ -42,7 +42,10 @@
         "dailyReports": "Daily reports",
         "holdTicket": "Hold ticket",
         "resume": "Resume",
+        "printQuote": "Print proforma",
         "reprint": "Reprint",
+        "expressCash": "Cash no receipt",
+        "expressCashPrint": "Cash + receipt",
         "reprintTooltip": "Reprint last receipt",
         "pendingPayments": "Collect pending",
         "online": "Online",
@@ -110,7 +113,9 @@
         "chargeNoReceipt": "Charge without receipt",
         "chargeNoReceiptWithTotal": "Charge without receipt {{amount}} {{currency}}",
         "increment": "Increase quantity",
-        "decrement": "Decrease quantity"
+        "decrement": "Decrease quantity",
+        "expressCash": "Cash no receipt",
+        "expressCashPrint": "Cash + receipt"
     },
     "buyer": {
         "search": "Search customer (name, RUC, email)",
@@ -179,6 +184,8 @@
         "completeIdentification": "Complete customer name and identification.",
         "emptyCart": "No items in cart",
         "noShiftOpen": "Open a shift first",
+        "invalidCartLine": "There is an invalid product in the cart",
+        "negativeTotalNotAllowed": "Total cannot be negative",
         "requiresBuyerData": "Total requires customer data.",
         "emptyCartCheckout": "No items in cart",
         "noShiftCheckout": "Open a shift first",
@@ -322,6 +329,9 @@
     "keyboard": {
         "selectCustomer": "Select customer",
         "globalDiscount": "Global discount",
+        "printQuote": "Print proforma (ticket without payment)",
+        "expressCash": "Express cash — no receipt, no modal",
+        "expressCashPrint": "Express cash — prints receipt",
         "openPayment": "Open payment",
         "closeModal": "Close modal / Back",
         "searchProduct": "Search product (barcode reader)",
@@ -454,5 +464,23 @@
         "confirm": "Confirm",
         "ticketsDeleted": "Pending tickets deleted",
         "clearWarning": "Clear all pending tickets? This action cannot be undone."
+    },
+    "waste": {
+        "menuLabel": "Waste / Gift",
+        "title": "Register Waste or Gift",
+        "subtitle": "Deducts stock without creating a sale. Logged as an inventory movement.",
+        "product": "Product",
+        "searchPlaceholder": "Search product by name or code...",
+        "stock": "Stock",
+        "qty": "Quantity",
+        "reason": "Reason",
+        "reasonMerma": "Waste (dropped / spoiled)",
+        "reasonRegalo": "Gift / Complimentary",
+        "reasonMuestra": "Sample / Tasting",
+        "note": "Note (optional)",
+        "notePlaceholder": "E.g. dropped tray, burnt bread, VIP customer...",
+        "confirm": "Register",
+        "success": "Registered: {{qty}} {{name}}",
+        "error": "Error registering adjustment"
     }
 }

@@ -77,7 +77,7 @@ export function POSPaymentBar({
       </div>
 
       <p className="text-[11px] text-gray-400 mt-1 md:hidden">
-        F2 Buscar | F4 Cliente | F6 Desc | F8 Suspender | F9 Cobrar | Panaderia: letra directa
+        F9 Cobrar | F10 Efectivo sin ticket | F11 Efectivo con ticket | F7 Proforma | Panadería: letra directa
       </p>
     </div>
   )

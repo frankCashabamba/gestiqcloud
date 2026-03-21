@@ -39,6 +39,8 @@ interface CartSectionProps {
   onQuickConsumerFinal: () => void
   onQuickInvoice: () => void
   onQuickNoTicket: () => void
+  onExpressCash?: () => void
+  onExpressCashPrint?: () => void
 }
 
 export function CartSection({
@@ -55,6 +57,8 @@ export function CartSection({
   onQuickConsumerFinal,
   onQuickInvoice,
   onQuickNoTicket,
+  onExpressCash,
+  onExpressCashPrint,
 }: CartSectionProps) {
   const { t } = useTranslation(['pos', 'common'])
   const { symbol: currencySymbol } = useCurrency()
@@ -197,14 +201,40 @@ export function CartSection({
           >
             {isLoading ? t('pos:common.processing', { defaultValue: 'Procesando...' }) : 'COBRAR (F9)'}
           </ProtectedButton>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginTop: 8 }}>
-            <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickConsumerFinal} disabled={isLoading} style={{ height: 28, fontSize: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginTop: 8 }}>
+            {onExpressCash && (
+              <ProtectedButton
+                permission="pos:create"
+                className="btn sm primary"
+                onClick={onExpressCash}
+                disabled={isLoading}
+                style={{ height: 32, fontSize: 12, fontWeight: 700 }}
+                title={t('pos:keyboard.expressCash')}
+              >
+                {t('pos:actions.expressCash')} F10
+              </ProtectedButton>
+            )}
+            {onExpressCashPrint && (
+              <ProtectedButton
+                permission="pos:create"
+                className="btn sm ghost"
+                onClick={onExpressCashPrint}
+                disabled={isLoading}
+                style={{ height: 32, fontSize: 12 }}
+                title={t('pos:keyboard.expressCashPrint')}
+              >
+                {t('pos:actions.expressCashPrint')} F11
+              </ProtectedButton>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginTop: 4 }}>
+            <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickConsumerFinal} disabled={isLoading} style={{ height: 26, fontSize: 11 }}>
               CF
             </ProtectedButton>
-            <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickInvoice} disabled={isLoading} style={{ height: 28, fontSize: 12 }}>
+            <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickInvoice} disabled={isLoading} style={{ height: 26, fontSize: 11 }}>
               Factura
             </ProtectedButton>
-            <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickNoTicket} disabled={isLoading} style={{ height: 28, fontSize: 12 }}>
+            <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickNoTicket} disabled={isLoading} style={{ height: 26, fontSize: 11 }}>
               Sin ticket
             </ProtectedButton>
           </div>
