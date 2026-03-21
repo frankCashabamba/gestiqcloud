@@ -419,10 +419,15 @@ async def create_notification_channel(
 
     new_channel = NotificationChannel(
         tenant_id=tenant_id,
-        channel_type=getattr(channel_data, "channel_type", None) or getattr(channel_data, "tipo", None),
+        channel_type=getattr(channel_data, "channel_type", None)
+        or getattr(channel_data, "tipo", None),
         name=channel_data.name,
         config=channel_data.config,
-        is_active=getattr(channel_data, "is_active", None) if getattr(channel_data, "is_active", None) is not None else getattr(channel_data, "active", True),
+        is_active=(
+            getattr(channel_data, "is_active", None)
+            if getattr(channel_data, "is_active", None) is not None
+            else getattr(channel_data, "active", True)
+        ),
     )
 
     db.add(new_channel)

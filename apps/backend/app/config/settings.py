@@ -227,6 +227,10 @@ class Settings(BaseSettings):
     MAX_REQUEST_BYTES: int = 5 * 1024 * 1024
     GZIP_ENABLED: bool = True
 
+    # Telegram Bot Webhook
+    # Telegram Bot: toda la config va en Settings > Notificaciones > Telegram (DB).
+    # Sin variables de entorno necesarias.
+
     # Fase D - IA Configurable
     IMPORT_AI_PROVIDER: Literal["local", "ollama", "openai", "azure", "ovhcloud"] = Field(
         default="local",

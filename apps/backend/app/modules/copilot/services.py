@@ -408,7 +408,9 @@ async def query_readonly_enhanced(
             topic_display = topic.replace("_", " ").title()
 
             # Limit data sent to AI to avoid long prompts
-            cards_data = (result["cards"][0].get("data") or result["cards"][0].get("series") or [])[:10]
+            cards_data = (result["cards"][0].get("data") or result["cards"][0].get("series") or [])[
+                :10
+            ]
             summary = json.dumps(cards_data, ensure_ascii=False, default=str)
 
             ai_response = await AIService.query(

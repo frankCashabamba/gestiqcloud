@@ -10,6 +10,7 @@ import type { NotificationChannelCreate, NotificationChannelType } from './types
 
 type ChannelState = {
   id: string
+  tenant_id?: string
   active: boolean
   name: string
   config: Record<string, any>
@@ -45,13 +46,36 @@ const DEFAULT_WHATSAPP: ChannelState = {
 
 const DEFAULT_TELEGRAM: ChannelState = {
   id: '',
+  tenant_id: '',
   active: false,
   name: 'Telegram',
   config: {
     bot_token: '',
     parse_mode: 'HTML',
     default_recipient: '',
+    allowed_chat_ids: '',
+    low_stock_threshold: 5,
+    webhook_secret: '',
   },
+}
+
+// Elimina sufijo /api o /api/v1 que algunos entornos añaden a VITE_API_URL
+const API_BASE = (import.meta.env.VITE_API_URL ?? 'https://api.gestiqcloud.com').replace(/\/api(\/v\d+)?\/?$/, '')
+
+function buildWebhookUrl(tenantId: string) {
+  return `${API_BASE}/api/v1/telegram/webhook/${tenantId}`
+}
+
+async function apiPost(path: string, body: unknown) {
+  const res = await fetch(`${API_BASE}/api/v1${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.detail ?? 'Error')
+  return data
 }
 
 export default function NotificacionesSettings() {
@@ -62,6 +86,12 @@ export default function NotificacionesSettings() {
   const [emailChannel, setEmailChannel] = useState<ChannelState>(DEFAULT_EMAIL)
   const [whatsappChannel, setWhatsappChannel] = useState<ChannelState>(DEFAULT_WHATSAPP)
   const [telegramChannel, setTelegramChannel] = useState<ChannelState>(DEFAULT_TELEGRAM)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [activating, setActivating] = useState(false)
+  const [botStatus, setBotStatus] = useState<'idle' | 'ok' | 'error'>('idle')
+  const [botStatusMsg, setBotStatusMsg] = useState('')
+  const [tunnelUrl, setTunnelUrl] = useState('')
+  const [showTunnel, setShowTunnel] = useState(false)
 
   useEffect(() => {
     loadChannels()
@@ -95,6 +125,7 @@ export default function NotificacionesSettings() {
       setTelegramChannel((prev) => ({
         ...prev,
         id: telegram?.id || '',
+        tenant_id: telegram?.tenant_id || '',
         active: telegram?.active ?? prev.active,
         name: telegram?.name || prev.name,
         config: { ...prev.config, ...(telegram?.config || {}) },
@@ -139,6 +170,37 @@ export default function NotificacionesSettings() {
       error(getErrorMessage(err))
     } finally {
       setSaving(null)
+    }
+  }
+
+  const generateSecret = async () => {
+    try {
+      const data = await apiPost('/telegram/generate-secret', {})
+      setTelegramChannel((prev) => ({
+        ...prev,
+        config: { ...prev.config, webhook_secret: data.secret },
+      }))
+    } catch (err: any) {
+      error(getErrorMessage(err))
+    }
+  }
+
+  const activateBot = async () => {
+    try {
+      setActivating(true)
+      setBotStatus('idle')
+      const body: Record<string, string> = {}
+      if (tunnelUrl.trim()) body.custom_base_url = tunnelUrl.trim()
+      const data = await apiPost('/telegram/register-webhook', body)
+      setBotStatus('ok')
+      setBotStatusMsg(data.webhook_url)
+      success('Bot activado correctamente')
+    } catch (err: any) {
+      setBotStatus('error')
+      setBotStatusMsg(getErrorMessage(err))
+      error(getErrorMessage(err))
+    } finally {
+      setActivating(false)
     }
   }
 
@@ -429,12 +491,158 @@ export default function NotificacionesSettings() {
             </select>
           </div>
         </div>
+
+        <div className="mt-4 pt-4 border-t">
+          <p className="text-sm font-medium text-slate-700 mb-3">Bot de comandos</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">
+                Chat IDs autorizados
+                <span className="text-slate-400 font-normal ml-1">(separados por coma)</span>
+              </label>
+              <input
+                className="border px-2 py-1 w-full rounded font-mono text-sm"
+                placeholder="123456789, 987654321"
+                value={telegramChannel.config.allowed_chat_ids || ''}
+                onChange={(e) =>
+                  setTelegramChannel({
+                    ...telegramChannel,
+                    config: { ...telegramChannel.config, allowed_chat_ids: e.target.value },
+                  })
+                }
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Escribe <code>/start</code> a <strong>@userinfobot</strong> para obtener tu ID
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">
+                Umbral stock bajo
+                <span className="text-slate-400 font-normal ml-1">(unidades)</span>
+              </label>
+              <input
+                className="border px-2 py-1 w-full rounded"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="5"
+                value={telegramChannel.config.low_stock_threshold ?? 5}
+                onChange={(e) =>
+                  setTelegramChannel({
+                    ...telegramChannel,
+                    config: {
+                      ...telegramChannel.config,
+                      low_stock_threshold: Number(e.target.value),
+                    },
+                  })
+                }
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Productos con stock ≤ este valor aparecen en <code>/stock_bajo</code>
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Webhook secret</label>
+              <div className="flex gap-2">
+                <input
+                  className="border px-2 py-1 flex-1 rounded font-mono text-sm"
+                  type="password"
+                  placeholder="Haz clic en Generar"
+                  value={telegramChannel.config.webhook_secret || ''}
+                  onChange={(e) =>
+                    setTelegramChannel({
+                      ...telegramChannel,
+                      config: { ...telegramChannel.config, webhook_secret: e.target.value },
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  className="shrink-0 border px-3 py-1 rounded text-sm hover:bg-slate-50"
+                  onClick={generateSecret}
+                >
+                  Generar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Activar bot */}
+        <div className="mt-4 pt-4 border-t">
+          <p className="text-sm font-medium text-slate-700 mb-1">Activar bot de comandos</p>
+          <p className="text-xs text-slate-500 mb-3">
+            Guarda la configuración y pulsa este botón. En producción funciona directamente.
+          </p>
+
+          <button
+            type="button"
+            className="text-xs text-slate-400 hover:text-slate-600 underline mb-3 block"
+            onClick={() => setShowTunnel((v) => !v)}
+          >
+            {showTunnel ? '▲ Ocultar' : '▼ URL personalizada (opcional)'}
+          </button>
+
+          {showTunnel && (
+            <div className="mb-3">
+              <input
+                className="border px-2 py-1 w-full rounded font-mono text-sm"
+                placeholder="https://api.tudominio.com  (vacío = auto-detecta)"
+                value={tunnelUrl}
+                onChange={(e) => setTunnelUrl(e.target.value)}
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Déjalo vacío para usar la URL del servidor automáticamente.
+                Útil si tienes un dominio propio, VPS, o tunnel local.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-60 text-sm font-medium"
+              onClick={activateBot}
+              disabled={activating || !telegramChannel.id}
+              title={!telegramChannel.id ? 'Guarda primero la configuración' : undefined}
+            >
+              {activating ? 'Activando...' : '⚡ Activar bot'}
+            </button>
+
+            {botStatus === 'ok' && (
+              <span className="text-xs text-green-700 font-medium">✓ Bot activo</span>
+            )}
+            {botStatus === 'error' && (
+              <span className="text-xs text-red-600">{botStatusMsg}</span>
+            )}
+          </div>
+
+          {botStatus === 'ok' && telegramChannel.tenant_id && (
+            <div className="mt-3 flex items-center gap-2">
+              <code className="flex-1 bg-slate-50 border rounded px-3 py-2 text-xs font-mono break-all text-slate-600">
+                {botStatusMsg || buildWebhookUrl(telegramChannel.tenant_id)}
+              </code>
+              <button
+                type="button"
+                className="shrink-0 border px-3 py-2 rounded text-sm hover:bg-slate-50"
+                onClick={() => {
+                  navigator.clipboard.writeText(botStatusMsg || buildWebhookUrl(telegramChannel.tenant_id!))
+                  setCopiedUrl(true)
+                  setTimeout(() => setCopiedUrl(false), 2000)
+                }}
+              >
+                {copiedUrl ? '✓' : 'Copiar'}
+              </button>
+            </div>
+          )}
+        </div>
+
         <button
           className="bg-blue-600 text-white px-3 py-2 rounded mt-4 disabled:opacity-60"
           onClick={() => saveChannel('telegram', telegramChannel)}
           disabled={saving === 'telegram'}
         >
-          Save Telegram
+          Guardar Telegram
         </button>
       </section>
     </div>

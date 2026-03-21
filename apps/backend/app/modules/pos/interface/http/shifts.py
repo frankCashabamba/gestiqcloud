@@ -734,7 +734,7 @@ def close_shift(
 
 def _enqueue_shift_close_telegram(
     *,
-    db: "Session",
+    db: Session,
     tenant_id,
     shift_uuid,
     opened_at,
@@ -802,10 +802,10 @@ def _enqueue_shift_close_telegram(
     disc_icon = "✅" if abs(discrepancy) < 0.01 else ("🔴" if discrepancy < 0 else "🟡")
 
     lines = [
-        f"🏪 <b>Cierre de Caja</b>",
+        "🏪 <b>Cierre de Caja</b>",
         f"📅 Turno: {opened_str} → {now_str}",
         "",
-        f"💰 <b>Ventas</b>",
+        "💰 <b>Ventas</b>",
         f"  Total:      <b>${total_sales:.2f}</b>",
         f"  Efectivo:   ${cash_sales:.2f}",
         f"  Tarjeta:    ${card_sales:.2f}",
@@ -815,7 +815,7 @@ def _enqueue_shift_close_telegram(
     lines += [
         f"  Impuestos:  ${tax_total:.2f}",
         "",
-        f"🏦 <b>Caja</b>",
+        "🏦 <b>Caja</b>",
         f"  Esperado:   ${expected_cash:.2f}",
         f"  Contado:    ${closing_cash:.2f}",
         f"  Diferencia: {disc_icon} ${discrepancy:+.2f}",
