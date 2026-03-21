@@ -8,6 +8,7 @@ Cubre:
   - validación del secret token (lógica del webhook)
   - routing de comandos (texto → comando extraído)
 """
+
 from __future__ import annotations
 
 import pytest
@@ -18,7 +19,6 @@ from app.modules.telegram_bot.application.bot_service import (
     parse_allowed_chat_ids,
     split_long_message,
 )
-
 
 # ---------------------------------------------------------------------------
 # parse_allowed_chat_ids

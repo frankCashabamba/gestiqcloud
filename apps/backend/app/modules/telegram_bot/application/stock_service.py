@@ -4,6 +4,7 @@ Consultas de stock para el bot de Telegram.
 Utiliza el campo Product.stock (desnormalizado) para obtener
 el inventario actual por tenant. No requiere joins complejos.
 """
+
 from __future__ import annotations
 
 import logging

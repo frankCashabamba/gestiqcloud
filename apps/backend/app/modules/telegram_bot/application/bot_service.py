@@ -7,6 +7,7 @@ Responsabilidades:
   - Enviar mensajes vía Telegram Bot API (reutiliza send_telegram de _transport)
   - Escapar HTML para parse_mode=HTML
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,11 +18,7 @@ from app.modules.notifications.infrastructure._transport import send_telegram as
 
 logger = logging.getLogger(__name__)
 
-HELP_TEXT = (
-    "Comandos disponibles:\n"
-    "/stock_completo\n"
-    "/stock_bajo"
-)
+HELP_TEXT = "Comandos disponibles:\n" "/stock_completo\n" "/stock_bajo"
 
 # Telegram limita mensajes a 4096 caracteres; usamos margen.
 _MAX_MSG_LEN = 4000

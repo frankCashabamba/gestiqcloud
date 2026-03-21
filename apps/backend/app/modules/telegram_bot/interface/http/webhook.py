@@ -14,6 +14,7 @@ Comandos soportados:
   /stock_bajo      → productos por debajo del umbral configurado
   (cualquier otro) → mensaje de ayuda
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,7 +25,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.config.database import SessionLocal, get_db
+from app.config.database import SessionLocal
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.ai.incident import NotificationChannel as ChannelConfig
@@ -35,10 +36,7 @@ from app.modules.telegram_bot.application.bot_service import (
     send_telegram_message,
     split_long_message,
 )
-from app.modules.telegram_bot.application.stock_service import (
-    get_stock_bajo,
-    get_stock_completo,
-)
+from app.modules.telegram_bot.application.stock_service import get_stock_bajo, get_stock_completo
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +266,10 @@ async def register_telegram_webhook(
     tenant_id = str(claims.tenant_id)
     tg_config = _load_telegram_config(tenant_id)
     if not tg_config:
-        raise HTTPException(status_code=400, detail="Canal Telegram no configurado. Guarda primero la configuración.")
+        raise HTTPException(
+            status_code=400,
+            detail="Canal Telegram no configurado. Guarda primero la configuración.",
+        )
 
     bot_token: str | None = tg_config.get("bot_token")
     if not bot_token:
@@ -281,7 +282,11 @@ async def register_telegram_webhook(
     else:
         # Auto-detecta desde el request; respeta X-Forwarded-Proto si hay proxy
         proto = request.headers.get("x-forwarded-proto") or request.url.scheme
-        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+        host = (
+            request.headers.get("x-forwarded-host")
+            or request.headers.get("host")
+            or request.url.netloc
+        )
         base = f"{proto}://{host}"
 
     webhook_url = f"{base}/api/v1/telegram/webhook/{tenant_id}"
@@ -300,7 +305,9 @@ async def register_telegram_webhook(
             data = resp.json()
     except httpx.HTTPError as exc:
         logger.error("[telegram_bot] Error llamando setWebhook: %s", exc)
-        raise HTTPException(status_code=502, detail="No se pudo contactar con Telegram. Verifica el bot token.")
+        raise HTTPException(
+            status_code=502, detail="No se pudo contactar con Telegram. Verifica el bot token."
+        )
 
     if not data.get("ok"):
         raise HTTPException(status_code=400, detail=data.get("description", "Error de Telegram"))
@@ -309,7 +316,9 @@ async def register_telegram_webhook(
     return {"ok": True, "webhook_url": webhook_url, "description": data.get("description", "")}
 
 
-@router.post("/generate-secret", dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))])
+@router.post(
+    "/generate-secret", dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))]
+)
 def generate_webhook_secret() -> dict:
     """Genera un webhook secret aleatorio seguro."""
     return {"secret": secrets.token_urlsafe(32)}
