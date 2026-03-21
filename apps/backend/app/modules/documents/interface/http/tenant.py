@@ -136,6 +136,8 @@ def _issue_document(payload: SaleDraft, request: Request, db: Session = Depends(
         doc = doc.model_copy(deep=True)
         doc.document = doc.document.model_copy(update={"status": "PENDING_PAYMENT"})
 
+    # Re-asegurar el GUC antes del INSERT (puede haberse perdido por un rollback interno)
+    ensure_guc_from_request(request, db, persist=True)
     save_document(
         db,
         tenant_id=payload.tenantId,

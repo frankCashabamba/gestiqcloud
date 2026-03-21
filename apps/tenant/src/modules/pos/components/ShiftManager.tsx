@@ -183,29 +183,62 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
 
         if (!currentShift) {
             return (
-                <div className="bg-white rounded-lg shadow p-6 mb-4">
-                    <h2 className="text-xl font-bold mb-4">{t('pos:shiftManager.openShiftTitle', { name: register.name })}</h2>
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium mb-2">
-                            {t('pos:shiftManager.openingAmount')} ({currencySymbol})
-                            <span className="text-xs text-gray-500 ml-2">{t('pos:shiftManager.suggestedFromPrevious')}</span>
-                        </label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            value={openingFloat}
-                            onChange={(e) => setOpeningFloat(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            disabled={loading}
-                        />
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-slate-900 px-6 py-5">
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{register.name}</p>
+                                    <h2 className="text-lg font-bold text-white leading-tight">{t('pos:shiftManager.openShift')}</h2>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-6 py-6">
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                {t('pos:shiftManager.openingAmount')} ({currencySymbol})
+                            </label>
+                            <p className="text-xs text-slate-400 mb-3">{t('pos:shiftManager.suggestedFromPrevious')}</p>
+                            <input
+                                type="number"
+                                step="0.01"
+                                inputMode="decimal"
+                                value={openingFloat}
+                                onChange={(e) => setOpeningFloat(e.target.value)}
+                                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl bg-slate-50 text-slate-900 text-right text-xl font-bold placeholder:text-slate-300 focus:outline-none focus:ring-0 focus:border-blue-500 focus:bg-white transition-colors"
+                                disabled={loading}
+                                autoFocus
+                            />
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 pb-6">
+                            <button
+                                onClick={handleOpenShift}
+                                disabled={loading}
+                                className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold py-3 rounded-xl text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {loading ? (
+                                    <>
+                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                        </svg>
+                                        {t('pos:shiftManager.opening')}
+                                    </>
+                                ) : (
+                                    t('pos:shiftManager.openShift')
+                                )}
+                            </button>
+                        </div>
                     </div>
-                    <button
-                        onClick={handleOpenShift}
-                        disabled={loading}
-                        className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-                    >
-                        {loading ? t('pos:shiftManager.opening') : t('pos:shiftManager.openShift')}
-                    </button>
                 </div>
             )
         }

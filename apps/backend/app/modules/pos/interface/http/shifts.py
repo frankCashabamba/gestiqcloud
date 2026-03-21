@@ -503,7 +503,7 @@ def close_shift(
         credit_pending = float(
             db.execute(
                 text(
-                    "SELECT COALESCE(SUM(totals), 0) FROM pos_receipts "
+                    "SELECT COALESCE(SUM(gross_total), 0) FROM pos_receipts "
                     "WHERE shift_id = :sid AND tenant_id = :tid AND status = 'unpaid'"
                 ).bindparams(
                     bindparam("sid", type_=PGUUID(as_uuid=True)),

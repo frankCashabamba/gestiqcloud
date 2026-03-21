@@ -27,7 +27,9 @@ def generar_numero_documento(
 
     tenant_uuid = str(tenant_id) if isinstance(tenant_id, UUID) else tenant_id
 
+    savepoint = None
     try:
+        savepoint = db.begin_nested()
         year = db.execute(text("SELECT EXTRACT(year FROM now())::int")).scalar()
         num = db.execute(
             text("SELECT public.assign_next_number(CAST(:tenant AS uuid), :tipo, :anio, :serie)"),
@@ -38,12 +40,16 @@ def generar_numero_documento(
                 "serie": serie,
             },
         ).scalar()
+        savepoint.commit()
 
         if num:
             return formatear_numero(tipo, serie, year, num)
     except Exception:
         try:
-            db.rollback()
+            if savepoint is not None:
+                savepoint.rollback()
+            else:
+                db.rollback()
         except Exception:
             pass
 

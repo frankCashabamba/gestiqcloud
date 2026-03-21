@@ -80,8 +80,6 @@ def listar_facturas_principales(
         )
 
     # ── 2. Documentos del módulo POS (Document con doc_type=FACTURA) ──────────
-    from app.modules.documents.application.store import store as _doc_store
-
     doc_q = db.query(Document).filter(
         Document.tenant_id == tenant_id,
         Document.doc_type == "FACTURA",
@@ -141,45 +139,6 @@ def listar_facturas_principales(
                 "buyer_id": buyer_id,
                 "source": "document",
                 "_sort_key": doc.issued_at,
-            }
-        )
-
-    # ── 2b. Fallback: documentos en store en memoria (antes del fix UUID) ────
-    db_ids = {item["id"] for item in result if item.get("source") == "document"}
-    for mem_doc in _doc_store.list_for_tenant(str(tenant_id), doc_type="FACTURA"):
-        if str(mem_doc.document.id) in db_ids:
-            continue  # ya está en DB
-        totals = mem_doc.totals
-        buyer = mem_doc.buyer
-        doc_info = mem_doc.document
-        series = doc_info.series or ""
-        sequential = doc_info.sequential or ""
-        numero = (
-            f"{series}-{sequential}"
-            if series and sequential
-            else (series or sequential or str(doc_info.id)[:8])
-        )
-        buyer_name = buyer.name or ""
-        if q:
-            qlow = q.lower()
-            if not any(qlow in s.lower() for s in [numero, buyer_name] if s):
-                continue
-        if estado and doc_info.status.lower() != estado.lower():
-            continue
-        issued_at = doc_info.issuedAt
-        result.append(
-            {
-                "id": str(doc_info.id),
-                "numero": numero,
-                "fecha_emision": _iso(issued_at),
-                "date": _iso(issued_at),
-                "estado": doc_info.status.lower(),
-                "subtotal": float(totals.subtotal),
-                "iva": float(totals.taxTotal),
-                "total": float(totals.grandTotal),
-                "customer_name": buyer_name,
-                "source": "document_store",
-                "_sort_key": issued_at,
             }
         )
 
@@ -402,8 +361,6 @@ def obtener_factura_por_id(
 
     # Si no está en Invoice, buscar en Document (POS)
     if not factura:
-        from app.modules.documents.application.store import store as _doc_store
-
         doc_row = (
             db.query(Document)
             .filter(Document.id == factura_id, Document.tenant_id == tenant_id)
@@ -413,11 +370,7 @@ def obtener_factura_por_id(
             payload = doc_row.payload or {}
             doc_model_data = payload
         else:
-            mem = _doc_store.get(str(factura_id))
-            if mem:
-                doc_model_data = mem.model_dump()
-            else:
-                raise HTTPException(status_code=404, detail="Factura no encontrada")
+            raise HTTPException(status_code=404, detail="Factura no encontrada")
 
         # Serializar desde payload del documento POS
         totals = doc_model_data.get("totals") or {}
@@ -544,38 +497,16 @@ def descargar_pdf(
 @router.patch("/{factura_id}/marcar-cobrada")
 def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Marca una venta a crédito (PENDING_PAYMENT) como cobrada (ISSUED)."""
-    from app.modules.documents.application.repository import save_document
-    from app.modules.documents.application.store import store
-
     tenant_id = get_tenant_uuid(request)
     doc = (
         db.query(Document)
         .filter(Document.id == factura_id, Document.tenant_id == tenant_id)
         .first()
     )
-    if doc:
-        if doc.status != "PENDING_PAYMENT":
-            raise HTTPException(status_code=400, detail="El documento no está pendiente de cobro")
-        doc.status = "ISSUED"
-        db.commit()
-        return {"ok": True, "id": str(factura_id), "status": "ISSUED"}
-
-    # Fallback: buscar en store en memoria (documento aún no persistido en DB)
-    mem_doc = store.get(str(factura_id))
-    if not mem_doc:
+    if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
-    if mem_doc.document.status != "PENDING_PAYMENT":
+    if doc.status != "PENDING_PAYMENT":
         raise HTTPException(status_code=400, detail="El documento no está pendiente de cobro")
-    updated = mem_doc.model_copy(deep=True)
-    updated.document = updated.document.model_copy(update={"status": "ISSUED"})
-    store.put(updated)
-    # Intentar persistir a DB con el nuevo estado
-    save_document(
-        db,
-        tenant_id=str(tenant_id),
-        doc=updated,
-        config_version=None,
-        effective_from=None,
-        country_pack_version=None,
-    )
+    doc.status = "ISSUED"
+    db.commit()
     return {"ok": True, "id": str(factura_id), "status": "ISSUED"}
