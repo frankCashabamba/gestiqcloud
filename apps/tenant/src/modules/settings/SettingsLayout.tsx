@@ -18,7 +18,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'horarios', labelKey: 'settings:nav.horarios', descKey: 'settings:nav.horariosDesc', path: 'horarios' },
   { key: 'notificaciones', labelKey: 'settings:nav.notificaciones', descKey: 'settings:nav.notificacionesDesc', path: 'notificaciones' },
   { key: 'modulos', labelKey: 'settings:nav.modulos', descKey: 'settings:nav.modulosDesc', path: 'modulos' },
-  { key: 'avanzado', labelKey: 'settings:nav.avanzado', descKey: 'settings:nav.avanzadoDesc', path: 'avanzado' },
 ]
 
 // Extra nav items that don't go through the permission guard

@@ -101,7 +101,8 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
     if topic == "ventas_mes":
         where_clause, tenant_params = _tenant_where("so")
         sql = (
-            "SELECT date_trunc('month', so.created_at)::date AS mes, count(*) AS pedidos "
+            "SELECT date_trunc('month', so.created_at)::date AS mes, count(*) AS pedidos, "
+            "coalesce(sum(so.total), 0) AS total "
             f"FROM sales_orders so WHERE {where_clause} "
             "GROUP BY 1 ORDER BY 1 DESC LIMIT 12"
         )
@@ -119,20 +120,14 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         return {"cards": [{"title": "Salidas por almacén", "data": rows}], "sql": sql}
 
     if topic == "top_productos":
-        cols = _table_columns(db, "sales_order_items")
-        qty_col = _pick_column(cols, "quantity", "qty", "cantidad")
-        price_col = _pick_column(cols, "unit_price", "price", "precio_unitario")
-        if not qty_col or not price_col:
-            return {
-                "cards": [{"title": "Top productos", "data": []}],
-                "sql": None,
-                "note": "topic_unavailable:sales_order_items_columns",
-            }
-        where_clause, tenant_params = _tenant_where("soi")
+        # Filter tenant via sales_orders (sales_order_items has no tenant_id column)
+        where_clause, tenant_params = _tenant_where("so")
         sql = (
-            f"SELECT p.id, p.name, sum(soi.{qty_col}) AS uds, "
-            f"sum(soi.{qty_col}*soi.{price_col}) AS importe "
-            "FROM sales_order_items soi JOIN products p ON p.id=soi.product_id "
+            "SELECT p.id, p.name, sum(soi.quantity) AS uds, "
+            "sum(soi.quantity * soi.unit_price) AS importe "
+            "FROM sales_order_items soi "
+            "JOIN products p ON p.id = soi.product_id "
+            "JOIN sales_orders so ON so.id = soi.sales_order_id "
             f"WHERE {where_clause} "
             "GROUP BY 1,2 ORDER BY importe DESC NULLS LAST LIMIT 10"
         )
@@ -164,21 +159,22 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         }
 
     if topic == "cobros_pagos":
-        cols = _table_columns(db, "bank_transactions")
-        type_col = _pick_column(cols, "type", "tipo")
-        status_col = _pick_column(cols, "status", "estado")
-        amount_col = _pick_column(cols, "amount", "importe", "monto")
-        if not type_col or not status_col or not amount_col:
-            return {
-                "cards": [{"title": "Cobros/Pagos", "data": []}],
-                "sql": None,
-                "note": "topic_unavailable:bank_transactions_columns",
-            }
-        where_clause, tenant_params = _tenant_where()
+        # Cobros = ventas confirmadas por mes, Pagos = gastos por mes
+        where_s, tenant_params = _tenant_where("so")
+        where_e, _ = _tenant_where("e")
         sql = (
-            f"SELECT {type_col}::text AS tipo, {status_col}::text AS estado, "
-            f"count(*) AS n, sum({amount_col}) AS importe "
-            f"FROM bank_transactions WHERE {where_clause} GROUP BY 1,2 ORDER BY 4 DESC NULLS LAST"
+            "SELECT mes, sum(cobros) AS cobros, sum(pagos) AS pagos FROM ("
+            f"  SELECT date_trunc('month', so.created_at)::date AS mes, "
+            f"  coalesce(sum(so.total), 0) AS cobros, 0::numeric AS pagos "
+            f"  FROM sales_orders so WHERE {where_s} "
+            f"  AND so.status NOT IN ('draft', 'voided', 'cancelled') "
+            "  GROUP BY 1 "
+            "  UNION ALL "
+            f"  SELECT date_trunc('month', e.date)::date AS mes, "
+            f"  0::numeric AS cobros, coalesce(sum(e.amount), 0) AS pagos "
+            f"  FROM expenses e WHERE {where_e} "
+            "  GROUP BY 1 "
+            ") t GROUP BY mes ORDER BY mes DESC LIMIT 6"
         )
         return _safe_topic(db, "Cobros/Pagos", sql, lambda: _fetch_all(db, sql, tenant_params))
 
@@ -400,7 +396,8 @@ async def query_readonly_enhanced(
     result = query_readonly(db, topic, p)
 
     # 2. Si no hay datos, retornar sin análisis
-    if not result.get("cards") or not result["cards"][0].get("data"):
+    card0 = result.get("cards", [{}])[0] if result.get("cards") else {}
+    if not result.get("cards") or (not card0.get("data") and not card0.get("series")):
         return result
 
     # 3. Mejorar con IA si se solicita
@@ -411,7 +408,7 @@ async def query_readonly_enhanced(
             topic_display = topic.replace("_", " ").title()
 
             # Limit data sent to AI to avoid long prompts
-            cards_data = result["cards"][0]["data"][:10]
+            cards_data = (result["cards"][0].get("data") or result["cards"][0].get("series") or [])[:10]
             summary = json.dumps(cards_data, ensure_ascii=False, default=str)
 
             ai_response = await AIService.query(

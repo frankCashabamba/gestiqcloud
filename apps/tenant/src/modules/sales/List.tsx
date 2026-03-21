@@ -9,6 +9,7 @@ import { PAGINATION_DEFAULTS } from '../../constants/defaults'
 import { getCompanySettings, formatCurrency, type CompanySettings } from '../../services/companySettings'
 import { usePermission } from '../../hooks/usePermission'
 import ProtectedButton from '../../components/ProtectedButton'
+import SalesDailyChart from './SalesDailyChart'
 
 export default function VentasList() {
     const { t } = useTranslation()
@@ -93,6 +94,7 @@ export default function VentasList() {
 
     return (
         <div className="p-4">
+            <SalesDailyChart items={items} companySettings={companySettings} />
             <div className="flex justify-between items-center mb-3">
                 <h2 className="font-semibold text-lg">{t('sales.title')}</h2>
                 <div className="flex gap-2">

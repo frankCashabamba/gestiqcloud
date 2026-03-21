@@ -1346,6 +1346,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
 
         // Impresión
         handleReprintLast,
+       
 
         // Pendientes
         handlePayPending,

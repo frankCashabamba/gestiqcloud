@@ -38,7 +38,6 @@ const GROUPS: { titleKey: string; items: Card[] }[] = [
     titleKey: 'settings:groups.planControl',
     items: [
       { key: 'modulos', labelKey: 'settings:cards.modulos.label', descKey: 'settings:cards.modulos.desc', path: 'modulos' },
-      { key: 'avanzado', labelKey: 'settings:cards.avanzado.label', descKey: 'settings:cards.avanzado.desc', path: 'avanzado' },
     ],
   },
 ]

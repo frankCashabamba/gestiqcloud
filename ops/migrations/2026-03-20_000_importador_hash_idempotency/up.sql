@@ -111,6 +111,29 @@ DELETE FROM imp_documento d
 USING _imp_documento_dupes dup
 WHERE d.id = dup.duplicate_id;
 
+-- Second pass: remove any remaining duplicates not captured by the initial temp table
+-- (handles concurrent inserts or edge cases; relies on CASCADE/SET NULL FK policies)
+DELETE FROM imp_documento
+WHERE hash_sha256 IS NOT NULL
+  AND id NOT IN (
+    SELECT DISTINCT ON (tenant_id, hash_sha256) id
+    FROM imp_documento
+    WHERE hash_sha256 IS NOT NULL
+    ORDER BY
+        tenant_id,
+        hash_sha256,
+        CASE estado
+            WHEN 'CONFIRMED' THEN 0
+            WHEN 'REVIEW' THEN 1
+            WHEN 'PENDING' THEN 2
+            WHEN 'PROCESSING' THEN 3
+            WHEN 'FAILED' THEN 4
+            ELSE 5
+        END,
+        created_at DESC,
+        id
+  );
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_imp_documento_tenant_hash
     ON imp_documento (tenant_id, hash_sha256)
     WHERE hash_sha256 IS NOT NULL;

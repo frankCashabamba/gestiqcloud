@@ -21,6 +21,7 @@ const DEFAULT_CONFIG: ReceiptConfig = {
 
 export default function ReceiptTemplateSettings() {
   const [config, setConfig] = useState<ReceiptConfig>(DEFAULT_CONFIG)
+  const [paperWidthMm, setPaperWidthMm] = useState<number | ''>(80)
   const [preview, setPreview] = useState('')
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -29,6 +30,10 @@ export default function ReceiptTemplateSettings() {
   useEffect(() => {
     api.get('/api/v1/tenant/printing/receipt-settings').then((res) => {
       setConfig({ ...DEFAULT_CONFIG, ...res.data })
+    }).catch(() => {})
+    api.get('/api/v1/company/settings').then((res) => {
+      const w = res.data?.pos_config?.receipt?.width_mm
+      if (w != null && Number.isFinite(Number(w))) setPaperWidthMm(Number(w))
     }).catch(() => {})
   }, [])
 
@@ -52,7 +57,14 @@ export default function ReceiptTemplateSettings() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await api.post('/api/v1/tenant/printing/receipt-settings', config)
+      await Promise.all([
+        api.post('/api/v1/tenant/printing/receipt-settings', config),
+        paperWidthMm !== ''
+          ? api.put('/api/v1/company/settings', {
+              pos_config: { receipt: { width_mm: Number(paperWidthMm) } },
+            })
+          : Promise.resolve(),
+      ])
       setSaved(true)
       setTimeout(() => refreshPreview(), 300)
     } catch {
@@ -65,15 +77,30 @@ export default function ReceiptTemplateSettings() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Template de Ticket POS (80mm)</h2>
+        <h2 className="text-lg font-semibold">Ticket POS</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Configura el formato del ticket que se imprime al finalizar una venta.
+          Configura el ancho del papel y el formato del ticket que se imprime al finalizar una venta.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Formulario de configuración */}
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Ancho del papel (mm)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                className="w-28 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={paperWidthMm}
+                min={48}
+                max={120}
+                onChange={(e) => setPaperWidthMm(e.target.value === '' ? '' : Number(e.target.value))}
+              />
+              <span className="text-xs text-slate-500">Típico: 58 mm o 80 mm según tu impresora</span>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">Mensaje de pie de página</label>
             <input
@@ -168,7 +195,7 @@ export default function ReceiptTemplateSettings() {
         {/* Preview del ticket */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Vista previa (80mm)</span>
+            <span className="text-sm font-medium">Vista previa</span>
             {loadingPreview && <span className="text-xs text-slate-400">Actualizando...</span>}
           </div>
           <div

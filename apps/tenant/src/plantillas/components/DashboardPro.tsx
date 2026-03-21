@@ -145,10 +145,14 @@ const DashboardPro: React.FC<DashboardProProps> = ({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  // Módulos internos/técnicos que no se muestran al cliente final en la navegación
+  const HIDDEN_SLUGS = new Set(['templates', 'webhooks', 'reports'])
+
   const filteredModules = useMemo(() => {
     const term = moduleSearch.trim().toLowerCase()
-    if (!term) return modules
-    return modules.filter((m) =>
+    const visible = modules.filter((m) => !HIDDEN_SLUGS.has(m.slug || ''))
+    if (!term) return visible
+    return visible.filter((m) =>
       (m.name || '').toLowerCase().includes(term) || (m.slug || '').toLowerCase().includes(term)
     )
   }, [modules, moduleSearch])

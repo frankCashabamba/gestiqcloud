@@ -3,6 +3,7 @@ Repository sanity checks for db-pipeline CI.
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -47,12 +48,43 @@ def check_down_sql_coverage() -> list[str]:
     return warnings
 
 
+def check_no_modified_migrations() -> list[str]:
+    """Fail if any existing migration's up.sql was modified (not newly added).
+
+    Editing an already-applied migration means prod DB and the file are out of sync.
+    New migrations (Added) are fine — only Modified ones are a problem.
+    """
+    errors = []
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=M", "origin/main...HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        modified = result.stdout.strip().splitlines()
+    except subprocess.CalledProcessError:
+        return []  # Not in a git context (e.g. local run without remote), skip
+
+    for path_str in modified:
+        p = Path(path_str)
+        parts = p.parts
+        if len(parts) >= 3 and parts[0] == "ops" and parts[1] == "migrations" and p.name == "up.sql":
+            errors.append(
+                f"Modified existing migration: {p}\n"
+                "  Never edit an applied migration — create a new one instead."
+            )
+
+    return errors
+
+
 def main() -> int:
     if not MIGRATIONS_DIR.exists():
         print("ops/ci/checks.py: No migrations dir. OK")
         return 0
 
     errors = check_duplicate_slots()
+    errors += check_no_modified_migrations()
     warnings = check_down_sql_coverage()
 
     if warnings:

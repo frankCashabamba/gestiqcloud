@@ -58,8 +58,11 @@ export async function saveFiscal(payload: SettingsFiscal) {
 }
 
 export async function getHorarios(): Promise<SettingsHorarios> {
-  const { data } = await tenantApi.get<SettingsHorarios>(TENANT_SETTINGS.schedules)
-  return data || {}
+  const { data } = await tenantApi.get<any>(TENANT_SETTINGS.schedules)
+  return {
+    apertura: data?.apertura || '',
+    cierre: data?.cierre || '',
+  }
 }
 export async function saveHorarios(payload: SettingsHorarios) {
   await tenantApi.put(TENANT_SETTINGS.schedules, payload)

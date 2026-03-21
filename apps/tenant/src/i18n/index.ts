@@ -50,6 +50,8 @@ import templatesEn from '../locales/en/templates.json'
 import templatesEs from '../locales/es/templates.json'
 import productionsEn from '../locales/en/productions.json'
 import productionsEs from '../locales/es/productions.json'
+import dashboardEn from '../locales/en/dashboard.json'
+import dashboardEs from '../locales/es/dashboard.json'
 
 type BuiltInLang = 'en' | 'es'
 const BUILTIN_LANGS: BuiltInLang[] = ['en', 'es']
@@ -99,6 +101,7 @@ const resources = {
     users: usersEn,
     templates: templatesEn,
     productions: productionsEn,
+    dashboard: dashboardEn,
   },
   es: {
     translation: es,
@@ -125,6 +128,7 @@ const resources = {
     users: usersEs,
     templates: templatesEs,
     productions: productionsEs,
+    dashboard: dashboardEs,
   },
 }
 
@@ -158,6 +162,7 @@ i18n
       'users',
       'templates',
       'productions',
+      'dashboard',
     ],
     defaultNS: 'translation',
     fallbackNS: ['common'],

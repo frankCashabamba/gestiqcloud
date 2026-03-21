@@ -662,27 +662,32 @@ def update_settings_fiscal(
 
 
 @router.get("/settings/horarios", summary="Get schedule settings")
+@router.get("/settings/schedules", summary="Get schedule settings (alias)")
 def get_settings_horarios(tenant_id: str = Depends(ensure_tenant), db: Session = Depends(get_db)):
-    """Get schedule settings (working_days, business_hours)"""
+    """Get schedule settings (working_days, business_hours, apertura, cierre)"""
     company_settings = (
         db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     )
     if not company_settings:
-        return {"working_days": [], "business_hours": {}}
+        return {"working_days": [], "business_hours": {}, "apertura": None, "cierre": None}
 
+    bh = company_settings.business_hours or {}
     return {
         "working_days": company_settings.working_days or [],
-        "business_hours": company_settings.business_hours or {},
+        "business_hours": bh,
+        "apertura": bh.get("apertura") if isinstance(bh, dict) else None,
+        "cierre": bh.get("cierre") if isinstance(bh, dict) else None,
     }
 
 
 @router.put("/settings/horarios", summary="Update schedule settings")
+@router.put("/settings/schedules", summary="Update schedule settings (alias)")
 def update_settings_horarios(
     payload: dict,
     tenant_id: str = Depends(ensure_tenant),
     db: Session = Depends(get_db),
 ):
-    """Update schedule settings"""
+    """Update schedule settings. Accepts working_days/business_hours or apertura/cierre."""
     company_settings = (
         db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     )
@@ -691,15 +696,27 @@ def update_settings_horarios(
 
     if "working_days" in payload:
         company_settings.working_days = payload["working_days"]
+
+    bh = company_settings.business_hours or {}
+    if not isinstance(bh, dict):
+        bh = {}
     if "business_hours" in payload:
-        company_settings.business_hours = payload["business_hours"]
+        bh = payload["business_hours"] if isinstance(payload["business_hours"], dict) else bh
+    if "apertura" in payload:
+        bh["apertura"] = payload["apertura"]
+    if "cierre" in payload:
+        bh["cierre"] = payload["cierre"]
+    company_settings.business_hours = bh
 
     db.commit()
     db.refresh(company_settings)
 
+    bh_out = company_settings.business_hours or {}
     return {
         "working_days": company_settings.working_days or [],
-        "business_hours": company_settings.business_hours or {},
+        "business_hours": bh_out,
+        "apertura": bh_out.get("apertura") if isinstance(bh_out, dict) else None,
+        "cierre": bh_out.get("cierre") if isinstance(bh_out, dict) else None,
     }
 
 

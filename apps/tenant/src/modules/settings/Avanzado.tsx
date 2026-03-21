@@ -292,25 +292,16 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                             ? null
                             : Number(inventory.reorder_point_default),
                 }
-                const taxDefaultRate =
-                    pos.default_tax_rate === null || pos.default_tax_rate === undefined
-                        ? null
-                        : Number(pos.default_tax_rate)
-                const taxDefaultRateDecimal =
-                    taxDefaultRate === null || !Number.isFinite(taxDefaultRate)
-                        ? null
-                        : taxDefaultRate > 1
-                            ? taxDefaultRate / 100
-                            : taxDefaultRate
                 payload.pos_config = {
+                    // receipt.width_mm is managed from Ticket POS — preserve existing value
                     receipt: {
-                        width_mm:
-                            pos.receipt_width_mm === null || pos.receipt_width_mm === undefined
-                                ? null
-                                : Number(pos.receipt_width_mm),
+                        ...(pos.receipt_width_mm != null ? { width_mm: Number(pos.receipt_width_mm) } : {}),
                     },
                     tax: {
-                        default_rate: taxDefaultRateDecimal,
+                        // default_rate is managed from Configuración Fiscal — preserve existing value
+                        ...(pos.default_tax_rate != null
+                            ? { default_rate: pos.default_tax_rate > 1 ? pos.default_tax_rate / 100 : pos.default_tax_rate }
+                            : {}),
                         price_includes_tax: !!pos.price_includes_tax,
                     },
                     return_window_days:
@@ -482,37 +473,6 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                     <section className="border rounded-lg p-4 mb-6">
                         <h3 className="font-semibold mb-3">POS</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Ancho ticket (mm)</label>
-                                <input
-                                    className="border px-2 py-1 w-full rounded"
-                                    type="number"
-                                    value={pos.receipt_width_mm ?? ''}
-                                    onChange={(e) =>
-                                        setPos((prev) => ({
-                                            ...prev,
-                                            receipt_width_mm: e.target.value === '' ? null : Number(e.target.value),
-                                        }))
-                                    }
-                                    min={0}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">IVA default (%)</label>
-                                <input
-                                    className="border px-2 py-1 w-full rounded"
-                                    type="number"
-                                    value={pos.default_tax_rate ?? ''}
-                                    onChange={(e) =>
-                                        setPos((prev) => ({
-                                            ...prev,
-                                            default_tax_rate: e.target.value === '' ? null : Number(e.target.value),
-                                        }))
-                                    }
-                                    min={0}
-                                    step="0.01"
-                                />
-                            </div>
                             <div>
                                 <label className="block text-sm mb-1">Ventana devolucion (dias)</label>
                                 <input

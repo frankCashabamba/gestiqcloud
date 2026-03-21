@@ -1,6 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import ImportUploader from '../components/ImportUploader'
+
+const VIDEO_URL = 'https://www.youtube.com/embed/REEMPLAZA_ESTE_ID?autoplay=1&rel=0&modestbranding=1'
+const STORAGE_KEY = 'importador_intro_dismissed'
 
 export default function UploadPage() {
   const navigate = useNavigate()
@@ -8,6 +11,15 @@ export default function UploadPage() {
   const reimportMode = searchParams.get('reimport')
   const sourceDocumentId = searchParams.get('documentId')
   const forceRequested = reimportMode === 'clean' || reimportMode === 'force'
+
+  const [showVideo, setShowVideo] = useState(
+    () => localStorage.getItem(STORAGE_KEY) !== 'true'
+  )
+
+  function dismissVideo() {
+    localStorage.setItem(STORAGE_KEY, 'true')
+    setShowVideo(false)
+  }
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: 1080, display: 'grid', gap: '1rem' }}>
@@ -45,6 +57,64 @@ export default function UploadPage() {
           Carga facturas, imagenes, hojas de calculo y otros documentos compatibles. El sistema los prepara para revision y luego podras guardarlos en su destino.
         </p>
       </section>
+
+      {showVideo && (
+        <section
+          style={{
+            borderRadius: 20,
+            overflow: 'hidden',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.07)',
+            background: '#000',
+            position: 'relative',
+          }}
+        >
+          <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+            <iframe
+              src={VIDEO_URL}
+              title="Cómo usar el importador"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              style={{
+                position: 'absolute',
+                top: 0, left: 0,
+                width: '100%', height: '100%',
+                border: 'none',
+              }}
+            />
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              padding: '0.6rem 1rem',
+              background: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              gap: '0.5rem',
+            }}
+          >
+            <span style={{ fontSize: 13, color: '#64748b' }}>
+              ¿Ya entendiste cómo funciona?
+            </span>
+            <button
+              onClick={dismissVideo}
+              style={{
+                cursor: 'pointer',
+                border: '1px solid #cbd5e1',
+                background: '#fff',
+                fontSize: 13,
+                color: '#0f172a',
+                padding: '0.35rem 0.75rem',
+                borderRadius: 8,
+                fontWeight: 600,
+              }}
+            >
+              No volver a mostrar
+            </button>
+          </div>
+        </section>
+      )}
 
       {forceRequested && (
         <div
