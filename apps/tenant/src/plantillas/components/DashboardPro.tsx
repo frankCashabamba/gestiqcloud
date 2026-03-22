@@ -21,27 +21,33 @@ const getModuleIcon = (slug: string): string => {
     v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '')
 
   const icons: Record<string, string> = {
-    ventas: '$', sales: '$',
-    clientes: '@', clients: '@', customers: '@',
-    products: '#', productos: '#',
-    inventario: 'I', inventory: 'I',
-    facturacion: 'F', invoicing: 'F', billing: 'F', facturacion_es: 'F',
-    compras: 'C', purchases: 'C',
-    proveedores: 'P', suppliers: 'P',
-    gastos: 'G', expenses: 'G',
-    finanzas: 'M', finance: 'M', finances: 'M',
-    contabilidad: 'A', accounting: 'A',
-    pos: 'P', tpv: 'P',
-    rrhh: 'H', hr: 'H',
-    configuracion: '⚙', settings: '⚙', configuration: '⚙',
-    usuarios: '👥', users: '👥',
-    reconciliation: 'R', conciliacion: 'R', conciliacionbancaria: 'R',
-    produccion: '🍞', production: '🍞',
+    ventas: '💰', sales: '💰',
+    clientes: '👤', clients: '👤', customers: '👤',
+    products: '📦', productos: '📦',
+    inventario: '🗄️', inventory: '🗄️',
+    facturacion: '🧾', invoicing: '🧾', billing: '🧾', facturacion_es: '🧾',
+    facturaelectronica: '🧾', factura: '🧾',
+    compras: '🛒', purchases: '🛒',
+    proveedores: '🏭', suppliers: '🏭',
+    gastos: '💸', expenses: '💸',
+    finanzas: '📊', finance: '📊', finances: '📊',
+    contabilidad: '📚', accounting: '📚',
+    pos: '🖥️', tpv: '🖥️', puntodventa: '🖥️', puntoventa: '🖥️',
+    rrhh: '👥', hr: '👥',
+    configuracion: '⚙️', settings: '⚙️', configuration: '⚙️', config: '⚙️',
+    usuarios: '🔐', users: '🔐', user: '🔐', useradmin: '🔐',
+    reconciliation: '🏦', conciliacion: '🏦', conciliacionbancaria: '🏦',
+    produccion: '🏗️', production: '🏗️',
     recetas: '📋', recipes: '📋',
-    templates: 'T', webhooks: 'W',
+    restaurant: '🍽️', restaurante: '🍽️',
+    crm: '🤝',
+    notifications: '🔔', notificaciones: '🔔',
+    templates: '📄', webhooks: '🔗',
+    imports: '📥', importaciones: '📥',
+    reports: '📈', reportes: '📈',
   }
 
-  return icons[nrm(slug)] || '·'
+  return icons[nrm(slug)] || '🔷'
 }
 
 const pickTextColorForBackground = (bgColor: string): string => {
@@ -69,7 +75,7 @@ const nrm = (v: string) =>
 
 /** Nunca se muestran en la UI */
 const HIDDEN_SLUGS = new Set([
-  'templates', 'webhooks', 'reports', 'imports', 'importer', 'importaciones',
+  'templates', 'webhooks', 'reports',
 ])
 
 /** Van al menú de usuario del topbar, no al sidebar */
@@ -93,6 +99,7 @@ const BACKOFFICE_SLUGS = new Set([
   'contabilidad', 'accounting',
   'conciliacion', 'reconciliation', 'conciliacionbancaria',
   'rrhh', 'hr',
+  'imports', 'importer', 'importaciones',
 ])
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -321,7 +328,10 @@ const DashboardPro: React.FC<DashboardProProps> = ({
               aria-label="Opciones de usuario"
               aria-expanded={userMenuOpen}
             >
-              <span className="user-menu__avatar">U</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
             </button>
 
             {userMenuOpen && (
@@ -360,7 +370,10 @@ const DashboardPro: React.FC<DashboardProProps> = ({
         <nav>
           <ul>
             <li>
-              <Link to={`/${empresa}`} className="active">{t('nav.dashboard')}</Link>
+              <Link to={`/${empresa}`} className="active">
+                <span className="sidebar-icon">🏠</span>
+                <span>{t('nav.dashboard')}</span>
+              </Link>
             </li>
             {renderNavModules()}
           </ul>
@@ -419,7 +432,8 @@ const DashboardPro: React.FC<DashboardProProps> = ({
               <ul>
                 <li>
                   <Link to={`/${empresa}`} onClick={() => setIsMenuOpen(false)} className="active">
-                    {t('nav.dashboard')}
+                    <span className="sidebar-icon">🏠</span>
+                    <span>{t('nav.dashboard')}</span>
                   </Link>
                 </li>
                 {renderNavModules(() => setIsMenuOpen(false))}

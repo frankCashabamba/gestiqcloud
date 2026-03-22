@@ -7,9 +7,11 @@ export default function StatusBadge({ estado }: { estado: EstadoVenta }) {
   const style =
     e === 'emitida'
       ? { background: '#dcfce7', color: '#166534', border: '1px solid #86efac' }
-      : e === 'facturada'
+      : e === 'facturada' || e === 'invoiced'
       ? { background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd' }
-      : e === 'anulada'
+      : e === 'entregado'
+      ? { background: '#f0fdf4', color: '#15803d', border: '1px solid #4ade80' }
+      : e === 'anulada' || e === 'cancelled'
       ? { background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }
       : { background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db' }
 

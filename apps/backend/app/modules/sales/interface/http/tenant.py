@@ -136,7 +136,9 @@ class OrderUpdateIn(BaseModel):
     items: list[OrderItemIn] | None = None
 
 
-def _order_out(o: SalesOrder, customer_name: str | None = None, db: Session | None = None) -> OrderOut:
+def _order_out(
+    o: SalesOrder, customer_name: str | None = None, db: Session | None = None
+) -> OrderOut:
     items: list[OrderItemOut] = []
     if db is not None:
         rows = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == o.id).all()
@@ -145,15 +147,17 @@ def _order_out(o: SalesOrder, customer_name: str | None = None, db: Session | No
             if it.product_id:
                 prod = db.query(Product.name).filter(Product.id == it.product_id).scalar()
                 prod_name = prod
-            items.append(OrderItemOut(
-                product_id=str(it.product_id),
-                product_name=prod_name,
-                qty=float(it.qty or 0),
-                unit_price=float(it.unit_price or 0),
-                discount_pct=float(it.discount_percent or 0),
-                tax_rate=float(it.tax_rate or 0),
-                line_total=float(it.line_total or 0),
-            ))
+            items.append(
+                OrderItemOut(
+                    product_id=str(it.product_id),
+                    product_name=prod_name,
+                    qty=float(it.qty or 0),
+                    unit_price=float(it.unit_price or 0),
+                    discount_pct=float(it.discount_percent or 0),
+                    tax_rate=float(it.tax_rate or 0),
+                    line_total=float(it.line_total or 0),
+                )
+            )
     return OrderOut(
         id=str(o.id),
         number=getattr(o, "number", None),
@@ -216,15 +220,17 @@ def list_orders(
     items_by_order: dict = {}
     for it, prod_name in all_items:
         oid = str(it.order_id)
-        items_by_order.setdefault(oid, []).append(OrderItemOut(
-            product_id=str(it.product_id),
-            product_name=prod_name,
-            qty=float(it.qty or 0),
-            unit_price=float(it.unit_price or 0),
-            discount_pct=float(it.discount_percent or 0),
-            tax_rate=float(it.tax_rate or 0),
-            line_total=float(it.line_total or 0),
-        ))
+        items_by_order.setdefault(oid, []).append(
+            OrderItemOut(
+                product_id=str(it.product_id),
+                product_name=prod_name,
+                qty=float(it.qty or 0),
+                unit_price=float(it.unit_price or 0),
+                discount_pct=float(it.discount_percent or 0),
+                tax_rate=float(it.tax_rate or 0),
+                line_total=float(it.line_total or 0),
+            )
+        )
 
     result = []
     for o, customer_name in rows:
@@ -340,8 +346,42 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
 
     customer_name = (
         db.query(Client.name).filter(Client.id == so.customer_id).scalar()
-        if so.customer_id else None
+        if so.customer_id
+        else None
     )
+
+    # Notificación Telegram nuevo pedido (best-effort, non-blocking)
+    try:
+        product_ids = [_uuid_or_none(it.product_id) for it in payload.items if it.product_id]
+        product_names: dict = {}
+        if product_ids:
+            rows = db.query(Product.id, Product.name).filter(Product.id.in_(product_ids)).all()
+            product_names = {str(r.id): r.name for r in rows}
+        tg_items = [
+            {
+                "name": product_names.get(str(_uuid_or_none(it.product_id)), "Producto"),
+                "qty": it.qty,
+            }
+            for it in payload.items
+        ]
+        _notify_new_order_telegram(
+            db=db,
+            tenant_id=tenant_uuid,
+            order_number=so.number or str(so.id),
+            customer_name=customer_name,
+            total=float(so.total or 0),
+            currency=so.currency or "USD",
+            items=tg_items,
+            payment_method=so.payment_method,
+            notes=so.notes,
+        )
+    except Exception as _tg_err:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Telegram new-order notification failed (non-fatal): %s", _tg_err
+        )
+
     return _order_out(so, customer_name)
 
 
@@ -407,15 +447,17 @@ def update_order(
             line_tax = line_total * effective_tax_rate
             subtotal += line_total
             tax_total += line_tax
-            db.add(SalesOrderItem(
-                order_id=so.id,
-                product_id=_uuid_or_none(it.product_id),
-                qty=it.qty,
-                unit_price=it.unit_price,
-                tax_rate=float(effective_tax_rate),
-                discount_percent=it.discount_pct,
-                line_total=float(line_total),
-            ))
+            db.add(
+                SalesOrderItem(
+                    order_id=so.id,
+                    product_id=_uuid_or_none(it.product_id),
+                    qty=it.qty,
+                    unit_price=it.unit_price,
+                    tax_rate=float(effective_tax_rate),
+                    discount_percent=it.discount_pct,
+                    line_total=float(line_total),
+                )
+            )
         so.subtotal = float(subtotal)
         so.tax = float(tax_total)
         so.total = float(subtotal + tax_total)
@@ -425,7 +467,8 @@ def update_order(
     db.refresh(so)
     customer_name = (
         db.query(Client.name).filter(Client.id == so.customer_id).scalar()
-        if so.customer_id else None
+        if so.customer_id
+        else None
     )
     return _order_out(so, customer_name, db=db)
 
@@ -680,6 +723,61 @@ def cancel_order(
 
     customer_name_c = (
         db.query(Client.name).filter(Client.id == so.customer_id).scalar()
-        if so.customer_id else None
+        if so.customer_id
+        else None
     )
     return _order_out(so, customer_name_c)
+
+
+def _notify_new_order_telegram(
+    *,
+    db: Session,
+    tenant_id,
+    order_number: str,
+    customer_name: str | None,
+    total: float,
+    currency: str,
+    items: list[dict],
+    payment_method: str | None,
+    notes: str | None,
+) -> None:
+    """
+    Envía notificación Telegram cuando se crea un nuevo pedido.
+    Solo actúa si el tenant tiene un canal Telegram activo con default_recipient.
+    """
+    from app.models.ai.incident import NotificationChannel
+    from app.modules.notifications.infrastructure._transport import send_telegram
+
+    channel = (
+        db.query(NotificationChannel)
+        .filter(
+            NotificationChannel.tenant_id == tenant_id,
+            NotificationChannel.channel_type == "telegram",
+            NotificationChannel.is_active.is_(True),
+        )
+        .first()
+    )
+    if not channel:
+        return
+
+    config = channel.config or {}
+    chat_id = config.get("default_recipient")
+    if not chat_id:
+        return
+
+    cliente_line = f"👤 Cliente: <b>{customer_name}</b>\n" if customer_name else ""
+    metodo_line = f"💳 Pago: {payment_method}\n" if payment_method else ""
+    notas_line = f"📝 Notas: {notes}\n" if notes else ""
+    items_lines = "".join(f"  • {it['name']} x{it['qty']:g}\n" for it in items)
+
+    message = (
+        "🛒 <b>Nuevo Pedido</b>\n"
+        f"📋 Número: <b>{order_number}</b>\n"
+        f"{cliente_line}"
+        f"📦 Productos:\n{items_lines}"
+        f"💰 Total: <b>{currency} {total:,.2f}</b>\n"
+        f"{metodo_line}"
+        f"{notas_line}"
+    )
+
+    send_telegram(config, chat_id, message.strip())

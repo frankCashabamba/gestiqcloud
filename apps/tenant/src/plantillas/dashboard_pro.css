@@ -181,32 +181,20 @@
   width: var(--ctl);
   height: var(--ctl);
   border-radius: 50%;
-  border: 2px solid var(--border);
-  background: var(--surface2);
+  border: 2px solid var(--primary);
+  background: var(--primary-subtle);
+  color: var(--primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: border-color 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
 }
 
 .user-menu__trigger:hover {
-  border-color: var(--primary);
-}
-
-.user-menu__avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), var(--focus));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--on-primary);
-  pointer-events: none;
+  background: var(--primary-mid);
+  box-shadow: 0 0 0 3px var(--primary-subtle);
 }
 
 .user-menu__dropdown {
@@ -373,14 +361,15 @@
 .sidebar nav a {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 7px 10px 7px 8px;
   border-radius: var(--r-sm);
+  border-left: 3px solid transparent;
   color: var(--text2);
   text-decoration: none;
   font-size: 13.5px;
   font-weight: 500;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
   position: relative;
 }
 
@@ -393,47 +382,51 @@
   background: var(--primary-subtle);
   color: var(--primary);
   font-weight: 600;
-}
-
-.sidebar nav a.active .sidebar-icon {
-  color: var(--primary);
+  border-left-color: var(--primary);
 }
 
 /* Ícono */
 .sidebar-icon {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  border-radius: 6px;
+  font-size: 15px;
+  border-radius: 7px;
   background: var(--surface3);
-  color: var(--muted);
   flex-shrink: 0;
-  font-weight: 700;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s;
+  line-height: 1;
 }
 
 .sidebar nav a:hover .sidebar-icon {
   background: var(--border);
-  color: var(--text2);
 }
 
 .sidebar nav a.active .sidebar-icon {
   background: var(--primary-mid);
-  color: var(--primary);
 }
 
 /* Separador de categoría */
 .sidebar-divider {
-  margin: 14px 0 4px;
+  margin: 16px 0 5px;
   padding: 0 10px;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
 }
 
 /* Sección Back-office (colapsable) */

@@ -1,12 +1,13 @@
 /**
  * useKeyboardShortcuts - Sistema de atajos de teclado para POS
- * F2: Búsqueda | F4: Cliente | F5: Reanudar | F6: Descuento | F7: Proforma
+ * F1: Nuevo pedido | F2: Búsqueda | F4: Cliente | F5: Reanudar | F6: Descuento | F7: Proforma
  * F8: Suspender | F9: Pago | F10: Cobro express (sin ticket) | F11: Cobro express (con ticket)
  * Enter: Confirmar | Esc: Cerrar/Volver
  */
 import { useEffect } from 'react'
 
 interface KeyboardHandlers {
+  onF1?: () => void
   onF2?: () => void
   onF4?: () => void
   onF5?: () => void
@@ -32,6 +33,12 @@ export function useKeyboardShortcuts(handlers: KeyboardHandlers, enabled = true)
       const target = e.target as HTMLElement
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
       const isContentEditable = target.contentEditable === 'true'
+
+      if (e.code === 'F1') {
+        e.preventDefault()
+        handlers.onF1?.()
+        return
+      }
 
       if (e.code === 'F2') {
         e.preventDefault()

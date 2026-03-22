@@ -41,6 +41,7 @@ function normalizeEstado(raw: any): string | undefined {
     if (s === 'confirmed') return 'emitida'
     if (s === 'voided' || s === 'cancelled') return 'anulada'
     if (s === 'invoiced') return 'facturada'
+    if (s === 'delivered' || s === 'entregado') return 'entregado'
     return s
 }
 
@@ -122,6 +123,7 @@ const STATUS_TO_BACKEND: Record<string, string> = {
     emitida: 'confirmed',
     anulada: 'cancelled',
     facturada: 'invoiced',
+    entregado: 'entregado',
 }
 
 function buildBackendCreatePayload(payload: Omit<Venta, 'id'>) {

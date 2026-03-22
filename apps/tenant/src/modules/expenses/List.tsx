@@ -53,6 +53,10 @@ export default function GastosList() {
   const isProductionExpense = (expense: Gasto) =>
     expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
 
+  const isSaleProductionExpense = (expense: Gasto) =>
+    String(expense.invoice_number || '').startsWith('PROD-SALE-') ||
+    (expense.category === 'production' && expense.subcategory === 'sale_cost')
+
   const filtered = useMemo(() => items.filter(v => {
     if (desde && v.date < desde) return false
     if (hasta && v.date > hasta) return false
@@ -336,7 +340,7 @@ export default function GastosList() {
                 </td>
                 <td className="py-2 px-2 font-medium">${v.amount.toFixed(2)}</td>
                 <td className="py-2 px-2">
-                  {!isProductionExpense(v) && can('expenses:update') && (
+                  {(!isProductionExpense(v) || isSaleProductionExpense(v)) && can('expenses:update') && (
                     <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
                       {t('edit', { ns: 'common' })}
                     </Link>

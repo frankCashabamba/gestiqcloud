@@ -21,6 +21,8 @@ import {
   type ProductionOrderCostInput,
 } from '../modules/productions/services'
 import { listWarehouses, listStockItems } from '../modules/inventory/services'
+import { createVenta, checkoutOrder, type VentaLinea } from '../modules/sales/services'
+import QuickOrderModal from '../modules/sales/components/QuickOrderModal'
 import './dashboard_pro.css'
 import './bakery_premium.css'
 
@@ -30,9 +32,10 @@ interface KPIData {
   ventas_mostrador?: { hoy?: number; ayer?: number; variacion?: number; moneda?: string }
   stock_critico?: { items?: number; nombres?: string[]; urgencia?: string }
   mermas?: { hoy?: number; unidad?: string; valor_estimado?: number; moneda?: string }
-  produccion?: { hornadas_completadas?: number; hornadas_programadas?: number; progreso?: number }
+  produccion?: { hornadas_completadas?: number; hornadas_programadas?: number; progreso?: number; pedidos_con_receta?: number }
   ingredientes_caducar?: { proximos_7_dias?: number; items?: string[] }
   top_productos?: Array<{ name: string; unidades: number; ingresos: number }>
+  pedidos?: { pendientes_cobro?: number; pendientes_entrega?: number }
 }
 
 type QuickCostDraft = {
@@ -126,11 +129,12 @@ interface BakeryHeroProps {
   isProductionEnabled: () => boolean
   prefix: string
   onNuevaProduccion: () => void
+  onNuevoPedido: () => void
 }
 
 const BakeryHero: React.FC<BakeryHeroProps> = ({
   ventas, hornadasPendientes, stockItems, loading,
-  isModuleEnabled, isProductionEnabled, prefix, onNuevaProduccion,
+  isModuleEnabled, isProductionEnabled, prefix, onNuevaProduccion, onNuevoPedido,
 }) => {
   const dayName = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })
   return (
@@ -174,8 +178,13 @@ const BakeryHero: React.FC<BakeryHeroProps> = ({
         </div>
       </div>
       <div className="bakery-hero__actions">
+        {isModuleEnabled('sales') && (
+          <button className="btn btn--primary" onClick={onNuevoPedido}>
+            🎂 Nuevo pedido
+          </button>
+        )}
         {isProductionEnabled() && (
-          <button className="btn btn--primary" onClick={onNuevaProduccion}>
+          <button className="btn" onClick={onNuevaProduccion}>
             + Nueva producción
           </button>
         )}
@@ -199,16 +208,29 @@ interface BakeryUrgentBarProps {
   stockUrgencia?: string
   ingredientesCaducar: number
   ingredientesItems: string[]
+  pedidosPendientesCobro: number
+  pedidosPendientesEntrega: number
 }
 
 const BakeryUrgentBar: React.FC<BakeryUrgentBarProps> = ({
   hornadasPendientes, stockItems, stockNombres, stockUrgencia,
   ingredientesCaducar, ingredientesItems,
+  pedidosPendientesCobro, pedidosPendientesEntrega,
 }) => {
-  if (!hornadasPendientes && !stockItems && !ingredientesCaducar) return null
+  if (!hornadasPendientes && !stockItems && !ingredientesCaducar && !pedidosPendientesCobro && !pedidosPendientesEntrega) return null
   return (
     <div className="bakery-urgent">
       <span className="bakery-urgent__title">⚡ Urgente ahora</span>
+      {pedidosPendientesCobro > 0 && (
+        <span className="bakery-urgent__badge bakery-urgent__badge--warn">
+          💵 {pedidosPendientesCobro} pedido{pedidosPendientesCobro !== 1 ? 's' : ''} pdt. de cobro
+        </span>
+      )}
+      {pedidosPendientesEntrega > 0 && (
+        <span className="bakery-urgent__badge bakery-urgent__badge--info">
+          🚚 {pedidosPendientesEntrega} pedido{pedidosPendientesEntrega !== 1 ? 's' : ''} pdt. de entregar
+        </span>
+      )}
       {hornadasPendientes > 0 && (
         <span className="bakery-urgent__badge bakery-urgent__badge--warn">
           🔥 {hornadasPendientes} hornada{hornadasPendientes !== 1 ? 's' : ''} pendiente{hornadasPendientes !== 1 ? 's' : ''}
@@ -715,11 +737,74 @@ const PanaderiaDashboard: React.FC = () => {
   const produccion   = kpis.produccion || {}
   const ingredientes = kpis.ingredientes_caducar || {}
   const topProductos = kpis.top_productos || []
+  const pedidos      = kpis.pedidos || {}
 
   const hornadasPendientes = Math.max(
     (produccion.hornadas_programadas || 0) - (produccion.hornadas_completadas || 0),
     0
-  )
+  ) + (produccion.pedidos_con_receta || 0)
+
+  // ── Quick order state ──────────────────────────────────
+  const [orderOpen, setOrderOpen]               = useState(false)
+  const [orderSaving, setOrderSaving]           = useState(false)
+  const [orderError, setOrderError]             = useState<string | null>(null)
+  const [orderLineas, setOrderLineas]           = useState<VentaLinea[]>([])
+  const [orderClienteId, setOrderClienteId]     = useState<string | undefined>(undefined)
+  const [orderClienteName, setOrderClienteName] = useState('')
+  const [orderDeliveryDate, setOrderDeliveryDate] = useState('')
+  const [orderNotes, setOrderNotes]             = useState('')
+  const [orderDeposit, setOrderDeposit]         = useState(0)
+  const [orderDepositPaid, setOrderDepositPaid] = useState(false)
+  const [orderPaymentMethod, setOrderPaymentMethod] = useState('')
+  const [orderShowPicker, setOrderShowPicker]   = useState(false)
+  const [orderYaCobrado, setOrderYaCobrado]     = useState(false)
+
+  const openQuickOrder = () => {
+    setOrderLineas([])
+    setOrderClienteId(undefined)
+    setOrderClienteName('')
+    setOrderDeliveryDate('')
+    setOrderNotes('')
+    setOrderDeposit(0)
+    setOrderDepositPaid(false)
+    setOrderPaymentMethod('')
+    setOrderShowPicker(false)
+    setOrderYaCobrado(false)
+    setOrderError(null)
+    setOrderOpen(true)
+  }
+
+  const handleSaveOrder = async () => {
+    if (!orderDeliveryDate) { setOrderError('La fecha de entrega es obligatoria'); return }
+    if (orderLineas.length === 0) { setOrderError('Agrega al menos un producto'); return }
+    setOrderSaving(true)
+    setOrderError(null)
+    try {
+      const venta = await createVenta({
+        fecha: new Date().toISOString().slice(0, 10),
+        cliente_id: orderClienteId,
+        estado: 'borrador',
+        notas: orderNotes || undefined,
+        lineas: orderLineas,
+        delivery_date: orderDeliveryDate,
+        deposit_amount: orderYaCobrado ? 0 : orderDeposit,
+        deposit_paid: orderYaCobrado ? false : orderDepositPaid,
+        payment_method: orderPaymentMethod || undefined,
+      } as any)
+      if (orderYaCobrado) {
+        await checkoutOrder(String(venta.id), { payment_method: orderPaymentMethod || undefined })
+        setQuickSuccess(`✓ Pedido cobrado y facturado — entrega el ${orderDeliveryDate}`)
+      } else {
+        setQuickSuccess(`✓ Pedido registrado para el ${orderDeliveryDate}`)
+      }
+      setOrderOpen(false)
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail
+      setOrderError(typeof detail === 'string' ? detail : (e?.message || 'Error al guardar'))
+    } finally {
+      setOrderSaving(false)
+    }
+  }
 
   // ── Quick production state (unchanged) ────────────────
   const [quickOpen, setQuickOpen]               = useState(false)
@@ -1012,6 +1097,7 @@ const PanaderiaDashboard: React.FC = () => {
         isProductionEnabled={isProductionEnabled}
         prefix={prefix}
         onNuevaProduccion={openQuickProduction}
+        onNuevoPedido={openQuickOrder}
       />
 
       {/* Toast de éxito post-producción */}
@@ -1027,6 +1113,8 @@ const PanaderiaDashboard: React.FC = () => {
         stockUrgencia={stock.urgencia}
         ingredientesCaducar={ingredientes.proximos_7_dias || 0}
         ingredientesItems={ingredientes.items || []}
+        pedidosPendientesCobro={pedidos.pendientes_cobro || 0}
+        pedidosPendientesEntrega={pedidos.pendientes_entrega || 0}
       />
 
       <div className="dashboard-grid">
@@ -1185,6 +1273,47 @@ const PanaderiaDashboard: React.FC = () => {
         )}
 
       </div>
+
+      {/* Modal de pedido rápido */}
+      {orderOpen && (
+        <QuickOrderModal
+          saving={orderSaving}
+          error={orderError}
+          lineas={orderLineas}
+          clienteId={orderClienteId}
+          clienteName={orderClienteName}
+          deliveryDate={orderDeliveryDate}
+          notes={orderNotes}
+          deposit={orderDeposit}
+          depositPaid={orderDepositPaid}
+          paymentMethod={orderPaymentMethod}
+          showPicker={orderShowPicker}
+          yaCobrado={orderYaCobrado}
+          onClienteChange={(id, name) => { setOrderClienteId(id ? String(id) : undefined); setOrderClienteName(name) }}
+          onDeliveryDate={setOrderDeliveryDate}
+          onNotes={setOrderNotes}
+          onDeposit={setOrderDeposit}
+          onDepositPaid={setOrderDepositPaid}
+          onPaymentMethod={setOrderPaymentMethod}
+          onAddLinea={l => {
+            setOrderLineas(prev => {
+              const idx = prev.findIndex(x => String(x.producto_id) === String(l.producto_id))
+              if (idx !== -1) {
+                const next = [...prev]
+                next[idx] = { ...next[idx], cantidad: next[idx].cantidad + (l.cantidad ?? 1) }
+                return next
+              }
+              return [...prev, l]
+            })
+          }}
+          onUpdateLinea={(idx, field, val) => setOrderLineas(prev => { const n = [...prev]; n[idx] = { ...n[idx], [field]: val }; return n })}
+          onRemoveLinea={idx => setOrderLineas(prev => prev.filter((_, i) => i !== idx))}
+          onYaCobrado={setOrderYaCobrado}
+          onTogglePicker={() => setOrderShowPicker(v => !v)}
+          onClose={() => setOrderOpen(false)}
+          onSubmit={handleSaveOrder}
+        />
+      )}
 
       {/* Modal de producción rápida */}
       {quickOpen && (

@@ -8,7 +8,7 @@
  * Aquí solo viven: el JSX, guards de autenticación/permisos y la pantalla
  * de creación de caja cuando no hay registro seleccionado.
  */
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -56,6 +56,8 @@ import { createRegister } from './services'
 import { POS_DEFAULTS } from '../../constants/defaults'
 import { normalizePosTheme, POS_THEME_KEY, usePOSState } from './hooks/usePOSState'
 import { usePOSActions } from './hooks/usePOSActions'
+import QuickOrderModal from '../sales/components/QuickOrderModal'
+import { createVenta, checkoutOrder, type VentaLinea } from '../sales/services'
 import './pos-styles.css'
 
 export default function POSView() {
@@ -159,9 +161,74 @@ export default function POSView() {
     }
 
     // -----------------------------------------------------------------------
+    // Nuevo Pedido (quick order modal)
+    // -----------------------------------------------------------------------
+    const [orderOpen, setOrderOpen]               = useState(false)
+    const [orderSaving, setOrderSaving]           = useState(false)
+    const [orderError, setOrderError]             = useState<string | null>(null)
+    const [orderLineas, setOrderLineas]           = useState<VentaLinea[]>([])
+    const [orderClienteId, setOrderClienteId]     = useState<string | undefined>(undefined)
+    const [orderClienteName, setOrderClienteName] = useState('')
+    const [orderDeliveryDate, setOrderDeliveryDate] = useState('')
+    const [orderNotes, setOrderNotes]             = useState('')
+    const [orderDeposit, setOrderDeposit]         = useState(0)
+    const [orderDepositPaid, setOrderDepositPaid] = useState(false)
+    const [orderPaymentMethod, setOrderPaymentMethod] = useState('')
+    const [orderShowPicker, setOrderShowPicker]   = useState(false)
+    const [orderYaCobrado, setOrderYaCobrado]     = useState(false)
+
+    const openQuickOrderFromPOS = () => {
+        setOrderLineas([])
+        setOrderClienteId(undefined)
+        setOrderClienteName('')
+        setOrderDeliveryDate('')
+        setOrderNotes('')
+        setOrderDeposit(0)
+        setOrderDepositPaid(false)
+        setOrderPaymentMethod('')
+        setOrderShowPicker(false)
+        setOrderYaCobrado(false)
+        setOrderError(null)
+        setOrderOpen(true)
+    }
+
+    const handleSaveOrderFromPOS = async () => {
+        if (!orderDeliveryDate) { setOrderError('La fecha de entrega es obligatoria'); return }
+        if (orderLineas.length === 0) { setOrderError('Agrega al menos un producto'); return }
+        setOrderSaving(true)
+        setOrderError(null)
+        try {
+            const venta = await createVenta({
+                fecha: new Date().toISOString().slice(0, 10),
+                cliente_id: orderClienteId,
+                estado: 'borrador',
+                notas: orderNotes || undefined,
+                lineas: orderLineas,
+                delivery_date: orderDeliveryDate,
+                deposit_amount: orderYaCobrado ? 0 : orderDeposit,
+                deposit_paid: orderYaCobrado ? false : orderDepositPaid,
+                payment_method: orderPaymentMethod || undefined,
+            } as any)
+            if (orderYaCobrado) {
+                await checkoutOrder(String(venta.id), { payment_method: orderPaymentMethod || undefined })
+                toast.success(`✓ Pedido cobrado y facturado — entrega el ${orderDeliveryDate}`)
+            } else {
+                toast.success(`✓ Pedido registrado para el ${orderDeliveryDate}`)
+            }
+            setOrderOpen(false)
+        } catch (e: any) {
+            const detail = e?.response?.data?.detail
+            setOrderError(typeof detail === 'string' ? detail : (e?.message || 'Error al guardar'))
+        } finally {
+            setOrderSaving(false)
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Atajos de teclado
     // -----------------------------------------------------------------------
     useKeyboardShortcuts({
+        onF1: () => openQuickOrderFromPOS(),
         onF2: () => { state.searchInputRef.current?.focus(); setSearchExpanded(true) },
         onF4: () => setShowBuyerModal(true),
         onF5: () => setShowResumeTicketModal(true),
@@ -172,6 +239,7 @@ export default function POSView() {
         onF10: () => { if (cart.length > 0) void handleExpressCash({ printTicket: false }) },
         onF11: () => { if (cart.length > 0) void handleExpressCash({ printTicket: true }) },
         onEscape: () => {
+            if (orderOpen) { setOrderOpen(false); return }
             setShowPaymentModal(false)
             setShowBuyerModal(false)
             setShowInvoiceModal(false)
@@ -291,6 +359,16 @@ export default function POSView() {
                 </div>
 
                 <div className="actions top-actions">
+                    <ProtectedButton
+                        permission="sales:create"
+                        className="btn sm pos-action-btn"
+                        unstyled
+                        style={{ color: '#d97706', borderColor: '#fbbf24' }}
+                        onClick={openQuickOrderFromPOS}
+                        title="Nuevo pedido (F1)"
+                    >
+                        🎂 <span className="pos-action-label">Pedido <kbd>F1</kbd></span>
+                    </ProtectedButton>
                     <ProtectedButton permission="pos:update" className="btn sm pos-action-btn" unstyled onClick={() => setShowBuyerModal(true)}>
                         <UserRound size={14} />
                         <span className="pos-action-label">{t('pos:header.customer', { defaultValue: 'Customer' })}</span>
@@ -645,6 +723,36 @@ export default function POSView() {
                         <iframe ref={printFrameRef} title="ticket" srcDoc={printHtml} style={{ width: '100%', height: '70vh', border: '1px solid #e5e7eb', borderRadius: 8 }} />
                     </div>
                 </div>
+            )}
+
+            {orderOpen && (
+                <QuickOrderModal
+                    saving={orderSaving}
+                    error={orderError}
+                    lineas={orderLineas}
+                    clienteId={orderClienteId}
+                    clienteName={orderClienteName}
+                    deliveryDate={orderDeliveryDate}
+                    notes={orderNotes}
+                    deposit={orderDeposit}
+                    depositPaid={orderDepositPaid}
+                    paymentMethod={orderPaymentMethod}
+                    showPicker={orderShowPicker}
+                    yaCobrado={orderYaCobrado}
+                    onClienteChange={(id, name) => { setOrderClienteId(id ? String(id) : undefined); setOrderClienteName(name) }}
+                    onDeliveryDate={setOrderDeliveryDate}
+                    onNotes={setOrderNotes}
+                    onDeposit={setOrderDeposit}
+                    onDepositPaid={setOrderDepositPaid}
+                    onPaymentMethod={setOrderPaymentMethod}
+                    onYaCobrado={setOrderYaCobrado}
+                    onAddLinea={l => setOrderLineas(prev => [...prev, l])}
+                    onUpdateLinea={(idx, field, value) => setOrderLineas(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l))}
+                    onRemoveLinea={idx => setOrderLineas(prev => prev.filter((_, i) => i !== idx))}
+                    onTogglePicker={() => setOrderShowPicker(v => !v)}
+                    onClose={() => setOrderOpen(false)}
+                    onSubmit={handleSaveOrderFromPOS}
+                />
             )}
 
             <POSKeyboardHelp bulkPricingItems={(companySettings?.pos_config as any)?.bulk_pricing_items || []} />

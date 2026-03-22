@@ -106,9 +106,13 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                 try {
                     const shiftSummary = await getShiftSummary(currentShift.id)
                     setSummary(shiftSummary)
-                    const cashTotal = shiftSummary.payments?.cash || shiftSummary.payments?.efectivo || 0
-                    if (cashTotal > 0) {
-                        setClosingCash(cashTotal.toFixed(2))
+                    // El cajero debe contar todo el dinero en la caja:
+                    // fondo de apertura + ventas en efectivo
+                    const cashSales = shiftSummary.payments?.cash || shiftSummary.payments?.efectivo || 0
+                    const openFloat = (shiftSummary as any).opening_float || 0
+                    const expectedTotal = openFloat + cashSales
+                    if (expectedTotal > 0) {
+                        setClosingCash(expectedTotal.toFixed(2))
                     }
                 } catch (error: any) {
                     console.error('Error loading summary:', error)
@@ -354,11 +358,28 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                         <div className="flex items-center justify-between mb-1">
                                             <label className="block text-sm font-semibold text-slate-800">{t('pos:shiftManager.cashTotal')} ({currencySymbol})</label>
                                             {summary?.payments && (
-                                                <div className="text-xs text-slate-600 space-x-2 text-right leading-tight">
-                                                    <span>{t('pos:shiftManager.registeredCash')}: {formatCurrency(summary.payments?.cash || summary.payments?.efectivo || 0)}</span>
-                                                    {summary.payments?.card ? <span>{t('pos:shiftManager.cardLabel')}: {formatCurrency(summary.payments.card)}</span> : null}
-                                                    {summary.payments?.link ? <span>{t('pos:shiftManager.linkLabel')}: {formatCurrency(summary.payments.link)}</span> : null}
-                                                    {summary.payments?.store_credit ? <span>{t('pos:shiftManager.creditLabel')}: {formatCurrency(summary.payments.store_credit)}</span> : null}
+                                                <div className="text-xs text-slate-600 space-y-0.5 text-right leading-tight">
+                                                    {(() => {
+                                                        const cashSales = summary.payments?.cash || summary.payments?.efectivo || 0
+                                                        const openFloat = (summary as any).opening_float || 0
+                                                        const expectedTotal = openFloat + cashSales
+                                                        return (
+                                                            <>
+                                                                {openFloat > 0 && (
+                                                                    <div>Fondo apertura: {formatCurrency(openFloat)}</div>
+                                                                )}
+                                                                <div>Ventas efectivo: {formatCurrency(cashSales)}</div>
+                                                                {expectedTotal > 0 && (
+                                                                    <div className="font-semibold text-slate-800">
+                                                                        Esperado en caja: {formatCurrency(expectedTotal)}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )
+                                                    })()}
+                                                    {summary.payments?.card ? <div>{t('pos:shiftManager.cardLabel')}: {formatCurrency(summary.payments.card)}</div> : null}
+                                                    {summary.payments?.link ? <div>{t('pos:shiftManager.linkLabel')}: {formatCurrency(summary.payments.link)}</div> : null}
+                                                    {summary.payments?.store_credit ? <div>{t('pos:shiftManager.creditLabel')}: {formatCurrency(summary.payments.store_credit)}</div> : null}
                                                 </div>
                                             )}
                                         </div>

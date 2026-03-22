@@ -112,10 +112,13 @@ class DocumentConverter:
         self.db.flush()
 
         from app.models.core.products import Product as _Product
+
         _prod_ids = [it.product_id for it in items if it.product_id]
         _prod_names: dict = {}
         if _prod_ids:
-            _rows = self.db.query(_Product.id, _Product.name).filter(_Product.id.in_(_prod_ids)).all()
+            _rows = (
+                self.db.query(_Product.id, _Product.name).filter(_Product.id.in_(_prod_ids)).all()
+            )
             _prod_names = {str(r.id): r.name for r in _rows}
 
         for item in items:

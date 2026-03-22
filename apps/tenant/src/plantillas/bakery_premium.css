@@ -89,6 +89,11 @@
   color: var(--err);
   border-color: color-mix(in srgb, var(--err) 28%, var(--border));
 }
+.bakery-urgent__badge--info {
+  background: color-mix(in srgb, #3b82f6 10%, var(--surface));
+  color: #1d4ed8;
+  border-color: color-mix(in srgb, #3b82f6 28%, var(--border));
+}
 
 /* ─── Success toast ─────────────────────────────────────── */
 .bakery-toast {
@@ -163,36 +168,47 @@
 /* ─── Quick Production Modal ────────────────────────────── */
 .qp-overlay {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,.42);
+  background: rgba(0,0,0,.72);
   display: flex; align-items: center; justify-content: center;
-  z-index: 3000; padding: 16px;
-  backdrop-filter: blur(3px);
+  z-index: 10100; padding: 16px;
+  backdrop-filter: blur(4px);
 }
 .qp-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
   width: 100%; max-width: 580px; max-height: 88vh;
   display: flex; flex-direction: column;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 8px 40px rgba(0,0,0,.35);
   overflow: hidden;
+  color: #1e293b;
 }
-.qp-panel__header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.qp-panel__title { margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
-.qp-panel__desc  { margin: 0; font-size: 13.5px; color: var(--muted); }
+.qp-panel__header { padding: 20px 24px 16px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; background: #fff; }
+.qp-panel__title { margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; }
+.qp-panel__desc  { margin: 0; font-size: 13.5px; color: #64748b; }
 .qp-panel__body  {
   flex: 1; overflow-y: auto; padding: 20px 24px;
   display: flex; flex-direction: column; gap: 20px;
-  scrollbar-width: thin;
+  scrollbar-width: thin; background: #fff;
 }
 .qp-panel__footer {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 14px 24px; border-top: 1px solid var(--border);
-  background: var(--surface); flex-shrink: 0;
+  padding: 14px 24px; border-top: 1px solid #e2e8f0; background: #f8fafc;
+  flex-shrink: 0;
 }
-.qp-panel__footer-info { font-size: 13px; color: var(--muted); }
-.qp-panel__footer-err  { font-size: 13px; color: var(--err); font-weight: 500; }
+.qp-panel__footer-info { font-size: 13px; color: #64748b; }
+.qp-panel__footer-err  { font-size: 13px; color: #dc2626; font-weight: 500; }
 .qp-panel__footer-actions { display: flex; gap: 8px; }
+
+/* Forzar colores claros en todos los controles del panel (funciona en POS dark theme) */
+.qp-panel input,
+.qp-panel select,
+.qp-panel textarea {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+.qp-panel label { color: #475569; }
 
 .qp-section { display: flex; flex-direction: column; gap: 10px; }
 .qp-section-title {

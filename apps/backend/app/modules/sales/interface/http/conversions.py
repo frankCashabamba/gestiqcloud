@@ -232,9 +232,10 @@ def _build_order_expense(
     El product_id de cada línea se usa para buscar la receta activa.
     """
     import logging as _log
+
     _logger = _log.getLogger(__name__)
 
-    ref = f"SALE-{order.number}"
+    ref = f"PROD-SALE-{order.number}"
 
     # Idempotencia: si ya existe el gasto no lo duplicamos
     existing = (
@@ -242,6 +243,15 @@ def _build_order_expense(
         .filter(Expense.tenant_id == tenant_id, Expense.invoice_number == ref)
         .first()
     )
+    if not existing:
+        # Also check legacy ref format
+        existing = (
+            db.query(Expense)
+            .filter(
+                Expense.tenant_id == tenant_id, Expense.invoice_number == f"SALE-{order.number}"
+            )
+            .first()
+        )
     if existing:
         return existing, float(existing.total or 0), "ya existía"
 
@@ -266,24 +276,37 @@ def _build_order_expense(
         )
         if recipe is None:
             skip_reasons.append(f"producto {item.product_id} sin receta activa")
-            _logger.info("_build_order_expense: no hay receta activa para producto %s en tenant %s", item.product_id, tenant_id)
+            _logger.info(
+                "_build_order_expense: no hay receta activa para producto %s en tenant %s",
+                item.product_id,
+                tenant_id,
+            )
             continue
 
         unit_cost = Decimal(str(recipe.unit_cost or 0))
         if unit_cost <= 0:
-            skip_reasons.append(f"receta '{recipe.name}' tiene unit_cost={unit_cost} (verifica ingredientes y costos)")
-            _logger.info("_build_order_expense: receta '%s' tiene unit_cost=0, sin costo calculado", recipe.name)
+            skip_reasons.append(
+                f"receta '{recipe.name}' tiene unit_cost={unit_cost} (verifica ingredientes y costos)"
+            )
+            _logger.info(
+                "_build_order_expense: receta '%s' tiene unit_cost=0, sin costo calculado",
+                recipe.name,
+            )
             continue
         qty = Decimal(str(item.qty or 0))
         line_cost = unit_cost * qty
         total_cost += line_cost
-        cost_lines.append(
-            f"{recipe.name} × {qty} = {line_cost:.4f}"
-        )
+        cost_lines.append(f"{recipe.name} × {qty} = {line_cost:.4f}")
 
     if total_cost <= 0:
-        reason = "; ".join(skip_reasons) if skip_reasons else "ningún producto con receta activa y costo > 0"
-        _logger.info("_build_order_expense: no se genera gasto para orden %s — %s", order.number, reason)
+        reason = (
+            "; ".join(skip_reasons)
+            if skip_reasons
+            else "ningún producto con receta activa y costo > 0"
+        )
+        _logger.info(
+            "_build_order_expense: no se genera gasto para orden %s — %s", order.number, reason
+        )
         return None, 0.0, reason
 
     concept = f"Costo de venta - {order.number}"
@@ -297,8 +320,8 @@ def _build_order_expense(
         tenant_id=tenant_id,
         date=datetime.now(UTC).date(),
         concept=concept,
-        category="cost_of_goods",
-        subcategory="recipe",
+        category="production",
+        subcategory="sale_cost",
         amount=total_cost,
         vat=Decimal("0"),
         total=total_cost,
@@ -368,9 +391,7 @@ def checkout_order(
             detail=f"El pedido ya está en estado '{order.status}' y no puede cobrarse",
         )
 
-    items = (
-        db.query(SalesOrderItem).filter(SalesOrderItem.order_id == order_uuid).all()
-    )
+    items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == order_uuid).all()
     if not items:
         raise HTTPException(status_code=400, detail="El pedido no tiene líneas")
 
@@ -378,16 +399,14 @@ def checkout_order(
     # Calcular totales respetando impuesto por línea
     iva_default = Decimal("0")
     settings_row = (
-        db.query(CompanySettings)
-        .filter(CompanySettings.tenant_id == str(tenant_id))
-        .first()
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == str(tenant_id)).first()
     )
     settings_json = (
-        settings_row.settings
-        if settings_row and isinstance(settings_row.settings, dict)
-        else {}
+        settings_row.settings if settings_row and isinstance(settings_row.settings, dict) else {}
     )
-    iva_default_raw = settings_json.get("iva_tasa_defecto") if isinstance(settings_json, dict) else None
+    iva_default_raw = (
+        settings_json.get("iva_tasa_defecto") if isinstance(settings_json, dict) else None
+    )
     if isinstance(iva_default_raw, (int, float)):
         iva_default = Decimal(str(iva_default_raw))
 
@@ -409,6 +428,7 @@ def checkout_order(
 
     # Pre-cargar nombres de productos en un solo query
     from app.models.core.products import Product
+
     product_ids = [it.product_id for it in items if it.product_id]
     product_names: dict = {}
     if product_ids:
@@ -450,6 +470,7 @@ def checkout_order(
     # --- 3. Gasto de costo de receta (genérico, no falla si no hay receta) ---
     payment_method = payload.payment_method if payload else None
     import logging as _logging
+
     _logger = _logging.getLogger(__name__)
     expense_note: str | None = None
     try:

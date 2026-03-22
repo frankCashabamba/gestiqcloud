@@ -221,6 +221,43 @@ def _sector_kpis_payload(
             else (100.0 if batches_completed > 0 else 0.0)
         )
 
+        # SALES ORDERS PENDING
+        pedidos_pendientes = db.execute(
+            text(
+                f"""
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'borrador') as pendientes_cobro,
+                COUNT(*) FILTER (
+                    WHERE status IN ('invoiced', 'confirmed')
+                    AND required_date IS NOT NULL
+                    AND required_date >= CURRENT_DATE
+                ) as pendientes_entrega
+            FROM sales_orders
+            WHERE {tenant_clause('tenant_id::text')}
+            AND status NOT IN ('cancelled')
+        """
+            ),
+            tenant_params(),
+        ).first()
+
+        # PEDIDOS EN BORRADOR CON PRODUCTOS QUE TIENEN RECETA (pendientes de producir)
+        pedidos_con_receta = db.execute(
+            text(
+                f"""
+            SELECT COUNT(DISTINCT so.id)
+            FROM sales_orders so
+            JOIN sales_order_items soi ON soi.order_id = so.id
+            WHERE {tenant_clause('so.tenant_id::text')}
+              AND so.status = 'draft'
+              AND EXISTS (
+                  SELECT 1 FROM recipes r
+                  WHERE r.product_id = soi.product_id
+              )
+        """
+            ),
+            tenant_params(),
+        ).scalar() or 0
+
         # TOP PRODUCTS (best sellers of the month)
         top_products = db.execute(
             text(
@@ -265,6 +302,7 @@ def _sector_kpis_payload(
                 "batches_completed": batches_completed,
                 "batches_scheduled": batches_scheduled,
                 "progress": progress,
+                "orders_with_recipe": int(pedidos_con_receta),
             },
             "ingredients_expiring": {
                 "next_7_days": len(expiring_ingredients or []),
@@ -282,6 +320,10 @@ def _sector_kpis_payload(
                 if top_products
                 else []
             ),
+            "pedidos": {
+                "pendientes_cobro": int(pedidos_pendientes[0]) if pedidos_pendientes else 0,
+                "pendientes_entrega": int(pedidos_pendientes[1]) if pedidos_pendientes else 0,
+            },
         }
 
     elif sector == "taller":

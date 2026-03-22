@@ -315,12 +315,24 @@ def get_shift_summary(
         ).fetchall()
         payments_breakdown = {row[0]: float(row[1] or 0) for row in payments_breakdown_rows}
 
+        shift_opening = db.execute(
+            text(
+                "SELECT opening_float FROM pos_shifts WHERE id = :sid"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid},
+        ).scalar()
+        opening_float_val = float(shift_opening or 0)
+        cash_sales_val = payments_breakdown.get("cash", 0)
+        expected_cash_val = opening_float_val + cash_sales_val
+
         return {
             "pending_receipts": pending_receipts or 0,
             "items_sold": items,
             "sales_total": float(sales_total or 0),
             "receipts_count": len(items_sold),
             "payments": payments_breakdown,
+            "opening_float": opening_float_val,
+            "expected_cash": expected_cash_val,
         }
 
     except Exception as e:

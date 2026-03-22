@@ -19,6 +19,13 @@ const SPECIAL_SECTORS = new Set(['panaderia', 'panaderia_pro', 'taller', 'taller
 type Tab = 'todas' | 'pedidos'
 
 function ConfirmBadge({ estado }: { estado?: string }) {
+    if (estado === 'entregado') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                ✓ Entregado
+            </span>
+        )
+    }
     if (estado === 'facturada' || estado === 'invoiced') {
         return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
@@ -28,7 +35,7 @@ function ConfirmBadge({ estado }: { estado?: string }) {
     }
     if (estado === 'confirmed' || estado === 'emitida') {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-800">
                 ✓ Confirmado
             </span>
         )
@@ -103,6 +110,21 @@ export default function VentasList() {
             success('Pedido confirmado')
         } catch (e: any) {
             toastError(getErrorMessage(e))
+        }
+    }
+
+    const [entregandoId, setEntregandoId] = useState<string | number | null>(null)
+
+    async function handleMarcarEntregado(v: Venta) {
+        setEntregandoId(v.id)
+        try {
+            await updateVenta(v.id, { ...v, lineas: v.lineas, estado: 'entregado' } as any)
+            setItems(prev => prev.map(x => x.id === v.id ? { ...x, estado: 'entregado' } : x))
+            success('Pedido marcado como entregado ✓')
+        } catch (e: any) {
+            toastError(getErrorMessage(e))
+        } finally {
+            setEntregandoId(null)
         }
     }
 
@@ -249,6 +271,16 @@ export default function VentasList() {
 
             {loading && <div className="text-sm text-gray-500">{t('common.loading')}</div>}
 
+            {/* Leyenda de colores (solo tab pedidos) */}
+            {tab === 'pedidos' && (
+                <div className="flex flex-wrap gap-3 mb-3 text-xs text-slate-600">
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-orange-500 inline-block"/>Entrega hoy</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-400 inline-block"/>Entrega mañana</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-400 inline-block"/>Próxima entrega</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-gray-300 inline-block"/>Entrega pasada</span>
+                </div>
+            )}
+
             {/* Tabla "Todas" */}
             {tab === 'todas' && (
                 <table className="min-w-full text-sm">
@@ -279,7 +311,7 @@ export default function VentasList() {
                                         {can('sales:read') && (
                                             <Link to={`${v.id}`} className="text-blue-600 hover:underline text-xs">{t('common.view')}</Link>
                                         )}
-                                        {can('sales:update') && !isPosReadOnly(v) && (
+                                        {can('sales:update') && !isPosReadOnly(v) && !['facturada', 'invoiced'].includes((v.estado || '').toLowerCase()) && (
                                             <Link to={`${v.id}/edit`} className="text-blue-600 hover:underline text-xs">{t('common.edit')}</Link>
                                         )}
                                         {v.pos_receipt_id && isPosReadOnly(v) && (
@@ -294,7 +326,7 @@ export default function VentasList() {
                                                 {cobrandoId === v.id ? '...' : '💵 Cobrar'}
                                             </button>
                                         )}
-                                        {can('sales:delete') && !isPosReadOnly(v) && (
+                                        {can('sales:delete') && !isPosReadOnly(v) && !['facturada', 'invoiced'].includes((v.estado || '').toLowerCase()) && (
                                             <ProtectedButton
                                                 permission="sales:delete"
                                                 variant="ghost"
@@ -338,18 +370,37 @@ export default function VentasList() {
                     </thead>
                     <tbody>
                         {view.map(v => {
-                            const isPending = !['confirmed', 'emitida', 'facturada', 'invoiced', 'anulada', 'cancelled'].includes(v.estado ?? '')
+                            const isPending = !['confirmed', 'emitida', 'facturada', 'invoiced', 'entregado', 'anulada', 'cancelled'].includes(v.estado ?? '')
+                            const isInvoiced = ['facturada', 'invoiced'].includes(v.estado ?? '')
+                            const isEntregado = v.estado === 'entregado'
+                            const today = new Date().toISOString().slice(0, 10)
+                            const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+                            const dd = v.delivery_date || ''
+                            const isPastDelivery = dd && dd < today
+                            const isDueToday = dd === today
+                            const isDueTomorrow = dd === tomorrow
+                            const rowClass = isEntregado || !dd || isPastDelivery
+                                ? 'border-b hover:bg-gray-50 opacity-60'
+                                : isDueToday
+                                    ? 'border-b bg-orange-50 border-l-4 border-l-orange-500 hover:bg-orange-100'
+                                    : isDueTomorrow
+                                        ? 'border-b bg-yellow-50 border-l-4 border-l-yellow-400 hover:bg-yellow-100'
+                                        : 'border-b bg-blue-50 border-l-4 border-l-blue-400 hover:bg-blue-100'
                             return (
-                                <tr key={v.id} className="border-b hover:bg-amber-50/40">
+                                <tr key={v.id} className={rowClass}>
                                     <td className="py-2 px-2 font-mono text-xs">{v.numero || '—'}</td>
                                     <td className="py-2 px-2">
-                                        <div>{v.cliente_nombre || <span className="text-gray-400">Sin cliente</span>}</div>
+                                        <div className="font-medium">{v.cliente_nombre || <span className="text-gray-400">Sin cliente</span>}</div>
                                         {v.notas && <div className="text-xs text-gray-500 truncate max-w-40">{v.notas}</div>}
                                     </td>
                                     <td className="py-2 px-2">
-                                        {v.delivery_date
-                                            ? <span className="font-medium">{v.delivery_date}</span>
-                                            : <span className="text-gray-400">—</span>}
+                                        {dd ? (
+                                            <span className={`font-medium ${isDueToday ? 'text-orange-700 font-bold' : isDueTomorrow ? 'text-yellow-700' : isPastDelivery ? 'text-gray-400' : 'text-blue-700'}`}>
+                                                {dd}
+                                                {isDueToday && <span className="ml-1 text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">HOY</span>}
+                                                {isDueTomorrow && <span className="ml-1 text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded-full">Mañana</span>}
+                                            </span>
+                                        ) : <span className="text-gray-400">—</span>}
                                     </td>
                                     <td className="py-2 px-2 font-semibold">
                                         {v.total !== null && v.total !== undefined
@@ -383,6 +434,18 @@ export default function VentasList() {
                                                         {cobrandoId === v.id ? '...' : '💵 Cobrar'}
                                                     </button>
                                                 </>
+                                            )}
+                                            {isInvoiced && !isEntregado && can('sales:update') && (
+                                                <button
+                                                    disabled={entregandoId === v.id}
+                                                    onClick={() => handleMarcarEntregado(v)}
+                                                    className="px-2 py-0.5 text-xs rounded font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                                >
+                                                    {entregandoId === v.id ? '...' : '🚚 PDT Entregar'}
+                                                </button>
+                                            )}
+                                            {isEntregado && (
+                                                <span className="text-xs text-green-700 font-semibold">✓ Entregado</span>
                                             )}
                                         </div>
                                     </td>

@@ -54,15 +54,21 @@ export default function GastoForm() {
   })
 
   const [loading, setLoading] = useState(false)
-  const isProductionExpense = (expense: Gasto) =>
-    expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
+  const isSaleProductionExpense = (expense: Gasto) =>
+    String(expense.invoice_number || '').startsWith('PROD-SALE-') ||
+    (expense.category === 'production' && expense.subcategory === 'sale_cost')
+
+  const isLockedProductionExpense = (expense: Gasto) => {
+    if (isSaleProductionExpense(expense)) return false
+    return expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
+  }
 
   useEffect(() => {
     if (id) {
       setLoading(true)
       getGasto(id)
         .then((x) => {
-          if (isProductionExpense(x)) {
+          if (isLockedProductionExpense(x)) {
             throw new Error('Production expenses are system-generated and cannot be edited')
           }
           setForm({

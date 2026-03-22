@@ -28,7 +28,17 @@ router = APIRouter(
 )
 
 
+def _is_sale_production_expense(expense: Expense) -> bool:
+    """Sale-originated production expense (editable)."""
+    inv = str(getattr(expense, "invoice_number", "") or "")
+    return inv.startswith("PROD-SALE-") or (
+        expense.category == "production" and expense.subcategory == "sale_cost"
+    )
+
+
 def _is_locked_production_expense(expense: Expense) -> bool:
+    if _is_sale_production_expense(expense):
+        return False
     return bool(
         (expense.category == "production")
         or str(getattr(expense, "invoice_number", "") or "").startswith("PROD-")
@@ -39,7 +49,20 @@ def _get_production_order_number(expense: Expense) -> str | None:
     invoice = str(getattr(expense, "invoice_number", "") or "")
     if not invoice.startswith("PROD-"):
         return None
-    return invoice.replace("PROD-", "", 1) or None
+    # Strip PROD-SALE- or PROD- prefix
+    order_number = (
+        invoice.replace("PROD-SALE-", "", 1)
+        if invoice.startswith("PROD-SALE-")
+        else invoice.replace("PROD-", "", 1)
+    )
+    return order_number or None
+
+
+def _get_sale_order_number(expense: Expense) -> str | None:
+    invoice = str(getattr(expense, "invoice_number", "") or "")
+    if invoice.startswith("PROD-SALE-"):
+        return invoice.replace("PROD-SALE-", "", 1) or None
+    return None
 
 
 def _find_production_order(
@@ -132,6 +155,36 @@ def _build_production_breakdown(db: Session, order: ProductionOrder) -> dict:
     }
 
 
+def _fix_sale_expense(expense: Expense) -> bool:
+    """Migrate legacy cost_of_goods sale expenses to production category."""
+    inv = str(getattr(expense, "invoice_number", "") or "")
+    changed = False
+
+    # Migrate old SALE- prefix to PROD-SALE-
+    if expense.category == "cost_of_goods" and inv.startswith("SALE-"):
+        order_number = inv.replace("SALE-", "", 1)
+        expense.invoice_number = f"PROD-SALE-{order_number}"
+        expense.category = "production"
+        expense.subcategory = "sale_cost"
+        inv = expense.invoice_number
+        changed = True
+
+    if not inv.startswith("PROD-SALE-"):
+        return changed
+
+    # Fix concept if needed
+    order_number = inv.replace("PROD-SALE-", "", 1)
+    concept = expense.concept or ""
+    if not concept.startswith("Costo de venta -"):
+        new_concept = f"Costo de venta - {order_number}"
+        if not expense.notes and concept:
+            expense.notes = concept
+        expense.concept = new_concept
+        changed = True
+
+    return changed
+
+
 def _sync_production_expense(db: Session, tenant_id: UUID, expense: Expense) -> bool:
     if not _is_locked_production_expense(expense):
         return False
@@ -156,6 +209,7 @@ def list_expenses(db: Session = Depends(get_db), claims: dict = Depends(with_acc
     items = ExpenseRepo(db).list(tenant_id)
     changed = False
     for expense in items:
+        changed = _fix_sale_expense(expense) or changed
         changed = _sync_production_expense(db, tenant_id, expense) or changed
     if changed:
         db.commit()
@@ -192,6 +246,83 @@ def get_expense_stats(db: Session = Depends(get_db), claims: dict = Depends(with
     return {"total": float(row.total), "pending": float(row.pending)}
 
 
+def _build_sale_recipe_breakdown(
+    db: Session, tenant_id: UUID, sale_order_number: str
+) -> dict | None:
+    """Build ingredient breakdown from recipes for a sale-originated expense."""
+    from app.models.recipes import Recipe
+    from app.models.sales.order import SalesOrder, SalesOrderItem
+
+    order = (
+        db.execute(
+            select(SalesOrder).where(
+                SalesOrder.tenant_id == tenant_id,
+                SalesOrder.number == sale_order_number,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not order:
+        return None
+
+    items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == order.id).all()
+
+    lines = []
+    materials_total = 0.0
+    recipe_names = []
+
+    for item in items:
+        if not item.product_id:
+            continue
+        recipe: Recipe | None = (
+            db.execute(
+                select(Recipe).where(
+                    Recipe.product_id == item.product_id,
+                    Recipe.tenant_id == tenant_id,
+                    Recipe.is_active.is_(True),
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if not recipe or not recipe.ingredients:
+            continue
+
+        recipe_names.append(recipe.name)
+        qty_ordered = float(item.qty or 0)
+        yield_qty = float(recipe.yield_qty or 1)
+        scale = qty_ordered / yield_qty if yield_qty > 0 else 0
+
+        for ing in recipe.ingredients:
+            qty_used = float(ing.qty or 0) * scale
+            cost_total = float(ing.ingredient_cost or 0) * scale
+            cost_unit = (cost_total / qty_used) if qty_used > 0 else 0
+            lines.append(
+                {
+                    "ingredient_name": ing.product.name if ing.product else "Unknown",
+                    "qty_consumed": round(qty_used, 3),
+                    "unit": ing.unit or "unit",
+                    "cost_unit": round(cost_unit, 6),
+                    "cost_total": round(cost_total, 2),
+                }
+            )
+            materials_total += cost_total
+
+    if not lines:
+        return None
+
+    return {
+        "recipe_name": ", ".join(recipe_names),
+        "qty_produced": sum(float(it.qty or 0) for it in items),
+        "lines": lines,
+        "materials_total": round(materials_total, 2),
+        "indirect_costs": [],
+        "indirect_total": 0.0,
+        "grand_total": round(materials_total, 2),
+    }
+
+
 @router.get("/{expense_id}/production-detail")
 def get_expense_production_detail(
     expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
@@ -202,6 +333,25 @@ def get_expense_production_detail(
     if not expense:
         raise HTTPException(404, "Expense not found")
 
+    # Sale-originated production expense: build from recipe
+    sale_order_number = _get_sale_order_number(expense)
+    if sale_order_number:
+        breakdown = _build_sale_recipe_breakdown(db, tenant_id, sale_order_number)
+        if not breakdown:
+            raise HTTPException(404, f"Sale order '{sale_order_number}' or recipes not found")
+        return {
+            "expense_id": str(expense_id),
+            "order_number": sale_order_number,
+            "recipe_name": breakdown["recipe_name"],
+            "qty_produced": breakdown["qty_produced"],
+            "materials_total": breakdown["materials_total"],
+            "indirect_costs": breakdown["indirect_costs"],
+            "indirect_total": breakdown["indirect_total"],
+            "total_cost": float(expense.amount or 0),
+            "lines": breakdown["lines"],
+        }
+
+    # Manufacturing production order expense
     if not _is_locked_production_expense(expense):
         raise HTTPException(400, "Not a production expense")
 
@@ -242,7 +392,9 @@ def get_expense(
     obj = ExpenseRepo(db).get(tenant_id, expense_id)
     if not obj:
         raise HTTPException(404, "Not found")
-    if _sync_production_expense(db, tenant_id, obj):
+    changed = _fix_sale_expense(obj)
+    changed = _sync_production_expense(db, tenant_id, obj) or changed
+    if changed:
         db.commit()
     return obj
 

@@ -110,6 +110,7 @@ export interface PanaderiaKPIs {
     batches_completed?: number
     batches_scheduled?: number
     progress?: number
+    orders_with_recipe?: number
   }
   ingredients_expiring?: {
     next_7_days?: number
@@ -120,6 +121,10 @@ export interface PanaderiaKPIs {
     units: number
     revenue: number
   }>
+  pedidos?: {
+    pendientes_cobro?: number
+    pendientes_entrega?: number
+  }
   // Legacy keys for backward compatibility
   ventas_mostrador?: any
   stock_critico?: any
@@ -235,6 +240,7 @@ const normalizeKPIs = (payload: any) => {
       hornadas_completadas: payload.production.batches_completed ?? 0,
       hornadas_programadas: payload.production.batches_scheduled ?? 0,
       progreso: payload.production.progress ?? 0,
+      pedidos_con_receta: payload.production.orders_with_recipe ?? 0,
     }
   }
 
