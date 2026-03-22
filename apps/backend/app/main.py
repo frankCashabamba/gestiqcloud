@@ -347,7 +347,7 @@ try:
 except Exception:
     pass
 
-# CORS (mantenerlo al final para que se aplique incluso cuando otros middlewares cortan la respuesta)
+# Preparar config de CORS (el add_middleware está al final del bloque, DESPUÉS de todos los demás)
 allow_origins = (
     settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
 )
@@ -419,16 +419,6 @@ try:
         )
 except Exception:
     pass
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_origin_regex=getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
-    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-    allow_methods=allow_methods,
-    allow_headers=allow_headers,
-    max_age=86400,
-)
-
 # Endpoint-specific rate limiting (críticos: login, password reset, etc.)
 try:
     from app.middleware.endpoint_rate_limit import EndpointRateLimiter
@@ -453,6 +443,20 @@ except Exception as e:
 
 # Security headers
 app.middleware("http")(security_headers_middleware)
+
+# CORS debe ser el último add_middleware (= más exterior) para que su header
+# aparezca en TODAS las respuestas, incluidas las de EndpointRateLimiter (429)
+# y security_headers_middleware. En Starlette, el último add_middleware es el
+# middleware más exterior en el stack.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_origin_regex=getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=allow_methods,
+    allow_headers=allow_headers,
+    max_age=86400,
+)
 
 
 # Health and readiness

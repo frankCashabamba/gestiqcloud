@@ -263,7 +263,7 @@ async def register_telegram_webhook(
     Si se pasa custom_base_url, tiene prioridad (útil para VPS con dominio propio
     detrás de proxy, o para desarrollo local con tunnel).
     """
-    tenant_id = str(claims.tenant_id)
+    tenant_id = str(claims["tenant_id"])
     tg_config = _load_telegram_config(tenant_id)
     if not tg_config:
         raise HTTPException(
@@ -301,16 +301,24 @@ async def register_telegram_webhook(
                 f"https://api.telegram.org/bot{bot_token}/setWebhook",
                 json=payload,
             )
-            resp.raise_for_status()
-            data = resp.json()
-    except httpx.HTTPError as exc:
-        logger.error("[telegram_bot] Error llamando setWebhook: %s", exc)
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        logger.error("[telegram_bot] No se pudo conectar con Telegram: %s", exc)
         raise HTTPException(
-            status_code=502, detail="No se pudo contactar con Telegram. Verifica el bot token."
+            status_code=502,
+            detail="No se pudo conectar con api.telegram.org. Verifica la conectividad del servidor.",
         )
+    except httpx.HTTPError as exc:
+        logger.error("[telegram_bot] Error HTTP llamando setWebhook: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Error de red con Telegram: {exc}")
 
-    if not data.get("ok"):
-        raise HTTPException(status_code=400, detail=data.get("description", "Error de Telegram"))
+    data = resp.json()
+    if not resp.is_success or not data.get("ok"):
+        tg_error = data.get("description", f"HTTP {resp.status_code}")
+        logger.error("[telegram_bot] setWebhook rechazado [tenant=%s]: %s", tenant_id, tg_error)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Telegram rechazó el webhook: {tg_error}",
+        )
 
     logger.info("[telegram_bot] Webhook registrado [tenant=%s url=%s]", tenant_id, webhook_url)
     return {"ok": True, "webhook_url": webhook_url, "description": data.get("description", "")}

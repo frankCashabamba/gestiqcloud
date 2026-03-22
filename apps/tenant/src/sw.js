@@ -200,7 +200,7 @@ self.addEventListener('fetch', (event) => {
             }
             return res
           })
-          .catch(() => caches.match(request))
+          .catch(() => caches.match(request).then((r) => r ?? new Response(JSON.stringify({ offline: true }), { status: 503, headers: { 'Content-Type': 'application/json' } })))
       )
       return
     } else {

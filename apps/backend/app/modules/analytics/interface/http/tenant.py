@@ -247,7 +247,7 @@ def _sector_kpis_payload(
                     f"""
             SELECT COUNT(DISTINCT so.id)
             FROM sales_orders so
-            JOIN sales_order_items soi ON soi.order_id = so.id
+            JOIN sales_order_items soi ON soi.sales_order_id = so.id
             WHERE {tenant_clause('so.tenant_id::text')}
               AND so.status = 'draft'
               AND EXISTS (

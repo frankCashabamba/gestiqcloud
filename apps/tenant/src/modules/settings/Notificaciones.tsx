@@ -91,7 +91,7 @@ export default function NotificacionesSettings() {
   const [botStatus, setBotStatus] = useState<'idle' | 'ok' | 'error'>('idle')
   const [botStatusMsg, setBotStatusMsg] = useState('')
   const [tunnelUrl, setTunnelUrl] = useState('')
-  const [showTunnel, setShowTunnel] = useState(false)
+  const [showTunnel, setShowTunnel] = useState(() => window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 
   useEffect(() => {
     loadChannels()
@@ -587,13 +587,14 @@ export default function NotificacionesSettings() {
             <div className="mb-3">
               <input
                 className="border px-2 py-1 w-full rounded font-mono text-sm"
-                placeholder="https://api.tudominio.com  (vacío = auto-detecta)"
+                placeholder="https://api.tudominio.com"
                 value={tunnelUrl}
                 onChange={(e) => setTunnelUrl(e.target.value)}
               />
               <p className="text-xs text-slate-400 mt-1">
-                Déjalo vacío para usar la URL del servidor automáticamente.
-                Útil si tienes un dominio propio, VPS, o tunnel local.
+                {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                  ? '⚠ En local Telegram necesita una URL pública HTTPS. Usa ngrok u otro tunnel: ngrok http 8000 → pega la URL aquí.'
+                  : 'Déjalo vacío para usar la URL del servidor automáticamente.'}
               </p>
             </div>
           )}
