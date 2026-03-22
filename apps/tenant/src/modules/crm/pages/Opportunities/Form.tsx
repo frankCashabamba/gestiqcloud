@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import { createOpportunity, getOpportunity, updateOpportunity, type Opportunity } from '../../services'
+import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { OpportunityStage } from '../../types'
 
 export default function OpportunityForm() {
   const { id } = useParams()
   const nav = useNavigate()
-  const { t } = useTranslation('crm')
+  const { t } = useCrmLabels()
   const [form, setForm] = useState<Partial<Omit<Opportunity, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>>({
     name: '',
     description: '',
@@ -18,6 +18,9 @@ export default function OpportunityForm() {
     probability: 0,
     expected_close_date: '',
     assigned_to: '',
+    deposit_amount: 0,
+    deposit_paid: false,
+    payment_method: '',
   })
   const { success, error } = useToast()
 
@@ -127,6 +130,48 @@ export default function OpportunityForm() {
             onChange={(e)=> setForm({ ...form, assigned_to: e.target.value })}
             className="border px-2 py-1 w-full rounded"
           />
+        </div>
+        <hr className="my-2" />
+        <p className="text-sm font-medium text-gray-600">{t('opportunities.depositSection')}</p>
+        <div>
+          <label className="block mb-1">{t('opportunities.depositAmount')}</label>
+          <input
+            type="number"
+            value={form.deposit_amount ?? 0}
+            onChange={(e) => setForm({ ...form, deposit_amount: Number(e.target.value) })}
+            className="border px-2 py-1 w-full rounded"
+            min="0"
+            step="0.01"
+          />
+          {(form.value ?? 0) > 0 && (form.deposit_amount ?? 0) > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              {t('opportunities.balanceRemaining')}: {((form.value ?? 0) - (form.deposit_amount ?? 0)).toFixed(2)}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block mb-1">{t('opportunities.paymentMethod')}</label>
+          <select
+            value={form.payment_method ?? ''}
+            onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+            className="border px-2 py-1 w-full rounded"
+          >
+            <option value="">{t('opportunities.paymentMethodNone')}</option>
+            <option value="efectivo">{t('opportunities.paymentCash')}</option>
+            <option value="transferencia">{t('opportunities.paymentTransfer')}</option>
+            <option value="tarjeta">{t('opportunities.paymentCard')}</option>
+            <option value="whatsapp_transfer">{t('opportunities.paymentWhatsapp')}</option>
+          </select>
+        </div>
+        <div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.deposit_paid ?? false}
+              onChange={(e) => setForm({ ...form, deposit_paid: e.target.checked })}
+            />
+            <span>{t('opportunities.depositPaid')}</span>
+          </label>
         </div>
         <div className="pt-2">
           <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">{t('opportunities.save')}</button>

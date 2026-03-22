@@ -6,7 +6,7 @@ import type { SettingsFiscal } from './types'
 
 export default function FiscalSettings() {
   const { t } = useTranslation(['settings', 'common'])
-  const [form, setForm] = useState<SettingsFiscal>({ regimen: '', iva: 12 })
+  const [form, setForm] = useState<SettingsFiscal>({ regimen: '', iva: 0 })
   const { success, error } = useToast()
   useEffect(() => { getFiscal().then(setForm).catch(()=>{}) }, [])
   return (

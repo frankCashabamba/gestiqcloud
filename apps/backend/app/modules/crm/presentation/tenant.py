@@ -168,7 +168,7 @@ def list_opportunities(
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
 ):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
     assigned_uuid = UUID(assigned_to) if assigned_to else None
@@ -180,7 +180,7 @@ def list_opportunities(
 
 @router.get("/opportunities/{opp_id}", response_model=OpportunityOut)
 def get_opportunity(opp_id: str, request: Request, db: Session = Depends(get_db)):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
     opp = service.get_opportunity(tenant_id, UUID(opp_id))
@@ -192,7 +192,7 @@ def get_opportunity(opp_id: str, request: Request, db: Session = Depends(get_db)
 
 @router.post("/opportunities", response_model=OpportunityOut, status_code=201)
 def create_opportunity(data: OpportunityCreate, request: Request, db: Session = Depends(get_db)):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
     return service.create_opportunity(tenant_id, data)
@@ -202,7 +202,7 @@ def create_opportunity(data: OpportunityCreate, request: Request, db: Session = 
 def update_opportunity(
     opp_id: str, data: OpportunityUpdate, request: Request, db: Session = Depends(get_db)
 ):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
     opp = service.update_opportunity(tenant_id, UUID(opp_id), data)
@@ -214,7 +214,7 @@ def update_opportunity(
 
 @router.delete("/opportunities/{opp_id}", status_code=204)
 def delete_opportunity(opp_id: str, request: Request, db: Session = Depends(get_db)):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
     if not service.delete_opportunity(tenant_id, UUID(opp_id)):
@@ -231,7 +231,7 @@ def list_activities(
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
 ):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
     lead_uuid = UUID(lead_id) if lead_id else None
@@ -249,7 +249,7 @@ def list_activities(
 
 @router.post("/activities", response_model=ActivityOut, status_code=201)
 def create_activity(data: ActivityCreate, request: Request, db: Session = Depends(get_db)):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     user_id = _get_user_id(request)
     service = CRMService(db)
 
@@ -260,7 +260,7 @@ def create_activity(data: ActivityCreate, request: Request, db: Session = Depend
 def update_activity(
     activity_id: str, data: ActivityUpdate, request: Request, db: Session = Depends(get_db)
 ):
-    tenant_id = _get_tenant_id(request, db)
+    tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
     activity = service.update_activity(tenant_id, UUID(activity_id), data)

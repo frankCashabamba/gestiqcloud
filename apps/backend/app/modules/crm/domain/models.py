@@ -119,6 +119,10 @@ class Opportunity(Base):
     expected_close_date: Mapped[datetime | None] = mapped_column(nullable=True)
     actual_close_date: Mapped[datetime | None] = mapped_column(nullable=True)
 
+    deposit_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    deposit_paid: Mapped[bool] = mapped_column(nullable=False, default=False)
+    payment_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )

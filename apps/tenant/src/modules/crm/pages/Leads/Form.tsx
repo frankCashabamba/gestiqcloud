@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import { createLead, getLead, updateLead, type Lead } from '../../services'
+import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { LeadStatus, LeadSource } from '../../types'
 
 export default function LeadForm() {
   const { id } = useParams()
   const nav = useNavigate()
-  const { t } = useTranslation('crm')
+  const { t } = useCrmLabels()
   const [form, setForm] = useState<Partial<Omit<Lead, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>>({
     name: '',
     email: '',

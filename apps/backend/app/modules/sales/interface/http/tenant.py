@@ -14,6 +14,7 @@ from app.core.authz import require_scope
 from app.core.dependencies import get_tenant_uuid
 from app.db.rls import ensure_rls
 from app.models.core.clients import Client
+from app.models.core.products import Product
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.sales.delivery import Delivery
 from app.models.sales.order import SalesOrder, SalesOrderItem
@@ -70,6 +71,16 @@ def _resolve_delivery_stock_item(
     return (rows[0] if rows else None), total_qty
 
 
+class OrderItemOut(BaseModel):
+    product_id: str
+    product_name: str | None = None
+    qty: float
+    unit_price: float
+    discount_pct: float = 0
+    tax_rate: float = 0
+    line_total: float = 0
+
+
 class OrderItemIn(BaseModel):
     product_id: str
     qty: float = Field(gt=0)
@@ -81,14 +92,21 @@ class OrderItemIn(BaseModel):
 class OrderCreateIn(BaseModel):
     customer_id: str | None = None
     currency: str | None = None
-    items: list[OrderItemIn]
+    notes: str | None = None
+    required_date: date | None = None
+    deposit_amount: float = 0
+    deposit_paid: bool = False
+    payment_method: str | None = None
+    items: list[OrderItemIn] = []
 
 
 class OrderOut(BaseModel):
     id: str
     number: str | None = None
     order_date: date | None = None
+    required_date: date | None = None
     created_at: str | None = None
+    updated_at: str | None = None
     status: str
     customer_id: str | None
     customer_name: str | None = None
@@ -97,8 +115,66 @@ class OrderOut(BaseModel):
     subtotal: float | None = None
     tax: float | None = None
     total: float | None = None
+    notes: str | None = None
+    deposit_amount: float = 0
+    deposit_paid: bool = False
+    payment_method: str | None = None
+    items: list[OrderItemOut] = []
 
     model_config = {"from_attributes": True}
+
+
+class OrderUpdateIn(BaseModel):
+    customer_id: str | None = None
+    currency: str | None = None
+    notes: str | None = None
+    required_date: date | None = None
+    deposit_amount: float | None = None
+    deposit_paid: bool | None = None
+    payment_method: str | None = None
+    status: str | None = None
+    items: list[OrderItemIn] | None = None
+
+
+def _order_out(o: SalesOrder, customer_name: str | None = None, db: Session | None = None) -> OrderOut:
+    items: list[OrderItemOut] = []
+    if db is not None:
+        rows = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == o.id).all()
+        for it in rows:
+            prod_name = None
+            if it.product_id:
+                prod = db.query(Product.name).filter(Product.id == it.product_id).scalar()
+                prod_name = prod
+            items.append(OrderItemOut(
+                product_id=str(it.product_id),
+                product_name=prod_name,
+                qty=float(it.qty or 0),
+                unit_price=float(it.unit_price or 0),
+                discount_pct=float(it.discount_percent or 0),
+                tax_rate=float(it.tax_rate or 0),
+                line_total=float(it.line_total or 0),
+            ))
+    return OrderOut(
+        id=str(o.id),
+        number=getattr(o, "number", None),
+        order_date=getattr(o, "order_date", None),
+        required_date=getattr(o, "required_date", None),
+        created_at=o.created_at.isoformat() if getattr(o, "created_at", None) else None,
+        updated_at=o.updated_at.isoformat() if getattr(o, "updated_at", None) else None,
+        status=o.status,
+        customer_id=str(o.customer_id) if o.customer_id else None,
+        customer_name=customer_name,
+        pos_receipt_id=str(o.pos_receipt_id) if getattr(o, "pos_receipt_id", None) else None,
+        currency=o.currency,
+        subtotal=float(o.subtotal or 0),
+        tax=float(o.tax or 0),
+        total=float(o.total or 0),
+        notes=getattr(o, "notes", None),
+        deposit_amount=float(getattr(o, "deposit_amount", 0) or 0),
+        deposit_paid=bool(getattr(o, "deposit_paid", False)),
+        payment_method=getattr(o, "payment_method", None),
+        items=items,
+    )
 
 
 @router.get("", response_model=list[OrderOut])
@@ -126,23 +202,36 @@ def list_orders(
 
     rows = query.order_by(SalesOrder.created_at.desc()).offset(offset).limit(limit).all()
 
-    return [
-        OrderOut(
-            id=str(o.id),
-            number=getattr(o, "number", None),
-            order_date=getattr(o, "order_date", None),
-            created_at=o.created_at.isoformat() if getattr(o, "created_at", None) else None,
-            status=o.status,
-            customer_id=str(o.customer_id) if o.customer_id else None,
-            customer_name=customer_name,
-            pos_receipt_id=str(o.pos_receipt_id) if getattr(o, "pos_receipt_id", None) else None,
-            currency=o.currency,
-            subtotal=float(o.subtotal or 0),
-            tax=float(o.tax or 0),
-            total=float(o.total or 0),
-        )
-        for (o, customer_name) in rows
-    ]
+    if not rows:
+        return []
+
+    # Cargar items en batch (evita N+1)
+    order_ids = [o.id for (o, _) in rows]
+    all_items = (
+        db.query(SalesOrderItem, Product.name)
+        .outerjoin(Product, Product.id == SalesOrderItem.product_id)
+        .filter(SalesOrderItem.order_id.in_(order_ids))
+        .all()
+    )
+    items_by_order: dict = {}
+    for it, prod_name in all_items:
+        oid = str(it.order_id)
+        items_by_order.setdefault(oid, []).append(OrderItemOut(
+            product_id=str(it.product_id),
+            product_name=prod_name,
+            qty=float(it.qty or 0),
+            unit_price=float(it.unit_price or 0),
+            discount_pct=float(it.discount_percent or 0),
+            tax_rate=float(it.tax_rate or 0),
+            line_total=float(it.line_total or 0),
+        ))
+
+    result = []
+    for o, customer_name in rows:
+        out = _order_out(o, customer_name)
+        out.items = items_by_order.get(str(o.id), [])
+        result.append(out)
+    return result
 
 
 @router.get("/{order_id}", response_model=OrderOut)
@@ -171,22 +260,7 @@ def get_order(
         raise HTTPException(status_code=404, detail="Orden no encontrada")
 
     order, customer_name = row
-    return OrderOut(
-        id=str(order.id),
-        number=getattr(order, "number", None),
-        order_date=getattr(order, "order_date", None),
-        created_at=order.created_at.isoformat() if getattr(order, "created_at", None) else None,
-        status=order.status,
-        customer_id=str(order.customer_id) if order.customer_id else None,
-        customer_name=customer_name,
-        pos_receipt_id=(
-            str(order.pos_receipt_id) if getattr(order, "pos_receipt_id", None) else None
-        ),
-        currency=order.currency,
-        subtotal=float(order.subtotal or 0),
-        tax=float(order.tax or 0),
-        total=float(order.total or 0),
-    )
+    return _order_out(order, customer_name, db=db)
 
 
 @router.post("", response_model=OrderOut, status_code=201)
@@ -202,6 +276,11 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
         tenant_id=tenant_uuid,
         number=f"SO-{str(tenant_uuid)[:8]}-{uuid4().hex[:6]}",
         order_date=date.today(),
+        notes=payload.notes,
+        required_date=payload.required_date,
+        deposit_amount=payload.deposit_amount,
+        deposit_paid=payload.deposit_paid,
+        payment_method=payload.payment_method,
     )
     db.add(so)
     db.flush()
@@ -259,24 +338,96 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
         logger = logging.getLogger(__name__)
         logger.error(f"Error triggering sales_order.created webhook: {e}")
 
-    return OrderOut(
-        id=str(so.id),
-        number=so.number,
-        order_date=so.order_date,
-        created_at=so.created_at.isoformat() if getattr(so, "created_at", None) else None,
-        status=so.status,
-        customer_id=str(so.customer_id) if so.customer_id else None,
-        customer_name=(
-            db.query(Client.name).filter(Client.id == so.customer_id).scalar()
-            if so.customer_id
-            else None
-        ),
-        pos_receipt_id=str(so.pos_receipt_id) if getattr(so, "pos_receipt_id", None) else None,
-        currency=so.currency,
-        subtotal=float(so.subtotal or 0),
-        tax=float(so.tax or 0),
-        total=float(so.total or 0),
+    customer_name = (
+        db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+        if so.customer_id else None
     )
+    return _order_out(so, customer_name)
+
+
+@router.put("/{order_id}", response_model=OrderOut)
+def update_order(
+    payload: OrderUpdateIn,
+    order_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    """Actualizar campos de una orden (notas, fecha entrega, anticipo, estado)"""
+    if request is None:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+    tenant_uuid = get_tenant_uuid(request)
+    try:
+        so_id = UUID(str(order_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+    so = (
+        db.query(SalesOrder)
+        .filter(SalesOrder.id == so_id, SalesOrder.tenant_id == tenant_uuid)
+        .first()
+    )
+    if not so:
+        raise HTTPException(status_code=404, detail="order_not_found")
+    # Ventas del POS bloqueadas excepto si son borrador (pendiente de cobro mayorista)
+    if getattr(so, "pos_receipt_id", None) is not None and so.status != "draft":
+        raise HTTPException(status_code=403, detail="pos_sale_readonly")
+    if payload.customer_id is not None:
+        so.customer_id = _uuid_or_none(payload.customer_id)
+    if payload.currency is not None:
+        so.currency = payload.currency
+    if payload.notes is not None:
+        so.notes = payload.notes
+    if payload.required_date is not None:
+        so.required_date = payload.required_date
+    if payload.deposit_amount is not None:
+        so.deposit_amount = payload.deposit_amount
+    if payload.deposit_paid is not None:
+        so.deposit_paid = payload.deposit_paid
+    if payload.payment_method is not None:
+        so.payment_method = payload.payment_method
+    if payload.status is not None:
+        allowed = {"draft", "confirmed", "cancelled"}
+        if payload.status not in allowed:
+            raise HTTPException(status_code=400, detail="invalid_status")
+        so.status = payload.status
+
+    # Actualizar líneas si se envían
+    if payload.items is not None:
+        db.query(SalesOrderItem).filter(SalesOrderItem.order_id == so_id).delete()
+        default_tax_rate = resolve_tenant_default_tax_rate(db, tenant_uuid)
+        subtotal = Decimal("0")
+        tax_total = Decimal("0")
+        for it in payload.items:
+            line_sub = _dec(it.qty, "0.01") * _dec(it.unit_price, "0.01")
+            discount_amount = line_sub * _dec(it.discount_pct, "0.01") / Decimal("100")
+            line_total = line_sub - discount_amount
+            line_tax_rate = normalize_tax_rate(it.tax_rate)
+            effective_tax_rate = line_tax_rate if line_tax_rate is not None else default_tax_rate
+            line_tax = line_total * effective_tax_rate
+            subtotal += line_total
+            tax_total += line_tax
+            db.add(SalesOrderItem(
+                order_id=so.id,
+                product_id=_uuid_or_none(it.product_id),
+                qty=it.qty,
+                unit_price=it.unit_price,
+                tax_rate=float(effective_tax_rate),
+                discount_percent=it.discount_pct,
+                line_total=float(line_total),
+            ))
+        so.subtotal = float(subtotal)
+        so.tax = float(tax_total)
+        so.total = float(subtotal + tax_total)
+
+    db.add(so)
+    db.commit()
+    db.refresh(so)
+    customer_name = (
+        db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+        if so.customer_id else None
+    )
+    return _order_out(so, customer_name, db=db)
 
 
 class ConfirmIn(BaseModel):
@@ -527,21 +678,8 @@ def cancel_order(
         logger = logging.getLogger(__name__)
         logger.error(f"Error triggering sales_order.cancelled webhook: {e}")
 
-    return OrderOut(
-        id=str(so.id),
-        number=so.number,
-        order_date=so.order_date,
-        created_at=so.created_at.isoformat() if getattr(so, "created_at", None) else None,
-        status=so.status,
-        customer_id=str(so.customer_id) if so.customer_id else None,
-        customer_name=(
-            db.query(Client.name).filter(Client.id == so.customer_id).scalar()
-            if so.customer_id
-            else None
-        ),
-        pos_receipt_id=str(so.pos_receipt_id) if getattr(so, "pos_receipt_id", None) else None,
-        currency=so.currency,
-        subtotal=float(so.subtotal or 0),
-        tax=float(so.tax or 0),
-        total=float(so.total or 0),
+    customer_name_c = (
+        db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+        if so.customer_id else None
     )
+    return _order_out(so, customer_name_c)

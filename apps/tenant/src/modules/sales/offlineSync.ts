@@ -8,8 +8,11 @@
  */
 
 import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
-import { storeEntity, listEntities, queueDeletion } from '@/lib/offlineStore'
+import { storeEntity, listEntities, queueDeletion, deleteEntity } from '@/lib/offlineStore'
 import { listVentas, getVenta, createVenta, updateVenta, removeVenta } from './services'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const TEMP_SALE_RE = /^sale-\d+-[a-z0-9]+$/
 
 export const SalesAdapter: SyncAdapter = {
   entity: 'sale',
@@ -72,6 +75,15 @@ export const SalesAdapter: SyncAdapter = {
 export function registerSalesSyncAdapter() {
   getSyncManager().registerAdapter(SalesAdapter)
   console.log('[offline] Sales sync adapter registered')
+  // Limpia entradas con IDs inválidos (ej. 'opportunities' por navegación errónea)
+  listEntities('sale').then(async (items) => {
+    for (const item of items) {
+      if (!UUID_RE.test(item.id) && !TEMP_SALE_RE.test(item.id)) {
+        await deleteEntity('sale', item.id)
+        console.warn(`[offline] Eliminada entrada inválida del store: sale:${item.id}`)
+      }
+    }
+  }).catch(() => {})
 }
 
 /**

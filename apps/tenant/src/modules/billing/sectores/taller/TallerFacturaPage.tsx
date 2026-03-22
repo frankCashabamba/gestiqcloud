@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createFactura } from '../../services'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
+import { getCompanySettings, getDefaultTaxRate } from '../../../../services/companySettings'
 
 type LineaTaller = {
   description: string
@@ -16,7 +17,7 @@ type LineaTaller = {
   tarifa?: number
 }
 
-const nuevaLinea = (): LineaTaller => ({ description: '', cantidad: 1, precio_unitario: 0, iva: 21, tipo: 'pieza' })
+const nuevaLinea = (ivaPct = 0): LineaTaller => ({ description: '', cantidad: 1, precio_unitario: 0, iva: ivaPct, tipo: 'pieza' })
 
 export default function TallerFacturaPage() {
   const { t } = useTranslation()
@@ -24,7 +25,19 @@ export default function TallerFacturaPage() {
   const { success, error } = useToast()
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0,10))
   const [estado, setEstado] = useState<'borrador'|'emitida'|'anulada'>('borrador')
+  const [defaultIvaPct, setDefaultIvaPct] = useState(0)
   const [lineas, setLineas] = useState<LineaTaller[]>([nuevaLinea()])
+
+  useEffect(() => {
+    getCompanySettings()
+      .then((settings) => {
+        const rate = getDefaultTaxRate(settings, 0)
+        const pct = Number.isFinite(rate) ? (rate < 1 ? rate * 100 : rate) : 0
+        setDefaultIvaPct(pct)
+        setLineas((prev) => prev.map((l) => ({ ...l, iva: pct })))
+      })
+      .catch(() => {})
+  }, [])
 
   const totals = useMemo(() => {
     let subtotal = 0
@@ -38,7 +51,7 @@ export default function TallerFacturaPage() {
   }, [lineas])
 
   const update = (i: number, next: Partial<LineaTaller>) => setLineas(prev => prev.map((l, idx)=> idx===i ? { ...l, ...next } : l))
-  const add = () => setLineas(prev => [...prev, nuevaLinea()])
+  const add = () => setLineas(prev => [...prev, nuevaLinea(defaultIvaPct)])
   const remove = (i: number) => setLineas(prev => prev.filter((_,idx)=> idx!==i))
 
   const onSubmit: React.FormEventHandler = async (e) => {

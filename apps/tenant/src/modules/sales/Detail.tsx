@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getVenta, removeVenta, type Venta } from './services'
+import { getVenta, removeVenta, isPosReadOnly, checkoutOrder, type Venta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import StatusBadge from './components/StatusBadge'
 
 export default function VentaDetail() {
-    const { id } = useParams()
+    const { id, empresa } = useParams<{ id: string; empresa: string }>()
     const nav = useNavigate()
     const { t } = useTranslation()
     const [venta, setVenta] = useState<Venta | null>(null)
     const [loading, setLoading] = useState(true)
+    const [checkingOut, setCheckingOut] = useState(false)
     const { success, error } = useToast()
 
     useEffect(() => {
@@ -29,9 +30,22 @@ export default function VentaDetail() {
         }
     }
 
-    const handleConvertToInvoice = () => {
-        // Navegar a facturación con pre-fill de datos
-        nav(`/invoicing/new?from_sale=${id}`)
+    const handleCheckout = async () => {
+        if (!id) return
+        setCheckingOut(true)
+        try {
+            const result = await checkoutOrder(id)
+            success(result.message)
+            if (result.expense_note) {
+                error(`Sin gasto de producción: ${result.expense_note}`)
+            }
+            // Recargar para reflejar estado 'invoiced'
+            getVenta(id).then(setVenta).catch(() => {})
+        } catch (e: any) {
+            error(getErrorMessage(e))
+        } finally {
+            setCheckingOut(false)
+        }
     }
 
     if (loading) return <div className="p-4">{t('common.loading')}</div>
@@ -62,7 +76,7 @@ export default function VentaDetail() {
                     </div>
                     <div>
                         <label className="text-gray-600">{t('sales.customer')}:</label>
-                        <p className="font-medium">{venta.cliente_nombre || `ID: ${venta.cliente_id}` || t('common.noRecords')}</p>
+                        <p className="font-medium">{venta.cliente_nombre || (venta.cliente_id ? `ID: ${venta.cliente_id}` : '—')}</p>
                     </div>
                     <div>
                         <label className="text-gray-600">{t('common.status')}:</label>
@@ -70,7 +84,7 @@ export default function VentaDetail() {
                     </div>
                     {venta.notas && (
                         <div className="col-span-2">
-                            <label className="text-gray-600">{t('billing.fields.notes')}:</label>
+                            <label className="text-gray-600">{t('common.notes')}:</label>
                             <p className="font-medium">{venta.notas}</p>
                         </div>
                     )}
@@ -133,28 +147,33 @@ export default function VentaDetail() {
             <div className="bg-white border rounded-lg p-4">
                 <h3 className="font-semibold mb-3 text-lg">{t('common.actions')}</h3>
                 <div className="flex gap-3 flex-wrap">
-                    <Link
-                        to={`../${venta.id}/editar`}
-                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                        {t('common.edit')}
-                    </Link>
-
-                    {venta.estado === 'borrador' && (
-                        <button
-                            onClick={handleConvertToInvoice}
-                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                    {!isPosReadOnly(venta) && (
+                        <Link
+                            to={`../${venta.id}/edit`}
+                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                         >
-                            {t('sales.invoice')}
+                            {t('common.edit')}
+                        </Link>
+                    )}
+
+                    {!['anulada', 'facturada'].includes(venta.estado ?? '') && venta.estado !== 'invoiced' && (
+                        <button
+                            onClick={handleCheckout}
+                            disabled={checkingOut}
+                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                        >
+                            {checkingOut ? t('common.loading') : t('sales.invoice')}
                         </button>
                     )}
 
-                    <button
-                        onClick={handleDelete}
-                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-                    >
-                        {t('common.delete')}
-                    </button>
+                    {!isPosReadOnly(venta) && (
+                        <button
+                            onClick={handleDelete}
+                            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                        >
+                            {t('common.delete')}
+                        </button>
+                    )}
 
                     <button
                         onClick={() => window.print()}

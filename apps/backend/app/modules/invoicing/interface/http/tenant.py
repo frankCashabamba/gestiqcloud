@@ -389,7 +389,7 @@ def obtener_factura_por_id(
                 "description": ln.get("name", ""),
                 "cantidad": float(ln.get("qty", 0) or 0),
                 "precio_unitario": float(ln.get("unitPrice", 0) or 0),
-                "iva": float(sum(t.get("amount", 0) for t in (ln.get("taxLines") or []))),
+                "iva": sum(float(t.get("amount", 0) or 0) for t in (ln.get("taxLines") or [])),
             }
             for ln in lines_raw
         ]

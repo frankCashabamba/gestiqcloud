@@ -111,6 +111,13 @@ class DocumentConverter:
         self.db.add(invoice)
         self.db.flush()
 
+        from app.models.core.products import Product as _Product
+        _prod_ids = [it.product_id for it in items if it.product_id]
+        _prod_names: dict = {}
+        if _prod_ids:
+            _rows = self.db.query(_Product.id, _Product.name).filter(_Product.id.in_(_prod_ids)).all()
+            _prod_names = {str(r.id): r.name for r in _rows}
+
         for item in items:
             line_subtotal = Decimal(str(item.qty)) * Decimal(str(item.unit_price))
             line_rate_raw = item.tax_rate if item.tax_rate is not None else iva_default
@@ -119,11 +126,11 @@ class DocumentConverter:
             self.db.add(
                 LineaFactura(
                     factura_id=invoice.id,
-                    sector="general",
-                    descripcion=f"Producto {item.product_id}",
-                    cantidad=item.qty,
-                    precio_unitario=item.unit_price,
-                    iva=float(line_iva),
+                    sector="base",
+                    description=_prod_names.get(str(item.product_id)) or str(item.product_id),
+                    quantity=item.qty,
+                    unit_price=item.unit_price,
+                    vat=float(line_iva),
                 )
             )
 

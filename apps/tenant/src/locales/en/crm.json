@@ -134,6 +134,17 @@
     "deleteBtn": "Delete",
     "deleteConfirm": "Delete opportunity?",
     "deleted": "Opportunity deleted",
-    "empty": "No records"
+    "empty": "No records",
+    "pendingTitle": "Pending opportunities",
+    "depositSection": "Deposit",
+    "depositAmount": "Deposit amount",
+    "depositPaid": "Deposit paid",
+    "balanceRemaining": "Balance remaining",
+    "paymentMethod": "Payment method",
+    "paymentMethodNone": "No deposit",
+    "paymentCash": "Cash",
+    "paymentTransfer": "Bank transfer",
+    "paymentCard": "Card",
+    "paymentWhatsapp": "WhatsApp payment"
   }
 }

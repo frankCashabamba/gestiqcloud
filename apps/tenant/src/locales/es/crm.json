@@ -134,6 +134,17 @@
     "deleteBtn": "Eliminar",
     "deleteConfirm": "¿Eliminar oportunidad?",
     "deleted": "Oportunidad eliminada",
-    "empty": "Sin registros"
+    "empty": "Sin registros",
+    "pendingTitle": "Oportunidades pendientes",
+    "depositSection": "Anticipo",
+    "depositAmount": "Anticipo",
+    "depositPaid": "Anticipo cobrado",
+    "balanceRemaining": "Saldo pendiente",
+    "paymentMethod": "Método de pago",
+    "paymentMethodNone": "Sin anticipo",
+    "paymentCash": "Efectivo",
+    "paymentTransfer": "Transferencia",
+    "paymentCard": "Tarjeta",
+    "paymentWhatsapp": "Pago WhatsApp"
   }
 }

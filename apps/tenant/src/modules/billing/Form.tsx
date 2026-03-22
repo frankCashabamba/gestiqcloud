@@ -8,6 +8,7 @@ import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
 import { useCurrency } from '../../hooks/useCurrency'
+import { getCompanySettings, getDefaultTaxRate } from '../../services/companySettings'
 
 interface FormT {
   numero?: string
@@ -45,7 +46,7 @@ export default function FacturaForm() {
     descripcion: '',
     lineas: [{ cantidad: 1, precio_unitario: 0, total: 0, description: '' }],
     subtotal: 0,
-    iva_porcentaje: 21,
+    iva_porcentaje: 0,
     iva: 0,
     total: 0,
     estado: 'draft',
@@ -53,6 +54,18 @@ export default function FacturaForm() {
   })
   const [loading, setLoading] = useState(false)
   const isLocked = form.estado !== 'draft' && form.estado !== 'borrador'
+
+  useEffect(() => {
+    if (!id) {
+      getCompanySettings()
+        .then((settings) => {
+          const rate = getDefaultTaxRate(settings, 0)
+          const pct = Number.isFinite(rate) ? (rate < 1 ? rate * 100 : rate) : 0
+          setForm((prev) => ({ ...prev, iva_porcentaje: pct }))
+        })
+        .catch(() => {})
+    }
+  }, [id])
 
   useEffect(() => {
     if (id) {
@@ -71,7 +84,7 @@ export default function FacturaForm() {
             descripcion: x?.descripcion || '',
             lineas: x?.lineas || [{ cantidad: 1, precio_unitario: 0, total: 0, description: '' }],
             subtotal: Number(x?.subtotal || 0),
-            iva_porcentaje: x?.iva_porcentaje || 21,
+            iva_porcentaje: x?.iva_porcentaje ?? 0,
             iva: Number(x?.iva || 0),
             total: Number(x?.total || 0),
             estado: x?.estado || 'draft',

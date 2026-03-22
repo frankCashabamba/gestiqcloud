@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createVenta, getVenta, updateVenta, type Venta as V, type VentaLinea } from './services'
+import { createVenta, getVenta, updateVenta, isPosReadOnly, type Venta as V, type VentaLinea } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useTranslation } from 'react-i18next'
 import { usePermission } from '../../hooks/usePermission'
+import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
+import ProductLineRow from './components/ProductLineRow'
+import RecipePicker from './components/RecipePicker'
+import CustomerSelector from './components/CustomerSelector'
+
+const SPECIAL_ORDER_SECTORS = new Set(['panaderia', 'panaderia_pro', 'taller', 'taller_pro'])
 
 type FormT = Omit<V, 'id' | 'cliente_nombre'>
 
@@ -14,6 +20,9 @@ export default function VentaForm() {
     const nav = useNavigate()
     const { t } = useTranslation()
     const can = usePermission()
+    const { config } = useCompanyConfig()
+    const sector = config?.sector?.plantilla || ''
+    const isSpecialOrder = SPECIAL_ORDER_SECTORS.has(sector)
     const requiredPerm = id ? 'sales:update' : 'sales:create'
     const [form, setForm] = useState<FormT>({
         numero: '',
@@ -25,7 +34,14 @@ export default function VentaForm() {
         estado: 'borrador',
         notas: ''
     })
+    const [deliveryDate, setDeliveryDate] = useState('')
+    const [depositAmount, setDepositAmount] = useState(0)
+    const [depositPaid, setDepositPaid] = useState(false)
+    const [paymentMethod, setPaymentMethod] = useState('')
     const [lineas, setLineas] = useState<VentaLinea[]>([])
+    const [showPicker, setShowPicker] = useState(false)
+    const [clienteName, setClienteName] = useState('')
+    const [posReadOnly, setPosReadOnly] = useState(false)
     const { success, error } = useToast()
     const [loading, setLoading] = useState(false)
 
@@ -45,6 +61,12 @@ export default function VentaForm() {
                         notas: x.notas || ''
                     })
                     if (x.lineas) setLineas(x.lineas)
+                    if (x.cliente_nombre) setClienteName(x.cliente_nombre)
+                    setPosReadOnly(isPosReadOnly(x))
+                    if (x.delivery_date) setDeliveryDate(x.delivery_date)
+                    if (x.deposit_amount) setDepositAmount(x.deposit_amount)
+                    setDepositPaid(x.deposit_paid ?? false)
+                    setPaymentMethod(x.payment_method ?? '')
                 })
                 .finally(() => setLoading(false))
         }
@@ -60,25 +82,47 @@ export default function VentaForm() {
         setForm(prev => ({ ...prev, subtotal, impuesto, total }))
     }, [lineas])
 
-    const addLinea = () => {
-        setLineas([...lineas, {
-            producto_id: '',
-            producto_nombre: '',
-            cantidad: 1,
-            precio_unitario: 0,
-            impuesto_tasa: 21,
-            descuento: 0
-        }])
+    const addLinea = (linea?: Partial<VentaLinea>) => {
+        const pid = linea?.producto_id
+        if (pid) {
+            setLineas(prev => {
+                const idx = prev.findIndex(l => String(l.producto_id) === String(pid))
+                if (idx !== -1) {
+                    const updated = [...prev]
+                    updated[idx] = { ...updated[idx], cantidad: updated[idx].cantidad + (linea?.cantidad ?? 1) }
+                    return updated
+                }
+                return [...prev, {
+                    producto_id: pid,
+                    producto_nombre: linea?.producto_nombre ?? '',
+                    cantidad: linea?.cantidad ?? 1,
+                    precio_unitario: linea?.precio_unitario ?? 0,
+                    impuesto_tasa: linea?.impuesto_tasa ?? 0,
+                    descuento: linea?.descuento ?? 0,
+                }]
+            })
+        } else {
+            setLineas(prev => [...prev, {
+                producto_id: '',
+                producto_nombre: '',
+                cantidad: 1,
+                precio_unitario: 0,
+                impuesto_tasa: 0,
+                descuento: 0,
+            }])
+        }
     }
 
     const updateLinea = (idx: number, field: keyof VentaLinea, value: any) => {
-        const updated = [...lineas]
-        updated[idx] = { ...updated[idx], [field]: value }
-        setLineas(updated)
+        setLineas(prev => {
+            const updated = [...prev]
+            updated[idx] = { ...updated[idx], [field]: value }
+            return updated
+        })
     }
 
     const removeLinea = (idx: number) => {
-        setLineas(lineas.filter((_, i) => i !== idx))
+        setLineas(prev => prev.filter((_, i) => i !== idx))
     }
 
     const onSubmit: React.FormEventHandler = async (e) => {
@@ -87,7 +131,13 @@ export default function VentaForm() {
             if (!form.fecha) throw new Error(t('sales.errors.dateRequired'))
             if (form.total < 0) throw new Error(t('sales.errors.totalNonNegative'))
 
-            const payload = { ...form, lineas }
+            const payload: any = { ...form, lineas }
+            if (isSpecialOrder) {
+                payload.delivery_date = deliveryDate || undefined
+                payload.deposit_amount = depositAmount
+                payload.deposit_paid = depositPaid
+                payload.payment_method = paymentMethod || undefined
+            }
 
             if (id) await updateVenta(id, payload)
             else await createVenta(payload)
@@ -105,9 +155,21 @@ export default function VentaForm() {
 
     if (loading) return <div className="p-4">{t('common.loading')}</div>
 
+    if (posReadOnly) {
+        return (
+            <div className="p-4">
+                <button className="mb-3 underline text-sm" onClick={() => nav('..')}>← {t('common.back')}</button>
+                <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-amber-800">
+                    <p className="font-semibold mb-1">🔒 Venta del TPV — solo lectura</p>
+                    <p className="text-sm">Esta venta fue generada desde el punto de venta y no se puede editar. Solo las ventas en borrador (pendiente de cobro) pueden modificarse.</p>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="p-4">
-            <button className="mb-3 underline text-sm" onClick={() => nav('..')}>? {t('common.back')}</button>
+            <button className="mb-3 underline text-sm" onClick={() => nav('..')}>← {t('common.back')}</button>
             <h3 className="text-xl font-semibold mb-3">{id ? t('sales.editSale') : t('sales.newSale')}</h3>
 
             <form onSubmit={onSubmit} className="space-y-4 max-w-4xl">
@@ -135,15 +197,15 @@ export default function VentaForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="gc-label">{t('sales.customerId')}</label>
-                        <input
-                            type="number"
-                            value={form.cliente_id ?? ''}
-                            onChange={(e) => setForm({ ...form, cliente_id: e.target.value ? Number(e.target.value) : undefined })}
-                            className="gc-input"
-                            placeholder={t('common.optional')}
+                        <label className="gc-label">Cliente</label>
+                        <CustomerSelector
+                            value={form.cliente_id}
+                            clienteName={clienteName}
+                            onChange={(id, name) => {
+                                setForm(prev => ({ ...prev, cliente_id: id }))
+                                setClienteName(name)
+                            }}
                         />
-                        <small className="text-slate-500">{t('sales.integrateCustomerSelector')}</small>
                     </div>
                     <div>
                         <label className="gc-label">{t('common.status')}</label>
@@ -170,94 +232,104 @@ export default function VentaForm() {
                     />
                 </div>
 
+                {isSpecialOrder && (
+                    <div className="border rounded-lg p-4 bg-amber-50 border-amber-200">
+                        <h4 className="font-semibold mb-3 text-amber-800">
+                            {sector.startsWith('taller') ? '🔧 Datos del trabajo' : '🎂 Datos del pedido'}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="gc-label">
+                                    {sector.startsWith('taller') ? 'Fecha de entrega estimada' : 'Fecha del evento / entrega'}
+                                </label>
+                                <input
+                                    type="date"
+                                    value={deliveryDate}
+                                    onChange={(e) => setDeliveryDate(e.target.value)}
+                                    className="gc-input"
+                                />
+                            </div>
+                            <div>
+                                <label className="gc-label">Anticipo recibido</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={depositAmount}
+                                    onChange={(e) => setDepositAmount(Number(e.target.value))}
+                                    className="gc-input"
+                                />
+                            </div>
+                            <div>
+                                <label className="gc-label">Método de pago del anticipo</label>
+                                <select
+                                    value={paymentMethod}
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    className="gc-input"
+                                >
+                                    <option value="">Sin anticipo</option>
+                                    <option value="efectivo">Efectivo</option>
+                                    <option value="transferencia">Transferencia</option>
+                                    <option value="tarjeta">Tarjeta</option>
+                                    <option value="whatsapp">Pago WhatsApp</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-2 pt-6">
+                                <input
+                                    id="deposit-paid"
+                                    type="checkbox"
+                                    checked={depositPaid}
+                                    onChange={(e) => setDepositPaid(e.target.checked)}
+                                    className="w-4 h-4"
+                                />
+                                <label htmlFor="deposit-paid" className="cursor-pointer text-sm font-medium">
+                                    Anticipo cobrado ✓
+                                </label>
+                            </div>
+                        </div>
+                        {(form.total ?? 0) > 0 && depositAmount > 0 && (
+                            <p className="mt-3 text-sm font-medium text-amber-700">
+                                Saldo pendiente: ${((form.total ?? 0) - depositAmount).toFixed(2)}
+                            </p>
+                        )}
+                    </div>
+                )}
+
                 <div className="border-t pt-4">
                     <div className="flex justify-between items-center mb-3">
                         <h4 className="font-semibold">{t('sales.lines')}</h4>
-                        {can(requiredPerm) && (
+                        {can(requiredPerm) && !showPicker && (
                             <ProtectedButton
                                 permission={requiredPerm}
                                 type="button"
                                 variant="primary"
-                                onClick={addLinea}
+                                onClick={() => setShowPicker(true)}
                             >
                                 + {t('sales.addLine')}
                             </ProtectedButton>
                         )}
                     </div>
 
-                    {lineas.length === 0 && (
+                    {showPicker && (
+                        <RecipePicker
+                            currentLines={lineas}
+                            onAdd={(l) => addLinea(l)}
+                            onClose={() => setShowPicker(false)}
+                        />
+                    )}
+
+                    {lineas.length === 0 && !showPicker && (
                         <p className="text-sm text-slate-500">{t('sales.noLines')}</p>
                     )}
 
                     {lineas.map((linea, idx) => (
-                        <div key={idx} className="border rounded p-3 mb-3 bg-slate-50">
-                            <div className="grid grid-cols-5 gap-2 mb-2">
-                                <div>
-                                    <label className="text-xs">{t('sales.fields.productId')}</label>
-                                    <input
-                                        value={linea.producto_id}
-                                        onChange={(e) => updateLinea(idx, 'producto_id', e.target.value)}
-                                        className="gc-input"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs">{t('common.quantity')}</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={linea.cantidad}
-                                        onChange={(e) => updateLinea(idx, 'cantidad', Number(e.target.value))}
-                                        className="gc-input"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs">{t('sales.fields.unitPrice')}</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={linea.precio_unitario}
-                                        onChange={(e) => updateLinea(idx, 'precio_unitario', Number(e.target.value))}
-                                        className="gc-input"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs">{t('sales.fields.taxPercent')}</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={linea.impuesto_tasa || 0}
-                                        onChange={(e) => updateLinea(idx, 'impuesto_tasa', Number(e.target.value))}
-                                        className="gc-input"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs">{t('sales.fields.discountPercent')}</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={linea.descuento || 0}
-                                        onChange={(e) => updateLinea(idx, 'descuento', Number(e.target.value))}
-                                        className="gc-input"
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm">
-                                    {t('sales.lineTotal')}: <strong>${((linea.cantidad * linea.precio_unitario * (1 - (linea.descuento || 0) / 100)) + (linea.cantidad * linea.precio_unitario * (1 - (linea.descuento || 0) / 100) * (linea.impuesto_tasa || 0) / 100)).toFixed(2)}</strong>
-                                </span>
-                                {can(requiredPerm) && (
-                                    <ProtectedButton
-                                        permission={requiredPerm}
-                                        type="button"
-                                        variant="ghost"
-                                        onClick={() => removeLinea(idx)}
-                                        className="text-red-700 text-sm hover:underline"
-                                    >
-                                        {t('common.delete')}
-                                    </ProtectedButton>
-                                )}
-                            </div>
-                        </div>
+                        <ProductLineRow
+                            key={idx}
+                            idx={idx}
+                            linea={linea}
+                            onUpdate={updateLinea}
+                            onRemove={removeLinea}
+                        />
                     ))}
                 </div>
 

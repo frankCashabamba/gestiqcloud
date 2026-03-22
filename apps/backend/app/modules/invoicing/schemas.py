@@ -94,15 +94,15 @@ class ClienteSchema(BaseModel):
 class InvoiceCreate(BaseModel):
     """Class InvoiceCreate - auto-generated docstring."""
 
-    numero: str
+    numero: str | None = None
     supplier: str | None = None
-    fecha_emision: str
-    estado: str
-    subtotal: float
-    iva: float
-    total: float
-    cliente_id: str
-    lineas: list[LineaFacturaIn]
+    fecha_emision: str | None = None
+    estado: str = "emitida"
+    subtotal: float = 0
+    iva: float = 0
+    total: float = 0
+    cliente_id: str | None = None
+    lineas: list[LineaFacturaIn] = []
     model_config = ConfigDict(from_attributes=True)
 
 

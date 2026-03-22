@@ -70,6 +70,9 @@ export type Opportunity = {
   actual_close_date?: string
   assigned_to?: string
   cliente_id?: string
+  deposit_amount?: number
+  deposit_paid?: boolean
+  payment_method?: string
   created_at: string
   updated_at?: string
 }

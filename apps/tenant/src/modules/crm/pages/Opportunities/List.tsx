@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listOpportunities, deleteOpportunity, type Opportunity } from '../../services'
+import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { usePagination, Pagination } from '../../../../shared/pagination'
 import { OpportunityStage } from '../../types'
@@ -12,8 +12,16 @@ export default function OpportunitiesList() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  const { t } = useTranslation('crm')
+  const { t } = useCrmLabels()
   const [q, setQ] = useState('')
+  const [searchParams] = useSearchParams()
+  const pendingOnly = searchParams.get('pending') === '1'
+  const PENDING_STAGES = new Set([
+    OpportunityStage.PROSPECTING,
+    OpportunityStage.QUALIFICATION,
+    OpportunityStage.PROPOSAL,
+    OpportunityStage.NEGOTIATION,
+  ])
   const [stageFilter, setStageFilter] = useState<string>('')
   const [assignedFilter, setAssignedFilter] = useState<string>('')
 
@@ -30,10 +38,10 @@ export default function OpportunitiesList() {
   const [per, setPer] = useState(10)
   const filtered = useMemo(() => items.filter(c => {
     const matchSearch = (c.name||'').toLowerCase().includes(q.toLowerCase())
-    const matchStage = !stageFilter || c.stage === stageFilter
+    const matchStage = !stageFilter ? (!pendingOnly || PENDING_STAGES.has(c.stage as OpportunityStage)) : c.stage === stageFilter
     const matchAssigned = !assignedFilter || c.assigned_to === assignedFilter
     return matchSearch && matchStage && matchAssigned
-  }), [items,q,stageFilter,assignedFilter])
+  }), [items, q, stageFilter, assignedFilter, pendingOnly])
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...filtered].sort((a,b) => {
@@ -48,8 +56,10 @@ export default function OpportunitiesList() {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-3">
-        <h2 className="font-semibold text-lg">{t('opportunities.title')}</h2>
-        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>{t('opportunities.newButton')}</button>
+        <h2 className="font-semibold text-lg">
+          {pendingOnly ? t('opportunities.pendingTitle') : t('opportunities.title')}
+        </h2>
+        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('new')}>{t('opportunities.newButton')}</button>
       </div>
       <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder={t('opportunities.searchPlaceholder')} className="mb-3 w-full px-3 py-2 border rounded text-sm" />
       <div className="flex gap-3 mb-3">
@@ -88,6 +98,7 @@ export default function OpportunitiesList() {
             <th>{t('opportunities.probability')}</th>
             <th><button className="underline" onClick={()=> { setSortKey('stage'); setSortDir(d=> d==='asc'?'desc':'asc') }}>{t('opportunities.stage')} {sortKey==='stage' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
             <th><button className="underline" onClick={()=> { setSortKey('expected_close_date'); setSortDir(d=> d==='asc'?'desc':'asc') }}>{t('opportunities.closeDate')} {sortKey==='expected_close_date' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
+            <th>{t('opportunities.depositAmount')}</th>
             <th>{t('opportunities.assignedTo')}</th>
             <th>{t('opportunities.actions')}</th>
           </tr>
@@ -100,9 +111,16 @@ export default function OpportunitiesList() {
               <td>{c.probability ?? '-'}%</td>
               <td>{c.stage}</td>
               <td>{c.expected_close_date || '-'}</td>
+              <td>
+                {(c.deposit_amount ?? 0) > 0
+                  ? <span className={(c.deposit_paid ? 'text-green-700' : 'text-amber-600') + ' text-xs font-medium'}>
+                      {c.deposit_paid ? '✓ ' : '⏳ '}{Number(c.deposit_amount).toFixed(2)}
+                    </span>
+                  : '-'}
+              </td>
               <td>{c.assigned_to || '-'}</td>
               <td>
-                <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('opportunities.editBtn')}</Link>
+                <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('opportunities.editBtn')}</Link>
                 <button className="text-red-700" onClick={async () => { if (!confirm(t('opportunities.deleteConfirm'))) return; try { await deleteOpportunity(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success(t('opportunities.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('opportunities.deleteBtn')}</button>
               </td>
             </tr>

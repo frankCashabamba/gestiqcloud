@@ -175,7 +175,7 @@
       {id:12, sku:'EMP', name:'Empanada', price:2.00, cat:'Salado'},
       {id:101, sku:'COM1', name:'Combo Café + Croissant', price:2.20, cat:'Combos', tags:['ahorro']}
     ];
-    const TAX = 0.10;
+    const TAX = Number(window.__TENANT_TAX_RATE__) || 0;
     const CURRENCY_SYMBOLS = { USD:'$', EUR:'€', COP:'$', PEN:'S/', MXN:'$' };
     function currencySymbol() {
       const cur = (window.__TENANT_CURRENCY__ || '').toString().trim().toUpperCase();
@@ -525,12 +525,14 @@
         if (res.ok) {
           const data = await res.json();
           const cur = (data.currency || '').toString().trim().toUpperCase();
+          const taxRate = data.pos_config?.tax?.default_rate ?? data.settings?.iva_tasa_defecto ?? 0;
+          window.__TENANT_TAX_RATE__ = Number(taxRate) || 0;
           if (cur) {
             window.__TENANT_CURRENCY__ = cur;
-            renderCart();
-            renderPayArea();
-            renderCatalog(catalog);
           }
+          renderCart();
+          renderPayArea();
+          renderCatalog(catalog);
         }
       } catch (e) {
         console.warn('[TPV] No se pudo cargar la moneda del tenant:', e);

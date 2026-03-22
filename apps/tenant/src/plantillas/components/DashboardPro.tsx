@@ -6,6 +6,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMisModulos } from '../../hooks/useMisModulos'
 import { fetchCompanyTheme, type ThemeResponse } from '../../services/theme'
+import tenantApi from '../../shared/api/client'
 
 interface DashboardProProps {
   sectorName: string
@@ -107,6 +108,8 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   const { empresa } = useParams()
   const [_theme, setTheme] = useState<ThemeResponse | null>(null)
   const [darkMode, setDarkMode] = useState(darkModeDefault)
+  const [branches, setBranches] = useState<Array<{ id: string; name: string; is_main: boolean }>>([])
+  const [selectedBranch, setSelectedBranch] = useState<string>('')
   const { modules, loading: modulosLoading } = useMisModulos()
   const [isMobileView, setIsMobileView] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
@@ -156,6 +159,18 @@ const DashboardPro: React.FC<DashboardProProps> = ({
     }
     loadTheme()
   }, [empresa])
+
+  useEffect(() => {
+    tenantApi.get('/api/v1/tenant/branches')
+      .then(r => {
+        const data: Array<{ id: string; name: string; is_main: boolean }> = r.data
+        setBranches(data)
+        const main = data.find(b => b.is_main)
+        if (main) setSelectedBranch(main.id)
+        else if (data.length > 0) setSelectedBranch(data[0].id)
+      })
+      .catch(() => { /* silencioso: no bloquear el dashboard */ })
+  }, [])
 
   useEffect(() => {
     const handleResize = () => setIsMobileView(window.innerWidth <= 1024)
@@ -286,11 +301,17 @@ const DashboardPro: React.FC<DashboardProProps> = ({
         </div>
 
         <div className="topbar-right">
-          <select aria-label="Seleccionar sucursal">
-            <option>{t('dashboardPro.stores.main')}</option>
-            <option>{t('dashboardPro.stores.branch', { n: 1 })}</option>
-            <option>{t('dashboardPro.stores.branch', { n: 2 })}</option>
-          </select>
+          {branches.length > 0 && (
+            <select
+              aria-label="Seleccionar sucursal"
+              value={selectedBranch}
+              onChange={e => setSelectedBranch(e.target.value)}
+            >
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
 
           {/* Menú de usuario — configuración, tema */}
           <div className="user-menu" ref={userMenuRef}>

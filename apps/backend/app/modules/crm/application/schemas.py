@@ -70,6 +70,9 @@ class OpportunityBase(BaseModel):
     expected_close_date: datetime | None = None
     assigned_to: UUID | None = None
     custom_fields: dict | None = None
+    deposit_amount: float = Field(default=0, ge=0)
+    deposit_paid: bool = False
+    payment_method: str | None = Field(default=None, max_length=50)
 
 
 class OpportunityCreate(OpportunityBase):
@@ -90,6 +93,9 @@ class OpportunityUpdate(BaseModel):
     assigned_to: UUID | None = None
     lost_reason: str | None = None
     custom_fields: dict | None = None
+    deposit_amount: float | None = Field(None, ge=0)
+    deposit_paid: bool | None = None
+    payment_method: str | None = Field(None, max_length=50)
 
 
 class OpportunityOut(OpportunityBase):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func, text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,6 +34,9 @@ class SalesOrder(Base):
     currency: Mapped[str | None] = mapped_column(String(3))
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deposit_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    deposit_paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    payment_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

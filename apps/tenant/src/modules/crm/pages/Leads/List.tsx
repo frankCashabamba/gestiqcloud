@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import { listLeads, deleteLead, convertLead, type Lead } from '../../services'
+import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { usePagination, Pagination } from '../../../../shared/pagination'
 import { LeadStatus, LeadSource } from '../../types'
@@ -12,7 +12,7 @@ export default function LeadsList() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  const { t } = useTranslation('crm')
+  const { t } = useCrmLabels()
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [sourceFilter, setSourceFilter] = useState<string>('')
@@ -58,7 +58,7 @@ export default function LeadsList() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">{t('leads.title')}</h2>
-        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>{t('leads.newLead')}</button>
+        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('new')}>{t('leads.newLead')}</button>
       </div>
       <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder={t('leads.searchPlaceholder')} className="mb-3 w-full px-3 py-2 border rounded text-sm" />
       <div className="flex gap-3 mb-3">
@@ -113,7 +113,7 @@ export default function LeadsList() {
               <td>{c.status}</td>
               <td>{c.assigned_to || '-'}</td>
               <td>
-                <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('leads.edit')}</Link>
+                <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('leads.edit')}</Link>
                 <button className="text-green-700 mr-3" onClick={() => handleConvert(c.id)}>{t('leads.convert')}</button>
                 <button className="text-red-700" onClick={async () => { if (!confirm(t('leads.deleteConfirm'))) return; try { await deleteLead(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success(t('leads.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('leads.deleteBtn')}</button>
               </td>
