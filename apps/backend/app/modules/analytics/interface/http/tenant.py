@@ -241,9 +241,10 @@ def _sector_kpis_payload(
         ).first()
 
         # PEDIDOS EN BORRADOR CON PRODUCTOS QUE TIENEN RECETA (pendientes de producir)
-        pedidos_con_receta = db.execute(
-            text(
-                f"""
+        pedidos_con_receta = (
+            db.execute(
+                text(
+                    f"""
             SELECT COUNT(DISTINCT so.id)
             FROM sales_orders so
             JOIN sales_order_items soi ON soi.order_id = so.id
@@ -254,9 +255,11 @@ def _sector_kpis_payload(
                   WHERE r.product_id = soi.product_id
               )
         """
-            ),
-            tenant_params(),
-        ).scalar() or 0
+                ),
+                tenant_params(),
+            ).scalar()
+            or 0
+        )
 
         # TOP PRODUCTS (best sellers of the month)
         top_products = db.execute(

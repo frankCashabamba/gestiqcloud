@@ -316,9 +316,9 @@ def get_shift_summary(
         payments_breakdown = {row[0]: float(row[1] or 0) for row in payments_breakdown_rows}
 
         shift_opening = db.execute(
-            text(
-                "SELECT opening_float FROM pos_shifts WHERE id = :sid"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            text("SELECT opening_float FROM pos_shifts WHERE id = :sid").bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True))
+            ),
             {"sid": shift_uuid},
         ).scalar()
         opening_float_val = float(shift_opening or 0)
