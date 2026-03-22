@@ -213,5 +213,10 @@
     "logout": "Log out",
     "copyright": "GestiqCloud {{year}}. All rights reserved.",
     "tagline": "ERP | CRM | Modular Platform"
+  },
+  "pagination": {
+    "prev": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{totalPages}}"
   }
 }

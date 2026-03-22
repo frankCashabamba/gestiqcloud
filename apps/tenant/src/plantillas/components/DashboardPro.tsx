@@ -1,7 +1,7 @@
 /**
  * Dashboard Pro - reusable base component for sector dashboards
  */
-import React, { useState, useEffect, ReactNode, useMemo } from 'react'
+import React, { useState, useEffect, useRef, ReactNode, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMisModulos } from '../../hooks/useMisModulos'
@@ -16,57 +16,31 @@ interface DashboardProProps {
 }
 
 const getModuleIcon = (slug: string): string => {
-  const normalize = (value: string) =>
-    value
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, '')
+  const nrm = (v: string) =>
+    v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '')
 
   const icons: Record<string, string> = {
-    ventas: '$',
-    sales: '$',
-    clientes: '@',
-    clients: '@',
-    customers: '@',
-    products: '#',
-    productos: '#',
-    inventario: 'I',
-    inventory: 'I',
-    facturacion: 'F',
-    invoicing: 'F',
-    billing: 'F',
-    facturacion_es: 'F',
-    compras: 'C',
-    purchases: 'C',
-    proveedores: 'P',
-    suppliers: 'P',
-    gastos: 'G',
-    expenses: 'G',
-    finanzas: 'M',
-    finance: 'M',
-    finances: 'M',
-    contabilidad: 'A',
-    accounting: 'A',
-    pos: 'P',
-    tpv: 'P',
-    imports: 'I',
-    importer: 'I',
-    importaciones: 'I',
-    rrhh: 'H',
-    hr: 'H',
-    configuracion: 'S',
-    settings: 'S',
-    usuarios: 'U',
-    users: 'U',
-    reconciliation: 'R',
-    conciliacion: 'R',
-    conciliacionbancaria: 'R',
-    templates: 'T',
-    webhooks: 'W',
+    ventas: '$', sales: '$',
+    clientes: '@', clients: '@', customers: '@',
+    products: '#', productos: '#',
+    inventario: 'I', inventory: 'I',
+    facturacion: 'F', invoicing: 'F', billing: 'F', facturacion_es: 'F',
+    compras: 'C', purchases: 'C',
+    proveedores: 'P', suppliers: 'P',
+    gastos: 'G', expenses: 'G',
+    finanzas: 'M', finance: 'M', finances: 'M',
+    contabilidad: 'A', accounting: 'A',
+    pos: 'P', tpv: 'P',
+    rrhh: 'H', hr: 'H',
+    configuracion: '⚙', settings: '⚙', configuration: '⚙',
+    usuarios: '👥', users: '👥',
+    reconciliation: 'R', conciliacion: 'R', conciliacionbancaria: 'R',
+    produccion: '🍞', production: '🍞',
+    recetas: '📋', recipes: '📋',
+    templates: 'T', webhooks: 'W',
   }
 
-  return icons[normalize(slug)] || '*'
+  return icons[nrm(slug)] || '·'
 }
 
 const pickTextColorForBackground = (bgColor: string): string => {
@@ -77,18 +51,51 @@ const pickTextColorForBackground = (bgColor: string): string => {
   document.body.appendChild(probe)
   const computed = window.getComputedStyle(probe).color
   document.body.removeChild(probe)
-
   const match = computed.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
   if (!match) return '#ffffff'
   const r = Number(match[1]) / 255
   const g = Number(match[2]) / 255
   const b = Number(match[3]) / 255
-
   const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
   const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
-
   return luminance > 0.45 ? '#0f172a' : '#ffffff'
 }
+
+// ── Clasificación de módulos ──────────────────────────────────────────────────
+
+const nrm = (v: string) =>
+  v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '')
+
+/** Nunca se muestran en la UI */
+const HIDDEN_SLUGS = new Set([
+  'templates', 'webhooks', 'reports', 'imports', 'importer', 'importaciones',
+])
+
+/** Van al menú de usuario del topbar, no al sidebar */
+const SETTINGS_SLUGS = new Set([
+  'configuracion', 'settings', 'configuration', 'config',
+  'usuarios', 'users', 'user', 'useradmin',
+])
+const SETTINGS_NAMES = new Set([
+  'configuracion', 'configuración', 'settings', 'configuration',
+  'usuarios', 'users', 'gestiondeusuarios', 'usermanagement',
+  'ajustes', 'parametros', 'parametrización',
+])
+/** Filtra por slug O nombre normalizado */
+const isSettingsModule = (m: any) =>
+  SETTINGS_SLUGS.has(nrm(m.slug || '')) || SETTINGS_NAMES.has(nrm(m.name || ''))
+
+/** Back-office: módulos financieros — sección colapsable al fondo del sidebar */
+const BACKOFFICE_SLUGS = new Set([
+  'facturacion', 'invoicing', 'billing', 'facturacion_es',
+  'finanzas', 'finance', 'finances',
+  'contabilidad', 'accounting',
+  'conciliacion', 'reconciliation', 'conciliacionbancaria',
+  'rrhh', 'hr',
+])
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const DashboardPro: React.FC<DashboardProProps> = ({
   sectorName,
   sectorIcon,
@@ -98,7 +105,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
 }) => {
   const { t } = useTranslation()
   const { empresa } = useParams()
-  const [theme, setTheme] = useState<ThemeResponse | null>(null)
+  const [_theme, setTheme] = useState<ThemeResponse | null>(null)
   const [darkMode, setDarkMode] = useState(darkModeDefault)
   const { modules, loading: modulosLoading } = useMisModulos()
   const [isMobileView, setIsMobileView] = useState<boolean>(() => {
@@ -106,7 +113,21 @@ const DashboardPro: React.FC<DashboardProProps> = ({
     return window.innerWidth <= 1024
   })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [moduleSearch, setModuleSearch] = useState('')
+  const userMenuRef = useRef<HTMLDivElement>(null)
+
+  // Cierra el menú de usuario al hacer clic fuera
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [userMenuOpen])
 
   useEffect(() => {
     const loadTheme = async () => {
@@ -128,7 +149,6 @@ const DashboardPro: React.FC<DashboardProProps> = ({
           document.documentElement.style.setProperty('--sidebar-active', primaryColor)
           document.documentElement.style.setProperty('--btn-primary', primaryColor)
         }
-        // Arrancamos en modo claro para alinear con la referencia de retail
         document.documentElement.classList.add('light-theme')
       } catch (err) {
         console.error('Error loading theme:', err)
@@ -137,7 +157,6 @@ const DashboardPro: React.FC<DashboardProProps> = ({
     loadTheme()
   }, [empresa])
 
-  // Responsive behavior for drawer and layout
   useEffect(() => {
     const handleResize = () => setIsMobileView(window.innerWidth <= 1024)
     handleResize()
@@ -145,122 +164,217 @@ const DashboardPro: React.FC<DashboardProProps> = ({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Módulos internos/técnicos que no se muestran al cliente final en la navegación
-  const HIDDEN_SLUGS = new Set(['templates', 'webhooks', 'reports'])
+  const settingsModules = useMemo(
+    () => modules.filter(isSettingsModule),
+    [modules]
+  )
 
   const filteredModules = useMemo(() => {
     const term = moduleSearch.trim().toLowerCase()
-    const visible = modules.filter((m) => !HIDDEN_SLUGS.has(m.slug || ''))
+    const visible = modules.filter(
+      (m) => !HIDDEN_SLUGS.has(nrm(m.slug || '')) && !isSettingsModule(m)
+    )
     if (!term) return visible
     return visible.filter((m) =>
       (m.name || '').toLowerCase().includes(term) || (m.slug || '').toLowerCase().includes(term)
     )
   }, [modules, moduleSearch])
 
+  const primaryModules = useMemo(
+    () => filteredModules.filter((m) => !BACKOFFICE_SLUGS.has(nrm(m.slug || ''))),
+    [filteredModules]
+  )
+
+  const backOfficeModules = useMemo(
+    () => filteredModules.filter((m) => BACKOFFICE_SLUGS.has(nrm(m.slug || ''))),
+    [filteredModules]
+  )
+
+  // Agrupa por categoría, ignorando categorías de tipo admin/settings que se filaron de la DB
+  const SETTINGS_CATEGORIES = new Set([
+    'configuracion', 'configuración', 'settings', 'back office', 'backoffice',
+    'admin', 'administracion', 'administración',
+  ])
+
   const groupedModules = useMemo(() => {
-    return filteredModules.reduce((acc: Record<string, typeof modules>, modulo: any) => {
-      const category = (modulo.categoria || modulo.category || 'General').toString()
+    return primaryModules.reduce((acc: Record<string, typeof modules>, modulo: any) => {
+      const rawCat = (modulo.categoria || modulo.category || 'General').toString()
+      // Si la categoría es de tipo settings, se ignoró el módulo en el paso anterior;
+      // pero por si acaso, los reagrupamos en General
+      const category = SETTINGS_CATEGORIES.has(nrm(rawCat)) ? 'General' : rawCat
       if (!acc[category]) acc[category] = []
       acc[category].push(modulo)
       return acc
     }, {})
-  }, [filteredModules])
+  }, [primaryModules])
 
   const toggleTheme = () => {
     setDarkMode((prev) => {
       const next = !prev
       document.documentElement.classList.toggle('dark-theme', next)
-      if (!next) {
-        document.documentElement.classList.add('light-theme')
-      } else {
-        document.documentElement.classList.remove('light-theme')
-      }
+      if (!next) document.documentElement.classList.add('light-theme')
+      else document.documentElement.classList.remove('light-theme')
       return next
     })
   }
 
+  const renderNavModules = (onLinkClick?: () => void) => (
+    <>
+      {modulosLoading ? (
+        <li className="sidebar-loading">{t('dashboardPro.loadingModules')}</li>
+      ) : (
+        Object.entries(groupedModules)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([categoria, mods]) => (
+            <React.Fragment key={categoria}>
+              {categoria !== 'General' && (
+                <li className="sidebar-divider">{categoria}</li>
+              )}
+              {mods
+                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                .map((modulo) => {
+                  const slug = modulo.slug || (modulo.name || '').toLowerCase()
+                  const icon = getModuleIcon(slug)
+                  const to = `/${empresa}/${slug}`
+                  return (
+                    <li key={modulo.id}>
+                      <Link to={to} onClick={onLinkClick}>
+                        <span className="sidebar-icon">{icon}</span>
+                        <span>{modulo.name}</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+            </React.Fragment>
+          ))
+      )}
+
+      {customLinks.length > 0 && (
+        <>
+          <li className="sidebar-divider">{t('dashboardPro.sectorTools')}</li>
+          {customLinks.map((link, i) => (
+            <li key={i}>
+              <a href={link.href} onClick={onLinkClick}>
+                {link.icon} {link.label}
+              </a>
+            </li>
+          ))}
+        </>
+      )}
+    </>
+  )
+
   return (
     <div className={`dashboard-pro-app ${darkMode ? 'dark' : 'light'}`}>
+
+      {/* ── Topbar ── */}
       <header className="topbar">
         {isMobileView && (
           <button className="icon-btn" onClick={() => setIsMenuOpen(true)} aria-label={t('dashboardPro.openMenu')}>
             <span className="menu-bars" aria-hidden />
           </button>
         )}
+
         <div className="brand">
           <div className="brand__logo" />
-          <span>
-            {sectorIcon} {sectorName}
-          </span>
+          <span>{sectorIcon} {sectorName}</span>
         </div>
+
         <div className="search">
           <input placeholder="Buscar productos, clientes o documentos" aria-label="Buscar en el dashboard" />
           <span>/</span>
         </div>
-        <select aria-label="Seleccionar sucursal">
-          <option>{t('dashboardPro.stores.main')}</option>
-          <option>{t('dashboardPro.stores.branch', { n: 1 })}</option>
-          <option>{t('dashboardPro.stores.branch', { n: 2 })}</option>
-        </select>
-        <input type="date" defaultValue={new Date().toISOString().split('T')[0]} aria-label="Seleccionar fecha" />
-        <button className="btn" onClick={toggleTheme}>
-          {darkMode ? t('dashboardPro.lightMode') : t('dashboardPro.darkMode')}
-        </button>
+
+        <div className="topbar-right">
+          <select aria-label="Seleccionar sucursal">
+            <option>{t('dashboardPro.stores.main')}</option>
+            <option>{t('dashboardPro.stores.branch', { n: 1 })}</option>
+            <option>{t('dashboardPro.stores.branch', { n: 2 })}</option>
+          </select>
+
+          {/* Menú de usuario — configuración, tema */}
+          <div className="user-menu" ref={userMenuRef}>
+            <button
+              className="user-menu__trigger"
+              onClick={() => setUserMenuOpen((v) => !v)}
+              aria-label="Opciones de usuario"
+              aria-expanded={userMenuOpen}
+            >
+              <span className="user-menu__avatar">U</span>
+            </button>
+
+            {userMenuOpen && (
+              <div className="user-menu__dropdown">
+                {settingsModules.length > 0 && (
+                  <>
+                    {settingsModules.map((modulo) => {
+                      const slug = modulo.slug || (modulo.name || '').toLowerCase()
+                      return (
+                        <Link
+                          key={modulo.id}
+                          to={`/${empresa}/${slug}`}
+                          className="user-menu__item"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <span className="user-menu__item-icon">{getModuleIcon(slug)}</span>
+                          {modulo.name}
+                        </Link>
+                      )
+                    })}
+                    <div className="user-menu__sep" />
+                  </>
+                )}
+                <button className="user-menu__item" onClick={() => { toggleTheme(); setUserMenuOpen(false) }}>
+                  <span className="user-menu__item-icon">{darkMode ? '☀️' : '🌙'}</span>
+                  {darkMode ? t('dashboardPro.lightMode') : t('dashboardPro.darkMode')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
+      {/* ── Sidebar ── */}
       <aside className="sidebar">
         <nav>
           <ul>
             <li>
-              <Link to={`/${empresa}`} className="active">
-                {t('nav.dashboard')}
-              </Link>
+              <Link to={`/${empresa}`} className="active">{t('nav.dashboard')}</Link>
             </li>
-
-            {modulosLoading ? (
-              <li className="sidebar-loading">{t('dashboardPro.loadingModules')}</li>
-            ) : (
-              Object.entries(groupedModules)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([categoria, mods]) => (
-                  <React.Fragment key={categoria}>
-                    <li className="sidebar-divider">{categoria}</li>
-                    {mods
-                      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                      .map((modulo) => {
-                        const slug = modulo.slug || (modulo.name || '').toLowerCase()
-                        const icon = getModuleIcon(slug)
-                        const to = `/${empresa}/${slug}`
-                        return (
-                          <li key={modulo.id}>
-                            <Link to={to}>
-                              <span className="sidebar-icon">{icon}</span>
-                              <span>{modulo.name}</span>
-                            </Link>
-                          </li>
-                        )
-                      })}
-                  </React.Fragment>
-                ))
-            )}
-
-            {customLinks.length > 0 && (
-              <>
-                <li className="sidebar-divider">{t('dashboardPro.sectorTools')}</li>
-                {customLinks.map((link, i) => (
-                  <li key={i}>
-                    <a href={link.href}>
-                      {link.icon} {link.label}
-                    </a>
-                  </li>
-                ))}
-              </>
-            )}
+            {renderNavModules()}
           </ul>
         </nav>
-        <small>{t('dashboardPro.shortcuts')}</small>
+
+        {backOfficeModules.length > 0 && (
+          <details className="sidebar-backoffice">
+            <summary className="sidebar-backoffice__toggle">
+              <span>Back office</span>
+              <span className="sidebar-backoffice__count">{backOfficeModules.length}</span>
+            </summary>
+            <ul className="sidebar-backoffice__list">
+              {backOfficeModules
+                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                .map((modulo) => {
+                  const slug = modulo.slug || (modulo.name || '').toLowerCase()
+                  return (
+                    <li key={`bo-${modulo.id}`}>
+                      <Link to={`/${empresa}/${slug}`}>
+                        <span className="sidebar-icon">{getModuleIcon(slug)}</span>
+                        <span>{modulo.name}</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+            </ul>
+          </details>
+        )}
+
+        <div className="sidebar-hint">
+          <small>{t('dashboardPro.shortcuts')}</small>
+        </div>
       </aside>
 
+      {/* ── Mobile drawer ── */}
       {isMobileView && (
         <>
           <div className={`mobile-drawer ${isMenuOpen ? 'open' : ''}`}>
@@ -270,7 +384,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
                 {sectorIcon} {sectorName}
               </span>
               <button className="icon-btn" onClick={() => setIsMenuOpen(false)} aria-label={t('dashboardPro.closeMenu')}>
-                X
+                ✕
               </button>
             </div>
             <div className="mobile-drawer__search">
@@ -287,47 +401,33 @@ const DashboardPro: React.FC<DashboardProProps> = ({
                     {t('nav.dashboard')}
                   </Link>
                 </li>
-                {modulosLoading ? (
-                  <li className="sidebar-loading">{t('dashboardPro.loadingModules')}</li>
-                ) : (
-                  Object.entries(groupedModules)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([categoria, mods]) => (
-                      <React.Fragment key={`m-${categoria}`}>
-                        <li className="sidebar-divider">{categoria}</li>
-                        {mods
-                          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                          .map((modulo) => {
-                            const slug = modulo.slug || (modulo.name || '').toLowerCase()
-                            const icon = getModuleIcon(slug)
-                            const to = `/${empresa}/${slug}`
-                            return (
-                              <li key={`m-${modulo.id}`}>
-                                <Link to={to} onClick={() => setIsMenuOpen(false)}>
-                                  <span className="sidebar-icon">{icon}</span>
-                                  <span>{modulo.name}</span>
-                                </Link>
-                              </li>
-                            )
-                          })}
-                      </React.Fragment>
-                    ))
-                )}
-
-                {customLinks.length > 0 && (
-                  <>
-                    <li className="sidebar-divider">{t('dashboardPro.sectorTools')}</li>
-                    {customLinks.map((link, i) => (
-                      <li key={`mcl-${i}`}>
-                        <a href={link.href} onClick={() => setIsMenuOpen(false)}>
-                          {link.icon} {link.label}
-                        </a>
-                      </li>
-                    ))}
-                  </>
-                )}
+                {renderNavModules(() => setIsMenuOpen(false))}
               </ul>
             </nav>
+
+            <div className="mobile-drawer__footer">
+              {settingsModules.map((modulo) => {
+                const slug = modulo.slug || (modulo.name || '').toLowerCase()
+                return (
+                  <Link
+                    key={`ms-${modulo.id}`}
+                    to={`/${empresa}/${slug}`}
+                    className="mobile-drawer__footer-link"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <span>{getModuleIcon(slug)}</span>
+                    {modulo.name}
+                  </Link>
+                )
+              })}
+              <button
+                className="mobile-drawer__footer-link"
+                onClick={() => { toggleTheme(); setIsMenuOpen(false) }}
+              >
+                <span>{darkMode ? '☀️' : '🌙'}</span>
+                {darkMode ? t('dashboardPro.lightMode') : t('dashboardPro.darkMode')}
+              </button>
+            </div>
           </div>
           {isMenuOpen && <div className="mobile-drawer__overlay" onClick={() => setIsMenuOpen(false)} />}
         </>

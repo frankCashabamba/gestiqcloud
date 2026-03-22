@@ -220,5 +220,11 @@
       "description": "Gestiona fichas, contactos y condiciones comerciales de tus proveedores",
       "path": "/suppliers"
     }
+  },
+  "pagination": {
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "pageOf": "Página {{page}} de {{totalPages}}"
   }
+}
 }

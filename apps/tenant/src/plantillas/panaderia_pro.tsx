@@ -476,15 +476,10 @@ const PanaderiaDashboard: React.FC = () => {
             </div>
           </div>
           <div className="card__actions">
-            {isModuleEnabled('pos') && (
-              <a className="link" href={`${prefix}/pos`}>
-                {t('dashboard:panaderia.openPOS')}
-              </a>
-            )}
             {isProductionEnabled() && (
               <button
                 type="button"
-                className="link"
+                className="btn btn--primary"
                 onClick={() => {
                   setQuickSuccess(null)
                   setQuickError(null)
@@ -501,9 +496,16 @@ const PanaderiaDashboard: React.FC = () => {
                 {t('dashboard:panaderia.newProduction')}
               </button>
             )}
-            {isProductionEnabled() && <a className="link" href={`${prefix}/manufacturing/recetas`}>{t('dashboard:panaderia.recipes')}</a>}
-            {isModuleEnabled('sales') && <a className="link" href={`${prefix}/sales`}>{t('dashboard:panaderia.sales')}</a>}
-            {isModuleEnabled('customers') && <a className="link" href={`${prefix}/customers`}>{t('dashboard:panaderia.customers')}</a>}
+            {isModuleEnabled('pos') && (
+              <a className="btn" href={`${prefix}/pos`}>
+                {t('dashboard:panaderia.openPOS')}
+              </a>
+            )}
+            {isProductionEnabled() && (
+              <a className="btn" href={`${prefix}/manufacturing/recetas`}>
+                {t('dashboard:panaderia.recipes')}
+              </a>
+            )}
           </div>
           {quickSuccess && <p className="text-sm mt-2" style={{ color: '#166534' }}>{quickSuccess}</p>}
           {quickError && <p className="text-sm mt-2" style={{ color: '#b91c1c' }}>{quickError}</p>}
@@ -640,23 +642,6 @@ const PanaderiaDashboard: React.FC = () => {
           </section>
         )}
 
-        <section className="card col-4">
-          <h3>{t('dashboard:panaderia.quickActions')}</h3>
-          <div className="action-grid">
-            {isModuleEnabled('pos') && (
-              <a href={`${prefix}/pos`} className="action-btn action-btn--primary">
-                <span className="action-btn__icon">P</span>
-                <span>{t('dashboard:panaderia.openPOSAction')}</span>
-              </a>
-            )}
-            {isModuleEnabled('customers') && (
-              <a href={`${prefix}/customers`} className="action-btn">
-                <span className="action-btn__icon">@</span>
-                <span>{t('dashboard:panaderia.newCustomer')}</span>
-              </a>
-            )}
-          </div>
-        </section>
       </div>
 
       {quickOpen && (

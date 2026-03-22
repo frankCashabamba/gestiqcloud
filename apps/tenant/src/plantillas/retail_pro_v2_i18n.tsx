@@ -185,7 +185,7 @@ const RetailDashboard: React.FC = () => {
     {
       id: 'create-promotion',
       label: t('quickActions.createPromotion'),
-      icon: '%',
+      icon: '🏷️',
       disabled: !isModuleEnabled('sales'),
       action: handleCreatePromotion,
       requiresModule: 'sales',
@@ -193,7 +193,7 @@ const RetailDashboard: React.FC = () => {
     {
       id: 'new-customer',
       label: t('quickActions.newCustomer'),
-      icon: '@',
+      icon: '👤',
       disabled: !isModuleEnabled('customers'),
       action: handleNewCustomer,
       requiresModule: 'customers',
@@ -310,18 +310,6 @@ const RetailDashboard: React.FC = () => {
               }
             >
               {t('cardActions.replenishment')}
-            </button>
-            <button
-              onClick={() => navigate(buildRoute({ route: 'customers.list', empresa }))}
-              disabled={!isModuleEnabled('customers')}
-              className="link"
-              title={
-                !isModuleEnabled('customers')
-                  ? t('moduleRequired', { module: 'Customers' })
-                  : ''
-              }
-            >
-              {t('cardActions.customers')}
             </button>
           </div>
         </section>
