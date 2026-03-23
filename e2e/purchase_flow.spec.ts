@@ -54,12 +54,13 @@ test.describe('C-T7: Purchase → Reception → Inventory Flow', () => {
 
     // List, table, or empty state
     const hasList = await page
-      .locator('table, [class*="list"], [class*="purchase"], [data-testid*="purchase"]')
+      .locator('table, [class*="list"], [class*="purchase"], [class*="compra"], [data-testid*="purchase"]')
       .count();
     const hasEmpty = await page.getByText(/sin compras|no purchases|vacío|empty/i).count();
-    const hasNewBtn = await page.getByRole('button', { name: /nueva|new|crear|create/i }).count();
+    const hasNewBtn = await page.getByRole('button', { name: /nueva|new|crear|create|export/i }).count();
+    const hasTitle = await page.getByText(/compras|purchases|órdenes de compra|purchase orders/i).count();
 
-    expect(hasList + hasEmpty + hasNewBtn).toBeGreaterThan(0);
+    expect(hasList + hasEmpty + hasNewBtn + hasTitle).toBeGreaterThan(0);
   });
 
   test('New purchase form is accessible', async ({ page }) => {

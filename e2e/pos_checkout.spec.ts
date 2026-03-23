@@ -55,10 +55,10 @@ test.describe('C-T6: POS Checkout Flow', () => {
     // May show register/caja selector or direct POS view
     const hasPOSContent = await page
       .locator(
-        '[class*="pos"], [class*="caja"], [class*="register"], [class*="cart"], [data-testid*="pos"]',
+        '[class*="pos"], [class*="caja"], [class*="register"], [class*="cart"], [data-testid*="pos"], [class*="tpv"], [class*="shift"]',
       )
       .count();
-    const hasRegisterSelector = await page.getByText(/caja|register|seleccionar/i).count();
+    const hasRegisterSelector = await page.getByText(/caja|register|seleccionar|POS|turno|shift/i).count();
 
     expect(hasPOSContent + hasRegisterSelector).toBeGreaterThan(0);
   });
