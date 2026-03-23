@@ -100,7 +100,9 @@
         "discount": "Discount",
         "ticketNotes": "Ticket notes",
         "clearAll": "Clear all",
-        "confirmClear": "Clear cart?"
+        "confirmClear": "Clear cart?",
+        "quickInvoice": "Invoice",
+        "noTicket": "No receipt"
     },
     "prompts": {
         "enterPrice": "Enter price for {{name}}",
@@ -300,7 +302,9 @@
         "splitNotEnough": "Split payment does not cover the total.",
         "enterAmount": "Enter the amount received.",
         "amountLessThanTotal": "Amount received is less than total.",
-        "selectCreditOrCode": "Select a credit or enter a code."
+        "selectCreditOrCode": "Select a credit or enter a code.",
+        "noLot": "No lot",
+        "noExpiry": "No expiry"
     },
     "pending": {
         "errorLoading": "Could not load pending receipts",

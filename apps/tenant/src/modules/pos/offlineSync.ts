@@ -150,7 +150,6 @@ export function registerPOSSyncAdapters() {
   manager.registerAdapter(POSShiftAdapter)
 
   adaptersRegistered = true
-  console.log('[offline] POS sync adapters registered')
 }
 
 // =============================================================================

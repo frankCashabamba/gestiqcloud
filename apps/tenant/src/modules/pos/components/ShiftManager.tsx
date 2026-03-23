@@ -366,12 +366,12 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                                         return (
                                                             <>
                                                                 {openFloat > 0 && (
-                                                                    <div>Fondo apertura: {formatCurrency(openFloat)}</div>
+                                                                    <div>{t('pos:daily.openingFloat')}: {formatCurrency(openFloat)}</div>
                                                                 )}
-                                                                <div>Ventas efectivo: {formatCurrency(cashSales)}</div>
+                                                                <div>{t('pos:shiftManager.cashSalesLabel')}: {formatCurrency(cashSales)}</div>
                                                                 {expectedTotal > 0 && (
                                                                     <div className="font-semibold text-slate-800">
-                                                                        Esperado en caja: {formatCurrency(expectedTotal)}
+                                                                        {t('pos:shiftManager.expectedCash')}: {formatCurrency(expectedTotal)}
                                                                     </div>
                                                                 )}
                                                             </>

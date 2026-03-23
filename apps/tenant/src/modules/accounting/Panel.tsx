@@ -17,9 +17,16 @@ const NAV_LINKS = [
 
 export function MovimientosPage() {
   const { t } = useTranslation()
-  const { asientos, loading } = useMovimientos()
+  const { asientos, loading, error } = useMovimientos()
   if (loading) {
-    return <div style={{ padding: 16 }}>{t('accounting.loadingTransactions')}</div>
+    return <div className="p-4 text-sm text-gray-500">{t('accounting.loadingTransactions')}</div>
+  }
+  if (error) {
+    return (
+      <div className="m-4 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+        {error}
+      </div>
+    )
   }
   return <MovimientoTable asientos={asientos} />
 }

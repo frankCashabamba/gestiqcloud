@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createGasto, getGasto, updateGasto, type Gasto } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useCompanySector } from '../../contexts/CompanyConfigContext'
@@ -17,7 +18,7 @@ const CATEGORIAS_FALLBACK = [
   'Transport',
   'Taxes',
   'Maintenance',
-  'Other'
+  'Other',
 ]
 
 const SUBCATEGORIAS: Record<string, string[]> = {
@@ -25,19 +26,22 @@ const SUBCATEGORIAS: Record<string, string[]> = {
   'Personnel': ['Salaries', 'Social Security', 'Bonuses', 'Meals'],
   'Marketing': ['Advertising', 'Social Media', 'Events', 'Promotional Materials'],
   'Supplies': ['Office', 'Cleaning', 'Packaging', 'Materials'],
-  'Transport': ['Fuel', 'Vehicle Maintenance', 'Tolls', 'Parking']
+  'Transport': ['Fuel', 'Vehicle Maintenance', 'Tolls', 'Parking'],
 }
 
 export default function GastoForm() {
   const { id } = useParams()
   const nav = useNavigate()
+  const { t } = useTranslation(['expenses', 'common'])
   const { success, error } = useToast()
   const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'expenses')
-  const { items: expenseCategories } = useExpenseCategories()
-  const categorias = expenseCategories.length > 0
-    ? expenseCategories.map(c => c.name)
-    : CATEGORIAS_FALLBACK
+  const { items: expenseCategories, loading: loadingCats } = useExpenseCategories()
+  const categorias = !loadingCats && expenseCategories.length > 0
+    ? expenseCategories.map((c) => c.name)
+    : !loadingCats
+    ? CATEGORIAS_FALLBACK
+    : []
 
   const [form, setForm] = useState<FormT>({
     date: new Date().toISOString().slice(0, 10),
@@ -50,18 +54,13 @@ export default function GastoForm() {
     supplier_name: '',
     status: 'pending',
     invoice_number: '',
-    notes: ''
+    notes: '',
   })
 
   const [loading, setLoading] = useState(false)
-  const isSaleProductionExpense = (expense: Gasto) =>
-    String(expense.invoice_number || '').startsWith('PROD-SALE-') ||
-    (expense.category === 'production' && expense.subcategory === 'sale_cost')
 
-  const isLockedProductionExpense = (expense: Gasto) => {
-    if (isSaleProductionExpense(expense)) return false
-    return expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
-  }
+  const isLockedProductionExpense = (expense: Gasto) =>
+    expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
 
   useEffect(() => {
     if (id) {
@@ -69,7 +68,7 @@ export default function GastoForm() {
       getGasto(id)
         .then((x) => {
           if (isLockedProductionExpense(x)) {
-            throw new Error('Production expenses are system-generated and cannot be edited')
+            throw new Error(t('expenses:form.errors.lockedProduction', 'Los gastos de producción son generados por el sistema y no se pueden editar'))
           }
           setForm({
             date: x.date,
@@ -82,7 +81,7 @@ export default function GastoForm() {
             supplier_name: x.supplier_name || '',
             status: x.status || 'pending',
             invoice_number: x.invoice_number || '',
-            notes: x.notes || ''
+            notes: x.notes || '',
           })
         })
         .catch((e) => {
@@ -91,26 +90,23 @@ export default function GastoForm() {
         })
         .finally(() => setLoading(false))
     }
-  }, [id, nav, error])
+  }, [id])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
-
     try {
-      if (!form.date) throw new Error('Date is required')
-      if (!form.category) throw new Error('Category is required')
-      if (!form.concept) throw new Error('Concept is required')
-      if (form.amount <= 0) throw new Error('Amount must be greater than 0')
+      if (!form.date) throw new Error(t('expenses:form.errors.dateRequired'))
+      if (!form.category) throw new Error(t('expenses:form.errors.categoryRequired'))
+      if (!form.concept) throw new Error(t('expenses:form.errors.conceptRequired'))
+      if (form.amount <= 0) throw new Error(t('expenses:form.errors.amountPositive'))
 
       setLoading(true)
-
       if (id) {
         await updateGasto(id, form)
       } else {
         await createGasto(form as Omit<Gasto, 'id'>)
       }
-
-      success('Expense saved')
+      success(t('expenses:messages.saved'))
       nav('..')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -119,18 +115,23 @@ export default function GastoForm() {
     }
   }
 
+  // Si la categoría guardada no está en la lista (ej: 'production'), añadirla para no perder el valor
+  const allCategorias = form.category && !categorias.includes(form.category)
+    ? [form.category, ...categorias]
+    : categorias
+
   const subcategorias = form.category ? (SUBCATEGORIAS[form.category] || []) : []
 
   return (
     <div className="gc-container py-6">
-      <h3 className="text-xl font-semibold mb-3">
-         {id ? 'Edit expense' : 'New expense'}
-       </h3>
+      <h3 className="text-xl font-semibold mb-6">
+        {id ? t('expenses:form.titleEdit') : t('expenses:form.title')}
+      </h3>
 
       <form onSubmit={onSubmit} className="space-y-4 max-w-3xl">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="gc-label">Date *</label>
+            <label className="gc-label">{t('expenses:form.date')} *</label>
             <input
               type="date"
               value={form.date}
@@ -142,7 +143,7 @@ export default function GastoForm() {
           </div>
 
           <div>
-            <label className="gc-label">Amount *</label>
+            <label className="gc-label">{t('expenses:form.amount')} *</label>
             <input
               type="number"
               step="0.01"
@@ -158,7 +159,7 @@ export default function GastoForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="gc-label">Category *</label>
+            <label className="gc-label">{t('expenses:form.category')} *</label>
             <select
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value, subcategory: '' })}
@@ -166,8 +167,8 @@ export default function GastoForm() {
               required
               disabled={loading}
             >
-              <option value="">Select...</option>
-              {categorias.map(cat => (
+              <option value="">{t('expenses:form.selectCategory')}</option>
+              {allCategorias.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
@@ -175,15 +176,15 @@ export default function GastoForm() {
 
           {subcategorias.length > 0 && (
             <div>
-              <label className="gc-label">Subcategory</label>
+              <label className="gc-label">{t('expenses:form.subcategory')}</label>
               <select
                 value={form.subcategory || ''}
                 onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
                 className="gc-input"
                 disabled={loading}
               >
-                <option value="">Select...</option>
-                {subcategorias.map(sub => (
+                <option value="">{t('expenses:form.selectSubcategory')}</option>
+                {subcategorias.map((sub) => (
                   <option key={sub} value={sub}>{sub}</option>
                 ))}
               </select>
@@ -192,10 +193,10 @@ export default function GastoForm() {
         </div>
 
         <div>
-          <label className="gc-label">Concept *</label>
+          <label className="gc-label">{t('expenses:form.concept')} *</label>
           <input
             type="text"
-            placeholder="Expense description"
+            placeholder={t('expenses:form.conceptPlaceholder')}
             value={form.concept}
             onChange={(e) => setForm({ ...form, concept: e.target.value })}
             className="gc-input"
@@ -206,7 +207,7 @@ export default function GastoForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="gc-label">Payment Method *</label>
+            <label className="gc-label">{t('expenses:form.paymentMethod')} *</label>
             <select
               value={form.payment_method}
               onChange={(e) => setForm({ ...form, payment_method: e.target.value as any })}
@@ -214,15 +215,15 @@ export default function GastoForm() {
               required
               disabled={loading}
             >
-              <option value="cash">Cash</option>
-              <option value="transfer">Transfer</option>
-              <option value="card">Card</option>
-              <option value="check">Check</option>
+              <option value="cash">{t('expenses:paymentMethods.cash')}</option>
+              <option value="transfer">{t('expenses:paymentMethods.transfer')}</option>
+              <option value="card">{t('expenses:paymentMethods.card')}</option>
+              <option value="check">{t('expenses:paymentMethods.check')}</option>
             </select>
           </div>
 
           <div>
-            <label className="gc-label">Status *</label>
+            <label className="gc-label">{t('expenses:form.status')} *</label>
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value as any })}
@@ -230,19 +231,19 @@ export default function GastoForm() {
               required
               disabled={loading}
             >
-              <option value="pending">Pending</option>
-              <option value="paid">Paid</option>
-              <option value="voided">Voided</option>
+              <option value="pending">{t('expenses:statuses.pending')}</option>
+              <option value="paid">{t('expenses:statuses.paid')}</option>
+              <option value="voided">{t('expenses:statuses.voided')}</option>
             </select>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="gc-label">Supplier ID</label>
+            <label className="gc-label">{t('expenses:form.supplierId')}</label>
             <input
               type="text"
-              placeholder="Supplier ID"
+              placeholder={t('expenses:form.supplierIdPlaceholder')}
               value={form.supplier_id || ''}
               onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
               className="gc-input"
@@ -251,10 +252,10 @@ export default function GastoForm() {
           </div>
 
           <div>
-            <label className="gc-label">Supplier Name</label>
+            <label className="gc-label">{t('expenses:form.supplierName')}</label>
             <input
               type="text"
-              placeholder="Supplier name"
+              placeholder={t('expenses:form.supplierNamePlaceholder')}
               value={form.supplier_name || ''}
               onChange={(e) => setForm({ ...form, supplier_name: e.target.value })}
               className="gc-input"
@@ -264,36 +265,36 @@ export default function GastoForm() {
         </div>
 
         <div>
-          <label className="gc-label">Invoice Number</label>
-           <input
-             type="text"
-             placeholder={getFieldPlaceholder(placeholders, 'invoice_number', 'E.g: INV-2025-001')}
-             value={form.invoice_number || ''}
-             onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
-             className="gc-input"
-             disabled={loading}
-           />
+          <label className="gc-label">{t('expenses:form.invoiceNumber')}</label>
+          <input
+            type="text"
+            placeholder={getFieldPlaceholder(placeholders, 'invoice_number', 'Ej: INV-2025-001')}
+            value={form.invoice_number || ''}
+            onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
+            className="gc-input"
+            disabled={loading}
+          />
         </div>
 
         <div>
-          <label className="gc-label">Notes</label>
+          <label className="gc-label">{t('expenses:form.notes')}</label>
           <textarea
             value={form.notes || ''}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
             className="gc-input"
             rows={3}
-            placeholder="Additional notes..."
+            placeholder={t('expenses:form.notesPlaceholder')}
             disabled={loading}
           />
         </div>
 
-        <div className="pt-2 flex gap-3">
+        <div className="pt-2 flex gap-3 border-t">
           <button
             type="submit"
             className="gc-btn gc-btn--primary disabled:opacity-50"
             disabled={loading}
           >
-            {loading ? 'Saving...' : 'Save'}
+            {loading ? t('expenses:form.saving') : t('expenses:form.save')}
           </button>
           <button
             type="button"
@@ -301,7 +302,7 @@ export default function GastoForm() {
             onClick={() => nav('..')}
             disabled={loading}
           >
-            Cancel
+            {t('common:cancel')}
           </button>
         </div>
       </form>

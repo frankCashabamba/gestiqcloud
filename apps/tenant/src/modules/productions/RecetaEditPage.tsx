@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import RecetaForm from './RecetaForm'
+import ProductionAvailabilityGuard from './ProductionAvailabilityGuard'
 import { getRecipe, type Recipe } from '../../services/api/recetas'
 
 export default function RecetaEditPage() {
@@ -19,6 +20,8 @@ export default function RecetaEditPage() {
   }, [rid])
 
   return (
-    <RecetaForm open={true} recipe={recipe} onClose={() => nav('..', { replace: true })} />
+    <ProductionAvailabilityGuard>
+      <RecetaForm open={true} recipe={recipe} onClose={() => nav('..', { replace: true })} />
+    </ProductionAvailabilityGuard>
   )
 }

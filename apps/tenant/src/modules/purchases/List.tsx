@@ -6,18 +6,12 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import StatusBadge from '../sales/components/StatusBadge'
 import { usePermission } from '../../hooks/usePermission'
-import { useAuth } from '../../auth/AuthContext'
 import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
 
 export default function ComprasList() {
   const { t } = useTranslation(['purchases', 'common'])
   const can = usePermission()
-  const { profile } = useAuth()
-  const isAdminEmpresa =
-    Boolean((profile as any)?.es_admin_empresa) ||
-    Boolean((profile as any)?.is_company_admin) ||
-    Boolean(profile?.roles?.includes('admin'))
   const [items, setItems] = useState<Compra[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -31,6 +25,7 @@ export default function ComprasList() {
   const [sortKey, setSortKey] = useState<'fecha' | 'total' | 'estado' | 'proveedor_nombre'>('fecha')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [per, setPer] = useState(10)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -77,21 +72,23 @@ export default function ComprasList() {
   useEffect(() => setPerPage(per), [per, setPerPage])
 
   function exportCSV(rows: Compra[]) {
-    const header = ['id', 'numero', 'fecha', 'proveedor', 'total', 'estado']
-    const body = rows.map(r => [
-      r.id,
-      r.numero || '',
-      r.fecha,
-      r.proveedor_nombre || '',
-      r.total,
-      r.estado
-    ])
-    const csv = [header, ...body].map(line => line.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const esc = (v: string | number | undefined | null) => {
+      const s = String(v ?? '')
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s
+    }
+    const header = ['id', 'numero', 'fecha', 'fecha_entrega', 'proveedor', 'subtotal', 'impuesto', 'total', 'estado', 'notas']
+    const body = rows.map((r) => [
+      r.id, r.numero, r.fecha, r.fecha_entrega, r.proveedor_nombre,
+      r.subtotal, r.impuesto, r.total, r.estado, r.notas,
+    ].map(esc))
+    const csv = [header, ...body].map((line) => line.join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'compras.csv'
+    a.download = `compras-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -110,15 +107,13 @@ export default function ComprasList() {
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">{t('purchases:title')}</h2>
         <div className="flex gap-2">
-          {can('purchases:read') && (
-            <ProtectedButton
-              permission="purchases:read"
-              variant="secondary"
-              onClick={() => exportCSV(view)}
-            >
-              {t('purchases:exportCsv')}
-            </ProtectedButton>
-          )}
+          <ProtectedButton
+            permission="purchases:read"
+            variant="secondary"
+            onClick={() => exportCSV(view)}
+          >
+            {t('purchases:exportCsv')}
+          </ProtectedButton>
           {can('purchases:create') && (
             <ProtectedButton
               permission="purchases:create"
@@ -225,7 +220,7 @@ export default function ComprasList() {
                 <td className="py-2 px-2">{v.fecha}</td>
                 <td className="py-2 px-2">{v.numero || '-'}</td>
                 <td className="py-2 px-2">{v.proveedor_nombre || '-'}</td>
-                <td className="py-2 px-2">${v.total.toFixed(2)}</td>
+                <td className="py-2 px-2">{v.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td className="py-2 px-2">
                   <StatusBadge estado={v.estado} />
                 </td>
@@ -240,23 +235,13 @@ export default function ComprasList() {
                       {t('purchases:edit')}
                     </Link>
                   )}
-                  {(v.estado === 'draft' || isAdminEmpresa) && can('purchases:delete') && (
-                    <ProtectedButton
-                      permission="purchases:delete"
-                      variant="ghost"
-                      onClick={async () => {
-                        if (!confirm(t('purchases:deleteConfirm'))) return
-                        try {
-                          await removeCompra(v.id)
-                          setItems((p) => p.filter(x => x.id !== v.id))
-                          success(t('purchases:deleted'))
-                        } catch (e: any) {
-                          toastError(getErrorMessage(e))
-                        }
-                      }}
+                  {can('purchases:delete') && (
+                    <button
+                      className="text-red-700 hover:underline text-sm"
+                      onClick={() => setDeleteId(String(v.id))}
                     >
                       {t('purchases:delete')}
-                    </ProtectedButton>
+                    </button>
                   )}
                 </td>
               </tr>
@@ -273,6 +258,39 @@ export default function ComprasList() {
       </div>
 
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="font-semibold text-gray-900 mb-1">{t('purchases:deleteConfirm')}</h3>
+            <p className="text-sm text-gray-500 mb-5">{t('purchases:deleteConfirmBody', 'Esta acción no se puede deshacer.')}</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                onClick={() => setDeleteId(null)}
+              >
+                {t('common:cancel')}
+              </button>
+              <button
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+                onClick={async () => {
+                  const id = deleteId
+                  setDeleteId(null)
+                  try {
+                    await removeCompra(id)
+                    setItems((p) => p.filter((x) => String(x.id) !== id))
+                    success(t('purchases:deleted'))
+                  } catch (e: any) {
+                    toastError(getErrorMessage(e))
+                  }
+                }}
+              >
+                {t('purchases:delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

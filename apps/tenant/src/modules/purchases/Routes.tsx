@@ -22,25 +22,9 @@ export default function ComprasRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="nueva"
-          element={
-            <ProtectedRoute permission="purchases:create">
-              <CompraForm />
-            </ProtectedRoute>
-          }
-        />
         <Route path=":id" element={<CompraDetail />} />
         <Route
           path=":id/edit"
-          element={
-            <ProtectedRoute permission="purchases:update">
-              <CompraForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path=":id/editar"
           element={
             <ProtectedRoute permission="purchases:update">
               <CompraForm />

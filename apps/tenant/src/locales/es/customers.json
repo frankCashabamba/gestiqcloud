@@ -13,6 +13,7 @@
     "deleted": "Cliente eliminado"
   },
   "confirmDelete": "¿Eliminar cliente?",
+  "confirmDeleteBody": "Esta acción no se puede deshacer.",
   "form": {
     "name": "Nombre",
     "email": "Email",

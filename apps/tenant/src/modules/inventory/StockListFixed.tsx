@@ -1,5 +1,5 @@
 // apps/tenant/src/modules/inventario/StockListFixed.tsx (UTF-8)
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -15,6 +15,15 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { getDefaultReorderPoint, getCompanySettings } from '../../services/companySettings'
 import { isStandardUnitCode } from '../../services/unitService'
+
+type QuickAdjustState = {
+  open: boolean
+  productId: string
+  productLabel: string
+  productSearch: string
+  dropdownOpen: boolean
+  delta: string
+}
 
 export default function StockList() {
   const { t } = useTranslation(['inventory', 'common'])
@@ -34,6 +43,27 @@ export default function StockList() {
   const [defaultReorderPoint, setDefaultReorderPoint] = useState(0)
   const [showZeroStock, setShowZeroStock] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [quickAdjust, setQuickAdjust] = useState<QuickAdjustState>({
+    open: false, productId: '', productLabel: '', productSearch: '', dropdownOpen: false, delta: '',
+  })
+  const [quickAdjusting, setQuickAdjusting] = useState(false)
+  const quickProductInputRef = useRef<HTMLInputElement>(null)
+
+  // Productos únicos derivados de los items cargados (sin duplicados por almacén)
+  const uniqueProducts = useMemo(() => {
+    const seen = new Set<string>()
+    return items
+      .filter((i) => { const k = String(i.product_id); if (seen.has(k)) return false; seen.add(k); return true })
+      .map((i) => ({ id: String(i.product_id), name: i.product?.name ?? '—', sku: i.product?.sku ?? '' }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [items])
+
+  const filteredQuickProducts = useMemo(() => {
+    const q = quickAdjust.productSearch.toLowerCase()
+    return uniqueProducts.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q),
+    ).slice(0, 30)
+  }, [uniqueProducts, quickAdjust.productSearch])
 
   useEffect(() => {
     (async () => {
@@ -82,28 +112,34 @@ export default function StockList() {
     }
   }
 
-  const ajusteRapido = async () => {
+  const EMPTY_QUICK: QuickAdjustState = {
+    open: false, productId: '', productLabel: '', productSearch: '', dropdownOpen: false, delta: '',
+  }
+
+  const openQuickAdjust = async () => {
+    if (!warehouses.length) await crearAlmacenDefecto()
+    setQuickAdjust({ ...EMPTY_QUICK, open: true })
+    setTimeout(() => quickProductInputRef.current?.focus(), 50)
+  }
+
+  const submitQuickAdjust = async () => {
+    const delta = Number(quickAdjust.delta)
+    if (!quickAdjust.productId) { toastError(t('inventory:quickAdjust.productPrompt')); return }
+    if (!quickAdjust.delta.trim() || Number.isNaN(delta)) { toastError(t('inventory:quickAdjust.qtyPrompt')); return }
+    const ws = warehouses.length ? warehouses : await listWarehouses()
+    const wh = ws[0]
+    if (!wh) { toastError(t('inventory:quickAdjust.missingWarehouse')); return }
     try {
-      if (!warehouses.length) {
-        await crearAlmacenDefecto()
-      }
-      const ws = warehouses.length ? warehouses : await listWarehouses()
-      const wh = ws[0]
-      if (!wh) {
-        toastError(t('inventory:quickAdjust.missingWarehouse'))
-        return
-      }
-      const productId = window.prompt(t('inventory:quickAdjust.productPrompt'))?.trim()
-      if (!productId) return
-      const qtyStr = window.prompt(t('inventory:quickAdjust.qtyPrompt'))?.trim()
-      if (!qtyStr) return
-      const delta = Number(qtyStr)
-      if (Number.isNaN(delta)) return
-      await adjustStock({ warehouse_id: String(wh.id), product_id: productId, delta })
+      setQuickAdjusting(true)
+      await adjustStock({ warehouse_id: String(wh.id), product_id: quickAdjust.productId, delta })
       const refreshed = await listStockItems()
       setItems(refreshed)
+      setQuickAdjust(EMPTY_QUICK)
+      success(t('inventory:quickAdjust.success', { delta, productId: quickAdjust.productLabel || quickAdjust.productId }))
     } catch (e: any) {
       toastError(getErrorMessage(e))
+    } finally {
+      setQuickAdjusting(false)
     }
   }
 
@@ -221,6 +257,96 @@ export default function StockList() {
   }, [items])
 
   return (
+    <>
+    {quickAdjust.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setQuickAdjust(EMPTY_QUICK)}>
+        <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('inventory:stock.quickAdjust')}</h3>
+          <div className="space-y-4">
+
+            {/* Combobox producto */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Producto</label>
+              <div className="relative">
+                <input
+                  ref={quickProductInputRef}
+                  type="text"
+                  value={quickAdjust.dropdownOpen ? quickAdjust.productSearch : (quickAdjust.productLabel || quickAdjust.productSearch)}
+                  onChange={(e) => setQuickAdjust((s) => ({ ...s, productSearch: e.target.value, dropdownOpen: true, productId: '', productLabel: '' }))}
+                  onFocus={() => setQuickAdjust((s) => ({ ...s, productSearch: '', dropdownOpen: true }))}
+                  onBlur={() => setTimeout(() => setQuickAdjust((s) => ({ ...s, dropdownOpen: false })), 150)}
+                  placeholder="Buscar por nombre o SKU…"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm pr-7"
+                  autoComplete="off"
+                />
+                {quickAdjust.productId && (
+                  <button
+                    type="button"
+                    onClick={() => setQuickAdjust((s) => ({ ...s, productId: '', productLabel: '', productSearch: '' }))}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+                  >×</button>
+                )}
+                {quickAdjust.dropdownOpen && (
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {filteredQuickProducts.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                    ) : filteredQuickProducts.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onMouseDown={() => setQuickAdjust((s) => ({
+                          ...s,
+                          productId: p.id,
+                          productLabel: p.name,
+                          productSearch: '',
+                          dropdownOpen: false,
+                        }))}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center gap-2"
+                      >
+                        {p.sku && <span className="font-mono text-xs text-gray-400 shrink-0">{p.sku}</span>}
+                        <span className="text-gray-800 truncate">{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Delta */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('inventory:quickAdjust.qtyPrompt')}
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={quickAdjust.delta}
+                onChange={(e) => setQuickAdjust((s) => ({ ...s, delta: e.target.value }))}
+                onKeyDown={(e) => e.key === 'Enter' && submitQuickAdjust()}
+                placeholder="Ej: 10 (entrada) o -5 (salida)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={submitQuickAdjust}
+              disabled={quickAdjusting || !quickAdjust.productId}
+              className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50"
+            >
+              {quickAdjusting ? t('common:saving') : t('common:confirm')}
+            </button>
+            <button
+              onClick={() => setQuickAdjust(EMPTY_QUICK)}
+              className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm"
+            >
+              {t('common:cancel')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -245,7 +371,7 @@ export default function StockList() {
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={crearAlmacenDefecto} title="Create warehouse ALM-1">
             {t('inventory:stock.createWarehouse')}
           </button>
-          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={ajusteRapido} title="Quick adjust de stock">
+          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={openQuickAdjust} title="Quick adjust de stock">
             {t('inventory:stock.quickAdjust')}
           </button>
           <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium" onClick={() => nav('movimientos/nuevo')}>
@@ -470,5 +596,6 @@ export default function StockList() {
         </div>
       )}
     </div>
+    </>
   )
 }

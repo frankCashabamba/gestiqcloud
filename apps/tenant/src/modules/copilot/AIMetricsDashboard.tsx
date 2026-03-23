@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../../services/api/client'
 
 interface DailyMetric {
@@ -29,15 +30,6 @@ interface MetricsData {
   daily: DailyMetric[]
   by_model: ModelMetric[]
   by_task: TaskMetric[]
-}
-
-const TASK_LABELS: Record<string, string> = {
-  chat: 'Chat',
-  classification: 'Clasificación',
-  analysis: 'Análisis',
-  generation: 'Generación',
-  suggestion: 'Sugerencias',
-  extraction: 'Extracción',
 }
 
 function StatCard({
@@ -87,7 +79,8 @@ function MiniBarChart({ data, maxVal }: { data: { label: string; value: number; 
 }
 
 function DailyChart({ daily }: { daily: DailyMetric[] }) {
-  if (!daily.length) return <p className="text-sm text-slate-400">Sin datos</p>
+  const { t } = useTranslation('copilot')
+  if (!daily.length) return <p className="text-sm text-slate-400">{t('metricsNoData')}</p>
 
   const maxReqs = Math.max(...daily.map((d) => d.requests), 1)
   const items = [...daily].reverse().slice(-14) // last 14 days
@@ -121,14 +114,15 @@ function DailyChart({ daily }: { daily: DailyMetric[] }) {
         )
       })}
       <div className="flex gap-3 mt-2 text-xs text-slate-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-400 rounded-sm inline-block" /> Exitosos</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-400 rounded-sm inline-block" /> Errores</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-400 rounded-sm inline-block" /> {t('metricsSuccessful')}</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-400 rounded-sm inline-block" /> {t('metricsErrors')}</span>
       </div>
     </div>
   )
 }
 
 export default function AIMetricsDashboard() {
+  const { t } = useTranslation('copilot')
   const [metrics, setMetrics] = useState<MetricsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(30)
@@ -159,9 +153,9 @@ export default function AIMetricsDashboard() {
   if (!metrics) {
     return (
       <div className="p-6 text-center text-slate-400">
-        <p>No se pudieron cargar las métricas de IA.</p>
+        <p>{t('metricsLoadFailed')}</p>
         <button onClick={() => load(days)} className="mt-3 text-sm text-blue-600 underline">
-          Reintentar
+          {t('metricsRetry')}
         </button>
       </div>
     )
@@ -170,13 +164,22 @@ export default function AIMetricsDashboard() {
   const modelMax = Math.max(...metrics.by_model.map((m) => m.requests), 1)
   const taskMax = Math.max(...metrics.by_task.map((t) => t.requests), 1)
 
+  const taskKeyMap: Record<string, string> = {
+    chat: 'taskChat',
+    classification: 'taskClassification',
+    analysis: 'taskAnalysis',
+    generation: 'taskGeneration',
+    suggestion: 'taskSuggestion',
+    extraction: 'taskExtraction',
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Métricas de IA</h1>
-          <p className="text-sm text-slate-500">Uso del copilot e IA en tu empresa</p>
+          <h1 className="text-xl font-semibold">{t('metricsTitle')}</h1>
+          <p className="text-sm text-slate-500">{t('metricsSubtitle')}</p>
         </div>
         <div className="flex gap-2">
           {[7, 14, 30, 90].map((d) => (
@@ -198,34 +201,34 @@ export default function AIMetricsDashboard() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard
-          label="Total requests"
+          label={t('metricsRequestsTotal')}
           value={metrics.total_requests.toLocaleString()}
-          sub={`últimos ${days} días`}
+          sub={t('metricsLastDays', { days })}
           color="blue"
         />
         <StatCard
-          label="Error rate"
+          label={t('metricsErrorRate')}
           value={`${metrics.error_rate}%`}
-          sub={`${metrics.total_errors} errores`}
+          sub={`${metrics.total_errors} ${t('metricsErrors').toLowerCase()}`}
           color={metrics.error_rate > 10 ? 'red' : 'green'}
         />
         <StatCard
-          label="Tokens usados"
+          label={t('metricsTokensUsed')}
           value={metrics.total_tokens.toLocaleString()}
           color="purple"
         />
         <StatCard
-          label="Costo estimado"
+          label={t('metricsCostEstimated')}
           value={`$${metrics.estimated_cost_usd}`}
           sub="~$0.002/1K tokens"
           color="orange"
         />
         <StatCard
-          label="Promedio/día"
+          label={t('metricsAvgPerDay')}
           value={metrics.period_days > 0
             ? Math.round(metrics.total_requests / metrics.period_days).toLocaleString()
             : '0'}
-          sub="requests por día"
+          sub={t('metricsRequestsPerDay')}
           color="blue"
         />
       </div>
@@ -233,20 +236,20 @@ export default function AIMetricsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Daily usage chart */}
         <div className="bg-white border rounded-lg p-5">
-          <h2 className="text-sm font-semibold mb-4">Requests por día (últimos 14 días)</h2>
+          <h2 className="text-sm font-semibold mb-4">{t('metricsRequestsChart')}</h2>
           <DailyChart daily={metrics.daily} />
         </div>
 
         {/* Model breakdown */}
         <div className="bg-white border rounded-lg p-5">
-          <h2 className="text-sm font-semibold mb-4">Uso por modelo</h2>
+          <h2 className="text-sm font-semibold mb-4">{t('metricsByModel')}</h2>
           {metrics.by_model.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin datos</p>
+            <p className="text-sm text-slate-400">{t('metricsNoData')}</p>
           ) : (
             <MiniBarChart
               maxVal={modelMax}
               data={metrics.by_model.map((m) => ({
-                label: m.model || 'desconocido',
+                label: m.model || t('metricsUnknown'),
                 value: m.requests,
                 color: 'bg-purple-500',
               }))}
@@ -256,7 +259,7 @@ export default function AIMetricsDashboard() {
             <div className="mt-4 border-t pt-3 space-y-1">
               {metrics.by_model.map((m) => (
                 <div key={m.model} className="flex justify-between text-xs text-slate-500">
-                  <span>{m.model || 'desconocido'}</span>
+                  <span>{m.model || t('metricsUnknown')}</span>
                   <span>{m.tokens.toLocaleString()} tokens</span>
                 </div>
               ))}
@@ -266,15 +269,15 @@ export default function AIMetricsDashboard() {
 
         {/* Task breakdown */}
         <div className="bg-white border rounded-lg p-5">
-          <h2 className="text-sm font-semibold mb-4">Uso por tipo de tarea</h2>
+          <h2 className="text-sm font-semibold mb-4">{t('metricsByTask')}</h2>
           {metrics.by_task.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin datos</p>
+            <p className="text-sm text-slate-400">{t('metricsNoData')}</p>
           ) : (
             <MiniBarChart
               maxVal={taskMax}
-              data={metrics.by_task.map((t) => ({
-                label: TASK_LABELS[t.task] || t.task,
-                value: t.requests,
+              data={metrics.by_task.map((task) => ({
+                label: taskKeyMap[task.task] ? t(taskKeyMap[task.task]) : task.task,
+                value: task.requests,
                 color: 'bg-blue-500',
               }))}
             />
@@ -283,9 +286,9 @@ export default function AIMetricsDashboard() {
 
         {/* Token consumption trend */}
         <div className="bg-white border rounded-lg p-5">
-          <h2 className="text-sm font-semibold mb-4">Tokens consumidos (últimos 14 días)</h2>
+          <h2 className="text-sm font-semibold mb-4">{t('metricsTokensConsumed')}</h2>
           {metrics.daily.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin datos</p>
+            <p className="text-sm text-slate-400">{t('metricsNoData')}</p>
           ) : (
             (() => {
               const items = [...metrics.daily].reverse().slice(-14)
@@ -306,7 +309,7 @@ export default function AIMetricsDashboard() {
       </div>
 
       <p className="text-xs text-slate-400">
-        * El costo estimado es aproximado ($0.002/1K tokens). El costo real depende del proveedor y modelo utilizado.
+        {t('metricsCostNote')}
       </p>
     </div>
   )

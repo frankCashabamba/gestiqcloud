@@ -129,7 +129,7 @@ export default function CompraForm() {
                 {id ? t('purchases:edit') : t('purchases:new')}
             </h3>
 
-            <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 900 }}>
+            <form onSubmit={onSubmit} className="space-y-4 max-w-4xl">
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block mb-1 font-medium">{t('purchases:date')} *</label>
@@ -204,15 +204,15 @@ export default function CompraForm() {
                 <div className="bg-gray-50 p-4 rounded space-y-2">
                     <div className="flex justify-between text-sm">
                         <span>{t('purchases:detail.subtotal')}:</span>
-                        <span className="font-medium">${form.subtotal.toFixed(2)}</span>
+                        <span className="font-medium">{form.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span>IVA ({(taxRate * 100).toFixed(2)}%):</span>
-                        <span className="font-medium">${form.impuesto.toFixed(2)}</span>
+                        <span>{t('purchases:form.tax', { rate: (taxRate * 100).toFixed(2) })}:</span>
+                        <span className="font-medium">{form.impuesto.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold border-t pt-2">
                         <span>{t('purchases:total')}:</span>
-                        <span>${form.total.toFixed(2)}</span>
+                        <span>{form.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                 </div>
 

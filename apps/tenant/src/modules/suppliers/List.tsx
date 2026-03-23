@@ -15,6 +15,7 @@ export default function ProveedoresList() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [filterActivo, setFilterActivo] = useState<'all' | 'active' | 'inactive'>('active')
+  const [deleteId, setDeleteId] = useState<number | string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
 
@@ -72,8 +73,10 @@ export default function ProveedoresList() {
 
   const { page, setPage, totalPages, view } = usePagination(filtered, 15)
 
-  const handleRemove = async (id: number | string) => {
-    if (!confirm(t('suppliers:confirmDelete'))) return
+  const handleRemove = async () => {
+    if (!deleteId) return
+    const id = deleteId
+    setDeleteId(null)
     try {
       await removeProveedor(id)
       setItems((prev) => prev.filter((p) => p.id !== id))
@@ -115,7 +118,7 @@ export default function ProveedoresList() {
           onChange={(e) => setFilterActivo(e.target.value as any)}
           className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
         >
-          <option value="all">{t('common.all')}</option>
+          <option value="all">{t('common:all')}</option>
           <option value="active">{t('suppliers:status.active')}</option>
           <option value="inactive">{t('suppliers:status.inactive')}</option>
         </select>
@@ -138,7 +141,7 @@ export default function ProveedoresList() {
               <th className="px-4 py-3">{t('suppliers:table.email')}</th>
               <th className="px-4 py-3">{t('suppliers:table.phone')}</th>
               <th className="px-4 py-3">{t('suppliers:table.country')}</th>
-              <th className="px-4 py-3">{t('common.status')}</th>
+              <th className="px-4 py-3">{t('common:status')}</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -181,13 +184,13 @@ export default function ProveedoresList() {
                         to={`${p.id}/editar`}
                         className="text-sm font-medium text-blue-600 hover:text-blue-500"
                       >
-                        {t('common.edit')}
+                        {t('common:edit')}
                       </Link>
                     )}
                     {can('suppliers:delete') && (
                       <button
                         className="text-sm font-medium text-rose-600 hover:text-rose-500"
-                        onClick={() => handleRemove(p.id)}
+                        onClick={() => setDeleteId(p.id)}
                       >
                         {t('suppliers:actions.deactivate')}
                       </button>
@@ -208,6 +211,19 @@ export default function ProveedoresList() {
       </div>
 
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+      {deleteId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteId(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 mb-2">{t('suppliers:confirmDelete')}</h3>
+            <p className="text-sm text-gray-500 mb-5">{t('suppliers:confirmDeleteBody', 'Esta acción desactivará al proveedor.')}</p>
+            <div className="flex gap-2 justify-end">
+              <button className="px-4 py-2 border rounded-xl text-sm" onClick={() => setDeleteId(null)}>{t('common:cancel')}</button>
+              <button className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold" onClick={() => void handleRemove()}>{t('suppliers:actions.deactivate')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

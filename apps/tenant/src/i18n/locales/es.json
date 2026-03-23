@@ -35,6 +35,15 @@
       "title": "Plan de cuentas"
     },
     "dashboard": {
+      "allTime": "Todo",
+      "basedOn": "Basado en {{count}} asientos contables",
+      "expensesCount": "gastos",
+      "quickAccess": "Acceso rápido",
+      "salesCount": "ventas",
+      "thisMonth": "Este mes",
+      "thisYear": "Este año",
+      "topExpenses": "Principales gastos",
+      "uncategorized": "Sin categoría",
       "result": "Resultado",
       "totalExpenses": "Gastos totales",
       "totalIncome": "Ingresos totales"
@@ -103,11 +112,16 @@
       "title": "Métodos de pago POS"
     },
     "pl": {
-      "expenses": "Gastos",
+      "cogs": "Costo de ventas",
+      "expenseBreakdown": "Desglose de gastos",
+      "expenses": "Gastos operativos",
+      "grossProfit": "Utilidad bruta",
       "income": "Ingresos",
       "loading": "Calculando PyG...",
+      "netMargin": "Margen neto",
       "netResult": "Resultado neto",
-      "title": "Estado de resultados"
+      "title": "Estado de resultados",
+      "totalSales": "Ventas"
     },
     "posConfig": {
       "errors": {
@@ -184,7 +198,8 @@
     "errors": {
       "dateRequired": "La fecha es obligatoria",
       "lineasRequired": "Debe incluir al menos una línea de factura",
-      "totalNonNegative": "El total debe ser >= 0"
+      "totalNonNegative": "El total debe ser >= 0",
+      "validationError": "Verifica que todas las líneas tengan descripción y cantidad > 0"
     },
     "facturae": {
       "downloadXml": "Descargar XML",
@@ -241,8 +256,15 @@
     "status": {
       "draft": "Borrador",
       "issued": "Emitida",
+      "pending_payment": "Pdte. cobro",
       "voided": "Anulada"
-    }
+    },
+    "markAsPaid": "💰 Cobrar",
+    "markedAsPaid": "Marcada como cobrada",
+    "confirmMarkAsPaid": "¿Marcar esta factura como cobrada?",
+    "customerIdLabel": "Cliente ID",
+    "customerNameLabel": "Nombre del cliente",
+    "filterPending": "Pdte. de cobro"
   },
   "common": {
     "account": "Cuenta",
@@ -468,7 +490,55 @@
     "subtotal": "Subtotal",
     "taxes": "Impuestos",
     "title": "Ventas",
-    "voided": "Anulada"
+    "voided": "Anulada",
+    "deleted": "Venta eliminada",
+    "orderConfirmed": "Pedido confirmado",
+    "orderDelivered": "Pedido marcado como entregado",
+    "allSales": "Todas las ventas",
+    "tabOrders": "🎂 Pedidos",
+    "tabWorks": "🔧 Trabajos",
+    "allStatuses": "Todos",
+    "noCustomer": "Sin cliente",
+    "ordersSearchPlaceholder": "Buscar cliente, número, notas...",
+    "pendingConfirmFilter": "Solo pendientes de confirmar",
+    "deliveryToday": "Entrega hoy",
+    "deliveryTomorrow": "Entrega mañana",
+    "deliveryUpcoming": "Próxima entrega",
+    "deliveryPast": "Entrega pasada",
+    "deliveryLabelTaller": "Entrega estimada",
+    "deliveryLabelPanaderia": "Fecha evento",
+    "colCustomerNotes": "Cliente / Notas",
+    "colDeposit": "Anticipo",
+    "confirmOrder": "Confirmar",
+    "chargeOrder": "💵 Cobrar",
+    "deliverOrder": "🚚 Entregar",
+    "confirmCobrar": "¿Cobrar y facturar \"{{number}}\" por {{amount}}?",
+    "statusPendingConfirm": "PDT confirmar",
+    "statusConfirmed": "Confirmado",
+    "statusInvoiced": "Facturado",
+    "statusDelivered": "Entregado",
+    "ordersEmpty": "No hay pedidos con fecha de entrega registrada",
+    "worksEmpty": "No hay trabajos con fecha de entrega registrada",
+    "badgeToday": "HOY",
+    "badgeTomorrow": "Mañana",
+    "expenseNote": "Sin gasto de producción: {{note}}",
+    "posReadOnlyTitle": "🔒 Venta del TPV — solo lectura",
+    "posReadOnlyBody": "Esta venta fue generada desde el punto de venta y no se puede editar. Solo las ventas en borrador pueden modificarse.",
+    "specialOrder": {
+      "titleTaller": "🔧 Datos del trabajo",
+      "titlePanaderia": "🎂 Datos del pedido",
+      "deliveryDateTaller": "Fecha de entrega estimada",
+      "deliveryDatePanaderia": "Fecha del evento / entrega",
+      "deposit": "Anticipo recibido",
+      "paymentMethod": "Método de pago del anticipo",
+      "noDeposit": "Sin anticipo",
+      "cash": "Efectivo",
+      "transfer": "Transferencia",
+      "card": "Tarjeta",
+      "whatsapp": "Pago WhatsApp",
+      "depositPaid": "Anticipo cobrado ✓",
+      "pendingBalance": "Saldo pendiente: ${{amount}}"
+    }
   },
   "sectors": {
     "bakery": "Panadería",

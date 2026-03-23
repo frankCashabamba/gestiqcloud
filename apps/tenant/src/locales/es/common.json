@@ -42,6 +42,8 @@
   "inactive": "Inactivo",
   "info": "Información",
   "noRecords": "No se encontraron registros",
+  "noResults": "Sin resultados",
+  "of": "de",
   "table": {
     "movimientos": "Movimientos contables"
   },

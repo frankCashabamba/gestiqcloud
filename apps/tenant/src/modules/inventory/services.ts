@@ -42,7 +42,7 @@ export type StockItem = {
 // Helpers de mapeo tolerantes a estructuras variadas del backend
 function mapWarehouse(w: any): Warehouse {
   return {
-    id: w.id ?? w.warehouse_id ?? w.uuid ?? String(Math.random()),
+    id: w.id ?? w.warehouse_id ?? w.uuid ?? '',
     code: w.code ?? w.codigo ?? w.slug ?? '',
     name: w.name ?? w.nombre ?? '',
     is_active: Boolean(w.is_active ?? w.activo ?? true),
@@ -200,8 +200,6 @@ export async function adjustStock(data: { warehouse_id: string | number; product
   })
 }
 
-
-// Existing warehouse and stock services...
 
 // Alert Configuration Types
 export interface AlertConfig {

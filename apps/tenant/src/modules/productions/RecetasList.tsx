@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listRecipes, getRecipe, deleteRecipe, type Recipe } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
@@ -36,8 +36,6 @@ function RecetasListContent() {
   const canWrite = can('produccion:write')
   const { success, error: toastError } = useToast()
   const navigate = useNavigate()
-  const { empresa } = useParams()
-  const basePath = `${empresa ? `/${empresa}` : ''}/manufacturing`
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -218,6 +216,18 @@ function RecetasListContent() {
     return amount * (1 + (isFinite(rate) ? rate : defaultTaxRate))
   }
 
+  const saveMarginConfig = async () => {
+    try {
+      const { data: current } = await tenantApi.get<any>('/api/v1/company/settings/fiscal')
+      const merged = { ...(current || {}), produccion_margin_multiplier: multiplier, pricing_strategy: 'manual' }
+      await tenantApi.put('/api/v1/company/settings/fiscal', merged)
+      success(t('recipesList.profitSaved', { pct: markupPct }))
+    } catch (e: any) {
+      console.error('Error saving margin:', e)
+      toastError(t('recipesList.saveError'))
+    }
+  }
+
   const handleDeleteConfirm = async () => {
     if (!canWrite || !deleteModal) return
     setDeleting(true)
@@ -258,7 +268,7 @@ function RecetasListContent() {
           {canWrite && (
             <button
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-colors"
-              onClick={() => navigate(`${basePath}/recetas/nueva`)}
+              onClick={() => navigate('nueva')}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
               {t('recipesList.newRecipe')}
@@ -347,14 +357,14 @@ function RecetasListContent() {
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 className="inline-flex items-center gap-1.5 border border-gray-200 hover:border-emerald-300 hover:text-emerald-700 text-gray-500 px-2.5 py-1.5 rounded-lg text-xs transition-colors"
-                onClick={() => navigate(`${basePath}/ingredientes`)}
+                onClick={() => navigate('../ingredientes')}
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                 Ingredientes
               </button>
               <button
                 className="inline-flex items-center gap-1.5 border border-gray-200 hover:border-gray-400 text-gray-500 px-2.5 py-1.5 rounded-lg text-xs transition-colors"
-                onClick={() => navigate(`${basePath}/costos`)}
+                onClick={() => navigate('../costos')}
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Costos
@@ -406,7 +416,7 @@ function RecetasListContent() {
             {/* Create from product */}
             <select
               className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-48"
-              onChange={(e) => canWrite && e.target.value && navigate(`${basePath}/recetas/nueva?productId=${encodeURIComponent(e.target.value)}`)}
+              onChange={(e) => canWrite && e.target.value && navigate(`nueva?productId=${encodeURIComponent(e.target.value)}`)}
               value=""
               disabled={!canWrite}
             >
@@ -421,17 +431,7 @@ function RecetasListContent() {
                 <button
                   className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                   title={t('recipesList.saveTooltip')}
-                  onClick={async () => {
-                    try {
-                      const { data: current } = await tenantApi.get<any>('/api/v1/company/settings/fiscal')
-                      const merged = { ...(current || {}), produccion_margin_multiplier: multiplier, pricing_strategy: 'manual' }
-                      await tenantApi.put('/api/v1/company/settings/fiscal', merged)
-                      success(t('recipesList.profitSaved', { pct: markupPct }))
-                    } catch (e: any) {
-                      console.error('Error saving margin:', e)
-                      toastError(t('recipesList.saveError'))
-                    }
-                  }}
+                  onClick={saveMarginConfig}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                   Guardar utilidad
@@ -449,7 +449,7 @@ function RecetasListContent() {
             {canWrite && (
               <button
                 className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold"
-                onClick={() => navigate(`${basePath}/recetas/nueva`)}
+                onClick={() => navigate('nueva')}
               >
                 + {t('recipesList.newRecipe')}
               </button>
@@ -470,7 +470,6 @@ function RecetasListContent() {
                 const isLoaded = !!cc
 
                 // Margin color
-                const marginColor = margen >= 30 ? 'emerald' : margen >= 15 ? 'amber' : 'red'
                 const marginBg   = margen >= 30 ? 'bg-emerald-500' : margen >= 15 ? 'bg-amber-400' : 'bg-red-500'
                 const marginText = margen >= 30 ? 'text-emerald-700 bg-emerald-50' : margen >= 15 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50'
                 const borderAccent = margen >= 30 ? 'border-t-emerald-400' : margen >= 15 ? 'border-t-amber-400' : 'border-t-red-400'
@@ -570,11 +569,20 @@ function RecetasListContent() {
                       <div className="flex items-center gap-1">
                         <button
                           className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
-                          onClick={() => navigate(`${basePath}/recetas/${r.id}`)}
+                          onClick={() => navigate(r.id)}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                           Ver
                         </button>
+                        {canWrite && (
+                          <button
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            onClick={() => navigate(`${r.id}/editar`)}
+                            title={t('actions.editRecipe')}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                        )}
                         {canWrite && (
                           <button
                             className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"

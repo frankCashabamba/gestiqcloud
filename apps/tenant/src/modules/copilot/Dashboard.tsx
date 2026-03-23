@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import {
   askCopilot,
@@ -95,6 +96,7 @@ function Card({
   params?: Record<string, any>; result: QueryResult | null
   onUpdate: (r: QueryResult) => void; children: React.ReactNode; loading: boolean
 }) {
+  const { t } = useTranslation('copilot')
   const [analyzing, setAnalyzing] = useState(false)
   const [showInsights, setShowInsights] = useState(false)
   const insights = result?.ai_insights
@@ -121,7 +123,7 @@ function Card({
               onClick={() => setShowInsights(s => !s)}
               className="text-xs px-2 py-1 rounded bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200"
             >
-              {showInsights ? 'Datos' : '✦ Insights'}
+              {showInsights ? t('showData') : t('showInsights')}
             </button>
           ) : (
             <button
@@ -129,7 +131,7 @@ function Card({
               disabled={analyzing}
               className="text-xs px-2 py-1 rounded bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200 disabled:opacity-50"
             >
-              {analyzing ? '…' : '✦ IA'}
+              {analyzing ? '…' : t('analyzeWithAI')}
             </button>
           )
         )}
@@ -153,6 +155,7 @@ function Card({
 // ─── ventas por mes ──────────────────────────────────────────────────────────
 
 function VentasMesCard({ result, cs }: { result: QueryResult | null; cs: CompanySettings | null }) {
+  const { t } = useTranslation('copilot')
   const series = result?.cards[0]?.series ?? []
   const last6 = series.slice(-6)
   const values = last6.map(s => Number(s.total ?? s.importe ?? 0))
@@ -161,14 +164,14 @@ function VentasMesCard({ result, cs }: { result: QueryResult | null; cs: Company
   const prev = values[values.length - 2] ?? 0
   const delta = prev > 0 ? ((thisMonth - prev) / prev) * 100 : null
 
-  if (!series.length) return <p className="text-sm text-slate-400">Sin datos de ventas</p>
+  if (!series.length) return <p className="text-sm text-slate-400">{t('noSalesData')}</p>
 
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-end">
         <div>
           <p className="text-2xl font-bold text-gray-900">{fmtMoney(thisMonth, cs)}</p>
-          <p className="text-xs text-slate-500">Este mes</p>
+          <p className="text-xs text-slate-500">{t('thisMonth')}</p>
         </div>
         {delta !== null && (
           <span className={`text-sm font-semibold ${delta >= 0 ? 'text-green-600' : 'text-red-500'}`}>
@@ -187,7 +190,7 @@ function VentasMesCard({ result, cs }: { result: QueryResult | null; cs: Company
         ))}
       </div>
       <div className="pt-2 border-t flex justify-between text-xs text-slate-500">
-        <span>Acumulado {last6.length} meses</span>
+        <span>{t('accumulated', { count: last6.length })}</span>
         <span className="font-medium text-slate-700">{fmtMoney(total, cs)}</span>
       </div>
     </div>
@@ -197,18 +200,19 @@ function VentasMesCard({ result, cs }: { result: QueryResult | null; cs: Company
 // ─── top productos ───────────────────────────────────────────────────────────
 
 function TopProductosCard({ result, cs }: { result: QueryResult | null; cs: CompanySettings | null }) {
+  const { t } = useTranslation('copilot')
   const data = result?.cards[0]?.data ?? []
   const top5 = data.slice(0, 5)
   const maxVal = Math.max(...top5.map(d => Number(d.importe ?? d.total ?? 0)), 1)
 
-  if (!top5.length) return <p className="text-sm text-slate-400">Sin datos de productos</p>
+  if (!top5.length) return <p className="text-sm text-slate-400">{t('noProductsData')}</p>
 
   return (
     <div className="space-y-2.5">
       {top5.map((item, i) => {
         const val = Number(item.importe ?? item.total ?? 0)
         const pct = (val / maxVal) * 100
-        const name = item.name ?? item.producto ?? item.producto_nombre ?? `Producto ${i + 1}`
+        const name = item.name ?? item.producto ?? item.producto_nombre ?? t('productN', { n: i + 1 })
         return (
           <div key={i} className="space-y-0.5">
             <div className="flex justify-between items-center">
@@ -230,6 +234,7 @@ function TopProductosCard({ result, cs }: { result: QueryResult | null; cs: Comp
 // ─── stock bajo ──────────────────────────────────────────────────────────────
 
 function StockBajoCard({ result }: { result: QueryResult | null }) {
+  const { t } = useTranslation('copilot')
   const data = result?.cards[0]?.data ?? []
   const threshold = 5
 
@@ -237,19 +242,18 @@ function StockBajoCard({ result }: { result: QueryResult | null }) {
     return (
       <div className="flex flex-col items-center justify-center py-4 text-center">
         <span className="text-2xl mb-1">✓</span>
-        <p className="text-sm font-medium text-green-600">Stock saludable</p>
-        <p className="text-xs text-slate-400">Ningún producto bajo el mínimo</p>
+        <p className="text-sm font-medium text-green-600">{t('stockHealthy')}</p>
+        <p className="text-xs text-slate-400">{t('stockHealthySub')}</p>
       </div>
     )
   }
 
   const critical = data.filter(d => Number(d.qty ?? d.stock ?? 0) === 0)
-  const warning = data.filter(d => Number(d.qty ?? d.stock ?? 0) > 0)
 
   return (
     <div className="space-y-1">
       {critical.length > 0 && (
-        <div className="text-xs font-semibold text-red-500 mb-1.5">Sin stock ({critical.length})</div>
+        <div className="text-xs font-semibold text-red-500 mb-1.5">{t('outOfStock', { count: critical.length })}</div>
       )}
       {data.slice(0, 6).map((item, i) => {
         const qty = Number(item.qty ?? item.stock ?? 0)
@@ -262,7 +266,7 @@ function StockBajoCard({ result }: { result: QueryResult | null }) {
         )
       })}
       {data.length > 6 && (
-        <p className="text-xs text-slate-400 pt-1">+{data.length - 6} más con stock bajo</p>
+        <p className="text-xs text-slate-400 pt-1">{t('moreWithLowStock', { count: data.length - 6 })}</p>
       )}
     </div>
   )
@@ -271,6 +275,7 @@ function StockBajoCard({ result }: { result: QueryResult | null }) {
 // ─── cobros y pagos ──────────────────────────────────────────────────────────
 
 function CobrosCard({ result, cs }: { result: QueryResult | null; cs: CompanySettings | null }) {
+  const { t } = useTranslation('copilot')
   const raw = result?.cards[0]
   const data = raw?.data ?? raw?.series ?? []
 
@@ -285,22 +290,22 @@ function CobrosCard({ result, cs }: { result: QueryResult | null; cs: CompanySet
   }, 0)
   const net = cobros - pagos
 
-  if (!data.length) return <p className="text-sm text-slate-400">Sin movimientos registrados</p>
+  if (!data.length) return <p className="text-sm text-slate-400">{t('noMovements')}</p>
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-green-50 rounded-lg p-3">
-          <p className="text-xs text-green-600 mb-1">Cobros</p>
+          <p className="text-xs text-green-600 mb-1">{t('collections')}</p>
           <p className="text-base font-bold text-green-700">{fmtMoney(cobros, cs)}</p>
         </div>
         <div className="bg-red-50 rounded-lg p-3">
-          <p className="text-xs text-red-500 mb-1">Pagos</p>
+          <p className="text-xs text-red-500 mb-1">{t('payments')}</p>
           <p className="text-base font-bold text-red-600">{fmtMoney(pagos, cs)}</p>
         </div>
       </div>
       <div className="flex justify-between items-center pt-1 border-t">
-        <span className="text-xs text-slate-500">Balance</span>
+        <span className="text-xs text-slate-500">{t('balance')}</span>
         <span className={`text-sm font-bold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
           {net >= 0 ? '+' : ''}{fmtMoney(net, cs)}
         </span>
@@ -309,7 +314,7 @@ function CobrosCard({ result, cs }: { result: QueryResult | null; cs: CompanySet
         const rawLabel = d.mes ?? d.fecha ?? d.periodo ?? d.label ?? ''
         const label = rawLabel
           ? (() => { try { return new Date(rawLabel).toLocaleDateString('es', { month: 'short', year: '2-digit' }) } catch { return rawLabel } })()
-          : `Período ${i + 1}`
+          : t('periodN', { n: i + 1 })
         const c = Number(d.cobros ?? d.ingresos ?? 0)
         const p = Number(d.pagos ?? d.egresos ?? 0)
         if (!c && !p) return null
@@ -328,9 +333,9 @@ function CobrosCard({ result, cs }: { result: QueryResult | null; cs: CompanySet
 // ─── suggestions ─────────────────────────────────────────────────────────────
 
 const PRIORITY_STYLE = {
-  high:   { bg: 'bg-red-50 border-red-200',    dot: 'bg-red-400',    label: 'Urgente' },
-  medium: { bg: 'bg-amber-50 border-amber-200', dot: 'bg-amber-400',  label: 'Importante' },
-  low:    { bg: 'bg-blue-50 border-blue-200',   dot: 'bg-blue-400',   label: 'Sugerencia' },
+  high:   { bg: 'bg-red-50 border-red-200',    dot: 'bg-red-400' },
+  medium: { bg: 'bg-amber-50 border-amber-200', dot: 'bg-amber-400' },
+  low:    { bg: 'bg-blue-50 border-blue-200',   dot: 'bg-blue-400' },
 }
 
 const TYPE_ICON: Record<string, string> = {
@@ -340,6 +345,7 @@ const TYPE_ICON: Record<string, string> = {
 }
 
 function SuggestionsSection({ suggestions, onLoad }: { suggestions: SuggestionsResult | null; onLoad: (s: SuggestionsResult) => void }) {
+  const { t } = useTranslation('copilot')
   const [loading, setLoading] = useState(false)
 
   const handle = async () => {
@@ -351,15 +357,15 @@ function SuggestionsSection({ suggestions, onLoad }: { suggestions: SuggestionsR
     return (
       <div className="border rounded-xl p-5 bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 flex items-center justify-between">
         <div>
-          <p className="font-semibold text-purple-800">Sugerencias con IA</p>
-          <p className="text-sm text-purple-600">Analiza tu negocio y recibe recomendaciones personalizadas</p>
+          <p className="font-semibold text-purple-800">{t('suggestionsTitle')}</p>
+          <p className="text-sm text-purple-600">{t('suggestionsSubtitle')}</p>
         </div>
         <button
           onClick={handle}
           disabled={loading}
           className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap"
         >
-          {loading ? 'Analizando…' : 'Generar ahora'}
+          {loading ? t('analyzing') : t('suggestionsGenerate')}
         </button>
       </div>
     )
@@ -368,9 +374,9 @@ function SuggestionsSection({ suggestions, onLoad }: { suggestions: SuggestionsR
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-semibold text-slate-600">Sugerencias IA</p>
+        <p className="text-sm font-semibold text-slate-600">{t('suggestionsHeader')}</p>
         <button onClick={handle} disabled={loading} className="text-xs text-purple-600 hover:underline disabled:opacity-50">
-          {loading ? 'Actualizando…' : 'Actualizar'}
+          {loading ? t('suggestionsUpdating') : t('suggestionsUpdate')}
         </button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -380,12 +386,14 @@ function SuggestionsSection({ suggestions, onLoad }: { suggestions: SuggestionsR
             <div key={i} className={`border rounded-xl p-4 ${style.bg}`}>
               <div className="flex items-center gap-2 mb-2">
                 <span className={`w-2 h-2 rounded-full ${style.dot}`} />
-                <span className="text-xs font-medium text-slate-500">{style.label}</span>
+                <span className="text-xs font-medium text-slate-500">
+                  {t(`priority${s.priority === 'high' ? 'High' : s.priority === 'medium' ? 'Medium' : 'Low'}`)}
+                </span>
                 <span className="ml-auto">{TYPE_ICON[s.type] ?? '💡'}</span>
               </div>
               <p className="text-sm text-slate-800 leading-snug">{s.content}</p>
               {s.count != null && (
-                <p className="text-xs text-slate-500 mt-1">{s.count} elementos</p>
+                <p className="text-xs text-slate-500 mt-1">{t('suggestionCount', { count: s.count })}</p>
               )}
             </div>
           )
@@ -398,10 +406,10 @@ function SuggestionsSection({ suggestions, onLoad }: { suggestions: SuggestionsR
 // ─── export panel ────────────────────────────────────────────────────────────
 
 const EXPORT_REPORTS = [
-  { key: 'sales_summary',    icon: '🛒', label: 'Ventas',      hint: 'Ventas del período con totales y productos' },
-  { key: 'inventory_status', icon: '📦', label: 'Inventario',  hint: 'Stock actual, valorización y alertas' },
-  { key: 'profit_loss',      icon: '💰', label: 'Financiero',  hint: 'Ingresos, gastos y ganancia neta' },
-  { key: 'product_margins',  icon: '📈', label: 'Márgenes',    hint: 'Márgenes por producto y categoría' },
+  { key: 'sales_summary',    icon: '🛒', labelKey: 'exportSalesLabel',     hintKey: 'exportSalesHint' },
+  { key: 'inventory_status', icon: '📦', labelKey: 'exportInventoryLabel',  hintKey: 'exportInventoryHint' },
+  { key: 'profit_loss',      icon: '💰', labelKey: 'exportFinancialLabel',  hintKey: 'exportFinancialHint' },
+  { key: 'product_margins',  icon: '📈', labelKey: 'exportMarginsLabel',    hintKey: 'exportMarginsHint' },
 ]
 
 const FORMAT_EXT: Record<string, string> = { csv: 'csv', excel: 'xlsx', pdf: 'pdf' }
@@ -412,85 +420,139 @@ function toDefaultDate(daysAgo: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+const FORMAT_STYLE: Record<string, string> = {
+  csv:   'text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100',
+  excel: 'text-teal-700   border-teal-200   bg-teal-50   hover:bg-teal-100',
+  pdf:   'text-rose-700   border-rose-200   bg-rose-50   hover:bg-rose-100',
+}
+
 function ExportPanel() {
+  const { t } = useTranslation('copilot')
+  const { error: toastError } = useToast()
   const [dateFrom, setDateFrom] = useState(() => toDefaultDate(30))
   const [dateTo, setDateTo]     = useState(() => toDefaultDate(0))
   const [loadingKey, setLoadingKey] = useState<string | null>(null)
-  const [errorKey, setErrorKey]     = useState<string | null>(null)
+  const [errorKeys, setErrorKeys]   = useState<Set<string>>(new Set())
 
-  const handleExport = async (reportKey: string, fmt: string) => {
+  const dateInvalid = !!dateFrom && !!dateTo && dateFrom > dateTo
+
+  const applyPreset = (from: string, to: string) => { setDateFrom(from); setDateTo(to) }
+
+  const PRESETS = [
+    { label: t('presetWeek'),      action: () => applyPreset(toDefaultDate(7),  toDefaultDate(0)) },
+    { label: t('presetMonth'),     action: () => applyPreset(toDefaultDate(30), toDefaultDate(0)) },
+    { label: t('presetQuarter'),   action: () => applyPreset(toDefaultDate(90), toDefaultDate(0)) },
+    { label: t('presetThisMonth'), action: () => {
+      const now = new Date()
+      applyPreset(
+        new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
+        toDefaultDate(0)
+      )
+    }},
+  ]
+
+  const handleExport = async (reportKey: string, fmt: string, label: string) => {
+    if (dateInvalid) return
     const key = `${reportKey}-${fmt}`
     setLoadingKey(key)
-    setErrorKey(null)
+    setErrorKeys(prev => { const s = new Set(prev); s.delete(key); return s })
     try {
       const blob = await exportReport({ report_type: reportKey, format: fmt, date_from: dateFrom, date_to: dateTo })
-      downloadBlob(blob, `reporte_${reportKey}.${FORMAT_EXT[fmt] ?? fmt}`)
+      downloadBlob(blob, `${label}_${dateFrom}_${dateTo}.${FORMAT_EXT[fmt] ?? fmt}`)
     } catch {
-      setErrorKey(key)
+      setErrorKeys(prev => new Set(prev).add(key))
+      toastError(t('exportError', { label }))
     } finally {
       setLoadingKey(null)
     }
   }
 
   return (
-    <div className="space-y-5">
-      {/* Date range */}
-      <div className="bg-white border rounded-xl p-4 flex flex-wrap gap-4 items-end">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 font-medium">Desde</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className="border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
+    <div className="space-y-4">
+      {/* Date range card */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-3">
+        {/* Quick presets */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-400 font-medium">{t('quickPreset')}</span>
+          {PRESETS.map(({ label, action }) => (
+            <button
+              key={label}
+              onClick={action}
+              className="px-3 py-1 rounded-full text-xs font-medium border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors"
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 font-medium">Hasta</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className="border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
+        {/* Date inputs */}
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-500 font-medium">{t('dateFrom')}</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className={`border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${dateInvalid ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-500 font-medium">{t('dateTo')}</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className={`border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${dateInvalid ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`}
+            />
+          </div>
+          <p className={`text-xs self-end pb-2 ${dateInvalid ? 'text-rose-500 font-medium' : 'text-slate-400'}`}>
+            {dateInvalid ? t('dateFromAfterTo') : t('dateRangeHint')}
+          </p>
         </div>
-        <p className="text-xs text-slate-400 self-end pb-2">El rango aplica a todos los reportes</p>
       </div>
 
       {/* Report rows */}
-      <div className="space-y-3">
-        {EXPORT_REPORTS.map(({ key, icon, label, hint }) => (
-          <div key={key} className="bg-white border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <span className="text-xl">{icon}</span>
-              <div className="min-w-0">
-                <p className="font-medium text-gray-800 text-sm">{label}</p>
-                <p className="text-xs text-slate-400 truncate">{hint}</p>
+      <div className="space-y-2">
+        {EXPORT_REPORTS.map(({ key, icon, labelKey, hintKey }) => {
+          const label = t(labelKey)
+          return (
+            <div key={key} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-lg flex-shrink-0">
+                  {icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800 text-sm">{label}</p>
+                  <p className="text-xs text-slate-400 truncate">{t(hintKey)}</p>
+                </div>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                {(['csv', 'excel', 'pdf'] as const).map(fmt => {
+                  const bkey = `${key}-${fmt}`
+                  const isLoading = loadingKey === bkey
+                  const isError   = errorKeys.has(bkey)
+                  return (
+                    <button
+                      key={fmt}
+                      onClick={() => handleExport(key, fmt, label)}
+                      disabled={isLoading || dateInvalid}
+                      title={isError ? t('exportError', { label }) : undefined}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors min-w-[54px] flex items-center justify-center
+                        ${isError
+                          ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                          : FORMAT_STYLE[fmt]
+                        } disabled:opacity-40`}
+                    >
+                      {isLoading
+                        ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        : isError ? '⚠ ' + fmt.toUpperCase()
+                        : fmt.toUpperCase()}
+                    </button>
+                  )
+                })}
               </div>
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              {(['csv', 'excel', 'pdf'] as const).map(fmt => {
-                const bkey = `${key}-${fmt}`
-                const isLoading = loadingKey === bkey
-                const isError   = errorKey === bkey
-                return (
-                  <button
-                    key={fmt}
-                    onClick={() => handleExport(key, fmt)}
-                    disabled={!!loadingKey}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50
-                      ${isError
-                        ? 'bg-red-50 text-red-600 border-red-200'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
-                  >
-                    {isLoading ? '…' : isError ? '!' : fmt.toUpperCase()}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -499,6 +561,7 @@ function ExportPanel() {
 // ─── main ────────────────────────────────────────────────────────────────────
 
 export default function CopilotDashboard() {
+  const { t } = useTranslation('copilot')
   const { error: showError } = useToast()
   const [activeTab, setActiveTab] = useState<'resumen' | 'exportar'>('resumen')
   const [globalLoading, setGlobalLoading] = useState(true)
@@ -525,7 +588,7 @@ export default function CopilotDashboard() {
       setPayments(pay)
       setCs(settings)
     } catch {
-      showError('No se pudieron cargar los datos del copilot')
+      showError(t('errorLoadingCopilot'))
     } finally {
       setGlobalLoading(false)
     }
@@ -541,18 +604,22 @@ export default function CopilotDashboard() {
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-5xl">
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-slate-200">
-        {(['resumen', 'exportar'] as const).map(tab => (
+      <div className="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
+        {([
+          { id: 'resumen',  label: t('tabSummary'), icon: '📊' },
+          { id: 'exportar', label: t('tabExport'),  icon: '⬇' },
+        ] as const).map(({ id, label, icon }) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px
-              ${activeTab === tab
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150
+              ${activeTab === id
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
               }`}
           >
-            {tab === 'resumen' ? 'Resumen' : 'Exportar'}
+            <span className="text-base leading-none">{icon}</span>
+            {label}
           </button>
         ))}
       </div>
@@ -562,15 +629,15 @@ export default function CopilotDashboard() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Resumen del negocio</h1>
-              <p className="text-sm text-slate-500">Datos en tiempo real + análisis con IA</p>
+              <h1 className="text-xl font-bold text-gray-900">{t('summaryTitle')}</h1>
+              <p className="text-sm text-slate-500">{t('summarySubtitle')}</p>
             </div>
             <button
               onClick={load}
               disabled={globalLoading}
               className="px-3 py-1.5 border rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
             >
-              {globalLoading ? 'Cargando…' : '↻ Actualizar'}
+              {globalLoading ? t('loadingText') : t('refreshButton')}
             </button>
           </div>
 
@@ -579,8 +646,7 @@ export default function CopilotDashboard() {
             <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               <span className="text-red-500 text-lg">⚠</span>
               <p className="text-sm text-red-700">
-                <span className="font-semibold">{stockAlert} producto{stockAlert > 1 ? 's' : ''} sin stock.</span>{' '}
-                Revisa el panel de inventario para reponer.
+                <span className="font-semibold">{stockAlert} {t('stockAlertMessage')}</span>
               </p>
             </div>
           )}
@@ -591,7 +657,7 @@ export default function CopilotDashboard() {
           {/* Data cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card
-              title="Ventas por mes"
+              title={t('salesByMonth')}
               icon="📊"
               topic="ventas_mes"
               result={salesMonth}
@@ -602,7 +668,7 @@ export default function CopilotDashboard() {
             </Card>
 
             <Card
-              title="Productos más vendidos"
+              title={t('topProducts')}
               icon="🏆"
               topic="top_productos"
               result={topProducts}
@@ -613,7 +679,7 @@ export default function CopilotDashboard() {
             </Card>
 
             <Card
-              title="Stock bajo mínimo"
+              title={t('lowStock')}
               icon="📦"
               topic="stock_bajo"
               params={{ threshold: 5 }}
@@ -625,7 +691,7 @@ export default function CopilotDashboard() {
             </Card>
 
             <Card
-              title="Cobros y pagos"
+              title={t('paymentsCollections')}
               icon="💳"
               topic="cobros_pagos"
               result={payments}
@@ -637,7 +703,7 @@ export default function CopilotDashboard() {
           </div>
 
           <p className="text-xs text-slate-400">
-            El botón ✦ IA en cada tarjeta activa un análisis adicional con inteligencia artificial.
+            {t('aiHint')}
           </p>
         </>
       )}
@@ -646,8 +712,8 @@ export default function CopilotDashboard() {
         <>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Exportar reportes</h1>
-              <p className="text-sm text-slate-500">Descarga reportes en CSV, Excel o PDF para el período seleccionado</p>
+              <h1 className="text-xl font-bold text-gray-900">{t('exportTitle')}</h1>
+              <p className="text-sm text-slate-500">{t('exportSubtitle')}</p>
             </div>
           </div>
           <ExportPanel />

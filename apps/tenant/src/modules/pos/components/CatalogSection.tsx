@@ -6,7 +6,7 @@ import React, { RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import ProtectedButton from '../../../components/ProtectedButton'
 import { useCurrency } from '../../../hooks/useCurrency'
-import type { Producto } from '../../products/types'
+import type { Producto } from '../../products/productsApi'
 
 interface CatalogSectionProps {
   searchQuery: string

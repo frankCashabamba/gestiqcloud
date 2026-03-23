@@ -35,6 +35,15 @@
       "title": "Chart of accounts"
     },
     "dashboard": {
+      "allTime": "All time",
+      "basedOn": "Based on {{count}} journal entries",
+      "expensesCount": "expenses",
+      "quickAccess": "Quick access",
+      "salesCount": "sales",
+      "thisMonth": "This month",
+      "thisYear": "This year",
+      "topExpenses": "Top expenses",
+      "uncategorized": "Uncategorized",
       "result": "Result",
       "totalExpenses": "Total expenses",
       "totalIncome": "Total income"
@@ -103,11 +112,16 @@
       "title": "POS payment methods"
     },
     "pl": {
-      "expenses": "Expenses",
+      "cogs": "Cost of goods sold",
+      "expenseBreakdown": "Expense breakdown",
+      "expenses": "Operating expenses",
+      "grossProfit": "Gross profit",
       "income": "Income",
       "loading": "Calculating P&L...",
+      "netMargin": "Net margin",
       "netResult": "Net result",
-      "title": "Profit & Loss Statement"
+      "title": "Profit & Loss Statement",
+      "totalSales": "Revenue"
     },
     "posConfig": {
       "errors": {
@@ -184,7 +198,8 @@
     "errors": {
       "dateRequired": "Date is required",
       "lineasRequired": "At least one invoice line is required",
-      "totalNonNegative": "Total must be >= 0"
+      "totalNonNegative": "Total must be >= 0",
+      "validationError": "Check that all lines have a description and quantity > 0"
     },
     "facturae": {
       "downloadXml": "Download XML",
@@ -241,8 +256,15 @@
     "status": {
       "draft": "Draft",
       "issued": "Issued",
+      "pending_payment": "Pending payment",
       "voided": "Voided"
-    }
+    },
+    "markAsPaid": "💰 Collect",
+    "markedAsPaid": "Marked as paid",
+    "confirmMarkAsPaid": "Mark this invoice as paid?",
+    "customerIdLabel": "Customer ID",
+    "customerNameLabel": "Customer name",
+    "filterPending": "Pending payment"
   },
   "common": {
     "account": "Account",
@@ -455,7 +477,55 @@
     "subtotal": "Subtotal",
     "taxes": "Taxes",
     "title": "Sales",
-    "voided": "Voided"
+    "voided": "Voided",
+    "deleted": "Sale deleted",
+    "orderConfirmed": "Order confirmed",
+    "orderDelivered": "Order marked as delivered",
+    "allSales": "All sales",
+    "tabOrders": "🎂 Orders",
+    "tabWorks": "🔧 Jobs",
+    "allStatuses": "All",
+    "noCustomer": "No customer",
+    "ordersSearchPlaceholder": "Search customer, number, notes...",
+    "pendingConfirmFilter": "Pending confirmation only",
+    "deliveryToday": "Delivery today",
+    "deliveryTomorrow": "Delivery tomorrow",
+    "deliveryUpcoming": "Upcoming delivery",
+    "deliveryPast": "Past delivery",
+    "deliveryLabelTaller": "Estimated delivery",
+    "deliveryLabelPanaderia": "Event date",
+    "colCustomerNotes": "Customer / Notes",
+    "colDeposit": "Deposit",
+    "confirmOrder": "Confirm",
+    "chargeOrder": "💵 Charge",
+    "deliverOrder": "🚚 Deliver",
+    "confirmCobrar": "Charge and invoice \"{{number}}\" for {{amount}}?",
+    "statusPendingConfirm": "Pending confirm",
+    "statusConfirmed": "Confirmed",
+    "statusInvoiced": "Invoiced",
+    "statusDelivered": "Delivered",
+    "ordersEmpty": "No orders with a delivery date registered",
+    "worksEmpty": "No jobs with a delivery date registered",
+    "badgeToday": "TODAY",
+    "badgeTomorrow": "Tomorrow",
+    "expenseNote": "Production expense not created: {{note}}",
+    "posReadOnlyTitle": "🔒 POS Sale — read only",
+    "posReadOnlyBody": "This sale was generated from the point of sale and cannot be edited. Only draft sales can be modified.",
+    "specialOrder": {
+      "titleTaller": "🔧 Job Details",
+      "titlePanaderia": "🎂 Order Details",
+      "deliveryDateTaller": "Estimated delivery date",
+      "deliveryDatePanaderia": "Event / delivery date",
+      "deposit": "Deposit received",
+      "paymentMethod": "Deposit payment method",
+      "noDeposit": "No deposit",
+      "cash": "Cash",
+      "transfer": "Transfer",
+      "card": "Card",
+      "whatsapp": "WhatsApp payment",
+      "depositPaid": "Deposit collected ✓",
+      "pendingBalance": "Pending balance: ${{amount}}"
+    }
   },
   "sectors": {
     "bakery": "Bakery",

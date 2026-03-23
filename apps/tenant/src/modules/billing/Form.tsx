@@ -9,6 +9,8 @@ import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
 import { useCurrency } from '../../hooks/useCurrency'
 import { getCompanySettings, getDefaultTaxRate } from '../../services/companySettings'
+import CustomerSelector from '../sales/components/CustomerSelector'
+import ProductLineInput from './components/ProductLineInput'
 
 interface FormT {
   numero?: string
@@ -72,8 +74,6 @@ export default function FacturaForm() {
       setLoading(true)
       getFactura(id)
         .then((x: any) => {
-          console.log('Invoice loaded from API:', x)
-          console.log('Lines from API:', x?.lineas)
           const rawFecha = x?.fecha || ''
           const fechaVal = rawFecha ? rawFecha.slice(0, 10) : today
           setForm({
@@ -92,7 +92,7 @@ export default function FacturaForm() {
           })
         })
         .catch((err) => {
-          console.error('Error loading invoice:', err)
+          error(getErrorMessage(err))
         })
         .finally(() => setLoading(false))
     }
@@ -238,26 +238,19 @@ export default function FacturaForm() {
 
           {/* Customer Section */}
           <div className="border-b pb-4 grid grid-cols-2 gap-4">
-            <div>
-              <label className="gc-label">{t('common.category')} ID</label>
-              <input
-                type="number"
-                value={form.cliente_id || ''}
-                onChange={(e) => setForm({ ...form, cliente_id: e.target.value ? Number(e.target.value) : undefined })}
-                className="gc-input"
-                disabled={isLocked}
-              />
-            </div>
-            <div>
-              <label className="gc-label">{t('common.category')} {t('common.name')}</label>
-              <input
-                type="text"
-                value={form.cliente_nombre}
-                onChange={(e) => setForm({ ...form, cliente_nombre: e.target.value })}
-                placeholder={t('billing.customerNamePlaceholder')}
-                className="gc-input"
-                disabled={isLocked}
-              />
+            <div className="col-span-2">
+              <label className="gc-label">{t('billing.customerNameLabel')}</label>
+              {isLocked ? (
+                <p className="gc-input bg-slate-50 text-slate-700">
+                  {form.cliente_nombre || <span className="text-slate-400">—</span>}
+                </p>
+              ) : (
+                <CustomerSelector
+                  value={form.cliente_id}
+                  clienteName={form.cliente_nombre}
+                  onChange={(id, name) => setForm(prev => ({ ...prev, cliente_id: id ? Number(id) : undefined, cliente_nombre: name }))}
+                />
+              )}
             </div>
             <div className="col-span-2">
               <label className="gc-label">{t('common.description')}</label>
@@ -300,17 +293,18 @@ export default function FacturaForm() {
                   {form.lineas.map((linea, idx) => (
                     <tr key={idx}>
                       <td className="border p-2">
-                        <input
-                          type="text"
+                        <ProductLineInput
                           value={linea.description}
-                      onChange={(e) =>
-                        updateLineTotal(idx, { ...linea, description: e.target.value })
-                      }
-                      className="gc-input"
-                      disabled={isLocked}
-                      required
-                    />
-                  </td>
+                          disabled={isLocked}
+                          onChange={(description, precio) =>
+                            updateLineTotal(idx, {
+                              ...linea,
+                              description,
+                              ...(precio !== undefined ? { precio_unitario: precio } : {}),
+                            })
+                          }
+                        />
+                      </td>
                       <td className="border p-2">
                         <input
                           type="number"

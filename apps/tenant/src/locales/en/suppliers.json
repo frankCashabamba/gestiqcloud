@@ -6,6 +6,7 @@
   "loading": "Loading suppliers…",
   "searchPlaceholder": "Search by name, NIF, email...",
   "confirmDelete": "Deactivate this supplier?",
+  "confirmDeleteBody": "This action will deactivate the supplier.",
   "status": {
     "active": "Active",
     "inactive": "Inactive"
@@ -22,6 +23,69 @@
     "deactivate": "Deactivate"
   },
   "messages": {
-    "deactivated": "Supplier deactivated"
+    "deactivated": "Supplier deactivated",
+    "updated": "Supplier updated",
+    "created": "Supplier created"
+  },
+  "detail": {
+    "loading": "Loading supplier…",
+    "notFound": "Supplier not found",
+    "code": "Code",
+    "generalInfo": "General Information",
+    "taxPayment": "Tax and Payment Settings",
+    "contacts": "Contacts",
+    "noContacts": "No contacts registered",
+    "addresses": "Addresses",
+    "noAddresses": "No addresses registered",
+    "days": "{{count}} days"
+  },
+  "form": {
+    "title": "New Supplier",
+    "titleEdit": "Edit Supplier",
+    "name": "Name / Legal Name",
+    "tradeName": "Trade Name",
+    "nif": "NIF / Tax ID",
+    "country": "Country",
+    "language": "Language",
+    "email": "Email",
+    "phone": "Phone",
+    "web": "Website",
+    "taxType": "Tax Type",
+    "irpf": "IRPF Withholding (%)",
+    "taxExempt": "Tax exempt",
+    "paymentTerm": "Payment Term (days)",
+    "currency": "Currency",
+    "paymentMethod": "Payment Method",
+    "iban": "IBAN",
+    "ibanConfirm": "Confirm IBAN",
+    "saveChanges": "Save changes",
+    "create": "Create supplier",
+    "addContact": "+ Add Contact",
+    "addAddress": "+ Add Address",
+    "noContacts": "No contacts added.",
+    "noAddresses": "No addresses added.",
+    "errors": {
+      "nameRequired": "Name is required",
+      "ibanMismatch": "IBANs do not match"
+    }
+  },
+  "contactTypes": {
+    "facturacion": "Billing",
+    "entrega": "Delivery",
+    "administracion": "Administration",
+    "comercial": "Commercial",
+    "soporte": "Support"
+  },
+  "addressTypes": {
+    "facturacion": "Billing",
+    "entrega": "Delivery",
+    "administracion": "Administration",
+    "otros": "Other"
+  },
+  "paymentMethods": {
+    "transferencia": "Bank Transfer",
+    "efectivo": "Cash",
+    "tarjeta": "Card",
+    "pagare": "Promissory Note"
   }
 }

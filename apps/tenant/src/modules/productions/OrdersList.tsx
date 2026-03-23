@@ -50,6 +50,8 @@ function OrdersListContent() {
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
     const [completionTarget, setCompletionTarget] = useState<ProductionOrder | null>(null)
     const [completionDraft, setCompletionDraft] = useState<CompletionDraft>(EMPTY_COMPLETION_DRAFT)
+    const [cancelTarget, setCancelTarget] = useState<ProductionOrder | null>(null)
+    const [deleteTarget, setDeleteTarget] = useState<ProductionOrder | null>(null)
     const nav = useNavigate()
     const { success, error: toastError } = useToast()
     const [q, setQ] = useState('')
@@ -167,7 +169,13 @@ function OrdersListContent() {
 
     const handleCancel = async (order: ProductionOrder) => {
         if (!canWrite) return
-        if (!confirm(t('productions:messages.cancelConfirm'))) return
+        setCancelTarget(order)
+    }
+
+    const doCancel = async () => {
+        if (!cancelTarget) return
+        const order = cancelTarget
+        setCancelTarget(null)
         try {
             setActionLoadingId(order.id)
             const updated = await cancelProductionOrder(order.id)
@@ -292,19 +300,7 @@ function OrdersListContent() {
                                             </button>
                                         )}
                                         {canWrite && canDelete(o) && (
-                                            <button className="text-red-700 disabled:text-gray-400" disabled={busy} onClick={async () => {
-                                                if (!confirm(t('productions:deleteConfirm'))) return
-                                                try {
-                                                    setActionLoadingId(o.id)
-                                                    await removeProductionOrder(o.id)
-                                                    setItems((p) => p.filter(x => x.id !== o.id))
-                                                    success(t('productions:deleted'))
-                                                } catch (e: any) {
-                                                    toastError(getErrorMessage(e))
-                                                } finally {
-                                                    setActionLoadingId(null)
-                                                }
-                                            }}>
+                                            <button className="text-red-700 disabled:text-gray-400" disabled={busy} onClick={() => setDeleteTarget(o)}>
                                                 {t('productions:delete')}
                                             </button>
                                         )}
@@ -410,6 +406,48 @@ function OrdersListContent() {
                             >
                                 {t('productions:actionsLabels.complete')}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {cancelTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setCancelTarget(null)}>
+                    <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+                        <h3 className="font-bold text-gray-900 mb-2">{t('productions:messages.cancelConfirm')}</h3>
+                        <p className="text-sm text-gray-500 mb-2">{cancelTarget.numero}</p>
+                        <div className="flex gap-2 justify-end mt-4">
+                            <button className="px-4 py-2 border rounded text-sm" onClick={() => setCancelTarget(null)}>{t('common:cancel')}</button>
+                            <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm font-semibold" onClick={() => void doCancel()}>{t('productions:actionsLabels.cancel')}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {deleteTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteTarget(null)}>
+                    <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+                        <h3 className="font-bold text-gray-900 mb-2">{t('productions:deleteConfirm')}</h3>
+                        <p className="text-sm text-gray-500 mb-2">{deleteTarget.numero}</p>
+                        <div className="flex gap-2 justify-end mt-4">
+                            <button className="px-4 py-2 border rounded text-sm" onClick={() => setDeleteTarget(null)}>{t('common:cancel')}</button>
+                            <button
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold"
+                                onClick={async () => {
+                                    const o = deleteTarget
+                                    setDeleteTarget(null)
+                                    try {
+                                        setActionLoadingId(o.id)
+                                        await removeProductionOrder(o.id)
+                                        setItems((p) => p.filter(x => x.id !== o.id))
+                                        success(t('productions:deleted'))
+                                    } catch (e: any) {
+                                        toastError(getErrorMessage(e))
+                                    } finally {
+                                        setActionLoadingId(null)
+                                    }
+                                }}
+                            >{t('productions:delete')}</button>
                         </div>
                     </div>
                 </div>

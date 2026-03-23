@@ -6,12 +6,13 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import StatusBadge from './components/StatusBadge'
 
 export default function VentaDetail() {
-    const { id, empresa } = useParams<{ id: string; empresa: string }>()
+    const { id } = useParams<{ id: string }>()
     const nav = useNavigate()
     const { t } = useTranslation()
     const [venta, setVenta] = useState<Venta | null>(null)
     const [loading, setLoading] = useState(true)
     const [checkingOut, setCheckingOut] = useState(false)
+    const [confirmDelete, setConfirmDelete] = useState(false)
     const { success, error } = useToast()
 
     useEffect(() => {
@@ -20,10 +21,11 @@ export default function VentaDetail() {
     }, [id])
 
     const handleDelete = async () => {
-        if (!id || !confirm('Delete this sale permanently?')) return
+        if (!id) return
+        setConfirmDelete(false)
         try {
             await removeVenta(id)
-            success('Sale deleted')
+            success(t('sales.deleted'))
             nav('..')
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -37,7 +39,7 @@ export default function VentaDetail() {
             const result = await checkoutOrder(id)
             success(result.message)
             if (result.expense_note) {
-                error(`Sin gasto de producción: ${result.expense_note}`)
+                error(t('sales.expenseNote', { note: result.expense_note }))
             }
             // Recargar para reflejar estado 'invoiced'
             getVenta(id).then(setVenta).catch(() => {})
@@ -53,7 +55,7 @@ export default function VentaDetail() {
 
     return (
         <div className="p-4" style={{ maxWidth: 840 }}>
-            <button className="mb-3 underline text-sm" onClick={() => nav('..')}>← {t('common.back')} to {t('nav.sales')}</button>
+            <button className="mb-3 underline text-sm" onClick={() => nav('..')}>← {t('common.back')}</button>
 
             <div className="flex justify-between items-start mb-4">
                 <div>
@@ -64,7 +66,7 @@ export default function VentaDetail() {
             </div>
 
             <div className="bg-white border rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-3 text-lg">{t('sales.title')} {t('common.info')}</h3>
+                <h3 className="font-semibold mb-3 text-lg">{t('sales.title')}</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                         <label className="text-gray-600">{t('sales.saleNumber')}:</label>
@@ -168,7 +170,7 @@ export default function VentaDetail() {
 
                     {!isPosReadOnly(venta) && (
                         <button
-                            onClick={handleDelete}
+                            onClick={() => setConfirmDelete(true)}
                             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
                         >
                             {t('common.delete')}
@@ -188,6 +190,37 @@ export default function VentaDetail() {
                 <div className="mt-4 text-xs text-gray-500">
                     {t('common.create')}: {new Date(venta.created_at).toLocaleString()}
                     {venta.updated_at && ` • ${t('common.update')}: ${new Date(venta.updated_at).toLocaleString()}`}
+                </div>
+            )}
+
+            {confirmDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-start gap-3 mb-5">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-gray-900">{t('sales.deleteConfirm')}</h3>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                                onClick={() => setConfirmDelete(false)}
+                            >
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors"
+                                onClick={() => void handleDelete()}
+                            >
+                                {t('common.delete')}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

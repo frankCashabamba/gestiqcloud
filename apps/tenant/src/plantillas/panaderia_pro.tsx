@@ -192,7 +192,7 @@ const BakeryHero: React.FC<BakeryHeroProps> = ({
           <a className="btn" href={`${prefix}/pos`}>Abrir POS</a>
         )}
         {isProductionEnabled() && (
-          <a className="link" href={`${prefix}/manufacturing/recetas`}>Ver recetas →</a>
+          <a className="btn" href={`${prefix}/manufacturing/recetas`}>Ver recetas</a>
         )}
       </div>
     </div>
@@ -849,11 +849,7 @@ const PanaderiaDashboard: React.FC = () => {
     })
 
   const prefix      = empresa ? `/${empresa}` : ''
-  const customLinks = [
-    isProductionEnabled() && { label: t('dashboard:panaderia.recipes'), href: `${prefix}/manufacturing/recetas`, icon: 'R' },
-    isModuleEnabled('inventory') && { label: t('dashboard:panaderia.inventory'), href: `${prefix}/inventory`, icon: 'I' },
-    isModuleEnabled('purchases') && { label: t('dashboard:panaderia.purchases'), href: `${prefix}/purchases`, icon: 'P' },
-  ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
+  const customLinks: Array<{ label: string; href: string; icon: string }> = []
 
   // ── Effects (all unchanged) ────────────────────────────
 

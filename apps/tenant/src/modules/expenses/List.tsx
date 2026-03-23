@@ -29,6 +29,7 @@ export default function GastosList() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [detailData, setDetailData] = useState<ProductionDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -53,9 +54,6 @@ export default function GastosList() {
   const isProductionExpense = (expense: Gasto) =>
     expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
 
-  const isSaleProductionExpense = (expense: Gasto) =>
-    String(expense.invoice_number || '').startsWith('PROD-SALE-') ||
-    (expense.category === 'production' && expense.subcategory === 'sale_cost')
 
   const filtered = useMemo(() => items.filter(v => {
     if (desde && v.date < desde) return false
@@ -89,18 +87,11 @@ export default function GastosList() {
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...filtered].sort((a, b) => {
-      let av, bv
-      if (sortKey === 'date') {
-        av = a.date || ''
-        bv = b.date || ''
-      } else if (sortKey === 'amount') {
-        av = a.amount || 0
-        bv = b.amount || 0
-        return ((av as number) - (bv as number)) * dir
-      } else {
-        av = (a as any)[sortKey] || ''
-        bv = (b as any)[sortKey] || ''
+      if (sortKey === 'amount') {
+        return ((a.amount || 0) - (b.amount || 0)) * dir
       }
+      const av: string = sortKey === 'date' ? (a.date || '') : ((a as any)[sortKey] || '')
+      const bv: string = sortKey === 'date' ? (b.date || '') : ((b as any)[sortKey] || '')
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir
     })
   }, [filtered, sortKey, sortDir])
@@ -142,19 +133,23 @@ export default function GastosList() {
   }
 
   function exportCSV(rows: Gasto[]) {
-    const header = ['id', 'date', 'concept', 'amount']
-    const body = rows.map(r => [
-      r.id,
-      r.date,
-      r.concept || '',
-      r.amount
-    ])
-    const csv = [header, ...body].map(line => line.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const esc = (v: string | number | undefined | null) => {
+      const s = String(v ?? '')
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s
+    }
+    const header = ['id', 'date', 'concept', 'category', 'subcategory', 'amount', 'status', 'payment_method', 'supplier_name', 'invoice_number']
+    const body = rows.map((r) => [
+      r.id, r.date, r.concept, r.category, r.subcategory,
+      r.amount, r.status, r.payment_method, r.supplier_name, r.invoice_number,
+    ].map(esc))
+    const csv = [header, ...body].map((line) => line.join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'gastos.csv'
+    a.download = `gastos-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -340,7 +335,7 @@ export default function GastosList() {
                 </td>
                 <td className="py-2 px-2 font-medium">${v.amount.toFixed(2)}</td>
                 <td className="py-2 px-2">
-                  {(!isProductionExpense(v) || isSaleProductionExpense(v)) && can('expenses:update') && (
+                  {!isProductionExpense(v) && can('expenses:update') && (
                     <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
                       {t('edit', { ns: 'common' })}
                     </Link>
@@ -348,16 +343,7 @@ export default function GastosList() {
                   {can('expenses:delete') && (
                     <button
                       className="text-red-700 hover:underline"
-                      onClick={async () => {
-                        if (!confirm(t('expenses:confirmDelete'))) return
-                        try {
-                          await removeGasto(v.id)
-                          setItems((p) => p.filter(x => x.id !== v.id))
-                          success(t('expenses:messages.deleted'))
-                        } catch (e: any) {
-                          toastError(getErrorMessage(e))
-                        }
-                      }}
+                      onClick={() => setDeleteId(v.id)}
                     >
                       {t('delete', { ns: 'common' })}
                     </button>
@@ -467,6 +453,39 @@ export default function GastosList() {
       </div>
 
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="font-semibold text-gray-900 mb-1">{t('expenses:confirmDelete')}</h3>
+            <p className="text-sm text-gray-500 mb-5">{t('expenses:confirmDeleteBody')}</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                onClick={() => setDeleteId(null)}
+              >
+                {t('cancel', { ns: 'common' })}
+              </button>
+              <button
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+                onClick={async () => {
+                  const id = deleteId
+                  setDeleteId(null)
+                  try {
+                    await removeGasto(id)
+                    setItems((p) => p.filter((x) => x.id !== id))
+                    success(t('expenses:messages.deleted'))
+                  } catch (e: any) {
+                    toastError(getErrorMessage(e))
+                  }
+                }}
+              >
+                {t('delete', { ns: 'common' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -42,6 +42,8 @@
   "inactive": "Inactive",
   "info": "Info",
   "noRecords": "No records found",
+  "noResults": "No results",
+  "of": "of",
   "table": {
     "movimientos": "Accounting movements"
   },

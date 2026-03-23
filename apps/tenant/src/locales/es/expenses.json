@@ -5,7 +5,7 @@
   "stats": {
     "total": "Total",
     "pending": "Pendiente",
-    "production": "Produccion",
+    "production": "Producción",
     "manual": "Manual"
   },
   "filters": {
@@ -15,23 +15,81 @@
     "source": "Origen",
     "sourceAll": "Todos",
     "sourceManual": "Manual",
-    "sourceProduction": "Produccion"
+    "sourceProduction": "Producción"
   },
   "table": {
     "date": "Fecha",
     "concept": "Concepto",
     "source": "Origen",
-    "amount": "Monto"
+    "amount": "Monto",
+    "paymentStatus": "Estado pago"
   },
   "source": {
-    "production": "Auto from production",
+    "production": "Auto producción",
     "manual": "Manual"
   },
+  "paymentStatus": {
+    "paid": "Pagado",
+    "partial": "Parcial",
+    "pending": "Pdt. pago",
+    "cancelled": "Anulado"
+  },
   "messages": {
-    "deleted": "Gasto eliminado"
+    "deleted": "Gasto eliminado",
+    "saved": "Gasto guardado"
   },
   "confirmDelete": "¿Eliminar gasto?",
+  "confirmDeleteBody": "Esta acción no se puede deshacer.",
+  "form": {
+    "title": "Nuevo gasto",
+    "titleEdit": "Editar gasto",
+    "date": "Fecha",
+    "amount": "Monto",
+    "category": "Categoría",
+    "subcategory": "Subcategoría",
+    "concept": "Concepto",
+    "conceptPlaceholder": "Descripción del gasto",
+    "paymentMethod": "Método de pago",
+    "status": "Estado",
+    "supplierId": "ID Proveedor",
+    "supplierIdPlaceholder": "ID del proveedor",
+    "supplierName": "Nombre proveedor",
+    "supplierNamePlaceholder": "Nombre del proveedor",
+    "invoiceNumber": "Nº Factura",
+    "notes": "Notas",
+    "notesPlaceholder": "Notas adicionales...",
+    "saving": "Guardando...",
+    "save": "Guardar",
+    "selectCategory": "Seleccionar...",
+    "selectSubcategory": "Seleccionar...",
+    "errors": {
+      "dateRequired": "La fecha es obligatoria",
+      "categoryRequired": "La categoría es obligatoria",
+      "conceptRequired": "El concepto es obligatorio",
+      "amountPositive": "El monto debe ser mayor que 0"
+    }
+  },
+  "paymentMethods": {
+    "cash": "Efectivo",
+    "transfer": "Transferencia",
+    "card": "Tarjeta",
+    "check": "Cheque"
+  },
+  "statuses": {
+    "pending": "Pendiente",
+    "paid": "Pagado",
+    "voided": "Anulado"
+  },
   "detail": {
+    "title": "Gasto",
+    "created": "Creado",
+    "details": "Detalle del gasto",
+    "totalAmount": "Importe total",
+    "markAsPaid": "Marcar como pagado",
+    "markedPaid": "Gasto marcado como pagado",
+    "notFound": "Gasto no encontrado",
+    "confirmPaidTitle": "¿Marcar como pagado?",
+    "confirmPaidBody": "Se registrará el pago completo de este gasto.",
     "loadingDetail": "Cargando detalle...",
     "order": "Orden",
     "produced": "Producido",

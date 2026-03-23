@@ -66,7 +66,6 @@ export const InvoiceAdapter: SyncAdapter = {
       await storeEntity(entity, id, { _deleted: true, _op: 'delete' }, 'synced', Date.now())
     } catch (error) {
       await queueDeletion(entity, id)
-      console.warn('[offline] Queued invoice deletion for later sync:', id)
     }
   },
 
@@ -92,7 +91,6 @@ export function registerBillingSyncAdapter() {
   if (registered) return
   getSyncManager().registerAdapter(InvoiceAdapter)
   registered = true
-  console.log('[offline] Billing (invoices) sync adapter registered')
 }
 
 export { queueInvoiceForSync, queueInvoiceDeletion } from './offlineQueue'

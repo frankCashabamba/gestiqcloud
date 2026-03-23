@@ -1,6 +1,4 @@
-// apps/tenant/src/modules/inventario/MovimientoFormBulk.tsx
-// FASE 4 PASO 4: Placeholders dinámicos desde BD
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createStockMove, listWarehouses, listStockItems, adjustStock, type Warehouse } from './services'
@@ -36,6 +34,19 @@ export default function MovimientoForm() {
     const [warehouseEmpty, setWarehouseEmpty] = useState(false)
     const [applyAll, setApplyAll] = useState(false)
     const [bulkQty, setBulkQty] = useState<number>(0)
+
+    // Combobox de producto
+    const [productSearch, setProductSearch] = useState('')
+    const [productDropdownOpen, setProductDropdownOpen] = useState(false)
+    const [selectedProduct, setSelectedProduct] = useState<{ id: string; label: string } | null>(null)
+    const productInputRef = useRef<HTMLInputElement>(null)
+
+    const filteredProductos = useMemo(() => {
+        const q = productSearch.toLowerCase()
+        return productos.filter(
+            (p) => p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q),
+        ).slice(0, 40)
+    }, [productos, productSearch])
 
     useEffect(() => {
         (async () => {
@@ -171,22 +182,70 @@ export default function MovimientoForm() {
                 </div>
 
                 {!applyAll && (
-                    <div>
+                    <div className="relative">
                         <label className="block mb-2 font-medium">{t('common.product')} <span className="text-red-600">*</span></label>
-                        <select
-                            value={form.product_id}
-                            onChange={(e) => setForm({ ...form, product_id: e.target.value })}
-                            className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
-                            required={!applyAll}
-                            disabled={applyAll}
-                        >
-                            <option value="">{t('inventory:form.selectProduct')}</option>
-                            {productos.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {(p.sku || '') + ' - ' + p.name}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <input
+                                ref={productInputRef}
+                                type="text"
+                                value={productDropdownOpen ? productSearch : (selectedProduct?.label ?? '')}
+                                placeholder={t('inventory:form.selectProduct')}
+                                onChange={(e) => {
+                                    setProductSearch(e.target.value)
+                                    setProductDropdownOpen(true)
+                                    if (!e.target.value) {
+                                        setSelectedProduct(null)
+                                        setForm((f) => ({ ...f, product_id: '' }))
+                                    }
+                                }}
+                                onFocus={() => { setProductSearch(''); setProductDropdownOpen(true) }}
+                                onBlur={() => setTimeout(() => setProductDropdownOpen(false), 150)}
+                                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 pr-8"
+                                autoComplete="off"
+                                required={!applyAll}
+                            />
+                            {selectedProduct && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedProduct(null)
+                                        setForm((f) => ({ ...f, product_id: '' }))
+                                        setProductSearch('')
+                                        productInputRef.current?.focus()
+                                    }}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+                        {productDropdownOpen && (
+                            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                                {filteredProductos.length === 0 ? (
+                                    <div className="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                                ) : (
+                                    filteredProductos.map((p) => (
+                                        <button
+                                            key={p.id}
+                                            type="button"
+                                            onMouseDown={() => {
+                                                const label = `${p.sku ? p.sku + ' · ' : ''}${p.name}`
+                                                setSelectedProduct({ id: p.id, label })
+                                                setForm((f) => ({ ...f, product_id: p.id }))
+                                                setProductDropdownOpen(false)
+                                                setProductSearch('')
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center gap-2"
+                                        >
+                                            {p.sku && (
+                                                <span className="font-mono text-xs text-gray-400 shrink-0">{p.sku}</span>
+                                            )}
+                                            <span className="text-gray-800 truncate">{p.name}</span>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 

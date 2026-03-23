@@ -6,7 +6,7 @@ export type ThemeResponse = { brand?: { name?: string; logoUrl?: string | null }
 
 type CacheEntry = { ts: number; data: ThemeResponse; inflight?: Promise<ThemeResponse> }
 
-const CACHE_TTL_MS = 60 * 1000
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const LS_PREFIX = 'theme_cache:'
 const cache = new Map<string, CacheEntry>()
 

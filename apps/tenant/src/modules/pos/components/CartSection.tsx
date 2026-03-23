@@ -98,7 +98,7 @@ export function CartSection({
                 <small className="cart-item-meta" style={{ color: 'var(--muted)' }}>
                   {item.price.toFixed(2)}
                   {currencySymbol}
-                  {item.discount_pct > 0 && ` | Desc ${item.discount_pct}%`}
+                  {item.discount_pct > 0 && ` | ${t('pos:header.discountShort')} ${item.discount_pct}%`}
                   {item.pricing_note && ` | ${item.pricing_note}`}
                   {item.notes && ` | ${item.notes}`}
                 </small>
@@ -199,7 +199,7 @@ export function CartSection({
             disabled={cart.length === 0 || isLoading}
             style={{ width: '100%', height: 34, fontWeight: 700, fontSize: 14 }}
           >
-            {isLoading ? t('pos:common.processing', { defaultValue: 'Procesando...' }) : 'COBRAR (F9)'}
+            {isLoading ? t('pos:payment.processing') : `${t('pos:actions.charge')} (F9)`}
           </ProtectedButton>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginTop: 8 }}>
             {onExpressCash && (
@@ -232,10 +232,10 @@ export function CartSection({
               CF
             </ProtectedButton>
             <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickInvoice} disabled={isLoading} style={{ height: 26, fontSize: 11 }}>
-              Factura
+              {t('pos:cart.quickInvoice')}
             </ProtectedButton>
             <ProtectedButton permission="pos:create" className="btn sm ghost" onClick={onQuickNoTicket} disabled={isLoading} style={{ height: 26, fontSize: 11 }}>
-              Sin ticket
+              {t('pos:cart.noTicket')}
             </ProtectedButton>
           </div>
         </div>

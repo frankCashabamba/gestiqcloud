@@ -100,7 +100,9 @@
         "discount": "Descuento",
         "ticketNotes": "Notas del ticket",
         "clearAll": "Borrar todo",
-        "confirmClear": "¿Vaciar carrito?"
+        "confirmClear": "¿Vaciar carrito?",
+        "quickInvoice": "Factura",
+        "noTicket": "Sin ticket"
     },
     "prompts": {
         "enterPrice": "Ingresa precio para {{name}}",
@@ -300,7 +302,9 @@
         "splitNotEnough": "El pago dividido no cubre el total.",
         "enterAmount": "Ingresa el importe recibido.",
         "amountLessThanTotal": "El importe recibido es menor al total.",
-        "selectCreditOrCode": "Selecciona un vale o ingresa un código."
+        "selectCreditOrCode": "Selecciona un vale o ingresa un código.",
+        "noLot": "Sin lote",
+        "noExpiry": "Sin caducidad"
     },
     "pending": {
         "errorLoading": "No se pudieron cargar los recibos pendientes",

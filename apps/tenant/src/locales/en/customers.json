@@ -13,6 +13,7 @@
     "deleted": "Customer deleted"
   },
   "confirmDelete": "Delete customer?",
+  "confirmDeleteBody": "This action cannot be undone.",
   "form": {
     "name": "Name",
     "email": "Email",

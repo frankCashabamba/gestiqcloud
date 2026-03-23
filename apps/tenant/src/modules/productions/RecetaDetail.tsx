@@ -33,6 +33,7 @@ import {
 } from '../../services/api/productionCosts';
 import tenantApi from '../../shared/api/client';
 import { usePermission } from '../../hooks/usePermission';
+import { useToast } from '../../shared/toast';
 import { useUnits } from '../../hooks/useUnits';
 import { normalizeUnitCode, convertQtyToUnit } from '../../services/unitService';
 
@@ -155,6 +156,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const can = usePermission();
   const canWrite = can('produccion:write');
   const { units } = useUnits();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -308,9 +310,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         cost_price: Number(unitCost.toFixed(4))
       });
 
-      alert(`${t('productions:recipe.priceUpdated')} $${newPrice.toFixed(2)} (${t('productions:recipe.margin')} ${((multiplier - 1) * 100).toFixed(0)}%)`);
+      toastSuccess(`${t('productions:recipe.priceUpdated')} $${newPrice.toFixed(2)} (${t('productions:recipe.margin')} ${((multiplier - 1) * 100).toFixed(0)}%)`);
     } catch (err: any) {
-      alert(`${t('productions:recipe.errorUpdatingPrice')}: ` + (err.message || 'Unknown error'));
+      toastError(`${t('productions:recipe.errorUpdatingPrice')}: ` + (err.message || 'Unknown error'));
     } finally {
       setUpdating(false);
     }

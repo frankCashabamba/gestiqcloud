@@ -21,17 +21,75 @@
     "date": "Date",
     "concept": "Concept",
     "source": "Source",
-    "amount": "Amount"
+    "amount": "Amount",
+    "paymentStatus": "Payment status"
   },
   "source": {
-    "production": "Auto from production",
+    "production": "Auto production",
     "manual": "Manual"
   },
+  "paymentStatus": {
+    "paid": "Paid",
+    "partial": "Partial",
+    "pending": "Pending",
+    "cancelled": "Cancelled"
+  },
   "messages": {
-    "deleted": "Expense deleted"
+    "deleted": "Expense deleted",
+    "saved": "Expense saved"
   },
   "confirmDelete": "Delete expense?",
+  "confirmDeleteBody": "This action cannot be undone.",
+  "form": {
+    "title": "New expense",
+    "titleEdit": "Edit expense",
+    "date": "Date",
+    "amount": "Amount",
+    "category": "Category",
+    "subcategory": "Subcategory",
+    "concept": "Concept",
+    "conceptPlaceholder": "Expense description",
+    "paymentMethod": "Payment method",
+    "status": "Status",
+    "supplierId": "Supplier ID",
+    "supplierIdPlaceholder": "Supplier ID",
+    "supplierName": "Supplier name",
+    "supplierNamePlaceholder": "Supplier name",
+    "invoiceNumber": "Invoice number",
+    "notes": "Notes",
+    "notesPlaceholder": "Additional notes...",
+    "saving": "Saving...",
+    "save": "Save",
+    "selectCategory": "Select...",
+    "selectSubcategory": "Select...",
+    "errors": {
+      "dateRequired": "Date is required",
+      "categoryRequired": "Category is required",
+      "conceptRequired": "Concept is required",
+      "amountPositive": "Amount must be greater than 0"
+    }
+  },
+  "paymentMethods": {
+    "cash": "Cash",
+    "transfer": "Transfer",
+    "card": "Card",
+    "check": "Check"
+  },
+  "statuses": {
+    "pending": "Pending",
+    "paid": "Paid",
+    "voided": "Voided"
+  },
   "detail": {
+    "title": "Expense",
+    "created": "Created",
+    "details": "Expense details",
+    "totalAmount": "Total amount",
+    "markAsPaid": "Mark as paid",
+    "markedPaid": "Expense marked as paid",
+    "notFound": "Expense not found",
+    "confirmPaidTitle": "Mark as paid?",
+    "confirmPaidBody": "The full payment of this expense will be recorded.",
     "loadingDetail": "Loading detail...",
     "order": "Order",
     "produced": "Produced",

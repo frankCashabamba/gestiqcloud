@@ -4,7 +4,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../shared/toast';
 import {
   listCostDrivers,
   listCostDriverUnitTypes,
@@ -46,10 +47,10 @@ export default function CostDriversPage() {
 function CostDriversPageContent() {
   const { t } = useTranslation(['productions', 'common']);
   const navigate = useNavigate();
-  const { empresa } = useParams();
-  const basePath = `${empresa ? `/${empresa}` : ''}/manufacturing`;
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const [drivers, setDrivers] = useState<CostDriver[]>([]);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [unitTypes, setUnitTypes] = useState<CostDriverUnitType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,13 +137,15 @@ function CostDriversPageContent() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('productions:costDrivers.deleteConfirm'))) return;
+  const handleDelete = async () => {
+    if (!deleteId) return;
     try {
-      await deleteCostDriver(id);
+      await deleteCostDriver(deleteId);
+      setDeleteId(null);
       await loadDrivers();
     } catch (err: any) {
-      alert(err?.message || t('productions:costDrivers.errorDeleting'));
+      toastError(err?.message || t('productions:costDrivers.errorDeleting'));
+      setDeleteId(null);
     }
   };
 
@@ -166,7 +169,7 @@ function CostDriversPageContent() {
         <div className="flex gap-2">
           <button
             className="px-3 py-2 text-sm border rounded hover:bg-gray-50"
-            onClick={() => navigate(basePath)}
+            onClick={() => navigate('..')}
           >
             {t('productions:costDrivers.back')}
           </button>
@@ -372,7 +375,7 @@ function CostDriversPageContent() {
                     </button>
                     <button
                       className="text-red-600 hover:underline text-sm"
-                      onClick={() => handleDelete(d.id)}
+                      onClick={() => setDeleteId(d.id)}
                     >
                       {t('productions:delete')}
                     </button>
@@ -381,6 +384,28 @@ function CostDriversPageContent() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {deleteId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setDeleteId(null)}
+        >
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 mb-2">{t('productions:costDrivers.deleteConfirm')}</h3>
+            <p className="text-sm text-gray-500 mb-5">{t('common:irreversible', 'Esta acción no se puede deshacer.')}</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                className="px-4 py-2 border rounded text-sm"
+                onClick={() => setDeleteId(null)}
+              >{t('productions:costDrivers.cancel')}</button>
+              <button
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold"
+                onClick={handleDelete}
+              >{t('productions:delete')}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

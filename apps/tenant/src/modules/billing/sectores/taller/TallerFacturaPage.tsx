@@ -88,7 +88,7 @@ export default function TallerFacturaPage() {
   return (
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-3">{t('billing.sectorInvoice.workshopTitle')}</h3>
-      <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 720 }}>
+      <form onSubmit={onSubmit} className="space-y-4 max-w-2xl">
         <div className="grid grid-cols-3 gap-3">
           <div><label className="block mb-1">{t('common.date')}</label><input type="date" value={fecha} onChange={(e)=> setFecha(e.target.value)} className="border px-2 py-1 w-full rounded" /></div>
           <div><label className="block mb-1">{t('common.status')}</label><select value={estado} onChange={(e)=> setEstado(e.target.value as any)} className="border px-2 py-1 w-full rounded"><option value="borrador">{t('billing.status.draft')}</option><option value="emitida">{t('billing.status.issued')}</option><option value="anulada">{t('billing.status.voided')}</option></select></div>

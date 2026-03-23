@@ -160,8 +160,8 @@ export default function VentaForm() {
             <div className="p-4">
                 <button className="mb-3 underline text-sm" onClick={() => nav('..')}>← {t('common.back')}</button>
                 <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-amber-800">
-                    <p className="font-semibold mb-1">🔒 Venta del TPV — solo lectura</p>
-                    <p className="text-sm">Esta venta fue generada desde el punto de venta y no se puede editar. Solo las ventas en borrador (pendiente de cobro) pueden modificarse.</p>
+                    <p className="font-semibold mb-1">{t('sales.posReadOnlyTitle')}</p>
+                    <p className="text-sm">{t('sales.posReadOnlyBody')}</p>
                 </div>
             </div>
         )
@@ -197,7 +197,7 @@ export default function VentaForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="gc-label">Cliente</label>
+                        <label className="gc-label">{t('sales.customer')}</label>
                         <CustomerSelector
                             value={form.cliente_id}
                             clienteName={clienteName}
@@ -235,12 +235,12 @@ export default function VentaForm() {
                 {isSpecialOrder && (
                     <div className="border rounded-lg p-4 bg-amber-50 border-amber-200">
                         <h4 className="font-semibold mb-3 text-amber-800">
-                            {sector.startsWith('taller') ? '🔧 Datos del trabajo' : '🎂 Datos del pedido'}
+                            {sector.startsWith('taller') ? t('sales.specialOrder.titleTaller') : t('sales.specialOrder.titlePanaderia')}
                         </h4>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="gc-label">
-                                    {sector.startsWith('taller') ? 'Fecha de entrega estimada' : 'Fecha del evento / entrega'}
+                                    {sector.startsWith('taller') ? t('sales.specialOrder.deliveryDateTaller') : t('sales.specialOrder.deliveryDatePanaderia')}
                                 </label>
                                 <input
                                     type="date"
@@ -250,7 +250,7 @@ export default function VentaForm() {
                                 />
                             </div>
                             <div>
-                                <label className="gc-label">Anticipo recibido</label>
+                                <label className="gc-label">{t('sales.specialOrder.deposit')}</label>
                                 <input
                                     type="number"
                                     min="0"
@@ -261,17 +261,17 @@ export default function VentaForm() {
                                 />
                             </div>
                             <div>
-                                <label className="gc-label">Método de pago del anticipo</label>
+                                <label className="gc-label">{t('sales.specialOrder.paymentMethod')}</label>
                                 <select
                                     value={paymentMethod}
                                     onChange={(e) => setPaymentMethod(e.target.value)}
                                     className="gc-input"
                                 >
-                                    <option value="">Sin anticipo</option>
-                                    <option value="efectivo">Efectivo</option>
-                                    <option value="transferencia">Transferencia</option>
-                                    <option value="tarjeta">Tarjeta</option>
-                                    <option value="whatsapp">Pago WhatsApp</option>
+                                    <option value="">{t('sales.specialOrder.noDeposit')}</option>
+                                    <option value="efectivo">{t('sales.specialOrder.cash')}</option>
+                                    <option value="transferencia">{t('sales.specialOrder.transfer')}</option>
+                                    <option value="tarjeta">{t('sales.specialOrder.card')}</option>
+                                    <option value="whatsapp">{t('sales.specialOrder.whatsapp')}</option>
                                 </select>
                             </div>
                             <div className="flex items-center gap-2 pt-6">
@@ -283,13 +283,13 @@ export default function VentaForm() {
                                     className="w-4 h-4"
                                 />
                                 <label htmlFor="deposit-paid" className="cursor-pointer text-sm font-medium">
-                                    Anticipo cobrado ✓
+                                    {t('sales.specialOrder.depositPaid')}
                                 </label>
                             </div>
                         </div>
                         {(form.total ?? 0) > 0 && depositAmount > 0 && (
                             <p className="mt-3 text-sm font-medium text-amber-700">
-                                Saldo pendiente: ${((form.total ?? 0) - depositAmount).toFixed(2)}
+                                {t('sales.specialOrder.pendingBalance', { amount: ((form.total ?? 0) - depositAmount).toFixed(2) })}
                             </p>
                         )}
                     </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   createProveedor,
   getProveedor,
@@ -56,6 +57,7 @@ const emptyDireccion: ProveedorDireccion = {
 export default function ProveedorForm() {
   const { id } = useParams()
   const nav = useNavigate()
+  const { t } = useTranslation(['suppliers', 'common'])
   const [form, setForm] = useState<ProveedorPayload>(emptyForm)
   const [editMode, setEditMode] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -113,10 +115,10 @@ export default function ProveedorForm() {
     event.preventDefault()
     try {
       if (!form.name?.trim()) {
-        throw new Error('Name is required')
+        throw new Error(t('suppliers:form.errors.nameRequired'))
       }
       if (form.iban && form.iban !== form.iban_confirmacion) {
-        throw new Error('IBANs do not match')
+        throw new Error(t('suppliers:form.errors.ibanMismatch'))
       }
 
       const payload = { ...form }
@@ -124,10 +126,10 @@ export default function ProveedorForm() {
 
       if (editMode && id) {
         await updateProveedor(id, payload)
-        success('Supplier updated')
+        success(t('suppliers:messages.updated'))
       } else {
         await createProveedor(payload)
-        success('Supplier created')
+        success(t('suppliers:messages.created'))
       }
       nav('..')
     } catch (e: any) {
@@ -166,16 +168,16 @@ export default function ProveedorForm() {
   return (
     <div className="gc-container py-6 max-w-5xl">
       <h3 className="gc-page-header__title mb-4">
-        {editMode ? 'Edit supplier' : 'New supplier'}
+        {editMode ? t('suppliers:form.titleEdit') : t('suppliers:form.title')}
       </h3>
       <form onSubmit={onSubmit} className="space-y-6">
         {/* Datos Generales */}
         <div className="gc-card">
-          <h4 className="gc-section-title mb-4">General Information</h4>
+          <h4 className="gc-section-title mb-4">{t('suppliers:detail.generalInfo')}</h4>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">
-                Name / Legal Name <span className="text-rose-500">*</span>
+                {t('suppliers:form.name')} <span className="text-rose-500">*</span>
               </span>
               <input
                 className="gc-input"
@@ -245,7 +247,7 @@ export default function ProveedorForm() {
 
         {/* Configuración Fiscal */}
         <div className="gc-card">
-          <h4 className="gc-section-title mb-4">Tax and Payment Settings</h4>
+          <h4 className="gc-section-title mb-4">{t('suppliers:detail.taxPayment')}</h4>
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Tax Type</span>
@@ -382,7 +384,7 @@ export default function ProveedorForm() {
                     <input
                       className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
                       value={contacto.name || ''}
-                      onChange={(e) => updateContacto(index, 'nombre', e.target.value || null)}
+                      onChange={(e) => updateContacto(index, 'name', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
@@ -399,7 +401,7 @@ export default function ProveedorForm() {
                     <input
                       className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
                       value={contacto.phone || ''}
-                      onChange={(e) => updateContacto(index, 'telefono', e.target.value || null)}
+                      onChange={(e) => updateContacto(index, 'phone', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm sm:col-span-2">
@@ -479,7 +481,7 @@ export default function ProveedorForm() {
                     <input
                       className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
                       value={direccion.city || ''}
-                      onChange={(e) => updateDireccion(index, 'ciudad', e.target.value || null)}
+                      onChange={(e) => updateDireccion(index, 'city', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
@@ -520,10 +522,10 @@ export default function ProveedorForm() {
         {/* Botones */}
         <div className="flex items-center gap-3">
           <button type="submit" className="gc-button gc-button--primary" disabled={busy}>
-            {editMode ? 'Save changes' : 'Create supplier'}
+            {editMode ? t('suppliers:form.saveChanges') : t('suppliers:form.create')}
           </button>
           <button type="button" className="gc-button gc-button--ghost" onClick={() => nav('..')}>
-            Cancel
+            {t('common:cancel')}
           </button>
         </div>
       </form>

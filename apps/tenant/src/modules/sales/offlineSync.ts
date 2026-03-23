@@ -74,13 +74,11 @@ export const SalesAdapter: SyncAdapter = {
 
 export function registerSalesSyncAdapter() {
   getSyncManager().registerAdapter(SalesAdapter)
-  console.log('[offline] Sales sync adapter registered')
   // Limpia entradas con IDs inválidos (ej. 'opportunities' por navegación errónea)
   listEntities('sale').then(async (items) => {
     for (const item of items) {
       if (!UUID_RE.test(item.id) && !TEMP_SALE_RE.test(item.id)) {
         await deleteEntity('sale', item.id)
-        console.warn(`[offline] Eliminada entrada inválida del store: sale:${item.id}`)
       }
     }
   }).catch(() => {})

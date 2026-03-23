@@ -8,6 +8,7 @@ import ProductionPlanner from './ProductionPlanner'
 import RecetasList from './RecetasList'
 import RecetaCreatePage from './RecetaCreatePage'
 import RecetaShowPage from './RecetaShowPage'
+import RecetaEditPage from './RecetaEditPage'
 import CostDriversPage from './CostDriversPage'
 import IngredientesMaestros from './IngredientesMaestros'
 
@@ -52,7 +53,7 @@ export default function ProduccionRoutes() {
                     path="recetas/:rid/editar"
                     element={
                         <ProtectedRoute permission="produccion:write">
-                            <RecetaShowPage />
+                            <RecetaEditPage />
                         </ProtectedRoute>
                     }
                 />

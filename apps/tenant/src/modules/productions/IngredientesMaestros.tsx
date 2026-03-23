@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { listRecipes, getRecipe, addIngredient, updateIngredient, deleteIngredient } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
 import { getCompanySettings, getCurrencySymbol, type CompanySettings } from '../../services/companySettings'
@@ -45,9 +45,7 @@ export default function IngredientesMaestros() {
 }
 
 function IngredientesMaestrosContent() {
-  const { empresa } = useParams()
   const navigate = useNavigate()
-  const basePath = `${empresa ? `/${empresa}` : ''}/manufacturing`
   const { success, error: toastError } = useToast()
   const { units } = useUnits()
 
@@ -268,7 +266,7 @@ function IngredientesMaestrosContent() {
           </button>
           <button
             className="flex items-center gap-1.5 border border-gray-200 hover:bg-gray-50 text-gray-600 px-3 py-2 rounded-lg text-sm transition-colors"
-            onClick={() => navigate(`${basePath}/recetas`)}
+            onClick={() => navigate('../recetas')}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Recetas
@@ -419,7 +417,7 @@ function IngredientesMaestrosContent() {
                         {row.refs.map(ref => (
                           <button
                             key={ref.recipe_id}
-                            onClick={() => navigate(`${basePath}/recetas/${ref.recipe_id}`)}
+                            onClick={() => navigate(`../recetas/${ref.recipe_id}`)}
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs transition-colors"
                             title={`${ref.qty} ${ref.unit}`}
                           >

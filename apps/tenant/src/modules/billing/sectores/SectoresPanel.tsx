@@ -22,7 +22,7 @@ export default function SectoresPanel() {
   const sectorSection = sectorMap[sectorCode] || sectorMap['retail']
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="p-4">
       <h2 className="text-xl font-semibold mb-3">{t('billing.bySectors.title')}</h2>
       <p className="text-sm text-gray-600 mb-4">{t('billing.bySectors.help')}</p>
       <ul className="list-disc list-inside">

@@ -53,6 +53,8 @@ export default function FacturasList() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
+  const [cobrarTarget, setCobrarTarget] = useState<Factura | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Factura | null>(null)
   const [estado, setEstado] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
@@ -90,6 +92,11 @@ export default function FacturasList() {
     return sortInvoices(res)
   }, [items, estado, desde, hasta, q])
 
+  const pendingCount = useMemo(
+    () => items.filter(v => (v.estado || '').toLowerCase() === 'pending_payment').length,
+    [items]
+  )
+
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
   const einvoiceCountry = useMemo(() => {
     const candidates = [
@@ -104,12 +111,33 @@ export default function FacturasList() {
     return 'ES' as const
   }, [config])
 
+  const doCobrar = async () => {
+    if (!cobrarTarget) return
+    try {
+      await marcarCobrada(cobrarTarget.id)
+      clearInvoicesCache()
+      setItems(prev => prev.map(x => x.id === cobrarTarget.id ? { ...x, estado: 'issued' } : x))
+      success(t('billing.markedAsPaid'))
+    } catch (e: any) { toastError(getErrorMessage(e)) }
+    finally { setCobrarTarget(null) }
+  }
+
+  const doDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await removeFactura(deleteTarget.id)
+      clearInvoicesCache()
+      setItems(p => p.filter(x => x.id !== deleteTarget.id))
+      success(t('billing.deleted'))
+    } catch (e: any) { toastError(getErrorMessage(e)) }
+    finally { setDeleteTarget(null) }
+  }
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">{t('nav.invoicing')}</h2>
         <div className="flex gap-2">
-          <button className="bg-gray-200 px-3 py-1 rounded" onClick={()=> nav('sectores')}>{t('billing.sectors')}</button>
           {can('billing:create') && (
             <ProtectedButton
               permission="billing:create"
@@ -122,6 +150,22 @@ export default function FacturasList() {
         </div>
       </div>
 
+      {pendingCount > 0 && (
+        <button
+          onClick={() => setEstado(estado === 'pending_payment' ? '' : 'pending_payment')}
+          className={`mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+            ${estado === 'pending_payment'
+              ? 'bg-amber-100 border-amber-400 text-amber-800'
+              : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'}`}
+        >
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 text-white text-xs font-bold">
+            {pendingCount}
+          </span>
+          {t('billing.filterPending')}
+          {estado === 'pending_payment' && <span className="text-amber-500">✕</span>}
+        </button>
+      )}
+
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div>
           <label className="text-sm mr-2 block">{t('common.status')}</label>
@@ -129,7 +173,7 @@ export default function FacturasList() {
             <option value="">{t('common.all')}</option>
             <option value="borrador">{t('billing.status.draft')}</option>
             <option value="emitida">{t('billing.status.issued')}</option>
-            <option value="pending_payment">Pdte. cobro</option>
+            <option value="pending_payment">{t('billing.status.pending_payment')}</option>
             <option value="anulada">{t('billing.status.voided')}</option>
           </select>
         </div>
@@ -182,17 +226,9 @@ export default function FacturasList() {
                     <ProtectedButton
                       permission="billing:update"
                       variant="ghost"
-                      onClick={async () => {
-                        if (!confirm('¿Marcar esta venta como cobrada?')) return
-                        try {
-                          await marcarCobrada(v.id)
-                          clearInvoicesCache()
-                          setItems(prev => prev.map(x => x.id === v.id ? { ...x, estado: 'issued' } : x))
-                          success('Marcada como cobrada')
-                        } catch (e: any) { toastError(getErrorMessage(e)) }
-                      }}
+                      onClick={() => setCobrarTarget(v)}
                     >
-                      💰 Cobrar
+                      {t('billing.markAsPaid')}
                     </ProtectedButton>
                   )}
                 </>
@@ -216,17 +252,7 @@ export default function FacturasList() {
                 <ProtectedButton
                   permission="billing:delete"
                   variant="ghost"
-                  onClick={async ()=> {
-                    if(!confirm(t('billing.deleteConfirm'))) return
-                    try {
-                      await removeFactura(v.id)
-                      clearInvoicesCache()
-                      setItems((p)=>p.filter(x=>x.id!==v.id))
-                      success(t('billing.deleted'))
-                    } catch(e:any){
-                      toastError(getErrorMessage(e))
-                    }
-                  }}
+                  onClick={() => setDeleteTarget(v)}
                 >
                   {t('common.delete')}
                 </ProtectedButton>
@@ -238,6 +264,34 @@ export default function FacturasList() {
         </tbody>
       </table>
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+      {/* Modal: marcar como cobrada */}
+      {cobrarTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-2">{t('billing.confirmMarkAsPaid')}</h3>
+            <p className="text-sm text-slate-600 mb-5">{t('billing.invoiceNumber')}: {cobrarTarget.numero || cobrarTarget.id}</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setCobrarTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+              <button onClick={doCobrar} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm">{t('billing.markAsPaid')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: eliminar factura */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-2">{t('billing.deleteConfirm')}</h3>
+            <p className="text-sm text-slate-600 mb-5">{t('billing.invoiceNumber')}: {deleteTarget.numero || deleteTarget.id}</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+              <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('common.delete')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

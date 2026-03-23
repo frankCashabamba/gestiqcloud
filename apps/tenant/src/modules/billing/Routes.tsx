@@ -5,7 +5,6 @@ import PermissionDenied from '../../components/PermissionDenied'
 import FacturasList from './List'
 import FacturaForm from './Form'
 import FacturaePage from './InvoiceE'
-import SectoresRoutes from './sectores/Routes'
 
 export default function FacturacionRoutes() {
   return (
@@ -32,7 +31,6 @@ export default function FacturacionRoutes() {
           }
         />
         <Route path=":id/facturae" element={<FacturaePage />} />
-        <Route path="sectores/*" element={<SectoresRoutes />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

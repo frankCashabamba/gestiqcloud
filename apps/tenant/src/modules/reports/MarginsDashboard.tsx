@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getProductMargins, getProfitReport, type ProductMarginRow } from '../../services/api/profit-reports'
 import { listProducts } from '../../services/api/products'
-import { fetchBodegas } from '../inventory/services/inventory'
+import { listWarehouses } from '../inventory/services'
 import { getCompanySettings, formatCurrency as formatCurrencyWithSettings, type CompanySettings } from '../../services/companySettings'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
@@ -56,7 +56,7 @@ export default function MarginsDashboard() {
       try {
         const settings = await getCompanySettings()
         if (mounted) setCompanySettings(settings)
-        const [ws, prods] = await Promise.all([fetchBodegas(), listProducts({ limit: 500 })])
+        const [ws, prods] = await Promise.all([listWarehouses(), listProducts({ limit: 500 })])
         if (!mounted) return
         setWarehouses(ws.map((w) => ({ id: String(w.id), name: w.name })))
         setProducts(prods.map((p) => ({ id: p.id, name: p.name })))

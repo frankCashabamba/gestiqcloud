@@ -6,6 +6,7 @@
   "loading": "Cargando proveedores…",
   "searchPlaceholder": "Buscar por nombre, NIF, email...",
   "confirmDelete": "¿Desactivar este proveedor?",
+  "confirmDeleteBody": "Esta acción desactivará al proveedor.",
   "status": {
     "active": "Activo",
     "inactive": "Inactivo"
@@ -22,6 +23,69 @@
     "deactivate": "Desactivar"
   },
   "messages": {
-    "deactivated": "Proveedor desactivado"
+    "deactivated": "Proveedor desactivado",
+    "updated": "Proveedor actualizado",
+    "created": "Proveedor creado"
+  },
+  "detail": {
+    "loading": "Cargando proveedor…",
+    "notFound": "Proveedor no encontrado",
+    "code": "Código",
+    "generalInfo": "Información General",
+    "taxPayment": "Configuración Fiscal y de Pago",
+    "contacts": "Contactos",
+    "noContacts": "Sin contactos registrados",
+    "addresses": "Direcciones",
+    "noAddresses": "Sin direcciones registradas",
+    "days": "{{count}} días"
+  },
+  "form": {
+    "title": "Nuevo Proveedor",
+    "titleEdit": "Editar Proveedor",
+    "name": "Nombre / Razón Social",
+    "tradeName": "Nombre Comercial",
+    "nif": "NIF / Impuesto",
+    "country": "País",
+    "language": "Idioma",
+    "email": "Email",
+    "phone": "Teléfono",
+    "web": "Web",
+    "taxType": "Tipo de Impuesto",
+    "irpf": "Retención IRPF (%)",
+    "taxExempt": "Exento de impuestos",
+    "paymentTerm": "Plazo de pago (días)",
+    "currency": "Divisa",
+    "paymentMethod": "Método de pago",
+    "iban": "IBAN",
+    "ibanConfirm": "Confirmar IBAN",
+    "saveChanges": "Guardar cambios",
+    "create": "Crear proveedor",
+    "addContact": "+ Añadir Contacto",
+    "addAddress": "+ Añadir Dirección",
+    "noContacts": "Sin contactos añadidos.",
+    "noAddresses": "Sin direcciones añadidas.",
+    "errors": {
+      "nameRequired": "El nombre es obligatorio",
+      "ibanMismatch": "Los IBANs no coinciden"
+    }
+  },
+  "contactTypes": {
+    "facturacion": "Facturación",
+    "entrega": "Entrega",
+    "administracion": "Administración",
+    "comercial": "Comercial",
+    "soporte": "Soporte"
+  },
+  "addressTypes": {
+    "facturacion": "Facturación",
+    "entrega": "Entrega",
+    "administracion": "Administración",
+    "otros": "Otros"
+  },
+  "paymentMethods": {
+    "transferencia": "Transferencia bancaria",
+    "efectivo": "Efectivo",
+    "tarjeta": "Tarjeta",
+    "pagare": "Pagaré"
   }
 }

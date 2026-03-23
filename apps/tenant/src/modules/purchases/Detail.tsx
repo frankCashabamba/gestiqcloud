@@ -5,6 +5,10 @@ import { getCompra, recibirCompra, type Compra } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import StatusBadge from '../sales/components/StatusBadge'
 
+function fmt(n: number) {
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export default function CompraDetail() {
   const { id } = useParams()
   const nav = useNavigate()
@@ -14,6 +18,7 @@ export default function CompraDetail() {
   const [compra, setCompra] = useState<Compra | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
+  const [confirmRecibir, setConfirmRecibir] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -23,12 +28,11 @@ export default function CompraDetail() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const handleRecibir = async () => {
+  const doRecibir = async () => {
     if (!id || !compra) return
-    if (!confirm(t('purchases:detail.receiveConfirm'))) return
-
     try {
       setProcessing(true)
+      setConfirmRecibir(false)
       const updated = await recibirCompra(id)
       setCompra(updated)
       success(t('purchases:detail.received'))
@@ -39,21 +43,30 @@ export default function CompraDetail() {
     }
   }
 
-  if (loading) return <div className="p-4 text-gray-500">{t('purchases:loading')}</div>
+  if (loading) {
+    return (
+      <div className="p-6 animate-pulse space-y-4 max-w-4xl">
+        <div className="h-6 w-32 bg-gray-100 rounded" />
+        <div className="h-32 bg-gray-100 rounded-xl" />
+        <div className="h-48 bg-gray-100 rounded-xl" />
+      </div>
+    )
+  }
+
   if (!compra) return <div className="p-4 text-red-600">{t('purchases:detail.notFound')}</div>
 
   return (
-    <div className="p-4" style={{ maxWidth: 900 }}>
-      <button className="mb-3 underline text-blue-600" onClick={() => nav('..')}>
-        {t('purchases:detail.backToList')}
+    <div className="p-4 max-w-4xl">
+      <button className="mb-4 text-sm text-blue-600 hover:underline flex items-center gap-1" onClick={() => nav('..')}>
+        ← {t('purchases:detail.backToList')}
       </button>
 
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between items-start mb-5">
         <div>
-          <h2 className="text-2xl font-semibold">
+          <h2 className="text-xl font-semibold text-gray-900">
             {t('purchases:detail.purchase')} {compra.numero || `#${compra.id}`}
           </h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-400 mt-0.5">
             {t('purchases:detail.created')}: {new Date(compra.created_at || compra.fecha).toLocaleString()}
           </p>
         </div>
@@ -61,9 +74,9 @@ export default function CompraDetail() {
         <div className="flex gap-2">
           {compra.estado === 'sent' && (
             <button
-              onClick={handleRecibir}
+              onClick={() => setConfirmRecibir(true)}
               disabled={processing}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
             >
               {processing ? t('purchases:detail.receiving') : t('purchases:detail.receive')}
             </button>
@@ -71,7 +84,7 @@ export default function CompraDetail() {
           {compra.estado === 'draft' && (
             <button
               onClick={() => nav('edit')}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
             >
               {t('purchases:edit_action')}
             </button>
@@ -79,58 +92,56 @@ export default function CompraDetail() {
         </div>
       </div>
 
-      <div className="bg-white border rounded p-4 mb-4">
-        <h3 className="font-semibold mb-3">{t('purchases:detail.generalInfo')}</h3>
-        <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+        <h3 className="font-semibold text-gray-700 mb-4">{t('purchases:detail.generalInfo')}</h3>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
           <div>
-            <strong>{t('purchases:status')}:</strong>{' '}
-            <StatusBadge estado={compra.estado} />
+            <span className="text-gray-500">{t('purchases:status')}</span>
+            <div className="mt-0.5"><StatusBadge estado={compra.estado} /></div>
           </div>
           <div>
-            <strong>{t('purchases:date')}:</strong> {compra.fecha}
+            <span className="text-gray-500">{t('purchases:date')}</span>
+            <div className="font-medium text-gray-900 mt-0.5">{compra.fecha}</div>
           </div>
           {compra.fecha_entrega && (
             <div>
-              <strong>{t('purchases:detail.deliveryDate')}:</strong> {compra.fecha_entrega}
+              <span className="text-gray-500">{t('purchases:detail.deliveryDate')}</span>
+              <div className="font-medium text-gray-900 mt-0.5">{compra.fecha_entrega}</div>
             </div>
           )}
           <div>
-            <strong>{t('purchases:supplier')}:</strong>{' '}
-            {compra.proveedor_nombre || compra.proveedor_id || '-'}
+            <span className="text-gray-500">{t('purchases:supplier')}</span>
+            <div className="font-medium text-gray-900 mt-0.5">{compra.proveedor_nombre || compra.proveedor_id || '—'}</div>
           </div>
         </div>
 
         {compra.notas && (
-          <div className="mt-3 pt-3 border-t">
-            <strong className="text-sm">{t('purchases:form.notes')}:</strong>
-            <p className="text-sm text-gray-700 mt-1">{compra.notas}</p>
+          <div className="mt-3 pt-3 border-t text-sm">
+            <span className="text-gray-500">{t('purchases:form.notes')}</span>
+            <p className="text-gray-700 mt-1">{compra.notas}</p>
           </div>
         )}
       </div>
 
       {compra.lineas && compra.lineas.length > 0 && (
-        <div className="bg-white border rounded p-4 mb-4">
-          <h3 className="font-semibold mb-3">{t('purchases:detail.purchaseLines')}</h3>
+        <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+          <h3 className="font-semibold text-gray-700 mb-3">{t('purchases:detail.purchaseLines')}</h3>
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left px-3 py-2">{t('purchases:detail.product')}</th>
-                <th className="text-right px-3 py-2">{t('purchases:detail.quantity')}</th>
-                <th className="text-right px-3 py-2">{t('purchases:detail.unitPrice')}</th>
-                <th className="text-right px-3 py-2">{t('purchases:detail.subtotal')}</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-500">{t('purchases:detail.product')}</th>
+                <th className="text-right px-3 py-2 font-medium text-gray-500">{t('purchases:detail.quantity')}</th>
+                <th className="text-right px-3 py-2 font-medium text-gray-500">{t('purchases:detail.unitPrice')}</th>
+                <th className="text-right px-3 py-2 font-medium text-gray-500">{t('purchases:detail.subtotal')}</th>
               </tr>
             </thead>
             <tbody>
               {compra.lineas.map((linea, idx) => (
-                <tr key={idx} className="border-t">
+                <tr key={idx} className="border-t hover:bg-gray-50">
                   <td className="px-3 py-2">{linea.producto_id}</td>
                   <td className="text-right px-3 py-2">{linea.cantidad}</td>
-                  <td className="text-right px-3 py-2">
-                    ${linea.precio_unitario.toFixed(2)}
-                  </td>
-                  <td className="text-right px-3 py-2 font-medium">
-                    ${linea.subtotal.toFixed(2)}
-                  </td>
+                  <td className="text-right px-3 py-2 font-mono">{fmt(linea.precio_unitario)}</td>
+                  <td className="text-right px-3 py-2 font-mono font-medium">{fmt(linea.subtotal)}</td>
                 </tr>
               ))}
             </tbody>
@@ -138,22 +149,45 @@ export default function CompraDetail() {
         </div>
       )}
 
-      <div className="bg-gray-50 border rounded p-4">
-        <div className="space-y-2">
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+        <div className="space-y-2 max-w-xs ml-auto">
           <div className="flex justify-between text-sm">
-            <span>{t('purchases:detail.subtotal')}:</span>
-            <span className="font-medium">${compra.subtotal.toFixed(2)}</span>
+            <span className="text-gray-500">{t('purchases:detail.subtotal')}</span>
+            <span className="font-mono font-medium">{fmt(compra.subtotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>{t('purchases:detail.tax')}:</span>
-            <span className="font-medium">${compra.impuesto.toFixed(2)}</span>
+            <span className="text-gray-500">{t('purchases:detail.tax')}</span>
+            <span className="font-mono font-medium">{fmt(compra.impuesto)}</span>
           </div>
-          <div className="flex justify-between text-lg font-bold border-t pt-2">
-            <span>{t('purchases:total')}:</span>
-            <span>${compra.total.toFixed(2)}</span>
+          <div className="flex justify-between text-base font-bold border-t pt-2">
+            <span>{t('purchases:total')}</span>
+            <span className="font-mono">{fmt(compra.total)}</span>
           </div>
         </div>
       </div>
+
+      {confirmRecibir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="font-semibold text-gray-900 mb-1">{t('purchases:detail.receiveConfirm')}</h3>
+            <p className="text-sm text-gray-500 mb-5">{t('purchases:detail.receiveConfirmBody')}</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                onClick={() => setConfirmRecibir(false)}
+              >
+                {t('common:cancel')}
+              </button>
+              <button
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                onClick={doRecibir}
+              >
+                {t('purchases:detail.receive')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

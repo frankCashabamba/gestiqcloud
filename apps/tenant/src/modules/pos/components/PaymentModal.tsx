@@ -30,10 +30,10 @@ const readLotOptionKey = (key: string): { lot?: string; expires_at?: string } =>
   }
 }
 
-const formatLotOptionLabel = (option: LotOption): string => {
-  const lotLabel = option.lot?.trim() || 'Sin lote'
-  const expiryLabel = option.expires_at ? new Date(option.expires_at).toLocaleDateString() : 'Sin caducidad'
-  return `${lotLabel} · Qty ${option.qty} · ${expiryLabel}`
+const formatLotOptionLabel = (option: LotOption, noLotLabel: string, noExpiryLabel: string): string => {
+  const lotLabel = option.lot?.trim() || noLotLabel
+  const expiryLabel = option.expires_at ? new Date(option.expires_at).toLocaleDateString() : noExpiryLabel
+  return `${lotLabel} · ${option.qty} · ${expiryLabel}`
 }
 
 interface PaymentModalProps {
@@ -570,12 +570,12 @@ export default function PaymentModal({
                   <div className="mb-2 text-sm font-medium text-slate-900">
                     {requirement.line.product_name || requirement.line.product_code || requirement.line.product_id}
                     {' · '}
-                    Qty {Number(requirement.line.qty || 0)}
+                    {Number(requirement.line.qty || 0)} {t('pos:waste.qty')}
                   </div>
                   <div className="space-y-2">
                     {requirement.options.map((option) => (
                       <div key={option.key} className="grid grid-cols-[1fr_120px] gap-3 items-center">
-                        <div className="text-xs text-slate-700">{formatLotOptionLabel(option)}</div>
+                        <div className="text-xs text-slate-700">{formatLotOptionLabel(option, t('pos:payment.noLot'), t('pos:payment.noExpiry'))}</div>
                         <input
                           type="text"
                           inputMode="decimal"

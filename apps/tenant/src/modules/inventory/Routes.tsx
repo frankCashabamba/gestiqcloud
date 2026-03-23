@@ -8,23 +8,30 @@ import MovimientoForm from './MovementFormBulk'
 import AlertConfigManager from './components/AlertConfigManager'
 
 export default function InventarioRoutes() {
-return (
-<ProtectedRoute
-  permission="inventory:read"
-  fallback={<PermissionDenied permission="inventory:read" />}
->
-<RouterRoutes>
-<Route index element={<StockList />} />
-  <Route
-    path="movimientos/nuevo"
-    element={
-      <ProtectedRoute permission="inventory:create">
-        <MovimientoForm />
-      </ProtectedRoute>
-    }
-  />
-    <Route path="alerts" element={<AlertConfigManager />} />
-    </RouterRoutes>
-</ProtectedRoute>
+  return (
+    <ProtectedRoute
+      permission="inventory:read"
+      fallback={<PermissionDenied permission="inventory:read" />}
+    >
+      <RouterRoutes>
+        <Route index element={<StockList />} />
+        <Route
+          path="movimientos/nuevo"
+          element={
+            <ProtectedRoute permission="inventory:create">
+              <MovimientoForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="alerts"
+          element={
+            <ProtectedRoute permission="inventory:manage-alerts" fallback={<PermissionDenied permission="inventory:manage-alerts" />}>
+              <AlertConfigManager />
+            </ProtectedRoute>
+          }
+        />
+      </RouterRoutes>
+    </ProtectedRoute>
   )
 }
