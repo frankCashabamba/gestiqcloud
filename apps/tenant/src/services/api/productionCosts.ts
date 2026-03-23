@@ -135,6 +135,11 @@ export async function deleteCostDriver(id: string): Promise<void> {
   await apiClient.delete(TENANT_COST_DRIVERS.byId(id));
 }
 
+export async function applyCostDriversToAllRecipes(): Promise<{ ok: boolean; recipes_updated: number; lines_added: number }> {
+  const res = await apiClient.post(TENANT_COST_DRIVERS.applyAll);
+  return res.data;
+}
+
 // ============================================================================
 // RECIPE COST LINES
 // ============================================================================

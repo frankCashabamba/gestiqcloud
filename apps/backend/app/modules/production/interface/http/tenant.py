@@ -1999,6 +1999,54 @@ def create_cost_driver(
     return driver
 
 
+@router.post("/cost-drivers/apply-all-recipes", status_code=status.HTTP_200_OK)
+def apply_cost_drivers_to_all_recipes(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Apply all active cost drivers to every recipe (skips if already assigned)."""
+    tenant_id = UUID(claims["tenant_id"])
+    drivers = (
+        db.query(ProductionCostDriver)
+        .filter(
+            ProductionCostDriver.tenant_id == tenant_id,
+            ProductionCostDriver.is_active.is_(True),
+        )
+        .all()
+    )
+    if not drivers:
+        return {"ok": True, "recipes_updated": 0, "lines_added": 0}
+
+    recipes = db.query(Recipe).filter(Recipe.tenant_id == tenant_id).all()
+    lines_added = 0
+    recipes_updated = 0
+    for recipe in recipes:
+        existing_driver_ids = {
+            line.driver_id
+            for line in db.query(RecipeCostLine).filter(RecipeCostLine.recipe_id == recipe.id).all()
+        }
+        recipe_touched = False
+        for driver in drivers:
+            if driver.id in existing_driver_ids:
+                continue
+            line = RecipeCostLine(
+                recipe_id=recipe.id,
+                driver_id=driver.id,
+                qty_standard=Decimal("1"),
+                headcount=1,
+                rate_override=None,
+                notes=None,
+                line_order=len(existing_driver_ids) + lines_added,
+            )
+            db.add(line)
+            lines_added += 1
+            recipe_touched = True
+        if recipe_touched:
+            recipes_updated += 1
+    db.commit()
+    return {"ok": True, "recipes_updated": recipes_updated, "lines_added": lines_added}
+
+
 @router.put("/cost-drivers/{driver_id}", response_model=CostDriverResponse)
 def update_cost_driver(
     driver_id: UUID,

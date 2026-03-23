@@ -117,7 +117,13 @@
     "namePlaceholder": "ej. Panadero",
     "loading": "Cargando...",
     "consumptionRate": "Consumo/hora",
-    "consumptionRateHint": "(L/hr o kWh/hr para cálculo automático desde tiempo de horno)"
+    "consumptionRateHint": "(L/hr o kWh/hr para cálculo automático desde tiempo de horno)",
+    "applyAll": "Aplicar a todas las recetas",
+    "applyingAll": "Aplicando...",
+    "applyAllConfirm": "¿Aplicar todos los tipos de costo activos a todas las recetas?",
+    "applyAllConfirmDesc": "Se agregarán los tipos de costo que no estén asignados aún. Los existentes no se modificarán.",
+    "applyAllSuccess": "Costos aplicados: {{lines}} líneas en {{recipes}} recetas",
+    "applyAllEmpty": "No se encontraron tipos de costo o recetas para aplicar"
   },
   "recipe": {
     "yield": "Rendimiento",

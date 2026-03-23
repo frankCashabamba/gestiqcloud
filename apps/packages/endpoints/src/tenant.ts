@@ -160,6 +160,7 @@ const PRODUCTION_BASE = '/api/v1/tenant/production'
 export const TENANT_COST_DRIVERS = {
   list: `${PRODUCTION_BASE}/cost-drivers`,
   byId: (id: string) => `${PRODUCTION_BASE}/cost-drivers/${id}`,
+  applyAll: `${PRODUCTION_BASE}/cost-drivers/apply-all-recipes`,
 }
 
 export const TENANT_COST_DRIVER_UNIT_TYPES = {

@@ -12,6 +12,7 @@ import {
   createCostDriver,
   updateCostDriver,
   deleteCostDriver,
+  applyCostDriversToAllRecipes,
   type CostDriver,
   type CostDriverCreate,
   type CostDriverUnitType,
@@ -56,6 +57,8 @@ function CostDriversPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [applying, setApplying] = useState(false);
+  const [showApplyConfirm, setShowApplyConfirm] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>(createEmptyForm());
@@ -155,6 +158,28 @@ function CostDriversPageContent() {
     setForm(createEmptyForm(unitTypes[0]?.code || DEFAULT_COST_DRIVER_UNIT));
   };
 
+  const handleApplyAll = async () => {
+    try {
+      setApplying(true);
+      setShowApplyConfirm(false);
+      const result = await applyCostDriversToAllRecipes();
+      if (result.lines_added > 0) {
+        toastSuccess(
+          t('productions:costDrivers.applyAllSuccess', {
+            lines: result.lines_added,
+            recipes: result.recipes_updated,
+          })
+        );
+      } else {
+        toastSuccess(t('productions:costDrivers.applyAllEmpty'));
+      }
+    } catch (err: any) {
+      toastError(err?.message || 'Error al aplicar costos');
+    } finally {
+      setApplying(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4">
       <div className="flex items-center justify-between mb-6">
@@ -173,6 +198,17 @@ function CostDriversPageContent() {
           >
             {t('productions:costDrivers.back')}
           </button>
+          {drivers.length > 0 && (
+            <button
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              onClick={() => setShowApplyConfirm(true)}
+              disabled={applying}
+            >
+              {applying
+                ? t('productions:costDrivers.applyingAll')
+                : t('productions:costDrivers.applyAll')}
+            </button>
+          )}
           <button
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
             onClick={() => {
@@ -384,6 +420,28 @@ function CostDriversPageContent() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {showApplyConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setShowApplyConfirm(false)}
+        >
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 mb-2">{t('productions:costDrivers.applyAllConfirm')}</h3>
+            <p className="text-sm text-gray-500 mb-5">{t('productions:costDrivers.applyAllConfirmDesc')}</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                className="px-4 py-2 border rounded text-sm"
+                onClick={() => setShowApplyConfirm(false)}
+              >{t('productions:costDrivers.cancel')}</button>
+              <button
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold"
+                onClick={handleApplyAll}
+              >{t('productions:costDrivers.applyAll')}</button>
+            </div>
+          </div>
         </div>
       )}
 
