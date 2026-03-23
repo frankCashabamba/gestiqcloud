@@ -1,5 +1,6 @@
 // apps/tenant/src/modules/products/CategoriasModal.tsx
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { listCategorias, createCategoria, deleteCategoria, type Categoria } from './productsApi'
 import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
@@ -11,10 +12,12 @@ type CategoriasModalProps = {
 }
 
 export default function CategoriasModal({ onClose, onCategoryCreated }: CategoriasModalProps) {
+  const { t } = useTranslation('products')
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [loading, setLoading] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryDesc, setNewCategoryDesc] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Categoria | null>(null)
   const { success, error } = useToast()
   const { sector } = useCompany()
 
@@ -32,10 +35,8 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
     try {
       setLoading(true)
       const data = await listCategorias()
-      console.log('Categories received:', data)
       setCategorias(data)
     } catch (e: any) {
-      console.error('Error loading categories:', e)
       error(getErrorMessage(e))
     } finally {
       setLoading(false)
@@ -61,12 +62,16 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete category "${name}"?`)) return
+  const handleDelete = (cat: Categoria) => {
+    setDeleteTarget(cat)
+  }
 
+  const doDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deleteCategoria(id)
+      await deleteCategoria(deleteTarget.id)
       success('Category deleted')
+      setDeleteTarget(null)
       loadCategorias()
       onCategoryCreated?.()
     } catch (e: any) {
@@ -163,7 +168,7 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
                       )}
                     </div>
                     <button
-                      onClick={() => handleDelete(cat.id, cat.name)}
+                      onClick={() => handleDelete(cat)}
                       className="text-red-600 hover:text-red-800 px-3 py-1 text-sm"
                     >
                       Delete
@@ -184,6 +189,29 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
             Close
           </button>
         </div>
+
+        {/* Modal: confirmar eliminación de categoría */}
+        {deleteTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+              <h3 className="font-semibold text-base mb-2">{`Delete category "${deleteTarget.name}"?`}</h3>
+              <div className="flex gap-2 justify-end mt-4">
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm"
+                >
+                  {t('cancel', { defaultValue: 'Cancel' })}
+                </button>
+                <button
+                  onClick={doDelete}
+                  className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+                >
+                  {t('delete', { defaultValue: 'Delete' })}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

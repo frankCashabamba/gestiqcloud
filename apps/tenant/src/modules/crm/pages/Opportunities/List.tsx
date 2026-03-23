@@ -24,6 +24,7 @@ export default function OpportunitiesList() {
   ])
   const [stageFilter, setStageFilter] = useState<string>('')
   const [assignedFilter, setAssignedFilter] = useState<string>('')
+  const [deleteTarget, setDeleteTarget] = useState<Opportunity | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -52,6 +53,16 @@ export default function OpportunitiesList() {
   }, [filtered, sortKey, sortDir])
   const { page, setPage, totalPages, view, perPage, setPerPage } = usePagination(sorted, per)
   useEffect(()=> setPerPage(per), [per, setPerPage])
+
+  const doDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteOpportunity(deleteTarget.id)
+      setItems((p)=>p.filter(x=>x.id!==deleteTarget.id))
+      success(t('opportunities.deleted'))
+    } catch(e:any){ toastError(getErrorMessage(e)) }
+    finally { setDeleteTarget(null) }
+  }
 
   return (
     <div className="p-4">
@@ -121,7 +132,7 @@ export default function OpportunitiesList() {
               <td>{c.assigned_to || '-'}</td>
               <td>
                 <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('opportunities.editBtn')}</Link>
-                <button className="text-red-700" onClick={async () => { if (!confirm(t('opportunities.deleteConfirm'))) return; try { await deleteOpportunity(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success(t('opportunities.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('opportunities.deleteBtn')}</button>
+                <button className="text-red-700" onClick={() => setDeleteTarget(c)}>{t('opportunities.deleteBtn')}</button>
               </td>
             </tr>
           ))}
@@ -129,6 +140,19 @@ export default function OpportunitiesList() {
         </tbody>
       </table>
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('opportunities.deleteBtn')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('opportunities.deleteConfirm')} <strong>{deleteTarget.name}</strong>?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('opportunities.cancel') || 'Cancelar'}</button>
+              <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('opportunities.deleteBtn')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -15,6 +15,7 @@ export default function NominasList() {
     const nav = useNavigate()
     const { success, error: toastError } = useToast()
     const [q, setQ] = useState('')
+    const [deleteTarget, setDeleteTarget] = useState<Nomina | null>(null)
 
     useEffect(() => {
         (async () => {
@@ -100,16 +101,7 @@ export default function NominasList() {
                             <td>{statusLabel(n.status)}</td>
                             <td>
                                 <Link to={`${n.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('common:edit')}</Link>
-                                <button className="text-red-700" onClick={async () => {
-                                    if (!confirm(t('hr:payroll.deleteConfirm'))) return
-                                    try {
-                                        await removeNomina(n.id)
-                                        setItems((p) => p.filter(x => x.id !== n.id))
-                                        success(t('hr:payroll.deleted'))
-                                    } catch (e: any) {
-                                        toastError(getErrorMessage(e))
-                                    }
-                                }}>{t('hr:payroll.delete')}</button>
+                                <button className="text-red-700" onClick={() => setDeleteTarget(n)}>{t('hr:payroll.delete')}</button>
                             </td>
                         </tr>
                     ))}
@@ -117,6 +109,29 @@ export default function NominasList() {
                 </tbody>
             </table>
             <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+            {deleteTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                        <h3 className="font-semibold text-lg mb-2">{t('hr:payroll.delete')}</h3>
+                        <p className="text-sm text-slate-600 mb-4">{t('hr:payroll.deleteConfirm')} <strong>{deleteTarget.numero || deleteTarget.id}</strong>?</p>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+                            <button onClick={async () => {
+                                try {
+                                    await removeNomina(deleteTarget.id)
+                                    setItems((p) => p.filter(x => x.id !== deleteTarget.id))
+                                    success(t('hr:payroll.deleted'))
+                                } catch (e: any) {
+                                    toastError(getErrorMessage(e))
+                                } finally {
+                                    setDeleteTarget(null)
+                                }
+                            }} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('hr:payroll.delete')}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

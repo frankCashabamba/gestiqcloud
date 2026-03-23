@@ -11,6 +11,7 @@ export default function PaymentMethods() {
   const [error, setError] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [form, setForm] = useState<{ id?: string; name: string; description?: string; account_id: string; is_active: boolean }>({
     name: '',
     description: '',
@@ -76,13 +77,15 @@ export default function PaymentMethods() {
     setCreating(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('accounting.paymentMethods.deleteConfirm'))) return
+  const doDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deletePaymentMethod(id)
-      setMethods((prev) => prev.filter((m) => m.id !== id))
+      await deletePaymentMethod(deleteTarget)
+      setMethods((prev) => prev.filter((m) => m.id !== deleteTarget))
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || t('accounting.paymentMethods.errors.delete'))
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -180,7 +183,7 @@ export default function PaymentMethods() {
                     <button className="text-blue-600 hover:underline" onClick={() => handleEdit(m)}>
                       {t('common.edit')}
                     </button>
-                    <button className="text-red-600 hover:underline" onClick={() => handleDelete(m.id)}>
+                    <button className="text-red-600 hover:underline" onClick={() => setDeleteTarget(m.id)}>
                       {t('common.delete')}
                     </button>
                   </td>
@@ -197,6 +200,18 @@ export default function PaymentMethods() {
           </tbody>
         </table>
       </div>
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('common.delete')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('accounting.paymentMethods.deleteConfirm')}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+              <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('common.delete')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

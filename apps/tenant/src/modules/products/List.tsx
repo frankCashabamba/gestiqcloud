@@ -106,6 +106,15 @@ export default function ProductosList() {
   const [recipeByProduct, setRecipeByProduct] = useState<Map<string, string>>(new Map())
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
   const [editingPriceValue, setEditingPriceValue] = useState<string>('')
+  const [deleteTarget, setDeleteTarget] = useState<Producto | null>(null)
+  const [generateAllCodesPending, setGenerateAllCodesPending] = useState<number | null>(null)
+  const [generateSelectedSkuPending, setGenerateSelectedSkuPending] = useState<Producto[] | null>(null)
+  const [saveLabelConfigModal, setSaveLabelConfigModal] = useState<{ config: PrintConfig; name: string } | null>(null)
+  const [saveLabelConfigName, setSaveLabelConfigName] = useState('')
+  const [assignCategoryModal, setAssignCategoryModal] = useState(false)
+  const [assignCategoryName, setAssignCategoryName] = useState('')
+  const [purgeModal, setPurgeModal] = useState(false)
+  const [purgeConfirmText, setPurgeConfirmText] = useState('')
   const can = usePermission()
   const fetchPrinters = useCallback(async (): Promise<PrinterInfo[]> => {
     try {
@@ -308,57 +317,143 @@ export default function ProductosList() {
   }, [buildModalExtras, extrasSignature, selectedPrinter, updateModalExtras])
 
   const promptToSaveLabelConfig = useCallback(
-    async (printConfig: PrintConfig) => {
+    (printConfig: PrintConfig) => {
       const printer = selectedPrinterRef.current || selectedPrinter
       if (!printer?.port) {
         return
       }
-      const shouldSave = window.confirm(
-        '¿Deseas guardar esta configuración para la impresora seleccionada?'
-      )
-      if (!shouldSave) {
-        return
-      }
       const suggestedName = `Etiqueta ${printConfig.widthMm}×${printConfig.heightMm} mm`
-      const name = window.prompt('Nombre de la configuración', suggestedName)
-      if (!name?.trim()) {
-        toastError('Debes indicar un nombre válido para guardar la configuración.')
-        return
-      }
-      try {
-        const saved = await apiFetch<RawPrinterLabelConfig>('/v1/tenant/printing/configurations', {
-          method: 'POST',
-          body: JSON.stringify({
-            printer_port: printer.port,
-            name: name.trim(),
-            label_config: {
-              width_mm: printConfig.widthMm,
-              height_mm: printConfig.heightMm,
-              gap_mm: printConfig.gapMm,
-              columns: printConfig.columns,
-              column_gap_mm: printConfig.columnGapMm,
-              copies: Math.max(1, printConfig.copies),
-              show_price: printConfig.showPrice,
-              show_category: printConfig.showCategory,
-              header_text: printConfig.headerText || undefined,
-              footer_text: printConfig.footerText || undefined,
-              offset_xmm: clampValue(printConfig.offsetXmm, -30, 30),
-              offset_ymm: clampValue(printConfig.offsetYmm, -30, 30),
-              barcode_width: clampValue(printConfig.barcodeWidth, 1, 5),
-              price_alignment: printConfig.priceAlignment,
-            },
-          }),
-        })
-        await fetchSavedConfigsForPrinter(printer.port, false)
-        setSelectedSavedConfigId(saved.id)
-        success('Configuración guardada.')
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : t('products:list.errorSavingConfig')
-        toastError(message)
-      }
+      setSaveLabelConfigName(suggestedName)
+      setSaveLabelConfigModal({ config: printConfig, name: suggestedName })
     },
-    [fetchSavedConfigsForPrinter, selectedPrinter, success, toastError],
+    [selectedPrinter],
   )
+
+  const doSaveLabelConfig = async () => {
+    const printer = selectedPrinterRef.current || selectedPrinter
+    if (!printer?.port || !saveLabelConfigModal) return
+    if (!saveLabelConfigName.trim()) {
+      toastError(t('products:list.configNameRequired', { defaultValue: 'Debes indicar un nombre válido.' }))
+      return
+    }
+    try {
+      const printConfig = saveLabelConfigModal.config
+      setPrinterSaving(true)
+      const saved = await apiFetch<RawPrinterLabelConfig>('/v1/tenant/printing/configurations', {
+        method: 'POST',
+        body: JSON.stringify({
+          printer_port: printer.port,
+          name: saveLabelConfigName.trim(),
+          label_config: {
+            width_mm: printConfig.widthMm,
+            height_mm: printConfig.heightMm,
+            gap_mm: printConfig.gapMm,
+            columns: printConfig.columns,
+            column_gap_mm: printConfig.columnGapMm,
+            copies: Math.max(1, printConfig.copies),
+            show_price: printConfig.showPrice,
+            show_category: printConfig.showCategory,
+            header_text: printConfig.headerText || undefined,
+            footer_text: printConfig.footerText || undefined,
+            offset_xmm: clampValue(printConfig.offsetXmm, -30, 30),
+            offset_ymm: clampValue(printConfig.offsetYmm, -30, 30),
+            barcode_width: clampValue(printConfig.barcodeWidth, 1, 5),
+            price_alignment: printConfig.priceAlignment,
+          },
+        }),
+      })
+      await fetchSavedConfigsForPrinter(printer.port, false)
+      setSelectedSavedConfigId(saved.id)
+      success(t('products:list.configSaved', { defaultValue: 'Configuración guardada.' }))
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t('products:list.errorSavingConfig')
+      toastError(message)
+    } finally {
+      setPrinterSaving(false)
+      setSaveLabelConfigModal(null)
+    }
+  }
+
+  const doGenerateAllCodes = async () => {
+    try {
+      const res = await bulkGenerateMissingSkus()
+      success(`${res.updated} producto(s) actualizados con código.`)
+      const updated = await listProductos()
+      setItems(updated)
+    } catch (e) {
+      toastError(getErrorMessage(e))
+    } finally {
+      setGenerateAllCodesPending(null)
+    }
+  }
+
+  const doGenerateSelectedSku = async () => {
+    if (!generateSelectedSkuPending) return
+    try {
+      const withoutSku = generateSelectedSkuPending
+      const usedSkus = new Set(items.map(p => p.sku).filter(Boolean))
+      const updates: Promise<any>[] = withoutSku.map(p => {
+        const prefix = p.category ? p.category.substring(0, 3).toUpperCase() : 'PRO'
+        let sku: string
+        do { sku = `${prefix}-${Math.floor(Math.random() * 90000 + 10000)}` } while (usedSkus.has(sku))
+        usedSkus.add(sku)
+        return updateProducto(p.id, { sku })
+      })
+      await Promise.all(updates)
+      setItems(await listProductos())
+      setSelectedIds([])
+      success(`SKU generado para ${withoutSku.length} producto(s)`)
+    } catch (e: any) {
+      toastError(getErrorMessage(e))
+    } finally {
+      setGenerateSelectedSkuPending(null)
+    }
+  }
+
+  const doAssignCategory = async () => {
+    if (!assignCategoryName.trim()) {
+      toastError(t('products:bulkAssignCategoryPrompt', { defaultValue: 'Indica el nombre de la categoría.' }))
+      return
+    }
+    try {
+      const result = await bulkAssignCategory(selectedIds, assignCategoryName.trim())
+      setItems(await listProductos())
+      setSelectedIds([])
+      const created = result.category_created ? t('products:bulkAssignCategoryCreated') : ''
+      success(t('products:bulkAssignCategoryResult', { updated: result.updated, created }))
+      setAssignCategoryModal(false)
+      setAssignCategoryName('')
+    } catch (e: any) {
+      toastError(getErrorMessage(e))
+    }
+  }
+
+  const doDeleteProduct = async () => {
+    if (!deleteTarget) return
+    try {
+      await removeProducto(deleteTarget.id)
+      setItems(prev => prev.filter(x => x.id !== deleteTarget.id))
+      success(t('products:deleteOne'))
+    } catch (e: any) {
+      toastError(getErrorMessage(e))
+    } finally {
+      setDeleteTarget(null)
+    }
+  }
+
+  const doPurge = async () => {
+    if (purgeConfirmText !== 'PURGE') return
+    try {
+      await purgeProductos()
+      setItems([])
+      success(t('products:deleteAll'))
+    } catch (e) {
+      toastError(getErrorMessage(e))
+    } finally {
+      setPurgeModal(false)
+      setPurgeConfirmText('')
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -619,17 +714,9 @@ export default function ProductosList() {
             <ProtectedButton
               permission="products:update"
               className="bg-white border border-amber-400 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-50 transition-colors font-medium"
-              onClick={async () => {
+              onClick={() => {
                 const count = items.filter(p => !p.sku?.trim()).length
-                if (!confirm(`¿Generar código automático para ${count} producto(s) sin código?`)) return
-                try {
-                  const res = await bulkGenerateMissingSkus()
-                  success(`${res.updated} producto(s) actualizados con código.`)
-                  const updated = await listProductos()
-                  setItems(updated)
-                } catch (e) {
-                  toastError(getErrorMessage(e))
-                }
+                setGenerateAllCodesPending(count)
               }}
               title="Generar códigos para productos sin código"
             >
@@ -650,17 +737,7 @@ export default function ProductosList() {
             <ProtectedButton
               permission="products:delete"
               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
-              onClick={async () => {
-                if (prompt(t('products:deleteAllConfirm')) === 'PURGE') {
-                  try {
-                    await purgeProductos();
-                    setItems([]);
-                    success(t('products:deleteAll'));
-                  } catch (e) {
-                    toastError(getErrorMessage(e));
-                  }
-                }
-              }}
+              onClick={() => { setPurgeConfirmText(''); setPurgeModal(true) }}
               title={t('products:deleteAll')}
             >
               🗑️ {t('products:deleteAll')}
@@ -696,31 +773,13 @@ export default function ProductosList() {
               <ProtectedButton
                 permission="products:update"
                 className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
-                onClick={async () => {
+                onClick={() => {
                   const withoutSku = items.filter(p => selectedIds.includes(p.id) && !p.sku?.trim())
                   if (withoutSku.length === 0) {
                     success(t('products:bulkSkuAllHave', { defaultValue: 'Todos los seleccionados ya tienen código SKU' }))
                     return
                   }
-                  if (!confirm(`¿Generar SKU automático para ${withoutSku.length} producto(s) sin código?`)) return
-                  try {
-                    const usedSkus = new Set(items.map(p => p.sku).filter(Boolean))
-                    const updates: Promise<any>[] = withoutSku.map(p => {
-                      const prefix = p.category ? p.category.substring(0, 3).toUpperCase() : 'PRO'
-                      let sku: string
-                      do {
-                        sku = `${prefix}-${Math.floor(Math.random() * 90000 + 10000)}`
-                      } while (usedSkus.has(sku))
-                      usedSkus.add(sku)
-                      return updateProducto(p.id, { sku })
-                    })
-                    await Promise.all(updates)
-                    setItems(await listProductos())
-                    setSelectedIds([])
-                    success(`SKU generado para ${withoutSku.length} producto(s)`)
-                  } catch (e: any) {
-                    toastError(getErrorMessage(e))
-                  }
+                  setGenerateSelectedSkuPending(withoutSku)
                 }}
               >
                 # {t('products:bulkGenerateSku', { defaultValue: 'Generar SKU' })}
@@ -730,19 +789,8 @@ export default function ProductosList() {
               <ProtectedButton
                 permission="products:update"
                 className="bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm"
-                onClick={async () => {
-                  const categoryName = prompt(t('products:bulkAssignCategoryPrompt'))
-                  if (!categoryName || !categoryName.trim()) return
-
-                  try {
-                    const result = await bulkAssignCategory(selectedIds, categoryName.trim())
-                    setItems(await listProductos())
-                    setSelectedIds([])
-                    const created = result.category_created ? t('products:bulkAssignCategoryCreated') : ''
-                    success(t('products:bulkAssignCategoryResult', { updated: result.updated, created }))
-                  } catch (e: any) {
-                    toastError(getErrorMessage(e))
-                  }
+                onClick={() => {
+                  setAssignCategoryModal(true)
                 }}
               >
                 🏷️ {t('products:bulkAssignCategory')}
@@ -1035,16 +1083,7 @@ export default function ProductosList() {
                         <ProtectedButton
                           permission="products:delete"
                           variant="ghost"
-                          onClick={async () => {
-                            if (!confirm(t('products:deleteOneConfirm', { name: p.name }))) return
-                            try {
-                              await removeProducto(p.id)
-                              setItems((prev) => prev.filter((x) => x.id !== p.id))
-                              success(t('products:deleteOne'))
-                            } catch (e: any) {
-                              toastError(getErrorMessage(e))
-                            }
-                          }}
+                          onClick={() => setDeleteTarget(p)}
                         >
                           {t('products:deleteOne')}
                         </ProtectedButton>
@@ -1102,6 +1141,113 @@ export default function ProductosList() {
           }}
         />
       )}
+      {/* Modal: purgar todos los productos */}
+      {purgeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-2">{t('products:deleteAll')}</h3>
+            <p className="text-sm text-slate-600 mb-3">{t('products:deleteAllConfirm')}</p>
+            <input
+              type="text"
+              value={purgeConfirmText}
+              onChange={e => setPurgeConfirmText(e.target.value)}
+              placeholder="PURGE"
+              className="gc-input w-full mb-4"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && doPurge()}
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => { setPurgeModal(false); setPurgeConfirmText('') }} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common:cancel')}</button>
+              <button onClick={doPurge} disabled={purgeConfirmText !== 'PURGE'} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm disabled:opacity-50">{t('common:delete')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: eliminar producto */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-2">{t('products:deleteOneConfirm', { name: deleteTarget.name })}</h3>
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common:cancel')}</button>
+              <button onClick={doDeleteProduct} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('common:delete')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: generar códigos para todos sin SKU */}
+      {generateAllCodesPending !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-2">{t('products:generateCodesConfirm', { count: generateAllCodesPending, defaultValue: `¿Generar código para ${generateAllCodesPending} producto(s) sin código?` })}</h3>
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => setGenerateAllCodesPending(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common:cancel')}</button>
+              <button onClick={doGenerateAllCodes} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm">{t('common:confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: generar SKU para seleccionados */}
+      {generateSelectedSkuPending !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-2">{t('products:generateSkuConfirm', { count: generateSelectedSkuPending.length, defaultValue: `¿Generar SKU para ${generateSelectedSkuPending.length} producto(s)?` })}</h3>
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => setGenerateSelectedSkuPending(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common:cancel')}</button>
+              <button onClick={doGenerateSelectedSku} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm">{t('common:confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: guardar configuración de etiqueta */}
+      {saveLabelConfigModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-3">{t('products:list.saveConfig', { defaultValue: 'Guardar configuración de etiqueta' })}</h3>
+            <p className="text-sm text-slate-600 mb-3">{t('products:list.saveConfigSubtitle', { defaultValue: '¿Deseas guardar esta configuración para la impresora seleccionada?' })}</p>
+            <label className="text-sm font-medium text-slate-700 block mb-1">{t('products:list.configName', { defaultValue: 'Nombre de la configuración' })}</label>
+            <input
+              type="text"
+              value={saveLabelConfigName}
+              onChange={e => setSaveLabelConfigName(e.target.value)}
+              className="gc-input w-full mb-4"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && doSaveLabelConfig()}
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setSaveLabelConfigModal(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common:cancel')}</button>
+              <button onClick={doSaveLabelConfig} disabled={printerSaving} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm disabled:opacity-50">{printerSaving ? t('common:saving', { defaultValue: 'Guardando...' }) : t('common:save')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: asignar categoría masiva */}
+      {assignCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-3">🏷️ {t('products:bulkAssignCategory')}</h3>
+            <label className="text-sm font-medium text-slate-700 block mb-1">{t('products:bulkAssignCategoryPrompt', { defaultValue: 'Nombre de la categoría' })}</label>
+            <input
+              type="text"
+              value={assignCategoryName}
+              onChange={e => setAssignCategoryName(e.target.value)}
+              className="gc-input w-full mb-4"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && doAssignCategory()}
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => { setAssignCategoryModal(false); setAssignCategoryName('') }} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common:cancel')}</button>
+              <button onClick={doAssignCategory} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm">{t('common:confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {PrintModal}
       <SimilarProductsMergeModal
         open={showMergeModal}

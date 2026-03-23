@@ -103,6 +103,8 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
         shortcut_letter: '',
     })
 
+    const [resetYearlyPending, setResetYearlyPending] = useState(false)
+
     const { items: docTypesCatalog } = useDocTypes()
     const shouldAutoSaveBulk = useRef(false)
 
@@ -1018,16 +1020,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                     </button>
                                     <button
                                         className="btn"
-                                        onClick={async () => {
-                                            if (!confirm('Resetear series yearly a 0?')) return
-                                            try {
-                                                await tenantApi.post('/api/v1/tenant/pos/numbering/series/reset_yearly')
-                                                success('Series reseteadas')
-                                                await loadNumbering()
-                                            } catch (err: any) {
-                                                error(getErrorMessage(err))
-                                            }
-                                        }}
+                                        onClick={() => setResetYearlyPending(true)}
                                         disabled={docSeriesLoading}
                                     >
                                         Reset anual
@@ -1174,6 +1167,33 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
             >
                 Save configuration
             </button>
+
+            {resetYearlyPending && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                        <h3 className="font-semibold text-lg mb-2">Reset anual</h3>
+                        <p className="text-sm text-slate-600 mb-4">Resetear series yearly a 0. Esta acción no se puede deshacer.</p>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setResetYearlyPending(false)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+                            <button
+                                onClick={async () => {
+                                    setResetYearlyPending(false)
+                                    try {
+                                        await tenantApi.post('/api/v1/tenant/pos/numbering/series/reset_yearly')
+                                        success('Series reseteadas')
+                                        await loadNumbering()
+                                    } catch (err: any) {
+                                        error(getErrorMessage(err))
+                                    }
+                                }}
+                                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+                            >
+                                Reset anual
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

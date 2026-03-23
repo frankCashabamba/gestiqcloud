@@ -93,8 +93,9 @@ export default function DocumentList() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [filter, setFilter] = useState(searchParams.get('estado') || '')
   const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null)
-  const [feedback, setFeedback] = useState('')
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [purging, setPurging] = useState(false)
+  const [purgePending, setPurgePending] = useState(false)
 
   const loadDocuments = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (silent) {
@@ -107,7 +108,7 @@ export default function DocumentList() {
       setDocs(items)
       setLastUpdatedAt(new Date())
     } catch {
-      setFeedback('No se pudieron cargar los documentos.')
+      setFeedback({ message: 'No se pudieron cargar los documentos.', type: 'error' })
     } finally {
       if (silent) {
         setRefreshing(false)
@@ -154,20 +155,20 @@ export default function DocumentList() {
   const handleSaved = (result: SaveDocumentResult) => {
     const targetLabel =
       result.target === 'recipes' ? 'recetas' : result.target === 'purchases' ? 'compras' : 'gastos'
-    setFeedback(result.message || `Documento guardado en ${targetLabel}.`)
+    setFeedback({ message: result.message || `Documento guardado en ${targetLabel}.`, type: 'success' })
     void loadDocuments()
   }
 
   const handlePurgeAll = async () => {
-    if (!window.confirm('Se borrara todo el historial del importador. Esta accion no se puede deshacer.')) return
+    setPurgePending(false)
     setPurging(true)
-    setFeedback('')
+    setFeedback(null)
     try {
       const res = await purgeAllImportador()
-      setFeedback(`Historial borrado: ${res.deleted_total} registros eliminados.`)
+      setFeedback({ message: `Historial borrado: ${res.deleted_total} registros eliminados.`, type: 'success' })
       void loadDocuments()
     } catch {
-      setFeedback('No se pudo borrar el historial.')
+      setFeedback({ message: 'No se pudo borrar el historial.', type: 'error' })
     } finally {
       setPurging(false)
     }
@@ -209,7 +210,7 @@ export default function DocumentList() {
           boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
         }}
       >
-        {'<-'} Volver
+        ← Volver
       </button>
 
       <section
@@ -288,15 +289,26 @@ export default function DocumentList() {
       {feedback && (
         <div
           style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.75rem',
             padding: '0.85rem 1rem',
             borderRadius: 14,
-            border: '1px solid #bfdbfe',
-            background: '#eff6ff',
-            color: '#1d4ed8',
+            border: `1px solid ${feedback.type === 'error' ? '#fecaca' : '#bfdbfe'}`,
+            background: feedback.type === 'error' ? '#fef2f2' : '#eff6ff',
+            color: feedback.type === 'error' ? '#991b1b' : '#1d4ed8',
             fontSize: 13,
           }}
         >
-          {feedback}
+          <span>{feedback.message}</span>
+          <button
+            onClick={() => setFeedback(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, lineHeight: 1, padding: 0 }}
+            aria-label="Cerrar"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -356,7 +368,7 @@ export default function DocumentList() {
               Haz clic sobre un documento para revisar su contenido, corregirlo o guardarlo.
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {FILTERS.map((item) => (
               <button
                 key={item.value || 'all'}
@@ -375,6 +387,24 @@ export default function DocumentList() {
                 {item.label}
               </button>
             ))}
+            <button
+              onClick={() => void loadDocuments({ silent: true })}
+              disabled={refreshing}
+              title={lastUpdatedAt ? `Ultima actualizacion: ${lastUpdatedAt.toLocaleTimeString()}` : 'Actualizar lista'}
+              style={{
+                padding: '0.45rem 0.7rem',
+                borderRadius: 999,
+                border: '1px solid #d1d5db',
+                background: '#fff',
+                color: '#475569',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                fontWeight: 700,
+                opacity: refreshing ? 0.5 : 1,
+              }}
+            >
+              {refreshing ? '↻' : '↻'}
+            </button>
           </div>
         </div>
 
@@ -419,10 +449,25 @@ export default function DocumentList() {
               </thead>
               <tbody>
                 {docs.map((doc) => {
+                  const isInProgress = doc.estado === 'PROCESSING' || doc.estado === 'PENDING'
                   const destination = suggestSaveDestination(doc)
-                  const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && (
+                  const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && !isInProgress && (
                     destination === 'recipe' || hasConfirmedDocumentData(doc)
                   )
+                  const nextStepLabel = isInProgress
+                    ? 'Procesando...'
+                    : doc.estado === 'FAILED'
+                    ? 'Ver error'
+                    : saveEnabled
+                    ? saveLabel(doc)
+                    : 'Revisar documento'
+                  const nextStepTitle = isInProgress
+                    ? 'El documento aun se esta procesando en segundo plano.'
+                    : doc.estado === 'FAILED'
+                    ? 'El documento tuvo un error. Haz clic para ver el detalle.'
+                    : saveEnabled
+                    ? saveLabel(doc)
+                    : 'Abre el documento para confirmar sus datos antes de guardarlo.'
                   return (
                     <tr
                       key={doc.id}
@@ -457,18 +502,23 @@ export default function DocumentList() {
                         <button
                           onClick={(event) => {
                             event.stopPropagation()
-                            setFeedback('')
-                            setSelectedDoc(doc)
+                            if (saveEnabled) {
+                              setFeedback(null)
+                              setSelectedDoc(doc)
+                            } else {
+                              navigate(doc.id)
+                            }
                           }}
-                          disabled={!saveEnabled}
+                          disabled={isInProgress}
                           style={{
                             ...saveBtn,
-                            background: saveEnabled ? '#0f766e' : '#cbd5e1',
-                            cursor: saveEnabled ? 'pointer' : 'not-allowed',
+                            background: isInProgress ? '#e2e8f0' : saveEnabled ? '#0f766e' : doc.estado === 'FAILED' ? '#dc2626' : '#64748b',
+                            color: isInProgress ? '#94a3b8' : '#fff',
+                            cursor: isInProgress ? 'not-allowed' : 'pointer',
                           }}
-                          title={saveEnabled ? saveLabel(doc) : 'Antes debes confirmar o completar el documento.'}
+                          title={nextStepTitle}
                         >
-                          {saveEnabled ? saveLabel(doc) : 'Completa la revision'}
+                          {nextStepLabel}
                         </button>
                       </td>
                     </tr>
@@ -496,7 +546,7 @@ export default function DocumentList() {
             </div>
           </div>
           <button
-            onClick={handlePurgeAll}
+            onClick={() => setPurgePending(true)}
             disabled={purging}
             style={{
               padding: '0.65rem 0.95rem',
@@ -520,6 +570,19 @@ export default function DocumentList() {
         onClose={() => setSelectedDoc(null)}
         onSaved={handleSaved}
       />
+
+      {purgePending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">Borrar historial</h3>
+            <p className="text-sm text-slate-600 mb-4">Se borrara todo el historial del importador. Esta accion no se puede deshacer.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPurgePending(false)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+              <button onClick={handlePurgeAll} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">Borrar historial</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -75,32 +75,32 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
             for linea in factura_in.lineas:
                 if isinstance(linea, schemas.BakeryLine):
                     nueva_linea = BakeryLine(
-                        factura_id=factura.id,
-                        descripcion=linea.description,
-                        cantidad=linea.cantidad,
-                        precio_unitario=linea.precio_unitario,
-                        iva=linea.iva,
+                        invoice_id=factura.id,
+                        description=linea.description,
+                        quantity=linea.cantidad,
+                        unit_price=linea.precio_unitario,
+                        vat=linea.iva or 0,
                         bread_type=linea.bread_type,
                         grams=linea.grams,
                     )
                 elif isinstance(linea, schemas.WorkshopLine):
                     nueva_linea = WorkshopLine(
-                        factura_id=factura.id,
-                        descripcion=linea.description,
-                        cantidad=linea.cantidad,
-                        precio_unitario=linea.precio_unitario,
-                        iva=linea.iva,
-                        repuesto=linea.repuesto,
-                        horas_mano_obra=linea.horas_mano_obra,
-                        tarifa=linea.tarifa,
+                        invoice_id=factura.id,
+                        description=linea.description,
+                        quantity=linea.cantidad,
+                        unit_price=linea.precio_unitario,
+                        vat=linea.iva or 0,
+                        spare_part=linea.spare_part,
+                        labor_hours=linea.labor_hours,
+                        rate=linea.rate,
                     )
                 elif isinstance(linea, schemas.POSLine):
                     nueva_linea = POSLine(
-                        factura_id=factura.id,
-                        descripcion=linea.description,
-                        cantidad=linea.cantidad,
-                        precio_unitario=linea.precio_unitario,
-                        iva=linea.iva or 0,
+                        invoice_id=factura.id,
+                        description=linea.description,
+                        quantity=linea.cantidad,
+                        unit_price=linea.precio_unitario,
+                        vat=linea.iva or 0,
                         pos_receipt_line_id=getattr(linea, "pos_receipt_line_id", None),
                     )
                 else:

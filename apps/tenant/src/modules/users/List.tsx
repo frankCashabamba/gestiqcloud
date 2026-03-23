@@ -36,6 +36,8 @@ export default function UsuariosList() {
   const [showRolesModal, setShowRolesModal] = useState(false)
   const [rolesCompletos, setRolesCompletos] = useState<Rol[]>([])
   const [selectedRol, setSelectedRol] = useState<Rol | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<Usuario | null>(null)
+  const [deleteRolTarget, setDeleteRolTarget] = useState<Rol | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
   const { profile, loading: authLoading, token } = useAuth()
@@ -90,14 +92,16 @@ export default function UsuariosList() {
 
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
 
-  const handleRemove = async (id: string) => {
-    if (!confirm(t('users:deactivateConfirm'))) return
+  const doRemove = async () => {
+    if (!removeTarget) return
     try {
-      await removeUsuario(id)
-      setItems((prev) => prev.filter((u) => u.id !== id))
+      await removeUsuario(removeTarget.id)
+      setItems((prev) => prev.filter((u) => u.id !== removeTarget.id))
       success(t('users:deactivated'))
     } catch (e: any) {
       toastError(getErrorMessage(e))
+    } finally {
+      setRemoveTarget(null)
     }
   }
 
@@ -114,14 +118,16 @@ export default function UsuariosList() {
     }
   }
 
-  const handleDeleteRol = async (id: string) => {
-    if (!confirm(t('users:roleManagement.deleteConfirm'))) return
+  const doDeleteRol = async () => {
+    if (!deleteRolTarget) return
     try {
-      await deleteRol(id)
-      setRolesCompletos(prev => prev.filter(r => r.id !== id))
+      await deleteRol(deleteRolTarget.id)
+      setRolesCompletos(prev => prev.filter(r => r.id !== deleteRolTarget.id))
       success(t('users:roleManagement.deleted'))
     } catch (e: any) {
       toastError(getErrorMessage(e))
+    } finally {
+      setDeleteRolTarget(null)
     }
   }
 
@@ -227,7 +233,7 @@ export default function UsuariosList() {
                           </button>
                           <button
                             className="text-sm font-medium text-rose-600 hover:text-rose-500"
-                            onClick={() => handleRemove(u.id)}
+                            onClick={() => setRemoveTarget(u)}
                           >
                             {t('users:deactivate')}
                           </button>
@@ -350,7 +356,7 @@ export default function UsuariosList() {
                       </button>
                       <button
                         className="text-sm text-rose-600 hover:text-rose-500"
-                        onClick={() => handleDeleteRol(rol.id)}
+                        onClick={() => setDeleteRolTarget(rol)}
                       >
                         {t('users:roleManagement.delete')}
                       </button>
@@ -367,6 +373,32 @@ export default function UsuariosList() {
               >
                 {t('users:roleManagement.close')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">{t('users:deactivate')}</h3>
+            <p className="text-sm text-slate-600">{t('users:deactivateConfirm')} <strong>{formatNombre(removeTarget)}</strong>?</p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setRemoveTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('users:passwordModal.cancel')}</button>
+              <button onClick={doRemove} className="px-4 py-2 rounded bg-rose-600 text-white hover:bg-rose-700 text-sm">{t('users:deactivate')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteRolTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">{t('users:roleManagement.delete')}</h3>
+            <p className="text-sm text-slate-600">{t('users:roleManagement.deleteConfirm')} <strong>{deleteRolTarget.name}</strong>?</p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setDeleteRolTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('users:passwordModal.cancel')}</button>
+              <button onClick={doDeleteRol} className="px-4 py-2 rounded bg-rose-600 text-white hover:bg-rose-700 text-sm">{t('users:roleManagement.delete')}</button>
             </div>
           </div>
         </div>

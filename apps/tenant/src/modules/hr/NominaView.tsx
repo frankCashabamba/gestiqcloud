@@ -62,6 +62,7 @@ export default function NominaView() {
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7))
   const [employeeCount, setEmployeeCount] = useState(0)
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null)
+  const [deletePayrollTarget, setDeletePayrollTarget] = useState<string | null>(null)
   const summary = useMemo(() => {
     const totalNet = recibos.reduce((sum, item) => sum + Number(item.total_net || 0), 0)
     const pendingRuns = recibos.filter((item) => item.status === 'DRAFT').length
@@ -252,10 +253,7 @@ export default function NominaView() {
                       <button
                         type="button"
                         disabled={submitting}
-                        onClick={async () => {
-                          if (!window.confirm(t('hr:payroll.deleteConfirm'))) return
-                          await remove(payroll.id)
-                        }}
+                        onClick={() => setDeletePayrollTarget(payroll.id)}
                         className="gc-btn gc-btn--danger"
                       >
                         <Trash2 size={16} />
@@ -278,6 +276,18 @@ export default function NominaView() {
             )
           })}
         </section>
+      )}
+      {deletePayrollTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('hr:payroll.delete')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('hr:payroll.deleteConfirm')}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeletePayrollTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+              <button onClick={async () => { setDeletePayrollTarget(null); await remove(deletePayrollTarget) }} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('hr:payroll.delete')}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -15,6 +15,7 @@ export default function MFASettings() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [qrUrl, setQrUrl] = useState('')
+  const [disablePending, setDisablePending] = useState(false)
 
   const loadStatus = async () => {
     setLoading(true)
@@ -74,7 +75,7 @@ export default function MFASettings() {
   }
 
   const handleDisable = async () => {
-    if (!confirm('¿Desactivar MFA? Tu cuenta quedará menos segura.')) return
+    setDisablePending(false)
     setBusy(true)
     setError('')
     try {
@@ -224,12 +225,24 @@ export default function MFASettings() {
       {step === 'enabled' && (
         <div className="space-y-3">
           <button
-            onClick={handleDisable}
+            onClick={() => setDisablePending(true)}
             disabled={busy}
             className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded text-sm font-medium hover:bg-red-100 disabled:opacity-50"
           >
             {busy ? 'Desactivando...' : 'Desactivar MFA'}
           </button>
+        </div>
+      )}
+      {disablePending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">Desactivar MFA</h3>
+            <p className="text-sm text-slate-600 mb-4">¿Desactivar autenticación de dos factores? Tu cuenta quedará menos segura.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDisablePending(false)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+              <button onClick={handleDisable} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">Desactivar</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

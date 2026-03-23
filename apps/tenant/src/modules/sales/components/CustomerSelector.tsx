@@ -99,7 +99,7 @@ export default function CustomerSelector({ value, clienteName, onChange }: Props
             className="gc-input w-full pr-8"
             autoComplete="off"
           />
-          {value && (
+          {value != null && value !== '' && !Number.isNaN(value as any) && (
             <button
               type="button"
               onClick={clearCliente}
@@ -119,7 +119,7 @@ export default function CustomerSelector({ value, clienteName, onChange }: Props
         </button>
       </div>
 
-      {value && (
+      {value != null && value !== '' && !Number.isNaN(value as any) && (
         <p className="text-xs text-slate-500 mt-0.5">ID: {value}</p>
       )}
 

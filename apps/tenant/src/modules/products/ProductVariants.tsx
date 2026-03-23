@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../../services/api/client'
 
 interface Attribute {
@@ -26,11 +27,13 @@ interface ProductVariantsProps {
 const BASE = '/api/v1/tenant/products/variants'
 
 export default function ProductVariants({ productId, basePrice }: ProductVariantsProps) {
+  const { t } = useTranslation('products')
   const [variants, setVariants] = useState<Variant[]>([])
   const [attributes, setAttributes] = useState<Attribute[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showAttrForm, setShowAttrForm] = useState(false)
+  const [deleteVariantTarget, setDeleteVariantTarget] = useState<string | null>(null)
   const [form, setForm] = useState<{
     sku: string
     attributes: Record<string, string>
@@ -104,9 +107,14 @@ export default function ProductVariants({ productId, basePrice }: ProductVariant
     load()
   }
 
-  const handleDeleteVariant = async (id: string) => {
-    if (!confirm('¿Eliminar esta variante?')) return
-    await api.delete(`${BASE}/${id}`)
+  const handleDeleteVariant = (id: string) => {
+    setDeleteVariantTarget(id)
+  }
+
+  const doDeleteVariant = async () => {
+    if (!deleteVariantTarget) return
+    await api.delete(`${BASE}/${deleteVariantTarget}`)
+    setDeleteVariantTarget(null)
     load()
   }
 
@@ -320,6 +328,31 @@ export default function ProductVariants({ productId, basePrice }: ProductVariant
           </div>
         )}
       </div>
+
+      {/* Modal: confirmar eliminación de variante */}
+      {deleteVariantTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-base mb-2">
+              {t('deleteVariantConfirm', { defaultValue: '¿Eliminar esta variante?' })}
+            </h3>
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                onClick={() => setDeleteVariantTarget(null)}
+                className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm"
+              >
+                {t('cancel', { defaultValue: 'Cancelar' })}
+              </button>
+              <button
+                onClick={doDeleteVariant}
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+              >
+                {t('delete', { defaultValue: 'Eliminar' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

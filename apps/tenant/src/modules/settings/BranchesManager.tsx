@@ -33,6 +33,7 @@ export default function BranchesManager() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState<BranchForm>(emptyForm)
+  const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -70,13 +71,14 @@ export default function BranchesManager() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta sucursal?')) return
     try {
       await tenantApi.delete(`/api/v1/tenant/branches/${id}`)
       success('Sucursal eliminada')
       load()
     } catch {
       showError('Error eliminando sucursal')
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -175,7 +177,7 @@ export default function BranchesManager() {
                 <td className="px-4 py-3 text-right space-x-2">
                   <button onClick={() => handleEdit(b)} className="text-blue-600 hover:underline">Editar</button>
                   {!b.is_main && (
-                    <button onClick={() => handleDelete(b.id)} className="text-red-600 hover:underline">Eliminar</button>
+                    <button onClick={() => setDeleteTarget(b)} className="text-red-600 hover:underline">Eliminar</button>
                   )}
                 </td>
               </tr>
@@ -186,6 +188,18 @@ export default function BranchesManager() {
           </tbody>
         </table>
       </div>
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">Eliminar sucursal</h3>
+            <p className="text-sm text-slate-600 mb-4">¿Eliminar <strong>{deleteTarget.name}</strong>? Esta acción no se puede deshacer.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+              <button onClick={() => handleDelete(deleteTarget.id)} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

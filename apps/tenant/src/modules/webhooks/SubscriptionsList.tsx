@@ -15,6 +15,7 @@ export default function SubscriptionsList() {
   const [loading, setLoading] = useState(true)
   const [subscriptions, setSubscriptions] = useState<WebhookSubscription[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   useEffect(() => {
     loadSubscriptions()
@@ -32,14 +33,16 @@ export default function SubscriptionsList() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(t('webhooks.deleteConfirm'))) return
+  const doDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deleteSubscription(id)
+      await deleteSubscription(deleteTarget)
       success(t('webhooks.deleted'))
       loadSubscriptions()
     } catch {
       showError(t('webhooks.errors.deleting'))
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -113,7 +116,7 @@ export default function SubscriptionsList() {
                       {t('webhooks.test')}
                     </button>
                     <button
-                      onClick={() => handleDelete(sub.id)}
+                      onClick={() => setDeleteTarget(sub.id)}
                       className="text-sm px-3 py-1 text-red-600 hover:bg-red-50 rounded"
                     >
                       {t('common.delete')}
@@ -125,6 +128,18 @@ export default function SubscriptionsList() {
           </tbody>
         </table>
       </div>
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('common.delete')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('webhooks.deleteConfirm')}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+              <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('common.delete')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

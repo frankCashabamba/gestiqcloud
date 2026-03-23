@@ -15,7 +15,7 @@ import ProductLineInput from './components/ProductLineInput'
 interface FormT {
   numero?: string
   fecha: string
-  cliente_id?: number
+  cliente_id?: number | string
   cliente_nombre?: string
   descripcion?: string
   lineas: InvoiceLine[]
@@ -248,7 +248,7 @@ export default function FacturaForm() {
                 <CustomerSelector
                   value={form.cliente_id}
                   clienteName={form.cliente_nombre}
-                  onChange={(id, name) => setForm(prev => ({ ...prev, cliente_id: id ? Number(id) : undefined, cliente_nombre: name }))}
+                  onChange={(id, name) => setForm(prev => ({ ...prev, cliente_id: id ?? undefined, cliente_nombre: name }))}
                 />
               )}
             </div>
@@ -278,7 +278,7 @@ export default function FacturaForm() {
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            <div>
               <table className="w-full text-sm border">
                 <thead>
                   <tr className="bg-slate-100">
@@ -292,7 +292,7 @@ export default function FacturaForm() {
                 <tbody>
                   {form.lineas.map((linea, idx) => (
                     <tr key={idx}>
-                      <td className="border p-2">
+                      <td className="border p-2 overflow-visible relative">
                         <ProductLineInput
                           value={linea.description}
                           disabled={isLocked}

@@ -174,12 +174,12 @@ export async function getInvoice(id: number | string): Promise<Invoice> {
 export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCreate>): Promise<Invoice> {
     const payload = stripOfflineMeta({
         ...invoice,
-        lineas: (invoice.lineas || []).map((l) => ({
+        lineas: (invoice.lineas || []).map((l: any) => ({
+            sector: l.sector ?? 'pos',
             description: l.description,
-            quantity: l.cantidad ?? l.quantity,
-            unit_price: l.precio_unitario ?? l.unit_price,
-            total: l.total ?? (l.cantidad ?? l.quantity ?? 0) * (l.precio_unitario ?? l.unit_price ?? 0),
-            sku: l.sku,
+            cantidad: l.cantidad ?? l.quantity ?? 1,
+            precio_unitario: l.precio_unitario ?? l.unit_price ?? 0,
+            iva: l.iva ?? 0,
         })),
         date: (invoice as any)?.fecha || (invoice as any)?.date,
     })
@@ -194,7 +194,6 @@ export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCrea
     } catch (error) {
         if (isNetworkIssue(error)) {
             const tempId = await queueInvoiceForSync(payload, 'create')
-            console.warn('[offline] Invoice queued for sync (create):', tempId)
             return normalizeInvoice({ ...payload, id: tempId })
         }
         throw error
@@ -204,12 +203,12 @@ export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCrea
 export async function updateInvoice(id: number | string, invoice: Partial<Invoice>): Promise<Invoice> {
     const payload = stripOfflineMeta({
         ...invoice,
-        lineas: (invoice.lineas || []).map((l) => ({
+        lineas: (invoice.lineas || []).map((l: any) => ({
+            sector: l.sector ?? 'pos',
             description: l.description,
-            quantity: l.cantidad ?? l.quantity,
-            unit_price: l.precio_unitario ?? l.unit_price,
-            total: l.total ?? (l.cantidad ?? l.quantity ?? 0) * (l.precio_unitario ?? l.unit_price ?? 0),
-            sku: l.sku,
+            cantidad: l.cantidad ?? l.quantity ?? 1,
+            precio_unitario: l.precio_unitario ?? l.unit_price ?? 0,
+            iva: l.iva ?? 0,
         })),
         date: (invoice as any)?.fecha || (invoice as any)?.date,
     })

@@ -32,8 +32,8 @@ async function fetchProducts(): Promise<Product[]> {
 export default function ProductLineInput({ value, disabled, onChange }: Props) {
   const [productos, setProductos] = useState<Product[]>([])
   const [open, setOpen] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (_cache) { setProductos(_cache); return }
@@ -42,14 +42,26 @@ export default function ProductLineInput({ value, disabled, onChange }: Props) {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (
-        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
-        inputRef.current && !inputRef.current.contains(e.target as Node)
-      ) setOpen(false)
+      if (inputRef.current && !inputRef.current.closest('.pli-wrapper')?.contains(e.target as Node)) {
+        setOpen(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  function openDropdown() {
+    if (!inputRef.current) return
+    const rect = inputRef.current.getBoundingClientRect()
+    setDropdownStyle({
+      position: 'fixed',
+      top: rect.bottom + 2,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    })
+    setOpen(true)
+  }
 
   const filtered = value.trim()
     ? productos.filter(p =>
@@ -64,13 +76,13 @@ export default function ProductLineInput({ value, disabled, onChange }: Props) {
   }
 
   return (
-    <div className="relative">
+    <div className="pli-wrapper relative">
       <input
         ref={inputRef}
         type="text"
         value={value}
-        onChange={e => { onChange(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)}
+        onChange={e => { onChange(e.target.value); if (!open) openDropdown(); }}
+        onFocus={openDropdown}
         className="gc-input w-full"
         disabled={disabled}
         required
@@ -78,8 +90,8 @@ export default function ProductLineInput({ value, disabled, onChange }: Props) {
       />
       {open && !disabled && filtered.length > 0 && (
         <div
-          ref={dropdownRef}
-          className="absolute z-50 left-0 right-0 bg-white border rounded shadow-lg max-h-48 overflow-y-auto mt-1"
+          style={dropdownStyle}
+          className="bg-white border rounded shadow-xl max-h-52 overflow-y-auto"
         >
           {filtered.map(p => (
             <button

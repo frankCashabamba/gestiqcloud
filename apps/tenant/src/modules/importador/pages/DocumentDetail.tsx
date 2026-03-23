@@ -161,6 +161,7 @@ export default function DocumentDetail() {
   const [error, setError] = useState('')
   const [rawSyncResult, setSyncResult] = useState<SyncRecipeResult | null>(null)
   const [batchSyncResult, setBatchSyncResult] = useState<SyncRecipesResult | null>(null)
+  const [rejectPending, setRejectPending] = useState(false)
   const syncResult = rawSyncResult
     ? {
         ...rawSyncResult,
@@ -293,7 +294,8 @@ export default function DocumentDetail() {
   }
 
   const handleReject = async () => {
-    if (!id || !confirm(t('docDetail.confirmReject'))) return
+    if (!id) return
+    setRejectPending(false)
     try { await rejectDocument(id); load() } catch { setError(t('docDetail.errorRejecting')) }
   }
 
@@ -455,7 +457,16 @@ export default function DocumentDetail() {
           {t('docDetail.back')}
         </button>
       </div>
-      {error && <div style={{ color: 'red', marginBottom: '0.5rem' }}>{error}</div>}
+      {error && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem',
+          padding: '0.75rem 1rem', borderRadius: 10, border: '1px solid #fecaca',
+          background: '#fef2f2', color: '#991b1b', fontSize: 13, marginBottom: '0.75rem',
+        }}>
+          <span>{error}</span>
+          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, lineHeight: 1, padding: 0 }} aria-label="Cerrar">×</button>
+        </div>
+      )}
 
       {syncResult && (
         <div style={{ padding: '0.75rem', background: syncResult.was_new ? '#F0FDF4' : '#EFF6FF', border: '1px solid ' + (syncResult.was_new ? '#BBF7D0' : '#BFDBFE'), borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -561,7 +572,7 @@ export default function DocumentDetail() {
               <button onClick={handleSaveDailyLog} disabled={savingDailyLog} style={{ ...actionBtn, background: '#7c3aed' }}>
                 {savingDailyLog ? t('docDetail.buttons.savingDailyLog') : dailyLogResult ? t('docDetail.buttons.resaveDailyLog') : t('docDetail.buttons.saveDailyLog')}
               </button>
-              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+              <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
               <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280' }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
@@ -585,7 +596,7 @@ export default function DocumentDetail() {
               <button onClick={handleSyncSheet} disabled={syncingAll || syncing || activeSheetIsSynced} style={{ ...actionBtn, background: activeSheetIsSynced ? '#94a3b8' : '#2563eb' }}>
                 {syncing ? '...' : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
               </button>
-              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+              <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
               <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
@@ -600,7 +611,7 @@ export default function DocumentDetail() {
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
                     {saving ? t('docDetail.buttons.confirming') : t('docDetail.buttons.confirm')}
                   </button>
-                  <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+                  <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
               <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
@@ -617,7 +628,7 @@ export default function DocumentDetail() {
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
                     {saving ? t('docDetail.buttons.confirming') : t('docDetail.buttons.confirm')}
                   </button>
-                  <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+                  <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
               <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
@@ -642,7 +653,7 @@ export default function DocumentDetail() {
                   </button>
                 </>
               )}
-              <button onClick={handleReject} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
+              <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
               <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
             </>
           )}
@@ -1358,6 +1369,18 @@ export default function DocumentDetail() {
         columnKeys={activeNormKeys}
         columnLabels={activeDisplayNames}
       />
+      {rejectPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('docDetail.buttons.reject')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('docDetail.confirmReject')}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRejectPending(false)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+              <button onClick={handleReject} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('docDetail.buttons.reject')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1366,4 +1389,4 @@ const section: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius
 const actionBtn: React.CSSProperties = { padding: '0.5rem 1rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }
 const selectionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.35rem 0.55rem', border: '1px solid #E5E7EB', borderRadius: 999, cursor: 'pointer', fontSize: 12 }
 const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 13, fontWeight: 600 }
-const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444' }
+const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444', INVALID: '#EF4444', REPROCESS: '#8B5CF6', VALID: '#10B981', IMPORTED: '#0EA5E9' }

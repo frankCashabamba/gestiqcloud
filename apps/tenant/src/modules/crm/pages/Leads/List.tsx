@@ -16,6 +16,8 @@ export default function LeadsList() {
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [sourceFilter, setSourceFilter] = useState<string>('')
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
+  const [convertTarget, setConvertTarget] = useState<Lead | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -45,13 +47,24 @@ export default function LeadsList() {
   const { page, setPage, totalPages, view, perPage, setPerPage } = usePagination(sorted, per)
   useEffect(()=> setPerPage(per), [per, setPerPage])
 
-  const handleConvert = async (id: string) => {
-    if (!confirm(t('leads.convertConfirm'))) return
+  const doConvert = async () => {
+    if (!convertTarget) return
     try {
-      await convertLead(id, { create_opportunity: true })
-      setItems((p)=>p.filter(x=>x.id!==id))
+      await convertLead(convertTarget.id, { create_opportunity: true })
+      setItems((p)=>p.filter(x=>x.id!==convertTarget.id))
       success(t('leads.converted'))
     } catch(e:any){ toastError(getErrorMessage(e)) }
+    finally { setConvertTarget(null) }
+  }
+
+  const doDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteLead(deleteTarget.id)
+      setItems((p)=>p.filter(x=>x.id!==deleteTarget.id))
+      success(t('leads.deleted'))
+    } catch(e:any){ toastError(getErrorMessage(e)) }
+    finally { setDeleteTarget(null) }
   }
 
   return (
@@ -114,8 +127,8 @@ export default function LeadsList() {
               <td>{c.assigned_to || '-'}</td>
               <td>
                 <Link to={`${c.id}/edit`} className="text-blue-600 hover:underline mr-3">{t('leads.edit')}</Link>
-                <button className="text-green-700 mr-3" onClick={() => handleConvert(c.id)}>{t('leads.convert')}</button>
-                <button className="text-red-700" onClick={async () => { if (!confirm(t('leads.deleteConfirm'))) return; try { await deleteLead(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success(t('leads.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('leads.deleteBtn')}</button>
+                <button className="text-green-700 mr-3" onClick={() => setConvertTarget(c)}>{t('leads.convert')}</button>
+                <button className="text-red-700" onClick={() => setDeleteTarget(c)}>{t('leads.deleteBtn')}</button>
               </td>
             </tr>
           ))}
@@ -123,6 +136,32 @@ export default function LeadsList() {
         </tbody>
       </table>
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+      {convertTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('leads.convert')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('leads.convertConfirm')} <strong>{convertTarget.name}</strong>?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConvertTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('leads.cancel') || 'Cancelar'}</button>
+              <button onClick={doConvert} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm">{t('leads.convert')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('leads.deleteBtn')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('leads.deleteConfirm')} <strong>{deleteTarget.name}</strong>?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('leads.cancel') || 'Cancelar'}</button>
+              <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('leads.deleteBtn')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

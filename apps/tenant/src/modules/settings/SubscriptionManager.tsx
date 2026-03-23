@@ -32,6 +32,7 @@ export default function SubscriptionManager() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [loading, setLoading] = useState(true)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
+  const [cancelPending, setCancelPending] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -78,13 +79,14 @@ export default function SubscriptionManager() {
   }
 
   const handleCancel = async () => {
-    if (!window.confirm('Cancelar suscripcion? Podras seguir usando el sistema hasta fin del periodo.')) return
     try {
       await tenantApi.post(TENANT_BILLING.cancel)
       success('Suscripcion cancelada')
       window.location.reload()
     } catch {
       showError('Error al cancelar')
+    } finally {
+      setCancelPending(false)
     }
   }
 
@@ -161,7 +163,7 @@ export default function SubscriptionManager() {
                 Portal de facturacion
               </button>
               {subscription.status !== 'canceled' && (
-                <button onClick={handleCancel} className="text-sm text-red-600 hover:underline">
+                <button onClick={() => setCancelPending(true)} className="text-sm text-red-600 hover:underline">
                   Cancelar suscripcion
                 </button>
               )}
@@ -229,6 +231,18 @@ export default function SubscriptionManager() {
           <p className="col-span-3 py-8 text-center text-gray-500">No hay planes disponibles</p>
         )}
       </div>
+      {cancelPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">Cancelar suscripcion</h3>
+            <p className="text-sm text-slate-600 mb-4">Podras seguir usando el sistema hasta fin del periodo actual.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setCancelPending(false)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Volver</button>
+              <button onClick={handleCancel} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">Cancelar suscripcion</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -12,6 +12,8 @@ export default function PlanCuentasList() {
     const [seeding, setSeeding] = useState(false)
     const [filter, setFilter] = useState('')
     const { success, error } = useToast()
+    const [seedPending, setSeedPending] = useState<boolean | null>(null)
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; nombre: string } | null>(null)
 
     const load = async () => {
         try {
@@ -29,11 +31,11 @@ export default function PlanCuentasList() {
         load()
     }, [])
 
-    const onSeed = async (force = false) => {
-        if (!confirm(force
-            ? 'Se añadirán las cuentas estándar que aún no existan. ¿Continuar?'
-            : 'Se generará un plan de cuentas estándar. ¿Continuar?'
-        )) return
+    const onSeed = (force = false) => setSeedPending(force)
+
+    const doSeed = async () => {
+        const force = seedPending === true
+        setSeedPending(null)
         try {
             setSeeding(true)
             const res = await seedCuentas(force)
@@ -46,14 +48,16 @@ export default function PlanCuentasList() {
         }
     }
 
-    const onDelete = async (id: string, nombre: string) => {
-        if (!confirm(t('accounting.chartOfAccounts.deleteConfirm', { name: nombre }))) return
+    const doDelete = async () => {
+        if (!deleteTarget) return
         try {
-            await removeCuenta(id)
+            await removeCuenta(deleteTarget.id)
             success(t('accounting.chartOfAccounts.deleted'))
             load()
         } catch (e: any) {
             error(getErrorMessage(e))
+        } finally {
+            setDeleteTarget(null)
         }
     }
 
@@ -143,7 +147,7 @@ export default function PlanCuentasList() {
                                         {t('common.edit')}
                                     </button>
                                     <button
-                                        onClick={() => onDelete(c.id, c.nombre)}
+                                        onClick={() => setDeleteTarget({ id: c.id, nombre: c.nombre })}
                                         className="text-red-600 hover:underline"
                                     >
                                         {t('common.delete')}
@@ -177,6 +181,35 @@ export default function PlanCuentasList() {
                     </tbody>
                 </table>
             </div>
+        {seedPending !== null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                    <h3 className="font-semibold text-lg mb-2">{seedPending ? '+ Completar con estándar' : '⚡ Generar plan de cuentas'}</h3>
+                    <p className="text-sm text-slate-600 mb-4">
+                        {seedPending
+                            ? 'Se añadirán las cuentas estándar que aún no existan.'
+                            : 'Se generará un plan de cuentas estándar.'}
+                    </p>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setSeedPending(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+                        <button onClick={doSeed} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm">Continuar</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {deleteTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                    <h3 className="font-semibold text-lg mb-2">{t('common.delete')}</h3>
+                    <p className="text-sm text-slate-600 mb-4">{t('accounting.chartOfAccounts.deleteConfirm', { name: deleteTarget.nombre })}</p>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+                        <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('common.delete')}</button>
+                    </div>
+                </div>
+            </div>
+        )}
         </div>
     )
 }

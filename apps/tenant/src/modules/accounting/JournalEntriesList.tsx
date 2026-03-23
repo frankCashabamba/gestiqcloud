@@ -14,6 +14,8 @@ export default function AsientosList() {
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState('')
     const { success, error } = useToast()
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; numero: string } | null>(null)
+    const [postTarget, setPostTarget] = useState<{ id: string; numero: string } | null>(null)
 
     const load = async () => {
         try {
@@ -31,25 +33,29 @@ export default function AsientosList() {
         load()
     }, [])
 
-    const onDelete = async (id: string, numero: string) => {
-        if (!confirm(t('accounting.journalEntries.deleteConfirm', { number: numero }))) return
+    const doDelete = async () => {
+        if (!deleteTarget) return
         try {
-            await removeAsiento(id)
+            await removeAsiento(deleteTarget.id)
             success(t('accounting.journalEntries.deleted'))
             load()
         } catch (e: any) {
             error(getErrorMessage(e))
+        } finally {
+            setDeleteTarget(null)
         }
     }
 
-    const onPost = async (id: string, numero: string) => {
-        if (!confirm(t('accounting.journalEntries.postConfirm', { number: numero }))) return
+    const doPost = async () => {
+        if (!postTarget) return
         try {
-            await postAsiento(id)
+            await postAsiento(postTarget.id)
             success(t('accounting.journalEntries.posted'))
             load()
         } catch (e: any) {
             error(getErrorMessage(e))
+        } finally {
+            setPostTarget(null)
         }
     }
 
@@ -143,7 +149,7 @@ export default function AsientosList() {
                                             )}
                                             {can('accounting:update') && (
                                                 <button
-                                                    onClick={() => onPost(a.id, a.numero)}
+                                                    onClick={() => setPostTarget({ id: a.id, numero: a.numero })}
                                                     className="text-green-600 hover:underline mr-2"
                                                 >
                                                     {t('accounting.journalEntries.actions.post')}
@@ -151,7 +157,7 @@ export default function AsientosList() {
                                             )}
                                             {can('accounting:delete') && (
                                                 <button
-                                                    onClick={() => onDelete(a.id, a.numero)}
+                                                    onClick={() => setDeleteTarget({ id: a.id, numero: a.numero })}
                                                     className="text-red-600 hover:underline"
                                                 >
                                                     {t('common.delete')}
@@ -178,6 +184,31 @@ export default function AsientosList() {
                     </tbody>
                 </table>
             </div>
+        {deleteTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                    <h3 className="font-semibold text-lg mb-2">{t('common.delete')}</h3>
+                    <p className="text-sm text-slate-600 mb-4">{t('accounting.journalEntries.deleteConfirm', { number: deleteTarget.numero })}</p>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+                        <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('common.delete')}</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {postTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                    <h3 className="font-semibold text-lg mb-2">{t('accounting.journalEntries.actions.post')}</h3>
+                    <p className="text-sm text-slate-600 mb-4">{t('accounting.journalEntries.postConfirm', { number: postTarget.numero })}</p>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setPostTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
+                        <button onClick={doPost} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm">{t('accounting.journalEntries.actions.post')}</button>
+                    </div>
+                </div>
+            </div>
+        )}
         </div>
     )
 }

@@ -15,6 +15,7 @@ export default function EmpleadoDetail() {
   const [empleado, setEmpleado] = useState<Empleado | null>(null)
   const [vacaciones, setVacaciones] = useState<Vacacion[]>([])
   const [loading, setLoading] = useState(false)
+  const [bajaPending, setBajaPending] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -33,8 +34,7 @@ export default function EmpleadoDetail() {
 
   const handleBaja = async () => {
     if (!empleado || !id) return
-    if (!confirm(t('hr:employees.terminateConfirm'))) return
-
+    setBajaPending(false)
     try {
       await updateEmpleado(id, { estado: 'baja', fecha_salida: new Date().toISOString().slice(0, 10) })
       success(t('hr:employees.terminated'))
@@ -67,7 +67,7 @@ export default function EmpleadoDetail() {
           </Link>
           {empleado.estado === 'activo' && (
             <button
-              onClick={handleBaja}
+              onClick={() => setBajaPending(true)}
               className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
             >
               {t('hr:employees.terminate')}
@@ -247,6 +247,19 @@ export default function EmpleadoDetail() {
           </div>
         )}
       </div>
+
+      {bajaPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-semibold text-lg mb-2">{t('hr:employees.terminate')}</h3>
+            <p className="text-sm text-slate-600 mb-4">{t('hr:employees.terminateConfirm')} <strong>{empleado?.name} {empleado?.apellidos}</strong>?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBajaPending(false)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('hr:employees.back')}</button>
+              <button onClick={handleBaja} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('hr:employees.terminate')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

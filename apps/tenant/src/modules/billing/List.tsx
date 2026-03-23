@@ -5,7 +5,6 @@ import { listFacturas, removeFactura, marcarCobrada, clearInvoicesCache, type Fa
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import FacturaStatusBadge from './components/FacturaStatusBadge'
-import EinvoiceStatus from './components/EinvoiceStatus'
 import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
 import { useCurrency } from '../../hooks/useCurrency'
 import { usePermission } from '../../hooks/usePermission'
@@ -195,7 +194,7 @@ export default function FacturasList() {
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
 
       <table className="min-w-full text-sm">
-      <thead><tr className="text-left border-b"><th>{t('common.date')}</th><th>{t('common.total')}</th><th>{t('common.status')}</th><th>{t('billing.einvoice')}</th><th>{t('common.actions')}</th></tr></thead>
+      <thead><tr className="text-left border-b"><th>{t('common.date')}</th><th>{t('common.total')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead>
       <tbody>
       {view.map((v) => (
       <tr key={v.id} className="border-b">
@@ -206,14 +205,6 @@ export default function FacturasList() {
           : '-'}
       </td>
       <td><FacturaStatusBadge estado={v.estado} /></td>
-      <td>
-      <EinvoiceStatus
-        invoiceId={v.id.toString()}
-        country={einvoiceCountry}
-        canSend={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
-        enabled={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
-      />
-          </td>
             <td className="flex gap-2 items-center">
               {(v.estado||'').toLowerCase() === 'pending_payment' ? (
                 <>
