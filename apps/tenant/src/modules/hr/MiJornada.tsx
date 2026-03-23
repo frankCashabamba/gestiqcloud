@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CalendarRange, Clock, Clock3, Download, LogIn, LogOut, PauseCircle, PlayCircle, UserCircle, Wallet } from 'lucide-react'
 import { GcPageHeader } from '@ui'
 import { TENANT_HR } from '@shared/endpoints'
@@ -132,6 +133,7 @@ const VAC_FORM_INIT: VacForm = { fecha_inicio: '', fecha_fin: '', tipo: 'vacacio
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MiJornada() {
+  const navigate = useNavigate()
   const { success, error: toastError, warning, info } = useToast()
 
   // Perfil
@@ -341,6 +343,7 @@ export default function MiJornada() {
           badge="Mi espacio"
           title={`${me.name} ${me.apellidos}`}
           subtitle={[me.puesto, me.tipo_contrato].filter(Boolean).join(' · ')}
+          onBack={() => navigate(-1)}
         />
         <div className="hr-kpi-grid" style={{ marginTop: '1rem' }}>
           <div className="hr-kpi-card">

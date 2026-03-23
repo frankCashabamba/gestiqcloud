@@ -87,6 +87,17 @@ class ImpDocumento(Base):
 
     usuario_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Guardado: destino y referencia del registro creado
+    saved_as: Mapped[str | None] = mapped_column(
+        String(30), nullable=True, comment="expense | supplier_invoice | products"
+    )
+    saved_record_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID_COL, nullable=True, comment="ID del registro creado (gasto, compra, etc.)"
+    )
+    saved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="Timestamp del primer guardado exitoso"
+    )
+
     # Produccion: receta sincronizada desde este documento
     synced_recipe_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID_COL,

@@ -1,35 +1,33 @@
 import React, { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { apiFetch } from '../lib/http'
 import { useAuth } from '../auth/AuthContext'
 import { fetchCompanyTheme } from '../services/theme'
 
-type MeResp = { empresa_slug?: string }
 type ThemeResponse = { sector?: string }
 
 export default function SectorStart() {
   const { t: tr } = useTranslation()
   const [target, setTarget] = useState<string | null>(null)
-  const { token } = useAuth() as { token: string | null }
+  const { token, profile, loading: authLoading } = useAuth()
 
   useEffect(() => {
+    // Si el profile ya está cargado con empresa_slug, lo usamos directamente
+    // sin hacer fetch extra a /me/tenant
+    if (profile?.empresa_slug) {
+      setTarget(profile.empresa_slug)
+      return
+    }
+
+    // Mientras auth carga, esperar
+    if (authLoading) return
+
     let cancelled = false
     ;(async () => {
       try {
-        // Prefer empresa_slug from authenticated profile
-        if (token) {
-          try {
-            const me = await apiFetch<MeResp>('/api/v1/me/tenant', { authToken: token })
-            if (me?.empresa_slug) {
-              if (!cancelled) setTarget(me.empresa_slug)
-              return
-            }
-          } catch {}
-        }
-        // Fallback to sector (not ideal for vanity, but better than blocking)
+        // Fallback a tema de empresa si no hay slug en el profile
         const t = await fetchCompanyTheme()
-        const s = (t && t.sector) ? t.sector : 'default'
+        const s = (t && (t as ThemeResponse).sector) ? (t as ThemeResponse).sector! : 'default'
         if (!cancelled) setTarget(s)
         try { document.documentElement.dataset.sector = s } catch {}
       } catch {
@@ -37,7 +35,7 @@ export default function SectorStart() {
       }
     })()
     return () => { cancelled = true }
-  }, [token])
+  }, [token, profile, authLoading])
 
   if (!target) return <div style={{ padding: 16 }}>{tr('pages.sectorStart.loadingTemplate')}</div>
   return <Navigate to={`/${target}`} replace />

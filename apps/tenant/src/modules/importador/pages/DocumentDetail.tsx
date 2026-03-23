@@ -4,12 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useImportReprocess } from '../hooks/useImportReprocess'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
-import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, hasConfirmedDocumentData, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
-
-function getCurrentDocumentData(doc: Documento | null): Record<string, unknown> {
-  const source = doc?.datos_confirmados || doc?.datos_extraidos
-  return source && typeof source === 'object' ? source as Record<string, unknown> : {}
-}
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, hasConfirmedDocumentData, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
 
@@ -178,7 +173,11 @@ export default function DocumentDetail() {
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
   const lastVisibilityReloadRef = useRef(0)
 
-  useEffect(() => { fetchSaveCapabilities().then(setCapabilities).catch(() => {}) }, [])
+  useEffect(() => {
+    fetchSaveCapabilities().then(setCapabilities).catch(() => {
+      setError(t('docDetail.errorLoading'))
+    })
+  }, [])
   useEffect(() => { if (id) void reprocess.loadIterations() }, [id])
 
   const load = async () => {
@@ -207,7 +206,7 @@ export default function DocumentDetail() {
 
   // Selección automática de hoja cuando llega un documento nuevo
   useEffect(() => {
-    const datos = getCurrentDocumentData(doc)
+    const datos = getDocumentData(doc)
     const sheetMap = datos?.filas_por_hoja && typeof datos.filas_por_hoja === 'object'
       ? Object.keys(datos.filas_por_hoja as Record<string, unknown>)
       : []
@@ -317,7 +316,10 @@ export default function DocumentDetail() {
   const startEdit = () => {
     const data = (doc?.datos_extraidos || {}) as Record<string, unknown>
     // No editar tablas (tipo inventario/nomina) — solo campos escalares
-    if (data.filas && Array.isArray(data.filas)) return
+    if (data.filas && Array.isArray(data.filas)) {
+      setError('Este tipo de documento no se puede editar manualmente. Usa "Volver a procesar" para corregir los datos.')
+      return
+    }
     const flat: Record<string, string> = {}
     Object.entries(data).forEach(([k, v]) => {
       if (!k.startsWith('_') && (typeof v !== 'object' || v === null)) flat[k] = String(v ?? '')
@@ -340,7 +342,7 @@ export default function DocumentDetail() {
   if (loading) return <div style={{ padding: '1.5rem' }}>{t('docDetail.loading')}</div>
   if (!doc) return <div style={{ padding: '1.5rem' }}>{t('docDetail.notFound')}</div>
 
-  const datos = getCurrentDocumentData(doc)
+  const datos = getDocumentData(doc)
   const filasPorHoja = (datos.filas_por_hoja || {}) as Record<string, Record<string, unknown>[]>
   const sheets = Object.keys(filasPorHoja || {})
   const sheetCounts = (datos.filas_por_hoja_count || {}) as Record<string, number>
@@ -363,10 +365,19 @@ export default function DocumentDetail() {
   const unsyncedSheets = sheets.filter(sheet => !syncedSheets[sheet]?.recipeId)
   const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
   const isSynced = syncedCount > 0
+  const savedAsLog = (doc.logs ?? []).find(l => l.accion === 'SAVE_DESTINATION' || l.accion === 'SAVE_PRODUCTS')
+  const _logDest = savedAsLog?.detalle?.['destination'] as string | undefined
+  const inferredSavedAs: string | undefined = doc.saved_as
+    ?? (savedAsLog?.accion === 'SAVE_PRODUCTS' ? 'products'
+      : _logDest === 'supplier_invoice' ? 'supplier_invoice'
+      : _logDest === 'expense' ? 'expense'
+      : savedAsLog ? 'supplier_invoice'
+      : undefined)
+  const isSaved = doc.estado === 'IMPORTED' || doc.saved_as != null || savedAsLog != null
   const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
   const saveDestination = suggestSaveDestination(doc)
   const requiresConfirmedSave = saveDestination !== 'recipe'
-  const saveEnabled = canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && (!requiresConfirmedSave || hasConfirmedDocumentData(doc))
+  const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && (!requiresConfirmedSave || hasConfirmedDocumentData(doc))
   const docCategory = getDocCategory(doc, sheets)
   const activeSheetRows = (() => {
     if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
@@ -397,7 +408,8 @@ export default function DocumentDetail() {
     }
     return activeNormKeys
   })()
-  const canSaveProducts = activeSheetRows.length > 0
+  const canSaveProducts = !isSaved
+    && activeSheetRows.length > 0
     && canSaveProductsSheet(docCategory, activeSheet, activeNormKeys)
   const reprocessableLines = reprocess.lines.filter(line => REPROCESSABLE_STATES.includes(line.estado as (typeof REPROCESSABLE_STATES)[number]))
   const availableErrorCodes = Array.from(new Set([
@@ -524,7 +536,7 @@ export default function DocumentDetail() {
           <div>
             <strong style={{ color: '#047857' }}>Productos guardados</strong>
             <span style={{ marginLeft: 12, color: '#374151' }}>
-              {saveProductsResult.created} creados · {(saveProductsResult as any).updated ?? 0} actualizados · {saveProductsResult.skipped_invalid} omitidos por inválidos
+              {saveProductsResult.created} creados · {saveProductsResult.updated ?? 0} actualizados · {saveProductsResult.skipped_invalid} omitidos por inválidos
             </span>
             {(saveProductsResult.sheet_name || saveProductsResult.category_name) && (
               <div style={{ marginTop: 4, fontSize: 12, color: '#065f46' }}>
@@ -546,6 +558,21 @@ export default function DocumentDetail() {
       {isSynced && !syncResult && !batchSyncResult && (
         <div style={{ padding: '0.6rem 0.9rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#1e40af' }}>
           {t('docDetail.alreadySynced', { count: syncedCount })}
+        </div>
+      )}
+
+      {isSaved && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.9rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#166534' }}>
+          <span>
+            ✅ {inferredSavedAs === 'products' ? 'Productos guardados' : inferredSavedAs === 'supplier_invoice' ? 'Guardado como factura de compra' : inferredSavedAs === 'expense' ? 'Guardado como gasto' : 'Documento guardado'}
+            {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>· {new Date(doc.saved_at).toLocaleString()}</span>}
+          </span>
+          <button
+            onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)}
+            style={{ background: 'none', border: '1px solid #86efac', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#166534', padding: '2px 8px' }}
+          >
+            Volver a procesar
+          </button>
         </div>
       )}
 
@@ -582,7 +609,7 @@ export default function DocumentDetail() {
             <>
               {isSynced && syncedRecipeId && (
                 <button
-                  onClick={() => navigate('../../manufacturing/recetas')}
+                  onClick={() => navigate('../../../manufacturing/recetas')}
                   style={{ ...actionBtn, background: '#059669' }}
                 >
                   {t('docDetail.buttons.viewRecipe')}
@@ -590,11 +617,11 @@ export default function DocumentDetail() {
               )}
               {hasMultiSheetDocument && unsyncedSheets.length > 0 && (
                 <button onClick={handleSyncAll} disabled={syncingAll || syncing} style={{ ...actionBtn, background: '#0f766e' }}>
-                  {syncingAll ? '...' : t('docDetail.buttons.saveSheets', { count: unsyncedSheets.length })}
+                  {syncingAll ? t('docDetail.buttons.saving') : t('docDetail.buttons.saveSheets', { count: unsyncedSheets.length })}
                 </button>
               )}
               <button onClick={handleSyncSheet} disabled={syncingAll || syncing || activeSheetIsSynced} style={{ ...actionBtn, background: activeSheetIsSynced ? '#94a3b8' : '#2563eb' }}>
-                {syncing ? '...' : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
+                {syncing ? t('docDetail.buttons.saving') : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
               </button>
               <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
               <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
@@ -836,7 +863,7 @@ export default function DocumentDetail() {
                       </tbody>
                     </table>
                     {(() => {
-                      const items = (datos as any).lineas || (datos as any).line_items
+                      const items = (datos['lineas'] as unknown[] | undefined) || (datos['line_items'] as unknown[] | undefined)
                       if (!Array.isArray(items) || items.length === 0) return null
                       return (
                         <div style={{ marginTop: '0.75rem' }}>

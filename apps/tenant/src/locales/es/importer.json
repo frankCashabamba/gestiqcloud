@@ -12,38 +12,7 @@
   "removeFromQueue": "Eliminar de la cola",
   "pendingImports": "Importaciones pendientes",
   "reviewContinueBatches": "Revisar y continuar con lotes creados",
-  "preview": {
-    "saveAs": "Guardar como",
-    "purchaseInvoice": "Factura de compra",
-    "bankMovement": "Movimiento bancario",
-    "ingredientsCost": "Costo ingredientes",
-    "importPreview": "Vista previa de importación",
-    "productsDetected": "{{total}} productos detectados • {{categories}} categorías",
-    "totalProducts": "Total Productos",
-    "valid": "Válidos ✓",
-    "withErrors": "Con Errores",
-    "categories": "Categorías",
-    "detectedCategories": "Categorías Detectadas",
-    "columnMapping": "Mapeo de Columnas",
-    "hide": "Ocultar",
-    "editMapping": "Editar Mapeo",
-    "optIgnore": "Ignorar",
-    "optName": "Nombre",
-    "optPrice": "Precio",
-    "optQuantity": "Cantidad",
-    "optCategory": "Categoría",
-    "optSku": "SKU/Código",
-    "optCost": "Costo",
-    "first10Products": "Primeros 10 Productos",
-    "status": "Estado",
-    "productsWithErrors": "{{count}} producto(s) con errores",
-    "errorsHint": "Estos productos no se importarán hasta que corrijas los errores. Puedes continuar con los {{valid}} válidos.",
-    "cancel": "Cancelar",
-    "importing": "Importando...",
-    "importProducts": "Importar {{count}} Productos →"
-  },
-  "openDetailScreen": "Abre la pantalla de detalle pasando ?batch_id=...",
-  "uploadFailed": "Error al subir {{file}}: {{message}}",
+"uploadFailed": "Error al subir {{file}}: {{message}}",
   "cleanupStuckFailed": "Error al limpiar lotes atascados",
   "new": "Nueva Importacion",
   "search": "Buscar importaciones",
@@ -179,7 +148,7 @@
     "actions": {
       "hideAiTelemetry": "Ocultar telemetría IA",
       "showAiTelemetry": "Mostrar telemetría IA",
-      "back": "Atr?s",
+      "back": "Atrás",
       "continue": "Continuar",
       "validate": "Validar",
       "importNow": "Importar ahora"
@@ -218,7 +187,7 @@
       "ocrNoDocuments": "OCR no devolvió documentos",
       "ocrProcessFailed": "Error procesando PDF/imagen",
       "unknownError": "Error desconocido",
-      "oldXlsReadFailed": "No se pudo leer {{file}}. Los .xls antiguos pueden requerir conversi?n a .xlsx o .csv. Detalle: {{detail}}",
+      "oldXlsReadFailed": "No se pudo leer {{file}}. Los .xls antiguos pueden requerir conversión a .xlsx o .csv. Detalle: {{detail}}",
       "fileReadFailed": "No se pudo leer el archivo {{file}}. Detalle: {{detail}}",
       "importError": "Error de importación"
     },
@@ -227,14 +196,14 @@
       "processingWithOcr": "Procesando con OCR...",
       "mayTakeMoment": "Esto puede tardar un momento",
       "clickChooseFile": "Haz clic para elegir un archivo",
-      "acceptedFormats": "CSV, Excel, PDF o im?genes"
+      "acceptedFormats": "CSV, Excel, PDF o imágenes"
     },
     "preview": {
       "fileSummary": "Archivo: {{file}} | {{rows}} filas | {{columns}} columnas"
     },
     "mapping": {
-      "reviewAdjust": "Revisa y ajusta el mapeo de campos. El auto-mapeo ya est? aplicado.",
-      "parserSelection": "Selecci?n de parser",
+      "reviewAdjust": "Revisa y ajusta el mapeo de campos. El auto-mapeo ya está aplicado.",
+      "parserSelection": "Selección de parser",
       "useSuggestion": "Usar sugerencia: {{parser}}",
       "override": "OVERRIDE",
       "selected": "Seleccionado",
@@ -243,7 +212,7 @@
       "confidence": "Confianza",
       "provider": "Proveedor",
       "aiProviderFallback": "IA",
-      "heuristic": "Heur?stica"
+      "heuristic": "Heurística"
     },
     "validation": {
       "missingMappingFor": "Falta mapeo para: {{field}}",
@@ -277,8 +246,8 @@
       "promotedSuccessfully": "{{count}} productos promovidos correctamente"
     },
     "confirm": {
-      "deleteProducts": "?Eliminar {{count}} productos? Esta acci?n no se puede deshacer.",
-      "zeroStockPromoteAnyway": "Hay {{count}} productos con stock cero. ?Promover igual?",
+      "deleteProducts": "¿Eliminar {{count}} productos? Esta acción no se puede deshacer.",
+      "zeroStockPromoteAnyway": "Hay {{count}} productos con stock cero. ¿Promover igual?",
       "promoteProducts": "?Promover {{count}} productos al catálogo?"
     },
     "actions": {
@@ -331,97 +300,7 @@
       "next": "Siguiente"
     }
   },
-  "mapeoCampos": {
-    "title": "Mapeo de campos",
-    "actions": {
-      "autoDetect": "Auto-detectar",
-      "loadTemplate": "Cargar plantilla",
-      "saveTemplate": "Guardar plantilla",
-      "save": "Guardar"
-    },
-    "alerts": {
-      "templateLoaded": "Plantilla \"{{name}}\" cargada",
-      "enterTemplateName": "Ingresa un nombre de plantilla",
-      "templateSaved": "Plantilla \"{{name}}\" guardada",
-      "errorSavingTemplate": "Error al guardar plantilla"
-    },
-    "unmappedFields": "{{count}} campo(s) sin mapear",
-    "selectColumn": "-- Seleccionar columna --",
-    "match": "coincidencia",
-    "suggested": "Sugerido",
-    "previewTitle": "Vista previa del mapeo (primeras 3 filas)",
-    "emptyValue": "(vacío)",
-    "fileColumns": "Columnas del archivo",
-    "dragHint": "Arrastra columnas a los campos destino",
-    "saveModal": {
-      "title": "Guardar plantilla",
-      "templateNamePlaceholder": "Nombre de plantilla...",
-      "saving": "Guardando..."
-    }
-  },
-  "templateManager": {
-    "title": "Plantillas de mapeo",
-    "loading": "Cargando plantillas...",
-    "errors": {
-      "loadFailed": "Error al cargar plantillas",
-      "cannotDeleteSystemTemplate": "No se pueden eliminar plantillas del sistema",
-      "deleteFailed": "Error al eliminar plantilla"
-    },
-    "confirm": {
-      "deleteTemplate": "Eliminar esta plantilla"
-    },
-    "empty": {
-      "noTemplates": "No hay plantillas disponibles para este tipo de importación.",
-      "createFromMapping": "Crea una desde el mapeo de campos."
-    },
-    "badges": {
-      "system": "Sistema"
-    },
-    "actions": {
-      "useTemplate": "Usar plantilla"
-    }
-  },
-  "columnMappingModal": {
-    "title": "Mapeo de columnas",
-    "fileLabel": "Archivo",
-    "autoDetectedTitle": "Mapeo detectado autom?ticamente",
-    "autoDetectedProcessing": "Columnas detectadas correctamente. Procesando en 1.5 segundos...",
-    "loadSavedMapping": "Cargar mapeo guardado:",
-    "manualOption": "Manual...",
-    "usedTimes": "(usado {{count}} veces)",
-    "mapColumnsPrompt": "Mapea las columnas de Excel a los campos del sistema:",
-    "example": "Ejemplo",
-    "selectField": "Seleccionar campo...",
-    "previewTitle": "Vista previa (primeras 3 filas)",
-    "saveConfiguration": "Guardar esta configuraci?n para reutilizar",
-    "saveNamePlaceholder": "Ej: Proveedor L?cteos - Mensual",
-    "readyToContinue": "Listo para continuar",
-    "mustMapProductNameFooter": "Debes mapear \\\"Nombre Producto\\\"",
-    "continueImport": "Continuar con importación",
-    "alerts": {
-      "mustMapProductName": "Debes mapear al menos el campo \\\"Nombre Producto\\\""
-    },
-    "fields": {
-      "productName": "Nombre Producto",
-      "salePrice": "Precio Venta",
-      "stockQuantity": "Stock/Cantidad",
-      "category": "Categoría",
-      "codeSku": "Código/SKU",
-      "purchaseCost": "Costo Compra",
-      "supplier": "Proveedor",
-      "unit": "Unidad",
-      "ignoreColumn": "Ignorar columna"
-    }
-  },
-  "importerPreviewPage": {
-    "actions": {
-      "deleteAllProcesses": "Eliminar todos los procesos"
-    },
-    "confirm": {
-      "deleteAllProcesses": "¿Estás seguro de que deseas eliminar TODOS los procesos? Esta acción no se puede deshacer."
-    }
-  },
-  "feedback": {
+"feedback": {
     "question": "¿La clasificación automática fue correcta?",
     "close": "Cerrar",
     "confidence": "Confianza:",
@@ -508,7 +387,8 @@
       "savingDailyLog": "Guardando...",
       "resaveDailyLog": "Guardar otra vez",
       "confirm": "Confirmar",
-      "confirming": "...",
+      "confirming": "Confirmando...",
+      "saving": "Guardando...",
       "reject": "Rechazar",
       "reimport": "Volver a procesar",
       "edit": "Corregir datos",

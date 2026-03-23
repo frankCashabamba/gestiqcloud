@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { createVacacion, listEmpleados } from '../../services/api/hr'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import type { VacacionCreate, Empleado } from '../../types/hr'
@@ -90,6 +91,9 @@ export default function VacacionForm() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}>
+        <BackButton onClick={() => nav(-1)} />
+      </div>
       <h3 className="text-xl font-semibold mb-3">{t('hr:vacations.newRequest')}</h3>
 
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 700 }}>

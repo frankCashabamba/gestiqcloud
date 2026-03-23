@@ -28,25 +28,31 @@ export default function ReceiptTemplateSettings() {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    api.get('/api/v1/tenant/printing/receipt-settings').then((res) => {
-      setConfig({ ...DEFAULT_CONFIG, ...res.data })
-    }).catch(() => {})
-    api.get('/api/v1/company/settings').then((res) => {
-      const w = res.data?.pos_config?.receipt?.width_mm
+    let cancelled = false
+    Promise.all([
+      api.get('/api/v1/tenant/printing/receipt-settings').catch(() => null),
+      api.get('/api/v1/company/settings').catch(() => null),
+    ]).then(([receiptRes, settingsRes]) => {
+      if (cancelled) return
+      if (receiptRes) setConfig({ ...DEFAULT_CONFIG, ...receiptRes.data })
+      const w = settingsRes?.data?.pos_config?.receipt?.width_mm
       if (w != null && Number.isFinite(Number(w))) setPaperWidthMm(Number(w))
-    }).catch(() => {})
+    })
+    return () => { cancelled = true }
   }, [])
 
   const refreshPreview = useCallback(() => {
+    let cancelled = false
     setLoadingPreview(true)
     api.get('/api/v1/tenant/printing/receipt-preview')
-      .then((res) => setPreview(res.data.preview || ''))
-      .catch(() => setPreview('Error al generar preview'))
-      .finally(() => setLoadingPreview(false))
+      .then((res) => { if (!cancelled) setPreview(res.data.preview || '') })
+      .catch(() => { if (!cancelled) setPreview('Error al generar preview') })
+      .finally(() => { if (!cancelled) setLoadingPreview(false) })
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
-    refreshPreview()
+    return refreshPreview()
   }, [refreshPreview])
 
   const handleChange = (field: keyof ReceiptConfig, value: string | boolean) => {

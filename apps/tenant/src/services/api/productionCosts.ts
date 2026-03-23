@@ -173,3 +173,9 @@ export async function getRecipeFullCost(recipeId: string): Promise<FullCostSumma
   const res = await apiClient.get(TENANT_RECIPES.fullCost(recipeId));
   return res.data;
 }
+
+export async function getBulkRecipeFullCosts(recipeIds: string[]): Promise<Record<string, FullCostSummary | null>> {
+  if (!recipeIds.length) return {};
+  const res = await apiClient.post(TENANT_RECIPES.bulkFullCosts, { recipe_ids: recipeIds });
+  return res.data;
+}

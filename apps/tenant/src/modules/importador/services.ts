@@ -15,6 +15,9 @@ export type Documento = {
   error_detalle?: string
   recipe_snapshot_id?: string
   synced_recipe_id?: string
+  saved_as?: 'expense' | 'supplier_invoice' | 'products'
+  saved_record_id?: string
+  saved_at?: string
   llm_model?: string
   raw_ai_json?: Record<string, unknown>
   proveedor_detectado?: string
@@ -103,12 +106,9 @@ export type RecipeSnapshot = {
   created_at: string
 }
 
-function getDocumentData(raw: Record<string, unknown>): Record<string, unknown> {
-  const confirmed = raw.datos_confirmados
-  if (confirmed && typeof confirmed === 'object') return confirmed as Record<string, unknown>
-  const extracted = raw.datos_extraidos
-  if (extracted && typeof extracted === 'object') return extracted as Record<string, unknown>
-  return {}
+export function getDocumentData(doc: { datos_confirmados?: unknown; datos_extraidos?: unknown } | null): Record<string, unknown> {
+  const source = doc?.datos_confirmados || doc?.datos_extraidos
+  return source && typeof source === 'object' ? source as Record<string, unknown> : {}
 }
 
 function getCanonicalDocument(raw: Record<string, unknown>): Record<string, unknown> {
@@ -118,7 +118,7 @@ function getCanonicalDocument(raw: Record<string, unknown>): Record<string, unkn
   return canonical && typeof canonical === 'object' ? canonical as Record<string, unknown> : {}
 }
 
-function getDocumentValue(data: Record<string, unknown>, ...keys: string[]): unknown {
+export function getDocumentValue(data: Record<string, unknown>, ...keys: string[]): unknown {
   const normalized: Record<string, unknown> = {}
   for (const [rawKey, value] of Object.entries(data || {})) {
     const key = String(rawKey || '').trim().toLowerCase()
@@ -175,7 +175,7 @@ function normalizeSyncedSheets(raw: unknown): Documento['synced_sheets'] {
 
 function normalizeDocument(raw: unknown): Documento {
   const data = (raw || {}) as Record<string, unknown>
-  const importData = getDocumentData(data)
+  const importData = getDocumentData(data as { datos_confirmados?: unknown; datos_extraidos?: unknown })
   const canonical = getCanonicalDocument(data)
   const canonicalDocument = canonical.document && typeof canonical.document === 'object'
     ? canonical.document as Record<string, unknown>
@@ -517,7 +517,7 @@ export async function saveDocument(id: string, payload: SaveDocumentPayload): Pr
 }
 
 export async function fetchDocumentLineMatchCandidates(id: string): Promise<DocumentLineMatch[]> {
-  const { data } = await api.get(`/api/v1/importador/documents/${id}/line-match-candidates`)
+  const { data } = await api.get(TENANT_IMPORTADOR.lineMatchCandidates(id))
   const lines = Array.isArray(data?.lines) ? data.lines : []
   return lines.map((raw: Record<string, unknown>) => ({
     line_index: Number(raw.line_index ?? 0),
@@ -847,6 +847,7 @@ export type SaveProductsFromDocumentResult = {
   sheet_name?: string
   category_name?: string
   created: number
+  updated: number
   skipped_existing: number
   skipped_invalid: number
   product_ids: string[]
@@ -868,7 +869,7 @@ export async function purgeAllImportador(): Promise<{ deleted_total: number; tab
 }
 
 export async function fetchSaveCapabilities(): Promise<Record<string, boolean>> {
-  const { data } = await api.get('/api/v1/importador/save-capabilities')
+  const { data } = await api.get(TENANT_IMPORTADOR.saveCapabilities)
   return data
 }
 
@@ -976,10 +977,9 @@ export interface ReviewSession {
 
 // ─── Iterative Reprocessing API Functions ──────────────────────────────────
 
-const ITERATION_BASE = '/api/v1/importador'
 
 export async function fetchStagingSummary(documentoId: string): Promise<StagingLineSummary> {
-  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/staging/summary`)
+  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/summary`)
   return data
 }
 
@@ -993,7 +993,7 @@ export async function fetchStagingLines(
     offset?: number
   } = {}
 ): Promise<StagingLine[]> {
-  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/staging`, {
+  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging`, {
     params: {
       estado: params.estado,
       error_code: params.error_code,
@@ -1009,7 +1009,7 @@ export async function fetchFieldAnalysis(
   documentoId: string,
   params: { estados?: string[]; error_codes?: string[]; sheet?: string } = {}
 ): Promise<FieldAnalysis> {
-  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/staging/field-analysis`, {
+  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/field-analysis`, {
     params: {
       estados: params.estados ?? ['INVALID', 'PENDING', 'REVIEW'],
       error_codes: params.error_codes,
@@ -1020,7 +1020,7 @@ export async function fetchFieldAnalysis(
 }
 
 export async function fetchIterations(documentoId: string): Promise<IterationRecord[]> {
-  const { data } = await api.get(`${ITERATION_BASE}/documents/${documentoId}/iterations`)
+  const { data } = await api.get(`${TENANT_IMPORTADOR.documentById(documentoId)}/iterations`)
   return data
 }
 
@@ -1039,7 +1039,7 @@ export async function runIteration(
       filter_sheet: scope.filter_sheet ?? null,
     },
   }
-  const { data } = await api.post(`${ITERATION_BASE}/documents/${documentoId}/iterate`, body)
+  const { data } = await api.post(`${TENANT_IMPORTADOR.documentById(documentoId)}/iterate`, body)
   return data
 }
 
@@ -1054,7 +1054,7 @@ export async function createReviewSession(
     filter_sheet?: string | null
   }
 ): Promise<ReviewSession> {
-  const { data } = await api.post(`${ITERATION_BASE}/documents/${documentoId}/review-session`, filters)
+  const { data } = await api.post(`${TENANT_IMPORTADOR.documentById(documentoId)}/review-session`, filters)
   return data
 }
 
@@ -1063,7 +1063,7 @@ export async function runReviewSession(
   sessionId: string
 ): Promise<IterationResult> {
   const { data } = await api.post(
-    `${ITERATION_BASE}/documents/${documentoId}/review-session/${sessionId}/run`
+    `${TENANT_IMPORTADOR.documentById(documentoId)}/review-session/${sessionId}/run`
   )
   return data
 }
@@ -1077,7 +1077,7 @@ export async function patchStagingLine(
     normalized_data?: Record<string, unknown> | null
   }
 ): Promise<StagingLine> {
-  const { data } = await api.patch(`${ITERATION_BASE}/documents/${documentoId}/staging/${lineId}`, patch)
+  const { data } = await api.patch(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/${lineId}`, patch)
   return data
 }
 
@@ -1087,7 +1087,7 @@ export async function bulkPatchStagingLines(
   estado: 'REPROCESS' | 'REVIEW' | 'SKIPPED',
   camposRevision?: string[]
 ): Promise<{ updated: number; estado: string }> {
-  const { data } = await api.patch(`${ITERATION_BASE}/documents/${documentoId}/staging/bulk`, {
+  const { data } = await api.patch(`${TENANT_IMPORTADOR.documentById(documentoId)}/staging/bulk`, {
     line_ids: lineIds,
     estado,
     campos_revision: camposRevision ?? null,

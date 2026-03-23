@@ -124,6 +124,34 @@
 
   /* ── Page header ── */
 
+  .gc-page-header-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .gc-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.5rem;
+    border: 1px solid var(--gc-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--gc-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    width: fit-content;
+  }
+
+  .gc-back-btn:hover {
+    background: var(--gc-surface2, #f1f5f9);
+    color: var(--gc-foreground);
+    border-color: color-mix(in srgb, var(--gc-primary) 30%, var(--gc-border));
+  }
+
   .gc-page-header {
     @apply flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between;
   }

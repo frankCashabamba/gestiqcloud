@@ -1,6 +1,7 @@
 // apps/tenant/src/hooks/useCurrency.ts
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/http'
+import { useAuth } from '../auth/AuthContext'
 
 type CompanyInfo = {
   base_currency?: string
@@ -38,11 +39,24 @@ const extractSymbol = (currencyCode: string, locale?: string): string => {
 }
 
 export function useCurrency() {
+  const { profile, loading: authLoading } = useAuth()
   const [currency, setCurrency] = useState<string>('')
   const [symbol, setSymbol] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Si el profile del AuthContext ya tiene base_currency, lo usamos directamente
+    // evitando una llamada extra a /me/tenant
+    const fromProfile = normalizeCurrency((profile as any)?.base_currency)
+    if (fromProfile) {
+      setCurrency(fromProfile)
+      setSymbol(extractSymbol(fromProfile))
+      setLoading(false)
+      return
+    }
+
+    // Si auth aún está cargando, esperamos
+    if (authLoading) return
 
     ;(async () => {
       try {
@@ -66,7 +80,7 @@ export function useCurrency() {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [profile, authLoading])
 
   const formatCurrency = (amount: number): string => {
     if (!currency) {

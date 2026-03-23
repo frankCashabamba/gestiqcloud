@@ -118,6 +118,15 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
       return
     }
 
+    // Si el profile del AuthContext ya tiene permisos, los usamos directamente
+    // evitando una llamada extra a /me/tenant
+    const profilePermisos = (profile as any)?.permisos || (profile as any)?.permissions
+    const fromProfile = normalizePermissions(profilePermisos)
+    if (Object.keys(fromProfile).length > 0) {
+      setPermisos(fromProfile)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -142,7 +151,7 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
 
   useEffect(() => {
     loadPermisos()
-  }, [token])
+  }, [token, profile])
 
   const tokenPayload = useMemo(() => parseTokenPayload(token), [token])
   const isCompanyAdmin =

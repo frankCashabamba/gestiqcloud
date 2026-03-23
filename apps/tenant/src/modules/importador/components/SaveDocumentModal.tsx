@@ -4,6 +4,8 @@ import {
   canSaveDocument,
   fetchDocumentLineMatchCandidates,
   fetchSaveCapabilities,
+  getDocumentData,
+  getDocumentValue,
   saveDocument,
   suggestSaveDestination,
   type DocumentLineMatch,
@@ -24,26 +26,6 @@ function formatMoney(value: number | null): string {
   return value == null || Number.isNaN(value) ? '' : value.toFixed(2)
 }
 
-function getDocumentData(doc: Documento | null): Record<string, unknown> {
-  const source = doc?.datos_confirmados || doc?.datos_extraidos
-  return source && typeof source === 'object' ? source as Record<string, unknown> : {}
-}
-
-function getDocumentValue(data: Record<string, unknown>, ...keys: string[]): unknown {
-  const normalized: Record<string, unknown> = {}
-  for (const [rawKey, value] of Object.entries(data || {})) {
-    const key = String(rawKey || '').trim().toLowerCase()
-    if (key && !(key in normalized)) normalized[key] = value
-  }
-  for (const rawKey of keys) {
-    const key = String(rawKey || '').trim().toLowerCase()
-    if (!key || !(key in normalized)) continue
-    const value = normalized[key]
-    if (typeof value === 'string' && !value.trim()) continue
-    if (value != null) return value
-  }
-  return undefined
-}
 
 function parseMoney(value: unknown): number | null {
   if (value == null || typeof value === 'boolean') return null

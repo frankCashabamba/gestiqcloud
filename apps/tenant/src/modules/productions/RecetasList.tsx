@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listRecipes, getRecipe, deleteRecipe, type Recipe } from '../../services/api/recetas'
+import { listRecipes, deleteRecipe, type Recipe } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
-import { getRecipeFullCost } from '../../services/api/productionCosts'
+import { getBulkRecipeFullCosts } from '../../services/api/productionCosts'
 import { getCompanySettings, getCurrencySymbol, getDefaultTaxRate, type CompanySettings } from '../../services/companySettings'
-import { convertQtyToUnit } from '../../services/unitService'
 import tenantApi from '../../shared/api/client'
 import ProductionAvailabilityGuard from './ProductionAvailabilityGuard'
 import { usePermission } from '../../hooks/usePermission'
@@ -109,42 +108,37 @@ function RecetasListContent() {
           setRecipes(recipeList)
           setProducts(Array.isArray(ps) ? ps : [])
           setSettings(cfg)
-          // Load recipe details + full costs in background, then compute corrected costs
-          Promise.all(
-            recipeList.map(r =>
-              Promise.all([
-                (r.ingredients?.length ? Promise.resolve(r) : getRecipe(r.id).catch(() => r)),
-                getRecipeFullCost(r.id).catch(() => null),
-              ]).then(([detail, fc]) => ({ id: r.id, detail, fc, yieldQty: r.yield_qty }))
-            )
-          ).then(results => {
-            if (cancelled) return
-            const fcMap: Record<string, { indirect: number; wastePct: number; overheadPct: number }> = {}
-            const ccMap: Record<string, { total: number; unit: number }> = {}
-            for (const { id, detail, fc, yieldQty } of results) {
-              fcMap[id] = {
-                indirect: Number(fc?.indirect_total || 0),
-                wastePct: Number(fc?.waste_pct || 0),
-                overheadPct: Number(fc?.overhead_pct || 0),
+          // Carga costos completos en bulk (1 request POST) y usa total_cost/unit_cost
+          // del listado para el mapa corregido — sin N+1 de getRecipe individual
+          const bulkCosts = await getBulkRecipeFullCosts(recipeList.map(r => r.id))
+            .catch(() => ({} as Record<string, any>))
+          if (cancelled) return
+          const fcMap: Record<string, { indirect: number; wastePct: number; overheadPct: number }> = {}
+          const ccMap: Record<string, { total: number; unit: number }> = {}
+          for (const r of recipeList) {
+            const fc = bulkCosts[r.id] || null
+            fcMap[r.id] = {
+              indirect: Number(fc?.indirect_total || 0),
+              wastePct: Number(fc?.waste_pct || 0),
+              overheadPct: Number(fc?.overhead_pct || 0),
+            }
+            // Usar full_cost del bulk si existe, sino caer a total_cost de la lista
+            if (fc?.full_cost_total != null) {
+              const qty = Number(r.yield_qty || 1)
+              ccMap[r.id] = {
+                total: Number(fc.full_cost_total),
+                unit: qty > 0 ? Number(fc.full_cost_unit ?? fc.full_cost_total / qty) : 0,
               }
-              const ings = detail?.ingredients || []
-              if (ings.length > 0) {
-                const materials = ings.reduce((sum: number, ing: any) => {
-                  const qtyConverted = convertQtyToUnit(
-                    Number(ing.qty || 0), ing.unit, ing.package_unit || ing.unit
-                  )
-                  return sum + (qtyConverted / Math.max(Number(ing.qty_per_package || 1), 0.0001)) * Number(ing.package_cost || 0)
-                }, 0)
-                const waste = materials * (fcMap[id].wastePct / 100)
-                const overhead = materials * (fcMap[id].overheadPct / 100)
-                const full = materials + waste + overhead + fcMap[id].indirect
-                const qty = Number(yieldQty || 1)
-                ccMap[id] = { total: full, unit: qty > 0 ? full / qty : 0 }
+            } else if (r.total_cost != null) {
+              const qty = Number(r.yield_qty || 1)
+              ccMap[r.id] = {
+                total: Number(r.total_cost),
+                unit: qty > 0 ? Number(r.unit_cost ?? r.total_cost / qty) : 0,
               }
             }
-            setFullCosts(fcMap)
-            setCorrectedCosts(ccMap)
-          })
+          }
+          setFullCosts(fcMap)
+          setCorrectedCosts(ccMap)
           try {
             const fromSettings = (cfg as any)?.settings?.produccion_margin_multiplier as number | undefined
             const fromStorage = localStorage.getItem('produccion_margin_multiplier')

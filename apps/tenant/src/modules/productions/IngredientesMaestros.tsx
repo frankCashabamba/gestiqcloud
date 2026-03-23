@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listRecipes, getRecipe, addIngredient, updateIngredient, deleteIngredient } from '../../services/api/recetas'
+import { listRecipes, addIngredient, updateIngredient, deleteIngredient } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
 import { getCompanySettings, getCurrencySymbol, type CompanySettings } from '../../services/companySettings'
 import { useUnits } from '../../hooks/useUnits'
@@ -70,37 +70,26 @@ function IngredientesMaestrosContent() {
       try {
         setLoading(true)
         setErr(null)
-        const [recipesBasic, products, cfg] = await Promise.all([
-          listRecipes({ limit: 500 }),
+        const [recipeList, productArr, cfg] = await Promise.all([
+          listRecipes({ limit: 500, include_ingredients: true }),
           listProducts({ limit: 500 }),
           getCompanySettings(),
         ])
         if (cancelled) return
 
-        const recipeList = Array.isArray(recipesBasic) ? recipesBasic : []
-        const productArr = Array.isArray(products) ? products : []
-        setProgress({ done: 0, total: recipeList.length })
-        setAllProducts(productArr)
-        setRecipesList(recipeList.map(r => ({ id: r.id, name: r.name })))
+        const recipes = Array.isArray(recipeList) ? recipeList : []
+        const products = Array.isArray(productArr) ? productArr : []
+        setProgress({ done: recipes.length, total: recipes.length })
+        setAllProducts(products)
+        setRecipesList(recipes.map(r => ({ id: r.id, name: r.name })))
 
-        const recipesWithIngredients = await Promise.all(
-          recipeList.map(r =>
-            (r.ingredients && r.ingredients.length > 0
-              ? Promise.resolve(r)
-              : getRecipe(r.id).catch(() => r)
-            ).then(result => {
-              if (!cancelled) setProgress(p => p ? { ...p, done: p.done + 1 } : null)
-              return result
-            })
-          )
-        )
         if (cancelled) return
 
         setSettings(cfg)
         setProgress(null)
 
         const productMap = new Map<string, Product>()
-        for (const p of productArr) productMap.set(p.id, p)
+        for (const p of products) productMap.set(p.id, p)
 
         const map = new Map<string, {
           product_name: string; inventory_product?: Product; unit: string
@@ -108,7 +97,7 @@ function IngredientesMaestrosContent() {
           refs: IngredientRef[]; hasDivergence: boolean
         }>()
 
-        for (const recipe of recipesWithIngredients) {
+        for (const recipe of recipes) {
           for (const ing of (recipe.ingredients || [])) {
             const invProd = productMap.get(ing.product_id)
             const productName = ing.product_name || invProd?.name || ing.product_id

@@ -174,7 +174,6 @@ def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
     from app.models.recipes import Recipe
 
     synced: dict[str, dict] = {}
-    recipe_to_sheet: dict[str, str] = {}
     candidate_ids: list[UUID] = []
     logs = sorted(
         (getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min
@@ -220,10 +219,9 @@ def _get_synced_sheet_map(db: Session, doc) -> dict[str, dict]:
             continue
         if recipe_id not in existing_recipe_ids:
             continue
-        existing_sheet = recipe_to_sheet.get(recipe_id)
-        if existing_sheet and existing_sheet != sheet_name:
-            continue
-        recipe_to_sheet[recipe_id] = sheet_name
+        # Siempre actualizamos con el log más reciente para esta hoja.
+        # Múltiples hojas pueden compartir el mismo recipe_id (nombre de receta
+        # idéntico entre hojas) — ambas deben mostrarse como guardadas.
         synced[sheet_name] = {
             "recipe_id": recipe_id,
             "recipe_name": str(detail.get("recipe_name") or "") or None,
@@ -1851,27 +1849,29 @@ def save_document(
         ],
         "saved_at": datetime.datetime.now(datetime.UTC).isoformat(),
     }
-    crud.update_documento(
-        db,
-        doc,
-        {
-            "datos_confirmados": confirmed,
-            "estado": "CONFIRMED",
-        },
-    )
     primary_target_id = None
     if result.record_id:
         try:
             primary_target_id = UUID(str(result.record_id))
         except (TypeError, ValueError):
             primary_target_id = None
+    new_estado = "CONFIRMED" if destination == "recipe" else "IMPORTED"
+    update_fields: dict = {
+        "datos_confirmados": confirmed,
+        "estado": new_estado,
+    }
+    if destination != "recipe":
+        update_fields["saved_as"] = destination
+        update_fields["saved_record_id"] = primary_target_id
+        update_fields["saved_at"] = datetime.datetime.now(datetime.UTC)
+    crud.update_documento(db, doc, update_fields)
     crud.mark_document_staging_imported(
         db,
         doc.id,
         target_table=result.target,
         target_id=primary_target_id,
     )
-    _sync_batch_projection(db, doc.id, "CONFIRMED")
+    _sync_batch_projection(db, doc.id, new_estado)
     crud.add_log(
         db,
         doc.id,
@@ -1996,10 +1996,13 @@ def save_document_as_products(
         doc,
         {
             "datos_confirmados": confirmed,
-            "estado": "CONFIRMED",
+            "estado": "IMPORTED",
             "tipo_documento_detectado": "PRODUCTS",
             "confianza_clasificacion": 1.0,
             "requiere_revision": False,
+            "saved_as": "products",
+            "saved_record_id": None,
+            "saved_at": datetime.datetime.now(datetime.UTC),
         },
     )
     primary_product_id = None
@@ -2014,7 +2017,7 @@ def save_document_as_products(
         target_table="products",
         target_id=primary_product_id,
     )
-    _sync_batch_projection(db, doc.id, "CONFIRMED")
+    _sync_batch_projection(db, doc.id, "IMPORTED")
     crud.add_log(
         db,
         doc.id,

@@ -154,6 +154,7 @@ export const TENANT_RECIPES = {
   costLines: (id: string) => `${RECIPES_BASE}/${id}/cost-lines`,
   costLineById: (id: string, lineId: string) => `${RECIPES_BASE}/${id}/cost-lines/${lineId}`,
   fullCost: (id: string) => `${RECIPES_BASE}/${id}/full-cost`,
+  bulkFullCosts: `${RECIPES_BASE}/bulk-full-costs`,
 }
 
 const PRODUCTION_BASE = '/api/v1/tenant/production'

@@ -23,7 +23,8 @@ export const TENANT_IMPORTADOR = {
   draftById: (id: string) => `/api/v1/importador/drafts/${id}`,
   draftSnapshot: (draftId: string) => `/api/v1/importador/drafts/${draftId}/snapshot`,
   recipeSnapshots: (recipeId: string) => `/api/v1/importador/recipes/${recipeId}/snapshots`,
-  snapshotById: (id: string) => `/api/v1/importador/snapshots/${id}`,
   saveDailyLog: (id: string) => `/api/v1/importador/documents/${id}/save-as-daily-log`,
+  lineMatchCandidates: (id: string) => `/api/v1/importador/documents/${id}/line-match-candidates`,
+  saveCapabilities: '/api/v1/importador/save-capabilities',
   purgeAll: '/api/v1/importador/purge-all',
 }

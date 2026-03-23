@@ -7,7 +7,8 @@ type LoginBody = { identificador: string; password: string }
 type LoginScope = 'tenant' | 'admin'
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: LoginScope }
 type LoginResult = { scope: LoginScope; accessToken: string }
-type MeCompany = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; es_admin_empresa?: boolean; roles?: string[] }
+type MeCompany = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; es_admin_empresa?: boolean; roles?: string[]; base_currency?: string; permisos?: Record<string, unknown>; permissions?: Record<string, unknown> }
+export type { MeCompany }
 
 type AuthContextType = {
   token: string | null

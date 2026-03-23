@@ -176,6 +176,9 @@ def _configure_logging() -> None:
         )
         root_logger.addHandler(handler)
 
+    # Suppress verbose uvicorn access logs (200 OK for every request)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

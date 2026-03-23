@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Activity, Clock3, LogIn, LogOut, PauseCircle, PlayCircle } from 'lucide-react'
 import { GcPageHeader } from '@ui'
@@ -93,6 +94,7 @@ function getNowStamp() {
 
 export default function FichajesView() {
   const { t } = useTranslation(['hr', 'common'])
+  const navigate = useNavigate()
   const { fichajes, loading, reload } = useFichajes()
   const can = usePermission()
   const canManage = can('hr:manage')
@@ -270,6 +272,7 @@ export default function FichajesView() {
             badge="Jornada"
             title={t('hr:timekeeping.title')}
             subtitle={t('hr:timekeeping.subtitle')}
+            onBack={() => navigate(-1)}
           />
         </div>
 

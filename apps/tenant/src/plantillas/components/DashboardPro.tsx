@@ -440,6 +440,32 @@ const DashboardPro: React.FC<DashboardProProps> = ({
               </ul>
             </nav>
 
+            {backOfficeModules.length > 0 && (
+              <div className="mobile-drawer__backoffice">
+                <div className="mobile-drawer__backoffice-title">
+                  Back office
+                  <span className="sidebar-backoffice__count">{backOfficeModules.length}</span>
+                </div>
+                <nav>
+                  <ul>
+                    {backOfficeModules
+                      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                      .map((modulo) => {
+                        const slug = modulo.slug || (modulo.name || '').toLowerCase()
+                        return (
+                          <li key={`mob-bo-${modulo.id}`}>
+                            <Link to={`/${empresa}/${slug}`} onClick={() => setIsMenuOpen(false)}>
+                              <span className="sidebar-icon">{getModuleIcon(slug)}</span>
+                              <span>{modulo.name}</span>
+                            </Link>
+                          </li>
+                        )
+                      })}
+                  </ul>
+                </nav>
+              </div>
+            )}
+
             <div className="mobile-drawer__footer">
               {settingsModules.map((modulo) => {
                 const slug = modulo.slug || (modulo.name || '').toLowerCase()

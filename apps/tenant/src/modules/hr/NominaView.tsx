@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Banknote, CheckCircle2, Coins, RefreshCcw, Trash2, Users, Wallet } from 'lucide-react'
 import { GcPageHeader } from '@ui'
@@ -58,6 +59,7 @@ const statusTone: Record<string, { bg: string; color: string }> = {
 
 export default function NominaView() {
   const { t } = useTranslation(['hr'])
+  const navigate = useNavigate()
   const { recibos, loading, submitting, error, reload, generate, confirm, markPaid, remove } = useNomina()
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7))
   const [employeeCount, setEmployeeCount] = useState(0)
@@ -106,6 +108,7 @@ export default function NominaView() {
             badge="Nomina"
             title={t('hr:payroll.title')}
             subtitle={t('hr:payroll.subtitle')}
+            onBack={() => navigate(-1)}
             actions={
               <button type="button" onClick={reload} disabled={loading || submitting} className="gc-btn gc-btn--secondary">
                 <RefreshCcw size={16} />

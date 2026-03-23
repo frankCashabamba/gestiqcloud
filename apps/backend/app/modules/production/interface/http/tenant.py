@@ -1424,12 +1424,16 @@ async def get_production_stats(
 
 
 # RECETAS
-@router.get("/recipes", response_model=list[RecipeResponse])
+@router.get("/recipes", response_model=list[RecipeDetailResponse] | list[RecipeResponse])
 def list_recipes(
     is_active: bool | None = None,
     product_id: UUID | None = None,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=5000),
+    include_ingredients: bool = Query(
+        default=False,
+        description="Incluir ingredientes en la respuesta. El modelo ya usa selectin por lo que no genera queries adicionales.",
+    ),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -1440,6 +1444,8 @@ def list_recipes(
     if product_id:
         query = query.filter(Recipe.product_id == product_id)
     recipes = query.offset(skip).limit(limit).all()
+    if include_ingredients:
+        return [RecipeDetailResponse.model_validate(r) for r in recipes]
     return recipes
 
 
@@ -2263,6 +2269,36 @@ def get_recipe_full_cost(
     except Exception:
         pass
     return calculate_recipe_full_cost(db, recipe_id)
+
+
+@router.post("/recipes/bulk-full-costs")
+def bulk_recipe_full_costs(
+    recipe_ids: list[UUID] = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Return full-cost summaries for multiple recipes in a single request."""
+    tenant_id = UUID(claims["tenant_id"])
+    # Validate all recipes belong to tenant
+    valid_ids = {
+        r.id
+        for r in db.query(Recipe.id)
+        .filter(Recipe.id.in_(recipe_ids), Recipe.tenant_id == tenant_id)
+        .all()
+    }
+    results = {}
+    for rid in recipe_ids:
+        if rid not in valid_ids:
+            continue
+        try:
+            calculate_recipe_cost(db, rid)
+        except Exception:
+            pass
+        try:
+            results[str(rid)] = calculate_recipe_full_cost(db, rid)
+        except Exception:
+            results[str(rid)] = None
+    return results
 
 
 # ============================================================================

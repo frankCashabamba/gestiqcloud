@@ -9,6 +9,6 @@ export default function Unauthorized() {
   if (loading) return <div className="center">{t('pages.unauthorized.loading')}</div>
   if (!token) return <Navigate to="/login" replace />
   const slug = profile?.empresa_slug
-  if (!slug) return <Navigate to="/login" replace />
+  if (!slug) return <Navigate to="/" replace />
   return <Navigate to={`/${slug}`} replace />
 }

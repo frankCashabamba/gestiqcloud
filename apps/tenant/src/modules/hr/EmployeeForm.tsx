@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { BackButton } from '@ui'
 import { createEmpleado, getEmpleado, updateEmpleado } from '../../services/api/hr'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import type { EmpleadoCreate } from '../../types/hr'
@@ -99,6 +100,9 @@ export default function EmpleadoForm() {
 
   return (
     <div className="gc-container py-6">
+      <div style={{ marginBottom: '0.75rem' }}>
+        <BackButton onClick={() => nav(-1)} />
+      </div>
       <h3 className="gc-page-header__title mb-4">
         {id ? t('hr:employees.edit') : t('hr:employees.new')}
       </h3>

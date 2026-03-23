@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { BackButton } from '@ui'
 import { getEmpleado, updateEmpleado } from '../../services/api/hr'
 import { listVacaciones } from '../../services/api/hr'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -54,6 +55,9 @@ export default function EmpleadoDetail() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}>
+        <BackButton onClick={() => nav(-1)} />
+      </div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">
           {empleado.name} {empleado.apellidos}

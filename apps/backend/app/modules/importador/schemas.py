@@ -33,6 +33,9 @@ class DocumentoOut(BaseModel):
     llm_model: str | None = None
     raw_ai_json: dict | None = None
     synced_sheets: dict | None = None
+    saved_as: str | None = None
+    saved_record_id: UUID | None = None
+    saved_at: datetime | None = None
     updated_at: datetime
 
     model_config = {"from_attributes": True}

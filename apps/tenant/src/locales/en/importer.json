@@ -12,38 +12,7 @@
   "removeFromQueue": "Remove from queue",
   "pendingImports": "Pending imports",
   "reviewContinueBatches": "Review and continue with created batches",
-  "preview": {
-    "saveAs": "Save as",
-    "purchaseInvoice": "Purchase invoice",
-    "bankMovement": "Bank movement",
-    "ingredientsCost": "Ingredients cost",
-    "importPreview": "Import Preview",
-    "productsDetected": "{{total}} products detected • {{categories}} categories",
-    "totalProducts": "Total Products",
-    "valid": "Valid ✓",
-    "withErrors": "With Errors",
-    "categories": "Categories",
-    "detectedCategories": "Detected Categories",
-    "columnMapping": "Column Mapping",
-    "hide": "Hide",
-    "editMapping": "Edit Mapping",
-    "optIgnore": "Ignore",
-    "optName": "Name",
-    "optPrice": "Price",
-    "optQuantity": "Quantity",
-    "optCategory": "Category",
-    "optSku": "SKU/Code",
-    "optCost": "Cost",
-    "first10Products": "First 10 Products",
-    "status": "Status",
-    "productsWithErrors": "{{count}} product(s) with errors",
-    "errorsHint": "These products will not be imported until you fix the errors. You can continue with the {{valid}} valid ones.",
-    "cancel": "Cancel",
-    "importing": "Importing...",
-    "importProducts": "Import {{count}} Products →"
-  },
-  "openDetailScreen": "Open the detail screen by passing ?batch_id=...",
-  "uploadFailed": "Failed to upload {{file}}: {{message}}",
+"uploadFailed": "Failed to upload {{file}}: {{message}}",
   "cleanupStuckFailed": "Error cleaning up stuck batches",
   "new": "New Import",
   "search": "Search imports",
@@ -331,97 +300,7 @@
       "next": "Next"
     }
   },
-  "mapeoCampos": {
-    "title": "Field mapping",
-    "actions": {
-      "autoDetect": "Auto-detect",
-      "loadTemplate": "Load template",
-      "saveTemplate": "Save template",
-      "save": "Save"
-    },
-    "alerts": {
-      "templateLoaded": "Template \"{{name}}\" loaded",
-      "enterTemplateName": "Enter a template name",
-      "templateSaved": "Template \"{{name}}\" saved",
-      "errorSavingTemplate": "Error saving template"
-    },
-    "unmappedFields": "{{count}} field(s) unmapped",
-    "selectColumn": "-- Select column --",
-    "match": "match",
-    "suggested": "Suggested",
-    "previewTitle": "Mapping preview (first 3 rows)",
-    "emptyValue": "(empty)",
-    "fileColumns": "File columns",
-    "dragHint": "Drag columns to target fields",
-    "saveModal": {
-      "title": "Save template",
-      "templateNamePlaceholder": "Template name...",
-      "saving": "Saving..."
-    }
-  },
-  "templateManager": {
-    "title": "Mapping templates",
-    "loading": "Loading templates...",
-    "errors": {
-      "loadFailed": "Error loading templates",
-      "cannotDeleteSystemTemplate": "System templates cannot be deleted",
-      "deleteFailed": "Error deleting template"
-    },
-    "confirm": {
-      "deleteTemplate": "Delete this template?"
-    },
-    "empty": {
-      "noTemplates": "No templates available for this import type.",
-      "createFromMapping": "Create one from field mapping."
-    },
-    "badges": {
-      "system": "System"
-    },
-    "actions": {
-      "useTemplate": "Use template"
-    }
-  },
-  "columnMappingModal": {
-    "title": "Column Mapping",
-    "fileLabel": "File",
-    "autoDetectedTitle": "Mapping detected automatically",
-    "autoDetectedProcessing": "Columns detected correctly. Processing in 1.5 seconds...",
-    "loadSavedMapping": "Load saved mapping:",
-    "manualOption": "Manual...",
-    "usedTimes": "(used {{count}} times)",
-    "mapColumnsPrompt": "Map your Excel columns to system fields:",
-    "example": "Example",
-    "selectField": "Select field...",
-    "previewTitle": "Preview (first 3 rows)",
-    "saveConfiguration": "Save this configuration to reuse",
-    "saveNamePlaceholder": "e.g. Dairy Supplier - Monthly",
-    "readyToContinue": "Ready to continue",
-    "mustMapProductNameFooter": "You must map \\\"Product Name\\\"",
-    "continueImport": "Continue Import",
-    "alerts": {
-      "mustMapProductName": "You must map at least the \\\"Product Name\\\" field"
-    },
-    "fields": {
-      "productName": "Product Name",
-      "salePrice": "Sale Price",
-      "stockQuantity": "Stock/Quantity",
-      "category": "Category",
-      "codeSku": "Code/SKU",
-      "purchaseCost": "Purchase Cost",
-      "supplier": "Supplier",
-      "unit": "Unit",
-      "ignoreColumn": "Ignore column"
-    }
-  },
-  "importerPreviewPage": {
-    "actions": {
-      "deleteAllProcesses": "Delete all processes"
-    },
-    "confirm": {
-      "deleteAllProcesses": "Are you sure you want to delete ALL processes? This cannot be undone."
-    }
-  },
-  "feedback": {
+"feedback": {
     "question": "Was the automatic classification correct?",
     "close": "Close",
     "confidence": "Confidence:",
@@ -508,7 +387,8 @@
       "savingDailyLog": "Saving...",
       "resaveDailyLog": "Save one more time",
       "confirm": "Confirm",
-      "confirming": "...",
+      "confirming": "Confirming...",
+      "saving": "Saving...",
       "reject": "Reject",
       "reimport": "Process again",
       "edit": "Correct data",

@@ -169,12 +169,15 @@ export async function createRecipe(data: RecipeCreate): Promise<Recipe> {
 
 /**
  * 2. Listar recetas
+ * Usar include_ingredients=true para obtener ingredientes en la misma llamada
+ * sin N+1 (el backend usa selectin, sin queries adicionales).
  */
 export async function listRecipes(params?: {
   activo?: boolean;
   product_id?: string;
   skip?: number;
   limit?: number;
+  include_ingredients?: boolean;
 }): Promise<Recipe[]> {
   const response = await apiClient.get(TENANT_RECIPES.list, { params });
   return response.data;
