@@ -9,7 +9,7 @@
 import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
 import { storeEntity, listEntities, queueDeletion } from '@/lib/offlineStore'
 import * as productServices from './productsApi'
-import type { Producto } from './types'
+import type { Producto } from './productsApi'
 
 export const ProductsAdapter: SyncAdapter = {
   entity: 'product',

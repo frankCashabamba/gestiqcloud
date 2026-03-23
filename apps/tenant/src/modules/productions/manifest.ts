@@ -4,7 +4,7 @@ const OrdersList = React.lazy(() => import('./OrdersList'))
 const OrderForm = React.lazy(() => import('./OrderForm'))
 const ProductionPlanner = React.lazy(() => import('./ProductionPlanner'))
 const RecetasList = React.lazy(() => import('./RecetasList'))
-const Rutas = React.lazy(() => import('./Rutas'))
+const Rutas = React.lazy(() => import('./Routes'))
 
 export const manifest = {
     id: 'production',
