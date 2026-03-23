@@ -51,9 +51,22 @@ class RecipeIngredientBase(BaseModel):
             "unidades",
             "pcs",  # Conteo
         ]
-        if v.lower() not in [u.lower() for u in valid_units]:
+        # Normalize common aliases before validation
+        aliases = {
+            "unid": "uds",
+            "und": "uds",
+            "uni": "uds",
+            "un": "uds",
+            "ud": "uds",
+            "unidad": "uds",
+            "pieza": "uds",
+            "pza": "uds",
+            "pc": "uds",
+        }
+        normalized = aliases.get(v.lower(), v)
+        if normalized.lower() not in [u.lower() for u in valid_units]:
             raise ValueError(f"Unidad no válida: {v}. Usar: {', '.join(valid_units)}")
-        return v
+        return normalized
 
 
 class RecipeIngredientCreate(RecipeIngredientBase):

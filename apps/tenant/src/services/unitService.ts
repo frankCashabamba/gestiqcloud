@@ -42,6 +42,7 @@ const UNIT_ALIASES: Record<string, string> = {
   units: 'uds',
   und: 'uds',
   uni: 'uds',
+  unid: 'uds',
   unidad: 'uds',
   unidades: 'uds',
   uds: 'uds',
