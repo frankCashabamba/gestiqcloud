@@ -4,7 +4,6 @@ import { createOpportunity, getOpportunity, updateOpportunity, type Opportunity 
 import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { OpportunityStage } from '../../types'
-import { BackButton } from '@ui'
 
 export default function OpportunityForm() {
   const { id } = useParams()
@@ -46,7 +45,6 @@ export default function OpportunityForm() {
 
   return (
     <div className="p-4">
-      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <h3 className="text-xl font-semibold mb-3">{id ? t('opportunities.edit') : t('opportunities.new')}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>

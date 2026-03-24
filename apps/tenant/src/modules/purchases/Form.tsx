@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createCompra, getCompra, updateCompra, type Compra, type CompraLinea } from './services'
-import { BackButton } from '@ui'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import CompraLineasEditor from './components/CompraLineasEditor'
 import { getCompanySettings, getDefaultTaxRate } from '../../services/companySettings'
@@ -126,7 +125,6 @@ export default function CompraForm() {
 
     return (
         <div className="p-4">
-            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <h3 className="text-xl font-semibold mb-3">
                 {id ? t('purchases:edit') : t('purchases:new')}
             </h3>

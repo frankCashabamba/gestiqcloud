@@ -6,7 +6,6 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
 import { type FieldCfg, mergeFieldConfig, getFieldType, renderDynamicField } from '../../hooks/useFieldConfig'
 import { useDocumentIDTypes } from '../../hooks/useDocumentIDTypes'
-import { BackButton } from '@ui'
 
 const FIELD_ALIASES: Record<string, string> = {
   nombre: 'name',
@@ -116,8 +115,17 @@ export default function ClienteForm() {
     <div className="p-4 max-w-2xl mx-auto">
 
       {/* Header */}
-      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex items-center gap-3 mb-6">
+        <button
+          type="button"
+          onClick={() => nav('..')}
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          aria-label={t('common:back')}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
         <div>
           <h2 className="text-xl font-bold text-slate-900">
             {id ? t('customers:form.edit') : t('customers:form.new')}

@@ -5,7 +5,6 @@ import { createCuenta, getCuenta, updateCuenta, listCuentas, type PlanCuenta } f
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
 import { useCompany } from '../../contexts/CompanyContext'
-import { BackButton } from '@ui'
 
 export default function PlanCuentasForm() {
     const { t } = useTranslation()
@@ -52,7 +51,6 @@ export default function PlanCuentasForm() {
 
     return (
         <div className="p-4">
-            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <h3 className="text-xl font-semibold mb-3">{id ? t('accounting.chartOfAccounts.form.editTitle') : t('accounting.chartOfAccounts.form.newTitle')}</h3>
             <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
                 <div>
