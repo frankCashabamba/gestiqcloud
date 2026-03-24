@@ -90,117 +90,128 @@ export default function VacacionForm() {
   }
 
   return (
-    <div className="p-4">
+    <div className="gc-container py-6 max-w-4xl">
       <div style={{ marginBottom: '0.75rem' }}>
         <BackButton onClick={() => nav(-1)} />
       </div>
-      <h3 className="text-xl font-semibold mb-3">{t('hr:vacations.newRequest')}</h3>
+      <div className="mb-6">
+        <h1 className="gc-page-header__title">{t('hr:vacations.newRequest')}</h1>
+      </div>
 
-      <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 700 }}>
-        <div>
-          <label className="block mb-1 font-medium">{t('hr:vacations.employee')} *</label>
-          <select
-            value={form.empleado_id}
-            onChange={(e) => setForm({ ...form, empleado_id: e.target.value })}
-            className="border px-2 py-1 w-full rounded"
-            required
-            disabled={loading}
-          >
-            <option value="">{t('hr:vacations.select')}</option>
-            {empleados
-              .filter((e) => e.estado === 'activo')
-              .map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name} {e.apellidos} - {e.sku || e.numero_documento}
-                </option>
-              ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block mb-1 font-medium">{t('hr:vacations.type')} *</label>
-          <select
-            value={form.tipo}
-            onChange={(e) => setForm({ ...form, tipo: e.target.value as any })}
-            className="border px-2 py-1 w-full rounded"
-            required
-            disabled={loading}
-          >
-            <option value="vacaciones">{t('hr:vacations.vacation')}</option>
-            <option value="baja_medica">{t('hr:vacations.medicalLeave')}</option>
-            <option value="permiso">{t('hr:vacations.leave')}</option>
-            <option value="otros">{t('hr:vacations.other')}</option>
-          </select>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block mb-1 font-medium">{t('hr:vacations.from')} *</label>
-            <input
-              type="date"
-              value={form.fecha_inicio}
-              onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
-              className="border px-2 py-1 w-full rounded"
-              required
-              disabled={loading}
-            />
+      <form onSubmit={onSubmit} className="space-y-5">
+        {/* Empleado y tipo */}
+        <fieldset className="gc-card">
+          <legend className="gc-section-title px-2">{t('hr:vacations.requestData', 'Datos de la solicitud')}</legend>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div>
+              <label className="gc-label">{t('hr:vacations.employee')} *</label>
+              <select
+                value={form.empleado_id}
+                onChange={(e) => setForm({ ...form, empleado_id: e.target.value })}
+                className="gc-input"
+                required
+                disabled={loading}
+              >
+                <option value="">{t('hr:vacations.select')}</option>
+                {empleados
+                  .filter((e) => e.estado === 'activo')
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name} {e.apellidos} - {e.sku || e.numero_documento}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="gc-label">{t('hr:vacations.type')} *</label>
+              <select
+                value={form.tipo}
+                onChange={(e) => setForm({ ...form, tipo: e.target.value as any })}
+                className="gc-input"
+                required
+                disabled={loading}
+              >
+                <option value="vacaciones">{t('hr:vacations.vacation')}</option>
+                <option value="baja_medica">{t('hr:vacations.medicalLeave')}</option>
+                <option value="permiso">{t('hr:vacations.leave')}</option>
+                <option value="otros">{t('hr:vacations.other')}</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="block mb-1 font-medium">{t('hr:vacations.to')} *</label>
-            <input
-              type="date"
-              value={form.fecha_fin}
-              onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
-              className="border px-2 py-1 w-full rounded"
-              min={form.fecha_inicio}
-              required
-              disabled={loading}
-            />
+        </fieldset>
+
+        {/* Fechas */}
+        <fieldset className="gc-card">
+          <legend className="gc-section-title px-2">{t('hr:vacations.period', 'Período')}</legend>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div>
+              <label className="gc-label">{t('hr:vacations.from')} *</label>
+              <input
+                type="date"
+                value={form.fecha_inicio}
+                onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
+                className="gc-input"
+                required
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="gc-label">{t('hr:vacations.to')} *</label>
+              <input
+                type="date"
+                value={form.fecha_fin}
+                onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
+                className="gc-input"
+                min={form.fecha_inicio}
+                required
+                disabled={loading}
+              />
+            </div>
           </div>
-        </div>
+          {dias > 0 && (
+            <div className="gc-card mt-3" style={{ background: 'color-mix(in srgb, var(--gc-primary) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gc-primary) 20%, transparent)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--gc-foreground)' }}>
+                <strong>{t('hr:vacations.calculatedDays')}</strong> {dias} {dias !== 1 ? t('hr:vacations.daysUnit') : t('hr:vacations.dayUnit')}
+              </p>
+            </div>
+          )}
+        </fieldset>
 
-        {dias > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
-            <p className="text-blue-800">
-              <strong>{t('hr:vacations.calculatedDays')}</strong> {dias} {dias !== 1 ? t('hr:vacations.daysUnit') : t('hr:vacations.dayUnit')}
-            </p>
+        {/* Motivo y notas */}
+        <fieldset className="gc-card">
+          <legend className="gc-section-title px-2">{t('hr:vacations.additionalInfo', 'Información adicional')}</legend>
+          <div className="grid grid-cols-1 gap-4 mt-3">
+            <div>
+              <label className="gc-label">{t('hr:vacations.reason')}</label>
+              <input
+                type="text"
+                value={form.motivo}
+                onChange={(e) => setForm({ ...form, motivo: e.target.value })}
+                className="gc-input"
+                placeholder={motivoPlaceholder || t('hr:vacations.reasonPlaceholder')}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="gc-label">{t('hr:form.notes')}</label>
+              <textarea
+                value={form.notas}
+                onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                className="gc-input"
+                rows={3}
+                disabled={loading}
+              />
+            </div>
           </div>
-        )}
+        </fieldset>
 
-        <div>
-          <label className="block mb-1 font-medium">{t('hr:vacations.reason')}</label>
-          <input
-            type="text"
-            value={form.motivo}
-            onChange={(e) => setForm({ ...form, motivo: e.target.value })}
-            className="border px-2 py-1 w-full rounded"
-            placeholder={motivoPlaceholder || t('hr:vacations.reasonPlaceholder')}
-            disabled={loading}
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 font-medium">{t('hr:form.notes')}</label>
-          <textarea
-            value={form.notas}
-            onChange={(e) => setForm({ ...form, notas: e.target.value })}
-            className="border px-2 py-1 w-full rounded"
-            rows={3}
-            disabled={loading}
-          />
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            disabled={loading}
-          >
+        <div className="flex gap-3">
+          <button type="submit" className="gc-btn gc-btn--primary" disabled={loading}>
             {loading ? t('hr:form.saving') : t('hr:form.save')}
           </button>
           <button
             type="button"
-            className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+            className="gc-btn gc-btn--ghost"
             onClick={() => nav(empresa ? `/${empresa}/hr/vacations` : '/hr/vacations')}
             disabled={loading}
           >

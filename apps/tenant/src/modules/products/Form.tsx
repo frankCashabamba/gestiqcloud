@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import { createProducto, getProducto, updateProducto, listCategorias, type Producto, type Categoria } from './productsApi'
+import { listRecipes, type Recipe } from '../../services/api/recetas'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
 import { useCurrency } from '../../hooks/useCurrency'
@@ -12,6 +13,8 @@ import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
 import ProductVariants from './ProductVariants'
+
+const BARCODE_META_FIELDS = ['codigo_barras', 'barcode', 'ean', 'upc'] as const
 
 type FieldCfg = {
     field: string
@@ -46,6 +49,8 @@ export default function ProductoForm() {
     const [loadingCfg, setLoadingCfg] = useState(false)
     const [categorias, setCategorias] = useState<Categoria[]>([])
     const [minStockGlobal, setMinStockGlobal] = useState(0)
+    const [productRecipe, setProductRecipe] = useState<Recipe | null>(null)
+    const [syncingPrice, setSyncingPrice] = useState(false)
 
     // Cargar categorías disponibles
     useEffect(() => {
@@ -69,8 +74,7 @@ export default function ProductoForm() {
             ; (async () => {
                 try {
                     setLoadingCfg(true)
-                    const q = new URLSearchParams({ module: 'products', ...(empresa ? { empresa } : {}) }).toString()
-                    const data = await apiFetch<{ items?: FieldCfg[] }>(`/api/v1/company/settings/fields?${q}`)
+                    const data = await apiFetch<{ items?: FieldCfg[] }>('/api/v1/company/settings/fields?module=products')
                     if (!cancelled) setFields((data?.items || []).filter((it) => it.visible !== false))
                 } catch {
                     if (!cancelled) setFields(null)
@@ -81,7 +85,7 @@ export default function ProductoForm() {
         return () => {
             cancelled = true
         }
-    }, [empresa])
+    }, [])
 
     useEffect(() => {
         let cancelled = false
@@ -104,6 +108,13 @@ export default function ProductoForm() {
         () => (fields || []).some((cfg) => ['peso_unitario', 'caducidad_dias', 'ingredientes', 'receta_id'].includes(cfg.field)),
         [fields]
     )
+
+    useEffect(() => {
+        if (!id || !isBakerySector) return
+        listRecipes({ product_id: id, limit: 1 })
+            .then((rs) => setProductRecipe(Array.isArray(rs) ? (rs[0] ?? null) : null))
+            .catch(() => {})
+    }, [id, isBakerySector])
 
     const fieldList = useMemo(() => {
         const base: FieldCfg[] = [
@@ -140,7 +151,6 @@ export default function ProductoForm() {
     const suggestedPrice = Number((form as any).suggested_price ?? 0) || 0
     const useSuggestedPrice = Boolean((form as any).use_suggested_price)
 
-    const BARCODE_META_FIELDS = ['codigo_barras', 'barcode', 'ean', 'upc'] as const
     const parseKeyValueNumberMap = (raw: string) => {
         const result: Record<string, number> = {}
         raw
@@ -239,6 +249,25 @@ export default function ProductoForm() {
         return payload
     }
 
+    const syncRecipePrice = async () => {
+        if (!productRecipe) return
+        setSyncingPrice(true)
+        try {
+            const res = await apiFetch<{ suggested_price: number }>(
+                `/api/v1/tenant/manufacturing/recipes/${productRecipe.id}/sync-product-price`,
+                { method: 'POST' }
+            )
+            if (res?.suggested_price != null) {
+                setForm((prev) => ({ ...prev, suggested_price: res.suggested_price }))
+                success(t('products:form.priceSynced', 'Precio sincronizado desde receta'))
+            }
+        } catch (e) {
+            error(getErrorMessage(e))
+        } finally {
+            setSyncingPrice(false)
+        }
+    }
+
     const onSubmit: React.FormEventHandler = async (e) => {
         e.preventDefault()
         try {
@@ -290,11 +319,11 @@ export default function ProductoForm() {
     }
 
     const generateSKU = () => {
-        const categoria = form.category || ''
-        const prefix = categoria ? categoria.substring(0, 3).toUpperCase() : 'PRO'
-        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
-        const sku = `${prefix}-${random}`
-        setForm({ ...form, sku })
+        setForm((prev) => {
+            const prefix = prev.category ? prev.category.substring(0, 3).toUpperCase() : 'PRO'
+            const random = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
+            return { ...prev, sku: `${prefix}-${random}` }
+        })
     }
 
     const renderField = (f: FieldCfg) => {
@@ -309,7 +338,7 @@ export default function ProductoForm() {
                     <input
                         type="text"
                         value={value}
-                        onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
+                        onChange={(e) => { const v = e.target.value; setForm((prev) => ({ ...prev, [f.field]: v })) }}
                         className="gc-input"
                         placeholder={f.help || t('products:form.codePlaceholder')}
                     />
@@ -330,7 +359,7 @@ export default function ProductoForm() {
             return (
                 <select
                     value={value}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    onChange={(e) => { const v = e.target.value; setForm((prev) => ({ ...prev, category: v })) }}
                     className="gc-input"
                 >
                     <option value="">Sin categoría</option>
@@ -389,7 +418,7 @@ export default function ProductoForm() {
                         type="number"
                         step="0.01"
                         value={value}
-                        onChange={(e) => setForm({ ...form, [f.field]: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => { const v = parseFloat(e.target.value) || 0; setForm((prev) => ({ ...prev, [f.field]: v })) }}
                         className="gc-input"
                         required={!!f.required}
                         placeholder={f.help || ''}
@@ -402,7 +431,7 @@ export default function ProductoForm() {
                         <input
                             type="checkbox"
                             checked={!!value}
-                            onChange={(e) => setForm({ ...form, [f.field]: e.target.checked })}
+                            onChange={(e) => { const v = e.target.checked; setForm((prev) => ({ ...prev, [f.field]: v })) }}
                             className="w-4 h-4 rounded border-slate-200 text-blue-600 focus:ring-[var(--gc-primary)]"
                         />
                         <span className="text-sm text-slate-600">{f.help || 'Sí/No'}</span>
@@ -413,7 +442,7 @@ export default function ProductoForm() {
                 return (
                     <textarea
                         value={value}
-                        onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
+                        onChange={(e) => { const v = e.target.value; setForm((prev) => ({ ...prev, [f.field]: v })) }}
                         className="gc-input"
                         rows={3}
                         required={!!f.required}
@@ -425,7 +454,7 @@ export default function ProductoForm() {
                 return (
                     <select
                         value={value}
-                        onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
+                        onChange={(e) => { const v = e.target.value; setForm((prev) => ({ ...prev, [f.field]: v })) }}
                         className="gc-input"
                         required={!!f.required}
                     >
@@ -443,7 +472,7 @@ export default function ProductoForm() {
                     <input
                         type="text"
                         value={value}
-                        onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
+                        onChange={(e) => { const v = e.target.value; setForm((prev) => ({ ...prev, [f.field]: v })) }}
                         className="gc-input"
                         required={!!f.required}
                         placeholder={f.help || ''}
@@ -466,114 +495,149 @@ export default function ProductoForm() {
     return (
         <div className="gc-container py-6 max-w-4xl">
             <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
+
+            {/* Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-slate-900">{id ? t('products:form.editProduct') : t('products:form.newProduct')}</h1>
-                <p className="mt-1 text-sm text-slate-500">
+                <h1 className="gc-page-header__title">{id ? t('products:form.editProduct') : t('products:form.newProduct')}</h1>
+                <p className="gc-page-header__subtitle mt-1">
                     {id ? t('products:form.editDescription') : t('products:form.newDescription')}
                 </p>
             </div>
 
-            <form onSubmit={onSubmit} className="gc-card space-y-6 mb-6">
-                {loadingCfg && (
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        Loading field configuration...
+            <form onSubmit={onSubmit} className="space-y-5">
+
+                {/* ── Datos del producto ── */}
+                <fieldset className="gc-card">
+                    <legend className="gc-section-title px-2">
+                        {t('products:form.productData', 'Datos del producto')}
+                    </legend>
+                    {loadingCfg && (
+                        <div className="flex items-center gap-2 text-sm mt-3" style={{ color: 'var(--gc-muted)' }}>
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            {t('products:form.loadingFields', 'Cargando configuración...')}
+                        </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                        {fieldList.map((f) => (
+                            <div key={f.field} className={f.type === 'textarea' || f.type === 'import_aliases' ? 'md:col-span-2' : ''}>
+                                <label className="gc-label">
+                                    {f.label || f.field.replace(/_/g, ' ')}
+                                    {f.required && <span className="text-red-500 ml-1">*</span>}
+                                </label>
+                                {renderField(f)}
+                                {f.help && f.type !== 'boolean' && f.type !== 'import_aliases' && (
+                                    <p className="gc-field-hint">{f.help}</p>
+                                )}
+                            </div>
+                        ))}
                     </div>
+                </fieldset>
+
+                {/* ── Precio desde receta ── */}
+                {productRecipe && (
+                    <fieldset className="gc-card">
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                            <legend className="gc-section-title px-2">
+                                {t('products:form.suggestedPriceTitle')}
+                                <span className="gc-field-hint ml-2" style={{ fontWeight: 400 }}>
+                                    {productRecipe.name}
+                                </span>
+                            </legend>
+                            <button
+                                type="button"
+                                onClick={syncRecipePrice}
+                                disabled={syncingPrice}
+                                className="gc-btn gc-btn--soft gc-btn--sm"
+                                style={{ marginTop: '0.1rem' }}
+                            >
+                                {syncingPrice ? (
+                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                ) : (
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                )}
+                                {t('products:form.syncPrice', 'Recalcular')}
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                            <div>
+                                <label className="gc-label">{t('products:form.suggestedPrice')}</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={suggestedPrice}
+                                        disabled
+                                        className="gc-input"
+                                        style={{ flex: 1 }}
+                                        placeholder={suggestedPrice === 0 ? t('products:form.notCalculated', 'Sin calcular') : ''}
+                                    />
+                                    <span className="gc-field-hint">{currencySymbol}</span>
+                                </div>
+                                {suggestedPrice === 0 && (
+                                    <p className="gc-field-hint" style={{ color: 'var(--gc-warning, #b45309)' }}>
+                                        {t('products:form.syncHint', 'Pulsa "Recalcular" para obtener el precio desde los costes actuales.')}
+                                    </p>
+                                )}
+                            </div>
+                            {suggestedPrice > 0 && (
+                                <div>
+                                    <label className="gc-label">{t('products:form.useSuggestedPriceLabel')}</label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={useSuggestedPrice}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    use_suggested_price: checked,
+                                                    ...(checked ? { price: suggestedPrice } : {}),
+                                                }))
+                                            }}
+                                            className="w-4 h-4 rounded"
+                                            style={{ accentColor: 'var(--gc-primary)' }}
+                                        />
+                                        <span className="gc-field-hint" style={{ fontSize: '0.875rem' }}>{t('products:form.useSuggestedPriceCheckbox')}</span>
+                                    </label>
+                                    <p className="gc-field-hint">{t('products:form.useSuggestedPriceHelp')}</p>
+                                </div>
+                            )}
+                        </div>
+                    </fieldset>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {fieldList.map((f) => (
-                        <div key={f.field} className={f.type === 'textarea' ? 'md:col-span-2' : ''}>
-                            <label className="block mb-2 font-medium text-slate-700 text-sm">
-                                {f.label || f.field.replace(/_/g, ' ')}
-                                {f.required && <span className="text-red-600 ml-1">*</span>}
-                            </label>
-                            {renderField(f)}
-                            {f.help && <p className="text-xs text-slate-500 mt-1">{f.help}</p>}
-                        </div>
-                    ))}
-                </div>
-
-                {(form as any).receta_id && <div className="border-t pt-4">
-                  <h2 className="text-lg font-semibold text-slate-900">{t('products:form.suggestedPriceTitle')}</h2>
-                  <p className="text-sm text-slate-500 mt-1">
-                    {t('products:form.suggestedPriceHint')}
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                    <div>
-                      <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.suggestedPrice')}</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={suggestedPrice}
-                          disabled
-                          className="gc-input flex-1 bg-slate-50 text-slate-600"
-                          placeholder={t('products:form.suggestedPricePlaceholder')}
-                        />
-                        <span className="text-slate-600">{currencySymbol}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">{t('products:form.suggestedPriceHelp')}</p>
-                    </div>
-                    {suggestedPrice > 0 && (
-                      <div>
-                        <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.useSuggestedPriceLabel')}</label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={useSuggestedPrice}
-                            onChange={(e) => {
-                              setForm({ ...form, use_suggested_price: e.target.checked })
-                              if (e.target.checked) {
-                                setForm((prev) => ({ ...prev, price: suggestedPrice }))
-                              }
-                            }}
-                            className="w-4 h-4 rounded border-slate-200 text-blue-600 focus:ring-[var(--gc-primary)]"
-                          />
-                          <span className="text-sm text-slate-600">{t('products:form.useSuggestedPriceCheckbox')}</span>
-                        </label>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {t('products:form.useSuggestedPriceHelp')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>}
-
-                <div className="border-t pt-4">
-                    <h2 className="text-lg font-semibold text-slate-900">{t('products:form.wholesaleTitle')}</h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                        {t('products:form.wholesaleHint')}
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                {/* ── Precio mayorista ── */}
+                <fieldset className="gc-card">
+                    <legend className="gc-section-title px-2">{t('products:form.wholesaleTitle')}</legend>
+                    <p className="gc-field-hint mt-1 mb-3">{t('products:form.wholesaleHint')}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesaleEnable')}</label>
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="gc-label">{t('products:form.wholesaleEnable')}</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                                 <input
                                     type="checkbox"
                                     checked={wholesaleEnabled}
                                     onChange={(e) => updateWholesale({ enabled: e.target.checked })}
                                     disabled={stockBelowGlobalMin && !wholesaleEnabled}
-                                    className="w-4 h-4 rounded border-slate-200 text-blue-600 focus:ring-[var(--gc-primary)]"
+                                    className="w-4 h-4 rounded"
+                                    style={{ accentColor: 'var(--gc-primary)' }}
                                 />
-                                <span className="text-sm text-slate-600">{t('products:form.wholesaleApply')}</span>
+                                <span style={{ fontSize: '0.875rem', color: 'var(--gc-foreground)' }}>{t('products:form.wholesaleApply')}</span>
                             </label>
                             {minStockGlobal > 0 && (
-                                <p className="text-xs text-slate-500 mt-2">
-                                    {t('products:form.stockGlobal', { value: minStockGlobal })}
-                                </p>
+                                <p className="gc-field-hint">{t('products:form.stockGlobal', { value: minStockGlobal })}</p>
                             )}
                             {stockBelowGlobalMin && (
-                                <p className="text-xs text-amber-600 mt-2">
+                                <p className="gc-field-hint" style={{ color: 'var(--gc-warning, #b45309)' }}>
                                     {t('products:form.stockBelowMin', { stock: stockValue, min: minStockGlobal })}
                                 </p>
                             )}
                         </div>
                         <div>
-                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesalePrice')}</label>
+                            <label className="gc-label">{t('products:form.wholesalePrice')}</label>
                             <input
                                 type="number"
                                 step="0.01"
@@ -584,7 +648,7 @@ export default function ProductoForm() {
                             />
                         </div>
                         <div>
-                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesaleMinUnits')}</label>
+                            <label className="gc-label">{t('products:form.wholesaleMinUnits')}</label>
                             <input
                                 type="number"
                                 step="1"
@@ -596,7 +660,7 @@ export default function ProductoForm() {
                             />
                         </div>
                         <div>
-                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.wholesaleApplyMode')}</label>
+                            <label className="gc-label">{t('products:form.wholesaleApplyMode')}</label>
                             <select
                                 value={wholesaleApplyMode}
                                 onChange={(e) => updateWholesale({ apply_mode: e.target.value })}
@@ -607,7 +671,7 @@ export default function ProductoForm() {
                             </select>
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.packs')}</label>
+                            <label className="gc-label">{t('products:form.packs')}</label>
                             <input
                                 type="text"
                                 value={packsInput}
@@ -615,12 +679,10 @@ export default function ProductoForm() {
                                 className="gc-input"
                                 placeholder={t('products:form.packsPlaceholder')}
                             />
-                            <p className="text-xs text-slate-500 mt-1">
-                                {t('products:form.packsHelp')}
-                            </p>
+                            <p className="gc-field-hint">{t('products:form.packsHelp')}</p>
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block mb-2 font-medium text-slate-700 text-sm">{t('products:form.minByPack')}</label>
+                            <label className="gc-label">{t('products:form.minByPack')}</label>
                             <input
                                 type="text"
                                 value={wholesaleMinByPackInput}
@@ -628,14 +690,13 @@ export default function ProductoForm() {
                                 className="gc-input"
                                 placeholder={t('products:form.minByPackPlaceholder')}
                             />
-                            <p className="text-xs text-slate-500 mt-1">
-                                {t('products:form.minByPackHelp')}
-                            </p>
+                            <p className="gc-field-hint">{t('products:form.minByPackHelp')}</p>
                         </div>
                     </div>
-                </div>
+                </fieldset>
 
-                <div className="pt-4 flex gap-3 border-t">
+                {/* ── Botones ── */}
+                <div className="flex gap-3">
                     <ProtectedButton
                         permission={requiredPerm}
                         type="submit"
@@ -645,7 +706,7 @@ export default function ProductoForm() {
                     </ProtectedButton>
                     <button
                         type="button"
-                        className="gc-btn gc-btn--secondary"
+                        className="gc-btn gc-btn--ghost"
                         onClick={() => nav('..')}
                     >
                         {t('products:form.cancel')}
@@ -653,12 +714,17 @@ export default function ProductoForm() {
                 </div>
             </form>
 
+            {/* ── Variantes (solo sectores no-panadería) ── */}
             {id && !isBakerySector && (
-                <div className="gc-card">
-                    <h2 className="text-lg font-semibold text-slate-900 mb-4">Variantes de producto</h2>
-                    <p className="text-sm text-slate-500 mb-4">Gestiona variantes por talla, color u otros atributos.</p>
-                    <ProductVariants productId={id} basePrice={form.price} />
-                </div>
+                <fieldset className="gc-card mt-5">
+                    <legend className="gc-section-title px-2">
+                        {t('products:form.variantsTitle', 'Variantes de producto')}
+                    </legend>
+                    <p className="gc-field-hint mt-1 mb-4">
+                        {t('products:form.variantsHint', 'Gestiona variantes por talla, color u otros atributos.')}
+                    </p>
+                    <ProductVariants productId={id} basePrice={form.price} currencySymbol={currencySymbol} />
+                </fieldset>
             )}
         </div>
     )

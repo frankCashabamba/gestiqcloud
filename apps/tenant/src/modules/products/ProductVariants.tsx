@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../../services/api/client'
+import { useToast, getErrorMessage } from '../../shared/toast'
 
 interface Attribute {
   id: string
@@ -22,12 +23,14 @@ interface Variant {
 interface ProductVariantsProps {
   productId: string
   basePrice?: number
+  currencySymbol?: string
 }
 
 const BASE = '/api/v1/tenant/products/variants'
 
-export default function ProductVariants({ productId, basePrice }: ProductVariantsProps) {
+export default function ProductVariants({ productId, basePrice, currencySymbol = '$' }: ProductVariantsProps) {
   const { t } = useTranslation('products')
+  const { error: toastError } = useToast()
   const [variants, setVariants] = useState<Variant[]>([])
   const [attributes, setAttributes] = useState<Attribute[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,12 +52,13 @@ export default function ProductVariants({ productId, basePrice }: ProductVariant
     try {
       const [varsRes, attrsRes] = await Promise.all([
         api.get(`${BASE}/${productId}`),
-        api.get(`${BASE}/attributes`),
+        // Scoped to this product so attributes from other tenants are never exposed
+        api.get(`${BASE}/attributes?product_id=${encodeURIComponent(productId)}`),
       ])
       setVariants(varsRes.data)
       setAttributes(attrsRes.data)
-    } catch {
-      // silent
+    } catch (e) {
+      toastError(getErrorMessage(e))
     } finally {
       setLoading(false)
     }
@@ -67,20 +71,27 @@ export default function ProductVariants({ productId, basePrice }: ProductVariant
     setSaving(true)
     try {
       await api.post(`${BASE}/attributes`, {
+        product_id: productId,
         name: attrForm.name.trim(),
         values: attrForm.values.split(',').map((v) => v.trim()).filter(Boolean),
       })
       setAttrForm({ name: '', values: '' })
       setShowAttrForm(false)
       load()
+    } catch (e) {
+      toastError(getErrorMessage(e))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDeleteAttribute = async (id: string) => {
-    await api.delete(`${BASE}/attributes/${id}`)
-    load()
+    try {
+      await api.delete(`${BASE}/attributes/${id}`)
+      load()
+    } catch (e) {
+      toastError(getErrorMessage(e))
+    }
   }
 
   const handleCreateVariant = async () => {
@@ -97,14 +108,20 @@ export default function ProductVariants({ productId, basePrice }: ProductVariant
       setForm({ sku: '', attributes: {}, price: '', cost: '', barcode: '' })
       setShowForm(false)
       load()
+    } catch (e) {
+      toastError(getErrorMessage(e))
     } finally {
       setSaving(false)
     }
   }
 
   const handleToggleVariant = async (v: Variant) => {
-    await api.put(`${BASE}/${v.id}`, { is_active: !v.is_active })
-    load()
+    try {
+      await api.put(`${BASE}/${v.id}`, { is_active: !v.is_active })
+      load()
+    } catch (e) {
+      toastError(getErrorMessage(e))
+    }
   }
 
   const handleDeleteVariant = (id: string) => {
@@ -113,9 +130,13 @@ export default function ProductVariants({ productId, basePrice }: ProductVariant
 
   const doDeleteVariant = async () => {
     if (!deleteVariantTarget) return
-    await api.delete(`${BASE}/${deleteVariantTarget}`)
-    setDeleteVariantTarget(null)
-    load()
+    try {
+      await api.delete(`${BASE}/${deleteVariantTarget}`)
+      setDeleteVariantTarget(null)
+      load()
+    } catch (e) {
+      toastError(getErrorMessage(e))
+    }
   }
 
   if (loading) return <div className="p-4 text-sm text-slate-400">Cargando variantes...</div>
@@ -297,7 +318,7 @@ export default function ProductVariants({ productId, basePrice }: ProductVariant
                     </td>
                     <td className="px-3 py-2 font-mono text-slate-600">{v.sku || '—'}</td>
                     <td className="px-3 py-2 text-right">
-                      {v.price != null ? `$${v.price.toFixed(2)}` : <span className="text-slate-400">base</span>}
+                      {v.price != null ? `${currencySymbol}${v.price.toFixed(2)}` : <span className="text-slate-400">base</span>}
                     </td>
                     <td className="px-3 py-2 text-slate-500">{v.barcode || '—'}</td>
                     <td className="px-3 py-2 text-center">

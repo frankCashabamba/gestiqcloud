@@ -66,7 +66,6 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
   const schema = MODULE_SCHEMAS[moduleId] || []
 
   useEffect(() => {
-    // Inicializar con valores por defecto si no existen
     const defaults: ModuleConfig = {}
     schema.forEach(field => {
       if (formData[field.key] === undefined && field.default !== undefined) {
@@ -98,48 +97,40 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
     switch (field.type) {
       case 'boolean':
         return (
-          <div key={field.key} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-            <label className="font-medium text-gray-700">{fieldLabel}</label>
+          <div key={field.key} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'color-mix(in srgb, var(--gc-muted) 40%, transparent)' }}>
+            <label className="gc-label mb-0">{fieldLabel}</label>
             <button
+              type="button"
               disabled={field.readonly}
               onClick={() => setFormData(prev => ({ ...prev, [field.key]: !value }))}
-              className={`
-                relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-                ${field.readonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                ${value ? 'bg-green-600' : 'bg-gray-300'}
-              `}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${field.readonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${value ? 'bg-green-500' : 'bg-gray-300'}`}
             >
-              <span
-                className={`
-                  inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                  ${value ? 'translate-x-6' : 'translate-x-1'}
-                `}
-              />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
           </div>
         )
 
       case 'number':
         return (
-          <div key={field.key} className="space-y-1">
-            <label className="block font-medium text-gray-700">{fieldLabel}</label>
+          <div key={field.key}>
+            <label className="gc-label">{fieldLabel}</label>
             <input
               type="number"
               value={value ?? field.default ?? ''}
               onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: parseInt(e.target.value) || 0 }))}
-              className="border border-gray-300 px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="gc-input"
             />
           </div>
         )
 
       case 'select':
         return (
-          <div key={field.key} className="space-y-1">
-            <label className="block font-medium text-gray-700">{fieldLabel}</label>
+          <div key={field.key}>
+            <label className="gc-label">{fieldLabel}</label>
             <select
               value={value ?? field.default ?? ''}
               onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-              className="border border-gray-300 px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="gc-input"
             >
               {field.options.map((opt: any) => (
                 <option key={opt} value={opt}>{opt}</option>
@@ -151,13 +142,13 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
       case 'text':
       default:
         return (
-          <div key={field.key} className="space-y-1">
-            <label className="block font-medium text-gray-700">{fieldLabel}</label>
+          <div key={field.key}>
+            <label className="gc-label">{fieldLabel}</label>
             <input
               type="text"
               value={value ?? field.default ?? ''}
               onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-              className="border border-gray-300 px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="gc-input"
             />
           </div>
         )
@@ -165,46 +156,34 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
+      <div className="gc-card w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-800">
-            Configurar {moduleName}
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Personaliza el comportamiento del módulo
-          </p>
+        <div className="px-6 py-5" style={{ borderBottom: '1px solid var(--gc-border)' }}>
+          <h2 className="gc-page-header__title">Configurar {moduleName}</h2>
+          <p className="gc-page-header__subtitle mt-1">Personaliza el comportamiento del módulo</p>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="px-6 py-5 overflow-y-auto flex-1">
           {schema.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>{t('settings:moduleConfig.noConfig')}</p>
-            </div>
+            <p className="text-sm text-center py-8" style={{ color: 'var(--gc-muted-foreground)' }}>
+              {t('settings:moduleConfig.noConfig')}
+            </p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {schema.map(field => renderField(field))}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancel
+        <div className="px-6 py-4 flex justify-end gap-3" style={{ borderTop: '1px solid var(--gc-border)' }}>
+          <button type="button" onClick={onClose} disabled={saving} className="gc-btn gc-btn--ghost">
+            {t('common:cancel')}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
+          <button type="button" onClick={handleSave} disabled={saving} className="gc-btn gc-btn--primary">
+            {saving ? t('common:saving') : t('common:save')}
           </button>
         </div>
       </div>

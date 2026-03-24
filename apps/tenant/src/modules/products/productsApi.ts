@@ -132,6 +132,23 @@ export async function getProducto(id: string): Promise<Producto> {
   return apiFetch<Producto>(ENDPOINTS.products.get(id))
 }
 
+function buildOfflineFallback(id: string, payload: any, isUpdate = false): Producto {
+  return {
+    id,
+    tenant_id: String(payload.tenant_id || ''),
+    sku: payload.sku ?? null,
+    name: String(payload.name || ''),
+    description: payload.description ?? null,
+    price: Number(payload.price ?? 0) || 0,
+    active: Boolean(payload.active ?? true),
+    stock: Number(payload.stock ?? 0) || 0,
+    unit: String(payload.unit || 'unit'),
+    is_raw_material: Boolean(payload.is_raw_material ?? false),
+    created_at: new Date().toISOString(),
+    ...(isUpdate ? { updated_at: new Date().toISOString() } : {}),
+  }
+}
+
 export async function createProducto(data: Partial<Producto>): Promise<Producto> {
   const cleanPayload = stripOfflineMeta(data as any)
   try {
@@ -144,19 +161,7 @@ export async function createProducto(data: Partial<Producto>): Promise<Producto>
     if ((created as any)?.queued === true) {
       const tempId = createOfflineTempId('product')
       await storeEntity('product', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
-      return {
-        id: tempId,
-        tenant_id: String((cleanPayload as any).tenant_id || ''),
-        sku: (cleanPayload as any).sku ?? null,
-        name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? null,
-        price: Number((cleanPayload as any).price ?? 0) || 0,
-        active: Boolean((cleanPayload as any).active ?? true),
-        stock: Number((cleanPayload as any).stock ?? 0) || 0,
-        unit: String((cleanPayload as any).unit || 'unit'),
-        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
-        created_at: new Date().toISOString(),
-      }
+      return buildOfflineFallback(tempId, cleanPayload)
     }
 
     return created as Producto
@@ -164,19 +169,7 @@ export async function createProducto(data: Partial<Producto>): Promise<Producto>
     if (isNetworkIssue(error)) {
       const tempId = createOfflineTempId('product')
       await storeEntity('product', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
-      return {
-        id: tempId,
-        tenant_id: String((cleanPayload as any).tenant_id || ''),
-        sku: (cleanPayload as any).sku ?? null,
-        name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? null,
-        price: Number((cleanPayload as any).price ?? 0) || 0,
-        active: Boolean((cleanPayload as any).active ?? true),
-        stock: Number((cleanPayload as any).stock ?? 0) || 0,
-        unit: String((cleanPayload as any).unit || 'unit'),
-        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
-        created_at: new Date().toISOString(),
-      }
+      return buildOfflineFallback(tempId, cleanPayload)
     }
     throw error
   }
@@ -193,40 +186,14 @@ export async function updateProducto(id: string, data: Partial<Producto>): Promi
 
     if ((updated as any)?.queued === true) {
       await storeEntity('product', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
-      return {
-        id: String(id),
-        tenant_id: String((cleanPayload as any).tenant_id || ''),
-        sku: (cleanPayload as any).sku ?? null,
-        name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? null,
-        price: Number((cleanPayload as any).price ?? 0) || 0,
-        active: Boolean((cleanPayload as any).active ?? true),
-        stock: Number((cleanPayload as any).stock ?? 0) || 0,
-        unit: String((cleanPayload as any).unit || 'unit'),
-        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
+      return buildOfflineFallback(String(id), cleanPayload, true)
     }
 
     return updated as Producto
   } catch (error) {
     if (isNetworkIssue(error)) {
       await storeEntity('product', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
-      return {
-        id: String(id),
-        tenant_id: String((cleanPayload as any).tenant_id || ''),
-        sku: (cleanPayload as any).sku ?? null,
-        name: String((cleanPayload as any).name || ''),
-        description: (cleanPayload as any).description ?? null,
-        price: Number((cleanPayload as any).price ?? 0) || 0,
-        active: Boolean((cleanPayload as any).active ?? true),
-        stock: Number((cleanPayload as any).stock ?? 0) || 0,
-        unit: String((cleanPayload as any).unit || 'unit'),
-        is_raw_material: Boolean((cleanPayload as any).is_raw_material ?? false),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
+      return buildOfflineFallback(String(id), cleanPayload, true)
     }
     throw error
   }
