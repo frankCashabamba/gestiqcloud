@@ -5,9 +5,10 @@ Calcula costos de recetas y materiales necesarios para producción
 
 import math
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.company.company_settings import CompanySettings
 from app.models.core.products import Product
@@ -87,6 +88,238 @@ def _is_diesel_driver(driver: ProductionCostDriver | None) -> bool:
     ) in _LITER_LIKE_DRIVER_UNITS and _driver_has_consumption_rate(driver)
 
 
+def _compute_full_cost_from_objects(
+    recipe: Recipe,
+    cost_period: Any | None,
+    cost_lines: list[RecipeCostLine],
+    active_drivers: list[ProductionCostDriver],
+) -> dict:
+    """
+    Calcula el full cost de una receta sin hacer queries a la DB.
+    Requiere que cost_lines ya tenga la relación `driver` cargada.
+    Usa recipe.total_cost como base de materiales (ya almacenado).
+    """
+    materials_total = Decimal(str(recipe.total_cost or 0))
+    yield_qty = max(recipe.yield_qty or 1, 1)
+    materials_unit = materials_total / yield_qty
+
+    labor_total = Decimal("0")
+    diesel_total = Decimal("0")
+    electricity_total = Decimal("0")
+    other_total = Decimal("0")
+    lines_detail = []
+
+    touch_minutes = recipe.touch_minutes_standard or 0
+    oven_minutes = recipe.oven_minutes_standard or 0
+
+    if touch_minutes == 0:
+        prep_mins = getattr(recipe, "prep_time_minutes", None) or 0
+        baking_mins = getattr(recipe, "baking_time_minutes", None) or 0
+        rest_mins = getattr(recipe, "rest_time_minutes", None) or 0
+        touch_minutes = max(prep_mins - baking_mins - rest_mins, 0)
+
+    if oven_minutes == 0:
+        oven_minutes = getattr(recipe, "baking_time_minutes", None) or 0
+
+    touch_hours = Decimal(str(touch_minutes)) / Decimal("60")
+    oven_hours = Decimal(str(oven_minutes)) / Decimal("60")
+
+    for line in sorted(cost_lines, key=lambda cl: cl.line_order or 0):
+        driver = line.driver
+        if not driver:
+            continue
+        effective_rate = (
+            line.rate_override if line.rate_override is not None else driver.default_rate
+        )
+        is_labor = _is_labor_driver(driver)
+        is_electricity = _is_electricity_driver(driver)
+        is_diesel = _is_diesel_driver(driver)
+
+        qty = Decimal(str(line.qty_standard))
+        if is_labor and touch_hours > 0:
+            qty = touch_hours
+        if is_diesel and cost_period and oven_hours > 0:
+            qty = oven_hours
+        if is_electricity and cost_period and touch_hours > 0:
+            qty = touch_hours
+
+        line_cost = qty * Decimal(str(effective_rate)) * Decimal(str(line.headcount))
+
+        if is_labor:
+            labor_total += line_cost
+        elif is_diesel:
+            diesel_total += line_cost
+        elif is_electricity:
+            electricity_total += line_cost
+        else:
+            other_total += line_cost
+
+        lines_detail.append(
+            {
+                "id": str(line.id),
+                "recipe_id": str(line.recipe_id),
+                "driver_id": str(line.driver_id),
+                "qty_standard": round(float(qty), 4),
+                "headcount": line.headcount,
+                "rate_override": (
+                    float(line.rate_override) if line.rate_override is not None else None
+                ),
+                "notes": line.notes,
+                "line_order": line.line_order,
+                "created_at": line.created_at.isoformat() if line.created_at else None,
+                "driver_code": driver.code,
+                "driver_name": driver.name,
+                "driver_unit": driver.unit,
+                "driver_default_rate": float(driver.default_rate),
+                "effective_rate": float(effective_rate),
+                "line_cost": round(float(line_cost), 4),
+                "cost_category": (
+                    "labor"
+                    if is_labor
+                    else ("diesel" if is_diesel else ("electricity" if is_electricity else "other"))
+                ),
+                "_auto": True,
+            }
+        )
+
+    if cost_period:
+        if labor_total == 0 and touch_hours > 0 and cost_period.labor_hour_rate:
+            labor_total = touch_hours * Decimal(str(cost_period.labor_hour_rate))
+        if diesel_total == 0 and oven_hours > 0 and cost_period.diesel_per_oven_hour:
+            diesel_total = oven_hours * Decimal(str(cost_period.diesel_per_oven_hour))
+        if electricity_total == 0 and touch_hours > 0 and cost_period.electricity_per_hour:
+            electricity_total = touch_hours * Decimal(str(cost_period.electricity_per_hour))
+        if cost_period.diesel_per_oven_hour and oven_hours > 0:
+            diesel_total = oven_hours * Decimal(str(cost_period.diesel_per_oven_hour))
+        if cost_period.electricity_per_hour and touch_hours > 0:
+            electricity_total = touch_hours * Decimal(str(cost_period.electricity_per_hour))
+    else:
+        baking_minutes = oven_minutes or 0
+        if baking_minutes > 0 and electricity_total == 0:
+            oven_driver = next((d for d in active_drivers if _is_electricity_driver(d)), None)
+            if oven_driver:
+                oven_rate = Decimal(str(oven_driver.default_rate or 0))
+                baking_hours = Decimal(str(baking_minutes)) / Decimal("60")
+                electricity_total = baking_hours * oven_rate
+
+    labor_burden_factor = Decimal("1.0")
+    if cost_period and cost_period.labor_burden_factor:
+        labor_burden_factor = Decimal(str(cost_period.labor_burden_factor))
+    labor_with_burden = labor_total * labor_burden_factor
+
+    waste_pct_val = float(getattr(recipe, "waste_pct", None) or 0)
+    waste_cost = materials_total * Decimal(str(waste_pct_val / 100))
+    overhead_pct_val = float(getattr(recipe, "overhead_pct", None) or 0)
+    overhead_cost = materials_total * Decimal(str(overhead_pct_val / 100))
+
+    indirect_total = labor_with_burden + diesel_total + electricity_total + other_total
+    full_cost_total = materials_total + waste_cost + overhead_cost + indirect_total
+    full_cost_unit = full_cost_total / yield_qty if yield_qty > 0 else Decimal("0")
+
+    return {
+        "recipe_id": str(recipe.id),
+        "recipe_name": recipe.name,
+        "yield_qty": yield_qty,
+        "period_month": cost_period.month if cost_period else None,
+        "period_id": str(cost_period.id) if cost_period else None,
+        "materials_total": round(float(materials_total), 4),
+        "materials_unit": round(float(materials_unit), 4),
+        "waste_pct": waste_pct_val,
+        "waste_cost": round(float(waste_cost), 4),
+        "overhead_pct": overhead_pct_val,
+        "overhead_cost": round(float(overhead_cost), 4),
+        "labor_total": round(float(labor_total), 4),
+        "labor_with_burden_factor": round(float(labor_with_burden), 4),
+        "labor_burden_factor": round(float(labor_burden_factor), 4),
+        "diesel_total": round(float(diesel_total), 4),
+        "electricity_total": round(float(electricity_total), 4),
+        "other_indirect_total": round(float(other_total), 4),
+        "indirect_total": round(float(indirect_total), 4),
+        "full_cost_total": round(float(full_cost_total), 4),
+        "full_cost_unit": round(float(full_cost_unit), 4),
+        "touch_minutes": touch_minutes,
+        "oven_minutes": oven_minutes,
+        "trays_per_batch": getattr(recipe, "trays_per_batch", None),
+        "units_per_tray": getattr(recipe, "units_per_tray", None),
+        "breakdown": {
+            "materials": round(float(materials_total), 4),
+            "waste": round(float(waste_cost), 4),
+            "overhead": round(float(overhead_cost), 4),
+            "labor": round(float(labor_with_burden), 4),
+            "diesel": round(float(diesel_total), 4),
+            "electricity": round(float(electricity_total), 4),
+            "other": round(float(other_total), 4),
+        },
+        "cost_lines": lines_detail,
+    }
+
+
+def bulk_calculate_recipe_full_costs(
+    db: Session, recipe_ids: list[UUID], tenant_id: UUID
+) -> dict[str, dict | None]:
+    """
+    Calcula full costs para múltiples recetas con un mínimo de queries.
+    - 1 query para recetas
+    - 1 query para CostPeriod activo
+    - 1 query para todas las RecipeCostLines (con drivers pre-cargados)
+    - 1 query para drivers activos (fallback electricidad)
+    Sin commits — solo lectura.
+    """
+    from app.models.production._cost_periods import CostPeriod
+
+    if not recipe_ids:
+        return {}
+
+    recipes = (
+        db.query(Recipe).filter(Recipe.id.in_(recipe_ids), Recipe.tenant_id == tenant_id).all()
+    )
+    if not recipes:
+        return {}
+
+    valid_ids = [r.id for r in recipes]
+
+    cost_period = (
+        db.query(CostPeriod)
+        .filter(CostPeriod.tenant_id == tenant_id, CostPeriod.is_active)
+        .order_by(CostPeriod.month.desc())
+        .first()
+    )
+
+    cost_lines_all = (
+        db.query(RecipeCostLine)
+        .filter(RecipeCostLine.recipe_id.in_(valid_ids))
+        .options(joinedload(RecipeCostLine.driver))
+        .order_by(RecipeCostLine.line_order)
+        .all()
+    )
+    lines_by_recipe: dict[UUID, list[RecipeCostLine]] = {}
+    for cl in cost_lines_all:
+        lines_by_recipe.setdefault(cl.recipe_id, []).append(cl)
+
+    active_drivers = (
+        db.query(ProductionCostDriver)
+        .filter(
+            ProductionCostDriver.tenant_id == tenant_id,
+            ProductionCostDriver.is_active.is_(True),
+        )
+        .all()
+    )
+
+    results: dict[str, dict | None] = {}
+    for recipe in recipes:
+        try:
+            results[str(recipe.id)] = _compute_full_cost_from_objects(
+                recipe=recipe,
+                cost_period=cost_period,
+                cost_lines=lines_by_recipe.get(recipe.id, []),
+                active_drivers=active_drivers,
+            )
+        except Exception:
+            results[str(recipe.id)] = None
+
+    return results
+
+
 def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bool = True) -> dict:
     """
     Calcula costo total de receta con desglose detallado
@@ -125,13 +358,19 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bo
     # Obtener ingredientes
     ingredientes = db.query(RecipeIngredient).filter(RecipeIngredient.recipe_id == recipe_id).all()
 
+    # Pre-cargar productos en una sola query (evita N+1)
+    product_ids = [ing.product_id for ing in ingredientes if ing.product_id]
+    product_map: dict[UUID, Product] = {}
+    if product_ids:
+        product_map = {p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()}
+
     # Calcular costo total sumando todos los ingredientes
     # Los costos individuales ya están calculados por la columna GENERATED
     desglose = []
     costo_total = Decimal("0")
 
     for ing in ingredientes:
-        producto = db.query(Product).filter(Product.id == ing.product_id).first()
+        producto = product_map.get(ing.product_id)
 
         # costo_ingrediente ya está calculado por la columna GENERATED
         costo_ing = Decimal(str(ing.ingredient_cost or 0))

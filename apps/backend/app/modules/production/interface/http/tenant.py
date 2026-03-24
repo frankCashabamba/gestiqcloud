@@ -102,6 +102,7 @@ from app.schemas.recipes import (
 from app.services.cost_periods_service import CostPeriodsService
 from app.services.product_raw_materials import sync_product_as_raw_material_from_recipe_line
 from app.services.recipe_calculator import (
+    bulk_calculate_recipe_full_costs,
     calculate_production_time,
     calculate_purchase_for_production,
     calculate_recipe_cost,
@@ -2277,28 +2278,13 @@ def bulk_recipe_full_costs(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    """Return full-cost summaries for multiple recipes in a single request."""
+    """Return full-cost summaries for multiple recipes in a single request.
+
+    Usa bulk_calculate_recipe_full_costs: 4 queries totales sin importar
+    cuántas recetas haya (vs el loop anterior que hacía N×commits).
+    """
     tenant_id = UUID(claims["tenant_id"])
-    # Validate all recipes belong to tenant
-    valid_ids = {
-        r.id
-        for r in db.query(Recipe.id)
-        .filter(Recipe.id.in_(recipe_ids), Recipe.tenant_id == tenant_id)
-        .all()
-    }
-    results = {}
-    for rid in recipe_ids:
-        if rid not in valid_ids:
-            continue
-        try:
-            calculate_recipe_cost(db, rid)
-        except Exception:
-            pass
-        try:
-            results[str(rid)] = calculate_recipe_full_cost(db, rid)
-        except Exception:
-            results[str(rid)] = None
-    return results
+    return bulk_calculate_recipe_full_costs(db, recipe_ids, tenant_id)
 
 
 # ============================================================================
