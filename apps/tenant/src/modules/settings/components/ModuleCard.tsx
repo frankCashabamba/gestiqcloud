@@ -44,7 +44,7 @@ export default function ModuleCard({ module, onToggle, onClick, disabled = false
       <div className="absolute top-3 right-3 flex items-center gap-2">
         {module.required && (
           <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-            Requerido
+            {t('settings:modules.required')}
           </span>
         )}
         <span
@@ -82,7 +82,7 @@ export default function ModuleCard({ module, onToggle, onClick, disabled = false
               key={dep}
               className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full border border-gray-200"
             >
-              Depende de: {dep}
+              {t('settings:modules.dependsOn', { dep })}
             </span>
           ))}
         </div>
@@ -91,7 +91,7 @@ export default function ModuleCard({ module, onToggle, onClick, disabled = false
       {/* Toggle */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
         <div className="text-sm text-gray-700">
-          {module.enabled ? 'Desactivar' : 'Activar'}
+          {module.enabled ? t('settings:modules.disableToggle') : t('settings:modules.enableToggle')}
         </div>
         <button
           onClick={handleToggle}

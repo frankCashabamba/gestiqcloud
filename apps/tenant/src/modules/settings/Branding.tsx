@@ -26,14 +26,18 @@ export default function BrandingSettings() {
 
   const logoPreview = toAbsoluteAssetUrl(form.logoUrl)
 
+  function invalidateTheme() {
+    invalidateCompanyThemeCache(empresa)
+    window.dispatchEvent(new Event('gc-theme-updated'))
+  }
+
   async function onSelectLogo(file?: File | null) {
     if (!file) return
     try {
       setUploadingLogo(true)
       const logoPath = await uploadBrandingLogo(file)
       setForm((prev) => ({ ...prev, logoUrl: logoPath }))
-      invalidateCompanyThemeCache(empresa)
-      window.dispatchEvent(new Event('gc-theme-updated'))
+      invalidateTheme()
       success(t('settings:branding.logoUploaded'))
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -46,8 +50,7 @@ export default function BrandingSettings() {
     try {
       setSaving(true)
       await saveBranding(form)
-      invalidateCompanyThemeCache(empresa)
-      window.dispatchEvent(new Event('gc-theme-updated'))
+      invalidateTheme()
       success(t('settings:branding.saved'))
     } catch (e: any) {
       error(getErrorMessage(e))

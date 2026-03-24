@@ -61,3 +61,15 @@ export async function updateNotificationChannel(
   )
   return fromApiChannel(data)
 }
+
+export async function generateTelegramSecret(): Promise<string> {
+  const { data } = await tenantApi.post<{ secret: string }>('/api/v1/telegram/generate-secret', {})
+  return data.secret
+}
+
+export async function registerTelegramWebhook(customBaseUrl?: string): Promise<string> {
+  const body: Record<string, string> = {}
+  if (customBaseUrl) body.custom_base_url = customBaseUrl
+  const { data } = await tenantApi.post<{ webhook_url: string }>('/api/v1/telegram/register-webhook', body)
+  return data.webhook_url
+}

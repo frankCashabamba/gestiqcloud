@@ -6,15 +6,18 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.core.einvoicing import SRISubmission
 from app.models.core.facturacion import Invoice
 from app.modules.einvoicing.application.facturae_xml import generate_facturae_xml
 from app.modules.einvoicing.application.sii_service import SIIService
+from app.modules.einvoicing.application.sri_service import SRIService
 
 router = APIRouter(
     prefix="/einvoicing",
@@ -251,6 +254,150 @@ async def get_einvoice_status(
         accepted_at=status_info.get("accepted_at"),
         retry_count=status_info.get("retry_count", 0),
         next_retry_at=status_info.get("next_retry_at"),
+    )
+
+
+# ============================================================================
+# SRI Ecuador — Endpoints
+# ============================================================================
+
+
+class SRIStatusResponse(BaseModel):
+    """Estado de envío SRI Ecuador."""
+
+    submission_id: UUID
+    invoice_id: UUID
+    status: str
+    clave_acceso: str | None = None
+    authorization_number: str | None = None
+    error_message: str | None = None
+    created_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class SendSRIRequest(BaseModel):
+    """Solicitud para enviar invoice al SRI Ecuador."""
+
+    invoice_id: UUID
+    env: str = "sandbox"
+
+
+@router.post("/sri/send", status_code=status.HTTP_202_ACCEPTED)
+async def send_invoice_to_sri(
+    request: SendSRIRequest,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> dict:
+    """
+    Encola la firma y envío del invoice al SRI Ecuador.
+    Retorna inmediatamente con el task_id de Celery.
+
+    Body: { "invoice_id": "uuid", "env": "sandbox"|"production" }
+    """
+    tenant_id = claims["tenant_id"]
+
+    invoice = db.get(Invoice, request.invoice_id)
+    if not invoice or str(invoice.tenant_id) != str(tenant_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    # Validar que tiene configuración SRI
+    try:
+        from uuid import UUID as _UUID
+
+        SRIService.get_settings(db, _UUID(str(tenant_id)), "EC")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    try:
+        from app.workers.einvoicing_tasks import sign_and_send_sri_task
+
+        task = sign_and_send_sri_task.delay(str(request.invoice_id), str(tenant_id), request.env)
+        return {"task_id": task.id, "status": "queued", "invoice_id": str(request.invoice_id)}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/sri/{invoice_id}/status", response_model=SRIStatusResponse)
+async def get_sri_status(
+    invoice_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> SRIStatusResponse:
+    """
+    Obtiene el estado de la última submission SRI para el invoice indicado.
+    Incluye clave_acceso y número de autorización si ya fue autorizado.
+    """
+    tenant_id = claims["tenant_id"]
+
+    submission = db.execute(
+        select(SRISubmission)
+        .where(
+            SRISubmission.invoice_id == invoice_id,
+            SRISubmission.tenant_id == tenant_id,
+        )
+        .order_by(SRISubmission.created_at.desc())
+    ).scalar_one_or_none()
+
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No SRI submission found for this invoice",
+        )
+
+    return SRIStatusResponse(
+        submission_id=submission.id,
+        invoice_id=submission.invoice_id,
+        status=submission.status,
+        clave_acceso=submission.receipt_number,
+        authorization_number=submission.authorization_number,
+        error_message=submission.error_message,
+        created_at=submission.created_at,
+    )
+
+
+@router.get("/sri/{invoice_id}/ride")
+async def download_ride_xml(
+    invoice_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> Response:
+    """
+    Descargar el RIDE XML autorizado del SRI.
+    Solo disponible cuando status = AUTHORIZED.
+    """
+    tenant_id = claims["tenant_id"]
+
+    submission = db.execute(
+        select(SRISubmission)
+        .where(
+            SRISubmission.invoice_id == invoice_id,
+            SRISubmission.tenant_id == tenant_id,
+            SRISubmission.status == "AUTHORIZED",
+        )
+        .order_by(SRISubmission.created_at.desc())
+    ).scalar_one_or_none()
+
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RIDE no disponible: el comprobante no ha sido autorizado aún",
+        )
+
+    # Usar el XML autorizado si lo tenemos (response), si no el payload firmado
+    xml_content = submission.response or submission.payload
+    if not xml_content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="XML del comprobante no disponible",
+        )
+
+    filename = f"RIDE-{submission.receipt_number or invoice_id}.xml"
+    return Response(
+        content=xml_content.encode("utf-8") if isinstance(xml_content, str) else xml_content,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

@@ -6,14 +6,14 @@ export async function getGeneral(): Promise<SettingsGeneral> {
   const { data } = await tenantApi.get<any>(TENANT_SETTINGS.general)
   return {
     razon_social: data?.company_name || data?.razon_social || data?.name || '',
-    tax_id: data?.tax_id || data?.ruc || '',
+    tax_id: data?.tax_id || '',
     address: data?.address || data?.direccion || '',
   }
 }
 export async function saveGeneral(payload: SettingsGeneral) {
   await tenantApi.put(TENANT_SETTINGS.general, {
     company_name: payload.razon_social,
-    tax_id: payload.tax_id || payload.ruc,
+    tax_id: payload.tax_id,
     address: payload.address || payload.direccion,
   })
 }

@@ -1,46 +1,10 @@
 import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useSettingsAccess, type SettingsSection } from './useSettingsAccess'
+import { useSettingsAccess } from './useSettingsAccess'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
-
-type Card = {
-  key: SettingsSection
-  labelKey: string
-  descKey: string
-  path: string
-}
-
-const GROUPS: { titleKey: string; items: Card[] }[] = [
-  {
-    titleKey: 'settings:groups.company',
-    items: [
-      { key: 'general', labelKey: 'settings:cards.general.label', descKey: 'settings:cards.general.desc', path: 'general' },
-      { key: 'branding', labelKey: 'settings:cards.branding.label', descKey: 'settings:cards.branding.desc', path: 'branding' },
-      { key: 'fiscal', labelKey: 'settings:cards.fiscal.label', descKey: 'settings:cards.fiscal.desc', path: 'fiscal' },
-    ],
-  },
-  {
-    titleKey: 'settings:groups.operation',
-    items: [
-      { key: 'operativo', labelKey: 'settings:cards.operativo.label', descKey: 'settings:cards.operativo.desc', path: 'operativo' },
-      { key: 'horarios', labelKey: 'settings:cards.horarios.label', descKey: 'settings:cards.horarios.desc', path: 'horarios' },
-    ],
-  },
-  {
-    titleKey: 'settings:groups.communications',
-    items: [
-      { key: 'notificaciones', labelKey: 'settings:cards.notificaciones.label', descKey: 'settings:cards.notificaciones.desc', path: 'notificaciones' },
-    ],
-  },
-  {
-    titleKey: 'settings:groups.planControl',
-    items: [
-      { key: 'modulos', labelKey: 'settings:cards.modulos.label', descKey: 'settings:cards.modulos.desc', path: 'modulos' },
-    ],
-  },
-]
+import { SETTINGS_SECTIONS, SECTION_GROUPS } from './sections'
 
 export default function SettingsHome() {
   const { t } = useTranslation(['settings', 'common'])
@@ -48,11 +12,18 @@ export default function SettingsHome() {
   const { canAccessSection } = useSettingsAccess()
 
   const groups = useMemo(() => {
-    return GROUPS.map((group) => ({
-      ...group,
-      items: group.items.filter((item) => canAccessSection(item.key)),
+    return SECTION_GROUPS.map((group) => ({
+      titleKey: group.titleKey,
+      items: SETTINGS_SECTIONS.filter(
+        (s) => s.group === group.key && canAccessSection(s.key)
+      ).map((s) => ({
+        key: s.key,
+        path: s.path,
+        labelKey: `settings:cards.${s.key}.label`,
+        descKey: `settings:cards.${s.key}.desc`,
+      })),
     })).filter((group) => group.items.length > 0)
-  }, [canAccessSection, t])
+  }, [canAccessSection])
 
   if (!can('settings:read')) {
     return <PermissionDenied permission="settings:read" />

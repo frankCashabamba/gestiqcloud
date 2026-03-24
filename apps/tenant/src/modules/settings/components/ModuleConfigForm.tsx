@@ -14,47 +14,47 @@ interface ModuleConfigFormProps {
   onClose: () => void
 }
 
-// Configuraciones específicas por módulo
+// Configuraciones específicas por módulo — todos usan labelKey para i18n
 const MODULE_SCHEMAS: Record<string, any[]> = {
   pos: [
-    { key: 'ticket_width_mm', label: 'Ancho de Ticket (mm)', type: 'select', options: [58, 80], default: 58 },
+    { key: 'ticket_width_mm', labelKey: 'settings:moduleConfig.ticketWidth', type: 'select', options: [58, 80], default: 58 },
     { key: 'price_includes_tax', labelKey: 'settings:moduleConfig.priceIncludesTax', type: 'boolean', default: true },
-    { key: 'return_window_days', label: 'Días para devoluciones', type: 'number', default: 15 },
-    { key: 'allow_negative_stock', label: 'Permitir stock negativo', type: 'boolean', default: false },
+    { key: 'return_window_days', labelKey: 'settings:moduleConfig.returnWindowDays', type: 'number', default: 15 },
+    { key: 'allow_negative_stock', labelKey: 'settings:moduleConfig.allowNegativeStock', type: 'boolean', default: false },
     { key: 'auto_print', labelKey: 'settings:moduleConfig.autoPrint', type: 'boolean', default: false },
   ],
   inventory: [
-    { key: 'track_lots', label: 'Gestionar lotes', type: 'boolean', default: false },
-    { key: 'track_expiry', label: 'Gestionar caducidad', type: 'boolean', default: false },
-    { key: 'allow_negative', label: 'Permitir stock negativo', type: 'boolean', default: false },
-    { key: 'multi_warehouse', label: 'Multi-almacén', type: 'boolean', default: false },
-    { key: 'min_stock_alert', label: 'Stock mínimo para alertas', type: 'number', default: 10 },
+    { key: 'track_lots', labelKey: 'settings:moduleConfig.trackLots', type: 'boolean', default: false },
+    { key: 'track_expiry', labelKey: 'settings:moduleConfig.trackExpiry', type: 'boolean', default: false },
+    { key: 'allow_negative', labelKey: 'settings:moduleConfig.allowNegative', type: 'boolean', default: false },
+    { key: 'multi_warehouse', labelKey: 'settings:moduleConfig.multiWarehouse', type: 'boolean', default: false },
+    { key: 'min_stock_alert', labelKey: 'settings:moduleConfig.minStockAlert', type: 'number', default: 10 },
   ],
   invoicing: [
-    { key: 'default_series', label: 'Serie por defecto', type: 'text', default: 'F' },
-    { key: 'auto_number', label: 'Numeración automática', type: 'boolean', default: true },
+    { key: 'default_series', labelKey: 'settings:moduleConfig.defaultSeries', type: 'text', default: 'F' },
+    { key: 'auto_number', labelKey: 'settings:moduleConfig.autoNumber', type: 'boolean', default: true },
     { key: 'include_logo', labelKey: 'settings:moduleConfig.includeLogo', type: 'boolean', default: true },
-    { key: 'payment_terms_days', label: 'Plazo de pago (días)', type: 'number', default: 30 },
+    { key: 'payment_terms_days', labelKey: 'settings:moduleConfig.paymentTermsDays', type: 'number', default: 30 },
   ],
   einvoicing: [
-    { key: 'auto_send', label: 'Envío automático a SRI/AEAT', type: 'boolean', default: false },
-    { key: 'cert_uploaded', label: 'Certificado digital cargado', type: 'boolean', default: false, readonly: true },
-    { key: 'test_mode', label: 'Modo de pruebas', type: 'boolean', default: true },
+    { key: 'auto_send', labelKey: 'settings:moduleConfig.autoSend', type: 'boolean', default: false },
+    { key: 'cert_uploaded', labelKey: 'settings:moduleConfig.certUploaded', type: 'boolean', default: false, readonly: true },
+    { key: 'test_mode', labelKey: 'settings:moduleConfig.testMode', type: 'boolean', default: true },
   ],
   crm: [
     { key: 'auto_assign', labelKey: 'settings:moduleConfig.autoAssignCustomers', type: 'boolean', default: false },
-    { key: 'lead_score', label: 'Scoring de leads', type: 'boolean', default: true },
-    { key: 'email_notifications', label: 'Notificaciones por email', type: 'boolean', default: true },
+    { key: 'lead_score', labelKey: 'settings:moduleConfig.leadScore', type: 'boolean', default: true },
+    { key: 'email_notifications', labelKey: 'settings:moduleConfig.emailNotifications', type: 'boolean', default: true },
   ],
   purchases: [
-    { key: 'approval_required', label: 'Requiere aprobación', type: 'boolean', default: true },
-    { key: 'min_approval_amount', label: 'Monto mínimo para aprobación', type: 'number', default: 1000 },
+    { key: 'approval_required', labelKey: 'settings:moduleConfig.approvalRequired', type: 'boolean', default: true },
+    { key: 'min_approval_amount', labelKey: 'settings:moduleConfig.minApprovalAmount', type: 'number', default: 1000 },
     { key: 'auto_create_po', labelKey: 'settings:moduleConfig.autoCreateOrder', type: 'boolean', default: false },
   ],
   expenses: [
-    { key: 'require_receipt', label: 'Comprobante obligatorio', type: 'boolean', default: true },
-    { key: 'approval_workflow', label: 'Flujo de aprobación', type: 'boolean', default: true },
-    { key: 'categories_required', label: 'Categorías obligatorias', type: 'boolean', default: true },
+    { key: 'require_receipt', labelKey: 'settings:moduleConfig.requireReceipt', type: 'boolean', default: true },
+    { key: 'approval_workflow', labelKey: 'settings:moduleConfig.approvalWorkflow', type: 'boolean', default: true },
+    { key: 'categories_required', labelKey: 'settings:moduleConfig.categoriesRequired', type: 'boolean', default: true },
   ],
 }
 
@@ -81,7 +81,7 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
     try {
       setSaving(true)
       await onSave(moduleId, formData)
-      success(`Configuración de ${moduleName} guardada`)
+      success(t('settings:moduleConfig.saved', { moduleName }))
       onClose()
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -160,8 +160,8 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
       <div className="gc-card w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
         {/* Header */}
         <div className="px-6 py-5" style={{ borderBottom: '1px solid var(--gc-border)' }}>
-          <h2 className="gc-page-header__title">Configurar {moduleName}</h2>
-          <p className="gc-page-header__subtitle mt-1">Personaliza el comportamiento del módulo</p>
+          <h2 className="gc-page-header__title">{t('settings:moduleConfig.title', { moduleName })}</h2>
+          <p className="gc-page-header__subtitle mt-1">{t('settings:moduleConfig.subtitle')}</p>
         </div>
 
         {/* Body */}

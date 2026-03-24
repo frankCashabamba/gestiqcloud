@@ -4,7 +4,7 @@ import tenantApi from '../../shared/api/client'
 import { clearCompanySettingsCache, getCompanySettings } from '../../services/companySettings'
 import { listRecipes, type Recipe } from '../../services/api/recetas'
 import { getErrorMessage, useToast } from '../../shared/toast'
-import { useAuth } from '../../auth/AuthContext'
+import { useSettingsAccess } from './useSettingsAccess'
 import { NUMBERING_DEFAULTS, resetToDefaults } from '../../constants/defaults'
 import { useDocTypes } from '../../hooks/useGlobalCatalogs'
 import {
@@ -64,12 +64,7 @@ type BulkPricingProductOption = {
 export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettingsProps) {
     const { t } = useTranslation(['settings', 'common'])
     const { success, error } = useToast()
-    const { profile } = useAuth()
-    const isCompanyAdmin = Boolean(
-        (profile as any)?.is_company_admin ||
-        (profile as any)?.is_company_admi ||
-        profile?.es_admin_empresa
-    )
+    const { isCompanyAdmin } = useSettingsAccess()
     const isAdminView = variant === 'admin'
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)

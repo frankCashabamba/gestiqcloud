@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { getErrorMessage, useToast } from '../../shared/toast'
 import {
   createNotificationChannel,
+  generateTelegramSecret,
   listNotificationChannels,
+  registerTelegramWebhook,
   updateNotificationChannel,
 } from './notificationsService'
 import type { NotificationChannelCreate, NotificationChannelType } from './types'
@@ -59,24 +61,6 @@ const DEFAULT_TELEGRAM: ChannelState = {
   },
 }
 
-// Elimina sufijo /api o /api/v1 que algunos entornos añaden a VITE_API_URL
-const API_BASE = (import.meta.env.VITE_API_URL ?? 'https://api.gestiqcloud.com').replace(/\/api(\/v\d+)?\/?$/, '')
-
-function buildWebhookUrl(tenantId: string) {
-  return `${API_BASE}/api/v1/telegram/webhook/${tenantId}`
-}
-
-async function apiPost(path: string, body: unknown) {
-  const res = await fetch(`${API_BASE}/api/v1${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.detail ?? 'Error')
-  return data
-}
 
 export default function NotificacionesSettings() {
   const { t } = useTranslation(['settings', 'common'])
@@ -165,7 +149,7 @@ export default function NotificacionesSettings() {
       }
 
       await loadChannels()
-      success('Canal guardado correctamente')
+      success(t('settings:notifications.channelSaved'))
     } catch (err: any) {
       error(getErrorMessage(err))
     } finally {
@@ -175,10 +159,10 @@ export default function NotificacionesSettings() {
 
   const generateSecret = async () => {
     try {
-      const data = await apiPost('/telegram/generate-secret', {})
+      const secret = await generateTelegramSecret()
       setTelegramChannel((prev) => ({
         ...prev,
-        config: { ...prev.config, webhook_secret: data.secret },
+        config: { ...prev.config, webhook_secret: secret },
       }))
     } catch (err: any) {
       error(getErrorMessage(err))
@@ -189,12 +173,10 @@ export default function NotificacionesSettings() {
     try {
       setActivating(true)
       setBotStatus('idle')
-      const body: Record<string, string> = {}
-      if (tunnelUrl.trim()) body.custom_base_url = tunnelUrl.trim()
-      const data = await apiPost('/telegram/register-webhook', body)
+      const webhookUrl = await registerTelegramWebhook(tunnelUrl.trim() || undefined)
       setBotStatus('ok')
-      setBotStatusMsg(data.webhook_url)
-      success('Bot activado correctamente')
+      setBotStatusMsg(webhookUrl)
+      success(t('settings:notifications.botActivated'))
     } catch (err: any) {
       setBotStatus('error')
       setBotStatusMsg(getErrorMessage(err))
@@ -206,12 +188,12 @@ export default function NotificacionesSettings() {
 
   return (
     <div className="p-4" style={{ maxWidth: 920 }}>
-      <h2 className="font-semibold text-lg mb-2">Notificaciones</h2>
+      <h2 className="font-semibold text-lg mb-2">{t('settings:notifications.title')}</h2>
       <p className="text-sm text-slate-600 mb-6">
-        Configura canales para alertas y avisos. Los datos se guardan por tenant.
+        {t('settings:notifications.subtitle')}
       </p>
 
-      {loading && <div className="text-sm text-slate-500 mb-4">Loading configuration...</div>}
+      {loading && <div className="text-sm text-slate-500 mb-4">{t('settings:notifications.loading')}</div>}
 
       <section className="border rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -222,7 +204,7 @@ export default function NotificacionesSettings() {
               checked={emailChannel.active}
               onChange={(e) => setEmailChannel({ ...emailChannel, active: e.target.checked })}
             />
-            Active
+            {t('settings:notifications.active')}
           </label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -305,7 +287,7 @@ export default function NotificacionesSettings() {
                   })
                 }
               />
-              Usar TLS
+              {t('settings:notifications.useTls')}
             </label>
           </div>
         </div>
@@ -314,7 +296,7 @@ export default function NotificacionesSettings() {
           onClick={() => saveChannel('email', emailChannel)}
           disabled={saving === 'email'}
         >
-          Save Email
+          {saving === 'email' ? t('common:saving') : t('settings:notifications.saveEmail')}
         </button>
       </section>
 
@@ -327,7 +309,7 @@ export default function NotificacionesSettings() {
               checked={whatsappChannel.active}
               onChange={(e) => setWhatsappChannel({ ...whatsappChannel, active: e.target.checked })}
             />
-            Active
+            {t('settings:notifications.active')}
           </label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -428,7 +410,7 @@ export default function NotificacionesSettings() {
           onClick={() => saveChannel('whatsapp', whatsappChannel)}
           disabled={saving === 'whatsapp'}
         >
-          Save WhatsApp
+          {saving === 'whatsapp' ? t('common:saving') : t('settings:notifications.saveWhatsapp')}
         </button>
       </section>
 
@@ -441,7 +423,7 @@ export default function NotificacionesSettings() {
               checked={telegramChannel.active}
               onChange={(e) => setTelegramChannel({ ...telegramChannel, active: e.target.checked })}
             />
-            Active
+            {t('settings:notifications.active')}
           </label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -618,16 +600,16 @@ export default function NotificacionesSettings() {
             )}
           </div>
 
-          {botStatus === 'ok' && telegramChannel.tenant_id && (
+          {botStatus === 'ok' && botStatusMsg && (
             <div className="mt-3 flex items-center gap-2">
               <code className="flex-1 bg-slate-50 border rounded px-3 py-2 text-xs font-mono break-all text-slate-600">
-                {botStatusMsg || buildWebhookUrl(telegramChannel.tenant_id)}
+                {botStatusMsg}
               </code>
               <button
                 type="button"
                 className="shrink-0 border px-3 py-2 rounded text-sm hover:bg-slate-50"
                 onClick={() => {
-                  navigator.clipboard.writeText(botStatusMsg || buildWebhookUrl(telegramChannel.tenant_id!))
+                  navigator.clipboard.writeText(botStatusMsg)
                   setCopiedUrl(true)
                   setTimeout(() => setCopiedUrl(false), 2000)
                 }}
@@ -643,7 +625,7 @@ export default function NotificacionesSettings() {
           onClick={() => saveChannel('telegram', telegramChannel)}
           disabled={saving === 'telegram'}
         >
-          Guardar Telegram
+          {saving === 'telegram' ? t('common:saving') : t('settings:notifications.saveTelegram')}
         </button>
       </section>
     </div>

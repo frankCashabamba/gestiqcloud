@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useToast } from '../../shared/toast'
 import api from '../../services/api/client'
 
 interface ReceiptConfig {
@@ -10,17 +12,17 @@ interface ReceiptConfig {
   custom_footer: string
 }
 
-const DEFAULT_CONFIG: ReceiptConfig = {
-  footer_message: '¡Gracias por su compra!',
-  show_tax_breakdown: true,
-  show_cashier: true,
-  show_customer: true,
-  custom_header: '',
-  custom_footer: '',
-}
-
 export default function ReceiptTemplateSettings() {
-  const [config, setConfig] = useState<ReceiptConfig>(DEFAULT_CONFIG)
+  const { t } = useTranslation(['settings', 'common'])
+  const { error: showError } = useToast()
+  const [config, setConfig] = useState<ReceiptConfig>({
+    footer_message: t('settings:receipt.defaultFooter'),
+    show_tax_breakdown: true,
+    show_cashier: true,
+    show_customer: true,
+    custom_header: '',
+    custom_footer: '',
+  })
   const [paperWidthMm, setPaperWidthMm] = useState<number | ''>(80)
   const [preview, setPreview] = useState('')
   const [loadingPreview, setLoadingPreview] = useState(false)
@@ -34,7 +36,7 @@ export default function ReceiptTemplateSettings() {
       api.get('/api/v1/company/settings').catch(() => null),
     ]).then(([receiptRes, settingsRes]) => {
       if (cancelled) return
-      if (receiptRes) setConfig({ ...DEFAULT_CONFIG, ...receiptRes.data })
+      if (receiptRes) setConfig((prev) => ({ ...prev, ...receiptRes.data }))
       const w = settingsRes?.data?.pos_config?.receipt?.width_mm
       if (w != null && Number.isFinite(Number(w))) setPaperWidthMm(Number(w))
     })
@@ -46,7 +48,7 @@ export default function ReceiptTemplateSettings() {
     setLoadingPreview(true)
     api.get('/api/v1/tenant/printing/receipt-preview')
       .then((res) => { if (!cancelled) setPreview(res.data.preview || '') })
-      .catch(() => { if (!cancelled) setPreview('Error al generar preview') })
+      .catch(() => { if (!cancelled) setPreview('') })
       .finally(() => { if (!cancelled) setLoadingPreview(false) })
     return () => { cancelled = true }
   }, [])
@@ -74,7 +76,7 @@ export default function ReceiptTemplateSettings() {
       setSaved(true)
       setTimeout(() => refreshPreview(), 300)
     } catch {
-      // keep error silent — user sees no change
+      showError(t('settings:receipt.errorSave'))
     } finally {
       setSaving(false)
     }
@@ -83,17 +85,14 @@ export default function ReceiptTemplateSettings() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Ticket POS</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Configura el ancho del papel y el formato del ticket que se imprime al finalizar una venta.
-        </p>
+        <h2 className="text-lg font-semibold">{t('settings:receipt.title')}</h2>
+        <p className="text-sm text-slate-500 mt-1">{t('settings:receipt.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Formulario de configuración */}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Ancho del papel (mm)</label>
+            <label className="block text-sm font-medium mb-1">{t('settings:receipt.paperWidth')}</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -103,49 +102,48 @@ export default function ReceiptTemplateSettings() {
                 max={120}
                 onChange={(e) => setPaperWidthMm(e.target.value === '' ? '' : Number(e.target.value))}
               />
-              <span className="text-xs text-slate-500">Típico: 58 mm o 80 mm según tu impresora</span>
+              <span className="text-xs text-slate-500">{t('settings:receipt.paperWidthHint')}</span>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Mensaje de pie de página</label>
+            <label className="block text-sm font-medium mb-1">{t('settings:receipt.footerMessage')}</label>
             <input
               type="text"
               className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={config.footer_message}
               maxLength={80}
               onChange={(e) => handleChange('footer_message', e.target.value)}
-              placeholder="¡Gracias por su compra!"
+              placeholder={t('settings:receipt.defaultFooter')}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Encabezado personalizado (opcional)</label>
+            <label className="block text-sm font-medium mb-1">{t('settings:receipt.customHeader')}</label>
             <input
               type="text"
               className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={config.custom_header}
               maxLength={80}
               onChange={(e) => handleChange('custom_header', e.target.value)}
-              placeholder="Ej: Promoción: 2x1 en bebidas"
+              placeholder={t('settings:receipt.customHeaderPlaceholder')}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Nota adicional al pie (opcional)</label>
+            <label className="block text-sm font-medium mb-1">{t('settings:receipt.customFooter')}</label>
             <textarea
               className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={2}
               value={config.custom_footer}
               maxLength={160}
               onChange={(e) => handleChange('custom_footer', e.target.value)}
-              placeholder="Ej: Válido 30 días para cambios con factura"
+              placeholder={t('settings:receipt.customFooterPlaceholder')}
             />
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium mb-2">Información a mostrar</legend>
-
+            <legend className="text-sm font-medium mb-2">{t('settings:receipt.infoToShow')}</legend>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
@@ -153,9 +151,8 @@ export default function ReceiptTemplateSettings() {
                 onChange={(e) => handleChange('show_tax_breakdown', e.target.checked)}
                 className="accent-blue-600"
               />
-              Mostrar desglose de IVA
+              {t('settings:receipt.showTaxBreakdown')}
             </label>
-
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
@@ -163,9 +160,8 @@ export default function ReceiptTemplateSettings() {
                 onChange={(e) => handleChange('show_cashier', e.target.checked)}
                 className="accent-blue-600"
               />
-              Mostrar nombre del cajero
+              {t('settings:receipt.showCashier')}
             </label>
-
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
@@ -173,7 +169,7 @@ export default function ReceiptTemplateSettings() {
                 onChange={(e) => handleChange('show_customer', e.target.checked)}
                 className="accent-blue-600"
               />
-              Mostrar nombre del cliente (si aplica)
+              {t('settings:receipt.showCustomer')}
             </label>
           </fieldset>
 
@@ -183,26 +179,23 @@ export default function ReceiptTemplateSettings() {
               disabled={saving}
               className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              {saving ? 'Guardando...' : 'Guardar configuración'}
+              {saving ? t('settings:receipt.saving') : t('settings:receipt.save')}
             </button>
-            {saved && (
-              <span className="text-sm text-green-600">✓ Guardado</span>
-            )}
+            {saved && <span className="text-sm text-green-600">{t('settings:receipt.saved')}</span>}
             <button
               onClick={refreshPreview}
               disabled={loadingPreview}
               className="px-3 py-2 border rounded text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             >
-              Actualizar preview
+              {t('settings:receipt.refreshPreview')}
             </button>
           </div>
         </div>
 
-        {/* Preview del ticket */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Vista previa</span>
-            {loadingPreview && <span className="text-xs text-slate-400">Actualizando...</span>}
+            <span className="text-sm font-medium">{t('settings:receipt.preview')}</span>
+            {loadingPreview && <span className="text-xs text-slate-400">{t('settings:receipt.previewUpdating')}</span>}
           </div>
           <div
             className="bg-white border-2 border-dashed border-slate-300 rounded p-3 overflow-x-auto"
@@ -212,12 +205,12 @@ export default function ReceiptTemplateSettings() {
               className="text-xs leading-snug font-mono whitespace-pre text-slate-800"
               style={{ fontSize: 10, lineHeight: '1.4' }}
             >
-              {loadingPreview ? 'Cargando...' : preview || 'Sin preview disponible'}
+              {loadingPreview
+                ? t('settings:receipt.previewLoading')
+                : preview || t('settings:receipt.previewEmpty')}
             </pre>
           </div>
-          <p className="text-xs text-slate-400 mt-2">
-            El preview usa datos de ejemplo. El ticket real muestra los datos reales de la venta.
-          </p>
+          <p className="text-xs text-slate-400 mt-2">{t('settings:receipt.previewHint')}</p>
         </div>
       </div>
     </div>
