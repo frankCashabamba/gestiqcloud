@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
+import { BackButton } from '@ui'
 import {
   createSubscription,
   deleteSubscription,
@@ -10,6 +12,7 @@ import {
 } from './services'
 
 export default function SubscriptionsList() {
+  const nav = useNavigate()
   const { t } = useTranslation()
   const { success, error: showError } = useToast()
   const [loading, setLoading] = useState(true)
@@ -59,6 +62,7 @@ export default function SubscriptionsList() {
 
   return (
     <div className="p-6 space-y-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t('webhooks.title')}</h1>
         <button

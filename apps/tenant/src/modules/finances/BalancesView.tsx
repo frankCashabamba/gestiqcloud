@@ -4,6 +4,7 @@ import type { SaldosResumen } from './types'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { BackButton } from '@ui'
 
 export default function SaldosView() {
   const { t } = useTranslation(['finances', 'common'])
@@ -51,6 +52,7 @@ export default function SaldosView() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-4">
         <div>
           <h2 className="text-2xl font-semibold">{t('finances:balances.title')}</h2>

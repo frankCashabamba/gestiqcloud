@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getCompra, recibirCompra, type Compra } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import StatusBadge from '../sales/components/StatusBadge'
+import { BackButton } from '@ui'
 
 function fmt(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -57,9 +58,7 @@ export default function CompraDetail() {
 
   return (
     <div className="p-4 max-w-4xl">
-      <button className="mb-4 text-sm text-blue-600 hover:underline flex items-center gap-1" onClick={() => nav('..')}>
-        ← {t('purchases:detail.backToList')}
-      </button>
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
 
       <div className="flex justify-between items-start mb-5">
         <div>

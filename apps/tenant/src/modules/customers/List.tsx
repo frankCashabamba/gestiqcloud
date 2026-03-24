@@ -6,6 +6,7 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
+import { BackButton } from '@ui'
 
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   if (!active) return (
@@ -98,6 +99,7 @@ export default function ClientesList() {
 
   return (
     <div className="p-4 space-y-4 max-w-7xl mx-auto">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">

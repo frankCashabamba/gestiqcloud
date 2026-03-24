@@ -4,6 +4,7 @@ import { createNomina, getNomina, updateNomina, type Nomina } from './services/n
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
 import { useTranslation } from 'react-i18next'
+import { BackButton } from '@ui'
 
 type FieldCfg = { field: string; visible?: boolean; required?: boolean; ord?: number | null; label?: string | null; help?: string | null }
 
@@ -107,6 +108,7 @@ export default function NominaForm() {
 
     return (
         <div className="p-4">
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <h3 className="text-xl font-semibold mb-3">{id ? t('hr:payroll.edit') : t('hr:payroll.newPayroll')}</h3>
             <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
                 {loadingCfg && <div className="text-sm text-gray-500">{t('hr:payroll.loadingFields')}</div>}

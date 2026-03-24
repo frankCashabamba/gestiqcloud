@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getGasto, marcarPagado, type Gasto } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import StatusBadge from '../sales/components/StatusBadge'
+import { BackButton } from '@ui'
 
 const isProductionExpense = (expense: Gasto) =>
   expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
@@ -79,12 +80,7 @@ export default function GastoDetail() {
 
   return (
     <div className="p-4 max-w-2xl">
-      <button
-        className="mb-4 text-sm text-blue-600 hover:underline flex items-center gap-1"
-        onClick={() => nav('..')}
-      >
-        ← {t('common:back')}
-      </button>
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
 
       <div className="flex justify-between items-start mb-5">
         <div>

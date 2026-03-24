@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import {
   listUsuarios,
@@ -148,6 +149,7 @@ export default function UsuariosList() {
 
   return (
     <div className="p-4 space-y-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{t('users:title')}</h2>

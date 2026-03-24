@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createAsiento, getAsiento, updateAsiento, listCuentas, type AsientoContable, type AsientoLinea, type PlanCuenta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { BackButton } from '@ui'
 
 export default function AsientoForm() {
     const { t } = useTranslation()
@@ -88,6 +89,7 @@ export default function AsientoForm() {
 
     return (
         <div className="gc-container py-6">
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <h3 className="text-xl font-semibold mb-3">{id ? t('accounting.journalEntryForm.editTitle') : t('accounting.journalEntryForm.newTitle')}</h3>
             <form onSubmit={onSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">

@@ -5,6 +5,7 @@ import { listAsientos, removeAsiento, postAsiento, type AsientoContable } from '
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
+import { BackButton } from '@ui'
 
 export default function AsientosList() {
     const { t } = useTranslation()
@@ -80,6 +81,7 @@ export default function AsientosList() {
 
     return (
         <div className="p-4">
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-semibold">{t('accounting.journalEntries.title')}</h3>
                 {can('accounting:create') && (

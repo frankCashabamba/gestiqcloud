@@ -3,12 +3,15 @@
  * Conecta con: GET /api/v1/pos/store_credits
  */
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listStoreCredits, getStoreCreditByCode } from '../services'
 import type { StoreCredit } from '../../../types/pos'
 import { useToast } from '../../../shared/toast'
+import { BackButton } from '@ui'
 
 export default function StoreCreditsList() {
+  const nav = useNavigate()
   const { t } = useTranslation(['pos', 'common'])
   const toast = useToast()
   const [credits, setCredits] = useState<StoreCredit[]>([])
@@ -71,6 +74,7 @@ export default function StoreCreditsList() {
 
   return (
     <div className="p-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <h1 className="text-2xl font-bold mb-6">{t('pos:storeCredits.pageTitle')}</h1>
 
       {/* Búsqueda */}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import { listFacturas, removeFactura, marcarCobrada, clearInvoicesCache, type Factura } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -134,6 +135,7 @@ export default function FacturasList() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">{t('nav.invoicing')}</h2>
         <div className="flex gap-2">

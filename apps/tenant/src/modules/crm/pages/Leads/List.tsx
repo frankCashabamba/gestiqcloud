@@ -5,6 +5,7 @@ import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { usePagination, Pagination } from '../../../../shared/pagination'
 import { LeadStatus, LeadSource } from '../../types'
+import { BackButton } from '@ui'
 
 export default function LeadsList() {
   const [items, setItems] = useState<Lead[]>([])
@@ -69,6 +70,7 @@ export default function LeadsList() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">{t('leads.title')}</h2>
         <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('new')}>{t('leads.newLead')}</button>

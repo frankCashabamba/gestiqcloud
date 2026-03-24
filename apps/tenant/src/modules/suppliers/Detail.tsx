@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getProveedor, removeProveedor, type Proveedor } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { BackButton } from '@ui'
 
 export default function ProveedorDetail() {
   const { id } = useParams()
@@ -66,6 +67,7 @@ export default function ProveedorDetail() {
 
   return (
     <div className="p-4 space-y-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">

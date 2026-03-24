@@ -1,7 +1,8 @@
 /** DailyCountsView - Vista simple de cierres de caja */
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { listDailyCounts, listRegisters, getCurrentShift, getShiftSummary } from '../services'
 import { useCurrency } from '../../../hooks/useCurrency'
 import { useAuth } from '../../../auth/AuthContext'
@@ -33,6 +34,7 @@ interface Register {
 }
 
 export default function DailyCountsView() {
+  const nav = useNavigate()
   const { t } = useTranslation(['pos', 'common'])
   const [searchParams, setSearchParams] = useSearchParams()
   const registerId = searchParams.get('register_id') || undefined
@@ -147,6 +149,7 @@ export default function DailyCountsView() {
 
   return (
     <div className="p-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold">{t('pos:daily.dailySales')}</h2>

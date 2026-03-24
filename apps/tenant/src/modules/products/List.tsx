@@ -1,6 +1,7 @@
 // apps/tenant/src/modules/products/List.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { BackButton } from '@ui'
 import {
   listProductos,
   removeProducto,
@@ -674,6 +675,7 @@ export default function ProductosList() {
 
   return (
     <div className="p-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('products:title')}</h1>

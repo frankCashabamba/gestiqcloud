@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getVenta, removeVenta, isPosReadOnly, checkoutOrder, type Venta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import StatusBadge from './components/StatusBadge'
+import { BackButton } from '@ui'
 
 export default function VentaDetail() {
     const { id } = useParams<{ id: string }>()
@@ -55,7 +56,7 @@ export default function VentaDetail() {
 
     return (
         <div className="p-4" style={{ maxWidth: 840 }}>
-            <button className="mb-3 underline text-sm" onClick={() => nav('..')}>← {t('common.back')}</button>
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
 
             <div className="flex justify-between items-start mb-4">
                 <div>

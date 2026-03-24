@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import { getProductMargins, getProfitReport, type ProductMarginRow } from '../../services/api/profit-reports'
 import { listProducts } from '../../services/api/products'
@@ -30,6 +31,7 @@ const formatMoney = (v: number, settings?: CompanySettings | null) =>
 const formatPct = (v: number) => `${(v * 100).toFixed(2)}%`
 
 export default function MarginsDashboard() {
+  const nav = useNavigate()
   const { empresa } = useParams()
   const { t } = useTranslation(['reports', 'common'])
   const can = usePermission()
@@ -121,6 +123,7 @@ export default function MarginsDashboard() {
 
   return (
     <div className="reports-shell">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="reports-hero">
         <div>
           <h1>{t('reports:margins.title')}</h1>

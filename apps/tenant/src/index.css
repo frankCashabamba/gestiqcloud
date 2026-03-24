@@ -235,6 +235,16 @@
     background: color-mix(in srgb, var(--gc-foreground) 6%, transparent);
   }
 
+  .gc-btn--soft {
+    background: color-mix(in srgb, var(--gc-primary) 10%, transparent);
+    color: var(--gc-primary);
+    border-color: color-mix(in srgb, var(--gc-primary) 30%, transparent);
+  }
+  .gc-btn--soft:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--gc-primary) 18%, transparent);
+    border-color: color-mix(in srgb, var(--gc-primary) 45%, transparent);
+  }
+
   .gc-btn--danger {
     background: var(--gc-danger);
     color: #ffffff;

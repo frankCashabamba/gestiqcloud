@@ -4,6 +4,7 @@ import { createLead, getLead, updateLead, type Lead } from '../../services'
 import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { LeadStatus, LeadSource } from '../../types'
+import { BackButton } from '@ui'
 
 export default function LeadForm() {
   const { id } = useParams()
@@ -45,6 +46,7 @@ export default function LeadForm() {
 
   return (
     <div className="gc-container py-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <h3 className="text-xl font-semibold mb-3">{id ? t('leads.editLead') : t('leads.newLead')}</h3>
       <form onSubmit={onSubmit} className="space-y-4 max-w-xl">
         <div>

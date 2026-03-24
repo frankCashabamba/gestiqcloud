@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { getAvailableReports, exportReport, downloadBlob } from './services'
@@ -88,6 +89,7 @@ export default function ReportsDashboard() {
 
   return (
     <div className="reports-shell">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="reports-hero">
         <div>
           <h1>📊 Reportes</h1>

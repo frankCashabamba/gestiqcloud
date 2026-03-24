@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import { listRecipes, deleteRecipe, type Recipe } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
@@ -51,6 +52,8 @@ function RecetasListContent() {
   const [correctedCosts, setCorrectedCosts] = useState<Record<string, { total: number; unit: number }>>({})
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const currency = useMemo(() => getCurrencySymbol(settings || undefined), [settings])
 
   // ── Categorías de recetas (guardadas en localStorage) ──────────────────────
@@ -210,16 +213,24 @@ function RecetasListContent() {
     return amount * (1 + (isFinite(rate) ? rate : defaultTaxRate))
   }
 
-  const saveMarginConfig = async () => {
+  const saveMarginConfig = async (mult: number, pct: number) => {
     try {
+      setSaveStatus('saving')
       const { data: current } = await tenantApi.get<any>('/api/v1/company/settings/fiscal')
-      const merged = { ...(current || {}), produccion_margin_multiplier: multiplier, pricing_strategy: 'manual' }
+      const merged = { ...(current || {}), produccion_margin_multiplier: mult, pricing_strategy: 'manual' }
       await tenantApi.put('/api/v1/company/settings/fiscal', merged)
-      success(t('recipesList.profitSaved', { pct: markupPct }))
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 2000)
     } catch (e: any) {
       console.error('Error saving margin:', e)
+      setSaveStatus('idle')
       toastError(t('recipesList.saveError'))
     }
+  }
+
+  const scheduleAutoSave = (mult: number, pct: number) => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => saveMarginConfig(mult, pct), 1200)
   }
 
   const handleDeleteConfirm = async () => {
@@ -249,6 +260,7 @@ function RecetasListContent() {
   return (
     <>
       <div className="p-6 max-w-7xl mx-auto">
+        <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => navigate(-1)} /></div>
 
         {/* Page header */}
         <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -348,19 +360,19 @@ function RecetasListContent() {
             <div className="flex-1" />
 
             {/* Navigation shortcuts */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
-                className="inline-flex items-center gap-1.5 border border-gray-200 hover:border-emerald-300 hover:text-emerald-700 text-gray-500 px-2.5 py-1.5 rounded-lg text-xs transition-colors"
+                className="gc-btn gc-btn--soft gc-btn--sm"
                 onClick={() => navigate('../ingredientes')}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                 Ingredientes
               </button>
               <button
-                className="inline-flex items-center gap-1.5 border border-gray-200 hover:border-gray-400 text-gray-500 px-2.5 py-1.5 rounded-lg text-xs transition-colors"
+                className="gc-btn gc-btn--soft gc-btn--sm"
                 onClick={() => navigate('../costos')}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Costos
               </button>
             </div>
@@ -368,21 +380,24 @@ function RecetasListContent() {
 
           {/* Fila 2: configuración de precios */}
           <div className="px-3 py-2 flex flex-wrap items-center gap-3 bg-gray-50">
-            {/* IVA toggle */}
-            <label className="inline-flex items-center gap-2 text-xs text-gray-500 select-none cursor-pointer">
-              <input
-                type="checkbox"
-                className="rounded"
-                checked={useProductTax}
-                onChange={(e) => {
-                  setUseProductTax(e.target.checked)
-                  try { localStorage.setItem('produccion_use_product_tax', e.target.checked ? '1' : '0') } catch {}
-                }}
-              />
-              {t('recipesList.taxPerProduct')}
-            </label>
-
-            <div className="h-4 w-px bg-gray-200" />
+            {/* IVA toggle — solo si algún producto tiene tax_rate configurado */}
+            {products.some(p => p.tax_rate != null && Number(p.tax_rate) > 0) && (
+              <>
+                <label className="inline-flex items-center gap-2 text-xs text-gray-500 select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={useProductTax}
+                    onChange={(e) => {
+                      setUseProductTax(e.target.checked)
+                      try { localStorage.setItem('produccion_use_product_tax', e.target.checked ? '1' : '0') } catch {}
+                    }}
+                  />
+                  {t('recipesList.taxPerProduct')}
+                </label>
+                <div className="h-4 w-px bg-gray-200" />
+              </>
+            )}
 
             {/* Utilidad */}
             <div className="inline-flex items-center gap-1.5" title={t('recipesList.profitTooltip')}>
@@ -399,6 +414,7 @@ function RecetasListContent() {
                     const newMult = Number((1 + v / 100).toFixed(2))
                     setMultiplier(newMult)
                     try { localStorage.setItem('produccion_margin_multiplier', String(newMult)) } catch {}
+                    if (canWrite) scheduleAutoSave(newMult, v)
                   }
                 }}
               />
@@ -418,18 +434,23 @@ function RecetasListContent() {
               {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
 
-            {/* Guardar configuración */}
-            {canWrite && (
+            {/* Indicador de auto-guardado */}
+            {canWrite && saveStatus !== 'idle' && (
               <>
                 <div className="flex-1" />
-                <button
-                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                  title={t('recipesList.saveTooltip')}
-                  onClick={saveMarginConfig}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                  Guardar utilidad
-                </button>
+                <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: saveStatus === 'saved' ? 'var(--gc-primary)' : 'var(--gc-muted)' }}>
+                  {saveStatus === 'saving' ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                      Guardando…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                      Guardado
+                    </>
+                  )}
+                </span>
               </>
             )}
           </div>

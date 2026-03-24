@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { BackButton } from '@ui'
 import { listCaja, createMovimientoCaja } from './services'
 import type { Movimiento } from './types'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -7,6 +9,7 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import { PAGINATION_DEFAULTS } from '../../constants/defaults'
 
 export default function CajaList() {
+    const nav = useNavigate()
     const { t } = useTranslation(['finances', 'common'])
     const [items, setItems] = useState<Movimiento[]>([])
     const [loading, setLoading] = useState(true)
@@ -87,6 +90,7 @@ export default function CajaList() {
 
     return (
         <div className="p-4">
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold text-lg">{t('finances:cash.title')}</h2>
                 <button

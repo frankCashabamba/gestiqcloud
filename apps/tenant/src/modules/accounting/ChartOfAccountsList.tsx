@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listCuentas, removeCuenta, seedCuentas, type PlanCuenta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { BackButton } from '@ui'
 
 export default function PlanCuentasList() {
     const { t } = useTranslation()
@@ -69,6 +70,7 @@ export default function PlanCuentasList() {
 
     return (
         <div className="p-4">
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-semibold">{t('accounting.chartOfAccounts.title')}</h3>
                 <div className="flex gap-2">

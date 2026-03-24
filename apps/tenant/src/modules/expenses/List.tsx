@@ -7,6 +7,7 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
 import StatsCard from './components/StatsCard'
+import { BackButton } from '@ui'
 
 export default function GastosList() {
   const { t } = useTranslation(['expenses', 'common'])
@@ -160,6 +161,7 @@ export default function GastosList() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-4">
          <h2 className="font-semibold text-lg">{t('expenses:title')}</h2>
          <div className="flex gap-2">

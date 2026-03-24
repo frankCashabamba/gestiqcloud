@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { BackButton } from '@ui'
 import {
   createProveedor,
   getProveedor,
@@ -167,6 +168,7 @@ export default function ProveedorForm() {
 
   return (
     <div className="gc-container py-6 max-w-5xl">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <h3 className="gc-page-header__title mb-4">
         {editMode ? t('suppliers:form.titleEdit') : t('suppliers:form.title')}
       </h3>

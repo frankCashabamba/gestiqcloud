@@ -5,6 +5,7 @@ import { useCrmLabels } from '../../useCrmLabels'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 import { usePagination, Pagination } from '../../../../shared/pagination'
 import { OpportunityStage } from '../../types'
+import { BackButton } from '@ui'
 
 export default function OpportunitiesList() {
   const [items, setItems] = useState<Opportunity[]>([])
@@ -66,6 +67,7 @@ export default function OpportunitiesList() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">
           {pendingOnly ? t('opportunities.pendingTitle') : t('opportunities.title')}

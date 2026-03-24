@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import { listVentas, updateVenta, type Venta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -92,6 +93,7 @@ export default function PedidosList() {
 
   return (
     <div className="p-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="font-semibold text-lg">{title}</h2>
         <button

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { listRecipes, addIngredient, updateIngredient, deleteIngredient } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
 import { getCompanySettings, getCurrencySymbol, type CompanySettings } from '../../services/companySettings'
@@ -222,6 +223,7 @@ function IngredientesMaestrosContent() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => navigate(-1)} /></div>
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>

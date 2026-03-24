@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../shared/toast';
+import { BackButton } from '@ui';
 import {
   listCostDrivers,
   listCostDriverUnitTypes,
@@ -182,6 +183,7 @@ function CostDriversPageContent() {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => navigate(-1)} /></div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -192,12 +194,6 @@ function CostDriversPageContent() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            className="px-3 py-2 text-sm border rounded hover:bg-gray-50"
-            onClick={() => navigate('..')}
-          >
-            {t('productions:costDrivers.back')}
-          </button>
           {drivers.length > 0 && (
             <button
               className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"

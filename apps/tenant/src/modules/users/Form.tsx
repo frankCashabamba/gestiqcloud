@@ -1,6 +1,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import {
   createUsuario,
@@ -254,6 +255,7 @@ export default function UsuarioForm() {
 
   return (
     <div className="p-4 max-w-3xl">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <h3 className="text-xl font-semibold text-slate-900 mb-4">
         {editMode ? t('users:form.editUser') : t('users:form.newUser')}
       </h3>

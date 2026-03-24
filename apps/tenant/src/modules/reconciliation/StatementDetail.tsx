@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
+import { BackButton } from '@ui'
 import {
   getStatementDetail,
   getStatementLines,
@@ -99,13 +100,8 @@ export default function StatementDetail() {
 
   return (
     <div className="p-6 space-y-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => navigate(-1)} /></div>
       <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate('..')}
-          className="text-sm px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
-        >
-          ← {t('reconciliation:detail.back')}
-        </button>
         <h1 className="text-3xl font-bold">
           {statement.bank_name} — {statement.account_number}
         </h1>

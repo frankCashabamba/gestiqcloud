@@ -1,6 +1,7 @@
 // apps/tenant/src/modules/products/Form.tsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
 import { createProducto, getProducto, updateProducto, listCategorias, type Producto, type Categoria } from './productsApi'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -464,6 +465,7 @@ export default function ProductoForm() {
 
     return (
         <div className="gc-container py-6 max-w-4xl">
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <div className="mb-6">
                 <h1 className="text-2xl font-bold text-slate-900">{id ? t('products:form.editProduct') : t('products:form.newProduct')}</h1>
                 <p className="mt-1 text-sm text-slate-500">
@@ -495,7 +497,7 @@ export default function ProductoForm() {
                     ))}
                 </div>
 
-                <div className="border-t pt-4">
+                {(form as any).receta_id && <div className="border-t pt-4">
                   <h2 className="text-lg font-semibold text-slate-900">{t('products:form.suggestedPriceTitle')}</h2>
                   <p className="text-sm text-slate-500 mt-1">
                     {t('products:form.suggestedPriceHint')}
@@ -539,7 +541,7 @@ export default function ProductoForm() {
                       </div>
                     )}
                   </div>
-                </div>
+                </div>}
 
                 <div className="border-t pt-4">
                     <h2 className="text-lg font-semibold text-slate-900">{t('products:form.wholesaleTitle')}</h2>
@@ -651,7 +653,7 @@ export default function ProductoForm() {
                 </div>
             </form>
 
-            {id && (
+            {id && !isBakerySector && (
                 <div className="gc-card">
                     <h2 className="text-lg font-semibold text-slate-900 mb-4">Variantes de producto</h2>
                     <p className="text-sm text-slate-500 mb-4">Gestiona variantes por talla, color u otros atributos.</p>

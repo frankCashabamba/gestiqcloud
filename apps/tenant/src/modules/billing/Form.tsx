@@ -11,6 +11,7 @@ import { useCurrency } from '../../hooks/useCurrency'
 import { getCompanySettings, getDefaultTaxRate } from '../../services/companySettings'
 import CustomerSelector from '../sales/components/CustomerSelector'
 import ProductLineInput from './components/ProductLineInput'
+import { BackButton } from '@ui'
 
 interface FormT {
   numero?: string
@@ -180,6 +181,7 @@ export default function FacturaForm() {
 
   return (
     <div className="gc-container py-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <h3 className="text-xl font-semibold mb-4">{id ? t('billing.editTitle') : t('billing.newTitle')}</h3>
 
       {isLocked && (

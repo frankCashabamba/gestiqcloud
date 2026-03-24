@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
+import { BackButton } from '@ui'
 import {
     cancelProductionOrder,
     completeProductionOrder,
@@ -203,6 +204,7 @@ function OrdersListContent() {
 
     return (
         <div className="p-4">
+            <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
             <div className="flex justify-between items-center mb-3">
                 <h2 className="font-semibold text-lg">{t('productions:title')}</h2>
                 <div className="flex items-center gap-2">

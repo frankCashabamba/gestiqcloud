@@ -6,6 +6,7 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { useCompanySector } from '../../contexts/CompanyConfigContext'
 import { useExpenseCategories } from '../../hooks/useGlobalCatalogs'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
+import { BackButton } from '@ui'
 
 type FormT = Omit<Gasto, 'id' | 'created_at' | 'updated_at'>
 
@@ -124,6 +125,7 @@ export default function GastoForm() {
 
   return (
     <div className="gc-container py-6">
+      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
       <h3 className="text-xl font-semibold mb-6">
         {id ? t('expenses:form.titleEdit') : t('expenses:form.title')}
       </h3>
