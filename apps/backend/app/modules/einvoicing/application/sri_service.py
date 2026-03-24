@@ -53,10 +53,7 @@ def _validate_cedula_ec(cedula: str) -> bool:
     if province < 1 or province > 24:
         return False
     coeffs = [2, 1, 2, 1, 2, 1, 2, 1, 2]
-    total = sum(
-        (v - 9 if v >= 10 else v)
-        for v in (int(cedula[i]) * coeffs[i] for i in range(9))
-    )
+    total = sum((v - 9 if v >= 10 else v) for v in (int(cedula[i]) * coeffs[i] for i in range(9)))
     check = (10 - (total % 10)) % 10
     return check == int(cedula[9])
 
@@ -260,7 +257,9 @@ class SRIService:
     """
 
     @staticmethod
-    def get_settings(db: Session, tenant_id: UUID, country: str = "EC") -> EInvoicingCountrySettings:
+    def get_settings(
+        db: Session, tenant_id: UUID, country: str = "EC"
+    ) -> EInvoicingCountrySettings:
         """Obtiene configuración desde BD."""
         settings = db.execute(
             select(EInvoicingCountrySettings).where(
@@ -283,8 +282,11 @@ class SRIService:
 
         validation_rules = settings.validation_rules or {}
         return {
-            "recepcion": validation_rules.get("recepcion_endpoint") or settings.api_endpoint or defaults["recepcion"],
-            "autorizacion": validation_rules.get("autorizacion_endpoint") or defaults["autorizacion"],
+            "recepcion": validation_rules.get("recepcion_endpoint")
+            or settings.api_endpoint
+            or defaults["recepcion"],
+            "autorizacion": validation_rules.get("autorizacion_endpoint")
+            or defaults["autorizacion"],
         }
 
     @staticmethod
