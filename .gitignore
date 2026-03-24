@@ -96,3 +96,6 @@ playwright-report/
 test-results/
 .pre-commit-cache/
 .tmp-npm-ci-*/
+
+# --- Claude Code (todo local) ---
+.claude/
