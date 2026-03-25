@@ -1,8 +1,26 @@
 import api from "../../services/api/client"
+import { TENANT_AI } from '@shared/endpoints'
 
-export type Topic = 'ventas_mes' | 'ventas_por_almacen' | 'top_productos' | 'stock_bajo' | 'pendientes_sri_sii' | 'cobros_pagos'
+export type Topic =
+  | 'ventas_mes'
+  | 'ventas_por_almacen'
+  | 'top_productos'
+  | 'stock_bajo'
+  | 'pendientes_sri_sii'
+  | 'cobros_pagos'
+  | 'pos_hoy'
+  | 'gastos_mes'
+  | 'produccion_activa'
+  | 'compras_pendientes'
+  | 'prediccion_reorden'
+  | 'anomalias_ventas'
+  | 'clasificar_gasto'
 
-export type Action = 'create_invoice_draft' | 'create_order_draft' | 'create_transfer_draft' | 'suggest_overlay_fields'
+export type Action =
+  | 'create_invoice_draft'
+  | 'create_order_draft'
+  | 'create_transfer_draft'
+  | 'suggest_overlay_fields'
 
 export interface AskPayload {
   topic: Topic
@@ -35,6 +53,24 @@ export interface QueryResult {
   ai_model?: string
 }
 
+export interface CopilotCatalogEntry {
+  id: string
+  label?: string
+  name?: string
+  description?: string
+  icon?: string | null
+  category?: string | null
+  module_ids?: string[]
+  supports_ai_insights?: boolean
+  write?: boolean
+}
+
+export interface CopilotCatalog {
+  modules: CopilotCatalogEntry[]
+  topics: CopilotCatalogEntry[]
+  actions: CopilotCatalogEntry[]
+}
+
 export interface Suggestion {
   type: 'inventory' | 'sales' | 'finance'
   priority: 'high' | 'medium' | 'low'
@@ -56,11 +92,15 @@ export interface ActionResult {
 }
 
 export async function askCopilot(payload: AskPayload): Promise<QueryResult> {
-  return api.post('/api/v1/tenant/ai/ask', payload).then(r => r.data)
+  return api.post(TENANT_AI.ask, payload).then(r => r.data)
 }
 
 export async function actCopilot(payload: ActPayload): Promise<ActionResult> {
-  return api.post('/api/v1/tenant/ai/act', payload).then(r => r.data)
+  return api.post(TENANT_AI.act, payload).then(r => r.data)
+}
+
+export async function getCopilotCatalog(): Promise<CopilotCatalog> {
+  return api.get(TENANT_AI.catalog).then(r => r.data)
 }
 
 export async function createInvoiceDraft(data: {
@@ -136,7 +176,7 @@ export async function queryPaymentMovements(): Promise<QueryResult> {
 }
 
 export async function getSuggestions(): Promise<SuggestionsResult> {
-  return api.get('/api/v1/tenant/ai/suggestions').then(r => r.data)
+  return api.get(TENANT_AI.suggestions).then(r => r.data)
 }
 
 // Variantes con insights de IA

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import ensure_rls, tenant_id_from_request
+from app.modules.copilot.catalog import default_allowed_actions, get_copilot_catalog
 from app.modules.copilot.context_builder import CopilotContextBuilder
 from app.modules.copilot.services import (
     create_invoice_draft,
@@ -139,7 +140,7 @@ class ActIn(BaseModel):
 def _allow(action: str) -> bool:
     allowed = os.getenv(
         "COPILOT_ALLOWED_ACTIONS",
-        "create_invoice_draft,create_order_draft,create_transfer_draft,suggest_overlay_fields",
+        ",".join(default_allowed_actions()),
     )
     set_allowed = {a.strip() for a in allowed.split(",") if a.strip()}
     return action in set_allowed
@@ -171,6 +172,13 @@ def ai_act(payload: ActIn, request: Request, db: Session = Depends(get_db)):
         return suggest_overlay_fields(db)
 
     raise HTTPException(status_code=400, detail="unknown_action")
+
+
+@router.get("/catalog", response_model=dict[str, Any])
+def ai_catalog(db: Session = Depends(get_db)):
+    if not _feature_enabled():
+        raise HTTPException(status_code=403, detail="copilot_disabled")
+    return get_copilot_catalog(db)
 
 
 class SuggestionsOut(BaseModel):

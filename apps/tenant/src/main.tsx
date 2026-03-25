@@ -18,6 +18,7 @@ import { EnvProvider } from '@ui/env'
 import { env } from './env'
 import { CompanyProvider } from './contexts/CompanyContext'
 import { fetchCompanyTheme } from './services/theme'
+import { initializeOfflineSystem } from './lib/initOfflineSystem'
 
 function IdleBridge() {
   const { logout } = useAuth()
@@ -37,6 +38,9 @@ setupPWA((ev) => {
     if (t) applyTheme(t)
   } catch {}
 })()
+
+// Initialize offline system (non-blocking)
+initializeOfflineSystem().catch(() => {})
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

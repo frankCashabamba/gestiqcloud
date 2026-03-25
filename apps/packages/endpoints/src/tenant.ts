@@ -86,6 +86,17 @@ export const TENANT_INVOICING = {
   byId: (id: number | string) => `/api/v1/tenant/invoicing/${id}`,
 }
 
+export const TENANT_AI = {
+  ask: '/api/v1/tenant/ai/ask',
+  act: '/api/v1/tenant/ai/act',
+  catalog: '/api/v1/tenant/ai/catalog',
+  chatStream: '/api/v1/tenant/ai/chat/stream',
+  feedback: '/api/v1/tenant/ai/feedback',
+  conversations: '/api/v1/tenant/ai/conversations',
+  suggestions: '/api/v1/tenant/ai/suggestions',
+  metrics: '/api/v1/tenant/ai/metrics',
+}
+
 
 
 export const TENANT_EXPENSES = {
@@ -151,6 +162,7 @@ export const TENANT_RECIPES = {
   deleteIngredient: (id: string, ingredientId: string) => `${RECIPES_BASE}/${id}/ingredients/${ingredientId}`,
   profitability: (id: string) => `${RECIPES_BASE}/${id}/profitability`,
   purchaseOrder: (id: string) => `${RECIPES_BASE}/${id}/purchase-order`,
+  optimize: (id: string) => `${RECIPES_BASE}/${id}/optimize`,
   costLines: (id: string) => `${RECIPES_BASE}/${id}/cost-lines`,
   costLineById: (id: string, lineId: string) => `${RECIPES_BASE}/${id}/cost-lines/${lineId}`,
   fullCost: (id: string) => `${RECIPES_BASE}/${id}/full-cost`,

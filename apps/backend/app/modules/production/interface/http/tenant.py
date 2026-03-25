@@ -48,6 +48,7 @@ from app.models.production._cost_periods import CostPeriod
 from app.models.production._recipe_steps import RecipeStep
 from app.models.production.production_order import ProductionOrder, ProductionOrderLine
 from app.models.recipes import Recipe, RecipeIngredient
+from app.modules.feature_flags.dependencies import require_flag
 from app.schemas.cost_periods import (
     CostPeriodCreate,
     CostPeriodResponse,
@@ -91,6 +92,8 @@ from app.schemas.recipes import (
     RecipeIngredientCreate,
     RecipeIngredientResponse,
     RecipeIngredientUpdate,
+    RecipeOptimizationRequest,
+    RecipeOptimizationResponse,
     RecipeProfitabilityRequest,
     RecipeProfitabilityResponse,
     RecipeResponse,
@@ -111,6 +114,7 @@ from app.services.recipe_calculator import (
     create_purchase_order_from_recipe,
     get_recipe_profitability,
 )
+from app.services.recipe_optimizer import optimize_recipe_with_ai
 
 router = APIRouter(
     prefix="/production",
@@ -1545,6 +1549,36 @@ def get_recipe(
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     return recipe
+
+
+@router.post(
+    "/recipes/{recipe_id}/optimize",
+    response_model=RecipeOptimizationResponse,
+)
+async def optimize_recipe(
+    recipe_id: UUID,
+    payload: RecipeOptimizationRequest,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+    _flags=Depends(require_flag("copilot_enabled")),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    user_id = str(claims.get("user_id")) if claims.get("user_id") else None
+    try:
+        return await optimize_recipe_with_ai(
+            db=db,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            recipe_id=recipe_id,
+            request=payload,
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "recipe_not_found":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        if detail == "recipe_has_no_ingredients":
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=503, detail=detail) from exc
 
 
 @router.put("/recipes/{recipe_id}", response_model=RecipeResponse)

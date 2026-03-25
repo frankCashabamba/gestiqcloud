@@ -1,45 +1,58 @@
-import tenantApi from '../../shared/api/client'
-import { TENANT_PURCHASES } from '@shared/endpoints'
+﻿/**
+ * Purchases Offline Sync Adapter
+ *
+ * Synchronizes purchases (compras) with offline support.
+ * - Create, update, soft-delete
+ * - Conflict detection on total/status/line items
+ */
+
 import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
-import { listCompras, getCompra } from './services'
-import { isOfflineQueuedResponse, stripOfflineMeta } from '@/lib/offlineHttp'
+import { storeEntity, listEntities, queueDeletion } from '@/lib/offlineStore'
+import { listCompras, getCompra, createCompra, updateCompra, removeCompra } from './services'
+import type { Compra } from './services'
 
 export const PurchasesAdapter: SyncAdapter = {
   entity: 'purchase',
   canSyncOffline: true,
 
-  async fetchAll(): Promise<any[]> {
+  async fetchAll(): Promise<Compra[]> {
     try {
       return await listCompras()
-    } catch {
+    } catch (error) {
+      console.error('Failed to fetch purchases:', error)
       return []
     }
   },
 
-  async create(data: any): Promise<any> {
-    const payload = stripOfflineMeta(data || {})
-    const response = await tenantApi.post<any>(TENANT_PURCHASES.base, payload, { headers: { 'X-Offline-Managed': '1' } })
-    if (isOfflineQueuedResponse(response)) throw new Error('Purchase still queued')
-    return response.data
+  async create(data: any): Promise<Compra> {
+    const compra = await createCompra(data)
+    const remoteVersion = (compra as any)?.updated_at ? new Date((compra as any).updated_at as string).getTime() : Date.now()
+    await storeEntity('purchase', String(compra.id), compra, 'synced', remoteVersion)
+    return compra
   },
 
-  async update(id: string, data: any): Promise<any> {
-    const payload = stripOfflineMeta(data || {})
-    const response = await tenantApi.put<any>(TENANT_PURCHASES.byId(id), payload, { headers: { 'X-Offline-Managed': '1' } })
-    if (isOfflineQueuedResponse(response)) throw new Error('Purchase still queued')
-    return response.data
+  async update(id: string, data: any): Promise<Compra> {
+    const compra = await updateCompra(id, data)
+    const remoteVersion = (compra as any)?.updated_at ? new Date((compra as any).updated_at as string).getTime() : Date.now()
+    await storeEntity('purchase', String(id), compra, 'synced', remoteVersion)
+    return compra
   },
 
   async delete(id: string): Promise<void> {
-    const response = await tenantApi.delete(TENANT_PURCHASES.byId(id), { headers: { 'X-Offline-Managed': '1' } })
-    if (isOfflineQueuedResponse(response)) throw new Error('Purchase deletion still queued')
+    try {
+      await removeCompra(id)
+      await storeEntity('purchase', String(id), { _deleted: true, _op: 'delete' }, 'synced', Date.now())
+    } catch (error) {
+      await queueDeletion('purchase', id)
+      console.warn('[offline] Queued purchase deletion for later sync:', id)
+    }
   },
 
   async getRemoteVersion(id: string): Promise<number> {
     try {
-      const purchase = await getCompra(id)
-      const ts = (purchase as any)?.updated_at ?? (purchase as any)?.created_at
-      return ts ? new Date(ts as string).getTime() : 0
+      const compra = await getCompra(id)
+      const timestamp = (compra as any)?.updated_at ?? (compra as any)?.created_at
+      return timestamp ? new Date(timestamp as string).getTime() : 0
     } catch {
       return 0
     }
@@ -47,13 +60,21 @@ export const PurchasesAdapter: SyncAdapter = {
 
   detectConflict(local: any, remote: any): boolean {
     if (!remote) return false
-    return local.total !== remote.total || local.estado !== remote.estado
+    const itemsDiffer = JSON.stringify(local.items || local.lineas || []) !== JSON.stringify(remote.items || remote.lineas || [])
+    return itemsDiffer ||
+           local.total !== remote.total ||
+           local.estado !== remote.estado ||
+           local.status !== remote.status
   }
 }
 
-let registered = false
 export function registerPurchasesSyncAdapter() {
-  if (registered) return
   getSyncManager().registerAdapter(PurchasesAdapter)
-  registered = true
+}
+
+export async function getPurchasesWithPendingChanges(): Promise<any[]> {
+  const items = await listEntities('purchase')
+  return items
+    .filter(i => i.syncStatus === 'pending')
+    .map(i => ({ ...i.data, _id: i.id, _status: i.syncStatus }))
 }

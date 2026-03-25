@@ -2,6 +2,16 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { apiFetch } from '../lib/http'
 import { TOKEN_KEY } from '../constants/storage'
 import { PermissionsProvider } from '../contexts/PermissionsContext'
+import {
+  saveCredentialsForOffline,
+  verifyOfflineCredentials,
+  getOfflineProfile,
+  getOfflineToken,
+  clearOfflineCredentials,
+  isOfflineSession,
+  markOfflineSession,
+  markOnlineSession,
+} from '../lib/offlineAuth'
 
 type LoginBody = { identificador: string; password: string }
 type LoginScope = 'tenant' | 'admin'
@@ -15,6 +25,7 @@ type AuthContextType = {
   loading: boolean
   profile: MeCompany | null
   brand: string
+  isOffline: boolean
   login: (body: LoginBody) => Promise<LoginResult>
   logout: () => Promise<void>
   refresh: () => Promise<boolean>
@@ -27,6 +38,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [token, setToken] = useState<string | null>(() => sessionStorage.getItem(TOKEN_KEY))
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<MeCompany | null>(null)
+  const [offlineMode, setOfflineMode] = useState(() => isOfflineSession())
   const isUnauthorized = (e: any) => e?.status === 401 || e?.response?.status === 401
 
   const parseJwtPayload = (tok: string | null): Record<string, any> | null => {
@@ -59,7 +71,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               const tok = decodeURIComponent(m[1])
               sessionStorage.setItem(TOKEN_KEY, tok)
               try { localStorage.setItem('authToken', tok) } catch {}
-              // Limpia el hash para no dejar el token en la URL
               try { history.replaceState(null, document.title, window.location.pathname + window.location.search) } catch {}
             }
             } catch {}
@@ -71,8 +82,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             sessionStorage.setItem(TOKEN_KEY, t)
             const me = await apiFetch<MeCompany>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
             setProfile(me)
-
-
+            markOnlineSession()
+            setOfflineMode(false)
           } else {
             clear()
           }
@@ -80,7 +91,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           if (isUnauthorized(e)) {
             clear()
           } else {
-            throw e
+            // Network error — try offline fallback
+            const offlineProfile = await getOfflineProfile()
+            const offlineToken = await getOfflineToken()
+            if (offlineProfile && offlineToken) {
+              setToken(offlineToken)
+              sessionStorage.setItem(TOKEN_KEY, offlineToken)
+              setProfile(offlineProfile as MeCompany)
+              markOfflineSession()
+              setOfflineMode(true)
+              console.log('[auth] Offline fallback — loaded cached profile')
+            } else {
+              clear()
+            }
           }
         }
       } finally {
@@ -127,19 +150,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     return inflightRefresh
   }
 
-  async function loadMe(tok: string) {
+  async function loadMe(tok: string): Promise<MeCompany> {
     const me = await apiFetch<MeCompany>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${tok}` }, retryOn401: false })
     setProfile(me)
+    return me
   }
 
   function clear() {
     setToken(null)
     setProfile(null)
+    setOfflineMode(false)
+    markOnlineSession()
     sessionStorage.removeItem(TOKEN_KEY)
     try { localStorage.removeItem('authToken') } catch {}
   }
 
   const ensureTokenStillValid = async () => {
+    if (offlineMode) return
     const expMs = getTokenExpiryMs(token)
     if (!expMs) return
     if (Date.now() < expMs - EXP_SKEW_MS) return
@@ -148,21 +175,42 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   const login = async (body: LoginBody) => {
-    const data = await apiFetch<LoginResponse>('/api/v1/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      retryOn401: false,
-    })
-    const scope: LoginScope = data.scope === 'admin' ? 'admin' : 'tenant'
-    if (scope === 'admin') {
-      clear()
+    try {
+      const data = await apiFetch<LoginResponse>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        retryOn401: false,
+      })
+      const scope: LoginScope = data.scope === 'admin' ? 'admin' : 'tenant'
+      if (scope === 'admin') {
+        clear()
+        return { scope, accessToken: data.access_token }
+      }
+      setToken(data.access_token)
+      sessionStorage.setItem(TOKEN_KEY, data.access_token)
+      try { localStorage.setItem('authToken', data.access_token) } catch {}
+      const me = await loadMe(data.access_token)
+      markOnlineSession()
+      setOfflineMode(false)
+      // Cache credentials for offline login
+      saveCredentialsForOffline(body.identificador, body.password, data.access_token, me).catch(() => {})
       return { scope, accessToken: data.access_token }
+    } catch (e: any) {
+      // Network error — attempt offline login
+      if (!navigator.onLine || e?.code === 'ERR_NETWORK' || e?.message?.includes('fetch')) {
+        const offlineResult = await verifyOfflineCredentials(body.identificador, body.password)
+        if (offlineResult) {
+          setToken(offlineResult.token)
+          sessionStorage.setItem(TOKEN_KEY, offlineResult.token)
+          setProfile(offlineResult.profile as MeCompany)
+          markOfflineSession()
+          setOfflineMode(true)
+          console.log('[auth] Offline login successful')
+          return { scope: 'tenant' as LoginScope, accessToken: offlineResult.token }
+        }
+      }
+      throw e
     }
-    setToken(data.access_token)
-    sessionStorage.setItem(TOKEN_KEY, data.access_token)
-    try { localStorage.setItem('authToken', data.access_token) } catch {}
-    await loadMe(data.access_token)
-    return { scope, accessToken: data.access_token }
   }
 
   const logout = async () => {
@@ -181,6 +229,28 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     return false
   }
 
+  // Re-validate when coming back online from an offline session
+  useEffect(() => {
+    const handleOnline = async () => {
+      if (!offlineMode || !token) return
+      try {
+        const me = await loadMe(token)
+        markOnlineSession()
+        setOfflineMode(false)
+        console.log('[auth] Reconnected — session validated online')
+      } catch {
+        // Token might be expired — try refresh
+        const ok = await refresh()
+        if (ok) {
+          markOnlineSession()
+          setOfflineMode(false)
+        }
+      }
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [offlineMode, token])
+
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -195,7 +265,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, [token])
 
-  const value = useMemo(() => ({ token, loading, profile, login, logout, brand: 'Empresa', refresh }), [token, loading, profile])
+  const value = useMemo(() => ({ token, loading, profile, login, logout, brand: 'Empresa', isOffline: offlineMode, refresh }), [token, loading, profile, offlineMode])
   return (
     <AuthContext.Provider value={value}>
       <PermissionsProvider>{children}</PermissionsProvider>

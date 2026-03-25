@@ -1,20 +1,20 @@
-/**
+﻿/**
  * Customers Offline Sync Adapter
  *
- * Synchronizes customers with offline support:
- * - Create, update, delete
- * - Conflict detection on core contact fields
+ * Synchronizes customers (clientes) with offline support.
+ * - Full CRUD with conflict detection
  */
 
 import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
 import { storeEntity, listEntities, queueDeletion } from '@/lib/offlineStore'
 import { listClientes, getCliente, createCliente, updateCliente, removeCliente } from './services'
+import type { Cliente } from './services'
 
 export const CustomersAdapter: SyncAdapter = {
   entity: 'customer',
   canSyncOffline: true,
 
-  async fetchAll(): Promise<any[]> {
+  async fetchAll(): Promise<Cliente[]> {
     try {
       return await listClientes()
     } catch (error) {
@@ -23,18 +23,18 @@ export const CustomersAdapter: SyncAdapter = {
     }
   },
 
-  async create(data: any): Promise<any> {
-    const customer = await createCliente(data)
-    const remoteVersion = (customer as any)?.updated_at ? new Date((customer as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('customer', String(customer.id), customer, 'synced', remoteVersion)
-    return customer
+  async create(data: any): Promise<Cliente> {
+    const cliente = await createCliente(data)
+    const remoteVersion = (cliente as any)?.updated_at ? new Date((cliente as any).updated_at as string).getTime() : Date.now()
+    await storeEntity('customer', String(cliente.id), cliente, 'synced', remoteVersion)
+    return cliente
   },
 
-  async update(id: string, data: any): Promise<any> {
-    const customer = await updateCliente(id, data)
-    const remoteVersion = (customer as any)?.updated_at ? new Date((customer as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('customer', String(id), customer, 'synced', remoteVersion)
-    return customer
+  async update(id: string, data: any): Promise<Cliente> {
+    const cliente = await updateCliente(id, data)
+    const remoteVersion = (cliente as any)?.updated_at ? new Date((cliente as any).updated_at as string).getTime() : Date.now()
+    await storeEntity('customer', String(id), cliente, 'synced', remoteVersion)
+    return cliente
   },
 
   async delete(id: string): Promise<void> {
@@ -49,8 +49,8 @@ export const CustomersAdapter: SyncAdapter = {
 
   async getRemoteVersion(id: string): Promise<number> {
     try {
-      const customer = await getCliente(id)
-      const timestamp = (customer as any)?.updated_at ?? (customer as any)?.created_at
+      const cliente = await getCliente(id)
+      const timestamp = (cliente as any)?.updated_at ?? (cliente as any)?.created_at
       return timestamp ? new Date(timestamp as string).getTime() : 0
     } catch {
       return 0
@@ -59,41 +59,17 @@ export const CustomersAdapter: SyncAdapter = {
 
   detectConflict(local: any, remote: any): boolean {
     if (!remote) return false
-
-    return local.email !== remote.email ||
-           local.phone !== remote.phone ||
-           local.name !== remote.name ||
-           local.identificacion !== remote.identificacion ||
-           local.tax_id !== remote.tax_id
+    return local.nombre !== remote.nombre ||
+           local.email !== remote.email ||
+           local.telefono !== remote.telefono ||
+           local.identificacion !== remote.identificacion
   }
 }
 
 export function registerCustomersSyncAdapter() {
   getSyncManager().registerAdapter(CustomersAdapter)
-  console.log('[offline] Customers sync adapter registered')
 }
 
-/**
- * Cache customers locally for offline access
- */
-export async function syncCustomersToOffline(customers: any[]) {
-  for (const customer of customers) {
-    const remoteVersion = (customer as any)?.updated_at ? new Date((customer as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('customer', customer.id, customer, 'synced', remoteVersion)
-  }
-}
-
-/**
- * Get locally cached customers
- */
-export async function getOfflineCustomers(): Promise<any[]> {
-  const items = await listEntities('customer')
-  return items.map(i => i.data)
-}
-
-/**
- * Get customers with pending changes
- */
 export async function getCustomersWithPendingChanges(): Promise<any[]> {
   const items = await listEntities('customer')
   return items

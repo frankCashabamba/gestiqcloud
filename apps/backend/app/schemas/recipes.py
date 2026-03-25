@@ -3,6 +3,7 @@ Schemas Pydantic para Recetas
 """
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -363,6 +364,112 @@ class RecipeComparisonResponse(BaseModel):
             }
         }
     )
+
+
+class RecipeOptimizationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    selling_price: float | None = Field(
+        default=None,
+        ge=0,
+        description="Precio de venta actual para recalcular margen",
+    )
+    target_margin_pct: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="Margen objetivo en porcentaje",
+    )
+    max_ingredients_to_change: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Cantidad maxima de ingredientes que la IA puede modificar",
+    )
+    locked_product_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Ingredientes que no se deben tocar",
+    )
+    constraints: str | None = Field(
+        default=None,
+        max_length=4000,
+        description="Restricciones adicionales escritas por el operador",
+    )
+
+
+class RecipeOptimizationIngredientDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: UUID
+    product_name: str
+    qty: float = Field(..., ge=0)
+    unit: str
+    purchase_packaging: str
+    qty_per_package: float = Field(..., gt=0)
+    package_unit: str
+    package_cost: float = Field(..., ge=0)
+    notes: str | None = None
+    line_order: int = Field(default=0, ge=0)
+    estimated_cost: float = Field(default=0, ge=0)
+    locked: bool = False
+    changed: bool = False
+    reason: str | None = None
+
+
+class RecipeOptimizationCostSnapshot(BaseModel):
+    yield_qty: int
+    materials_total: float
+    full_cost_total: float
+    full_cost_unit: float
+    selling_price: float | None = None
+    margin_pct: float | None = None
+
+
+class RecipeOptimizationChange(BaseModel):
+    product_id: UUID
+    product_name: str
+    change_type: Literal["keep", "adjust_qty", "locked"]
+    current_qty: float
+    suggested_qty: float
+    unit: str
+    estimated_cost_delta: float
+    rationale: str | None = None
+
+
+class RecipeOptimizationDraft(BaseModel):
+    yield_qty: int = Field(..., gt=0)
+    prep_time_minutes: int | None = Field(None, ge=0)
+    baking_time_minutes: int | None = Field(None, ge=0)
+    oven_temp_celsius: int | None = Field(None, ge=0)
+    rest_time_minutes: int | None = Field(None, ge=0)
+    touch_minutes_standard: int | None = Field(None, ge=0)
+    oven_minutes_standard: int | None = Field(None, ge=0)
+    process_minutes: int | None = Field(None, ge=0)
+    waste_pct: float | None = Field(None, ge=0, le=100)
+    overhead_pct: float | None = Field(None, ge=0, le=100)
+    trays_per_batch: int | None = Field(None, ge=1)
+    units_per_tray: int | None = Field(None, ge=1)
+    instructions: str | None = None
+    ingredients: list[RecipeIngredientCreate] = Field(default_factory=list)
+
+
+class RecipeOptimizationResponse(BaseModel):
+    recipe_id: UUID
+    recipe_name: str
+    summary: str
+    assumptions: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    current: RecipeOptimizationCostSnapshot
+    optimized: RecipeOptimizationCostSnapshot
+    savings_total: float
+    savings_unit: float
+    savings_pct: float
+    changed_ingredients: int
+    changes: list[RecipeOptimizationChange] = Field(default_factory=list)
+    optimized_ingredients: list[RecipeOptimizationIngredientDraft] = Field(default_factory=list)
+    optimized_recipe: RecipeOptimizationDraft
+    ai_provider: str | None = None
+    ai_model: str | None = None
 
 
 # ============================================================================

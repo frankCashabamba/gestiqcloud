@@ -62,6 +62,42 @@ const ENTITY_SCHEMAS: Record<EntityType, {
     requiredFields: ['id'],
     maxSize: 1024 * 120,
   },
+  supplier: {
+    requiredFields: ['id', 'name'],
+    maxSize: 1024 * 50,
+  },
+  lead: {
+    requiredFields: ['id', 'name'],
+    maxSize: 1024 * 30,
+  },
+  hr: {
+    requiredFields: ['id'],
+    maxSize: 1024 * 30,
+  },
+  production: {
+    requiredFields: ['id', 'qty_planned'],
+    maxSize: 1024 * 80,
+  },
+  order: {
+    requiredFields: ['id', 'items'],
+    maxSize: 1024 * 100,
+  },
+  account: {
+    requiredFields: ['id', 'codigo', 'nombre'],
+    maxSize: 1024 * 20,
+  },
+  cashflow: {
+    requiredFields: ['id'],
+    maxSize: 1024 * 50,
+  },
+  setting: {
+    requiredFields: ['id'],
+    maxSize: 1024 * 10,
+  },
+  notification: {
+    requiredFields: ['id'],
+    maxSize: 1024 * 20,
+  },
 }
 
 // =============================================================================
@@ -217,7 +253,7 @@ export function validateBatch(entity: EntityType, items: any[]): { valid: any[];
 // =============================================================================
 
 export function isEntityType(value: unknown): value is EntityType {
-  const validEntities: EntityType[] = ['receipt', 'shift', 'product', 'customer', 'sale', 'purchase', 'invoice', 'expense', 'inventory']
+  const validEntities: EntityType[] = ['receipt', 'shift', 'product', 'customer', 'sale', 'purchase', 'invoice', 'expense', 'inventory', 'supplier', 'lead', 'hr', 'production', 'order', 'account', 'cashflow', 'setting', 'notification']
   return validEntities.includes(value as EntityType)
 }
 

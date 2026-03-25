@@ -155,6 +155,67 @@ export interface ProfitabilityAnalysis {
   punto_equilibrio_unidades: number;
 }
 
+export interface RecipeOptimizationRequest {
+  selling_price?: number | null;
+  target_margin_pct?: number | null;
+  max_ingredients_to_change?: number;
+  locked_product_ids?: string[];
+  constraints?: string | null;
+}
+
+export interface RecipeOptimizationCostSnapshot {
+  yield_qty: number;
+  materials_total: number;
+  full_cost_total: number;
+  full_cost_unit: number;
+  selling_price?: number | null;
+  margin_pct?: number | null;
+}
+
+export interface RecipeOptimizationChange {
+  product_id: string;
+  product_name: string;
+  change_type: 'keep' | 'adjust_qty' | 'locked';
+  current_qty: number;
+  suggested_qty: number;
+  unit: string;
+  estimated_cost_delta: number;
+  rationale?: string | null;
+}
+
+export interface RecipeOptimizationIngredientDraft extends RecipeIngredient {
+  product_id: string;
+  product_name: string;
+  estimated_cost: number;
+  locked: boolean;
+  changed: boolean;
+  reason?: string | null;
+}
+
+export interface RecipeOptimizationDraft extends RecipeUpdate {
+  yield_qty: number;
+  ingredients: RecipeIngredient[];
+}
+
+export interface RecipeOptimizationResponse {
+  recipe_id: string;
+  recipe_name: string;
+  summary: string;
+  assumptions: string[];
+  warnings: string[];
+  current: RecipeOptimizationCostSnapshot;
+  optimized: RecipeOptimizationCostSnapshot;
+  savings_total: number;
+  savings_unit: number;
+  savings_pct: number;
+  changed_ingredients: number;
+  changes: RecipeOptimizationChange[];
+  optimized_ingredients: RecipeOptimizationIngredientDraft[];
+  optimized_recipe: RecipeOptimizationDraft;
+  ai_provider?: string | null;
+  ai_model?: string | null;
+}
+
 // ============================================================================
 // API FUNCTIONS
 // ============================================================================
@@ -339,5 +400,16 @@ export async function compareRecipes(
   recipeIds: string[]
 ): Promise<{ recipes: any[] }> {
   const response = await apiClient.post(TENANT_RECIPES.compare, recipeIds);
+  return response.data;
+}
+
+/**
+ * 14. Optimizar receta con IA
+ */
+export async function optimizeRecipe(
+  recipeId: string,
+  data: RecipeOptimizationRequest
+): Promise<RecipeOptimizationResponse> {
+  const response = await apiClient.post(TENANT_RECIPES.optimize(recipeId), data);
   return response.data;
 }

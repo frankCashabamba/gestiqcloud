@@ -18,6 +18,15 @@ export type EntityType =
   | 'invoice'
   | 'expense'
   | 'inventory'
+  | 'supplier'
+  | 'lead'
+  | 'hr'
+  | 'production'
+  | 'order'
+  | 'account'
+  | 'cashflow'
+  | 'setting'
+  | 'notification'
 export type SyncStatus = 'pending' | 'synced' | 'conflict' | 'failed'
 
 export interface StoredEntity {

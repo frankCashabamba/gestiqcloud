@@ -8,15 +8,17 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   Typography, Box, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Chip, Alert, CircularProgress, Grid,
-  TextField, IconButton, Tabs, Tab
+  TextField, IconButton, Tabs, Tab, Divider, FormControlLabel, Checkbox
 } from '@mui/material';
-import { Add, Delete } from '@mui/icons-material';
+import { Add, Delete, AutoFixHigh } from '@mui/icons-material';
 import {
   getRecipe,
   getCostBreakdown,
+  optimizeRecipe,
   updateRecipe,
   type Recipe,
   type CostBreakdown,
+  type RecipeOptimizationResponse,
   type RecipeIngredientResponse,
 } from '../../services/api/recetas';
 import { listProducts, type Product } from '../../services/api/products';
@@ -33,6 +35,7 @@ import {
 } from '../../services/api/productionCosts';
 import tenantApi from '../../shared/api/client';
 import { usePermission } from '../../hooks/usePermission';
+import { useCompanyConfig } from '../../contexts/CompanyConfigContext';
 import { useToast } from '../../shared/toast';
 import { useUnits } from '../../hooks/useUnits';
 import { normalizeUnitCode, convertQtyToUnit } from '../../services/unitService';
@@ -154,9 +157,11 @@ interface RecetaDetailProps {
 export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }: RecetaDetailProps) {
   const { t } = useTranslation(['productions', 'common']);
   const can = usePermission();
+  const { config } = useCompanyConfig();
   const canWrite = can('produccion:write');
   const { units } = useUnits();
   const { success: toastSuccess, error: toastError } = useToast();
+  const aiOptimizationEnabled = config?.features?.copilot_enabled !== false;
 
   const [loading, setLoading] = useState(true);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -182,6 +187,15 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   }>>([]);
   const [deletedCostLineIds, setDeletedCostLineIds] = useState<string[]>([]);
   const [fullCost, setFullCost] = useState<FullCostSummary | null>(null);
+  const [optimizerOpen, setOptimizerOpen] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizerError, setOptimizerError] = useState<string | null>(null);
+  const [optimizerResult, setOptimizerResult] = useState<RecipeOptimizationResponse | null>(null);
+  const [optimizerConstraints, setOptimizerConstraints] = useState('');
+  const [optimizerTargetMargin, setOptimizerTargetMargin] = useState<string>('');
+  const [optimizerSellingPrice, setOptimizerSellingPrice] = useState<string>('');
+  const [optimizerMaxChanges, setOptimizerMaxChanges] = useState<string>('3');
+  const [optimizerLockedIds, setOptimizerLockedIds] = useState<string[]>([]);
   const [prodParams, setProdParams] = useState({
     prep_time_minutes: null as number | null,
     baking_time_minutes: null as number | null,
@@ -276,6 +290,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         getRecipeFullCost(recipeId).catch(() => null),
       ]);
       setProducts(Array.isArray(productsData) ? productsData : []);
+      const productList = Array.isArray(productsData) ? productsData : [];
       setCostDrivers(Array.isArray(driversData) ? driversData : []);
       setCostLinesDraft(
         (Array.isArray(costLinesData) ? costLinesData : []).map((cl: RecipeCostLine, idx: number) => ({
@@ -290,6 +305,18 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       );
       setDeletedCostLineIds([]);
       setFullCost(fullCostData);
+      const recipeProduct = productList.find((item) => item.id === recipeData.product_id);
+      setOptimizerSellingPrice(
+        recipeProduct?.price != null && Number.isFinite(Number(recipeProduct.price))
+          ? String(Number(recipeProduct.price))
+          : ''
+      );
+      setOptimizerTargetMargin('');
+      setOptimizerConstraints('');
+      setOptimizerLockedIds([]);
+      setOptimizerMaxChanges('3');
+      setOptimizerError(null);
+      setOptimizerResult(null);
     } catch (err: any) {
       setError(err.message || t('productions:recipe.errorLoading'));
     } finally {
@@ -483,6 +510,71 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
   const handleCancelEditing = () => {
     void loadData();
+  };
+
+  const openOptimizer = () => {
+    if (!aiOptimizationEnabled || !recipe) return;
+    setOptimizerError(null);
+    setOptimizerResult(null);
+    setOptimizerLockedIds([]);
+    setOptimizerOpen(true);
+  };
+
+  const closeOptimizer = () => {
+    if (optimizing) return;
+    setOptimizerOpen(false);
+    setOptimizerError(null);
+  };
+
+  const toggleLockedIngredient = (productId: string) => {
+    setOptimizerLockedIds((prev) =>
+      prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleRunOptimization = async () => {
+    if (!recipe) return;
+    try {
+      setOptimizing(true);
+      setOptimizerError(null);
+      const sellingPrice = optimizerSellingPrice.trim() === '' ? null : Number(optimizerSellingPrice);
+      const targetMargin = optimizerTargetMargin.trim() === '' ? null : Number(optimizerTargetMargin);
+      const maxChanges = Number(optimizerMaxChanges || 3);
+
+      const result = await optimizeRecipe(recipe.id, {
+        selling_price: sellingPrice,
+        target_margin_pct: targetMargin,
+        max_ingredients_to_change: Number.isFinite(maxChanges) && maxChanges > 0 ? maxChanges : 3,
+        locked_product_ids: optimizerLockedIds,
+        constraints: optimizerConstraints.trim() || null,
+      });
+
+      setOptimizerResult(result);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setOptimizerError(typeof detail === 'string' ? detail : (err?.message || 'No se pudo optimizar la receta.'));
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const handleApplyOptimization = async () => {
+    if (!canWrite || !recipe || !optimizerResult) return;
+    try {
+      setOptimizing(true);
+      setOptimizerError(null);
+      await updateRecipe(recipe.id, optimizerResult.optimized_recipe);
+      await loadData();
+      setOptimizerOpen(false);
+      toastSuccess('Propuesta optimizada aplicada a la receta.');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setOptimizerError(typeof detail === 'string' ? detail : (err?.message || 'No se pudo aplicar la propuesta.'));
+    } finally {
+      setOptimizing(false);
+    }
   };
 
   if (loading) {
@@ -1332,9 +1424,262 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
               {t('productions:recipe.newOrder')}
             </Button>
           )}
+          {aiOptimizationEnabled && recipe && !isEditing && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={openOptimizer}
+              disabled={updating}
+              startIcon={<AutoFixHigh />}
+              sx={{ borderRadius: 2.5, fontWeight: 700 }}
+            >
+              Optimizar con IA
+            </Button>
+          )}
           <Button onClick={onClose} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>{t('productions:recipe.close')}</Button>
         </Box>
       </DialogActions>
+
+      <Dialog
+        open={aiOptimizationEnabled && optimizerOpen}
+        onClose={closeOptimizer}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: dialogPaperSx }}
+      >
+        <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
+          Optimización de receta con IA
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, py: 3, backgroundColor: '#f8fafc' }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Usa costes actuales y restricciones operativas para proponer una versión más eficiente de la receta.
+          </Typography>
+
+          {optimizerError && (
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2.5 }}>
+              {optimizerError}
+            </Alert>
+          )}
+
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Precio de venta"
+                type="number"
+                fullWidth
+                size="small"
+                value={optimizerSellingPrice}
+                onChange={(e) => setOptimizerSellingPrice(e.target.value)}
+                inputProps={{ min: 0, step: 0.01 }}
+                helperText="Opcional, para recalcular margen"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Margen objetivo %"
+                type="number"
+                fullWidth
+                size="small"
+                value={optimizerTargetMargin}
+                onChange={(e) => setOptimizerTargetMargin(e.target.value)}
+                inputProps={{ min: 0, max: 100, step: 0.1 }}
+                helperText="Opcional"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Máx. ingredientes a cambiar"
+                type="number"
+                fullWidth
+                size="small"
+                value={optimizerMaxChanges}
+                onChange={(e) => setOptimizerMaxChanges(e.target.value)}
+                inputProps={{ min: 1, max: 20, step: 1 }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Restricciones"
+                fullWidth
+                size="small"
+                multiline
+                minRows={3}
+                value={optimizerConstraints}
+                onChange={(e) => setOptimizerConstraints(e.target.value)}
+                placeholder="Ej.: no tocar harina madre, mantener textura crujiente, no bajar rendimiento, evitar cambios >5% en sal."
+              />
+            </Grid>
+          </Grid>
+
+          <Box sx={{ ...sectionCardSx, mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+              Ingredientes bloqueados
+            </Typography>
+            <Grid container spacing={0.5}>
+              {ingredientsDraft.length === 0 ? (
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary">No hay ingredientes cargados.</Typography>
+                </Grid>
+              ) : (
+                ingredientsDraft.map((item) => {
+                  const product = products.find((p) => p.id === item.product_id);
+                  const label = product?.name || item.product_id;
+                  return (
+                    <Grid item xs={12} sm={6} key={item.product_id}>
+                      <FormControlLabel
+                        control={(
+                          <Checkbox
+                            size="small"
+                            checked={optimizerLockedIds.includes(item.product_id)}
+                            onChange={() => toggleLockedIngredient(item.product_id)}
+                          />
+                        )}
+                        label={<Typography variant="body2">{label}</Typography>}
+                      />
+                    </Grid>
+                  );
+                })
+              )}
+            </Grid>
+          </Box>
+
+          {optimizerResult && (
+            <Box sx={{ ...sectionCardSx, mb: 0 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 0.75 }}>
+                Propuesta optimizada
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {optimizerResult.summary}
+              </Typography>
+
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} sm={4}>
+                  <Box sx={metricCardSx}>
+                    <Typography variant="caption" color="text.secondary">Costo actual / u</Typography>
+                    <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
+                      ${Number(optimizerResult.current.full_cost_unit || 0).toFixed(4)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Margen: {optimizerResult.current.margin_pct != null ? `${Number(optimizerResult.current.margin_pct).toFixed(2)}%` : 'n/d'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Box sx={metricCardSx}>
+                    <Typography variant="caption" color="text.secondary">Costo optimizado / u</Typography>
+                    <Typography variant="h6" color="success.main" sx={{ mt: 0.5, fontWeight: 700 }}>
+                      ${Number(optimizerResult.optimized.full_cost_unit || 0).toFixed(4)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Margen: {optimizerResult.optimized.margin_pct != null ? `${Number(optimizerResult.optimized.margin_pct).toFixed(2)}%` : 'n/d'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Box sx={metricCardSx}>
+                    <Typography variant="caption" color="text.secondary">Ahorro estimado</Typography>
+                    <Typography variant="h6" color={optimizerResult.savings_total >= 0 ? 'success.main' : 'error.main'} sx={{ mt: 0.5, fontWeight: 700 }}>
+                      ${Number(optimizerResult.savings_total || 0).toFixed(2)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {Number(optimizerResult.savings_pct || 0).toFixed(2)}% del lote
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {optimizerResult.warnings.length > 0 && (
+                <Alert severity="warning" sx={{ mb: 2, borderRadius: 2.5 }}>
+                  {optimizerResult.warnings.join(' ')}
+                </Alert>
+              )}
+
+              {optimizerResult.assumptions.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>
+                    Supuestos
+                  </Typography>
+                  {optimizerResult.assumptions.map((item, idx) => (
+                    <Typography key={idx} variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                      • {item}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Cambios sugeridos
+              </Typography>
+              <TableContainer component={Paper} variant="outlined" sx={tableContainerSx}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Ingrediente</TableCell>
+                      <TableCell align="right">Actual</TableCell>
+                      <TableCell align="right">Sugerido</TableCell>
+                      <TableCell align="right">Impacto</TableCell>
+                      <TableCell>Motivo</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {optimizerResult.changes.map((change) => (
+                      <TableRow key={change.product_id}>
+                        <TableCell>{change.product_name}</TableCell>
+                        <TableCell align="right">{Number(change.current_qty || 0).toFixed(4)} {change.unit}</TableCell>
+                        <TableCell align="right">
+                          <Typography
+                            variant="body2"
+                            color={change.change_type === 'adjust_qty' ? 'success.main' : 'text.primary'}
+                            sx={{ fontWeight: change.change_type === 'adjust_qty' ? 700 : 400 }}
+                          >
+                            {Number(change.suggested_qty || 0).toFixed(4)} {change.unit}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          ${Number(change.estimated_cost_delta || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell>{change.rationale || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={dialogActionsSx}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button onClick={closeOptimizer} disabled={optimizing} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>
+              Cerrar
+            </Button>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {optimizerResult && canWrite && (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleApplyOptimization}
+                disabled={optimizing}
+                sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
+              >
+                {optimizing ? <CircularProgress size={16} color="inherit" /> : 'Aplicar propuesta'}
+              </Button>
+            )}
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleRunOptimization}
+              disabled={optimizing || !recipe}
+              startIcon={optimizing ? undefined : <AutoFixHigh />}
+              sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
+            >
+              {optimizing ? <CircularProgress size={16} color="inherit" /> : 'Analizar con IA'}
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={canWrite && orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
         <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>

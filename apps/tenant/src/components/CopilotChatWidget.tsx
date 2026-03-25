@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api/client'
+import { TENANT_AI } from '@shared/endpoints'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -19,7 +20,7 @@ async function* streamChatMessage(
   const baseURL = (api.defaults.baseURL || '').replace(/\/+$/, '')
   const token = localStorage.getItem('access_token_tenant') || ''
 
-  const res = await fetch(`${baseURL}/api/v1/tenant/ai/chat/stream`, {
+  const res = await fetch(`${baseURL}${TENANT_AI.chatStream}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -59,10 +60,38 @@ async function* streamChatMessage(
 
 async function sendFeedback(messageId: string, rating: 'thumbs_up' | 'thumbs_down') {
   try {
-    await api.post('/api/v1/tenant/ai/feedback', { message_id: messageId, rating })
+    await api.post(TENANT_AI.feedback, { message_id: messageId, rating })
   } catch {
     // best-effort
   }
+}
+
+const MODULE_ROUTE_MATCHERS: Array<{ moduleId: string; matches: string[] }> = [
+  { moduleId: 'manufacturing', matches: ['/manufacturing', '/production', '/produccion'] },
+  { moduleId: 'inventory', matches: ['/inventory', '/inventario'] },
+  { moduleId: 'purchases', matches: ['/purchases', '/compras'] },
+  { moduleId: 'sales', matches: ['/sales', '/ventas'] },
+  { moduleId: 'finance', matches: ['/finance', '/finanzas'] },
+  { moduleId: 'accounting', matches: ['/accounting', '/contabilidad'] },
+  { moduleId: 'einvoicing', matches: ['/einvoicing'] },
+  { moduleId: 'invoicing', matches: ['/invoicing', '/facturacion'] },
+  { moduleId: 'reconciliation', matches: ['/reconciliation', '/conciliacion'] },
+  { moduleId: 'crm', matches: ['/crm'] },
+  { moduleId: 'customers', matches: ['/customers', '/clientes', '/clients'] },
+  { moduleId: 'suppliers', matches: ['/suppliers', '/proveedores'] },
+  { moduleId: 'notifications', matches: ['/notifications', '/notificaciones'] },
+  { moduleId: 'settings', matches: ['/settings', '/configuracion'] },
+  { moduleId: 'users', matches: ['/users', '/usuarios'] },
+  { moduleId: 'expenses', matches: ['/expenses', '/gastos'] },
+  { moduleId: 'hr', matches: ['/hr', '/rrhh'] },
+  { moduleId: 'products', matches: ['/products', '/productos'] },
+  { moduleId: 'reports', matches: ['/reports', '/reportes'] },
+  { moduleId: 'pos', matches: ['/pos'] },
+]
+
+function resolveCurrentModule(path: string): string | undefined {
+  const match = MODULE_ROUTE_MATCHERS.find(entry => entry.matches.some(fragment => path.includes(fragment)))
+  return match?.moduleId
 }
 
 export default function CopilotChatWidget() {
@@ -79,9 +108,20 @@ export default function CopilotChatWidget() {
     inventory: ['¿Qué productos tienen stock bajo?', '¿Cuál es el valor del inventario?', '¿Productos sin movimiento?'],
     purchases: ['¿Hay órdenes de compra pendientes?', '¿Cuánto gasté en compras este mes?', '¿Último pedido recibido?'],
     sales: ['¿Cómo van las ventas del mes?', '¿Quiénes son mis mejores clientes?', '¿Tendencia de ventas?'],
-    productions: ['¿Órdenes de producción activas?', '¿Eficiencia de producción?', '¿Mermas del día?'],
+    manufacturing: ['¿Órdenes de producción activas?', '¿Qué receta tiene peor margen?', '¿Hay riesgo de rotura por ingredientes?'],
     expenses: ['¿Cuánto gasté este mes?', '¿Categorías de gasto principales?', '¿Comparar con mes anterior?'],
-    finances: ['¿Resumen de cobros y pagos?', '¿Estado de cuentas?', '¿Flujo de caja?'],
+    finance: ['¿Resumen de cobros y pagos?', '¿Estado de cuentas?', '¿Flujo de caja?'],
+    accounting: ['¿Cuántos asientos están en borrador?', '¿Últimos asientos contabilizados?', '¿Hay desbalances?'],
+    crm: ['¿Cuántas oportunidades abiertas hay?', '¿Qué etapa concentra más valor?', '¿Cómo va la conversión?'],
+    customers: ['¿Cuántos clientes tengo?', '¿Últimos clientes creados?', '¿Hay clientes mayoristas?'],
+    suppliers: ['¿Cuántos proveedores activos tengo?', '¿Últimos proveedores creados?', '¿Compras pendientes?'],
+    notifications: ['¿Cuántas notificaciones no leídas hay?', '¿Qué alertas recientes tengo?', '¿Hay algo urgente?'],
+    reports: ['Resume mi último mes', '¿Dónde estoy perdiendo margen?', '¿Qué módulo necesita atención?'],
+    users: ['¿Cuántos usuarios activos tengo?', '¿Cuántos administradores hay?', '¿Últimos usuarios creados?'],
+    invoicing: ['¿Cuántas facturas hay pendientes?', '¿Últimas facturas emitidas?', '¿Importe facturado reciente?'],
+    einvoicing: ['¿Qué envíos SRI/SII están pendientes?', '¿Hay rechazos recientes?', '¿Qué estado domina hoy?'],
+    reconciliation: ['¿Qué conciliaciones siguen abiertas?', '¿Hay diferencias pendientes?', '¿Cómo van los movimientos bancarios?'],
+    settings: ['Resume la configuración de la empresa', '¿Qué país y moneda están activos?', '¿Qué contexto general tengo?'],
   }
   const defaultSuggestions = [
     t('components.copilot.suggestions.sales'),
@@ -90,18 +130,7 @@ export default function CopilotChatWidget() {
   ]
 
   const path = window.location.pathname.toLowerCase()
-  const currentModule = (() => {
-    if (path.includes('/pos')) return 'pos'
-    if (path.includes('/inventory') || path.includes('/inventario')) return 'inventory'
-    if (path.includes('/purchases') || path.includes('/compras')) return 'purchases'
-    if (path.includes('/sales') || path.includes('/ventas')) return 'sales'
-    if (path.includes('/production') || path.includes('/produccion')) return 'productions'
-    if (path.includes('/expenses') || path.includes('/gastos')) return 'expenses'
-    if (path.includes('/finance') || path.includes('/finanzas')) return 'finances'
-    if (path.includes('/hr') || path.includes('/rrhh')) return 'hr'
-    if (path.includes('/products') || path.includes('/productos')) return 'products'
-    return undefined
-  })()
+  const currentModule = resolveCurrentModule(path)
 
   const [suggestions, setSuggestions] = useState<string[]>(
     (currentModule && moduleSuggestions[currentModule]) || defaultSuggestions
@@ -186,14 +215,14 @@ export default function CopilotChatWidget() {
 
   const loadHistory = async () => {
     try {
-      const res = await api.get('/api/v1/tenant/ai/conversations')
+      const res = await api.get(TENANT_AI.conversations)
       setConversations(res.data)
     } catch { /* ignore */ }
   }
 
   const loadConversation = async (convId: string) => {
     try {
-      const res = await api.get(`/api/v1/tenant/ai/conversations/${convId}/messages`)
+      const res = await api.get(`${TENANT_AI.conversations}/${convId}/messages`)
       const msgs: ChatMessage[] = res.data.map((m: any) => ({
         role: m.role,
         content: m.content,
@@ -207,7 +236,7 @@ export default function CopilotChatWidget() {
 
   const deleteConversation = async (convId: string) => {
     try {
-      await api.delete(`/api/v1/tenant/ai/conversations/${convId}`)
+      await api.delete(`${TENANT_AI.conversations}/${convId}`)
       setConversations(prev => prev.filter(c => c.id !== convId))
     } catch { /* ignore */ }
   }
