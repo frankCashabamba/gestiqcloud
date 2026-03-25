@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchFileSupportConfig,
@@ -36,7 +36,7 @@ type FileEntry = {
 type PersistedFileEntry = Omit<FileEntry, 'file'>
 type DirectoryInputProps = React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory?: string }
 
-const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.heic,.heif,.xlsx,.xls,.csv,.xml,.txt'
+const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.bmp,.heic,.heif,.xlsx,.xls,.csv,.xml,.txt,application/pdf,image/jpeg,image/png,image/tiff,image/bmp,image/heic,image/heif,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/xml,text/xml,text/plain'
 const ACCEPTED_EXTENSIONS = new Set([
   '.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.heic', '.heif', '.xlsx', '.xls', '.csv', '.xml', '.txt',
 ])
@@ -414,10 +414,14 @@ export default function ImportUploader({
     })
     if (!incoming.length) return
     setEntries((prev) => {
-      const existing = new Set(prev.map((entry) => `${entry.name}-${entry.size}`))
+      const existingPending = new Set(
+        prev
+          .filter((entry) => entry.status === 'pending')
+          .map((entry) => `${entry.name}-${entry.size}`)
+      )
       const merged = [...prev]
       incoming.forEach((file) => {
-        if (!existing.has(`${file.name}-${file.size}`)) {
+        if (!existingPending.has(`${file.name}-${file.size}`)) {
           merged.push({ file, name: file.name, size: file.size, status: 'pending' })
         }
       })
@@ -469,12 +473,23 @@ export default function ImportUploader({
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.length) addFiles(e.target.files)
-    e.target.value = ''
+    // Clone & replace the input so iOS Safari allows re-selecting the same file
+    const input = e.target
+    input.value = ''
+    if (input.value) {
+      input.type = 'text'
+      input.type = 'file'
+    }
   }
 
   const onFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.length) addFiles(e.target.files)
-    e.target.value = ''
+    const input = e.target
+    input.value = ''
+    if (input.value) {
+      input.type = 'text'
+      input.type = 'file'
+    }
   }
 
   const handleRun = useCallback(async () => {

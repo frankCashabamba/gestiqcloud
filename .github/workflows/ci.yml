@@ -24,7 +24,6 @@ jobs:
             backend:
               - 'apps/backend/**'
               - 'apps/packages/**'
-              - '.github/workflows/ci.yml'
             admin:
               - 'apps/admin/**'
               - 'apps/packages/**'
