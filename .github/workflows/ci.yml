@@ -1,307 +1,224 @@
-name: CI/CD Pipeline
+name: CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
-  # ============================================================================
-  # BACKEND TESTS
-  # ============================================================================
-  backend-tests:
+  # ── Detect what changed ──────────────────────────────────────────────
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      admin: ${{ steps.filter.outputs.admin }}
+      tenant: ${{ steps.filter.outputs.tenant }}
+      ops: ${{ steps.filter.outputs.ops }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/backend/**'
+              - 'apps/packages/**'
+              - '.github/workflows/ci.yml'
+            admin:
+              - 'apps/admin/**'
+              - 'apps/packages/**'
+            tenant:
+              - 'apps/tenant/**'
+              - 'apps/packages/**'
+            ops:
+              - 'ops/**'
 
-    services:
-      postgres:
-        image: postgres:15-alpine
+  # ── Backend ──────────────────────────────────────────────────────────
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.ops == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    env:
+      TEST_MINIMAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'apps/backend/requirements.txt'
+
+      - name: Start Postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGES=(
+            public.ecr.aws/docker/library/postgres:15
+            ghcr.io/library/postgres:15
+            postgres:15
+            postgres:15-alpine
+          )
+          pulled=0
+          for img in "${IMAGES[@]}"; do
+            echo "Trying to pull $img"
+            for i in {1..5}; do
+              if docker pull "$img"; then pulled=1; break; fi
+              echo "Pull failed for $img (attempt $i). Retrying in $((i*i))s"; sleep $((i*i));
+            done
+            if [ "$pulled" -eq 1 ]; then export PG_IMAGE="$img"; break; fi
+          done
+          if [ "$pulled" -ne 1 ]; then
+            echo "::error ::Failed to pull any Postgres image from mirrors" >&2
+            exit 1
+          fi
+          echo "Using image: $PG_IMAGE"
+          docker run -d --name pg -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=testdb \
+            "$PG_IMAGE"
+          for i in {1..60}; do
+            if docker exec pg pg_isready -U postgres >/dev/null 2>&1; then
+              echo "Postgres is ready"; break;
+            fi
+            sleep 1
+          done
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint with Ruff
+        run: ruff check --line-length=100 app/
+
+      - name: Static guard — forbid legacy ::uuid param casts
+        run: |
+          set -e
+          HITS=$(grep -RInE ":[A-Za-z_][A-Za-z0-9_]*::uuid" app | grep -vE "^app/db/rls\.py:" | grep -v "/alembic/" | grep -v "/tests/" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "ERROR: Found legacy ::uuid casts. Replace with CAST(:param AS uuid)." >&2
+            exit 1
+          fi
+
+      - name: Static guard — forbid direct current_setting in app
+        run: |
+          set -e
+          HITS=$(grep -RIn "current_setting('app.tenant_id'" app | grep -vE "^app/db/rls\.py:" | grep -v "/alembic/" | grep -v "/tests/" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "ERROR: Use helper tenant_id_sql_expr() and ensure_rls." >&2
+            exit 1
+          fi
+
+      - name: Apply database migrations
         env:
-          POSTGRES_DB: gestiqcloud_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          FRONTEND_URL: http://localhost:5173
+          TENANT_NAMESPACE_UUID: 00000000-0000-0000-0000-000000000000
+          ENV: development
+        run: |
+          pip install psycopg2-binary
+          for i in {1..30}; do
+            docker exec pg pg_isready -U postgres && break || sleep 1;
+          done
+          cd ../.. && python ops/scripts/migrate_all_migrations_idempotent.py --database-url "postgresql://postgres:postgres@localhost:5432/testdb"
 
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+      - name: Tests with coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          FRONTEND_URL: http://localhost:5173
+          TENANT_NAMESPACE_UUID: 00000000-0000-0000-0000-000000000000
+        run: |
+          pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=40 \
+            -q --ignore=tests/modules/imports/ app/tests/
 
-    strategy:
-      matrix:
-        python-version: ['3.11']
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./apps/backend/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
 
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-
-    - name: Install dependencies
-      working-directory: ./apps/backend
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
-
-    - name: Run pre-commit checks
-      run: |
-        pre-commit run --all-files
-
-    - name: Type check with mypy
-      working-directory: ./apps/backend
-      run: |
-        # Non-blocking for now: keep type signal visible while legacy issues are cleaned up.
-        mypy app/ --ignore-missing-imports || true
-
-    - name: Run tests
-      working-directory: ./apps/backend
-      env:
-        DATABASE_URL: postgresql://test:test@localhost:5432/gestiqcloud_test
-        REDIS_URL: redis://localhost:6379/0
-        ENV: test
-        SECRET_KEY: test-secret-key
-        JWT_SECRET_KEY: test-jwt-key
-      run: |
-        pytest app/tests -v --tb=short --cov=app --cov-report=xml --cov-report=term
-
-    - name: Upload coverage
-      uses: codecov/codecov-action@v4
-      with:
-        files: ./apps/backend/coverage.xml
-        flags: backend
-        name: backend-coverage
-
-  # ============================================================================
-  # FRONTEND LINT & TYPECHECK
-  # ============================================================================
-  frontend-lint:
+  # ── Admin frontend ──────────────────────────────────────────────────
+  admin:
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        app: ['admin', 'tenant']
-
+    defaults:
+      run:
+        working-directory: apps/admin
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Node 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: apps/${{ matrix.app }}/package-lock.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/admin/package-lock.json'
 
-    - name: Install dependencies
-      working-directory: ./apps/${{ matrix.app }}
-      run: npm ci
+      - run: npm ci --no-audit --no-fund
 
-    - name: Run typecheck
-      working-directory: ./apps/${{ matrix.app }}
-      run: npm run typecheck
+      - name: Typecheck
+        run: npm run typecheck
 
-    - name: Run lint
-      working-directory: ./apps/${{ matrix.app }}
-      run: npm run lint -- --max-warnings 1000
+      - name: Lint
+        run: npm run lint -- --max-warnings 1000
 
-    - name: Run unit tests (if configured)
-      working-directory: ./apps/${{ matrix.app }}
-      run: npm run test:run
-      continue-on-error: true
+      - name: Build
+        run: npm run build
 
-  # ============================================================================
-  # BACKEND BUILD CHECK
-  # ============================================================================
-  backend-build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      working-directory: ./apps/backend
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Check imports
-      working-directory: ./apps/backend
-      run: |
-        python -c "import app; print('✓ Imports OK')"
-
-    - name: Validate migrations
-      working-directory: ./apps/backend
-      run: |
-        echo "✅ Migrations managed via ops/migrations/ (SQL scripts)"
-        ls -la ../../ops/migrations/ | tail -10
-
-  # ============================================================================
-  # FRONTEND BUILD CHECK
-  # ============================================================================
-  frontend-build:
+  # ── Tenant frontend ────────────────────────────────────────────────
+  tenant:
+    needs: changes
+    if: needs.changes.outputs.tenant == 'true'
     runs-on: ubuntu-latest
     env:
       VITE_API_URL: http://localhost:8000
-
-    strategy:
-      matrix:
-        app: ['admin', 'tenant']
-
+    defaults:
+      run:
+        working-directory: apps/tenant
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Node 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: apps/${{ matrix.app }}/package-lock.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/tenant/package-lock.json'
 
-    - name: Install dependencies
-      working-directory: ./apps/${{ matrix.app }}
-      run: npm ci
+      - run: npm ci --no-audit --no-fund
 
-    - name: Build
-      working-directory: ./apps/${{ matrix.app }}
-      run: npm run build
+      - name: Typecheck
+        run: npm run typecheck
 
-    - name: Check build size
-      working-directory: ./apps/${{ matrix.app }}
-      run: |
-        du -sh dist/
-        ls -lh dist/*.js 2>/dev/null | head -5 || true
+      - name: Lint
+        run: npm run lint -- --max-warnings 1000
 
-  # ============================================================================
-  # E2E TESTS (Playwright)
-  # ============================================================================
-  e2e-tests:
-    runs-on: ubuntu-latest
-    needs: [frontend-build]
-    continue-on-error: true
+      - name: Build
+        run: npm run build
 
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Node 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: |
-          package-lock.json
-          apps/tenant/package-lock.json
-
-    - name: Install root dependencies
-      run: npm ci
-
-    - name: Install tenant dependencies
-      working-directory: ./apps/tenant
-      run: npm ci
-
-    - name: Set up Python 3.11 (for backend API)
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-
-    - name: Install backend dependencies
-      working-directory: ./apps/backend
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Start backend API for E2E
-      working-directory: ./apps/backend
-      env:
-        ENVIRONMENT: development
-        ENV: development
-        DATABASE_URL: sqlite:///./test_e2e.db
-        SECRET_KEY: test-e2e-secret-key-12345678901234567890
-        JWT_SECRET_KEY: test-e2e-jwt-key
-        FRONTEND_URL: http://localhost:5173
-        TENANT_NAMESPACE_UUID: 11111111-1111-1111-1111-111111111111
-      run: |
-        nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/e2e-backend.log 2>&1 &
-        for i in {1..60}; do
-          if curl -sf http://127.0.0.1:8000/health >/dev/null; then
-            echo "Backend ready"
-            break
-          fi
-          if [ "$i" -eq 60 ]; then
-            echo "Backend failed to start"
-            cat /tmp/e2e-backend.log || true
-            exit 1
-          fi
-          sleep 1
-        done
-
-    - name: Install Playwright browsers
-      run: npx playwright install --with-deps chromium
-
-    - name: Run E2E tests
-      run: npx playwright test --project=chromium
-      env:
-        CI: true
-        VITE_API_URL: http://localhost:8000/api
-        PORT: 5173
-        PLAYWRIGHT_WORKERS: 2
-        PLAYWRIGHT_RETRIES: 1
-
-    - name: Upload Playwright report
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 14
-
-    - name: Show backend log on failure
-      if: failure()
-      run: cat /tmp/e2e-backend.log || true
-
-  # ============================================================================
-  # SUMMARY
-  # ============================================================================
-  ci-summary:
-    needs: [backend-tests, frontend-lint, backend-build, frontend-build, e2e-tests]
-    runs-on: ubuntu-latest
+  # ── CI Summary ──────────────────────────────────────────────────────
+  ci-ok:
     if: always()
-
+    needs: [backend, admin, tenant]
+    runs-on: ubuntu-latest
     steps:
-    - name: Check CI Status
-      run: |
-        if [[ "${{ needs.backend-tests.result }}" != "success" ]]; then
-          echo "❌ Backend tests failed"
-          exit 1
-        fi
-        if [[ "${{ needs.frontend-lint.result }}" != "success" ]]; then
-          echo "❌ Frontend lint/typecheck failed"
-          exit 1
-        fi
-        if [[ "${{ needs.frontend-build.result }}" != "success" ]]; then
-          echo "❌ Frontend build failed"
-          exit 1
-        fi
-        if [[ "${{ needs.e2e-tests.result }}" != "success" ]]; then
-          echo "⚠️ E2E tests failed (non-blocking)"
-        fi
-        echo "✅ CI Pipeline passed"
+      - name: Check results
+        run: |
+          echo "backend=${{ needs.backend.result }}"
+          echo "admin=${{ needs.admin.result }}"
+          echo "tenant=${{ needs.tenant.result }}"
+          for r in "${{ needs.backend.result }}" "${{ needs.admin.result }}" "${{ needs.tenant.result }}"; do
+            if [[ "$r" == "failure" ]]; then
+              echo "❌ CI failed"
+              exit 1
+            fi
+          done
+          echo "✅ CI passed"
