@@ -205,3 +205,103 @@ def test_optimize_recipe_with_ai_rejects_invalid_json(db, tenant_minimal, monkey
                 request=RecipeOptimizationRequest(),
             )
         )
+
+
+def test_optimize_recipe_with_ai_preserves_line_identity_for_duplicate_products(
+    db, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+
+    finished_product = Product(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        sku="PAN-DUP",
+        name="Pan con duplicados",
+        active=True,
+        stock=0,
+        unit="uds",
+    )
+    flour = Product(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        sku="HARINA-DUP",
+        name="Harina duplicada",
+        active=True,
+        stock=0,
+        unit="kg",
+        is_raw_material=True,
+    )
+    recipe = Recipe(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        product_id=finished_product.id,
+        name="Receta con lineas repetidas",
+        yield_qty=8,
+        total_cost=Decimal("8.00"),
+        is_active=True,
+    )
+    flour_line_a = RecipeIngredient(
+        id=uuid4(),
+        recipe_id=recipe.id,
+        product_id=flour.id,
+        qty=Decimal("3.0000"),
+        unit="kg",
+        purchase_packaging="Saco 25 kg",
+        qty_per_package=Decimal("25.0000"),
+        package_unit="kg",
+        package_cost=Decimal("20.0000"),
+        line_order=0,
+    )
+    flour_line_b = RecipeIngredient(
+        id=uuid4(),
+        recipe_id=recipe.id,
+        product_id=flour.id,
+        qty=Decimal("1.5000"),
+        unit="kg",
+        purchase_packaging="Saco 25 kg",
+        qty_per_package=Decimal("25.0000"),
+        package_unit="kg",
+        package_cost=Decimal("20.0000"),
+        line_order=1,
+    )
+
+    db.add_all([finished_product, flour, recipe, flour_line_a, flour_line_b])
+    db.commit()
+
+    async def fake_query(**kwargs):
+        payload = {
+            "summary": "Se ajusta harina sin perder trazabilidad por linea.",
+            "assumptions": [],
+            "warnings": [],
+            "yield_qty": 8,
+            "ingredients": [
+                {
+                    "product_id": str(flour.id),
+                    "qty": 2.8,
+                    "reason": "Ajuste conservador de harina.",
+                }
+            ],
+        }
+        return AIResponse(
+            task=AITask.ANALYSIS,
+            content=json.dumps(payload),
+            model="test-model",
+            metadata={"provider": "test-provider"},
+        )
+
+    monkeypatch.setattr(AIService, "query", staticmethod(fake_query))
+
+    result = asyncio.run(
+        optimize_recipe_with_ai(
+            db=db,
+            tenant_id=tenant_id,
+            user_id="tester",
+            recipe_id=recipe.id,
+            request=RecipeOptimizationRequest(max_ingredients_to_change=2),
+        )
+    )
+
+    assert len(result.changes) == 2
+    assert [change.line_order for change in result.changes] == [0, 1]
+    assert len({(str(change.product_id), change.line_order) for change in result.changes}) == 2
+    assert any("ingredientes repetidos" in warning.lower() for warning in result.warnings)

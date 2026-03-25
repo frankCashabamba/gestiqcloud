@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../../services/api/client'
+import { TENANT_AI } from '@shared/endpoints'
 
 interface DailyMetric {
   day: string
@@ -129,7 +130,7 @@ export default function AIMetricsDashboard() {
 
   const load = (d: number) => {
     setLoading(true)
-    api.get(`/api/v1/tenant/ai/metrics?days=${d}`)
+    api.get(`${TENANT_AI.metrics}?days=${d}`)
       .then((res) => setMetrics(res.data))
       .catch(() => {})
       .finally(() => setLoading(false))

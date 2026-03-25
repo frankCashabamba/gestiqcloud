@@ -3,10 +3,14 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
 import {
   askCopilot,
+  getCopilotCatalog,
   getSuggestions,
+  type CopilotCatalog,
+  type CopilotCatalogEntry,
   type QueryResult,
   type SuggestionsResult,
   type AIInsights,
+  type Topic,
 } from './services'
 import { getCompanySettings, formatCurrency } from '../../services/companySettings'
 import type { CompanySettings } from '../../services/companySettings'
@@ -92,7 +96,7 @@ function InsightsPanel({ insights }: { insights: AIInsights }) {
 function Card({
   title, icon, topic, params, result, onUpdate, children, loading,
 }: {
-  title: string; icon: string; topic: Parameters<typeof askCopilot>[0]['topic']
+  title: string; icon: string; topic: Topic
   params?: Record<string, any>; result: QueryResult | null
   onUpdate: (r: QueryResult) => void; children: React.ReactNode; loading: boolean
 }) {
@@ -150,6 +154,26 @@ function Card({
       )}
     </div>
   )
+}
+
+function renderSummaryCardBody(topic: Topic, result: QueryResult | null, cs: CompanySettings | null) {
+  if (topic === 'ventas_mes') {
+    return <VentasMesCard result={result} cs={cs} />
+  }
+  if (topic === 'top_productos') {
+    return <TopProductosCard result={result} cs={cs} />
+  }
+  if (topic === 'stock_bajo') {
+    return <StockBajoCard result={result} />
+  }
+  if (topic === 'cobros_pagos') {
+    return <CobrosCard result={result} cs={cs} />
+  }
+  return <p className="text-sm text-slate-400">Sin renderer para este tema.</p>
+}
+
+function isSummaryTopic(entry: CopilotCatalogEntry): entry is CopilotCatalogEntry & { id: Topic } {
+  return Boolean(entry.summary_card)
 }
 
 // ─── ventas por mes ──────────────────────────────────────────────────────────
@@ -566,27 +590,53 @@ export default function CopilotDashboard() {
   const [activeTab, setActiveTab] = useState<'resumen' | 'exportar'>('resumen')
   const [globalLoading, setGlobalLoading] = useState(true)
   const [cs, setCs] = useState<CompanySettings | null>(null)
-  const [salesMonth, setSalesMonth] = useState<QueryResult | null>(null)
-  const [topProducts, setTopProducts] = useState<QueryResult | null>(null)
-  const [lowStock, setLowStock] = useState<QueryResult | null>(null)
-  const [payments, setPayments] = useState<QueryResult | null>(null)
+  const [catalog, setCatalog] = useState<CopilotCatalog | null>(null)
+  const [cardResults, setCardResults] = useState<Partial<Record<Topic, QueryResult | null>>>({})
   const [suggestions, setSuggestions] = useState<SuggestionsResult | null>(null)
+
+  const summaryTopics = useMemo(
+    () =>
+      (catalog?.topics ?? [])
+        .filter(isSummaryTopic)
+        .sort((a, b) => (a.summary_order ?? 999) - (b.summary_order ?? 999)),
+    [catalog]
+  )
+
+  const setTopicResult = (topic: Topic, result: QueryResult | null) => {
+    setCardResults(prev => ({ ...prev, [topic]: result }))
+  }
 
   const load = async () => {
     setGlobalLoading(true)
     try {
-      const [sales, top, stock, pay, settings] = await Promise.all([
-        askCopilot({ topic: 'ventas_mes', with_ai_insights: false }).catch(() => null),
-        askCopilot({ topic: 'top_productos', with_ai_insights: false }).catch(() => null),
-        askCopilot({ topic: 'stock_bajo', params: { threshold: 5 }, with_ai_insights: false }).catch(() => null),
-        askCopilot({ topic: 'cobros_pagos', with_ai_insights: false }).catch(() => null),
+      const [catalogData, settings] = await Promise.all([
+        getCopilotCatalog().catch(() => null),
         getCompanySettings().catch(() => null),
       ])
-      setSalesMonth(sales)
-      setTopProducts(top)
-      setLowStock(stock)
-      setPayments(pay)
+
+      if (!catalogData) {
+        throw new Error('catalog_unavailable')
+      }
+
+      setCatalog(catalogData)
       setCs(settings)
+
+      const featuredTopics = (catalogData.topics ?? [])
+        .filter(isSummaryTopic)
+        .sort((a, b) => (a.summary_order ?? 999) - (b.summary_order ?? 999))
+
+      const resultEntries = await Promise.all(
+        featuredTopics.map(async entry => {
+          const result = await askCopilot({
+            topic: entry.id as Topic,
+            params: entry.default_params,
+            with_ai_insights: false,
+          }).catch(() => null)
+          return [entry.id as Topic, result] as const
+        })
+      )
+
+      setCardResults(Object.fromEntries(resultEntries))
     } catch {
       showError(t('errorLoadingCopilot'))
     } finally {
@@ -597,9 +647,9 @@ export default function CopilotDashboard() {
   useEffect(() => { load() }, [])
 
   const stockAlert = useMemo(() => {
-    const data = lowStock?.cards[0]?.data ?? []
+    const data = cardResults.stock_bajo?.cards[0]?.data ?? []
     return data.filter(d => Number(d.qty ?? d.stock ?? 0) === 0).length
-  }, [lowStock])
+  }, [cardResults])
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-5xl">
@@ -656,50 +706,24 @@ export default function CopilotDashboard() {
 
           {/* Data cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card
-              title={t('salesByMonth')}
-              icon="📊"
-              topic="ventas_mes"
-              result={salesMonth}
-              onUpdate={setSalesMonth}
-              loading={globalLoading}
-            >
-              <VentasMesCard result={salesMonth} cs={cs} />
-            </Card>
-
-            <Card
-              title={t('topProducts')}
-              icon="🏆"
-              topic="top_productos"
-              result={topProducts}
-              onUpdate={setTopProducts}
-              loading={globalLoading}
-            >
-              <TopProductosCard result={topProducts} cs={cs} />
-            </Card>
-
-            <Card
-              title={t('lowStock')}
-              icon="📦"
-              topic="stock_bajo"
-              params={{ threshold: 5 }}
-              result={lowStock}
-              onUpdate={setLowStock}
-              loading={globalLoading}
-            >
-              <StockBajoCard result={lowStock} />
-            </Card>
-
-            <Card
-              title={t('paymentsCollections')}
-              icon="💳"
-              topic="cobros_pagos"
-              result={payments}
-              onUpdate={setPayments}
-              loading={globalLoading}
-            >
-              <CobrosCard result={payments} cs={cs} />
-            </Card>
+            {summaryTopics.map(entry => (
+              <Card
+                key={entry.id}
+                title={entry.label ?? entry.id}
+                icon={entry.icon ?? '🤖'}
+                topic={entry.id as Topic}
+                params={entry.default_params}
+                result={cardResults[entry.id as Topic] ?? null}
+                onUpdate={(result) => setTopicResult(entry.id as Topic, result)}
+                loading={globalLoading}
+              >
+                {renderSummaryCardBody(
+                  entry.id as Topic,
+                  cardResults[entry.id as Topic] ?? null,
+                  cs
+                )}
+              </Card>
+            ))}
           </div>
 
           <p className="text-xs text-slate-400">

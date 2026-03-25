@@ -428,6 +428,7 @@ class RecipeOptimizationCostSnapshot(BaseModel):
 class RecipeOptimizationChange(BaseModel):
     product_id: UUID
     product_name: str
+    line_order: int = Field(default=0, ge=0)
     change_type: Literal["keep", "adjust_qty", "locked"]
     current_qty: float
     suggested_qty: float

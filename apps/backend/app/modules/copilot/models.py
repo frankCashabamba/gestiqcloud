@@ -1,4 +1,4 @@
-"""Copilot models — Chat conversation persistence."""
+"""RimayPilot models — Chat conversation persistence."""
 
 from __future__ import annotations
 

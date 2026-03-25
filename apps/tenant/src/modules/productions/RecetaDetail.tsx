@@ -1624,8 +1624,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {optimizerResult.changes.map((change) => (
-                      <TableRow key={change.product_id}>
+                    {optimizerResult.changes.map((change, idx) => (
+                      <TableRow key={`${change.product_id}-${change.line_order ?? idx}-${idx}`}>
                         <TableCell>{change.product_name}</TableCell>
                         <TableCell align="right">{Number(change.current_qty || 0).toFixed(4)} {change.unit}</TableCell>
                         <TableCell align="right">

@@ -1068,8 +1068,8 @@
       "greetingMorning": "Good morning",
       "greetingAfternoon": "Good afternoon",
       "greetingEvening": "Good evening",
-      "copilotTitle": "View business summary",
-      "copilotSubtitle": "Sales, stock, payments and AI suggestions"
+      "copilotTitle": "Open RimayPilot",
+      "copilotSubtitle": "Business overview, alerts and AI suggestions"
     },
     "unauthorized": {
       "loading": "Loading…"
@@ -1093,7 +1093,7 @@
       "loading": "Loading categories..."
     },
     "copilot": {
-      "greeting": "Hi! I'm your AI assistant",
+      "greeting": "Hi! I'm RimayPilot",
       "helpText": "Ask me about sales, inventory, billing or any business issue.",
       "suggestions": {
         "sales": "How are sales this month?",
@@ -1101,7 +1101,7 @@
         "topSelling": "What are my best-selling products?"
       },
       "inputPlaceholder": "Type your question...",
-      "buttonTitle": "Copilot AI"
+      "buttonTitle": "RimayPilot"
     },
     "offlineSync": {
       "pendingChanges": "{{count}} pending changes",

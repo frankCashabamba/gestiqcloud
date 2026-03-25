@@ -3,7 +3,7 @@
 Propósito: endpoints/servicios de asistencia AI (si se despliegan).
 
 ## Endpoints
-- Copilot: `copilot/interface/http/tenant.py` prefix `/ai`.
+- RimayPilot: `copilot/interface/http/tenant.py` prefix `/ai`.
 - Imports AI: `imports/ai/http_endpoints.py` prefix `/imports/ai` (ver módulo imports).
 
 ## Componentes clave

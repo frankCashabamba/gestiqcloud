@@ -70,7 +70,7 @@ $backendPath = Join-Path $repoRoot "apps/backend"
 $adminPath = Join-Path $repoRoot "apps/admin"
 $tenantPath = Join-Path $repoRoot "apps/tenant"
 $venvActivate = Join-Path $repoRoot ".venv/Scripts/Activate.ps1"
-$backendLog = Join-Path $repoRoot "backend.log"
+$backendLog = Join-Path $backendPath "backend.log"
 $buildLogsDir = Join-Path $repoRoot ".logs/start_local"
 
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
@@ -346,6 +346,7 @@ $backendEnvVars = @{
     "CELERY_RESULT_EXPIRES" = "3600"
     "CELERY_IGNORE_RESULT"  = "false"
     "ENV_FILE"              = $rootEnvPath
+    "LOG_FILE"              = $backendLog
     "CORS_ALLOW_HEADERS"    = '["Authorization","Content-Type","X-CSRF-Token","X-CSRFToken","X-CSRF","X-Client-Version","X-Client-Revision","X-Confirm-Delete-Tenant"]'
 }
 
@@ -421,7 +422,8 @@ $backendJob = Start-Job -ScriptBlock {
     }
 
     Set-Location $workDir
-    & $pythonExe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 *>> $logPath
+    & $pythonExe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 2>&1 |
+        Out-File -FilePath $logPath -Append -Encoding utf8
 } -Name backend -ArgumentList $backendEnvVars, $backendLog, $venvPython, $backendPath
 
 Write-Host "[6/7] Iniciando frontends..." -ForegroundColor Green

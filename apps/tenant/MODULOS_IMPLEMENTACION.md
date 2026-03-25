@@ -126,7 +126,7 @@ Mismo proceso.
 
 ---
 
-### 8. **Copilot / Templates**
+### 8. **RimayPilot / Templates**
 **Archivos:** `List.tsx`, `Routes.tsx`
 **Permisos:** `templates:read`, `templates:create`, `templates:update`, `templates:delete`
 **Locales:** `en/templates.json`, `es/templates.json`

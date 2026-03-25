@@ -90,7 +90,7 @@ def _check_ai_rate_limit(request: Request, limit: int = AI_CHAT_LIMIT) -> None:
 
 router = APIRouter(
     prefix="/ai",
-    tags=["Copilot"],
+    tags=["RimayPilot"],
     dependencies=[
         Depends(with_access_claims),
         Depends(_require_tenant_access),

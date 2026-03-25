@@ -146,10 +146,10 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
     },
     {
         "id": "copilot",
-        "name": "AI Copilot",
+        "name": "RimayPilot",
         "icon": "✨",
         "category": "tools",
-        "description": "AI analysis, suggestions and assisted draft creation",
+        "description": "AI analysis, suggestions and assisted draft creation with RimayPilot",
         "required": False,
         "default_enabled": False,
         "dependencies": [],

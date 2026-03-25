@@ -337,7 +337,6 @@ async def optimize_recipe_with_ai(
     if not isinstance(raw_ingredients, list) or not raw_ingredients:
         raise ValueError("La IA no devolvio ingredientes optimizados")
 
-    original_by_id = {str(item.product_id): item for item in ingredients}
     ai_by_id = {
         str(item.get("product_id")): item
         for item in raw_ingredients
@@ -345,6 +344,22 @@ async def optimize_recipe_with_ai(
     }
     locked_ids = {str(pid) for pid in request.locked_product_ids}
     warnings = _normalize_text_list(ai_payload.get("warnings"))
+    seen_product_ids: set[str] = set()
+    duplicate_product_names: list[str] = []
+    for ingredient in ingredients:
+        ingredient_id = str(ingredient.product_id)
+        if ingredient_id in seen_product_ids:
+            duplicate_product_names.append(
+                ingredient.product.name if ingredient.product else ingredient_id
+            )
+            continue
+        seen_product_ids.add(ingredient_id)
+    if duplicate_product_names:
+        duplicates_text = ", ".join(dict.fromkeys(duplicate_product_names))
+        warnings.append(
+            "La receta contiene ingredientes repetidos por producto "
+            f"({duplicates_text}); la propuesta se mantiene por linea para no perder trazabilidad."
+        )
     optimized_models: list[SimpleNamespace] = []
     changed_count = 0
 
@@ -383,9 +398,15 @@ async def optimize_recipe_with_ai(
                 package_unit=ingredient.package_unit,
                 package_cost=ingredient.package_cost,
                 notes=ingredient.notes,
-                line_order=idx,
+                line_order=(
+                    int(ingredient.line_order)
+                    if getattr(ingredient, "line_order", None) is not None
+                    else idx
+                ),
                 product_name=ingredient.product.name if ingredient.product else "Ingrediente",
                 reason=str(ai_item.get("reason") or "").strip() or None,
+                original_qty=current_qty,
+                original_cost=_estimate_ingredient_cost(ingredient),
                 changed=changed,
                 locked=ingredient_id in locked_ids,
             )
@@ -402,7 +423,14 @@ async def optimize_recipe_with_ai(
             if item.changed:
                 applied_changes += 1
                 if applied_changes > max_changes:
-                    item = SimpleNamespace(**{**item.__dict__, "qty": _safe_decimal(original_by_id[str(item.product_id)].qty), "changed": False, "reason": "Cambio descartado por limite operativo"})
+                    item = SimpleNamespace(
+                        **{
+                            **item.__dict__,
+                            "qty": item.original_qty,
+                            "changed": False,
+                            "reason": "Cambio descartado por limite operativo",
+                        }
+                    )
             limited_models.append(item)
         optimized_models = limited_models
         changed_count = sum(1 for item in optimized_models if item.changed)
@@ -465,16 +493,16 @@ async def optimize_recipe_with_ai(
     optimized_ingredients: list[RecipeOptimizationIngredientDraft] = []
     draft_ingredients: list[RecipeIngredientCreate] = []
     for item in optimized_models:
-        original = original_by_id[str(item.product_id)]
-        current_cost_item = float(_estimate_ingredient_cost(original))
+        current_cost_item = float(item.original_cost)
         optimized_cost_item = float(_estimate_ingredient_cost(item))
         change_type = "locked" if item.locked else ("adjust_qty" if item.changed else "keep")
         changes.append(
             RecipeOptimizationChange(
                 product_id=item.product_id,
                 product_name=item.product_name,
+                line_order=int(item.line_order or 0),
                 change_type=change_type,
-                current_qty=round(float(original.qty or 0), 4),
+                current_qty=round(float(item.original_qty or 0), 4),
                 suggested_qty=round(float(item.qty or 0), 4),
                 unit=item.unit,
                 estimated_cost_delta=round(optimized_cost_item - current_cost_item, 4),

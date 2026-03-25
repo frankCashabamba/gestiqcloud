@@ -408,7 +408,7 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.templates.interface.http.admin", "router"), prefix="/admin"
     )
 
-    # Copilot (tenant-first)
+    # RimayPilot (tenant-first)
     include_router_safe(
         r, ("app.modules.copilot.interface.http.tenant", "router"), prefix="/tenant"
     )

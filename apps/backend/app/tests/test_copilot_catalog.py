@@ -25,3 +25,13 @@ def test_catalog_exposes_supported_modules_only():
 def test_default_allowed_actions_match_catalog_ids():
     action_ids = {item["id"] for item in get_copilot_catalog()["actions"]}
     assert set(default_allowed_actions()) == action_ids
+
+
+def test_catalog_marks_summary_topics():
+    topics = get_copilot_catalog()["topics"]
+    summary_ids = {
+        item["id"]
+        for item in topics
+        if item.get("summary_card")
+    }
+    assert summary_ids == {"ventas_mes", "top_productos", "stock_bajo", "cobros_pagos"}

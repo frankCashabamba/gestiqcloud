@@ -73,6 +73,6 @@
   "webhooks:write": "Edit webhooks",
   "crm:read": "View CRM",
   "crm:write": "Manage CRM",
-  "copilot:read": "Use assistant",
+  "copilot:read": "Use RimayPilot",
   "importer:use": "Import data"
 }

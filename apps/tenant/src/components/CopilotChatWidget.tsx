@@ -311,8 +311,8 @@ export default function CopilotChatWidget() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '20px' }}>🤖</span>
               <div>
-                <div style={{ fontWeight: 600, fontSize: '14px' }}>{t('common:copilot.title')}</div>
-                <div style={{ fontSize: '11px', opacity: 0.85 }}>{t('common:copilot.subtitle')}</div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>{t('copilot:title')}</div>
+                <div style={{ fontSize: '11px', opacity: 0.85 }}>{t('copilot:subtitle')}</div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -445,8 +445,8 @@ export default function CopilotChatWidget() {
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--gc-muted)', padding: '24px 12px', fontSize: '13px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
-                <p style={{ fontWeight: 500, marginBottom: '4px' }}>{t('components.copilot.greeting')}</p>
-                <p>{t('components.copilot.helpText')}</p>
+                <p style={{ fontWeight: 500, marginBottom: '4px' }}>{t('copilot:widgetGreeting')}</p>
+                <p>{t('copilot:widgetHelpText')}</p>
               </div>
             )}
 
@@ -642,7 +642,7 @@ export default function CopilotChatWidget() {
           e.currentTarget.style.transform = 'scale(1)'
           e.currentTarget.style.boxShadow = '0 4px 16px color-mix(in srgb, var(--gc-primary) 40%, transparent)'
         }}
-        title={t('components.copilot.buttonTitle')}
+        title={t('copilot:buttonTitle')}
       >
         {open ? '✕' : '🤖'}
         {hasUnread && !open && (

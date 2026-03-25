@@ -175,6 +175,7 @@ export interface RecipeOptimizationCostSnapshot {
 export interface RecipeOptimizationChange {
   product_id: string;
   product_name: string;
+  line_order: number;
   change_type: 'keep' | 'adjust_qty' | 'locked';
   current_qty: number;
   suggested_qty: number;

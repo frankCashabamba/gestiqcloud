@@ -34,7 +34,7 @@ function detectCategory(n: Notification): string {
   if (s.includes('caduc') || s.includes('venc') || s.includes('expir')) return 'expiry'
   if (s.includes('stock') || s.includes('inventar') || s.includes('mínimo')) return 'stock'
   if (s.includes('turno') || s.includes('caja') || s.includes('shift')) return 'shift'
-  if (s.includes('resumen') || s.includes('ejecutivo') || s.includes('ia ') || s.includes('copilot')) return 'ai'
+  if (s.includes('resumen') || s.includes('ejecutivo') || s.includes('ia ') || s.includes('copilot') || s.includes('rimaypilot')) return 'ai'
   if (s.includes('factura') || s.includes('invoice') || s.includes('sri')) return 'invoice'
   if (s.includes('compra') || s.includes('purchase') || s.includes('pedido')) return 'purchase'
   return 'general'
@@ -44,7 +44,7 @@ const CATEGORY_META: Record<string, { icon: string; label: string; color: string
   expiry:   { icon: '⏰', label: 'Caducidad',   color: 'text-red-600' },
   stock:    { icon: '📦', label: 'Stock bajo',   color: 'text-orange-600' },
   shift:    { icon: '🏪', label: 'Turno POS',    color: 'text-blue-600' },
-  ai:       { icon: '🤖', label: 'IA / Copilot', color: 'text-purple-600' },
+  ai:       { icon: '🤖', label: 'IA / RimayPilot', color: 'text-purple-600' },
   invoice:  { icon: '🧾', label: 'Facturación',  color: 'text-green-600' },
   purchase: { icon: '🛒', label: 'Compras',      color: 'text-yellow-600' },
   general:  { icon: '🔔', label: 'General',      color: 'text-gray-600' },

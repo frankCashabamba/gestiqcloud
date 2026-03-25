@@ -1,7 +1,7 @@
 export const manifest = {
   id: 'copilot',
-  name: 'AI Copilot',
-  description: 'Análisis y sugerencias con IA',
+  name: 'RimayPilot',
+  description: 'Analisis y sugerencias con IA de RimayPilot',
   icon: 'sparkles',
   category: 'tools',
   url: '/modules/copilot',

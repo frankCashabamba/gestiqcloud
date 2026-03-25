@@ -62,6 +62,9 @@ export interface CopilotCatalogEntry {
   category?: string | null
   module_ids?: string[]
   supports_ai_insights?: boolean
+  summary_card?: boolean
+  summary_order?: number
+  default_params?: Record<string, any>
   write?: boolean
 }
 

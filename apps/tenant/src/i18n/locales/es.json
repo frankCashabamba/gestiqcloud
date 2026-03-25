@@ -404,7 +404,7 @@
   "modules": {
     "accounting": "Contabilidad",
     "billing": "Facturación",
-    "copilot": "Copilot",
+    "copilot": "RimayPilot",
     "crm": "CRM",
     "customers": "Clientes",
     "einvoicing": "Factura electrónica",
@@ -1083,8 +1083,8 @@
       "greetingMorning": "Buenos días",
       "greetingAfternoon": "Buenas tardes",
       "greetingEvening": "Buenas noches",
-      "copilotTitle": "Ver resumen del negocio",
-      "copilotSubtitle": "Ventas, stock, cobros y sugerencias con IA"
+      "copilotTitle": "Abrir RimayPilot",
+      "copilotSubtitle": "Resumen del negocio, alertas y sugerencias con IA"
     },
     "unauthorized": {
       "loading": "Cargando…"
@@ -1108,7 +1108,7 @@
       "loading": "Cargando categorías..."
     },
     "copilot": {
-      "greeting": "¡Hola! Soy tu asistente IA",
+      "greeting": "¡Hola! Soy RimayPilot",
       "helpText": "Pregúntame sobre ventas, inventario, facturación o cualquier problema de tu negocio.",
       "suggestions": {
         "sales": "¿Cómo van las ventas este mes?",
@@ -1116,7 +1116,7 @@
         "topSelling": "¿Cuáles son mis productos más vendidos?"
       },
       "inputPlaceholder": "Escribe tu pregunta...",
-      "buttonTitle": "Copilot IA"
+      "buttonTitle": "RimayPilot"
     },
     "offlineSync": {
       "pendingChanges": "{{count}} cambios pendientes",
