@@ -53,6 +53,8 @@ class RecipeIngredientBase(BaseModel):
         ]
         # Normalize common aliases before validation
         aliases = {
+            "unit": "uds",
+            "units": "uds",
             "unid": "uds",
             "und": "uds",
             "uni": "uds",

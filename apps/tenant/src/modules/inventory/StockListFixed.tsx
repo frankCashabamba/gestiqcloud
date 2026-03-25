@@ -166,6 +166,7 @@ export default function StockList() {
     const ql = q.toLowerCase()
     return items.filter((item) => {
       if (!showZeroStock && item.qty <= 0) return false
+      if (item.product?.is_raw_material) return false
 
       const matchesSearch =
         (item.product?.name || '').toLowerCase().includes(ql) ||

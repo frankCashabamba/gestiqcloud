@@ -384,6 +384,7 @@ def list_products(
     q: str | None = Query(default=None, description="text search on name"),
     category: str | None = Query(default=None, description="filter by category"),
     active: bool | None = Query(default=None, description="filter by active status"),
+    exclude_raw_material: bool | None = Query(default=None, description="exclude raw materials"),
     limit: int = Query(default=500, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     _tid: str = Depends(ensure_tenant),
@@ -425,6 +426,51 @@ def list_products(
             query = query.join(ProductCategory, Product.category_id == ProductCategory.id).where(
                 ProductCategory.name == categoria_name
             )
+
+    if exclude_raw_material:
+        query = query.where(Product.is_raw_material.is_(False))
+
+    query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
+    rows = db.execute(query).all()
+    return [_to_product_out_row(row.Product, real_stock=float(row.real_stock)) for row in rows]
+
+
+@router.get("/raw-materials", response_model=list[ProductOut])
+def list_raw_materials(
+    request: Request,
+    db: Session = Depends(get_db),
+    q: str | None = Query(default=None, description="text search on name"),
+    limit: int = Query(default=500, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    _tid: str = Depends(ensure_tenant),
+):
+    """List only raw material products (is_raw_material=True)."""
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        return []
+
+    tid_uuid = UUID(tenant_id)
+
+    stock_subq = (
+        select(
+            StockItem.product_id,
+            func.coalesce(func.sum(StockItem.qty), 0.0).label("real_stock"),
+        )
+        .where(StockItem.tenant_id == tid_uuid)
+        .group_by(StockItem.product_id)
+        .subquery()
+    )
+
+    query = (
+        select(Product, func.coalesce(stock_subq.c.real_stock, 0.0).label("real_stock"))
+        .outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
+        .where(Product.tenant_id == tid_uuid)
+        .where(Product.is_raw_material.is_(True))
+    )
+
+    if q:
+        like = f"%{q}%"
+        query = query.where(Product.name.ilike(like))
 
     query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
     rows = db.execute(query).all()

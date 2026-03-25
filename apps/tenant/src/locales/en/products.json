@@ -120,5 +120,16 @@
     "modeStrict": "Almost exact only",
     "modeBalanced": "Balanced",
     "modeWide": "Wider match"
+  },
+  "rawMaterials": {
+    "title": "Raw Materials",
+    "subtitle": "Ingredients used in production recipes",
+    "search": "Search raw material...",
+    "count": "material(s)",
+    "unit": "Unit",
+    "stock": "Stock",
+    "costPrice": "Unit cost",
+    "empty": "No raw materials registered",
+    "emptyHint": "Raw materials are registered automatically when creating recipes"
   }
 }

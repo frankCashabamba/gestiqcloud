@@ -31,6 +31,7 @@ export type StockItem = {
     sku?: string
     name?: string
     price?: number
+    is_raw_material?: boolean
     product_metadata?: {
       reorder_point?: number
       max_stock?: number

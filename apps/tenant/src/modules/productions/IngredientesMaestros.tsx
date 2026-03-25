@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackButton } from '@ui'
 import { listRecipes, addIngredient, updateIngredient, deleteIngredient } from '../../services/api/recetas'
-import { listProducts, type Product } from '../../services/api/products'
+import { listProducts, createProduct, updateProduct, type Product } from '../../services/api/products'
 import { getCompanySettings, getCurrencySymbol, type CompanySettings } from '../../services/companySettings'
 import { useUnits } from '../../hooks/useUnits'
 import { normalizeUnitCode } from '../../services/unitService'
@@ -64,6 +64,9 @@ function IngredientesMaestrosContent() {
   const [deleting, setDeleting] = useState(false)
   const [newIngOpen, setNewIngOpen] = useState(false)
   const [reload, setReload] = useState(0)
+  const [editingNameId, setEditingNameId] = useState<string | null>(null)
+  const [editingNameValue, setEditingNameValue] = useState('')
+  const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -163,6 +166,22 @@ function IngredientesMaestrosContent() {
   }
 
   const cancelEdit = (pid: string) => setDrafts(prev => { const n = { ...prev }; delete n[pid]; return n })
+
+  const saveName = async (row: IngredienteRow) => {
+    const newName = editingNameValue.trim()
+    if (!newName || newName === row.product_name) { setEditingNameId(null); return }
+    setSavingName(true)
+    try {
+      await updateProduct(row.product_id, { name: newName })
+      setRows(prev => prev.map(r => r.product_id === row.product_id ? { ...r, product_name: newName } : r))
+      success(`Nombre actualizado: ${newName}`)
+    } catch (e: any) {
+      toastError(e?.message || 'Error al actualizar nombre')
+    } finally {
+      setSavingName(false)
+      setEditingNameId(null)
+    }
+  }
 
   const setField = (pid: string, field: string, value: any) =>
     setDrafts(prev => ({ ...prev, [pid]: { ...prev[pid], [field]: value } }))
@@ -306,7 +325,26 @@ function IngredientesMaestrosContent() {
                   >
                     {/* Ingrediente */}
                     <td className="px-4 py-3 align-top">
-                      <div className="font-semibold text-gray-900">{row.product_name}</div>
+                      {editingNameId === row.product_id ? (
+                        <input
+                          autoFocus
+                          className="border border-blue-300 rounded-md px-2 py-1 text-sm font-semibold text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          value={editingNameValue}
+                          disabled={savingName}
+                          onChange={e => setEditingNameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') saveName(row)
+                            else if (e.key === 'Escape') setEditingNameId(null)
+                          }}
+                          onBlur={() => saveName(row)}
+                        />
+                      ) : (
+                        <EditableCell
+                          value={row.product_name}
+                          onClick={() => { setEditingNameId(row.product_id); setEditingNameValue(row.product_name) }}
+                          strong
+                        />
+                      )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {row.inventory_product ? (
                           <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600">
@@ -407,7 +445,7 @@ function IngredientesMaestrosContent() {
                       <div className="flex flex-wrap gap-1">
                         {row.refs.map(ref => (
                           <button
-                            key={ref.recipe_id}
+                            key={ref.ingredient_id || ref.recipe_id}
                             onClick={() => navigate(`../recetas/${ref.recipe_id}`)}
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs transition-colors"
                             title={`${ref.qty} ${ref.unit}`}
@@ -560,9 +598,52 @@ function NewIngredientModal({
     package_unit: 'kg',
     package_cost: 0,
   })
+  const [productSearch, setProductSearch] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q) return products.slice(0, 30)
+    return products.filter(p => p.name.toLowerCase().includes(q)).slice(0, 30)
+  }, [products, productSearch])
+
+  const canCreateNew = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q) return false
+    return !products.some(p => p.name.toLowerCase() === q)
+  }, [products, productSearch])
+
+  const selectProduct = (p: Product) => {
+    setForm(f => ({ ...f, product_id: p.id, unit: p.unit || f.unit, package_unit: p.unit || f.package_unit }))
+    setProductSearch(p.name)
+    setShowDropdown(false)
+  }
+
+  const createAndSelect = async () => {
+    const name = productSearch.trim()
+    if (!name) return
+    setErr(null)
+    try {
+      const created = await createProduct({ name, price: 0, stock: 0, unit: form.unit || 'kg', is_raw_material: true } as any)
+      setForm(f => ({ ...f, product_id: created.id }))
+      setProductSearch(created.name)
+      setShowDropdown(false)
+    } catch (e: any) {
+      setErr(e?.message || 'Error al crear el producto')
+    }
+  }
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowDropdown(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   const toggleRecipe = (id: string) =>
     setSelectedRecipes(prev => {
@@ -573,16 +654,21 @@ function NewIngredientModal({
     })
 
   const handleSubmit = async () => {
-    if (!form.product_id) { setErr('Selecciona un producto'); return }
+    if (!form.product_id && !productSearch.trim()) { setErr('Selecciona o escribe un producto'); return }
     if (selectedRecipes.size === 0) { setErr('Selecciona al menos una receta'); return }
     if (form.qty <= 0) { setErr('La cantidad debe ser mayor a 0'); return }
     setErr(null)
     setSaving(true)
     try {
+      let productId = form.product_id
+      if (!productId && productSearch.trim()) {
+        const created = await createProduct({ name: productSearch.trim(), price: 0, stock: 0, unit: form.unit || 'kg', is_raw_material: true } as any)
+        productId = created.id
+      }
       await Promise.all(
         [...selectedRecipes].map(recipeId =>
           addIngredient(recipeId, {
-            product_id: form.product_id,
+            product_id: productId,
             qty: form.qty,
             unit: form.unit,
             purchase_packaging: form.purchase_packaging || '-',
@@ -627,26 +713,52 @@ function NewIngredientModal({
         )}
 
         {/* Producto */}
-        <div className="mb-4">
+        <div className="mb-4" ref={dropdownRef}>
           <label className="block text-xs font-semibold text-gray-600 mb-1.5">Producto / Ingrediente *</label>
-          <select
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            value={form.product_id}
-            onChange={e => {
-              const p = products.find(x => x.id === e.target.value)
-              setForm(f => ({
-                ...f,
-                product_id: e.target.value,
-                unit: p?.unit || f.unit,
-                package_unit: p?.unit || f.package_unit,
-              }))
-            }}
-          >
-            <option value="">— Seleccionar producto —</option>
-            {products.map(p => (
-              <option key={p.id} value={p.id}>{p.name}{p.unit ? ` (${p.unit})` : ''}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <input
+              type="text"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              placeholder="Buscar o escribir nuevo producto..."
+              value={productSearch}
+              onChange={e => {
+                setProductSearch(e.target.value)
+                setForm(f => ({ ...f, product_id: '' }))
+                setShowDropdown(true)
+              }}
+              onFocus={() => setShowDropdown(true)}
+            />
+            {form.product_id && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 text-xs">✓</span>
+            )}
+          </div>
+          {showDropdown && (
+            <div className="absolute z-10 mt-1 w-full max-w-[calc(100%-3rem)] bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {canCreateNew && (
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors border-b border-blue-100"
+                  onClick={createAndSelect}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                  Crear "<span className="font-semibold">{productSearch.trim()}</span>" como materia prima
+                </button>
+              )}
+              {filteredProducts.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${form.product_id === p.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                  onClick={() => selectProduct(p)}
+                >
+                  {p.name}{p.unit ? <span className="text-gray-400 ml-1">({p.unit})</span> : ''}
+                </button>
+              ))}
+              {filteredProducts.length === 0 && !canCreateNew && (
+                <div className="px-3 py-3 text-sm text-gray-400 text-center">Sin resultados</div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Cantidad + unidad en receta */}

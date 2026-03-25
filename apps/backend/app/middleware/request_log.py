@@ -64,24 +64,30 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         try:
             record_request(request.method, request.url.path, resp.status_code, dur_ms / 1000)
 
-            logger.info(
-                _json(
-                    {
-                        "level": "info",
-                        "req_id": req_id,
-                        "method": request.method,
-                        "path": request.url.path,
-                        "status": resp.status_code,
-                        "dur_ms": dur_ms,
-                        "ip": request.client.host if request.client else None,
-                        "ua": request.headers.get("user-agent"),
-                        "client_rev": client_rev,
-                        "client_ver": client_ver,
-                        "tenant_id": tenant_id,
-                        "user_id": user_id,
-                    }
-                )
-            )
+            log_data: dict[str, Any] = {
+                "req_id": req_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": resp.status_code,
+                "dur_ms": dur_ms,
+                "ip": request.client.host if request.client else None,
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+            }
+            if client_rev:
+                log_data["client_rev"] = client_rev
+            if client_ver:
+                log_data["client_ver"] = client_ver
+
+            if resp.status_code >= 500:
+                log_data["level"] = "error"
+                logger.error(_json(log_data))
+            elif resp.status_code >= 400:
+                log_data["level"] = "warning"
+                logger.warning(_json(log_data))
+            else:
+                log_data["level"] = "info"
+                logger.info(_json(log_data))
         except Exception:
             # no interrumpir el ciclo por logging/métricas
             pass

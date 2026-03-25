@@ -126,5 +126,16 @@
     "modeStrict": "Solo casi exactos",
     "modeBalanced": "Balanceado",
     "modeWide": "Mas amplio"
+  },
+  "rawMaterials": {
+    "title": "Materias Primas",
+    "subtitle": "Insumos utilizados en recetas de producción",
+    "search": "Buscar materia prima...",
+    "count": "insumo(s)",
+    "unit": "Unidad",
+    "stock": "Stock",
+    "costPrice": "Costo unitario",
+    "empty": "No hay materias primas registradas",
+    "emptyHint": "Las materias primas se registran automáticamente al crear recetas"
   }
 }

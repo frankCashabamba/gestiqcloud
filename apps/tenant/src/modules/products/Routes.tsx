@@ -6,6 +6,7 @@ import PermissionDenied from '../../components/PermissionDenied'
 import ProductosList from './List'
 import ProductoForm from './Form'
 import ProductosPurge from './actions/PurgeAll'
+import RawMaterialsList from './RawMaterialsList'
 
 export default function ProductosRoutes() {
   return (
@@ -31,6 +32,7 @@ export default function ProductosRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="materias-primas" element={<RawMaterialsList />} />
         <Route
           path=":id/editar"
           element={

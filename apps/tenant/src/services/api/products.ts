@@ -25,6 +25,7 @@ export type ProductCreatePayload = {
   tax_rate?: number
   cost_price?: number
   active?: boolean
+  is_raw_material?: boolean
 }
 
 export async function listProducts(params?: { q?: string; limit?: number }) {
@@ -37,5 +38,10 @@ export async function listProducts(params?: { q?: string; limit?: number }) {
 
 export async function createProduct(payload: ProductCreatePayload) {
   const { data } = await api.post<Product>('/api/v1/tenant/products', payload)
+  return data
+}
+
+export async function updateProduct(id: string, payload: Partial<ProductCreatePayload & { name: string }>) {
+  const { data } = await api.put<Product>(`/api/v1/tenant/products/${id}`, payload)
   return data
 }

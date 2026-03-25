@@ -266,6 +266,36 @@ app = FastAPI(
 
 init_fastapi(app)
 
+_error_logger = logging.getLogger("app.errors")
+
+
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_log(request: Request, exc: RequestValidationError):
+    _error_logger.warning(
+        "422 Validation Error | %s %s | %s",
+        request.method,
+        request.url.path,
+        exc.errors(),
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_log(request: Request, exc: Exception):
+    _error_logger.error(
+        "500 Internal Error | %s %s | %s",
+        request.method,
+        request.url.path,
+        exc,
+        exc_info=True,
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
 app.mount("/docs/assets", StaticFiles(directory=str(DOCS_ASSETS_DIR)), name="docs-assets")
 
 

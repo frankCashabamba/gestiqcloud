@@ -527,6 +527,8 @@ export default function ProductosList() {
         (p.product_metadata?.marca || '').toLowerCase().includes(q.toLowerCase())
     )
 
+    result = result.filter((p) => !p.is_raw_material)
+
     if (filterActivo === 'activo') {
       result = result.filter((p) => p.active)
     } else if (filterActivo === 'inactivo') {
@@ -682,6 +684,18 @@ export default function ProductosList() {
           <p className="mt-1 text-sm text-gray-500">{t('products:subtitle')}</p>
         </div>
         <div className="flex gap-2">
+          {(sectorFeatures?.recipes ||
+            sector.features?.recipes ||
+            sector.plantilla?.toLowerCase().includes('panaderia') ||
+            sector.plantilla?.toLowerCase().includes('bakery')) && (
+            <button
+              className="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition-colors font-medium"
+              onClick={() => nav('materias-primas')}
+              title={t('products:rawMaterials.title', 'Materias Primas')}
+            >
+              🧂 {t('products:rawMaterials.title', 'Materias Primas')}
+            </button>
+          )}
           {can('products:update') && (
             <ProtectedButton
               permission="products:update"

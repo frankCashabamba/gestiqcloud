@@ -362,6 +362,7 @@ def _serialize_stock_item(
             "codigo": product.sku,
             "nombre": product.name,
             "precio": float(product.price or 0),
+            "is_raw_material": bool(getattr(product, "is_raw_material", False)),
             "product_metadata": meta,
             "metadata": meta,
             "stock_minimo": meta.get("stock_minimo"),
@@ -398,6 +399,9 @@ def get_stock(
     db: Session = Depends(get_db),
     warehouse_id: str | None = Query(default=None),
     product_id: str | None = Query(default=None),
+    exclude_raw_material: bool = Query(
+        default=False, description="exclude raw materials from stock list"
+    ),
 ):
     from sqlalchemy import func as _func
 
@@ -441,6 +445,8 @@ def get_stock(
         q = q.where(StockItem.warehouse_id == warehouse_id)
     if product_id is not None:
         q = q.where(StockItem.product_id == product_id)
+    if exclude_raw_material:
+        q = q.where(Product.is_raw_material.is_(False))
     q = q.order_by(Product.name.asc(), Warehouse.code.asc())
     rows = db.execute(q).all()
     out: list[StockItemOut] = []
