@@ -779,7 +779,7 @@ export default function ImportUploader({
             <div style={{ marginTop: '0.9rem', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
               El sistema organiza cada documento para que luego solo tengas que revisarlo y confirmar.
             </div>
-            <input ref={fileRef} type="file" multiple accept={acceptedAttr} onChange={onFileChange} style={{ display: 'none' }} />
+            <input ref={fileRef} type="file" multiple accept={acceptedAttr} onChange={onFileChange} style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }} />
           </div>
         )}
 
@@ -802,7 +802,7 @@ export default function ImportUploader({
             <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#0284c7' }}>Carga masiva</p>
             <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Sube una carpeta completa</p>
             <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: 0 }}>Procesa de una vez todos los archivos compatibles dentro de una misma carpeta</p>
-            <input ref={folderRef} type="file" multiple onChange={onFolderChange} style={{ display: 'none' }} {...directoryInputProps} />
+            <input ref={folderRef} type="file" multiple onChange={onFolderChange} style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }} {...directoryInputProps} />
           </div>
         )}
 

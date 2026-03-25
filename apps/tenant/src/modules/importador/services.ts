@@ -609,7 +609,6 @@ export async function runImportAsync(
   if (opts?.force) params.force = 'true'
   if (opts?.recipe_snapshot_id) params.recipe_snapshot_id = opts.recipe_snapshot_id
   const { data } = await api.post(TENANT_IMPORTADOR.runAsync, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     params,
   })
   return data
