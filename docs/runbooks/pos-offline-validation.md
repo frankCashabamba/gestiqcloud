@@ -40,7 +40,19 @@ Resultado esperado:
 - al volver internet se crea el recibo y luego se cobra
 - el recibo sincronizado queda `paid`
 
-## Flujo C: Reconexion tras respuesta perdida
+## Flujo C: Corte antes de crear el borrador remoto
+
+1. Entrar al POS online y cargar productos.
+2. Cortar internet antes de abrir el cobro.
+3. Entrar al flujo normal de cobro.
+4. Completar metodo de pago y, si aplica, lotes.
+
+Resultado esperado:
+- el modal de cobro abre con lineas locales
+- la venta queda encolada completa aunque no exista receipt remoto
+- al volver internet se crea el receipt y luego se completa el checkout
+
+## Flujo D: Reconexion tras respuesta perdida
 
 1. Repetir el Flujo A.
 2. Restaurar internet.
@@ -50,9 +62,39 @@ Resultado esperado:
 - si el recibo ya estaba `paid` en servidor, no se intenta cobrar otra vez
 - no aparecen duplicados de cobro ni doble descuento de stock
 
+## Flujo E: Apertura de turno sin internet
+
+1. Entrar online al POS con una caja sin turno abierto.
+2. Cerrar la app o recargar una vez para confirmar que el equipo ya quedo provisionado.
+3. Cortar internet.
+4. Abrir el POS e iniciar turno.
+5. Cobrar al menos una venta offline.
+6. Restaurar internet.
+
+Resultado esperado:
+- el turno abre localmente y la caja queda operativa
+- el indicador de sincronizacion pendiente sube en `shift`
+- al volver internet, primero se crea el turno remoto y despues sincronizan los receipts que dependian de ese turno
+- la caja visible en UI termina con `shift_id` real de servidor, no con el temporal
+
+## Flujo F: Cierre de turno sin internet
+
+1. Entrar online con un turno abierto y dejar el equipo provisionado.
+2. Cortar internet.
+3. Abrir el resumen de cierre de caja.
+4. Confirmar el cierre con total contado y, si aplica, perdidas.
+5. Restaurar internet.
+
+Resultado esperado:
+- el POS permite cerrar caja con resumen cacheado o fallback local
+- el turno desaparece como abierto en la UI local
+- al volver internet, el cierre pendiente se sincroniza sin reabrir la caja
+- si el turno se habia abierto tambien offline, se reconcilia apertura y cierre en orden correcto
+
 ## Comprobaciones minimas
 
 - backend: recibo final en estado `paid` y una sola aplicacion de stock
+- backend: turno final en estado correcto y sin duplicados de apertura/cierre
 - UI: contador offline vuelve a cero tras sincronizar
 - operacion: la caja sigue usable para la siguiente venta
 
@@ -60,4 +102,5 @@ Resultado esperado:
 
 - no cubre un equipo nuevo sin precarga previa
 - no cubre emision documental offline completa
-- si el corte ocurre antes de crear el borrador del ticket, ese flujo todavia requiere validacion adicional
+- el cierre offline usa resumen cacheado/local cuando no hay backend; debe validarse con caja real y conteo manual
+- requiere validacion manual con productos multi-lote en un equipo provisionado

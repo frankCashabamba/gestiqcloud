@@ -73,4 +73,50 @@ describe('useCompanySectorFullConfig', () => {
     expect(result.current.config).toEqual(cachedSector)
     expect(result.current.error).toBeNull()
   })
+
+  it('falls back to cached config when the sector endpoint returns 500', async () => {
+    const cachedSector = {
+      code: 'panaderia',
+      name: 'Panaderia',
+      branding: {
+        icon: 'B',
+        displayName: 'Panaderia',
+        color_primario: '#111827',
+        units: [],
+        format_rules: {},
+        print_config: { width: 80, fontSize: 12, showLogo: true, showDetails: true },
+        required_fields: {},
+      },
+      fields: {},
+      features: {
+        expiry_tracking: true,
+        lot_tracking: true,
+        serial_tracking: false,
+        batch_tracking: true,
+        weight_tracking: false,
+      },
+      defaults: {
+        categories: [],
+        tax_rate: 12,
+        currency: 'EUR',
+        locale: 'es',
+        timezone: 'Europe/Madrid',
+        price_includes_tax: true,
+      },
+      endpoints: { imports: '/imports', products: '/products', customers: '/customers' },
+      templates: { allowed: ['default'] },
+    }
+
+    cache.set('sector-full-config:panaderia:tenant-scope', cachedSector)
+    apiFetchMock.mockRejectedValueOnce({ status: 500, message: 'Internal Server Error' })
+
+    const { result } = renderHook(() => useCompanySectorFullConfig('panaderia'))
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    expect(result.current.config).toEqual(cachedSector)
+    expect(result.current.error).toBeNull()
+  })
 })

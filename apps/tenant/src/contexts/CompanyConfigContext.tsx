@@ -140,6 +140,10 @@ function companyConfigCacheKey(): string {
   return `company-config:${getOfflineCacheScope()}`
 }
 
+function canUseCachedFallback(err: any): boolean {
+  return isNetworkIssue(err) || Number(err?.status || 0) >= 500
+}
+
 function mergeResolvedFeatureFlags(
   baseFeatures: Record<string, any> | undefined,
   resolvedFlags: Record<string, boolean> | undefined,
@@ -211,7 +215,7 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
         setError(null)
         return
       }
-      if (cached && isNetworkIssue(err)) {
+      if (cached && canUseCachedFallback(err)) {
         setConfig(cached)
         setError(null)
         return

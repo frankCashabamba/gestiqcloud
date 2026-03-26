@@ -3,7 +3,8 @@
 import { apiFetch } from '../../lib/http'
 import { queueDeletion, storeEntity } from '../../lib/offlineStore'
 import { createOfflineTempId, isNetworkIssue, stripOfflineMeta } from '../../lib/offlineHttp'
-import { IMPORTS } from '@endpoints/imports'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../../lib/offlineResourceCache'
+import { IMPORTS } from '../../../../packages/endpoints/src/imports'
 
 // ============================================================================
 // ENDPOINTS
@@ -30,6 +31,10 @@ const ENDPOINTS = {
     delete: (id: string) => `/api/v1/tenant/products/product-categories/${id}`,
   },
 } as const
+
+function productsCacheKey(hideOutOfStock: boolean) {
+  return `products:list:${hideOutOfStock ? 'active' : 'all'}:${getOfflineCacheScope('pos')}`
+}
 
 // ============================================================================
 // TYPES
@@ -93,39 +98,48 @@ export async function listProductos(hideOutOfStock: boolean = false): Promise<Pr
     ? `${ENDPOINTS.products.list}?${params.toString()}`
     : ENDPOINTS.products.list
 
-  const res = await apiFetch<any>(url)
+  try {
+    const res = await apiFetch<any>(url)
 
-  const toArray = (val: any) => (Array.isArray(val) ? val : Array.isArray(val?.items) ? val.items : [])
+    const toArray = (val: any) => (Array.isArray(val) ? val : Array.isArray(val?.items) ? val.items : [])
 
-  const norm = (p: any): Producto => ({
-    id: String(p.id),
-    tenant_id: String(p.tenant_id || ''),
-    sku: p.sku ?? null,
-    name: p.name,
-    description: p.description ?? null,
-    price: Number(p.price ?? 0) || 0,
-    cost_price: p.cost_price ?? null,
-    tax_rate: p.tax_rate ?? null,
-    category: typeof p.category === 'string' ? p.category : (p.category?.name ?? null),
-    category_id: p.category_id ?? null,
-    active: Boolean(p.active ?? true),
-    stock: Number(p.stock ?? 0) || 0,
-    unit: p.unit || 'unit',
-    is_raw_material: Boolean(p.is_raw_material ?? false),
-    suggested_price: p.suggested_price ?? null,
-    use_suggested_price: Boolean(p.use_suggested_price ?? false),
-    product_metadata: p.product_metadata ?? null,
-    created_at: p.created_at || new Date().toISOString(),
-    updated_at: p.updated_at || undefined,
-  })
+    const norm = (p: any): Producto => ({
+      id: String(p.id),
+      tenant_id: String(p.tenant_id || ''),
+      sku: p.sku ?? null,
+      name: p.name,
+      description: p.description ?? null,
+      price: Number(p.price ?? 0) || 0,
+      cost_price: p.cost_price ?? null,
+      tax_rate: p.tax_rate ?? null,
+      category: typeof p.category === 'string' ? p.category : (p.category?.name ?? null),
+      category_id: p.category_id ?? null,
+      active: Boolean(p.active ?? true),
+      stock: Number(p.stock ?? 0) || 0,
+      unit: p.unit || 'unit',
+      is_raw_material: Boolean(p.is_raw_material ?? false),
+      suggested_price: p.suggested_price ?? null,
+      use_suggested_price: Boolean(p.use_suggested_price ?? false),
+      product_metadata: p.product_metadata ?? null,
+      created_at: p.created_at || new Date().toISOString(),
+      updated_at: p.updated_at || undefined,
+    })
 
-  let products = toArray(res).map(norm)
+    let products = toArray(res).map(norm)
 
-  if (hideOutOfStock) {
-    products = products.filter((p) => p.stock > 0 && p.active)
+    if (hideOutOfStock) {
+      products = products.filter((p) => p.stock > 0 && p.active)
+    }
+
+    writeCachedResource(productsCacheKey(hideOutOfStock), products)
+    return products
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const cached = readCachedResource<Producto[]>(productsCacheKey(hideOutOfStock))
+      if (cached) return cached
+    }
+    throw error
   }
-
-  return products
 }
 
 export async function getProducto(id: string): Promise<Producto> {
@@ -218,10 +232,23 @@ export async function removeProducto(id: string): Promise<void> {
 }
 
 export async function searchProductos(q: string): Promise<Producto[]> {
-  const res = await apiFetch<any>(ENDPOINTS.products.search(q))
-  if (Array.isArray(res)) return res as Producto[]
-  if (res && Array.isArray(res.items)) return res.items as Producto[]
-  return []
+  try {
+    const res = await apiFetch<any>(ENDPOINTS.products.search(q))
+    if (Array.isArray(res)) return res as Producto[]
+    if (res && Array.isArray(res.items)) return res.items as Producto[]
+    return []
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const cached = readCachedResource<Producto[]>(productsCacheKey(false)) || readCachedResource<Producto[]>(productsCacheKey(true)) || []
+      const query = String(q || '').trim().toUpperCase()
+      return cached.filter((product) => {
+        const name = String(product.name || '').toUpperCase()
+        const sku = String(product.sku || '').toUpperCase()
+        return !!query && (name.includes(query) || sku.includes(query))
+      })
+    }
+    throw error
+  }
 }
 
 export async function bulkSetActive(ids: string[], active: boolean): Promise<{ updated: number }> {

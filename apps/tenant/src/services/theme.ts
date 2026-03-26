@@ -16,6 +16,10 @@ function isFresh(entry?: CacheEntry) {
   return !!entry && Date.now() - entry.ts < CACHE_TTL_MS
 }
 
+function canUseCachedFallback(err: any) {
+  return isNetworkIssue(err) || Number(err?.status || 0) >= 500
+}
+
 function cacheKey(empresa?: string | null) {
   const tenantId = getActiveTenantId()
   if (empresa && tenantId) return `empresa:${empresa}:tenant:${tenantId}`
@@ -129,7 +133,7 @@ export async function fetchCompanyTheme(empresa?: string | null): Promise<ThemeR
       const fallback = cached?.data && Object.keys(cached.data).length > 0
         ? cached.data
         : lsCached?.data
-      if (fallback && isNetworkIssue(err)) {
+      if (fallback && canUseCachedFallback(err)) {
         cache.set(key, { ts: lsCached?.ts ?? cached?.ts ?? Date.now(), data: fallback })
         return fallback
       }

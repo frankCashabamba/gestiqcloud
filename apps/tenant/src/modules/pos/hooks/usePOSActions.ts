@@ -43,7 +43,7 @@ import type { Producto as Product } from '../../products/productsApi'
 import type { POSPayment } from '../../../types/pos'
 import { POS_DRAFT_KEY } from '../../../constants/storage'
 import { POS_THEME_KEY, normalizePosTheme, type CartItem, type POSState } from './usePOSState'
-import { isNetworkIssue } from '../../../lib/offlineHttp'
+import { createOfflineTempId, isNetworkIssue } from '../../../lib/offlineHttp'
 import {
     getBulkPricingShortcutItems,
     normalizeBakeryShortcutLetter,
@@ -70,7 +70,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         setInventoryConfig, selectedCategory,
         // Cart
         cart, setCart, globalDiscountPct, setGlobalDiscountPct,
-        ticketNotes, setTicketNotes, setCurrentReceiptId, currentReceiptId,
+        ticketNotes, setTicketNotes, setCurrentReceiptId, currentReceiptId, paymentDraftContext, setPaymentDraftContext,
         heldTickets, setHeldTickets,
         // Buyer
         buyerMode, setBuyerMode, buyerIdType, setBuyerIdType,
@@ -898,6 +898,22 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         metadata: { notes: ticketNotes },
     })
 
+    const buildPaymentDraftContext = () => ({
+        draftLines: cart.map((item, index) => ({
+            id: `draft-${index}`,
+            product_id: item.product_id,
+            product_name: item.name,
+            product_code: item.sku || undefined,
+            qty: item.qty,
+            uom: 'unit',
+            unit_price: item.price,
+            tax_rate: item.iva_tasa / 100,
+            discount_pct: item.discount_pct,
+            line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
+        })),
+        createPayload: buildReceiptPayload(),
+    })
+
     const buildSaleDraft = (payments: POSPayment[] = []): SaleDraft => {
         const tenantId = profile?.tenant_id ? String(profile.tenant_id) : ''
         const country = documentConfig?.country || (companySettings?.settings as any)?.pais || (companySettings as any)?.settings?.country || 'EC'
@@ -939,6 +955,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             ...payment,
             receipt_id: payment.receipt_id || 'offline-receipt',
         })),
+        document_issue: buildSaleDraft(payments),
         ...(warehouseId ? { warehouse_id: warehouseId } : {}),
     })
 
@@ -947,12 +964,21 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             setLoading(true)
             pendingSaleRef.current = buildSaleDraft([])
             const receipt = await createReceipt(buildReceiptPayload() as any)
+            setPaymentDraftContext(null)
             setCurrentReceiptId(receipt.id ?? null)
             setShowPaymentModal(true)
         } catch (e) {
             const msg = String((e as any)?.message || '')
-            if (msg.includes('currency_not_configured')) toast.error(t('pos:errors.currencyNotConfigured'))
-            else toast.error(t('pos:errors.preparePaymentFailed'))
+            if (msg.includes('currency_not_configured')) {
+                toast.error(t('pos:errors.currencyNotConfigured'))
+            } else if (isNetworkIssue(e)) {
+                setPaymentDraftContext(buildPaymentDraftContext())
+                setCurrentReceiptId(createOfflineTempId('receipt'))
+                setShowPaymentModal(true)
+                toast.warning(t('pos:errors.offlineSync'))
+            } else {
+                toast.error(t('pos:errors.preparePaymentFailed'))
+            }
         } finally {
             setLoading(false)
         }
@@ -1004,10 +1030,11 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         const id = currentReceiptId
         setShowPaymentModal(false)
         setCurrentReceiptId(null)
-        if (id) {
+        setPaymentDraftContext(null)
+        if (id && !paymentDraftContext) {
             try { await deleteReceipt(id) } catch { /* no-op: ya pudo haber sido pagado */ }
         }
-    }, [currentReceiptId, setShowPaymentModal, setCurrentReceiptId])
+    }, [currentReceiptId, paymentDraftContext, setShowPaymentModal, setCurrentReceiptId, setPaymentDraftContext])
 
     const beginCheckout = (opts?: { skipPrint?: boolean }) => {
         if (!canStartCheckout()) return
@@ -1057,6 +1084,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         setSkipPrint(false)
         localStorage.removeItem(POS_DRAFT_KEY)
         setShowPaymentModal(false)
+        setPaymentDraftContext(null)
         pendingSaleRef.current = null
     }
 
@@ -1092,7 +1120,14 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                         setAndPersistLastPrintJob({ kind: 'document', documentId: docId, format: docPrintFormat })
                     }
                 } catch (err) {
-                    if (buyerMode === 'IDENTIFIED') {
+                    if (isNetworkIssue(err) && currentReceiptId) {
+                        await addToOutbox({
+                            _queueAction: 'issue_document',
+                            receipt_id: currentReceiptId,
+                            sale_draft: saleDraft,
+                        })
+                        toast.warning(t('pos:errors.offlineSync'))
+                    } else if (buyerMode === 'IDENTIFIED') {
                         const detail = (err as any)?.response?.data?.detail ?? (err as any)?.response?.data
                         const msg = detail ? `\n\nDetalle:\n${typeof detail === 'string' ? detail : JSON.stringify(detail, null, 2)}` : ''
                         toast.error(`${t('pos:errors.documentIssueFailed')} ${msg}`)
@@ -1276,10 +1311,19 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             await payReceipt(receiptId, [{ receipt_id: receiptId, method: 'cash', amount: totals.total }], warehouseId ? { warehouse_id: warehouseId } : undefined)
 
             if (isOnline) {
+                const expressSaleDraft = buildSaleDraft([{ receipt_id: receiptId, method: 'cash', amount: totals.total }])
                 try {
-                    await issueDocument(buildSaleDraft([{ receipt_id: receiptId, method: 'cash', amount: totals.total }]))
+                    await issueDocument(expressSaleDraft)
                 } catch (err) {
-                    console.warn('Express cash: issue document failed (non-fatal)', err)
+                    if (isNetworkIssue(err)) {
+                        await addToOutbox({
+                            _queueAction: 'issue_document',
+                            receipt_id: receiptId,
+                            sale_draft: expressSaleDraft,
+                        })
+                    } else {
+                        console.warn('Express cash: issue document failed (non-fatal)', err)
+                    }
                 }
             }
 
@@ -1308,6 +1352,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                         _queueAction: 'checkout_existing',
                         receipt_id: createdReceiptId,
                         payments: [{ receipt_id: createdReceiptId, method: 'cash', amount: totals.total }],
+                        document_issue: buildSaleDraft([{ receipt_id: createdReceiptId, method: 'cash', amount: totals.total }]),
                         ...(warehouseId ? { warehouse_id: warehouseId } : {}),
                         metadata: {
                             queued_from: 'express_cash',
@@ -1468,6 +1513,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         loadRegisters()
         loadSettings()
         loadProducts()
+        loadClients().catch(() => { })
             ; (async () => {
                 try {
                     const items = await listWarehouses()

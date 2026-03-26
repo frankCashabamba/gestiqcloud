@@ -20,6 +20,10 @@ function isFresh(entry?: CacheEntry) {
   return !!entry && Date.now() - entry.ts < CACHE_TTL_MS
 }
 
+function canUseCachedFallback(err: any) {
+  return isNetworkIssue(err) || Number(err?.status || 0) >= 500
+}
+
 async function fetchWithCache(key: string, fn: () => Promise<any>): Promise<Modulo[]> {
   const cached = cache.get(key)
   const persisted = readCachedResource<Modulo[]>(key)
@@ -38,7 +42,7 @@ async function fetchWithCache(key: string, fn: () => Promise<any>): Promise<Modu
     })
     .catch((err) => {
       const fallback = cached?.data?.length ? cached.data : persisted
-      if (fallback?.length && isNetworkIssue(err)) {
+      if (fallback?.length && canUseCachedFallback(err)) {
         cache.set(key, { ts: Date.now(), data: fallback })
         return fallback
       }

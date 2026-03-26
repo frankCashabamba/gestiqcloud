@@ -136,6 +136,10 @@ interface UseSectorFullConfigState {
 const configCache = new Map<string, { config: SectorFullConfig; timestamp: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
 
+function canUseCachedFallback(err: any): boolean {
+  return isNetworkIssue(err) || Number(err?.response?.status || err?.status || 0) >= 500
+}
+
 function sectorConfigCacheKey(sectorCode: string): string {
   return `sector-full-config:${sectorCode}:${getOfflineCacheScope()}`
 }
@@ -206,7 +210,7 @@ export function useCompanySectorFullConfig(
         status: err.response?.status || err.status,
       })
 
-      if (persisted && isNetworkIssue(err)) {
+      if (persisted && canUseCachedFallback(err)) {
         setState({
           config: persisted,
           loading: false,

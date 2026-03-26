@@ -2,6 +2,7 @@
 import { apiFetch } from '../../lib/http'
 import { queueDeletion, storeEntity } from '../../lib/offlineStore'
 import { createOfflineTempId, isNetworkIssue, stripOfflineMeta } from '../../lib/offlineHttp'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../../lib/offlineResourceCache'
 
 // Base de API para inventario (coincide con rutas backend)
 const INVENTORY_BASE = '/api/v1/tenant/inventory'
@@ -83,10 +84,30 @@ function mapStockItem(x: any): StockItem {
   }
 }
 
+function warehousesCacheKey() {
+  return `inventory:warehouses:${getOfflineCacheScope('pos')}`
+}
+
+function stockItemsCacheKey(params?: { warehouse_id?: string | number; product_id?: string | number }) {
+  const warehouseId = params?.warehouse_id ? String(params.warehouse_id) : 'all'
+  const productId = params?.product_id ? String(params.product_id) : 'all'
+  return `inventory:stock:${warehouseId}:${productId}:${getOfflineCacheScope('pos')}`
+}
+
 // Warehouses API
 export async function listWarehouses(): Promise<Warehouse[]> {
-  const data = await apiFetch<any[]>(`${INVENTORY_BASE}/warehouses`)
-  return (data || []).map(mapWarehouse)
+  try {
+    const data = await apiFetch<any[]>(`${INVENTORY_BASE}/warehouses`)
+    const mapped = (data || []).map(mapWarehouse)
+    writeCachedResource(warehousesCacheKey(), mapped)
+    return mapped
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const cached = readCachedResource<Warehouse[]>(warehousesCacheKey())
+      if (cached) return cached.map(mapWarehouse)
+    }
+    throw error
+  }
 }
 
 export async function createWarehouse(data: { code: string; name: string; is_active?: boolean }): Promise<Warehouse> {
@@ -141,9 +162,19 @@ export async function listStockItems(params?: { warehouse_id?: string | number; 
   if (params?.warehouse_id) q.append('warehouse_id', String(params.warehouse_id))
   if (params?.product_id) q.append('product_id', String(params.product_id))
   const url = q.toString() ? `${INVENTORY_BASE}/stock?${q}` : `${INVENTORY_BASE}/stock`
-  const data = await apiFetch<any>(url)
-  const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
-  return (items || []).map(mapStockItem)
+  try {
+    const data = await apiFetch<any>(url)
+    const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+    const mapped = (items || []).map(mapStockItem)
+    writeCachedResource(stockItemsCacheKey(params), mapped)
+    return mapped
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const cached = readCachedResource<StockItem[]>(stockItemsCacheKey(params))
+      if (cached) return cached.map(mapStockItem)
+    }
+    throw error
+  }
 }
 
 // Movimientos / Ajustes

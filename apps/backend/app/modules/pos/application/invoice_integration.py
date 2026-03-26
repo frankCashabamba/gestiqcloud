@@ -64,6 +64,18 @@ class POSInvoicingService:
         self.tenant_id = tenant_id
         self._enabled_slugs: set[str] | None = None
 
+    def _rollback_savepoint(self, savepoint) -> None:
+        try:
+            if savepoint and getattr(savepoint, "is_active", False):
+                savepoint.rollback()
+                return
+        except Exception:
+            pass
+        try:
+            self.db.rollback()
+        except Exception as rollback_error:
+            logger.error("Failed to rollback transaction: %s", rollback_error)
+
     def _load_enabled_module_slugs(self) -> set[str]:
         if self._enabled_slugs is not None:
             return self._enabled_slugs
@@ -132,7 +144,9 @@ class POSInvoicingService:
             return None
 
         # Not found: create a default retail customer
+        savepoint = None
         try:
+            savepoint = self.db.begin_nested()
             new_id = uuid4()
             self.db.execute(
                 text(
@@ -151,8 +165,11 @@ class POSInvoicingService:
                     "tid": self.tenant_id,
                 },
             )
+            if savepoint and getattr(savepoint, "is_active", False):
+                savepoint.commit()
             return new_id
         except Exception:
+            self._rollback_savepoint(savepoint)
             return None
         return None
 
@@ -194,6 +211,7 @@ class POSInvoicingService:
             ).first()
 
             if not receipt:
+                self._rollback_savepoint(savepoint)
                 return None
 
             (
@@ -208,6 +226,7 @@ class POSInvoicingService:
             ) = receipt
 
             if receipt_status != "paid" or existing_invoice_id:
+                self._rollback_savepoint(savepoint)
                 return None
 
             final_customer_id: UUID | None = customer_id or (
@@ -220,6 +239,7 @@ class POSInvoicingService:
                     "Skipping invoice creation for POS receipt %s: customer_id missing",
                     receipt_uuid,
                 )
+                self._rollback_savepoint(savepoint)
                 return None
 
             # Resolve sector from company_settings (fallback to tenant template or 'pos')
@@ -469,6 +489,7 @@ class POSInvoicingService:
                 {"rid": receipt_id, "tid": self.tenant_id},
             ).first()
             if not receipt:
+                self._rollback_savepoint(savepoint)
                 return None
 
             (
@@ -482,6 +503,7 @@ class POSInvoicingService:
             ) = receipt
 
             if receipt_status != "paid":
+                self._rollback_savepoint(savepoint)
                 return None
 
             # Skip sales order creation for refunds/negative receipts
@@ -492,6 +514,7 @@ class POSInvoicingService:
                 {"rid": receipt_uuid},
             ).first()
             if has_refunds:
+                self._rollback_savepoint(savepoint)
                 return None
 
             existing = self.db.execute(
@@ -533,6 +556,7 @@ class POSInvoicingService:
 
             if not tenant_currency:
                 logger.warning("Tenant %s has no configured currency", self.tenant_id)
+                self._rollback_savepoint(savepoint)
                 return None
 
             subtotal = (Decimal(str(gross_total or 0)) - Decimal(str(tax_total or 0))).quantize(
@@ -685,6 +709,7 @@ class POSInvoicingService:
                 {"rid": receipt_id, "tid": self.tenant_id},
             ).first()
             if not receipt:
+                self._rollback_savepoint(savepoint)
                 return None
             receipt_uuid, receipt_number, cashier_id = receipt
 
@@ -701,6 +726,7 @@ class POSInvoicingService:
 
             amount = Decimal(str(refund_total or 0)).quantize(Decimal("0.01"))
             if amount <= 0:
+                self._rollback_savepoint(savepoint)
                 return None
 
             expense_id = uuid4()

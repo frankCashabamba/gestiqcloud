@@ -55,6 +55,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null)
   const [syncing, setSyncing] = useState(false)
   const storeInitialized = useRef(false)
+  const lastAutoSyncAttemptRef = useRef(0)
 
   // Initialize offline store on mount
   useEffect(() => {
@@ -139,6 +140,22 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
 
     return () => clearInterval(interval)
   }, [isOnline, syncing, autoSyncIntervalMs])
+
+  useEffect(() => {
+    if (!isOnline || syncing || totalPending <= 0) return
+
+    const elapsed = Date.now() - lastAutoSyncAttemptRef.current
+    const delay = lastAutoSyncAttemptRef.current === 0
+      ? 1000
+      : Math.max(0, 15_000 - elapsed)
+
+    const timer = window.setTimeout(() => {
+      lastAutoSyncAttemptRef.current = Date.now()
+      window.dispatchEvent(new CustomEvent('offline:sync-requested'))
+    }, delay)
+
+    return () => window.clearTimeout(timer)
+  }, [isOnline, syncing, totalPending])
 
   const syncNow = useCallback(async (entity?: EntityType) => {
     if (!isOnline || syncing) return

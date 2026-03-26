@@ -114,4 +114,31 @@ describe('CompanyConfigProvider', () => {
     })
     expect(screen.getByTestId('billing').textContent).toBe('false')
   })
+
+  it('uses cached company config when the backend returns 500', async () => {
+    cache.set('company-config:tenant-scope', {
+      company: { id: 'tenant-1', name: 'Demo', color_primario: '#000', plantilla_inicio: 'default', currency: 'EUR', country: 'ES', config_json: {} },
+      settings: { settings: {}, pos_config: {}, locale: 'es', timezone: 'Europe/Madrid', currency: 'EUR' },
+      categories: [],
+      enabled_modules: [],
+      features: { production_enabled: false, billing_enabled: true },
+      sector: { plantilla: 'default', features: {} },
+    })
+
+    apiFetchMock.mockRejectedValue({
+      status: 500,
+      message: 'Internal Server Error',
+    })
+
+    render(
+      <CompanyConfigProvider>
+        <Probe />
+      </CompanyConfigProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('production').textContent).toBe('false')
+    })
+    expect(screen.getByTestId('billing').textContent).toBe('true')
+  })
 })

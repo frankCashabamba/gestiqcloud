@@ -22,7 +22,7 @@ export default function OfflineSyncDashboard({
   compact = false
 }: OfflineSyncDashboardProps) {
   const { t } = useTranslation()
-  const { isOnline, totalPending, syncStatus, statusCounts, syncing, syncNow, lastSyncAt } = useOffline()
+  const { isOnline, totalPending, syncStatus, statusCounts, syncing, lastSyncAt } = useOffline()
   const [expanded, setExpanded] = useState(!compact)
 
   if (isOnline && totalPending === 0) return null
@@ -173,40 +173,29 @@ export default function OfflineSyncDashboard({
             </div>
           )}
 
-          {/* Sync Button */}
-          <button
-            onClick={() => syncNow()}
-            disabled={syncing || !isOnline}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              background: isOnline && !syncing ? '#2196F3' : '#ccc',
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              cursor: isOnline && !syncing ? 'pointer' : 'default',
-              fontSize: '0.9rem',
-              fontWeight: 'bold',
-              transition: 'all 0.2s',
-              opacity: syncing ? 0.7 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem'
-            }}
-            onMouseEnter={(e) => {
-              if (isOnline && !syncing) {
-                e.currentTarget.style.background = '#1976D2'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (isOnline && !syncing) {
-                e.currentTarget.style.background = '#2196F3'
-              }
-            }}
-          >
-            {syncing ? t('components.offlineSync.syncing') : t('components.offlineSync.syncNow')}
-          </button>
+          {/* Auto-sync Status */}
+          <div style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: !isOnline ? '#fee2e2' : syncing ? '#dbeafe' : '#dcfce7',
+            color: !isOnline ? '#991b1b' : syncing ? '#1d4ed8' : '#166534',
+            border: `1px solid ${!isOnline ? '#fecaca' : syncing ? '#93c5fd' : '#86efac'}`,
+            borderRadius: 6,
+            fontSize: '0.9rem',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+          }}>
+            {!isOnline
+              ? t('components.offlineSync.offlineWarning')
+              : syncing
+                ? t('components.offlineSync.syncing')
+                : totalPending > 0
+                  ? t('components.offlineSync.autoRetryPending', { defaultValue: 'Reintentando sincronización automáticamente' })
+                  : t('components.offlineSync.autoSyncReady', { defaultValue: 'Sincronización automática activa' })}
+          </div>
 
           {/* Offline Warning */}
           {!isOnline && (

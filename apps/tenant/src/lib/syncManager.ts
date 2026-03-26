@@ -25,7 +25,7 @@ export interface SyncAdapter {
   fetchAll(): Promise<any[]>
 
   // Sync operations
-  create(data: any): Promise<any>
+  create(data: any, localId?: string): Promise<any>
   update(id: string, data: any): Promise<any>
   delete(id: string): Promise<void>
 
@@ -146,7 +146,7 @@ class SyncManager {
           await adapter.delete(item.id)
           await markSynced(entity, item.id, item.remoteVersion)
         } else if (isCreate) {
-          await adapter.create(item.data)
+          await adapter.create(item.data, item.id)
           await markSynced(entity, item.id, Math.max(item.remoteVersion, 1))
         } else {
           await adapter.update(item.id, item.data)

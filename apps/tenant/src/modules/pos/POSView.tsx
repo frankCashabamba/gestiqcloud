@@ -27,6 +27,7 @@ import {
     Trash2,
     UserRound,
     Wifi,
+    RefreshCw,
 } from 'lucide-react'
 import { usePermission } from '../../hooks/usePermission'
 import { useDocumentIDTypes } from '../../hooks/useDocumentIDTypes'
@@ -68,7 +69,7 @@ export default function POSView() {
     const { token, loading: authLoading, profile } = useAuth()
     const { loading: permissionsLoading } = usePermissions()
     const toast = useToast()
-    const { isOnline, pendingCount, syncNow } = useOfflineSync()
+    const { isOnline, pendingCount, syncing, lastSyncAt } = useOfflineSync()
     const { loading: documentIdTypesLoading } = useDocumentIDTypes()
 
     const isCompanyAdmin = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
@@ -83,7 +84,7 @@ export default function POSView() {
         registers, selectedRegister, setSelectedRegister,
         currentShift, setCurrentShift,
         cart, setCart, globalDiscountPct, setGlobalDiscountPct,
-        ticketNotes, setTicketNotes, currentReceiptId, setCurrentReceiptId,
+        ticketNotes, setTicketNotes, currentReceiptId, setCurrentReceiptId, paymentDraftContext,
         heldTickets, searchQuery, setSearchQuery,
         barcodeInput, setBarcodeInput, searchExpanded, setSearchExpanded,
         selectedCategory, setSelectedCategory, viewMode, setViewMode,
@@ -126,6 +127,7 @@ export default function POSView() {
         handleQuickConsumerFinal, handleQuickNoTicket, handleQuickInvoice,
         handlePaymentSuccess, handlePaymentCancel, handleHoldTicket, handleResumeTicketConfirm,
         handleReprintLast, handlePrintQuote, handleExpressCash, handlePayPending, handleWasteAdjust, handleCreateProductQuickSave,
+        buildSaleDraft,
         loadRegisters,
     } = actions
 
@@ -348,6 +350,30 @@ export default function POSView() {
                         <Wifi size={12} />
                         {isOnline ? t('pos:header.online') : t('pos:header.offline')}
                     </span>
+                    <span
+                        className={`badge ${!isOnline ? 'off' : syncing ? 'ok' : pendingCount > 0 ? '' : 'ok'}`}
+                        title={
+                            !isOnline
+                                ? t('pos:header.offline', { defaultValue: 'Offline' })
+                                : syncing
+                                    ? t('pos:header.syncing', { defaultValue: 'Synchronizing' })
+                                    : pendingCount > 0
+                                        ? t('pos:header.pendingSync', { defaultValue: 'Pending sync' })
+                                        : lastSyncAt
+                                            ? t('pos:header.syncedAt', { defaultValue: 'Synced {{time}}', time: lastSyncAt.toLocaleTimeString() })
+                                            : t('pos:header.autoSyncReady', { defaultValue: 'Auto sync ready' })
+                        }
+                    >
+                        <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+                        {!isOnline
+                            ? t('pos:header.offline', { defaultValue: 'Offline' })
+                            : syncing
+                                ? t('pos:header.syncing', { defaultValue: 'Synchronizing' })
+                                : pendingCount > 0
+                                    ? t('pos:header.pendingSync', { defaultValue: 'Pending sync' })
+                                    : t('pos:header.synced', { defaultValue: 'Synced' })}
+                        {pendingCount > 0 ? ` ${pendingCount}` : ''}
+                    </span>
                     <span className="badge">
                         <Clock3 size={12} />
                         {clock.toLocaleTimeString()}
@@ -453,11 +479,6 @@ export default function POSView() {
                             <option value="light">{t('pos:header.themeLight', { defaultValue: 'Light theme' })}</option>
                         </select>
                         <span className="badge ok">{typeof window.print === 'function' ? t('pos:header.printerOk', { defaultValue: 'Printer OK' }) : t('pos:header.printerUnavailable', { defaultValue: 'Printer N/A' })}</span>
-                        {pendingCount > 0 && (
-                            <ProtectedButton permission="pos:read" className="badge" unstyled onClick={syncNow}>
-                                Sync {pendingCount}
-                            </ProtectedButton>
-                        )}
                         {isCompanyAdmin && cashiers.length > 0 && (
                             <select value={selectedCashierId || ''} onChange={(e) => setSelectedCashierId(e.target.value || null)} className="badge" style={{ cursor: 'pointer' }}>
                                 {!selectedCashierId && <option value="">{t('pos:header.cashierLabel')}...</option>}
@@ -649,6 +670,9 @@ export default function POSView() {
                     receiptId={currentReceiptId}
                     totalAmount={totals.total}
                     warehouseId={headerWarehouseId || undefined}
+                    draftLines={paymentDraftContext?.draftLines}
+                    offlineCreatePayload={paymentDraftContext?.createPayload}
+                    baseDocumentDraft={buildSaleDraft([])}
                     onSuccess={handlePaymentSuccess}
                     onCancel={handlePaymentCancel}
                     isWholesaleCustomer={isWholesaleCustomer}

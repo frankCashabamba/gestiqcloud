@@ -12,6 +12,7 @@ import type { Cliente as Customer } from '../../customers/services'
 import type { Producto as Product } from '../../products/productsApi'
 import type { Warehouse } from '../../inventory/services'
 import type { SaleDraft } from '../services'
+import type { POSReceiptLine, ReceiptCreateRequest } from '../../../types/pos'
 import { POS_DRAFT_KEY } from '../../../constants/storage'
 import { POS_DEFAULTS } from '../../../constants/defaults'
 
@@ -58,6 +59,11 @@ export type PosDraftState = {
     selectedCustomerName: string | null
 }
 
+export type PaymentDraftContext = {
+    draftLines: POSReceiptLine[]
+    createPayload: Pick<ReceiptCreateRequest, 'register_id' | 'shift_id' | 'cashier_id' | 'customer_id' | 'lines' | 'metadata'>
+}
+
 export type PosTheme = 'corporate-dark' | 'soft-dark' | 'light'
 
 export const POS_THEME_KEY = 'POS_THEME'
@@ -101,6 +107,7 @@ export function usePOSState() {
     const [globalDiscountPct, setGlobalDiscountPct] = useState(0)
     const [ticketNotes, setTicketNotes] = useState('')
     const [currentReceiptId, setCurrentReceiptId] = useState<string | null>(null)
+    const [paymentDraftContext, setPaymentDraftContext] = useState<PaymentDraftContext | null>(null)
     const [heldTickets, setHeldTickets] = useState<HeldTicket[]>([])
 
     // ------------------------------------------------------------------
@@ -423,6 +430,7 @@ export function usePOSState() {
         globalDiscountPct, setGlobalDiscountPct,
         ticketNotes, setTicketNotes,
         currentReceiptId, setCurrentReceiptId,
+        paymentDraftContext, setPaymentDraftContext,
         heldTickets, setHeldTickets,
 
         // Buyer / Client

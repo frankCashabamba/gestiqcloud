@@ -40,4 +40,3 @@ export function resolveRuntimeAssetRoot(rawApiUrl?: string | null): string {
   if (!/^https?:\/\//i.test(apiBase)) return ''
   return trimTrailingSlashes(apiBase).replace(/\/api(?:\/v1)?$/i, '')
 }
-

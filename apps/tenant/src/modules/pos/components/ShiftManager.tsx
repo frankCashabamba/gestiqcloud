@@ -56,6 +56,16 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
             loadSuggestedOpeningFloat()
         }, [register.id])
 
+        useEffect(() => {
+            const handleSyncComplete = () => {
+                void loadCurrentShift()
+            }
+            window.addEventListener('offline:sync-complete', handleSyncComplete)
+            return () => {
+                window.removeEventListener('offline:sync-complete', handleSyncComplete)
+            }
+        }, [register.id])
+
         const loadCurrentShift = async () => {
             try {
                 const shift = await getCurrentShift(register.id)
@@ -91,7 +101,11 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                 })
                 setCurrentShift(shift)
                 onShiftChange(shift)
-                toast.success(t('pos:shiftManager.openedSuccess'))
+                if ((shift as any)?._offline) {
+                    toast.warning(t('pos:errors.offlineSync'))
+                } else {
+                    toast.success(t('pos:shiftManager.openedSuccess'))
+                }
             } catch (error: any) {
                 toast.error(error.response?.data?.detail || t('pos:shiftManager.errorOpening'))
             } finally {
@@ -169,7 +183,11 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                     (result.loss_amount > 0 ? `\n${t('pos:shiftManager.lossesAmount')}: ${formatCurrency(result.loss_amount || 0)}` : '') +
                     (result.loss_note ? `\n${t('pos:shiftManager.noteLabel')}: ${result.loss_note}` : '')
 
-                toast.success(msg)
+                if ((result as any)?._offline) {
+                    toast.warning(t('pos:errors.offlineSync'))
+                } else {
+                    toast.success(msg)
+                }
 
                 setCurrentShift(null)
                 onShiftChange(null)
@@ -289,6 +307,11 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                 <div className="py-8 text-center text-gray-500">{t('pos:shiftManager.loadingSummary')}</div>
                             ) : summary ? (
                                 <>
+                                    {(summary as any)?._offlineSummary && (
+                                        <div className="bg-amber-50 border border-amber-300 text-amber-900 p-3 rounded mb-4">
+                                            {t('pos:errors.offlineSync')}
+                                        </div>
+                                    )}
                                     {/* Alertas */}
                                     {summary.pending_receipts > 0 && (
                                         <div className="bg-red-50 border border-red-300 text-red-800 p-3 rounded mb-4">

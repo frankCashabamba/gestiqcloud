@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getReceipt, payReceipt, redeemStoreCredit, createPaymentLink, addToOutbox, type CheckoutResponse } from '../services'
+import { createReceipt, getReceipt, payReceipt, redeemStoreCredit, createPaymentLink, addToOutbox, type CheckoutResponse, type QueuedPOSCreateAndCheckout, type SaleDraft } from '../services'
 import { createMovimientoCaja } from '../../finances/services'
 import { listStockItems, listWarehouses, type StockItem, type Warehouse } from '../../inventory/services'
 import StoreCreditsModal from './StoreCreditsModal'
@@ -40,6 +40,9 @@ const formatLotOptionLabel = (option: LotOption, noLotLabel: string, noExpiryLab
 interface PaymentModalProps {
   receiptId: string
   totalAmount: number
+  draftLines?: POSReceiptLine[]
+  offlineCreatePayload?: Pick<QueuedPOSCreateAndCheckout, 'register_id' | 'shift_id' | 'cashier_id' | 'customer_id' | 'currency' | 'lines' | 'metadata'>
+  baseDocumentDraft?: SaleDraft
   onSuccess: (payments: POSPayment[], checkoutResponse?: CheckoutResponse) => void
   onCancel: () => void
   warehouseId?: string
@@ -49,6 +52,9 @@ interface PaymentModalProps {
 export default function PaymentModal({
   receiptId,
   totalAmount,
+  draftLines,
+  offlineCreatePayload,
+  baseDocumentDraft,
   onSuccess,
   onCancel,
   warehouseId,
@@ -96,6 +102,10 @@ export default function PaymentModal({
   }, [warehouseId])
 
   useEffect(() => {
+    if (draftLines?.length) {
+      setReceiptLines(draftLines)
+      return
+    }
     let cancelled = false
     ; (async () => {
       try {
@@ -112,7 +122,7 @@ export default function PaymentModal({
     return () => {
       cancelled = true
     }
-  }, [receiptId])
+  }, [draftLines, receiptId])
 
   useEffect(() => {
     if (!activeWarehouseId || receiptLines.length === 0) {
@@ -245,6 +255,41 @@ export default function PaymentModal({
         .filter((entry) => entry.lineId && entry.requiresSelection),
     [allocationDrafts, receiptLines, stockOptionsByLine]
   )
+
+  const mapDraftSelectionsToReceiptLines = (
+    selections: POSLineStockSelection[],
+    targetLines: POSReceiptLine[],
+  ): POSLineStockSelection[] => {
+    if (!selections.length) return selections
+    return selections.map((selection) => {
+      const match = /^draft-(\d+)$/.exec(String(selection.line_id || ''))
+      if (!match) return selection
+      const lineIndex = Number(match[1])
+      const resolvedLineId = targetLines[lineIndex]?.id
+      return resolvedLineId ? { ...selection, line_id: String(resolvedLineId) } : selection
+    })
+  }
+
+  const buildDocumentDraft = (payments: POSPayment[]): SaleDraft | undefined => {
+    if (!baseDocumentDraft) return undefined
+    const isCreditSale = payments.some((payment) => payment.ref === 'credit_sale')
+    return {
+      ...baseDocumentDraft,
+      payments: payments.map((payment) => ({
+        method: payment.method === 'cash'
+          ? 'CASH'
+          : payment.method === 'card'
+            ? 'CARD'
+            : payment.method === 'link'
+              ? 'TRANSFER'
+              : 'OTHER',
+        amount: payment.amount,
+      })),
+      meta: isCreditSale
+        ? { ...(baseDocumentDraft.meta || {}), credit_sale: true }
+        : baseDocumentDraft.meta,
+    }
+  }
 
   const handlePay = async () => {
     if (loading || payingRef.current) return
@@ -394,23 +439,106 @@ export default function PaymentModal({
       }
 
       const wh = warehouseId || selectedWarehouse || undefined
-      const response = await payReceipt(
-        receiptId,
-        payments,
-        wh ? { warehouse_id: wh, stock_selections: stockSelections } : undefined
-      )
+      let finalPayments = payments
+      let response: CheckoutResponse
+
+      if (offlineCreatePayload) {
+        let createdReceiptId: string | null = null
+        try {
+          const createdReceipt = await createReceipt(offlineCreatePayload as any)
+          createdReceiptId = String(createdReceipt?.id || '')
+          if (!createdReceiptId) throw new Error('no_receipt_id')
+
+          const targetReceipt =
+            Array.isArray(createdReceipt?.lines) && createdReceipt.lines.length > 0
+              ? createdReceipt
+              : await getReceipt(createdReceiptId)
+          const mappedStockSelections = mapDraftSelectionsToReceiptLines(
+            stockSelections,
+            Array.isArray(targetReceipt?.lines) ? targetReceipt.lines : [],
+          )
+          finalPayments = payments.map((payment) => ({
+            ...payment,
+            receipt_id: createdReceiptId!,
+          }))
+          response = await payReceipt(
+            createdReceiptId,
+            finalPayments,
+            wh
+              ? { warehouse_id: wh, stock_selections: mappedStockSelections }
+              : mappedStockSelections.length
+                ? { stock_selections: mappedStockSelections }
+                : undefined,
+          )
+        } catch (error: any) {
+          if (!isNetworkIssue(error)) throw error
+
+          const queuedResponse: CheckoutResponse = {
+            ok: true,
+            receipt_id: createdReceiptId || receiptId,
+            status: 'queued_offline',
+            totals: {
+              subtotal: totalAmount,
+              tax: 0,
+              total: totalAmount,
+              paid: payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+              change,
+            },
+          }
+
+          await addToOutbox(
+            createdReceiptId
+              ? {
+                  _queueAction: 'checkout_existing',
+                  receipt_id: createdReceiptId,
+                  payments: payments.map((payment) => ({
+                    ...payment,
+                    receipt_id: createdReceiptId,
+                  })),
+                  ...(wh ? { warehouse_id: wh } : {}),
+                  ...(stockSelections.length ? { stock_selections: stockSelections } : {}),
+                  ...(buildDocumentDraft(payments) ? { document_issue: buildDocumentDraft(payments) } : {}),
+                  metadata: {
+                    queued_from: 'payment_modal_existing_receipt',
+                    total_amount: totalAmount,
+                  },
+                }
+              : {
+                  _queueAction: 'create_and_checkout',
+                  ...offlineCreatePayload,
+                  payments,
+                  ...(wh ? { warehouse_id: wh } : {}),
+                  ...(stockSelections.length ? { stock_selections: stockSelections } : {}),
+                  ...(buildDocumentDraft(payments) ? { document_issue: buildDocumentDraft(payments) } : {}),
+                  metadata: {
+                    ...(offlineCreatePayload.metadata || {}),
+                    queued_from: 'payment_modal_offline_create',
+                    total_amount: totalAmount,
+                  },
+                },
+          )
+          onSuccess(payments, queuedResponse)
+          return
+        }
+      } else {
+        response = await payReceipt(
+          receiptId,
+          payments,
+          wh ? { warehouse_id: wh, stock_selections: stockSelections } : undefined
+        )
+      }
 
       try {
         const hasDocuments = !!(response?.documents_created?.sale || response?.documents_created?.invoice)
         if (!hasDocuments) {
-          const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+          const totalPaid = finalPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
           if (totalPaid > 0) {
             await createMovimientoCaja({
               fecha: new Date().toISOString(),
-              concepto: `POS Receipt ${receiptId}`,
+              concepto: `POS Receipt ${response.receipt_id || receiptId}`,
               tipo: 'ingreso',
               monto: totalPaid,
-              referencia: receiptId,
+              referencia: response.receipt_id || receiptId,
             })
           }
         }
@@ -418,7 +546,7 @@ export default function PaymentModal({
         console.warn('Could not sync cash movement fallback:', syncErr)
       }
 
-      onSuccess(payments, response)
+      onSuccess(finalPayments, response)
     } catch (error: any) {
       const detail = error?.response?.data?.detail
       if (isNetworkIssue(error)) {
@@ -441,6 +569,7 @@ export default function PaymentModal({
           payments,
           warehouse_id: queuedWarehouseId,
           stock_selections: stockSelections,
+          ...(buildDocumentDraft(payments) ? { document_issue: buildDocumentDraft(payments) } : {}),
           metadata: {
             queued_from: 'payment_modal',
             total_amount: totalAmount,

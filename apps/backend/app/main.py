@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import sys
+import traceback
 import types
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -292,6 +293,78 @@ from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
 
+def _extract_incident_context(request: Request) -> tuple[str | None, str | None]:
+    tenant_id = None
+    user_id = None
+
+    try:
+        claims = getattr(request.state, "access_claims", None) or {}
+        if isinstance(claims, dict):
+            tenant_id = claims.get("tenant_id")
+            user_id = claims.get("user_id")
+    except Exception:
+        pass
+
+    try:
+        session = getattr(request.state, "session", None) or {}
+        if tenant_id is None and isinstance(session, dict):
+            tenant_id = session.get("tenant_id")
+        if user_id is None and isinstance(session, dict):
+            user_id = session.get("tenant_user_id") or session.get("user_id")
+    except Exception:
+        pass
+
+    return (
+        str(tenant_id) if tenant_id else None,
+        str(user_id) if user_id else None,
+    )
+
+
+def _record_auto_incident(request: Request, exc: Exception) -> None:
+    tenant_id, user_id = _extract_incident_context(request)
+    if not tenant_id:
+        return
+
+    try:
+        from app.config.database import SessionLocal
+        from app.models.ai.incident import Incident
+    except Exception:
+        _error_logger.warning("Auto-incident imports unavailable", exc_info=True)
+        return
+
+    request_id = getattr(getattr(request, "state", object()), "request_id", None)
+    stack_trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    title = f"500 Internal Error | {request.method} {request.url.path}"[:255]
+    description = f"{type(exc).__name__}: {exc}"
+    context = {
+        "req_id": request_id,
+        "method": request.method,
+        "path": request.url.path,
+        "query": request.url.query or None,
+        "user_id": user_id,
+        "ip": request.client.host if request.client else None,
+        "exception_type": type(exc).__name__,
+    }
+
+    try:
+        with SessionLocal() as db:
+            db.add(
+                Incident(
+                    tenant_id=tenant_id,
+                    type="error",
+                    severity="high",
+                    title=title,
+                    description=description,
+                    stack_trace=stack_trace,
+                    context=context,
+                    auto_detected=True,
+                )
+            )
+            db.commit()
+    except Exception:
+        _error_logger.warning("Auto-incident persistence failed", exc_info=True)
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_log(request: Request, exc: RequestValidationError):
     _error_logger.warning(
@@ -312,6 +385,7 @@ async def unhandled_exception_log(request: Request, exc: Exception):
         exc,
         exc_info=True,
     )
+    _record_auto_incident(request, exc)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 

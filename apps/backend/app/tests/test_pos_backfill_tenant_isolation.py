@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.models.pos.receipt import POSReceipt
 from app.models.pos.register import POSRegister, POSShift
 from app.models.tenant import Tenant
+from app.modules.pos.application.invoice_integration import POSInvoicingService
 from app.modules.company.interface.http.admin import (
     admin_backfill_pos_receipt_documents,
     admin_list_pos_backfill_candidates,
@@ -132,3 +133,28 @@ def test_admin_backfill_candidates_are_tenant_scoped(db):
     ids = {item["receipt_id"] for item in result["items"]}
     assert str(receipt_a) in ids
     assert len(ids) == 1
+
+
+def test_invoice_customer_fallback_failure_does_not_leave_session_aborted(db, monkeypatch):
+    tenant = Tenant(id=uuid.uuid4(), name="A4", slug=f"a4-{uuid.uuid4().hex[:6]}")
+    db.add(tenant)
+    db.commit()
+
+    receipt_id = _create_paid_receipt(db, tenant.id, "R-A4-001")
+    service = POSInvoicingService(db, tenant.id)
+    monkeypatch.setattr(service, "check_module_enabled", lambda _module_id: True)
+
+    original_execute = db.execute
+
+    def execute_with_client_insert_failure(statement, *args, **kwargs):
+        sql_text = str(statement)
+        if "INSERT INTO clients" in sql_text:
+            raise RuntimeError("forced_client_insert_failure")
+        return original_execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db, "execute", execute_with_client_insert_failure)
+
+    result = service.create_invoice_from_receipt(receipt_id, customer_id=None)
+
+    assert result is None
+    assert db.execute(text("SELECT 1")).scalar() == 1

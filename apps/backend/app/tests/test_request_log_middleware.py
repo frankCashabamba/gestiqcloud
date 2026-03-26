@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Request
+import logging
+
+from fastapi import FastAPI, Request, Response
 from fastapi.testclient import TestClient
 
 from app.core.log_context import get_request_context
@@ -32,3 +34,37 @@ def test_request_log_middleware_sets_header_and_records_metrics(monkeypatch):
     assert recorded[0][2] == 200
     assert recorded[0][3] >= 0
     assert get_request_context() is None
+
+
+def test_request_log_middleware_skips_success_logs_by_default(caplog):
+    app = FastAPI()
+    app.add_middleware(RequestLogMiddleware)
+
+    @app.get("/ping")
+    async def ping():
+        return {"ok": True}
+
+    client = TestClient(app)
+    with caplog.at_level(logging.INFO, logger="app.request"):
+        response = client.get("/ping")
+
+    assert response.status_code == 200
+    assert not [record for record in caplog.records if record.name == "app.request"]
+
+
+def test_request_log_middleware_logs_4xx_when_threshold_is_lowered(monkeypatch, caplog):
+    monkeypatch.setenv("REQUEST_LOG_MIN_STATUS", "400")
+
+    app = FastAPI()
+    app.add_middleware(RequestLogMiddleware)
+
+    @app.get("/missing")
+    async def missing():
+        return Response(status_code=404)
+
+    client = TestClient(app)
+    with caplog.at_level(logging.WARNING, logger="app.request"):
+        response = client.get("/missing")
+
+    assert response.status_code == 404
+    assert any(record.levelno == logging.WARNING for record in caplog.records)

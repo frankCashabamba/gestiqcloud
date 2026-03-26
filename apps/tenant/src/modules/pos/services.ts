@@ -4,8 +4,9 @@
 import tenantApi from '../../shared/api/client'
 import { API_PATHS } from '../../constants/api'
 import { getSyncManager } from '../../lib/syncManager'
-import { storeEntity } from '../../lib/offlineStore'
-import { createOfflineTempId } from '../../lib/offlineHttp'
+import { getEntity, listEntities, storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId, isNetworkIssue } from '../../lib/offlineHttp'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../../lib/offlineResourceCache'
 import type {
     POSRegister,
     POSShift,
@@ -27,6 +28,89 @@ export type { POSReceipt } from '../../types/pos'
 const BASE_URL = API_PATHS.POS.REGISTERS.replace('/registers', '')
 const PAYMENTS_URL = API_PATHS.PAYMENTS.BASE
 
+function registersCacheKey() {
+    return `pos:registers:${getOfflineCacheScope('pos')}`
+}
+
+function currentShiftCacheKey(registerId: string) {
+    return `pos:current-shift:${registerId}:${getOfflineCacheScope('pos')}`
+}
+
+function shiftSummaryCacheKey(shiftId: string) {
+    return `pos:shift-summary:${shiftId}:${getOfflineCacheScope('pos')}`
+}
+
+function dailyCountsCacheKey(registerId?: string) {
+    return `pos:daily-counts:${registerId || 'all'}:${getOfflineCacheScope('pos')}`
+}
+
+function isOfflineShiftId(shiftId?: string | null) {
+    return String(shiftId || '').startsWith('shift-')
+}
+
+function cacheCurrentShift(registerId: string, shift: POSShift | null) {
+    writeCachedResource(currentShiftCacheKey(registerId), shift)
+}
+
+function clearCachedCurrentShift(registerId: string) {
+    try {
+        localStorage.removeItem(`gc:offline-resource:${currentShiftCacheKey(registerId)}`)
+    } catch {}
+}
+
+async function rememberShift(shift: POSShift, remoteShiftId?: string) {
+    await storeEntity('shift', String(shift.id), {
+        ...shift,
+        remote_shift_id: remoteShiftId || String(shift.id),
+    }, 'synced', 1)
+}
+
+async function resolveShiftRecord(shiftId: string) {
+    const stored = await getEntity('shift', shiftId)
+    if (stored?.data) return stored.data as POSShift & Record<string, any>
+
+    const shifts = await listEntities('shift')
+    const match = shifts.find((item) => String((item.data as any)?.remote_shift_id || '') === shiftId)
+    return (match?.data as (POSShift & Record<string, any>) | undefined) || null
+}
+
+async function buildOfflineShiftSummary(shiftId: string): Promise<ShiftSummary & { opening_float?: number; _offlineSummary?: boolean }> {
+    const shift = await resolveShiftRecord(shiftId)
+    const receipts = await listEntities('receipt')
+    const pendingReceipts = receipts.filter((item) => {
+        const data = item.data || {}
+        const linkedShiftId = String(data.shift_id ?? data.shiftId ?? '')
+        return linkedShiftId === shiftId && data._queueAction !== 'create_and_checkout'
+    })
+    const paidReceipts = receipts.filter((item) => {
+        const data = item.data || {}
+        const linkedShiftId = String(data.shift_id ?? data.shiftId ?? '')
+        return linkedShiftId === shiftId && data._queueAction === 'create_and_checkout'
+    })
+
+    const payments = paidReceipts.reduce<Record<string, number>>((acc, item) => {
+        const data = item.data || {}
+        const queuedPayments = Array.isArray(data.payments) ? data.payments : []
+        queuedPayments.forEach((payment: POSPayment) => {
+            const key = payment.method || 'other'
+            acc[key] = Number(acc[key] || 0) + Number(payment.amount || 0)
+        })
+        return acc
+    }, {})
+
+    const salesTotal = Object.values(payments).reduce((sum, value) => sum + Number(value || 0), 0)
+
+    return {
+        pending_receipts: pendingReceipts.length,
+        items_sold: [],
+        sales_total: salesTotal,
+        receipts_count: paidReceipts.length,
+        payments,
+        opening_float: Number(shift?.opening_float || 0),
+        _offlineSummary: true,
+    }
+}
+
 // Ensure Authorization header is always present even across dev proxies/redirects
 function authHeaders(): Record<string, string> {
     try {
@@ -42,10 +126,18 @@ function authHeaders(): Record<string, string> {
 // ============================================================================
 
 export async function listRegisters(): Promise<POSRegister[]> {
-    const { data } = await tenantApi.get<POSRegister[] | { items?: POSRegister[] }>(`${BASE_URL}/registers`, { headers: authHeaders() })
-    if (Array.isArray(data)) return data
-    const items = (data as any)?.items
-    return Array.isArray(items) ? items : []
+    try {
+        const { data } = await tenantApi.get<POSRegister[] | { items?: POSRegister[] }>(`${BASE_URL}/registers`, { headers: authHeaders() })
+        const normalized = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : []
+        writeCachedResource(registersCacheKey(), normalized)
+        return normalized
+    } catch (error) {
+        if (isNetworkIssue(error)) {
+            const cached = readCachedResource<POSRegister[]>(registersCacheKey())
+            if (cached) return cached
+        }
+        throw error
+    }
 }
 
 export async function createRegister(payload: { code: string; name: string; default_warehouse_id?: string; metadata?: any }): Promise<POSRegister> {
@@ -63,27 +155,131 @@ export async function getRegister(id: string): Promise<POSRegister> {
 // ============================================================================
 
 export async function openShift(payload: ShiftOpenRequest): Promise<POSShift> {
-    const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts`, payload, { headers: authHeaders() })
-    return data
+    try {
+        const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts`, payload, { headers: authHeaders() })
+        cacheCurrentShift(payload.register_id, data)
+        await rememberShift(data)
+        return data
+    } catch (error) {
+        if (!isNetworkIssue(error)) throw error
+
+        const offlineShift: POSShift & Record<string, any> = {
+            id: createOfflineTempId('shift'),
+            register_id: payload.register_id,
+            opened_by: String(payload.cashier_id || 'offline'),
+            opened_at: new Date().toISOString(),
+            opening_float: Number(payload.opening_float || 0),
+            status: 'open',
+            _offline: true,
+            _op: 'create',
+            _pending: true,
+            _createdAt: new Date().toISOString(),
+            _source: 'pos-shift',
+            cashier_id: payload.cashier_id,
+            notes: payload.notes,
+        }
+
+        await storeEntity('shift', offlineShift.id, offlineShift, 'pending')
+        cacheCurrentShift(payload.register_id, offlineShift)
+        return offlineShift
+    }
 }
 
 export async function getShiftSummary(shiftId: string, params?: { cashier_id?: string }): Promise<ShiftSummary> {
-    const { data } = await tenantApi.get<ShiftSummary>(`${BASE_URL}/shifts/${shiftId}/summary`, { params, headers: authHeaders() })
-    return data
+    try {
+        const { data } = await tenantApi.get<ShiftSummary>(`${BASE_URL}/shifts/${shiftId}/summary`, { params, headers: authHeaders() })
+        const shift = await resolveShiftRecord(shiftId)
+        writeCachedResource(shiftSummaryCacheKey(shiftId), {
+            ...data,
+            opening_float: Number(shift?.opening_float || 0),
+        })
+        return data
+    } catch (error) {
+        if (!isNetworkIssue(error)) throw error
+        const cached = readCachedResource<ShiftSummary>(shiftSummaryCacheKey(shiftId))
+        if (cached) return cached
+        return await buildOfflineShiftSummary(shiftId)
+    }
 }
 
 export async function closeShift(payload: ShiftCloseRequest): Promise<POSShift> {
     const { shift_id, ...body } = payload
-    const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts/${shift_id}/close`, body, { headers: authHeaders() })
-    return data
+    try {
+        const { data } = await tenantApi.post<POSShift>(`${BASE_URL}/shifts/${shift_id}/close`, body, { headers: authHeaders() })
+        await rememberShift(data)
+        const currentShift = await resolveShiftRecord(shift_id)
+        if (currentShift?.register_id) clearCachedCurrentShift(String(currentShift.register_id))
+        return data
+    } catch (error) {
+        if (!isNetworkIssue(error)) throw error
+
+        const currentShift = await resolveShiftRecord(shift_id)
+        const closedAt = new Date().toISOString()
+        const offlineClosedShift: POSShift & Record<string, any> = {
+            ...(currentShift || {}),
+            id: shift_id,
+            register_id: String(currentShift?.register_id || ''),
+            opened_by: String(currentShift?.opened_by || 'offline'),
+            opened_at: currentShift?.opened_at || closedAt,
+            opening_float: Number(currentShift?.opening_float || 0),
+            status: 'closed',
+            closed_at: closedAt,
+            counted_cash: Number(payload.closing_cash || 0),
+            closing_total: Number(payload.closing_cash || 0),
+            loss_amount: payload.loss_amount,
+            loss_note: payload.loss_note,
+            difference: Number(payload.closing_cash || 0) - Number(currentShift?.expected_cash || 0),
+            _offline: true,
+        }
+
+        if (currentShift?.register_id) clearCachedCurrentShift(String(currentShift.register_id))
+
+        const existing = await getEntity('shift', shift_id)
+        if (existing?.data?._op === 'create' || isOfflineShiftId(shift_id)) {
+            await storeEntity('shift', shift_id, {
+                ...(existing?.data || currentShift || {}),
+                _closeRequested: true,
+                closing_cash: Number(payload.closing_cash || 0),
+                loss_amount: payload.loss_amount,
+                loss_note: payload.loss_note,
+                status: 'closed',
+                closed_at: closedAt,
+            }, 'pending', existing?.remoteVersion)
+        } else {
+            await storeEntity('shift', shift_id, {
+                ...(currentShift || {}),
+                shift_id,
+                closing_cash: Number(payload.closing_cash || 0),
+                loss_amount: payload.loss_amount,
+                loss_note: payload.loss_note,
+                _op: 'update',
+                _pending: true,
+                _createdAt: closedAt,
+                _source: 'pos-shift',
+                status: 'closed',
+                closed_at: closedAt,
+            }, 'pending', existing?.remoteVersion)
+        }
+
+        return offlineClosedShift
+    }
 }
 
 export async function getCurrentShift(registerId: string): Promise<POSShift | null> {
     try {
         const { data } = await tenantApi.get<POSShift>(`${BASE_URL}/shifts/current/${registerId}`, { headers: authHeaders() })
+        cacheCurrentShift(registerId, data)
+        await rememberShift(data)
         return data
     } catch (error: any) {
-        if (error.response?.status === 404) return null
+        if (error.response?.status === 404) {
+            clearCachedCurrentShift(registerId)
+            return null
+        }
+        if (isNetworkIssue(error)) {
+            const cached = readCachedResource<POSShift | null>(currentShiftCacheKey(registerId))
+            return cached?.status === 'open' ? cached : null
+        }
         throw error
     }
 }
@@ -182,6 +378,7 @@ export type QueuedPOSCheckoutExisting = {
     payments: POSPayment[]
     warehouse_id?: string
     stock_selections?: POSLineStockSelection[]
+    document_issue?: SaleDraft
     metadata?: Record<string, any>
 }
 
@@ -197,11 +394,19 @@ export type QueuedPOSCreateAndCheckout = {
     payments: POSPayment[]
     warehouse_id?: string
     stock_selections?: POSLineStockSelection[]
+    document_issue?: SaleDraft
+}
+
+export type QueuedPOSIssueDocument = {
+    _queueAction: 'issue_document'
+    receipt_id: string
+    sale_draft: SaleDraft
 }
 
 export type QueuedPOSOutboxPayload =
     | QueuedPOSCheckoutExisting
     | QueuedPOSCreateAndCheckout
+    | QueuedPOSIssueDocument
     | (ReceiptCreateRequest & { _queueAction?: 'create_receipt' })
 
 export async function payReceipt(
@@ -359,6 +564,15 @@ export async function issueDocument(payload: SaleDraft): Promise<DocumentModel> 
     return data
 }
 
+export async function backfillReceiptDocuments(receiptId: string): Promise<{ ok: boolean; receipt_id: string; documents_created?: Record<string, any> }> {
+    const { data } = await tenantApi.post<{ ok: boolean; receipt_id: string; documents_created?: Record<string, any> }>(
+        `${BASE_URL}/receipts/${receiptId}/backfill_documents`,
+        {},
+        { headers: authHeaders() },
+    )
+    return data
+}
+
 export async function renderDocument(documentId: string): Promise<string> {
     const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/render`, {
         headers: authHeaders(),
@@ -450,8 +664,17 @@ export async function syncOfflineReceipts(): Promise<void> {
 }
 
 export async function listDailyCounts(params?: { register_id?: string; since?: string; until?: string; limit?: number }): Promise<any[]> {
-    const { data } = await tenantApi.get(`${BASE_URL}/daily_counts`, { params, headers: authHeaders() })
-    return data || []
+    try {
+        const { data } = await tenantApi.get(`${BASE_URL}/daily_counts`, { params, headers: authHeaders() })
+        if (params?.register_id) writeCachedResource(dailyCountsCacheKey(params.register_id), data || [])
+        return data || []
+    } catch (error) {
+        if (isNetworkIssue(error)) {
+            const cached = readCachedResource<any[]>(dailyCountsCacheKey(params?.register_id))
+            if (cached) return cached
+        }
+        throw error
+    }
 }
 
 export async function getLastDailyCount(registerId: string): Promise<any | null> {

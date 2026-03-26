@@ -7,15 +7,38 @@
  */
 
 import { SyncAdapter, getSyncManager } from '../../lib/syncManager'
-import { storeEntity, listEntities } from '../../lib/offlineStore'
+import { getEntity, storeEntity, listEntities } from '../../lib/offlineStore'
 import * as posServices from './services'
+import { createOfflineTempId } from '../../lib/offlineHttp'
 import type { POSReceipt, POSShift } from '../../types/pos'
 import type { POSLineStockSelection, POSPayment, ReceiptCreateRequest } from '../../types/pos'
+import type { SaleDraft } from './services'
 
-function buildReceiptPayload(data: any): ReceiptCreateRequest {
+async function resolveRemoteShiftId(shiftId?: string): Promise<string | undefined> {
+  const normalized = String(shiftId || '').trim()
+  if (!normalized) return undefined
+
+  const stored = await getEntity('shift', normalized)
+  const directRemote = String(stored?.data?.remote_shift_id || '').trim()
+  if (directRemote) return directRemote
+
+  if (stored && (stored.syncStatus === 'pending' || stored.syncStatus === 'failed')) {
+    const manager = getSyncManager()
+    if (manager.hasAdapter('shift')) {
+      await manager.syncEntity('shift', false)
+      const refreshed = await getEntity('shift', normalized)
+      const refreshedRemote = String(refreshed?.data?.remote_shift_id || refreshed?.data?.id || '').trim()
+      if (refreshedRemote) return refreshedRemote
+    }
+  }
+
+  return String(stored?.data?.id || normalized)
+}
+
+async function buildReceiptPayload(data: any): Promise<ReceiptCreateRequest> {
   return {
     register_id: data.register_id ?? data.registerId,
-    shift_id: data.shift_id ?? data.shiftId,
+    shift_id: (await resolveRemoteShiftId(data.shift_id ?? data.shiftId)) || '',
     cashier_id: data.cashier_id,
     customer_id: data.customer_id,
     currency: data.currency,
@@ -25,9 +48,29 @@ function buildReceiptPayload(data: any): ReceiptCreateRequest {
   }
 }
 
-function buildCheckoutOptions(data: any): { warehouse_id?: string; stock_selections?: POSLineStockSelection[] } | undefined {
+function resolveStockSelections(
+  stockSelections: POSLineStockSelection[] | undefined,
+  receiptLines?: Array<{ id?: string }>,
+): POSLineStockSelection[] | undefined {
+  if (!stockSelections?.length) return undefined
+  return stockSelections.map((selection) => {
+    const match = /^draft-(\d+)$/.exec(String(selection.line_id || ''))
+    if (!match) return selection
+    const lineIndex = Number(match[1])
+    const resolvedLineId = receiptLines?.[lineIndex]?.id
+    return resolvedLineId ? { ...selection, line_id: String(resolvedLineId) } : selection
+  })
+}
+
+function buildCheckoutOptions(
+  data: any,
+  receiptLines?: Array<{ id?: string }>,
+): { warehouse_id?: string; stock_selections?: POSLineStockSelection[] } | undefined {
   const warehouseId = data.warehouse_id
-  const stockSelections = Array.isArray(data.stock_selections) ? data.stock_selections : undefined
+  const stockSelections = resolveStockSelections(
+    Array.isArray(data.stock_selections) ? data.stock_selections : undefined,
+    receiptLines,
+  )
   if (!warehouseId && !stockSelections?.length) return undefined
   return {
     ...(warehouseId ? { warehouse_id: warehouseId } : {}),
@@ -40,6 +83,28 @@ function normalizePayments(payments: POSPayment[] | undefined, receiptId: string
     ...payment,
     receipt_id: receiptId,
   }))
+}
+
+async function queueDocumentIssueOffline(receiptId: string, saleDraft: SaleDraft) {
+  await storeEntity('receipt', createOfflineTempId('receipt'), {
+    _queueAction: 'issue_document',
+    receipt_id: receiptId,
+    sale_draft: saleDraft,
+    _op: 'create',
+    _pending: true,
+    _createdAt: new Date().toISOString(),
+    _source: 'pos-document',
+  }, 'pending')
+}
+
+async function issueDocumentSafely(receiptId: string, saleDraft: SaleDraft | undefined) {
+  if (!saleDraft) return
+  try {
+    await posServices.issueDocument(saleDraft)
+  } catch (error) {
+    console.warn('[offline] Document issue deferred for receipt:', receiptId, error)
+    await queueDocumentIssueOffline(receiptId, saleDraft)
+  }
 }
 
 // =============================================================================
@@ -61,38 +126,53 @@ export const POSReceiptAdapter: SyncAdapter = {
     }
   },
 
-  async create(data: any): Promise<POSReceipt> {
+  async create(data: any, _localId?: string): Promise<POSReceipt> {
     const queueAction = data?._queueAction ?? 'create_receipt'
     let receipt: POSReceipt
 
-    if (queueAction === 'checkout_existing') {
+    if (queueAction === 'issue_document') {
+      const receiptId = String(data.receipt_id || '')
+      if (!receiptId) throw new Error('offline_document_missing_receipt_id')
+      await posServices.issueDocument(data.sale_draft as SaleDraft)
+      receipt = await posServices.getReceipt(receiptId)
+    } else if (queueAction === 'checkout_existing') {
       const receiptId = String(data.receipt_id || '')
       if (!receiptId) throw new Error('offline_checkout_missing_receipt_id')
 
       const existing = await posServices.getReceipt(receiptId)
       if (existing?.status === 'paid' || existing?.status === 'invoiced') {
+        await posServices.backfillReceiptDocuments(receiptId)
+        await issueDocumentSafely(receiptId, data.document_issue as SaleDraft | undefined)
         receipt = existing
       } else {
         await posServices.payReceipt(
           receiptId,
           normalizePayments(data.payments as POSPayment[] | undefined, receiptId),
-          buildCheckoutOptions(data),
+          buildCheckoutOptions(data, existing?.lines),
         )
+        await posServices.backfillReceiptDocuments(receiptId)
+        await issueDocumentSafely(receiptId, data.document_issue as SaleDraft | undefined)
         receipt = await posServices.getReceipt(receiptId)
       }
     } else if (queueAction === 'create_and_checkout') {
-      const createdReceipt = await posServices.createReceipt(buildReceiptPayload(data))
+      const createdReceipt = await posServices.createReceipt(await buildReceiptPayload(data))
       const receiptId = String(createdReceipt.id || '')
       if (!receiptId) throw new Error('offline_checkout_missing_receipt_id')
+      const targetReceipt =
+        Array.isArray(createdReceipt?.lines) && createdReceipt.lines.length > 0
+          ? createdReceipt
+          : await posServices.getReceipt(receiptId)
 
       await posServices.payReceipt(
         receiptId,
         normalizePayments(data.payments as POSPayment[] | undefined, receiptId),
-        buildCheckoutOptions(data),
+        buildCheckoutOptions(data, targetReceipt?.lines),
       )
+      await posServices.backfillReceiptDocuments(receiptId)
+      await issueDocumentSafely(receiptId, data.document_issue as SaleDraft | undefined)
       receipt = await posServices.getReceipt(receiptId)
     } else {
-      receipt = await posServices.createReceipt(buildReceiptPayload(data))
+      receipt = await posServices.createReceipt(await buildReceiptPayload(data))
     }
 
     // Store locally as synced
@@ -144,17 +224,39 @@ export const POSShiftAdapter: SyncAdapter = {
     }
   },
 
-  async create(data: any): Promise<POSShift> {
+  async create(data: any, localId?: string): Promise<POSShift> {
     // Open shift on server
-    const shift = await posServices.openShift({
+    const openedShift = await posServices.openShift({
       register_id: data.register_id,
       cashier_id: data.cashier_id,
       opening_float: data.opening_balance ?? data.opening_float ?? 0,
       notes: data.notes,
     })
 
-    await storeEntity('shift', String(shift.id), shift, 'synced', 1)
-    return shift
+    const remoteShiftId = String(openedShift.id)
+
+    if (data._closeRequested) {
+      const closedShift = await posServices.closeShift({
+        shift_id: remoteShiftId,
+        closing_cash: data.closing_balance ?? data.closing_cash ?? 0,
+        loss_amount: data.variance ?? data.loss_amount,
+        loss_note: data.notes ?? data.loss_note,
+      })
+
+      const syncedClosedShift = {
+        ...closedShift,
+        remote_shift_id: remoteShiftId,
+      }
+      await storeEntity('shift', String(localId || remoteShiftId), syncedClosedShift, 'synced', 1)
+      return syncedClosedShift
+    }
+
+    const syncedOpenedShift = {
+      ...openedShift,
+      remote_shift_id: remoteShiftId,
+    }
+    await storeEntity('shift', String(localId || remoteShiftId), syncedOpenedShift, 'synced', 1)
+    return syncedOpenedShift
   },
 
   async update(id: string, data: any): Promise<POSShift> {
@@ -200,8 +302,8 @@ export function registerPOSSyncAdapters() {
   if (adaptersRegistered) return
 
   const manager = getSyncManager()
-  manager.registerAdapter(POSReceiptAdapter)
   manager.registerAdapter(POSShiftAdapter)
+  manager.registerAdapter(POSReceiptAdapter)
 
   adaptersRegistered = true
 }

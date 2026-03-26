@@ -3,6 +3,7 @@ import { ensureArray } from '../../shared/utils/array'
 import { TENANT_CLIENTS } from '@shared/endpoints'
 import { queueDeletion, storeEntity } from '../../lib/offlineStore'
 import { createOfflineTempId, isNetworkIssue, isOfflineQueuedResponse, stripOfflineMeta } from '../../lib/offlineHttp'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../../lib/offlineResourceCache'
 
 export type Cliente = {
   id: number | string
@@ -83,9 +84,23 @@ function buildClientePayload(payload: Omit<Cliente, 'id'>): Record<string, unkno
   return normalized
 }
 
+function customersCacheKey() {
+  return `customers:list:${getOfflineCacheScope('pos')}`
+}
+
 export async function listClientes(): Promise<Cliente[]> {
-  const { data } = await tenantApi.get<Cliente[] | { items?: Cliente[] }>(TENANT_CLIENTS.base)
-  return ensureArray<Cliente>(data).map(item => normalizeCliente(item))
+  try {
+    const { data } = await tenantApi.get<Cliente[] | { items?: Cliente[] }>(TENANT_CLIENTS.base)
+    const normalized = ensureArray<Cliente>(data).map(item => normalizeCliente(item))
+    writeCachedResource(customersCacheKey(), normalized)
+    return normalized
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const cached = readCachedResource<Cliente[]>(customersCacheKey())
+      if (cached) return cached.map(item => normalizeCliente(item))
+    }
+    throw error
+  }
 }
 
 export async function getCliente(id: number | string): Promise<Cliente> {

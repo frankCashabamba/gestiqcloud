@@ -976,12 +976,25 @@ def backfill_receipt_documents(
         from app.modules.pos.application.invoice_integration import POSInvoicingService
 
         service = POSInvoicingService(db, tenant_id)
-        invoice_result = service.create_invoice_from_receipt(receipt_uuid, customer_id=None)
-        if invoice_result:
-            documents_created["invoice"] = invoice_result
-        sale_result = service.create_sale_from_receipt(receipt_uuid)
-        if sale_result:
-            documents_created["sale"] = sale_result
+        try:
+            invoice_result = service.create_invoice_from_receipt(receipt_uuid, customer_id=None)
+            if invoice_result:
+                documents_created["invoice"] = invoice_result
+            else:
+                db.rollback()
+        except Exception as e:
+            logger.warning("Error backfilling invoice for receipt %s: %s", receipt_uuid, e)
+            db.rollback()
+
+        try:
+            sale_result = service.create_sale_from_receipt(receipt_uuid)
+            if sale_result:
+                documents_created["sale"] = sale_result
+            else:
+                db.rollback()
+        except Exception as e:
+            logger.warning("Error backfilling sale for receipt %s: %s", receipt_uuid, e)
+            db.rollback()
     except Exception as e:
         logger.warning("Error backfilling documents: %s", e)
 

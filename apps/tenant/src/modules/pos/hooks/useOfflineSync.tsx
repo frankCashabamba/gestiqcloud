@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addToOutbox } from '../services'
 import { retryFailedReceipts } from '../offlineSync'
@@ -17,9 +17,10 @@ export default function useOfflineSync(intervalMs: number = 30000) {
   const { t } = useTranslation(['pos', 'common'])
   const toast = useToast()
   const { isOnline, syncStatus, syncNow: globalSyncNow } = useOffline(intervalMs)
-  const pendingCount = syncStatus.receipt ?? 0
+  const pendingCount = (syncStatus.receipt ?? 0) + (syncStatus.shift ?? 0)
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const lastAutoSyncAttemptRef = useRef(0)
 
   const getLegacyOutbox = (): LegacyOutboxItem[] => {
     try {
@@ -51,7 +52,7 @@ export default function useOfflineSync(intervalMs: number = 30000) {
     if (!isOnline || syncing) return
     setSyncing(true)
     try {
-      await globalSyncNow('receipt')
+      await globalSyncNow()
       setLastSyncAt(new Date())
     } catch (error) {
       console.error('Sync failed:', error)
@@ -68,12 +69,28 @@ export default function useOfflineSync(intervalMs: number = 30000) {
     }
   }, [syncNow])
 
+  useEffect(() => {
+    if (!isOnline || syncing || pendingCount <= 0) return
+
+    const elapsed = Date.now() - lastAutoSyncAttemptRef.current
+    const delay = lastAutoSyncAttemptRef.current === 0
+      ? 1200
+      : Math.max(0, 15_000 - elapsed)
+    const timer = window.setTimeout(() => {
+      lastAutoSyncAttemptRef.current = Date.now()
+      void syncNow()
+    }, delay)
+
+    return () => window.clearTimeout(timer)
+  }, [isOnline, pendingCount, syncing, syncNow])
+
   const clearOutbox = useCallback(() => {
     toast.warning(t('pos:offline.clearWarning'), {
       action: {
         label: t('pos:offline.confirm'),
         onClick: async () => {
           await clearEntity('receipt')
+          await clearEntity('shift')
           toast.success(t('pos:offline.ticketsDeleted'))
         },
       },

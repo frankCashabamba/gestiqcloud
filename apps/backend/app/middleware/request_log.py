@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import uuid
 from typing import Any
@@ -14,6 +15,15 @@ from app.core.log_context import clear_context, set_request_context, set_tenant_
 from app.telemetry.metrics import record_request
 
 logger = logging.getLogger("app.request")
+
+
+def _request_log_min_status() -> int:
+    raw_value = str(os.getenv("REQUEST_LOG_MIN_STATUS", "500")).strip()
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return 500
+    return max(100, min(parsed, 599))
 
 
 def _json(obj: dict[str, Any]) -> str:
@@ -79,7 +89,9 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             if client_ver:
                 log_data["client_ver"] = client_ver
 
-            if resp.status_code >= 500:
+            if resp.status_code < _request_log_min_status():
+                pass
+            elif resp.status_code >= 500:
                 log_data["level"] = "error"
                 logger.error(_json(log_data))
             elif resp.status_code >= 400:
