@@ -4,9 +4,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { CompanyConfigProvider, useCompanyFeatures } from './CompanyConfigContext'
 
 const apiFetchMock = vi.fn()
+const cache = new Map<string, unknown>()
 
 vi.mock('../lib/http', () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+}))
+
+vi.mock('../lib/offlineResourceCache', () => ({
+  getOfflineCacheScope: () => 'tenant-scope',
+  readCachedResource: (key: string) => cache.get(key) ?? null,
+  writeCachedResource: (key: string, value: unknown) => {
+    cache.set(key, value)
+  },
 }))
 
 vi.mock('../auth/AuthContext', () => ({
@@ -44,6 +53,7 @@ function Probe() {
 describe('CompanyConfigProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cache.clear()
     apiFetchMock.mockImplementation((url: string) => {
       if (url === '/api/v1/company/settings/config') {
         return Promise.resolve({
@@ -78,5 +88,30 @@ describe('CompanyConfigProvider', () => {
       expect(screen.getByTestId('production').textContent).toBe('false')
     })
     expect(screen.getByTestId('billing').textContent).toBe('true')
+  })
+
+  it('uses cached company config when the backend is offline', async () => {
+    cache.set('company-config:tenant-scope', {
+      company: { id: 'tenant-1', name: 'Demo', color_primario: '#000', plantilla_inicio: 'default', currency: 'EUR', country: 'ES', config_json: {} },
+      settings: { settings: {}, pos_config: {}, locale: 'es', timezone: 'Europe/Madrid', currency: 'EUR' },
+      categories: [],
+      enabled_modules: [],
+      features: { production_enabled: true, billing_enabled: false },
+      sector: { plantilla: 'default', features: {} },
+    })
+
+    apiFetchMock.mockRejectedValueOnce(new Error('Failed to fetch'))
+    apiFetchMock.mockRejectedValueOnce(new Error('Failed to fetch'))
+
+    render(
+      <CompanyConfigProvider>
+        <Probe />
+      </CompanyConfigProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('production').textContent).toBe('true')
+    })
+    expect(screen.getByTestId('billing').textContent).toBe('false')
   })
 })

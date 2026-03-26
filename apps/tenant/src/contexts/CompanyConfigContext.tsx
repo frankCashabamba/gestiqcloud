@@ -36,6 +36,8 @@ import { hasCompanyModuleEnabled } from '../lib/companyModuleKeys'
 import { useCompanySectorFullConfig as useCompanySectorFullConfigHook, SectorFullConfig, FeaturesConfig as SectorFeaturesConfig } from '../hooks/useCompanySectorFullConfig'
 import i18n, { normalizeLang } from '../i18n'
 import { useAuth } from '../auth/AuthContext'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../lib/offlineResourceCache'
+import { isNetworkIssue } from '../lib/offlineHttp'
 
 interface CompanyInfo {
   id: string
@@ -134,6 +136,10 @@ interface CompanyConfigContextValue {
 
 const CompanyConfigContext = createContext<CompanyConfigContextValue | undefined>(undefined)
 
+function companyConfigCacheKey(): string {
+  return `company-config:${getOfflineCacheScope()}`
+}
+
 function mergeResolvedFeatureFlags(
   baseFeatures: Record<string, any> | undefined,
   resolvedFlags: Record<string, boolean> | undefined,
@@ -167,9 +173,14 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
     }
 
     const loadSeq = ++loadSeqRef.current
+    const cacheKey = companyConfigCacheKey()
+    const cached = readCachedResource<CompanyConfigData>(cacheKey)
     try {
       setLoading(true)
       setError(null)
+      if (cached) {
+        setConfig((current) => current ?? cached)
+      }
 
       const [response, featureFlagsResponse] = await Promise.all([
         apiFetch('/api/v1/company/settings/config') as Promise<any>,
@@ -181,6 +192,7 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
         company: response?.tenant,
         features: mergeResolvedFeatureFlags(response?.features, featureFlagsResponse?.flags),
       }
+      writeCachedResource(cacheKey, mapped)
 
       const lang = normalizeLang(mapped?.settings?.locale)
       if (i18n.resolvedLanguage !== lang) {
@@ -196,6 +208,11 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
       if (loadSeq !== loadSeqRef.current) return
       if (err?.status === 401) {
         setConfig(null)
+        setError(null)
+        return
+      }
+      if (cached && isNetworkIssue(err)) {
+        setConfig(cached)
         setError(null)
         return
       }

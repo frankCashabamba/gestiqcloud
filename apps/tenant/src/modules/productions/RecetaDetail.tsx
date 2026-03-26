@@ -3,12 +3,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   Typography, Box, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Chip, Alert, CircularProgress, Grid,
-  TextField, IconButton, Tabs, Tab, Divider, FormControlLabel, Checkbox
+  TextField, IconButton, Tabs, Tab, Divider, FormControlLabel, Checkbox, ButtonBase
 } from '@mui/material';
 import { Add, Delete, AutoFixHigh } from '@mui/icons-material';
 import {
@@ -39,6 +40,11 @@ import { useCompanyConfig } from '../../contexts/CompanyConfigContext';
 import { useToast } from '../../shared/toast';
 import { useUnits } from '../../hooks/useUnits';
 import { normalizeUnitCode, convertQtyToUnit } from '../../services/unitService';
+import {
+  fetchIngredientMasterRows,
+  formatIngredientReference,
+  type IngredientMasterRow,
+} from './ingredientCatalog';
 
 const HOUR_LIKE_DRIVER_UNITS = new Set(['h', 'hh', 'hr', 'hrs', 'hora', 'horas', 'hour', 'hours']);
 
@@ -155,6 +161,7 @@ interface RecetaDetailProps {
 }
 
 export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }: RecetaDetailProps) {
+  const navigate = useNavigate();
   const { t } = useTranslation(['productions', 'common']);
   const can = usePermission();
   const { config } = useCompanyConfig();
@@ -223,6 +230,18 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
     line_order?: number;
     _isNew?: boolean;
   }>>([]);
+  const [ingredientInsightOpen, setIngredientInsightOpen] = useState(false);
+  const [ingredientInsightLoading, setIngredientInsightLoading] = useState(false);
+  const [ingredientInsightError, setIngredientInsightError] = useState<string | null>(null);
+  const [ingredientInsightMeta, setIngredientInsightMeta] = useState<{
+    productId: string;
+    productName: string;
+    recipeQtyLabel: string;
+    recipeQtyReference: string | null;
+    estimatedCost: number;
+  } | null>(null);
+  const [ingredientInsightRow, setIngredientInsightRow] = useState<IngredientMasterRow | null>(null);
+  const [ingredientCatalogRows, setIngredientCatalogRows] = useState<IngredientMasterRow[] | null>(null);
 
   useEffect(() => {
     if (open && recipeId) {
@@ -230,6 +249,10 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       loadData();
     }
   }, [open, recipeId]);
+
+  useEffect(() => {
+    closeIngredientInsight();
+  }, [recipeId]);
 
   const loadData = async () => {
     try {
@@ -487,6 +510,71 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
     } finally {
       setUpdating(false);
     }
+  };
+
+  const closeIngredientInsight = () => {
+    setIngredientInsightOpen(false);
+    setIngredientInsightLoading(false);
+    setIngredientInsightError(null);
+    setIngredientInsightRow(null);
+    setIngredientInsightMeta(null);
+  };
+
+  const openIngredientInsight = async (
+    item: {
+      product_id: string;
+      qty: number;
+      unit: string;
+      package_unit: string;
+      qty_per_package: number;
+      package_cost: number;
+    },
+    productName: string,
+  ) => {
+    const qtyInPackageUnit = convertQtyToUnit(
+      Number(item.qty || 0),
+      item.unit,
+      item.package_unit || item.unit,
+    );
+    const estimatedCost =
+      (qtyInPackageUnit / Math.max(Number(item.qty_per_package || 1), 0.0001)) *
+      Number(item.package_cost || 0);
+
+    setIngredientInsightMeta({
+      productId: item.product_id,
+      productName,
+      recipeQtyLabel: `${Number(item.qty || 0).toFixed(2)} ${item.unit || ''}`.trim(),
+      recipeQtyReference: formatIngredientReference(Number(item.qty || 0), item.unit, units),
+      estimatedCost,
+    });
+    setIngredientInsightRow(null);
+    setIngredientInsightError(null);
+    setIngredientInsightOpen(true);
+    setIngredientInsightLoading(true);
+
+    try {
+      const rows = ingredientCatalogRows ?? await fetchIngredientMasterRows();
+      if (!ingredientCatalogRows) {
+        setIngredientCatalogRows(rows);
+      }
+      setIngredientInsightRow(rows.find((row) => row.product_id === item.product_id) ?? null);
+    } catch (err: any) {
+      setIngredientInsightError(err?.message || 'No se pudo cargar la ficha del ingrediente');
+    } finally {
+      setIngredientInsightLoading(false);
+    }
+  };
+
+  const openIngredientMasterPage = () => {
+    if (!ingredientInsightMeta?.productId) return;
+    const params = new URLSearchParams({ productId: ingredientInsightMeta.productId });
+    closeIngredientInsight();
+    navigate(`../ingredientes?${params.toString()}`);
+  };
+
+  const openRecipeFromIngredientInsight = (targetRecipeId: string) => {
+    closeIngredientInsight();
+    navigate(`../recetas/${targetRecipeId}`);
   };
 
   const openOrderPrompt = () => {
@@ -838,35 +926,19 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
             <TableContainer component={Paper} variant="outlined" sx={tableContainerSx}>
               <Table size="small">
                 <TableHead>
-                  {isEditing ? (
-                    <>
-                      <TableRow>
-                        <TableCell rowSpan={2}>{t('productions:recipe.ingredients')}</TableCell>
-                        <TableCell colSpan={2} align="center">Uso receta</TableCell>
-                        <TableCell rowSpan={2} align="right">Kg / Lb</TableCell>
-                        <TableCell rowSpan={2} align="right">{t('productions:recipe.cost')}</TableCell>
-                        <TableCell rowSpan={2} align="right">%</TableCell>
-                        <TableCell rowSpan={2} />
-                      </TableRow>
-                      <TableRow>
-                        <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
-                        <TableCell>Unidad</TableCell>
-                      </TableRow>
-                    </>
-                  ) : (
-                    <TableRow>
-                      <TableCell>{t('productions:recipe.ingredients')}</TableCell>
-                      <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
-                      <TableCell align="right">Kg / Lb</TableCell>
-                      <TableCell align="right">{t('productions:recipe.cost')}</TableCell>
-                      <TableCell align="right">%</TableCell>
-                    </TableRow>
-                  )}
+                  <TableRow>
+                    <TableCell>{t('productions:recipe.ingredients')}</TableCell>
+                    <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
+                    {isEditing && <TableCell>Unidad</TableCell>}
+                    <TableCell align="right">{t('productions:recipe.cost')}</TableCell>
+                    <TableCell align="right">%</TableCell>
+                    {isEditing && <TableCell />}
+                  </TableRow>
                 </TableHead>
                 <TableBody>
                   {ingredientsDraft.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={isEditing ? 7 : 5} align="center">
+                      <TableCell colSpan={isEditing ? 6 : 4} align="center">
                         <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
                           {t('productions:recipe.noIngredients')}
                         </Typography>
@@ -877,23 +949,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                     const product = products.find((p) => p.id === item.product_id);
                     const productName = product?.name || (item as any)?.product_name || '-';
                     const qty = Number(item.qty ?? 0);
-                    const unitNorm = normalizeUnitCode(item.unit, units);
-                    let kgLbText: string | null = null;
-                    if (unitNorm === 'g') {
-                      const kg = qty / 1000;
-                      const lb = qty / 453.592;
-                      kgLbText = `${kg.toFixed(3)} kg / ${lb.toFixed(3)} lb`;
-                    } else if (unitNorm === 'kg') {
-                      const lb = qty * 2.20462;
-                      kgLbText = `${qty.toFixed(3)} kg / ${lb.toFixed(3)} lb`;
-                    } else if (unitNorm === 'lb') {
-                      const kg = qty / 2.20462;
-                      kgLbText = `${kg.toFixed(3)} kg / ${qty.toFixed(3)} lb`;
-                    } else if (unitNorm === 'oz') {
-                      const lb = qty / 16;
-                      const kg = lb / 2.20462;
-                      kgLbText = `${kg.toFixed(3)} kg / ${lb.toFixed(3)} lb`;
-                    }
+                    const qtyReference = formatIngredientReference(qty, item.unit, units);
                     const qtyInPackageUnit = convertQtyToUnit(
                       Number(item.qty || 0),
                       item.unit,
@@ -921,7 +977,29 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                               ))}
                             </TextField>
                           ) : (
-                            productName
+                            <ButtonBase
+                              onClick={() => void openIngredientInsight(item, productName)}
+                              sx={{
+                                display: 'flex',
+                                width: '100%',
+                                alignItems: 'flex-start',
+                                flexDirection: 'column',
+                                textAlign: 'left',
+                                borderRadius: 2,
+                                px: 0.5,
+                                py: 0.25,
+                                '&:hover': {
+                                  backgroundColor: '#eff6ff',
+                                },
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a' }}>
+                                {productName}
+                              </Typography>
+                              <Typography variant="caption" color="primary.main">
+                                Ver ficha del ingrediente
+                              </Typography>
+                            </ButtonBase>
                           )}
                         </TableCell>
                         <TableCell align="right">
@@ -934,7 +1012,14 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                               sx={{ width: 90 }}
                             />
                           ) : (
-                            `${qty.toFixed(2)} ${item.unit || ''}`
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                              <Typography variant="body2">{`${qty.toFixed(2)} ${item.unit || ''}`.trim()}</Typography>
+                              {qtyReference && (
+                                <Typography variant="caption" color="text.secondary">
+                                  Equiv.: {qtyReference}
+                                </Typography>
+                              )}
+                            </Box>
                           )}
                         </TableCell>
                         {isEditing && (
@@ -953,13 +1038,6 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                             </TextField>
                           </TableCell>
                         )}
-                        <TableCell align="right">
-                          {kgLbText ? (
-                            <Typography variant="body2" color="text.secondary">{kgLbText}</Typography>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">-</Typography>
-                          )}
-                        </TableCell>
                         <TableCell align="right">
                           <strong>${estimatedCost.toFixed(2)}</strong>
                         </TableCell>
@@ -1439,6 +1517,144 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
           <Button onClick={onClose} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>{t('productions:recipe.close')}</Button>
         </Box>
       </DialogActions>
+
+      <Dialog
+        open={ingredientInsightOpen}
+        onClose={closeIngredientInsight}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: dialogPaperSx }}
+      >
+        <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
+          {ingredientInsightMeta?.productName || 'Ingrediente'}
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, py: 3, backgroundColor: '#f8fafc' }}>
+          {ingredientInsightMeta && (
+            <Box sx={{ ...sectionCardSx, mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Uso en esta receta
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">Cantidad</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                    {ingredientInsightMeta.recipeQtyLabel}
+                  </Typography>
+                  {ingredientInsightMeta.recipeQtyReference && (
+                    <Typography variant="caption" color="text.secondary">
+                      Equiv.: {ingredientInsightMeta.recipeQtyReference}
+                    </Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">Costo estimado en el lote</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                    ${ingredientInsightMeta.estimatedCost.toFixed(2)}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+
+          {ingredientInsightLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : ingredientInsightError ? (
+            <Alert severity="warning" sx={{ borderRadius: 2.5 }}>
+              {ingredientInsightError}
+            </Alert>
+          ) : ingredientInsightRow ? (
+            <Box sx={{ ...sectionCardSx, mb: 0 }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                {ingredientInsightRow.inventory_product ? (
+                  <Chip
+                    size="small"
+                    color="success"
+                    label={`Inventario · ${ingredientInsightRow.inventory_product.unit || ingredientInsightRow.unit || '-'}`}
+                  />
+                ) : (
+                  <Chip size="small" color="warning" label="Sin vínculo de inventario" />
+                )}
+                {ingredientInsightRow.hasDivergence && (
+                  <Chip size="small" color="warning" label="Valores distintos entre recetas" />
+                )}
+              </Box>
+
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">Empaque</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {ingredientInsightRow.purchase_packaging || '-'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">Contenido</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {ingredientInsightRow.qty_per_package} {ingredientInsightRow.package_unit || ingredientInsightRow.unit || ''}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">Costo del pack</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    ${Number(ingredientInsightRow.package_cost || 0).toFixed(2)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="caption" color="text.secondary">Costo por unidad base</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    $
+                    {(
+                      Number(ingredientInsightRow.package_cost || 0) /
+                      Math.max(Number(ingredientInsightRow.qty_per_package || 1), 0.0001)
+                    ).toFixed(4)} / {ingredientInsightRow.package_unit || ingredientInsightRow.unit || '-'}
+                  </Typography>
+                </Grid>
+              </Grid>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Recetas que lo usan
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {ingredientInsightRow.refs.map((ref) => (
+                  <Button
+                    key={ref.ingredient_id || ref.recipe_id}
+                    variant="outlined"
+                    size="small"
+                    onClick={() => openRecipeFromIngredientInsight(ref.recipe_id)}
+                    sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 600 }}
+                  >
+                    {ref.recipe_name} · {Number(ref.qty || 0).toFixed(2)} {ref.unit || ''}
+                  </Button>
+                ))}
+              </Box>
+            </Box>
+          ) : (
+            <Alert severity="info" sx={{ borderRadius: 2.5 }}>
+              No se encontró una ficha maestra para este ingrediente.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={dialogActionsSx}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button onClick={closeIngredientInsight} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>
+              Cerrar
+            </Button>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              onClick={openIngredientMasterPage}
+              disabled={!ingredientInsightMeta?.productId}
+              sx={{ borderRadius: 2.5, fontWeight: 600 }}
+            >
+              Abrir en ingredientes
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={aiOptimizationEnabled && optimizerOpen}

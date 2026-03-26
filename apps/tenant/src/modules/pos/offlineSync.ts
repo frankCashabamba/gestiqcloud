@@ -6,10 +6,41 @@
  * - Shifts can be opened/closed
  */
 
-import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
-import { storeEntity, getEntity, listEntities } from '@/lib/offlineStore'
+import { SyncAdapter, getSyncManager } from '../../lib/syncManager'
+import { storeEntity, listEntities } from '../../lib/offlineStore'
 import * as posServices from './services'
 import type { POSReceipt, POSShift } from '../../types/pos'
+import type { POSLineStockSelection, POSPayment, ReceiptCreateRequest } from '../../types/pos'
+
+function buildReceiptPayload(data: any): ReceiptCreateRequest {
+  return {
+    register_id: data.register_id ?? data.registerId,
+    shift_id: data.shift_id ?? data.shiftId,
+    cashier_id: data.cashier_id,
+    customer_id: data.customer_id,
+    currency: data.currency,
+    lines: data.lines ?? data.items ?? [],
+    payment_method: data.payment_method,
+    metadata: data.metadata,
+  }
+}
+
+function buildCheckoutOptions(data: any): { warehouse_id?: string; stock_selections?: POSLineStockSelection[] } | undefined {
+  const warehouseId = data.warehouse_id
+  const stockSelections = Array.isArray(data.stock_selections) ? data.stock_selections : undefined
+  if (!warehouseId && !stockSelections?.length) return undefined
+  return {
+    ...(warehouseId ? { warehouse_id: warehouseId } : {}),
+    ...(stockSelections?.length ? { stock_selections: stockSelections } : {}),
+  }
+}
+
+function normalizePayments(payments: POSPayment[] | undefined, receiptId: string): POSPayment[] {
+  return (payments || []).map((payment) => ({
+    ...payment,
+    receipt_id: receiptId,
+  }))
+}
 
 // =============================================================================
 // Receipt Adapter (Immutable - Create Only)
@@ -31,15 +62,38 @@ export const POSReceiptAdapter: SyncAdapter = {
   },
 
   async create(data: any): Promise<POSReceipt> {
-    // Create receipt on server
-    const receipt = await posServices.createReceipt({
-      register_id: data.register_id ?? data.registerId,
-      shift_id: data.shift_id ?? data.shiftId,
-      lines: data.lines ?? data.items ?? [],
-      customer_id: data.customer_id,
-      payment_method: data.payment_method,
-      metadata: data.metadata,
-    })
+    const queueAction = data?._queueAction ?? 'create_receipt'
+    let receipt: POSReceipt
+
+    if (queueAction === 'checkout_existing') {
+      const receiptId = String(data.receipt_id || '')
+      if (!receiptId) throw new Error('offline_checkout_missing_receipt_id')
+
+      const existing = await posServices.getReceipt(receiptId)
+      if (existing?.status === 'paid' || existing?.status === 'invoiced') {
+        receipt = existing
+      } else {
+        await posServices.payReceipt(
+          receiptId,
+          normalizePayments(data.payments as POSPayment[] | undefined, receiptId),
+          buildCheckoutOptions(data),
+        )
+        receipt = await posServices.getReceipt(receiptId)
+      }
+    } else if (queueAction === 'create_and_checkout') {
+      const createdReceipt = await posServices.createReceipt(buildReceiptPayload(data))
+      const receiptId = String(createdReceipt.id || '')
+      if (!receiptId) throw new Error('offline_checkout_missing_receipt_id')
+
+      await posServices.payReceipt(
+        receiptId,
+        normalizePayments(data.payments as POSPayment[] | undefined, receiptId),
+        buildCheckoutOptions(data),
+      )
+      receipt = await posServices.getReceipt(receiptId)
+    } else {
+      receipt = await posServices.createReceipt(buildReceiptPayload(data))
+    }
 
     // Store locally as synced
     await storeEntity('receipt', String(receipt.id), receipt, 'synced', 1)

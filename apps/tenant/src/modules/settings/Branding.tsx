@@ -6,11 +6,12 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import type { SettingsBranding } from './types'
 import { env } from '../../env'
 import { invalidateCompanyThemeCache } from '../../services/theme'
+import { resolveRuntimeAssetRoot } from '../../lib/runtimeApi'
 
 function toAbsoluteAssetUrl(url?: string) {
   if (!url) return ''
   if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url
-  const apiRoot = (env.apiUrl || '').replace(/\/+$/g, '').replace(/\/api(?:\/v1)?$/i, '')
+  const apiRoot = resolveRuntimeAssetRoot(env.apiUrl)
   if (!apiRoot) return url
   return `${apiRoot}${url.startsWith('/') ? '' : '/'}${url}`
 }

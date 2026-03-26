@@ -31,8 +31,10 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import tenantApi from '../shared/api/client'
 import { getDefaultUnits } from '../services/unitService'
+import { apiFetch } from '../lib/http'
+import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../lib/offlineResourceCache'
+import { isNetworkIssue } from '../lib/offlineHttp'
 
 // ============================================================================
 // INTERFACES
@@ -134,6 +136,10 @@ interface UseSectorFullConfigState {
 const configCache = new Map<string, { config: SectorFullConfig; timestamp: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
 
+function sectorConfigCacheKey(sectorCode: string): string {
+  return `sector-full-config:${sectorCode}:${getOfflineCacheScope()}`
+}
+
 export function useCompanySectorFullConfig(
   sectorCode: string | null | undefined
 ): UseSectorFullConfigState {
@@ -165,21 +171,23 @@ export function useCompanySectorFullConfig(
       }
     }
 
-    setState({ config: null, loading: true, error: null })
+    const cacheKey = sectorConfigCacheKey(sectorCode)
+    const persisted = readCachedResource<SectorFullConfig>(cacheKey)
+
+    setState({ config: persisted, loading: true, error: null })
 
     try {
       const encodedCode = encodeURIComponent(sectorCode.toLowerCase())
-      const response = await tenantApi.get<SectorFullConfigResponse>(
-        `/api/v1/sectors/${encodedCode}/full-config`
-      )
+      const response = await apiFetch<SectorFullConfigResponse>(`/api/v1/sectors/${encodedCode}/full-config`)
 
-      const config = response.data.sector
+      const config = response.sector
 
       // Guardar en cache con timestamp
       configCache.set(sectorCode, {
         config,
         timestamp: Date.now(),
       })
+      writeCachedResource(cacheKey, config)
 
       setState({
         config,
@@ -195,8 +203,17 @@ export function useCompanySectorFullConfig(
       console.error('[useCompanySectorFullConfig]', {
         sectorCode,
         error: errorMessage,
-        status: err.response?.status,
+        status: err.response?.status || err.status,
       })
+
+      if (persisted && isNetworkIssue(err)) {
+        setState({
+          config: persisted,
+          loading: false,
+          error: null,
+        })
+        return
+      }
 
       setState({
         config: null,

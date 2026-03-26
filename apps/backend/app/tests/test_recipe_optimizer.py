@@ -9,10 +9,10 @@ import pytest
 
 from app.models.core.products import Product
 from app.models.recipes import Recipe, RecipeIngredient
+from app.schemas.recipes import RecipeOptimizationRequest
 from app.services.ai.base import AIResponse, AITask
 from app.services.ai.service import AIService
 from app.services.recipe_optimizer import optimize_recipe_with_ai
-from app.schemas.recipes import RecipeOptimizationRequest
 
 
 def test_optimize_recipe_with_ai_respects_locked_ingredients(db, tenant_minimal, monkeypatch):

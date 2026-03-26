@@ -154,27 +154,46 @@ def _configure_logging() -> None:
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     max_bytes = int(os.getenv("LOG_MAX_BYTES", str(10 * 1024 * 1024)))  # 10MB default
     backup_count = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     root_logger = logging.getLogger()
     if not root_logger.handlers:
         root_logger.setLevel(getattr(logging, log_level, logging.INFO))
 
     # Add rotating file handler if not already present
+    log_path = None
+    if log_file:
+        log_path = Path(log_file).expanduser()
+        if not log_path.is_absolute():
+            log_path = Path(__file__).resolve().parents[1] / log_path
+
     has_rotating = any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers)
-    if not has_rotating and log_file:
-        handler = RotatingFileHandler(
-            log_file,
-            maxBytes=max_bytes,
-            backupCount=backup_count,
-            encoding="utf-8",
-        )
-        handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
+    if not has_rotating and log_path:
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            handler = RotatingFileHandler(
+                log_path,
+                maxBytes=max_bytes,
+                backupCount=backup_count,
+                encoding="utf-8",
             )
-        )
-        root_logger.addHandler(handler)
+        except OSError as exc:
+            has_plain_stream = any(type(h) is logging.StreamHandler for h in root_logger.handlers)
+            if not has_plain_stream:
+                fallback_handler = logging.StreamHandler()
+                fallback_handler.setFormatter(formatter)
+                root_logger.addHandler(fallback_handler)
+            logging.getLogger("app.startup").warning(
+                "File logging disabled for %s: %s",
+                log_path,
+                exc,
+            )
+        else:
+            handler.setFormatter(formatter)
+            root_logger.addHandler(handler)
 
     # Suppress verbose uvicorn access logs (200 OK for every request)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)

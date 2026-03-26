@@ -7,6 +7,7 @@
  */
 
 import { createStore, get, set, del, entries } from 'idb-keyval'
+import { ensureOfflineDatabase, OFFLINE_DB_NAME, OFFLINE_DB_STORES } from './offlineDb'
 
 export type EntityType =
   | 'product'
@@ -46,48 +47,20 @@ export interface SyncMetadata {
   pendingCount: number
 }
 
-const DB_NAME = 'gestiqcloud-offline'
-const STORE_NAME = 'offline-store'
-const METADATA_STORE = 'offline-metadata'
+const DB_NAME = OFFLINE_DB_NAME
+const STORE_NAME = OFFLINE_DB_STORES.entity
+const METADATA_STORE = OFFLINE_DB_STORES.metadata
 
 let entityStore: ReturnType<typeof createStore> | null = null
 let metadataStore: ReturnType<typeof createStore> | null = null
 let dbInitialized = false
 
-/**
- * Initialize IndexedDB with proper store creation
- * Uses low-level IDB API to ensure stores are created correctly
- */
-async function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2)
-
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
-      // v2 migration: use key-value stores without inline keyPath so idb-keyval
-      // can pass explicit keys safely.
-      if (db.objectStoreNames.contains(STORE_NAME)) {
-        db.deleteObjectStore(STORE_NAME)
-      }
-      db.createObjectStore(STORE_NAME)
-
-      if (db.objectStoreNames.contains(METADATA_STORE)) {
-        db.deleteObjectStore(METADATA_STORE)
-      }
-      db.createObjectStore(METADATA_STORE)
-    }
-  })
-}
-
 export async function initOfflineStore() {
   try {
-    if (dbInitialized) return
+    if (dbInitialized && entityStore && metadataStore) return
 
     // Ensure database exists and stores are created
-    await openDatabase()
+    await ensureOfflineDatabase()
 
     // Now create idb-keyval stores
     entityStore = createStore(DB_NAME, STORE_NAME)
@@ -97,8 +70,7 @@ export async function initOfflineStore() {
     console.log('[offline] OfflineStore initialized')
   } catch (error) {
     console.error('[offline] Failed to initialize OfflineStore:', error)
-    // Don't throw - allow app to continue without offline support
-    dbInitialized = true
+    dbInitialized = false
   }
 }
 
@@ -106,12 +78,18 @@ async function getStore() {
   if (!entityStore) {
     await initOfflineStore()
   }
+  if (!entityStore) {
+    throw new Error('Offline entity store is unavailable')
+  }
   return entityStore!
 }
 
 async function getMetadataStore() {
   if (!metadataStore) {
     await initOfflineStore()
+  }
+  if (!metadataStore) {
+    throw new Error('Offline metadata store is unavailable')
   }
   return metadataStore!
 }

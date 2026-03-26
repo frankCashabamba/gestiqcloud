@@ -30,12 +30,23 @@ import './bakery_premium.css'
 
 interface KPIData {
   ventas_mostrador?: { hoy?: number; ayer?: number; variacion?: number; moneda?: string }
-  stock_critico?: { items?: number; nombres?: string[]; urgencia?: string }
+  stock_critico?: {
+    items?: number
+    nombres?: string[]
+    urgencia?: string
+    productos_venta?: { items?: number; nombres?: string[] }
+    materias_primas?: { items?: number; nombres?: string[] }
+  }
   mermas?: { hoy?: number; unidad?: string; valor_estimado?: number; moneda?: string }
   produccion?: { hornadas_completadas?: number; hornadas_programadas?: number; progreso?: number; pedidos_con_receta?: number }
   ingredientes_caducar?: { proximos_7_dias?: number; items?: string[] }
   top_productos?: Array<{ name: string; unidades: number; ingresos: number }>
   pedidos?: { pendientes_cobro?: number; pendientes_entrega?: number }
+}
+
+type StockAlertGroup = {
+  items: number
+  nombres: string[]
 }
 
 type QuickCostDraft = {
@@ -123,7 +134,8 @@ const getQuickErrorMessage = (error: any): string => {
 interface BakeryHeroProps {
   ventas: { hoy?: number; moneda?: string }
   hornadasPendientes: number
-  stockItems: number
+  stockVenta: StockAlertGroup
+  stockMateriaPrima: StockAlertGroup
   loading: boolean
   isModuleEnabled: (s: string) => boolean
   isProductionEnabled: () => boolean
@@ -133,7 +145,7 @@ interface BakeryHeroProps {
 }
 
 const BakeryHero: React.FC<BakeryHeroProps> = ({
-  ventas, hornadasPendientes, stockItems, loading,
+  ventas, hornadasPendientes, stockVenta, stockMateriaPrima, loading,
   isModuleEnabled, isProductionEnabled, prefix, onNuevaProduccion, onNuevoPedido,
 }) => {
   const dayName = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -168,10 +180,17 @@ const BakeryHero: React.FC<BakeryHeroProps> = ({
             <>
               <div className="bakery-hero__kpi-divider" />
               <div className="bakery-hero__kpi">
-                <span className={`bakery-hero__kpi-value${stockItems > 0 ? ' bakery-hero__kpi-value--err' : ''}`}>
-                  {stockItems}
+                <span className={`bakery-hero__kpi-value${stockVenta.items > 0 ? ' bakery-hero__kpi-value--err' : ''}`}>
+                  {stockVenta.items}
                 </span>
-                <span className="bakery-hero__kpi-label">Stock crítico</span>
+                <span className="bakery-hero__kpi-label">Prod. venta crítico</span>
+              </div>
+              <div className="bakery-hero__kpi-divider" />
+              <div className="bakery-hero__kpi">
+                <span className={`bakery-hero__kpi-value${stockMateriaPrima.items > 0 ? ' bakery-hero__kpi-value--err' : ''}`}>
+                  {stockMateriaPrima.items}
+                </span>
+                <span className="bakery-hero__kpi-label">Mat. prima crítica</span>
               </div>
             </>
           )}
@@ -203,8 +222,8 @@ const BakeryHero: React.FC<BakeryHeroProps> = ({
 
 interface BakeryUrgentBarProps {
   hornadasPendientes: number
-  stockItems: number
-  stockNombres: string[]
+  stockVenta: StockAlertGroup
+  stockMateriaPrima: StockAlertGroup
   stockUrgencia?: string
   ingredientesCaducar: number
   ingredientesItems: string[]
@@ -213,11 +232,11 @@ interface BakeryUrgentBarProps {
 }
 
 const BakeryUrgentBar: React.FC<BakeryUrgentBarProps> = ({
-  hornadasPendientes, stockItems, stockNombres, stockUrgencia,
+  hornadasPendientes, stockVenta, stockMateriaPrima, stockUrgencia,
   ingredientesCaducar, ingredientesItems,
   pedidosPendientesCobro, pedidosPendientesEntrega,
 }) => {
-  if (!hornadasPendientes && !stockItems && !ingredientesCaducar && !pedidosPendientesCobro && !pedidosPendientesEntrega) return null
+  if (!hornadasPendientes && !stockVenta.items && !stockMateriaPrima.items && !ingredientesCaducar && !pedidosPendientesCobro && !pedidosPendientesEntrega) return null
   return (
     <div className="bakery-urgent">
       <span className="bakery-urgent__title">⚡ Urgente ahora</span>
@@ -236,9 +255,15 @@ const BakeryUrgentBar: React.FC<BakeryUrgentBarProps> = ({
           🔥 {hornadasPendientes} hornada{hornadasPendientes !== 1 ? 's' : ''} pendiente{hornadasPendientes !== 1 ? 's' : ''}
         </span>
       )}
-      {stockItems > 0 && (
-        <span className="bakery-urgent__badge bakery-urgent__badge--err" title={stockNombres.join(', ')}>
-          📦 {stockItems} producto{stockItems !== 1 ? 's' : ''} sin stock
+      {stockVenta.items > 0 && (
+        <span className="bakery-urgent__badge bakery-urgent__badge--err" title={stockVenta.nombres.join(', ')}>
+          📦 {stockVenta.items} producto{stockVenta.items !== 1 ? 's' : ''} de venta sin stock
+          {stockUrgencia === 'alta' ? ' · crítico' : ''}
+        </span>
+      )}
+      {stockMateriaPrima.items > 0 && (
+        <span className="bakery-urgent__badge bakery-urgent__badge--err" title={stockMateriaPrima.nombres.join(', ')}>
+          🧂 {stockMateriaPrima.items} materia{stockMateriaPrima.items !== 1 ? 's primas' : ' prima'} en crítico
           {stockUrgencia === 'alta' ? ' · crítico' : ''}
         </span>
       )}
@@ -738,6 +763,19 @@ const PanaderiaDashboard: React.FC = () => {
   const ingredientes = kpis.ingredientes_caducar || {}
   const topProductos = kpis.top_productos || []
   const pedidos      = kpis.pedidos || {}
+  const stockNombres = Array.isArray(stock.nombres) ? stock.nombres || [] : []
+  const hasSplitStock = Boolean(stock.productos_venta || stock.materias_primas)
+  const stockVenta: StockAlertGroup = {
+    items: hasSplitStock ? toNumber(stock.productos_venta?.items) : toNumber(stock.items),
+    nombres: hasSplitStock
+      ? (Array.isArray(stock.productos_venta?.nombres) ? stock.productos_venta?.nombres || [] : [])
+      : stockNombres,
+  }
+  const stockMateriaPrima: StockAlertGroup = {
+    items: toNumber(stock.materias_primas?.items),
+    nombres: Array.isArray(stock.materias_primas?.nombres) ? stock.materias_primas?.nombres || [] : [],
+  }
+  const stockItemsTotal = stockVenta.items + stockMateriaPrima.items
 
   const hornadasPendientes = Math.max(
     (produccion.hornadas_programadas || 0) - (produccion.hornadas_completadas || 0),
@@ -1087,7 +1125,8 @@ const PanaderiaDashboard: React.FC = () => {
       <BakeryHero
         ventas={ventas}
         hornadasPendientes={hornadasPendientes}
-        stockItems={stock.items || 0}
+        stockVenta={stockVenta}
+        stockMateriaPrima={stockMateriaPrima}
         loading={kpisLoading}
         isModuleEnabled={isModuleEnabled}
         isProductionEnabled={isProductionEnabled}
@@ -1104,8 +1143,8 @@ const PanaderiaDashboard: React.FC = () => {
       {/* Urgencias activas */}
       <BakeryUrgentBar
         hornadasPendientes={hornadasPendientes}
-        stockItems={stock.items || 0}
-        stockNombres={stock.nombres || []}
+        stockVenta={stockVenta}
+        stockMateriaPrima={stockMateriaPrima}
         stockUrgencia={stock.urgencia}
         ingredientesCaducar={ingredientes.proximos_7_dias || 0}
         ingredientesItems={ingredientes.items || []}
@@ -1180,15 +1219,32 @@ const PanaderiaDashboard: React.FC = () => {
           <section className="card col-4">
             <h3>{t('dashboard:panaderia.criticalStock')}</h3>
             <div className="stat-large">
-              <span className="stat-large__value">{stock.items || 0}</span>
-              <span className="stat-large__label">{t('dashboard:panaderia.products')}</span>
+              <span className="stat-large__value">{stockItemsTotal}</span>
+              <span className="stat-large__label">Alertas totales</span>
             </div>
-            {stock.nombres && stock.nombres.length > 0 && (
-              <ul className="list-compact">
-                {stock.nombres.slice(0, 3).map((item, i) => <li key={i}>{item}</li>)}
+            {(stockVenta.items > 0 || stockMateriaPrima.items > 0) && (
+              <div className="kpi-grid" style={{ marginTop: 12 }}>
+                <div className="kpi">
+                  <span className="kpi__label">Productos de venta</span>
+                  <span className="kpi__value">{stockVenta.items}</span>
+                </div>
+                <div className="kpi">
+                  <span className="kpi__label">Materias primas</span>
+                  <span className="kpi__value">{stockMateriaPrima.items}</span>
+                </div>
+              </div>
+            )}
+            {stockVenta.nombres.length > 0 && (
+              <ul className="list-compact" style={{ marginTop: 12 }}>
+                {stockVenta.nombres.slice(0, 3).map((item, i) => <li key={`sale-${i}`}>Venta: {item}</li>)}
               </ul>
             )}
-            {!stock.items && (
+            {stockMateriaPrima.nombres.length > 0 && (
+              <ul className="list-compact" style={{ marginTop: stockVenta.nombres.length > 0 ? 8 : 12 }}>
+                {stockMateriaPrima.nombres.slice(0, 3).map((item, i) => <li key={`raw-${i}`}>Materia prima: {item}</li>)}
+              </ul>
+            )}
+            {!stockItemsTotal && (
               <p className="empty-state" style={{ padding: 0 }}>Sin alertas de stock 👍</p>
             )}
           </section>

@@ -492,10 +492,7 @@ class CopilotContextBuilder:
     @staticmethod
     def _settings(db: Session, tid: str) -> dict[str, Any]:
         tenant = db.execute(
-            text(
-                "SELECT name, sector, country, currency "
-                "FROM tenants WHERE id = :tid"
-            ),
+            text("SELECT name, sector, country, currency " "FROM tenants WHERE id = :tid"),
             {"tid": tid},
         ).fetchone()
         return {
@@ -523,9 +520,7 @@ class CopilotContextBuilder:
             {"tid": tid},
         ).fetchall()
         roles = db.execute(
-            text(
-                "SELECT count(*) AS total FROM company_roles WHERE tenant_id = :tid"
-            ),
+            text("SELECT count(*) AS total FROM company_roles WHERE tenant_id = :tid"),
             {"tid": tid},
         ).fetchone()
         return {

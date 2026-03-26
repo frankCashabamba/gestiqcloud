@@ -99,6 +99,14 @@ export interface PanaderiaKPIs {
     items?: number
     names?: string[]
     urgency?: string
+    sale_products?: {
+      items?: number
+      names?: string[]
+    }
+    raw_materials?: {
+      items?: number
+      names?: string[]
+    }
   }
   waste?: {
     today?: number
@@ -223,6 +231,14 @@ const normalizeKPIs = (payload: any) => {
       items: payload.critical_stock.items ?? 0,
       nombres: payload.critical_stock.names ?? [],
       urgencia: payload.critical_stock.urgency ?? 'medium',
+      productos_venta: {
+        items: payload.critical_stock.sale_products?.items ?? 0,
+        nombres: payload.critical_stock.sale_products?.names ?? [],
+      },
+      materias_primas: {
+        items: payload.critical_stock.raw_materials?.items ?? 0,
+        nombres: payload.critical_stock.raw_materials?.names ?? [],
+      },
     }
   }
 

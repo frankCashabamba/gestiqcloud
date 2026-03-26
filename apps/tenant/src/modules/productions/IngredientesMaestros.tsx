@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackButton } from '@ui'
 import { listRecipes, addIngredient, updateIngredient, deleteIngredient } from '../../services/api/recetas'
 import { listProducts, createProduct, updateProduct, type Product } from '../../services/api/products'
@@ -8,27 +8,7 @@ import { useUnits } from '../../hooks/useUnits'
 import { normalizeUnitCode } from '../../services/unitService'
 import ProductionAvailabilityGuard from './ProductionAvailabilityGuard'
 import { useToast } from '../../shared/toast'
-
-interface IngredientRef {
-  recipe_id: string
-  ingredient_id: string
-  recipe_name: string
-  qty: number
-  unit: string
-}
-
-interface IngredienteRow {
-  product_id: string
-  product_name: string
-  inventory_product?: Product
-  unit: string
-  purchase_packaging: string
-  qty_per_package: number
-  package_unit: string
-  package_cost: number
-  refs: IngredientRef[]
-  hasDivergence: boolean
-}
+import { buildIngredientMasterRows, type IngredientMasterRow } from './ingredientCatalog'
 
 type DraftMap = Record<string, {
   purchase_packaging: string
@@ -47,12 +27,15 @@ export default function IngredientesMaestros() {
 
 function IngredientesMaestrosContent() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { success, error: toastError } = useToast()
   const { units } = useUnits()
+  const focusedProductId = searchParams.get('productId')?.trim() || ''
+  const focusedRowRef = useRef<HTMLTableRowElement | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-  const [rows, setRows] = useState<IngredienteRow[]>([])
+  const [rows, setRows] = useState<IngredientMasterRow[]>([])
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [recipesList, setRecipesList] = useState<Array<{ id: string; name: string }>>([])
   const [settings, setSettings] = useState<CompanySettings | null>(null)
@@ -60,7 +43,7 @@ function IngredientesMaestrosContent() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [drafts, setDrafts] = useState<DraftMap>({})
   const [saving, setSaving] = useState<Record<string, boolean>>({})
-  const [deleteConfirm, setDeleteConfirm] = useState<IngredienteRow | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<IngredientMasterRow | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [newIngOpen, setNewIngOpen] = useState(false)
   const [reload, setReload] = useState(0)
@@ -92,43 +75,7 @@ function IngredientesMaestrosContent() {
         setSettings(cfg)
         setProgress(null)
 
-        const productMap = new Map<string, Product>()
-        for (const p of products) productMap.set(p.id, p)
-
-        const map = new Map<string, {
-          product_name: string; inventory_product?: Product; unit: string
-          firstValues: { purchase_packaging: string; qty_per_package: number; package_unit: string; package_cost: number }
-          refs: IngredientRef[]; hasDivergence: boolean
-        }>()
-
-        for (const recipe of recipes) {
-          for (const ing of (recipe.ingredients || [])) {
-            const invProd = productMap.get(ing.product_id)
-            const productName = ing.product_name || invProd?.name || ing.product_id
-            const ingValues = {
-              purchase_packaging: ing.purchase_packaging ?? '',
-              qty_per_package: ing.qty_per_package ?? 1,
-              package_unit: ing.package_unit ?? ing.unit,
-              package_cost: ing.package_cost ?? 0,
-            }
-            if (!map.has(ing.product_id)) {
-              map.set(ing.product_id, { product_name: productName, inventory_product: invProd, unit: ing.unit, firstValues: ingValues, refs: [], hasDivergence: false })
-            }
-            const entry = map.get(ing.product_id)!
-            const fv = entry.firstValues
-            if (fv.purchase_packaging !== ingValues.purchase_packaging || fv.qty_per_package !== ingValues.qty_per_package || fv.package_cost !== ingValues.package_cost) {
-              entry.hasDivergence = true
-            }
-            entry.refs.push({ recipe_id: recipe.id, ingredient_id: (ing as any).id ?? '', recipe_name: recipe.name, qty: ing.qty, unit: ing.unit })
-          }
-        }
-
-        const built: IngredienteRow[] = []
-        for (const [pid, entry] of map.entries()) {
-          built.push({ product_id: pid, product_name: entry.product_name, inventory_product: entry.inventory_product, unit: entry.unit, ...entry.firstValues, refs: entry.refs, hasDivergence: entry.hasDivergence })
-        }
-        built.sort((a, b) => a.product_name.localeCompare(b.product_name))
-        setRows(built)
+        setRows(buildIngredientMasterRows(recipes, products))
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || 'Error cargando ingredientes')
       } finally {
@@ -158,7 +105,12 @@ function IngredientesMaestrosContent() {
     )
   }, [rows, q])
 
-  const startEdit = (row: IngredienteRow) => {
+  useEffect(() => {
+    if (!focusedProductId || loading || !filtered.some(row => row.product_id === focusedProductId)) return
+    focusedRowRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [filtered, focusedProductId, loading])
+
+  const startEdit = (row: IngredientMasterRow) => {
     setDrafts(prev => ({
       ...prev,
       [row.product_id]: { purchase_packaging: row.purchase_packaging, qty_per_package: row.qty_per_package, package_unit: row.package_unit, package_cost: row.package_cost },
@@ -167,7 +119,7 @@ function IngredientesMaestrosContent() {
 
   const cancelEdit = (pid: string) => setDrafts(prev => { const n = { ...prev }; delete n[pid]; return n })
 
-  const saveName = async (row: IngredienteRow) => {
+  const saveName = async (row: IngredientMasterRow) => {
     const newName = editingNameValue.trim()
     if (!newName || newName === row.product_name) { setEditingNameId(null); return }
     setSavingName(true)
@@ -186,7 +138,7 @@ function IngredientesMaestrosContent() {
   const setField = (pid: string, field: string, value: any) =>
     setDrafts(prev => ({ ...prev, [pid]: { ...prev[pid], [field]: value } }))
 
-  const save = async (row: IngredienteRow) => {
+  const save = async (row: IngredientMasterRow) => {
     const draft = drafts[row.product_id]
     if (!draft) return
     if (draft.qty_per_package <= 0) { toastError('El contenido debe ser mayor que 0'); return }
@@ -317,11 +269,16 @@ function IngredientesMaestrosContent() {
                 const cur = draft ?? row
                 const costPerUnit = cur.qty_per_package > 0 ? cur.package_cost / cur.qty_per_package : 0
                 const isEditing = !!draft
+                const isFocused = row.product_id === focusedProductId
 
                 return (
                   <tr
                     key={row.product_id}
-                    className={isEditing ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'hover:bg-gray-50 transition-colors'}
+                    ref={isFocused ? focusedRowRef : null}
+                    className={[
+                      isEditing ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'hover:bg-gray-50 transition-colors',
+                      isFocused ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '',
+                    ].filter(Boolean).join(' ')}
                   >
                     {/* Ingrediente */}
                     <td className="px-4 py-3 align-top">

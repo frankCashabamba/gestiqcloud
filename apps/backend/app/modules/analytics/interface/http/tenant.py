@@ -115,7 +115,17 @@ def _sector_kpis_payload(
                 f"""
             SELECT
                 COUNT(DISTINCT p.id) as items,
-                ARRAY_AGG(DISTINCT p.name) FILTER (WHERE p.name IS NOT NULL) as names
+                ARRAY_AGG(DISTINCT p.name) FILTER (WHERE p.name IS NOT NULL) as names,
+                COUNT(DISTINCT p.id) FILTER (WHERE COALESCE(p.is_raw_material, FALSE) IS FALSE) as sale_items,
+                ARRAY_AGG(DISTINCT p.name) FILTER (
+                    WHERE p.name IS NOT NULL
+                      AND COALESCE(p.is_raw_material, FALSE) IS FALSE
+                ) as sale_names,
+                COUNT(DISTINCT p.id) FILTER (WHERE COALESCE(p.is_raw_material, FALSE) IS TRUE) as raw_items,
+                ARRAY_AGG(DISTINCT p.name) FILTER (
+                    WHERE p.name IS NOT NULL
+                      AND COALESCE(p.is_raw_material, FALSE) IS TRUE
+                ) as raw_names
             FROM products p
             LEFT JOIN stock_items si
               ON si.product_id = p.id
@@ -294,6 +304,14 @@ def _sector_kpis_payload(
                 "items": critical_stock[0] if critical_stock else 0,
                 "names": (critical_stock[1] or [])[:3] if critical_stock else [],
                 "urgency": "high" if (critical_stock and critical_stock[0] > 5) else "medium",
+                "sale_products": {
+                    "items": critical_stock[2] if critical_stock else 0,
+                    "names": (critical_stock[3] or [])[:3] if critical_stock else [],
+                },
+                "raw_materials": {
+                    "items": critical_stock[4] if critical_stock else 0,
+                    "names": (critical_stock[5] or [])[:3] if critical_stock else [],
+                },
             },
             "waste": {
                 "today": float(waste[0]) if waste else 0.0,

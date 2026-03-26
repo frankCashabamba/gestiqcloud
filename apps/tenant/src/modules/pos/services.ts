@@ -19,7 +19,8 @@ import type {
     ReceiptToInvoiceRequest,
     RefundRequest,
     PaymentLinkRequest,
-    POSLineStockSelection
+    POSLineStockSelection,
+    POSPayment
 } from '../../types/pos'
 export type { POSReceipt } from '../../types/pos'
 
@@ -174,6 +175,34 @@ export type CheckoutResponse = {
         }
     }
 }
+
+export type QueuedPOSCheckoutExisting = {
+    _queueAction: 'checkout_existing'
+    receipt_id: string
+    payments: POSPayment[]
+    warehouse_id?: string
+    stock_selections?: POSLineStockSelection[]
+    metadata?: Record<string, any>
+}
+
+export type QueuedPOSCreateAndCheckout = {
+    _queueAction: 'create_and_checkout'
+    register_id: string
+    shift_id: string
+    cashier_id?: string
+    customer_id?: string
+    currency?: string
+    lines: ReceiptCreateRequest['lines']
+    metadata?: Record<string, any>
+    payments: POSPayment[]
+    warehouse_id?: string
+    stock_selections?: POSLineStockSelection[]
+}
+
+export type QueuedPOSOutboxPayload =
+    | QueuedPOSCheckoutExisting
+    | QueuedPOSCreateAndCheckout
+    | (ReceiptCreateRequest & { _queueAction?: 'create_receipt' })
 
 export async function payReceipt(
     receiptId: string,
@@ -430,12 +459,14 @@ export async function getLastDailyCount(registerId: string): Promise<any | null>
     return counts.length > 0 ? counts[0] : null
 }
 
-export async function addToOutbox(payload: any): Promise<string> {
+export async function addToOutbox(payload: QueuedPOSOutboxPayload | any): Promise<string> {
     const id = createOfflineTempId('receipt')
     const normalized = payload?.type === 'receipt' ? payload.data : payload
+    const queueAction = normalized?._queueAction || 'create_receipt'
 
     await storeEntity('receipt', id, {
         ...(normalized || {}),
+        _queueAction: queueAction,
         _op: 'create',
         _pending: true,
         _createdAt: new Date().toISOString(),

@@ -23,6 +23,8 @@ import {
     addToOutbox,
     issueDocument,
     renderDocumentWithFormat,
+    type CheckoutResponse,
+    type QueuedPOSCreateAndCheckout,
     type ReceiptTotals,
     type SaleDraft,
 } from '../services'
@@ -41,6 +43,7 @@ import type { Producto as Product } from '../../products/productsApi'
 import type { POSPayment } from '../../../types/pos'
 import { POS_DRAFT_KEY } from '../../../constants/storage'
 import { POS_THEME_KEY, normalizePosTheme, type CartItem, type POSState } from './usePOSState'
+import { isNetworkIssue } from '../../../lib/offlineHttp'
 import {
     getBulkPricingShortcutItems,
     normalizeBakeryShortcutLetter,
@@ -876,6 +879,25 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     // ------------------------------------------------------------------
     // Checkout
     // ------------------------------------------------------------------
+    const buildReceiptLines = () => cart.map((item) => ({
+        product_id: item.product_id,
+        qty: item.qty,
+        unit_price: item.price,
+        tax_rate: item.iva_tasa / 100,
+        discount_pct: item.discount_pct,
+        uom: 'unit',
+        line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
+    }))
+
+    const buildReceiptPayload = () => ({
+        register_id: state.selectedRegister.id,
+        shift_id: state.currentShift.id,
+        cashier_id: isCompanyAdmin ? selectedCashierId || undefined : undefined,
+        customer_id: selectedClient ? String(selectedClient.id) : undefined,
+        lines: buildReceiptLines(),
+        metadata: { notes: ticketNotes },
+    })
+
     const buildSaleDraft = (payments: POSPayment[] = []): SaleDraft => {
         const tenantId = profile?.tenant_id ? String(profile.tenant_id) : ''
         const country = documentConfig?.country || (companySettings?.settings as any)?.pais || (companySettings as any)?.settings?.country || 'EC'
@@ -902,26 +924,29 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         }
     }
 
+    const buildOfflineCreateAndCheckoutPayload = (
+        payments: POSPayment[],
+        warehouseId?: string | null,
+    ): QueuedPOSCreateAndCheckout => ({
+        _queueAction: 'create_and_checkout',
+        ...buildReceiptPayload(),
+        metadata: {
+            notes: ticketNotes,
+            queued_from: 'pos_actions',
+            queued_offline_at: new Date().toISOString(),
+        },
+        payments: payments.map((payment) => ({
+            ...payment,
+            receipt_id: payment.receipt_id || 'offline-receipt',
+        })),
+        ...(warehouseId ? { warehouse_id: warehouseId } : {}),
+    })
+
     const startCheckout = async () => {
         try {
             setLoading(true)
             pendingSaleRef.current = buildSaleDraft([])
-            const receipt = await createReceipt({
-                register_id: state.selectedRegister.id,
-                shift_id: state.currentShift.id,
-                cashier_id: isCompanyAdmin ? selectedCashierId || undefined : undefined,
-                customer_id: selectedClient ? String(selectedClient.id) : undefined,
-                lines: cart.map((item) => ({
-                    product_id: item.product_id,
-                    qty: item.qty,
-                    unit_price: item.price,
-                    tax_rate: item.iva_tasa / 100,
-                    discount_pct: item.discount_pct,
-                    uom: 'unit',
-                    line_total: item.price * item.qty * (1 - item.discount_pct / 100),
-                })),
-                metadata: { notes: ticketNotes },
-            } as any)
+            const receipt = await createReceipt(buildReceiptPayload() as any)
             setCurrentReceiptId(receipt.id ?? null)
             setShowPaymentModal(true)
         } catch (e) {
@@ -1020,9 +1045,30 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         await handleBuyerContinue('IDENTIFIED')
     }
 
-    const handlePaymentSuccess = async (payments: POSPayment[]) => {
+    const resetSaleState = () => {
+        setCart([])
+        setGlobalDiscountPct(0)
+        setTicketNotes('')
+        setBuyerMode('CONSUMER_FINAL')
+        setBuyerIdType('')
+        state.setBuyerIdNumber('')
+        state.setBuyerName('')
+        state.setBuyerEmail('')
+        setSkipPrint(false)
+        localStorage.removeItem(POS_DRAFT_KEY)
+        setShowPaymentModal(false)
+        pendingSaleRef.current = null
+    }
+
+    const handlePaymentSuccess = async (payments: POSPayment[], checkoutResponse?: CheckoutResponse) => {
         try {
             setLoading(true)
+            if (checkoutResponse?.status === 'queued_offline') {
+                resetSaleState()
+                setCurrentReceiptId(null)
+                toast.warning(t('pos:errors.offlineSync'))
+                return
+            }
             if (!currentReceiptId) { setLoading(false); return }
 
             let docPrinted = false
@@ -1064,18 +1110,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             const needsInvoice = shouldCreateInvoice(totals.total, isWholesaleCustomer, companySettings)
             const receiptIdForInvoice = currentReceiptId
 
-            setCart([])
-            setGlobalDiscountPct(0)
-            setTicketNotes('')
-            setBuyerMode('CONSUMER_FINAL')
-            setBuyerIdType('')
-            state.setBuyerIdNumber('')
-            state.setBuyerName('')
-            state.setBuyerEmail('')
-            setSkipPrint(false)
-            localStorage.removeItem(POS_DRAFT_KEY)
-            setShowPaymentModal(false)
-            pendingSaleRef.current = null
+            resetSaleState()
 
             if (needsInvoice && receiptIdForInvoice) {
                 setAutoCreateInvoice(true)
@@ -1085,11 +1120,10 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                 toast.success(t('pos:messages.saleSupervisor'))
             }
         } catch (error: any) {
-            if (!isOnline) {
-                await addToOutbox({ type: 'receipt', data: { cart, totals } })
+            if (!isOnline || isNetworkIssue(error)) {
+                resetSaleState()
+                setCurrentReceiptId(null)
                 toast.warning(t('pos:errors.offlineSync'))
-                setCart([])
-                setShowPaymentModal(false)
             } else {
                 toast.error(error.response?.data?.detail || t('pos:errors.createTicketFailed'))
             }
@@ -1229,27 +1263,14 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             toast.warning(t('pos:errors.requiresBuyerData'))
             return
         }
+        let createdReceiptId: string | null = null
         try {
             setLoading(true)
-            const receipt = await createReceipt({
-                register_id: state.selectedRegister.id,
-                shift_id: state.currentShift.id,
-                cashier_id: isCompanyAdmin ? selectedCashierId || undefined : undefined,
-                customer_id: selectedClient ? String(selectedClient.id) : undefined,
-                lines: cart.map((item) => ({
-                    product_id: item.product_id,
-                    qty: item.qty,
-                    unit_price: item.price,
-                    tax_rate: item.iva_tasa / 100,
-                    discount_pct: item.discount_pct,
-                    uom: 'unit',
-                    line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
-                })),
-                metadata: { notes: ticketNotes },
-            } as any)
+            const receipt = await createReceipt(buildReceiptPayload() as any)
 
             const receiptId = receipt.id
             if (!receiptId) throw new Error('no_receipt_id')
+            createdReceiptId = String(receiptId)
 
             const warehouseId = await resolveWarehouseForStock()
             await payReceipt(receiptId, [{ receipt_id: receiptId, method: 'cash', amount: totals.total }], warehouseId ? { warehouse_id: warehouseId } : undefined)
@@ -1275,23 +1296,35 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             }
 
             // Limpieza idéntica a handlePaymentSuccess
-            setCart([])
-            setGlobalDiscountPct(0)
-            setTicketNotes('')
-            setBuyerMode('CONSUMER_FINAL')
-            setBuyerIdType('')
-            state.setBuyerIdNumber('')
-            state.setBuyerName('')
-            state.setBuyerEmail('')
-            localStorage.removeItem(POS_DRAFT_KEY)
-            pendingSaleRef.current = null
+            resetSaleState()
+            setCurrentReceiptId(null)
 
             toast.success(t('pos:messages.saleSupervisor'))
         } catch (error: any) {
-            if (!isOnline) {
-                await addToOutbox({ type: 'receipt', data: { cart, totals } })
+            if (!isOnline || isNetworkIssue(error)) {
+                const warehouseId = await resolveWarehouseForStock()
+                if (createdReceiptId) {
+                    await addToOutbox({
+                        _queueAction: 'checkout_existing',
+                        receipt_id: createdReceiptId,
+                        payments: [{ receipt_id: createdReceiptId, method: 'cash', amount: totals.total }],
+                        ...(warehouseId ? { warehouse_id: warehouseId } : {}),
+                        metadata: {
+                            queued_from: 'express_cash',
+                            queued_offline_at: new Date().toISOString(),
+                        },
+                    })
+                } else {
+                    await addToOutbox(
+                        buildOfflineCreateAndCheckoutPayload(
+                            [{ receipt_id: 'offline-receipt', method: 'cash', amount: totals.total }],
+                            warehouseId,
+                        ),
+                    )
+                }
+                resetSaleState()
+                setCurrentReceiptId(null)
                 toast.warning(t('pos:errors.offlineSync'))
-                setCart([])
             } else {
                 toast.error(error.response?.data?.detail || t('pos:errors.createTicketFailed'))
             }
@@ -1301,7 +1334,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     }, [
         canStartCheckout, canUseConsumerFinal, cart, totals, isOnline, isCompanyAdmin,
         selectedCashierId, selectedClient, ticketNotes, companySettings,
-        state, buildSaleDraft, t, toast, resolveWarehouseForStock,
+        state, buildReceiptPayload, buildSaleDraft, buildOfflineCreateAndCheckoutPayload, resetSaleState, t, toast, resolveWarehouseForStock,
         setBuyerMode, setShowBuyerModal, setLoading, setCart, setGlobalDiscountPct,
         setTicketNotes, setBuyerIdType, setPrintHtml, setShowPrintPreview,
         setAndPersistLastPrintJob, pendingSaleRef,

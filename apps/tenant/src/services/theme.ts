@@ -1,6 +1,8 @@
 import { apiFetch } from '../lib/http'
 import { env } from '../env'
 import { TOKEN_KEY } from '../constants/storage'
+import { isNetworkIssue } from '../lib/offlineHttp'
+import { resolveRuntimeAssetRoot } from '../lib/runtimeApi'
 
 export type ThemeResponse = { brand?: { name?: string; logoUrl?: string | null } } & Record<string, any>
 
@@ -90,7 +92,7 @@ export function invalidateCompanyThemeCache(empresa?: string | null) {
 function toAbsoluteAssetUrl(url?: string | null) {
   if (!url) return url ?? null
   if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url
-  const apiRoot = (env.apiUrl || '').replace(/\/+$/g, '').replace(/\/api(?:\/v1)?$/i, '')
+  const apiRoot = resolveRuntimeAssetRoot(env.apiUrl)
   if (!apiRoot) return url
   return `${apiRoot}${url.startsWith('/') ? '' : '/'}${url}`
 }
@@ -124,6 +126,13 @@ export async function fetchCompanyTheme(empresa?: string | null): Promise<ThemeR
     })
     .catch((err) => {
       cache.delete(key)
+      const fallback = cached?.data && Object.keys(cached.data).length > 0
+        ? cached.data
+        : lsCached?.data
+      if (fallback && isNetworkIssue(err)) {
+        cache.set(key, { ts: lsCached?.ts ?? cached?.ts ?? Date.now(), data: fallback })
+        return fallback
+      }
       throw err
     })
 

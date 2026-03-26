@@ -6,6 +6,7 @@
  */
 
 import { createStore, get, set, del, entries } from 'idb-keyval'
+import { ensureOfflineDatabase, OFFLINE_DB_NAME, OFFLINE_DB_STORES } from './offlineDb'
 
 export interface OfflineProfile {
   user_id: string
@@ -29,10 +30,19 @@ interface StoredCredentials {
   tokenPayload: Record<string, unknown>
 }
 
-const DB_NAME = 'gestiqcloud-offline'
-const STORE_NAME = 'offline-auth'
+interface OfflineSessionSnapshot {
+  token: string
+  profile: OfflineProfile
+  savedAt: number
+  tokenPayload: Record<string, unknown>
+}
+
+const DB_NAME = OFFLINE_DB_NAME
+const STORE_NAME = OFFLINE_DB_STORES.auth
 const OFFLINE_SESSION_KEY = 'offline_session_tenant'
 const MAX_CREDENTIAL_AGE_MS = 30 * 24 * 60 * 60 * 1000
+const SESSION_SNAPSHOT_KEY = '__offline_session__'
+const CREDENTIAL_KEY_PREFIX = 'cred:'
 
 let authStore: ReturnType<typeof createStore> | null = null
 let dbInitialized = false
@@ -74,27 +84,57 @@ function extractTokenPayload(token: string): Record<string, unknown> {
 // Database Init
 // =============================================================================
 
-async function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2)
+function credentialKey(identifier: string): string {
+  return `${CREDENTIAL_KEY_PREFIX}${identifier}`
+}
 
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
+function isFresh(savedAt?: number): boolean {
+  return typeof savedAt === 'number' && Date.now() - savedAt <= MAX_CREDENTIAL_AGE_MS
+}
 
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME)
-      }
-    }
-  })
+function isStoredCredentials(value: unknown): value is StoredCredentials {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Partial<StoredCredentials>
+  return (
+    typeof record.identifier === 'string' &&
+    typeof record.passwordHash === 'string' &&
+    typeof record.salt === 'string' &&
+    typeof record.token === 'string' &&
+    !!record.profile &&
+    typeof record.savedAt === 'number'
+  )
+}
+
+function isSessionSnapshot(value: unknown): value is OfflineSessionSnapshot {
+  if (!value || typeof value !== 'object') return false
+  const snapshot = value as Partial<OfflineSessionSnapshot>
+  return typeof snapshot.token === 'string' && !!snapshot.profile && typeof snapshot.savedAt === 'number'
+}
+
+async function getSnapshot(store: ReturnType<typeof createStore>): Promise<OfflineSessionSnapshot | null> {
+  const snapshot = await get(SESSION_SNAPSHOT_KEY, store)
+  if (!isSessionSnapshot(snapshot)) return null
+  if (!isFresh(snapshot.savedAt)) {
+    await del(SESSION_SNAPSHOT_KEY, store)
+    return null
+  }
+  return snapshot
+}
+
+async function listCredentialEntries(
+  store: ReturnType<typeof createStore>
+): Promise<Array<[IDBValidKey, StoredCredentials]>> {
+  const allEntries = await entries(store)
+  return (allEntries as Array<[IDBValidKey, unknown]>)
+    .filter(([key, value]) => key !== SESSION_SNAPSHOT_KEY && isStoredCredentials(value))
+    .map(([key, value]) => [key, value as StoredCredentials])
 }
 
 async function getStore() {
   if (!authStore) {
     try {
       if (!dbInitialized) {
-        await openDatabase()
+        await ensureOfflineDatabase()
         dbInitialized = true
       }
       authStore = createStore(DB_NAME, STORE_NAME)
@@ -132,8 +172,24 @@ export async function saveCredentialsForOffline(
     tokenPayload,
   }
 
-  await set(identifier, credentials, store)
+  await set(credentialKey(identifier), credentials, store)
+  try { await del(identifier, store) } catch {}
+  await saveOfflineSessionSnapshot(token, profile)
   console.log('[offline-auth] Credentials saved for:', identifier)
+}
+
+export async function saveOfflineSessionSnapshot(
+  token: string,
+  profile: OfflineProfile
+): Promise<void> {
+  const store = await getStore()
+  const snapshot: OfflineSessionSnapshot = {
+    token,
+    profile,
+    savedAt: Date.now(),
+    tokenPayload: extractTokenPayload(token),
+  }
+  await set(SESSION_SNAPSHOT_KEY, snapshot, store)
 }
 
 export async function verifyOfflineCredentials(
@@ -141,14 +197,17 @@ export async function verifyOfflineCredentials(
   password: string
 ): Promise<{ token: string; profile: OfflineProfile; isOfflineSession: true } | null> {
   const store = await getStore()
-  const credentials = (await get(identifier, store)) as StoredCredentials | undefined
+  const credentials =
+    ((await get(credentialKey(identifier), store)) as StoredCredentials | undefined) ||
+    ((await get(identifier, store)) as StoredCredentials | undefined)
 
   if (!credentials) return null
 
   // Check if credentials are expired
-  if (Date.now() - credentials.savedAt > MAX_CREDENTIAL_AGE_MS) {
+  if (!isFresh(credentials.savedAt)) {
     console.warn('[offline-auth] Credentials expired for:', identifier)
-    await del(identifier, store)
+    await del(credentialKey(identifier), store)
+    try { await del(identifier, store) } catch {}
     return null
   }
 
@@ -168,7 +227,10 @@ export async function verifyOfflineCredentials(
 
 export async function getOfflineProfile(): Promise<OfflineProfile | null> {
   const store = await getStore()
-  const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredCredentials]>
+  const snapshot = await getSnapshot(store)
+  if (snapshot?.profile) return snapshot.profile
+
+  const allEntries = await listCredentialEntries(store)
 
   if (allEntries.length === 0) return null
 
@@ -179,7 +241,10 @@ export async function getOfflineProfile(): Promise<OfflineProfile | null> {
 
 export async function getOfflineToken(): Promise<string | null> {
   const store = await getStore()
-  const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredCredentials]>
+  const snapshot = await getSnapshot(store)
+  if (snapshot?.token) return snapshot.token
+
+  const allEntries = await listCredentialEntries(store)
 
   if (allEntries.length === 0) return null
 
@@ -202,6 +267,11 @@ export async function clearOfflineCredentials(): Promise<void> {
   console.log('[offline-auth] All credentials cleared')
 }
 
+export async function clearOfflineSessionSnapshot(): Promise<void> {
+  const store = await getStore()
+  await del(SESSION_SNAPSHOT_KEY, store)
+}
+
 // =============================================================================
 // Status Checks
 // =============================================================================
@@ -210,14 +280,19 @@ export async function hasOfflineCredentials(identifier?: string): Promise<boolea
   const store = await getStore()
 
   if (identifier) {
-    const credentials = (await get(identifier, store)) as StoredCredentials | undefined
+    const credentials =
+      ((await get(credentialKey(identifier), store)) as StoredCredentials | undefined) ||
+      ((await get(identifier, store)) as StoredCredentials | undefined)
     if (!credentials) return false
     // Also check expiry
-    return Date.now() - credentials.savedAt <= MAX_CREDENTIAL_AGE_MS
+    return isFresh(credentials.savedAt)
   }
 
-  const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredCredentials]>
-  return allEntries.some(([, cred]) => Date.now() - cred.savedAt <= MAX_CREDENTIAL_AGE_MS)
+  const snapshot = await getSnapshot(store)
+  if (snapshot) return true
+
+  const allEntries = await listCredentialEntries(store)
+  return allEntries.some(([, cred]) => isFresh(cred.savedAt))
 }
 
 export function isOfflineSession(): boolean {

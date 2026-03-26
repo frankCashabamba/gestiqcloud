@@ -23,7 +23,10 @@ from app.schemas.recipes import (
 )
 from app.services.ai.base import AITask
 from app.services.ai.service import AIService
-from app.services.recipe_calculator import _compute_full_cost_from_objects, calculate_recipe_full_cost
+from app.services.recipe_calculator import (
+    _compute_full_cost_from_objects,
+    calculate_recipe_full_cost,
+)
 from app.utils.unit_converter import convert, normalize_unit_name
 
 logger = logging.getLogger(__name__)
@@ -200,7 +203,9 @@ def _build_prompt(
         "full_cost_total": current_cost.get("full_cost_total"),
         "full_cost_unit": current_cost.get("full_cost_unit"),
         "selling_price": selling_price,
-        "current_margin_pct": _compute_margin_pct(selling_price, current_cost.get("full_cost_unit", 0)),
+        "current_margin_pct": _compute_margin_pct(
+            selling_price, current_cost.get("full_cost_unit", 0)
+        ),
         "target_margin_pct": request.target_margin_pct,
         "production_params": {
             "prep_time_minutes": recipe.prep_time_minutes,
@@ -272,11 +277,7 @@ async def optimize_recipe_with_ai(
     recipe_id: UUID,
     request: RecipeOptimizationRequest,
 ) -> RecipeOptimizationResponse:
-    recipe = (
-        db.query(Recipe)
-        .filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
-        .first()
-    )
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
         raise ValueError("recipe_not_found")
 
@@ -382,7 +383,9 @@ async def optimize_recipe_with_ai(
                     f"La IA devolvio una cantidad no valida para {ingredient.product.name if ingredient.product else ingredient_id}; se conserva la actual."
                 )
                 suggested_qty = current_qty
-            change_type = "adjust_qty" if abs(suggested_qty - current_qty) > Decimal("0.0001") else "keep"
+            change_type = (
+                "adjust_qty" if abs(suggested_qty - current_qty) > Decimal("0.0001") else "keep"
+            )
 
         changed = change_type == "adjust_qty"
         if changed:
@@ -443,15 +446,36 @@ async def optimize_recipe_with_ai(
         name=recipe.name,
         yield_qty=yield_qty,
         total_cost=optimized_materials_total,
-        prep_time_minutes=int(ai_payload.get("prep_time_minutes") or recipe.prep_time_minutes or 0) or None,
-        baking_time_minutes=int(ai_payload.get("baking_time_minutes") or recipe.baking_time_minutes or 0) or None,
-        oven_temp_celsius=int(ai_payload.get("oven_temp_celsius") or recipe.oven_temp_celsius or 0) or None,
-        rest_time_minutes=int(ai_payload.get("rest_time_minutes") or recipe.rest_time_minutes or 0) or None,
-        touch_minutes_standard=int(ai_payload.get("touch_minutes_standard") or recipe.touch_minutes_standard or 0) or 0,
-        oven_minutes_standard=int(ai_payload.get("oven_minutes_standard") or recipe.oven_minutes_standard or 0) or 0,
-        process_minutes=int(ai_payload.get("process_minutes") or recipe.process_minutes or 0) or None,
-        waste_pct=float(ai_payload.get("waste_pct") if ai_payload.get("waste_pct") is not None else float(recipe.waste_pct or 0)),
-        overhead_pct=float(ai_payload.get("overhead_pct") if ai_payload.get("overhead_pct") is not None else float(recipe.overhead_pct or 0)),
+        prep_time_minutes=int(ai_payload.get("prep_time_minutes") or recipe.prep_time_minutes or 0)
+        or None,
+        baking_time_minutes=int(
+            ai_payload.get("baking_time_minutes") or recipe.baking_time_minutes or 0
+        )
+        or None,
+        oven_temp_celsius=int(ai_payload.get("oven_temp_celsius") or recipe.oven_temp_celsius or 0)
+        or None,
+        rest_time_minutes=int(ai_payload.get("rest_time_minutes") or recipe.rest_time_minutes or 0)
+        or None,
+        touch_minutes_standard=int(
+            ai_payload.get("touch_minutes_standard") or recipe.touch_minutes_standard or 0
+        )
+        or 0,
+        oven_minutes_standard=int(
+            ai_payload.get("oven_minutes_standard") or recipe.oven_minutes_standard or 0
+        )
+        or 0,
+        process_minutes=int(ai_payload.get("process_minutes") or recipe.process_minutes or 0)
+        or None,
+        waste_pct=float(
+            ai_payload.get("waste_pct")
+            if ai_payload.get("waste_pct") is not None
+            else float(recipe.waste_pct or 0)
+        ),
+        overhead_pct=float(
+            ai_payload.get("overhead_pct")
+            if ai_payload.get("overhead_pct") is not None
+            else float(recipe.overhead_pct or 0)
+        ),
         trays_per_batch=recipe.trays_per_batch,
         units_per_tray=recipe.units_per_tray,
     )
@@ -550,9 +574,11 @@ async def optimize_recipe_with_ai(
         4,
     )
     savings_pct = round(
-        ((savings_total / current_snapshot.full_cost_total) * 100)
-        if current_snapshot.full_cost_total > 0
-        else 0,
+        (
+            ((savings_total / current_snapshot.full_cost_total) * 100)
+            if current_snapshot.full_cost_total > 0
+            else 0
+        ),
         2,
     )
 
@@ -583,7 +609,8 @@ async def optimize_recipe_with_ai(
             overhead_pct=draft_recipe.overhead_pct,
             trays_per_batch=draft_recipe.trays_per_batch,
             units_per_tray=draft_recipe.units_per_tray,
-            instructions=str(ai_payload.get("instructions") or recipe.instructions or "").strip() or None,
+            instructions=str(ai_payload.get("instructions") or recipe.instructions or "").strip()
+            or None,
             ingredients=draft_ingredients,
         ),
         ai_provider=(ai_response.metadata or {}).get("provider"),

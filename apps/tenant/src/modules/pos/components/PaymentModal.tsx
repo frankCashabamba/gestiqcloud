@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getReceipt, payReceipt, redeemStoreCredit, createPaymentLink, type CheckoutResponse } from '../services'
+import { getReceipt, payReceipt, redeemStoreCredit, createPaymentLink, addToOutbox, type CheckoutResponse } from '../services'
 import { createMovimientoCaja } from '../../finances/services'
 import { listStockItems, listWarehouses, type StockItem, type Warehouse } from '../../inventory/services'
 import StoreCreditsModal from './StoreCreditsModal'
 import type { POSLineStockSelection, POSPayment, POSReceiptLine, StoreCredit } from '../../../types/pos'
 import { useCurrency } from '../../../hooks/useCurrency'
 import { useToast } from '../../../shared/toast'
+import { isNetworkIssue } from '../../../lib/offlineHttp'
 
 type LotOption = {
   key: string
@@ -248,8 +249,11 @@ export default function PaymentModal({
   const handlePay = async () => {
     if (loading || payingRef.current) return
     payingRef.current = true
+    const payments: POSPayment[] = []
+    const stockSelections: POSLineStockSelection[] = []
     if (hasWarehouseSelectionIssue()) {
       toast.warning(t('pos:payment.selectWarehouseWarning'))
+      payingRef.current = false
       return
     }
     if (activeWarehouseId && stockLoading) {
@@ -258,14 +262,12 @@ export default function PaymentModal({
           defaultValue: 'Cargando lotes disponibles. Espera un momento.',
         })
       )
+      payingRef.current = false
       return
     }
 
     setLoading(true)
     try {
-      const payments: POSPayment[] = []
-      const stockSelections: POSLineStockSelection[] = []
-
       for (const requirement of lineSelectionRequirements) {
         const draft = allocationDrafts[requirement.lineId] || {}
         const allocations = requirement.options
@@ -419,7 +421,33 @@ export default function PaymentModal({
       onSuccess(payments, response)
     } catch (error: any) {
       const detail = error?.response?.data?.detail
-      if (detail === 'lot_selection_required') {
+      if (isNetworkIssue(error)) {
+        const queuedWarehouseId = warehouseId || selectedWarehouse || undefined
+        const queuedResponse: CheckoutResponse = {
+          ok: true,
+          receipt_id: receiptId,
+          status: 'queued_offline',
+          totals: {
+            subtotal: totalAmount,
+            tax: 0,
+            total: totalAmount,
+            paid: payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+            change,
+          },
+        }
+        await addToOutbox({
+          _queueAction: 'checkout_existing',
+          receipt_id: receiptId,
+          payments,
+          warehouse_id: queuedWarehouseId,
+          stock_selections: stockSelections,
+          metadata: {
+            queued_from: 'payment_modal',
+            total_amount: totalAmount,
+          },
+        })
+        onSuccess(payments, queuedResponse)
+      } else if (detail === 'lot_selection_required') {
         toast.error(
           t('pos:payment.selectLotRequired', {
             defaultValue: 'Selecciona un lote para cada linea requerida antes de cobrar.',
