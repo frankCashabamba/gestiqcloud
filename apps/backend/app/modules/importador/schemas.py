@@ -9,6 +9,18 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class DocumentRoutingDecision(BaseModel):
+    document_type: str
+    confidence: float = Field(ge=0, le=1)
+    required_fields_ok: bool = False
+    missing_fields: list[str] = Field(default_factory=list)
+    suggested_destination: Literal["recipe", "expense", "supplier_invoice"] | None = None
+    reason: str = ""
+    needs_human_review: bool = False
+    source_doc_type: str | None = None
+    source_category: str | None = None
+
+
 class DocumentoOut(BaseModel):
     id: UUID
     nombre_archivo: str
@@ -32,6 +44,7 @@ class DocumentoOut(BaseModel):
     synced_recipe_id: UUID | None = None
     llm_model: str | None = None
     raw_ai_json: dict | None = None
+    routing_decision: DocumentRoutingDecision | None = None
     synced_sheets: dict | None = None
     saved_as: str | None = None
     saved_record_id: UUID | None = None
@@ -166,6 +179,7 @@ class UploadResponse(BaseModel):
     confianza_clasificacion: float | None = None
     requiere_revision: bool = False
     datos_extraidos: dict | None = None
+    routing_decision: DocumentRoutingDecision | None = None
     action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
     message: str | None = None
 
@@ -271,6 +285,7 @@ class RunResponse(BaseModel):
     confianza_clasificacion: float | None = None
     requiere_revision: bool = False
     datos_extraidos: dict | None = None
+    routing_decision: DocumentRoutingDecision | None = None
     llm_model: str | None = None
     recipe_used: str | None = None
     recipe_snapshot_id: UUID | None = None

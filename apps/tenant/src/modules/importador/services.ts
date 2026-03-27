@@ -20,6 +20,7 @@ export type Documento = {
   saved_at?: string
   llm_model?: string
   raw_ai_json?: Record<string, unknown>
+  routing_decision?: DocumentRoutingDecision | null
   proveedor_detectado?: string
   ruc_detectado?: string
   monto_total?: number
@@ -31,6 +32,18 @@ export type Documento = {
   synced_sheets?: Record<string, { recipe_id?: string; recipe_name?: string; created_at?: string }>
   logs?: LogCambio[]
   version_links?: DocumentoVersionLink[]
+}
+
+export type DocumentRoutingDecision = {
+  document_type: string
+  confidence: number
+  required_fields_ok: boolean
+  missing_fields: string[]
+  suggested_destination?: DocumentSaveDestination | null
+  reason: string
+  needs_human_review: boolean
+  source_doc_type?: string | null
+  source_category?: string | null
 }
 
 let _categoryKeywords: Record<string, string[]> = {}
@@ -173,10 +186,35 @@ function normalizeSyncedSheets(raw: unknown): Documento['synced_sheets'] {
   return syncedSheets
 }
 
+function normalizeRoutingDecision(raw: unknown): DocumentRoutingDecision | null {
+  if (!raw || typeof raw !== 'object') return null
+  const data = raw as Record<string, unknown>
+  const suggestedDestination = typeof data.suggested_destination === 'string'
+    && ['recipe', 'expense', 'supplier_invoice'].includes(data.suggested_destination)
+    ? data.suggested_destination as DocumentSaveDestination
+    : null
+
+  return {
+    document_type: String(data.document_type ?? ''),
+    confidence: Number(data.confidence ?? 0),
+    required_fields_ok: Boolean(data.required_fields_ok),
+    missing_fields: Array.isArray(data.missing_fields) ? data.missing_fields.map(String).filter(Boolean) : [],
+    suggested_destination: suggestedDestination,
+    reason: String(data.reason ?? ''),
+    needs_human_review: Boolean(data.needs_human_review),
+    source_doc_type: typeof data.source_doc_type === 'string' ? data.source_doc_type : null,
+    source_category: typeof data.source_category === 'string' ? data.source_category : null,
+  }
+}
+
 function normalizeDocument(raw: unknown): Documento {
   const data = (raw || {}) as Record<string, unknown>
   const importData = getDocumentData(data as { datos_confirmados?: unknown; datos_extraidos?: unknown })
   const canonical = getCanonicalDocument(data)
+  const rawAi = data.raw_ai_json && typeof data.raw_ai_json === 'object'
+    ? data.raw_ai_json as Record<string, unknown>
+    : {}
+  const routingDecision = normalizeRoutingDecision(data.routing_decision ?? rawAi.routing)
   const canonicalDocument = canonical.document && typeof canonical.document === 'object'
     ? canonical.document as Record<string, unknown>
     : {}
@@ -202,6 +240,7 @@ function normalizeDocument(raw: unknown): Documento {
     fecha_documento: typeof data.fecha_documento === 'string' && data.fecha_documento.trim()
       ? data.fecha_documento
       : (typeof inferredDate === 'string' ? inferredDate : canonicalIssueDate),
+    routing_decision: routingDecision,
     synced_sheets: normalizeSyncedSheets(data.synced_sheets),
   }
 }
@@ -300,7 +339,8 @@ export type DocumentLineMatch = {
   candidates: ProductMatchCandidate[]
 }
 
-export function suggestSaveDestination(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>): DocumentSaveDestination {
+export function suggestSaveDestination(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>): DocumentSaveDestination {
+  if (doc.routing_decision?.suggested_destination) return doc.routing_decision.suggested_destination
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
   if (_matchesAny(tipo, _categoryKeywords.recipe   ?? [])) return 'recipe'
   if (_matchesAny(tipo, _categoryKeywords.receipt  ?? [])) return 'expense'
@@ -383,9 +423,16 @@ export function setProductSheetDetectionConfig(config: ProductSheetDetectionConf
 }
 
 export function getDocCategory(
-  doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>,
+  doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>,
   sheets: string[],
 ): DocCategory {
+  const routedCategory = doc.routing_decision?.source_category
+  if (routedCategory === 'invoice') return 'supplier_invoice'
+  if (routedCategory === 'receipt') return 'expense'
+  if (routedCategory === 'recipe') return 'recipe'
+  if (routedCategory === 'inventory') return 'inventory'
+  if (routedCategory === 'bank') return 'bank'
+  if (routedCategory === 'payroll') return 'payroll'
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
   if (
     tipo.includes('PRODUCTS')
@@ -407,7 +454,10 @@ export function getDocCategory(
   return 'other'
 }
 
-export function canSaveDocument(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total'>): boolean {
+export function canSaveDocument(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>): boolean {
+  if (doc.routing_decision?.source_category) {
+    return !['inventory', 'bank', 'payroll'].includes(doc.routing_decision.source_category)
+  }
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
   if (!tipo) return Boolean(doc.proveedor_detectado || doc.monto_total != null)
   return !_matchesAny(tipo, _categoryKeywords.inventory ?? [])

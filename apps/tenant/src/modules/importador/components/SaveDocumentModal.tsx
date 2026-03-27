@@ -345,8 +345,10 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   if (!open || !doc) return null
   if (!canSaveDocument(doc)) return null
 
+  const routingDecision = doc.routing_decision || null
   const canSaveInvoice = capabilities.purchases || capabilities.invoicing
   const canSaveExpense = capabilities.expenses !== false
+  const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
   const effectiveLineMatches = lineMatches.length > 0
     ? lineMatches
     : lineItems.map((item, index) => ({
@@ -519,6 +521,16 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
             )}
             {destination === 'expense' && (
               <div style={hintBox}>Se registrará como gasto en el módulo de gastos.</div>
+            )}
+            {routingDecision && (
+              <div style={routingDecision.required_fields_ok ? infoBox : warnBox}>
+                {routingDecision.reason || 'Decisión de routing disponible.'}
+                {!routingDecision.required_fields_ok && routingDecision.missing_fields.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    Faltan: {routingDecision.missing_fields.join(', ')}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -756,7 +768,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
             {saveMessage ? 'Cerrar' : 'Cancelar'}
           </button>
           {!saveMessage && (
-            <button onClick={submit} style={primaryBtn} disabled={saving}>
+            <button onClick={submit} style={primaryBtn} disabled={saving || !canSubmit}>
               {saving ? 'Guardando...' : destination === 'recipe' ? 'Guardar receta' : 'Guardar'}
             </button>
           )}

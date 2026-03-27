@@ -346,7 +346,11 @@ export default function DocumentDetail() {
   const filasPorHoja = (datos.filas_por_hoja || {}) as Record<string, Record<string, unknown>[]>
   const sheets = Object.keys(filasPorHoja || {})
   const sheetCounts = (datos.filas_por_hoja_count || {}) as Record<string, number>
-  const confPct = doc.confianza_clasificacion != null ? Math.round(doc.confianza_clasificacion * 100) : null
+  const routingDecision = doc.routing_decision || null
+  const effectiveConfidence = routingDecision?.confidence ?? doc.confianza_clasificacion
+  const confPct = effectiveConfidence != null ? Math.round(effectiveConfidence * 100) : null
+  const needsHumanReview = routingDecision?.needs_human_review ?? doc.requiere_revision
+  const missingFieldLabels = (routingDecision?.missing_fields || []).map(formatFieldLabel)
   const syncedSheets = Object.entries(doc.synced_sheets || {}).reduce<Record<string, { recipeId?: string; recipeName?: string; createdAt?: string }>>((acc, [sheetName, value]) => {
     const recipeId = typeof value?.recipe_id === 'string' ? value.recipe_id.trim() : ''
     if (!sheetName || !recipeId) return acc
@@ -377,7 +381,8 @@ export default function DocumentDetail() {
   const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
   const saveDestination = suggestSaveDestination(doc)
   const requiresConfirmedSave = saveDestination !== 'recipe'
-  const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && (!requiresConfirmedSave || hasConfirmedDocumentData(doc))
+  const routingReadyForSave = routingDecision ? routingDecision.required_fields_ok : true
+  const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && routingReadyForSave && (!requiresConfirmedSave || hasConfirmedDocumentData(doc))
   const docCategory = getDocCategory(doc, sheets)
   const activeSheetRows = (() => {
     if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
@@ -688,9 +693,10 @@ export default function DocumentDetail() {
       </div>
 
       {/* Confidence warning */}
-      {doc.requiere_revision && confPct != null && confPct < 85 && (
+      {needsHumanReview && confPct != null && confPct < 85 && (
         <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, marginBottom: '1rem', fontSize: 14 }}>
           ⚠️ <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
+          {routingDecision?.reason && <span style={{ display: 'block', marginTop: 6, fontWeight: 400 }}>{routingDecision.reason}</span>}
         </div>
       )}
 
@@ -698,7 +704,7 @@ export default function DocumentDetail() {
       <div style={{ marginBottom: '1rem' }}>
         <span style={{ ...statusBadge, background: statusColor[doc.estado] || '#9CA3AF' }}>{STATUS_LABELS[doc.estado] || doc.estado}</span>
         {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }}>{doc.tipo_documento_detectado}</span>}
-        {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Revision sugerida: {confPct}%</span>}
+        {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Confianza: {confPct}%</span>}
       </div>
 
       {/* Split view */}
@@ -707,6 +713,26 @@ export default function DocumentDetail() {
         <div style={{ flex: 1, minWidth: 300 }}>
           <div style={section}>
             <h3 style={{ marginTop: 0 }}>Resumen del documento</h3>
+            {routingDecision && (
+              <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: `1px solid ${routingDecision.required_fields_ok ? '#BBF7D0' : '#FDE68A'}`, background: routingDecision.required_fields_ok ? '#F0FDF4' : '#FFFBEB' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 999, padding: '2px 8px' }}>
+                    Tipo interno: {routingDecision.document_type}
+                  </span>
+                  {routingDecision.suggested_destination && (
+                    <span style={{ fontSize: 12, color: '#0f172a' }}>
+                      Destino sugerido: <strong>{routingDecision.suggested_destination}</strong>
+                    </span>
+                  )}
+                </div>
+                {routingDecision.reason && <div style={{ fontSize: 13, color: '#334155' }}>{routingDecision.reason}</div>}
+                {missingFieldLabels.length > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#92400e' }}>
+                    Faltan: {missingFieldLabels.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
             {doc.proveedor_detectado && <p><strong>Proveedor:</strong> {doc.proveedor_detectado}</p>}
             {doc.ruc_detectado && <p><strong>RUC:</strong> {doc.ruc_detectado}</p>}
             {doc.monto_total != null && (
@@ -723,6 +749,11 @@ export default function DocumentDetail() {
               </p>
             )}
             {doc.fecha_documento && <p><strong>Fecha:</strong> {doc.fecha_documento}</p>}
+            {!routingReadyForSave && (
+              <p style={{ color: '#92400e', marginBottom: 0 }}>
+                <strong>Guardar bloqueado:</strong> completa o corrige los campos obligatorios antes de guardar.
+              </p>
+            )}
           </div>
           {doc.error_detalle && (
             <div style={{ ...section, background: '#FEF2F2', border: '1px solid #FECACA' }}>

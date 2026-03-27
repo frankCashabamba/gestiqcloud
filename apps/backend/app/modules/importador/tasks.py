@@ -127,6 +127,7 @@ async def _run_processing(
         resolve_auto_recipe_from_text,
     )
     from app.modules.importador.canonical_document import build_document_projection
+    from app.modules.importador.category_loader import get_doc_categories
     from app.modules.importador.field_alias_loader import get_canonical_fields, get_field_aliases
     from app.modules.importador.ocr_service import extract_text_from_file
     from app.modules.importador.product_import_service import looks_like_product_document
@@ -135,6 +136,7 @@ async def _run_processing(
         load_product_sheet_detection_config,
         load_prompt_config,
     )
+    from app.modules.importador.services.document_routing_agent import build_document_routing_decision
 
     with SessionLocal() as db:
         # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
@@ -415,6 +417,15 @@ async def _run_processing(
                     "canonical_document": canonical_document,
                 }
             )
+            routing_decision = build_document_routing_decision(
+                source_doc_type=tipo_doc,
+                ai_confidence=confianza,
+                extracted_data=datos_extraidos if isinstance(datos_extraidos, dict) else {},
+                canonical_document=canonical_document,
+                category_keywords=get_doc_categories(db),
+                requires_review=requiere_revision,
+            )
+            raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
 
             crud.update_documento(
                 db,
@@ -423,7 +434,7 @@ async def _run_processing(
                     "texto_ocr": text[:50000],
                     "tipo_documento_detectado": tipo_doc,
                     "confianza_clasificacion": confianza,
-                    "requiere_revision": requiere_revision,
+                    "requiere_revision": routing_decision.needs_human_review,
                     "datos_extraidos": datos_extraidos,
                     "estado": "REVIEW",
                     **projection,

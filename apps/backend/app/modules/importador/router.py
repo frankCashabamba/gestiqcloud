@@ -95,6 +95,9 @@ from .services.iteration_service import (
     run_iteration,
     upsert_staging_lines_from_extraction,
 )
+from .services.document_routing_agent import (
+    build_document_routing_decision,
+)
 from .services.product_matching import (
     _append_import_alias,
     _build_document_line_matches,
@@ -148,6 +151,96 @@ def _get_doc_import_data(doc) -> dict:
 def _get_confirmed_doc_import_data(doc) -> dict:
     data = doc.datos_confirmados or {}
     return data if isinstance(data, dict) else {}
+
+
+def _get_raw_ai_payload(doc) -> dict:
+    payload = getattr(doc, "raw_ai_json", None)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _get_canonical_document(doc) -> dict:
+    canonical_document = _get_raw_ai_payload(doc).get("canonical_document")
+    return canonical_document if isinstance(canonical_document, dict) else {}
+
+
+def _resolve_document_routing(doc, db: Session):
+    from .category_loader import get_doc_categories
+
+    return build_document_routing_decision(
+        source_doc_type=getattr(doc, "tipo_documento_detectado", None),
+        ai_confidence=getattr(doc, "confianza_clasificacion", None),
+        extracted_data=_get_doc_import_data(doc),
+        canonical_document=_get_canonical_document(doc),
+        category_keywords=get_doc_categories(db),
+        requires_review=bool(getattr(doc, "requiere_revision", False)),
+    )
+
+
+def _attach_document_routing(doc, db: Session):
+    doc.routing_decision = _resolve_document_routing(doc, db)
+    return doc.routing_decision
+
+
+def _resolve_destination_routing(doc, db: Session, destination: str):
+    from .category_loader import get_doc_categories
+
+    return build_document_routing_decision(
+        source_doc_type=getattr(doc, "tipo_documento_detectado", None),
+        ai_confidence=getattr(doc, "confianza_clasificacion", None),
+        extracted_data=_get_doc_import_data(doc),
+        canonical_document=_get_canonical_document(doc),
+        category_keywords=get_doc_categories(db),
+        requires_review=bool(getattr(doc, "requiere_revision", False)),
+        destination_override=destination,
+    )
+
+
+def _build_routing_conflict_detail(doc, db: Session, destination: str) -> dict:
+    decision = _resolve_destination_routing(doc, db, destination)
+    return {
+        "code": "document_routing_review_required",
+        "document_type": decision.document_type,
+        "suggested_destination": decision.suggested_destination,
+        "required_fields_ok": decision.required_fields_ok,
+        "missing_fields": decision.missing_fields,
+        "needs_human_review": decision.needs_human_review,
+        "reason": decision.reason,
+    }
+
+
+def _require_routing_ready(doc, db: Session, destination: str) -> None:
+    decision = _resolve_destination_routing(doc, db, destination)
+    if decision.required_fields_ok:
+        return
+    raise HTTPException(status_code=409, detail=_build_routing_conflict_detail(doc, db, destination))
+
+
+def _capture_routing_signal(doc, db: Session, user_id: str, *, event: str, changed_fields=None) -> None:
+    decision = _resolve_document_routing(doc, db)
+    raw_payload = _get_raw_ai_payload(doc)
+    raw_payload["routing"] = decision.model_dump(mode="json")
+    raw_payload["routing_feedback"] = {
+        "event": event,
+        "changed_fields": sorted(str(field) for field in (changed_fields or []) if str(field).strip()),
+        "captured_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        "decision": decision.model_dump(mode="json"),
+    }
+    crud.update_documento(db, doc, {"raw_ai_json": _json_safe(raw_payload)})
+    crud.add_log(
+        db,
+        doc.id,
+        "ROUTING_SIGNAL",
+        user_id,
+        _json_safe(
+            {
+                "event": event,
+                "changed_fields": sorted(
+                    str(field) for field in (changed_fields or []) if str(field).strip()
+                ),
+                "routing": decision.model_dump(mode="json"),
+            }
+        ),
+    )
 
 
 def _require_confirmed_doc_import_data(doc, destination: str) -> dict:
@@ -271,6 +364,10 @@ def _coerce_user_uuid(user_id: str):
 
 
 def _infer_save_destination(doc, db: Session) -> str:
+    routing_decision = _resolve_document_routing(doc, db)
+    if routing_decision.suggested_destination:
+        return routing_decision.suggested_destination
+
     from .category_loader import classify_doc_type, get_doc_categories
 
     tipo = str(doc.tipo_documento_detectado or "").strip().upper()
@@ -970,6 +1067,7 @@ async def upload_files(
                 db, existing.id, "SKIP_DUPLICATE", user_id, {"reason": "same hash_or_name"}
             )
             db.commit()
+            routing_decision = _attach_document_routing(existing, db)
             results.append(
                 UploadResponse(
                     id=existing.id,
@@ -978,6 +1076,7 @@ async def upload_files(
                     confianza_clasificacion=existing.confianza_clasificacion,
                     requiere_revision=existing.requiere_revision,
                     datos_extraidos=existing.datos_extraidos,
+                    routing_decision=routing_decision,
                     action="REUSED",
                     message=(
                         "Documento ya existente; se reutilizo el mismo registro. "
@@ -1316,6 +1415,19 @@ async def upload_files(
                     "canonical_document": canonical_document,
                 }
             )
+            from .category_loader import get_doc_categories
+
+            routing_decision = build_document_routing_decision(
+                source_doc_type=tipo_doc,
+                ai_confidence=confianza,
+                extracted_data=(
+                    datos_extraidos if isinstance(datos_extraidos, dict) else {}
+                ),
+                canonical_document=canonical_document,
+                category_keywords=get_doc_categories(db),
+                requires_review=requiere_revision,
+            )
+            raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
 
             crud.update_documento(
                 db,
@@ -1324,7 +1436,7 @@ async def upload_files(
                     "texto_ocr": text[:50000],
                     "tipo_documento_detectado": tipo_doc,
                     "confianza_clasificacion": confianza,
-                    "requiere_revision": requiere_revision,
+                    "requiere_revision": routing_decision.needs_human_review,
                     "datos_extraidos": datos_extraidos,
                     "estado": "REVIEW",
                     **projection,
@@ -1353,8 +1465,9 @@ async def upload_files(
                     estado=doc.estado,
                     tipo_documento_detectado=tipo_doc,
                     confianza_clasificacion=confianza,
-                    requiere_revision=requiere_revision,
+                    requiere_revision=routing_decision.needs_human_review,
                     datos_extraidos=datos_extraidos,
+                    routing_decision=routing_decision,
                     action=response_action,
                     message=response_message,
                 )
@@ -1447,6 +1560,7 @@ def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
             db.commit()
     doc.synced_sheets = _get_synced_sheet_map(db, doc)
     doc.version_links = crud.list_documento_versions(db, doc.id)
+    _attach_document_routing(doc, db)
     return doc
 
 
@@ -1478,12 +1592,20 @@ def confirm_document(
     crud.update_documento(
         db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"}
     )
+    _capture_routing_signal(
+        doc,
+        db,
+        user_id,
+        event="confirm",
+        changed_fields=list(body.datos_confirmados.keys()),
+    )
     _sync_batch_projection(db, doc.id, "CONFIRMED")
     crud.add_log(db, doc.id, "CONFIRM", user_id, {"datos_confirmados": body.datos_confirmados})
 
     _learn_from_confirmation(db, doc, body.datos_confirmados, user_id)
 
     db.commit()
+    _attach_document_routing(doc, db)
     return doc
 
 
@@ -1710,6 +1832,7 @@ def save_document(
         if destination in ("expense", "supplier_invoice")
         else _get_doc_import_data(doc)
     )
+    _require_routing_ready(doc, db, destination)
 
     if destination == "recipe":
         data = doc_import_data
@@ -1913,6 +2036,13 @@ def edit_document_fields(
         current.update(body.campos)
 
     crud.update_documento(db, doc, {"datos_extraidos": current})
+    _capture_routing_signal(
+        doc,
+        db,
+        user_id,
+        event="edit",
+        changed_fields=list(body.campos.keys()),
+    )
     crud.add_log(
         db,
         doc.id,
@@ -1921,6 +2051,7 @@ def edit_document_fields(
         {"campos_modificados": body.campos, "valores_anteriores": previous},
     )
     db.commit()
+    _attach_document_routing(doc, db)
     return doc
 
 
@@ -1935,6 +2066,7 @@ def reject_document(doc_id: UUID, request: Request, db: Session = Depends(get_db
     _sync_batch_projection(db, doc.id, "FAILED")
     crud.add_log(db, doc.id, "REJECT", user_id)
     db.commit()
+    _attach_document_routing(doc, db)
     return doc
 
 
