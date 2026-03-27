@@ -142,43 +142,6 @@ def _build_reason(
     return "Documento listo para revision y guardado."
 
 
-def _fallback_category(
-    *,
-    extracted_data: dict[str, Any] | None,
-    canonical_document: dict[str, Any] | None,
-) -> str:
-    has_vendor = _has_value(
-        "vendor",
-        extracted_data=extracted_data,
-        canonical_document=canonical_document,
-    ) or _has_value(
-        "vendor_tax_id",
-        extracted_data=extracted_data,
-        canonical_document=canonical_document,
-    )
-    has_total = _has_value(
-        "total_amount",
-        extracted_data=extracted_data,
-        canonical_document=canonical_document,
-    )
-    has_rows = _has_value(
-        "rows",
-        extracted_data=extracted_data,
-        canonical_document=canonical_document,
-    ) or _has_value(
-        "line_items",
-        extracted_data=extracted_data,
-        canonical_document=canonical_document,
-    )
-    if has_vendor and has_total:
-        return "invoice"
-    if has_rows:
-        return "recipe"
-    if has_total:
-        return "receipt"
-    return "other"
-
-
 def _match_ratio(
     groups: tuple[tuple[str, ...], ...],
     *,
@@ -242,12 +205,6 @@ def build_document_routing_decision(
     source_category = (_normalized_text(source_category_override) or "").strip().lower()
     if not source_category:
         source_category = classify_doc_type(normalized_source, category_map)
-    if source_category == "other":
-        source_category = _fallback_category(
-            extracted_data=extracted_data,
-            canonical_document=canonical_document,
-        )
-
     profile, _matched_by = resolve_routing_profile(
         db=db,
         tenant_id=tenant_id,

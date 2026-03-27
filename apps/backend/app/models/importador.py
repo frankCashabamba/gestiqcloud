@@ -124,6 +124,9 @@ class ImpDocumento(Base):
     logs: Mapped[list[ImpLogCambios]] = relationship(
         "ImpLogCambios", back_populates="documento", cascade="all, delete-orphan"
     )
+    routing_signals: Mapped[list["ImpRoutingSignal"]] = relationship(
+        "ImpRoutingSignal", back_populates="documento", cascade="all, delete-orphan"
+    )
     batch_items: Mapped[list[ImpBatchItem]] = relationship(
         "ImpBatchItem", back_populates="documento", cascade="all, delete-orphan"
     )
@@ -307,6 +310,40 @@ class ImpRoutingRule(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class ImpRoutingSignal(Base):
+    __tablename__ = "imp_routing_signal"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    documento_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("imp_documento.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    event: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        comment="confirm | edit | save | reject",
+    )
+    user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    chosen_destination: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    changed_fields: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    routing_snapshot: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        comment="Snapshot del routing_decision en el momento de la señal",
+    )
+    payload: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Datos adicionales del evento para aprendizaje y auditoria",
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    documento: Mapped[ImpDocumento] = relationship("ImpDocumento", back_populates="routing_signals")
 
 
 class IcuRecipe(Base):

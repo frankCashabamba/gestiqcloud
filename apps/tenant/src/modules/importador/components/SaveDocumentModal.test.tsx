@@ -71,8 +71,8 @@ describe('SaveDocumentModal', () => {
       />,
     )
 
-    expect(screen.getByText('Guardado sugerido')).toBeInTheDocument()
-    expect(screen.getByText('Factura proveedor')).toBeInTheDocument()
+    expect(screen.getByText('Revision final')).toBeInTheDocument()
+    expect(screen.getByText('Listo para guardar')).toBeInTheDocument()
     expect(screen.queryByText('Estado de pago')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Cambiar destino u opciones' }))

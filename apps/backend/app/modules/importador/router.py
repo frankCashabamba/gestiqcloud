@@ -98,6 +98,11 @@ from .services.iteration_service import (
 from .services.document_routing_agent import (
     build_document_routing_decision,
 )
+from .services.document_routing_feedback_service import record_routing_signal
+from .services.document_model_learning_service import (
+    build_signal_learning_recipe_config,
+    summarize_learning_rerun,
+)
 from .services.product_matching import (
     _append_import_alias,
     _build_document_line_matches,
@@ -237,30 +242,12 @@ def _require_routing_ready(doc, db: Session, destination: str) -> None:
 
 
 def _capture_routing_signal(doc, db: Session, user_id: str, *, event: str, changed_fields=None) -> None:
-    decision = _resolve_document_routing(doc, db)
-    raw_payload = _get_raw_ai_payload(doc)
-    raw_payload["routing"] = decision.model_dump(mode="json")
-    raw_payload["routing_feedback"] = {
-        "event": event,
-        "changed_fields": sorted(str(field) for field in (changed_fields or []) if str(field).strip()),
-        "captured_at": datetime.datetime.now(datetime.UTC).isoformat(),
-        "decision": decision.model_dump(mode="json"),
-    }
-    crud.update_documento(db, doc, {"raw_ai_json": _json_safe(raw_payload)})
-    crud.add_log(
+    record_routing_signal(
         db,
-        doc.id,
-        "ROUTING_SIGNAL",
-        user_id,
-        _json_safe(
-            {
-                "event": event,
-                "changed_fields": sorted(
-                    str(field) for field in (changed_fields or []) if str(field).strip()
-                ),
-                "routing": decision.model_dump(mode="json"),
-            }
-        ),
+        doc,
+        user_id=user_id,
+        event=event,
+        changed_fields=list(changed_fields or []),
     )
 
 
@@ -1230,6 +1217,19 @@ async def upload_files(
                 vision_image_bytes = file_bytes if tipo_archivo in ("JPG", "PNG", "IMG") else None
 
             # LLM con prompt genérico limpio (sin recipe_config que pueda sesgar la clasificación)
+            recipe_config = build_signal_learning_recipe_config(
+                db,
+                tenant_id=tenant_id,
+                source_doc_type=None,
+                base_recipe_config=recipe_config,
+            )
+            signal_learning_meta = (
+                recipe_config.get("_signal_learning")
+                if isinstance(recipe_config, dict)
+                else None
+            )
+            learning_rerun_summary = None
+
             if cached_analysis:
                 analysis = {
                     **cached_analysis,
@@ -1349,12 +1349,33 @@ async def upload_files(
                         resolved_snapshot_id = post_snapshot_id
                         recipe_snapshot = recipe_crud.get_snapshot(db, UUID(str(post_snapshot_id)))
                     if auto_recipe_config and not auto_recipe_created:
+                        from .category_loader import get_doc_categories
+
+                        baseline_routing = build_document_routing_decision(
+                            source_doc_type=tipo_doc,
+                            ai_confidence=confianza,
+                            extracted_data=(
+                                analysis_fields if isinstance(analysis_fields, dict) else {}
+                            ),
+                            canonical_document={},
+                            category_keywords=get_doc_categories(db),
+                            requires_review=requiere_revision,
+                            db=db,
+                            tenant_id=tenant_id,
+                        )
+                        rerun_recipe_config = build_signal_learning_recipe_config(
+                            db,
+                            tenant_id=tenant_id,
+                            source_doc_type=tipo_doc,
+                            document_type_hint=baseline_routing.document_type,
+                            base_recipe_config=auto_recipe_config,
+                        )
                         rerun_analysis = await analyze_document(
                             llm_content,
                             filename,
                             extraction.get("format", tipo_archivo),
                             has_structured_rows=False,
-                            recipe_config=auto_recipe_config,
+                            recipe_config=rerun_recipe_config,
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
                             fallback_patterns=load_doc_type_patterns(db),
                             canonical_fields=_canonical_fields,
@@ -1363,6 +1384,35 @@ async def upload_files(
                         rerun_normalized = _normalize_analysis_output(rerun_analysis)
                         rerun_fields = rerun_normalized["fields"]
                         if isinstance(rerun_fields, dict) and rerun_fields:
+                            rerun_routing = build_document_routing_decision(
+                                source_doc_type=str(rerun_normalized["doc_type"]),
+                                ai_confidence=float(rerun_normalized["confidence"]),
+                                extracted_data=rerun_fields,
+                                canonical_document={},
+                                category_keywords=get_doc_categories(db),
+                                requires_review=(
+                                    float(rerun_normalized["confidence"]) < CONFIDENCE_THRESHOLD
+                                ),
+                                db=db,
+                                tenant_id=tenant_id,
+                            )
+                            learning_rerun_summary = summarize_learning_rerun(
+                                baseline_doc_type=tipo_doc,
+                                baseline_confidence=confianza,
+                                baseline_fields=(
+                                    analysis_fields if isinstance(analysis_fields, dict) else {}
+                                ),
+                                baseline_routing=baseline_routing.model_dump(mode="json"),
+                                rerun_doc_type=str(rerun_normalized["doc_type"]),
+                                rerun_confidence=float(rerun_normalized["confidence"]),
+                                rerun_fields=rerun_fields,
+                                rerun_routing=rerun_routing.model_dump(mode="json"),
+                                signal_learning_meta=(
+                                    rerun_recipe_config.get("_signal_learning")
+                                    if isinstance(rerun_recipe_config, dict)
+                                    else None
+                                ),
+                            )
                             analysis = rerun_analysis
                             normalized_analysis = rerun_normalized
                             tipo_doc = str(rerun_normalized["doc_type"])
@@ -1418,6 +1468,8 @@ async def upload_files(
                         },
                         "learning_version_applied": learning_version_applied,
                         "model": model_used,
+                        "signal_learning": signal_learning_meta,
+                        "learning_rerun": learning_rerun_summary,
                     },
                     "analysis": {
                         "prompt": analysis.get("prompt_sent", ""),
@@ -2037,6 +2089,22 @@ def save_document(
                 str(resolved_payment_method_id) if resolved_payment_method_id else None
             ),
             "paid_at": body.paid_at,
+        },
+    )
+    record_routing_signal(
+        db,
+        doc,
+        user_id=user_id,
+        event="save",
+        chosen_destination=destination,
+        payload={
+            "target": result.target,
+            "status": result.status,
+            "record_id": result.record_id,
+            "record_ids": result.record_ids,
+            "payment_status": payment_snapshot.get("status"),
+            "paid_amount": payment_snapshot.get("paid_amount"),
+            "pending_amount": payment_snapshot.get("pending_amount"),
         },
     )
     db.commit()

@@ -86,12 +86,6 @@ function formatFieldLabel(key: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-function formatDestinationLabel(destination: 'recipe' | 'expense' | 'supplier_invoice' | null | undefined): string {
-  if (destination === 'supplier_invoice') return 'factura de proveedor'
-  if (destination === 'recipe') return 'receta'
-  return 'gasto'
-}
-
 type ActivityItem = {
   id: string
   title: string
@@ -408,7 +402,7 @@ export default function DocumentDetail() {
     : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
       ? 'Estamos procesando tu documento'
       : saveEnabled
-        ? `Listo para guardar como ${formatDestinationLabel(saveDestination)}`
+        ? 'Listo para guardar'
         : !routingReadyForSave
           ? 'Faltan datos para poder guardar'
           : doc.estado === 'REVIEW'
@@ -746,7 +740,9 @@ export default function DocumentDetail() {
             <div style={{ minWidth: 260, flex: '1 1 320px' }}>
               <div style={flowEyebrow}>Flujo simple</div>
               <h3 style={{ margin: '0.35rem 0 0', fontSize: 22, lineHeight: 1.15 }}>{flowTitle}</h3>
-              <p style={{ margin: '0.5rem 0 0', fontSize: 14, color: '#334155' }}>{flowDescription}</p>
+              <p style={{ margin: '0.5rem 0 0', fontSize: 14, color: '#334155' }}>
+                {(saveEnabled || !routingReadyForSave) && routingDecision?.reason ? routingDecision.reason : flowDescription}
+              </p>
             </div>
             {!showSecondaryActions && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>

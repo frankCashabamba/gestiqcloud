@@ -351,6 +351,9 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   const canSaveInvoice = capabilities.purchases || capabilities.invoicing
   const canSaveExpense = capabilities.expenses !== false
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
+  const reviewTitle = routingDecision?.required_fields_ok ? 'Listo para guardar' : 'Revisa antes de guardar'
+  const reviewSummary = routingDecision?.reason
+    || 'Verifica el resultado y usa opciones avanzadas solo si necesitas cambiar el destino o completar datos.'
   const destinationTitle = destination === 'supplier_invoice'
     ? 'Factura proveedor'
     : destination === 'recipe'
@@ -499,9 +502,9 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
           <div>
             <div style={heroBox}>
               <div>
-                <div style={heroEyebrow}>Guardado sugerido</div>
-                <div style={heroTitle}>{destinationTitle}</div>
-                <div style={heroCopy}>{destinationSummary}</div>
+                <div style={heroEyebrow}>Revision final</div>
+                <div style={heroTitle}>{reviewTitle}</div>
+                <div style={heroCopy}>{reviewSummary}</div>
               </div>
               <button
                 type="button"

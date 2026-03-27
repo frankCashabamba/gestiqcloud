@@ -137,6 +137,10 @@ async def _run_processing(
         load_prompt_config,
     )
     from app.modules.importador.services.document_routing_agent import build_document_routing_decision
+    from app.modules.importador.services.document_model_learning_service import (
+        build_signal_learning_recipe_config,
+        summarize_learning_rerun,
+    )
 
     with SessionLocal() as db:
         # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
@@ -223,6 +227,19 @@ async def _run_processing(
                         recipe_snapshot,
                         structured_only=True,
                     )
+
+            recipe_config = build_signal_learning_recipe_config(
+                db,
+                tenant_id=tenant_id,
+                source_doc_type=None,
+                base_recipe_config=recipe_config,
+            )
+            signal_learning_meta = (
+                recipe_config.get("_signal_learning")
+                if isinstance(recipe_config, dict)
+                else None
+            )
+            learning_rerun_summary = None
 
             if cached_analysis:
                 analysis = {
@@ -326,12 +343,29 @@ async def _run_processing(
                     if post_snapshot_id:
                         resolved_snapshot_id = post_snapshot_id
                     if auto_recipe_config and not auto_recipe_created:
+                        baseline_routing = build_document_routing_decision(
+                            source_doc_type=tipo_doc,
+                            ai_confidence=confianza,
+                            extracted_data=datos_extraidos if isinstance(datos_extraidos, dict) else {},
+                            canonical_document={},
+                            category_keywords=get_doc_categories(db),
+                            requires_review=requiere_revision,
+                            db=db,
+                            tenant_id=tenant_id,
+                        )
+                        rerun_recipe_config = build_signal_learning_recipe_config(
+                            db,
+                            tenant_id=tenant_id,
+                            source_doc_type=tipo_doc,
+                            document_type_hint=baseline_routing.document_type,
+                            base_recipe_config=auto_recipe_config,
+                        )
                         rerun_analysis = await analyze_document(
                             llm_content,
                             filename,
                             extraction.get("format", tipo_archivo),
                             has_structured_rows=False,
-                            recipe_config=auto_recipe_config,
+                            recipe_config=rerun_recipe_config,
                             image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
                             fallback_patterns=load_doc_type_patterns(db),
                             canonical_fields=_canonical_fields,
@@ -343,6 +377,33 @@ async def _run_processing(
                         )
                         rerun_fields = rerun_analysis.get("fields") or {}
                         if isinstance(rerun_fields, dict) and rerun_fields:
+                            rerun_routing = build_document_routing_decision(
+                                source_doc_type=rerun_doc_type,
+                                ai_confidence=rerun_confidence,
+                                extracted_data=rerun_fields,
+                                canonical_document={},
+                                category_keywords=get_doc_categories(db),
+                                requires_review=rerun_confidence < CONFIDENCE_THRESHOLD,
+                                db=db,
+                                tenant_id=tenant_id,
+                            )
+                            learning_rerun_summary = summarize_learning_rerun(
+                                baseline_doc_type=tipo_doc,
+                                baseline_confidence=confianza,
+                                baseline_fields=(
+                                    datos_extraidos if isinstance(datos_extraidos, dict) else {}
+                                ),
+                                baseline_routing=baseline_routing.model_dump(mode="json"),
+                                rerun_doc_type=rerun_doc_type,
+                                rerun_confidence=rerun_confidence,
+                                rerun_fields=rerun_fields,
+                                rerun_routing=rerun_routing.model_dump(mode="json"),
+                                signal_learning_meta=(
+                                    rerun_recipe_config.get("_signal_learning")
+                                    if isinstance(rerun_recipe_config, dict)
+                                    else None
+                                ),
+                            )
                             analysis = rerun_analysis
                             tipo_doc = rerun_doc_type
                             confianza = rerun_confidence
@@ -399,6 +460,8 @@ async def _run_processing(
                         },
                         "learning_version_applied": learning_version_applied,
                         "model": model_used,
+                        "signal_learning": signal_learning_meta,
+                        "learning_rerun": learning_rerun_summary,
                     },
                     "analysis": {
                         "prompt": analysis.get("prompt_sent", ""),
