@@ -35,12 +35,14 @@ async function resolveRemoteShiftId(shiftId?: string): Promise<string | undefine
   return String(stored?.data?.id || normalized)
 }
 
-async function buildReceiptPayload(data: any): Promise<ReceiptCreateRequest> {
+async function buildReceiptPayload(data: any, localId?: string): Promise<ReceiptCreateRequest> {
+  const clientRequestId = data.client_request_id || (localId ? `offline-sync-${localId}` : undefined)
   return {
     register_id: data.register_id ?? data.registerId,
     shift_id: (await resolveRemoteShiftId(data.shift_id ?? data.shiftId)) || '',
     cashier_id: data.cashier_id,
     customer_id: data.customer_id,
+    client_request_id: clientRequestId,
     currency: data.currency,
     lines: data.lines ?? data.items ?? [],
     payment_method: data.payment_method,
@@ -155,7 +157,7 @@ export const POSReceiptAdapter: SyncAdapter = {
         receipt = await posServices.getReceipt(receiptId)
       }
     } else if (queueAction === 'create_and_checkout') {
-      const createdReceipt = await posServices.createReceipt(await buildReceiptPayload(data))
+      const createdReceipt = await posServices.createReceipt(await buildReceiptPayload(data, _localId))
       const receiptId = String(createdReceipt.id || '')
       if (!receiptId) throw new Error('offline_checkout_missing_receipt_id')
       const targetReceipt =
@@ -163,16 +165,22 @@ export const POSReceiptAdapter: SyncAdapter = {
           ? createdReceipt
           : await posServices.getReceipt(receiptId)
 
-      await posServices.payReceipt(
-        receiptId,
-        normalizePayments(data.payments as POSPayment[] | undefined, receiptId),
-        buildCheckoutOptions(data, targetReceipt?.lines),
-      )
-      await posServices.backfillReceiptDocuments(receiptId)
-      await issueDocumentSafely(receiptId, data.document_issue as SaleDraft | undefined)
-      receipt = await posServices.getReceipt(receiptId)
+      if (targetReceipt?.status === 'paid' || targetReceipt?.status === 'invoiced') {
+        await posServices.backfillReceiptDocuments(receiptId)
+        await issueDocumentSafely(receiptId, data.document_issue as SaleDraft | undefined)
+        receipt = targetReceipt
+      } else {
+        await posServices.payReceipt(
+          receiptId,
+          normalizePayments(data.payments as POSPayment[] | undefined, receiptId),
+          buildCheckoutOptions(data, targetReceipt?.lines),
+        )
+        await posServices.backfillReceiptDocuments(receiptId)
+        await issueDocumentSafely(receiptId, data.document_issue as SaleDraft | undefined)
+        receipt = await posServices.getReceipt(receiptId)
+      }
     } else {
-      receipt = await posServices.createReceipt(await buildReceiptPayload(data))
+      receipt = await posServices.createReceipt(await buildReceiptPayload(data, _localId))
     }
 
     // Store locally as synced

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -40,6 +41,17 @@ from ._deps import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_receipt_by_client_request_id(db: Session, tenant_id, client_request_id: str):
+    return db.execute(
+        text(
+            "SELECT id, number, status, register_id, shift_id "
+            "FROM pos_receipts "
+            "WHERE tenant_id = :tid AND client_request_id = :client_request_id"
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+        {"tid": tenant_id, "client_request_id": client_request_id},
+    ).first()
 
 router = APIRouter(
     prefix="/pos",
@@ -132,11 +144,24 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
     current_user_id = get_user_id(request)
     shift_uuid = validate_uuid(payload.shift_id, "Shift ID")
     register_uuid = validate_uuid(payload.register_id, "Register ID")
+    client_request_id = (payload.client_request_id or "").strip() or None
     customer_uuid = (
         validate_uuid(payload.customer_id, "Customer ID") if payload.customer_id else None
     )
 
     try:
+        if client_request_id:
+            existing = _get_receipt_by_client_request_id(db, tenant_id, client_request_id)
+            if existing:
+                if existing[3] != register_uuid or existing[4] != shift_uuid:
+                    raise HTTPException(status_code=409, detail="client_request_id_conflict")
+                return {
+                    "id": str(existing[0]),
+                    "number": existing[1],
+                    "status": existing[2],
+                    "idempotent_replay": True,
+                }
+
         # Resolver cajero (admin puede asignar a otro)
         cashier_id = current_user_id
         if payload.cashier_id:
@@ -208,10 +233,10 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
         row = db.execute(
             text(
                 "INSERT INTO pos_receipts("
-                "tenant_id, register_id, shift_id, cashier_id, customer_id, number, status, "
+                "tenant_id, register_id, shift_id, cashier_id, customer_id, client_request_id, number, status, "
                 "gross_total, tax_total, currency, created_at"
                 ") VALUES ("
-                ":tid, :rid, :sid, :cashier_id, :customer_id, :number, 'draft', "
+                ":tid, :rid, :sid, :cashier_id, :customer_id, :client_request_id, :number, 'draft', "
                 "0, 0, :currency, NOW()"
                 ") RETURNING id"
             ).bindparams(
@@ -227,16 +252,13 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
                 "sid": shift_uuid,
                 "cashier_id": cashier_id,
                 "customer_id": customer_uuid,
+                "client_request_id": client_request_id,
                 "number": ticket_number,
                 "currency": currency,
             },
         ).first()
 
         receipt_id = row[0]
-        db.commit()
-
-        # Restaurar contexto RLS tras commit
-        ensure_guc_from_request(request, db, persist=True)
 
         tax_enabled = is_tax_enabled(db)
         default_tax = resolve_default_tax_rate(db)
@@ -293,10 +315,27 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
             )
 
         db.commit()
-        return {"id": str(receipt_id), "number": ticket_number}
+        return {
+            "id": str(receipt_id),
+            "number": ticket_number,
+            "status": "draft",
+            "idempotent_replay": False,
+        }
 
     except HTTPException:
         db.rollback()
+        raise
+    except IntegrityError:
+        db.rollback()
+        if client_request_id:
+            existing = _get_receipt_by_client_request_id(db, tenant_id, client_request_id)
+            if existing:
+                return {
+                    "id": str(existing[0]),
+                    "number": existing[1],
+                    "status": existing[2],
+                    "idempotent_replay": True,
+                }
         raise
     except Exception as e:
         db.rollback()

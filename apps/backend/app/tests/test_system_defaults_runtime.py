@@ -56,7 +56,10 @@ def test_theme_endpoint_preserves_company_colors_over_global_defaults(client: Te
     update_system_default(db, "theme.colors.primary", "#123456")
     update_system_default(db, "theme.colors.success", "#00ff00")
 
-    response = client.get("/api/v1/company/settings/theme?empresa=acme")
+    response = client.get(
+        "/api/v1/company/settings/theme?empresa=acme",
+        headers=_tenant_headers(tenant, "acme"),
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -91,11 +94,30 @@ def test_theme_endpoint_prioritizes_authenticated_tenant_over_empresa_query(clie
         headers=_tenant_headers(tenant_b, slug_b),
     )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["brand"]["name"] == "Taller Demo"
-    assert body["sector"] == "taller"
-    assert body["colors"]["primary"] == "#111111"
+    assert response.status_code == 403
+    assert response.json()["detail"] == "tenant_slug_mismatch"
+
+
+def test_theme_endpoint_does_not_resolve_company_by_name(client: TestClient, db):
+    tenant = Tenant(id=uuid4(), name="Empresa Visible", slug="empresa-visible")
+    db.add(tenant)
+    db.flush()
+    db.add(
+        CompanySettings(
+            tenant_id=tenant.id,
+            default_language="es",
+            timezone="Europe/Madrid",
+            currency="EUR",
+            primary_color="#abcdef",
+            secondary_color="#123456",
+        )
+    )
+    db.commit()
+
+    response = client.get("/api/v1/company/settings/theme?empresa=Empresa%20Visible")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "tenant_auth_required"
 
 
 def test_company_limits_endpoint_uses_system_defaults(client: TestClient, db):

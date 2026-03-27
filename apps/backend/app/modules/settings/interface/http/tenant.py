@@ -5,7 +5,7 @@ import re
 import unicodedata
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
@@ -127,7 +127,7 @@ def _lookup_empresa(db: Session, empresa: str | None) -> Empresa | None:
         return None
     return (
         db.query(Empresa)
-        .filter((Empresa.slug == empresa) | (Empresa.name == empresa))
+        .filter(Empresa.slug == empresa)
         .order_by(Empresa.created_at.asc())
         .first()
     )
@@ -143,8 +143,15 @@ def _resolve_empresa(
     if tenant_id:
         emp = db.query(Empresa).filter(Empresa.id == tenant_id).first()
         if emp:
+            if empresa and getattr(emp, "slug", None) and str(emp.slug) != str(empresa):
+                raise HTTPException(status_code=403, detail="tenant_slug_mismatch")
             return emp
-    return _lookup_empresa(db, empresa)
+        if empresa:
+            raise HTTPException(status_code=401, detail="tenant_auth_required")
+        return None
+    if empresa:
+        raise HTTPException(status_code=401, detail="tenant_auth_required")
+    return None
 
 
 def _theme_defaults(db: Session) -> dict[str, object]:

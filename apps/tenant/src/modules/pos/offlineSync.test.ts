@@ -150,6 +150,7 @@ describe('POS offline sync', () => {
       shift_id: 'shift-1',
       cashier_id: 'cashier-1',
       customer_id: 'customer-1',
+      client_request_id: 'client-request-1',
       lines: [{
         product_id: 'product-1',
         qty: 2,
@@ -185,6 +186,7 @@ describe('POS offline sync', () => {
       shift_id: 'shift-1',
       cashier_id: 'cashier-1',
       customer_id: 'customer-1',
+      client_request_id: 'client-request-1',
       metadata: { notes: 'offline express' },
     }))
     expect(payReceiptMock).toHaveBeenCalledWith(
@@ -236,6 +238,84 @@ describe('POS offline sync', () => {
     const syncedReceipt = await getEntity('receipt', 'receipt-3')
     expect(syncedReceipt?.syncStatus).toBe('synced')
     expect(syncedReceipt?.data.status).toBe('paid')
+  })
+
+  it('does not attempt to charge again when an idempotent create returns an already-paid receipt', async () => {
+    createReceiptMock.mockResolvedValueOnce({ id: 'receipt-5', status: 'paid', lines: [] })
+    getReceiptMock.mockResolvedValueOnce({ id: 'receipt-5', status: 'paid', lines: [] })
+    backfillReceiptDocumentsMock.mockResolvedValueOnce({ ok: true, receipt_id: 'receipt-5', documents_created: {} })
+    issueDocumentMock.mockResolvedValueOnce({ document: { id: 'doc-5' } })
+
+    await storeEntity('receipt', 'local-create-5', {
+      _op: 'create',
+      _queueAction: 'create_and_checkout',
+      register_id: 'register-1',
+      shift_id: 'shift-1',
+      client_request_id: 'client-request-5',
+      lines: [{
+        product_id: 'product-1',
+        qty: 1,
+        unit_price: 8,
+        tax_rate: 0.12,
+        discount_pct: 0,
+        uom: 'unit',
+        line_total: 8,
+      }],
+      payments: [{ receipt_id: 'offline-receipt', method: 'cash', amount: 8 }],
+      document_issue: {
+        tenantId: 'tenant-1',
+        country: 'EC',
+        posId: 'pos-1',
+        currency: 'USD',
+        buyer: { mode: 'CONSUMER_FINAL', idType: 'NONE', idNumber: '', name: 'CF' },
+        items: [{ sku: 'SKU-1', name: 'Pan', qty: 1, unitPrice: 8, discount: 0, taxCategory: 'DEFAULT' }],
+        payments: [{ method: 'CASH', amount: 8 }],
+      },
+    }, 'pending')
+
+    const manager = getSyncManager()
+    manager.registerAdapter(POSReceiptAdapter)
+
+    const result = await manager.syncEntity('receipt')
+
+    expect(result.synced).toBe(1)
+    expect(payReceiptMock).not.toHaveBeenCalled()
+    expect(backfillReceiptDocumentsMock).toHaveBeenCalledWith('receipt-5')
+    expect(issueDocumentMock).toHaveBeenCalledOnce()
+    const syncedReceipt = await getEntity('receipt', 'receipt-5')
+    expect(syncedReceipt?.syncStatus).toBe('synced')
+    expect(syncedReceipt?.data.status).toBe('paid')
+  })
+
+  it('derives a stable client_request_id for legacy queued receipts that were stored before the idempotency patch', async () => {
+    createReceiptMock.mockResolvedValueOnce({ id: 'receipt-legacy', status: 'draft', lines: [] })
+    getReceiptMock.mockResolvedValueOnce({ id: 'receipt-legacy', status: 'draft', lines: [] })
+
+    await storeEntity('receipt', 'legacy-local-1', {
+      _op: 'create',
+      register_id: 'register-1',
+      shift_id: 'shift-1',
+      lines: [{
+        product_id: 'product-1',
+        qty: 1,
+        unit_price: 3,
+        tax_rate: 0.12,
+        discount_pct: 0,
+        uom: 'unit',
+        line_total: 3,
+      }],
+      metadata: { notes: 'legacy queue item' },
+    }, 'pending')
+
+    const manager = getSyncManager()
+    manager.registerAdapter(POSReceiptAdapter)
+
+    const result = await manager.syncEntity('receipt')
+
+    expect(result.synced).toBe(1)
+    expect(createReceiptMock).toHaveBeenCalledWith(expect.objectContaining({
+      client_request_id: 'offline-sync-legacy-local-1',
+    }))
   })
 
   it('syncs an offline-opened shift before uploading receipts that reference its local id', async () => {

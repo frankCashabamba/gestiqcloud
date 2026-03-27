@@ -45,7 +45,10 @@ def test_company_field_config_uses_db_seed_for_tenant_sector(client: TestClient,
     db.add(tenant)
     db.commit()
 
-    response = client.get("/api/v1/company/settings/fields?module=clientes&empresa=retail-co")
+    response = client.get(
+        "/api/v1/company/settings/fields?module=clientes&empresa=retail-co",
+        headers=_tenant_headers(tenant, "retail-co"),
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -84,7 +87,10 @@ def test_company_field_config_uses_products_alias_for_tenant_sector(client: Test
     db.add(tenant)
     db.commit()
 
-    response = client.get("/api/v1/company/settings/fields?module=products&empresa=retail-products")
+    response = client.get(
+        "/api/v1/company/settings/fields?module=products&empresa=retail-products",
+        headers=_tenant_headers(tenant, "retail-products"),
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -102,7 +108,10 @@ def test_company_field_config_includes_raw_material_for_bakery_products(client: 
     db.add(tenant)
     db.commit()
 
-    response = client.get("/api/v1/company/settings/fields?module=products&empresa=bakery-products")
+    response = client.get(
+        "/api/v1/company/settings/fields?module=products&empresa=bakery-products",
+        headers=_tenant_headers(tenant, "bakery-products"),
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -128,7 +137,10 @@ def test_company_field_config_reads_legacy_products_module_rows(client: TestClie
     )
     db.commit()
 
-    response = client.get("/api/v1/company/settings/fields?module=products&empresa=legacy-products")
+    response = client.get(
+        "/api/v1/company/settings/fields?module=products&empresa=legacy-products",
+        headers=_tenant_headers(tenant, "legacy-products"),
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -156,11 +168,19 @@ def test_company_field_config_prioritizes_authenticated_tenant_over_empresa_quer
         headers=_tenant_headers(bakery, bakery_slug),
     )
 
-    assert response.status_code == 200
-    body = response.json()
-    field_names = [item["field"] for item in body["items"]]
-    assert "contacto_nombre" in field_names
-    assert "whatsapp" not in field_names
+    assert response.status_code == 403
+    assert response.json()["detail"] == "tenant_slug_mismatch"
+
+
+def test_company_field_config_requires_auth_for_company_lookup(client: TestClient, db):
+    tenant = Tenant(id=uuid4(), name="Retail Co", slug="retail-co", sector_template_name="retail")
+    db.add(tenant)
+    db.commit()
+
+    response = client.get("/api/v1/company/settings/fields?module=clientes&empresa=retail-co")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "tenant_auth_required"
 
 
 def test_admin_sector_fields_seed_suppliers_from_template_config(client: TestClient, db):

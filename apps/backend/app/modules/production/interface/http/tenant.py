@@ -2127,6 +2127,7 @@ def delete_cost_driver(
     )
     if not driver:
         raise HTTPException(status_code=404, detail="Cost driver no encontrado")
+    db.query(RecipeCostLine).filter(RecipeCostLine.driver_id == driver_id).delete()
     db.delete(driver)
     db.commit()
 

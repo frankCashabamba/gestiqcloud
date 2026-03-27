@@ -16,6 +16,7 @@ import {
   getConflicts,
   ConflictInfo
 } from './offlineStore'
+import { isNetworkIssue } from './offlineHttp'
 
 export interface SyncAdapter {
   entity: EntityType
@@ -157,7 +158,11 @@ class SyncManager {
         this.retryQueue.delete(`${entity}:${item.id}`)
 
       } catch (error) {
-        console.error(`[offline] Sync failed for ${entity}:${item.id}:`, error)
+        if (isNetworkIssue(error)) {
+          console.warn(`[offline] Sync retry scheduled for ${entity}:${item.id}: network error`)
+        } else {
+          console.error(`[offline] Sync failed for ${entity}:${item.id}:`, error)
+        }
         failed++
 
         const key = `${entity}:${item.id}`

@@ -889,16 +889,19 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
     }))
 
-    const buildReceiptPayload = () => ({
+    const createClientRequestId = () => createOfflineTempId('receipt-request')
+
+    const buildReceiptPayload = (clientRequestId = createClientRequestId()) => ({
         register_id: state.selectedRegister.id,
         shift_id: state.currentShift.id,
         cashier_id: isCompanyAdmin ? selectedCashierId || undefined : undefined,
         customer_id: selectedClient ? String(selectedClient.id) : undefined,
+        client_request_id: clientRequestId,
         lines: buildReceiptLines(),
         metadata: { notes: ticketNotes },
     })
 
-    const buildPaymentDraftContext = () => ({
+    const buildPaymentDraftContext = (clientRequestId = createClientRequestId()) => ({
         draftLines: cart.map((item, index) => ({
             id: `draft-${index}`,
             product_id: item.product_id,
@@ -911,7 +914,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             discount_pct: item.discount_pct,
             line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
         })),
-        createPayload: buildReceiptPayload(),
+        createPayload: buildReceiptPayload(clientRequestId),
     })
 
     const buildSaleDraft = (payments: POSPayment[] = []): SaleDraft => {
@@ -943,9 +946,10 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     const buildOfflineCreateAndCheckoutPayload = (
         payments: POSPayment[],
         warehouseId?: string | null,
+        clientRequestId = createClientRequestId(),
     ): QueuedPOSCreateAndCheckout => ({
         _queueAction: 'create_and_checkout',
-        ...buildReceiptPayload(),
+        ...buildReceiptPayload(clientRequestId),
         metadata: {
             notes: ticketNotes,
             queued_from: 'pos_actions',
@@ -960,10 +964,11 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     })
 
     const startCheckout = async () => {
+        const paymentDraft = buildPaymentDraftContext()
         try {
             setLoading(true)
             pendingSaleRef.current = buildSaleDraft([])
-            const receipt = await createReceipt(buildReceiptPayload() as any)
+            const receipt = await createReceipt(paymentDraft.createPayload as any)
             setPaymentDraftContext(null)
             setCurrentReceiptId(receipt.id ?? null)
             setShowPaymentModal(true)
@@ -972,7 +977,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             if (msg.includes('currency_not_configured')) {
                 toast.error(t('pos:errors.currencyNotConfigured'))
             } else if (isNetworkIssue(e)) {
-                setPaymentDraftContext(buildPaymentDraftContext())
+                setPaymentDraftContext(paymentDraft)
                 setCurrentReceiptId(createOfflineTempId('receipt'))
                 setShowPaymentModal(true)
                 toast.warning(t('pos:errors.offlineSync'))
@@ -1299,9 +1304,10 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             return
         }
         let createdReceiptId: string | null = null
+        const expressCreatePayload = buildReceiptPayload()
         try {
             setLoading(true)
-            const receipt = await createReceipt(buildReceiptPayload() as any)
+            const receipt = await createReceipt(expressCreatePayload as any)
 
             const receiptId = receipt.id
             if (!receiptId) throw new Error('no_receipt_id')
@@ -1364,6 +1370,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                         buildOfflineCreateAndCheckoutPayload(
                             [{ receipt_id: 'offline-receipt', method: 'cash', amount: totals.total }],
                             warehouseId,
+                            expressCreatePayload.client_request_id,
                         ),
                     )
                 }

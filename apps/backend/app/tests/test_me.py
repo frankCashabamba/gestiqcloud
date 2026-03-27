@@ -48,6 +48,43 @@ def test_me_tenant_ok(client: TestClient, db, usuario_empresa_factory):
     assert data.get("tenant_id") is not None
 
 
+def test_me_tenant_rejects_slug_mismatch_header(client: TestClient, db, usuario_empresa_factory):
+    test_password = secrets.token_urlsafe(12)
+    _, tenant = usuario_empresa_factory(
+        empresa_nombre="Acme",
+        empresa_slug="acme-test",
+        email="slug@x.com",
+        username="slug-user",
+        password=test_password,
+    )
+
+    r = client.post(
+        "/api/v1/tenant/auth/login",
+        json={"identificador": "slug-user", "password": test_password},
+    )
+    assert r.status_code == 200
+    tok = r.json()["access_token"]
+
+    ok = client.get(
+        "/api/v1/me/tenant",
+        headers={
+            "Authorization": f"Bearer {tok}",
+            "X-Tenant-Slug": tenant.slug,
+        },
+    )
+    assert ok.status_code == 200
+
+    bad = client.get(
+        "/api/v1/me/tenant",
+        headers={
+            "Authorization": f"Bearer {tok}",
+            "X-Tenant-Slug": "otra-empresa",
+        },
+    )
+    assert bad.status_code == 403
+    assert bad.json()["detail"] == "tenant_slug_mismatch"
+
+
 def test_me_tenant_marks_legacy_onboarding_as_complete(
     client: TestClient, db, usuario_empresa_factory
 ):

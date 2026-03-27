@@ -81,6 +81,16 @@ function notifyAuthExpired() {
   }
 }
 
+function currentTenantSlugFromPath(): string | null {
+  if (typeof window === 'undefined') return null
+  const first = window.location.pathname.split('/').filter(Boolean)[0]?.trim().toLowerCase() || ''
+  if (!first) return null
+  if (['api', 'login', 'signup', 'set-password', 'error', 'unauthorized', 'onboarding', 'dashboard'].includes(first)) {
+    return null
+  }
+  return first
+}
+
 function needsCsrf(path: string, method: string) {
   const isSafe = ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
   if (isSafe) return false
@@ -155,6 +165,10 @@ export async function apiFetch<T = unknown>(path: string, options: HttpOptions =
   if (tokenToUse && !requestHeaders.has('Authorization')) {
     requestHeaders.set('Authorization', `Bearer ${tokenToUse}`)
   }
+  const tenantSlug = currentTenantSlugFromPath()
+  if (tenantSlug && !requestHeaders.has('X-Tenant-Slug')) {
+    requestHeaders.set('X-Tenant-Slug', tenantSlug)
+  }
 
   if (needsCsrf(path, method)) {
     const csrf = getCookie('csrf_token') || getCookie('csrftoken') || getCookie('XSRF-TOKEN')
@@ -194,10 +208,14 @@ export async function apiFetch<T = unknown>(path: string, options: HttpOptions =
   }
 
   if (!response.ok) {
+    const errorData = await safeJson(response)
+    if (response.status === 403 && (errorData as any)?.detail === 'tenant_slug_mismatch') {
+      notifyAuthExpired()
+    }
     const error = new HttpError(response.statusText)
     error.status = response.status
     error.retryAfter = response.headers.get('Retry-After')
-    error.data = await safeJson(response)
+    error.data = errorData
     throw error
   }
 

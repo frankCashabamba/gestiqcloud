@@ -40,6 +40,7 @@ class POSReceipt(Base):
         nullable=True,
         index=True,
     )
+    client_request_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     number: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(
         String(20),

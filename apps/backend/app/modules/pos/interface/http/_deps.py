@@ -462,6 +462,7 @@ class ReceiptCreateIn(BaseModel):
     register_id: str
     cashier_id: str | None = None
     customer_id: str | None = None
+    client_request_id: str | None = Field(default=None, min_length=1, max_length=120)
     lines: list[ReceiptLineIn] = Field(default_factory=list)
     payments: list[PaymentIn] = Field(default_factory=list)
     notes: str | None = Field(default=None, max_length=500)

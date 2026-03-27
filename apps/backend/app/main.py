@@ -815,10 +815,19 @@ except Exception as e:
 try:
     from app.modules.support.interface.http.incidents import router as incidents_router
 
-    app.include_router(incidents_router, prefix="/api/v1")
-    _router_logger.info("Incidents router mounted at /api/v1/incidents")
+    app.include_router(incidents_router, prefix="/api/v1/admin")
+    _router_logger.info("Incidents router mounted at /api/v1/admin/incidents")
 except Exception as e:
     _router_logger.error(f"Error mounting Incidents router: {e}")
+
+# Admin Logs (NotificationLog → /api/v1/admin/logs)
+try:
+    from app.routers.admin_logs import router as admin_logs_router
+
+    app.include_router(admin_logs_router, prefix="/api/v1/admin")
+    _router_logger.info("Admin Logs router mounted at /api/v1/admin/logs")
+except Exception as e:
+    _router_logger.error(f"Error mounting Admin Logs router: {e}")
 
 # Notifications
 try:

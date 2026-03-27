@@ -61,7 +61,7 @@ export type PosDraftState = {
 
 export type PaymentDraftContext = {
     draftLines: POSReceiptLine[]
-    createPayload: Pick<ReceiptCreateRequest, 'register_id' | 'shift_id' | 'cashier_id' | 'customer_id' | 'lines' | 'metadata'>
+    createPayload: Pick<ReceiptCreateRequest, 'register_id' | 'shift_id' | 'cashier_id' | 'customer_id' | 'client_request_id' | 'lines' | 'metadata'>
 }
 
 export type PosTheme = 'corporate-dark' | 'soft-dark' | 'light'

@@ -423,3 +423,16 @@ def session_scope() -> Iterator[Session]:
         raise
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Auditoría automática: registra en audit_events cada create/update/delete
+# Se activa al importar database.py (siempre que no sea SQLite de tests)
+# ---------------------------------------------------------------------------
+try:
+    from app.core.auto_audit import register_auto_audit  # noqa: E402
+
+    register_auto_audit(SessionLocal)
+    logger.debug("[database] Auto-auditoría ORM registrada sobre SessionLocal")
+except Exception as _auto_audit_exc:
+    logger.warning("[database] No se pudo registrar auto_audit: %s", _auto_audit_exc)

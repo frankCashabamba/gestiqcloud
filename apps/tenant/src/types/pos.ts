@@ -152,6 +152,7 @@ export interface ReceiptCreateRequest {
   shift_id: string
   cashier_id?: string
   customer_id?: string
+  client_request_id?: string
   currency?: string
   lines: POSReceiptLine[]
   payment_method?: string

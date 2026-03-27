@@ -1,6 +1,7 @@
 # app/core/access_guard.py
 import os
 from typing import Any
+from uuid import UUID
 
 from fastapi import HTTPException, Request
 from jwt import ExpiredSignatureError, InvalidTokenError
@@ -12,6 +13,40 @@ from app.config.database import SessionLocal
 from app.core.jwt_provider import get_token_service
 
 token_service = get_token_service()
+
+
+def _tenant_slug_matches_claimed_tenant(tid: str, tenant_slug: str) -> bool:
+    tenant_slug = tenant_slug.strip().lower()
+    if not tenant_slug:
+        return True
+
+    if tid.isdigit():
+        with SessionLocal() as db:
+            row = db.execute(
+                text("SELECT slug FROM tenants WHERE tenant_id = :id"),
+                {"id": int(tid)},
+            ).first()
+            return bool(row and row[0] and str(row[0]).strip().lower() == tenant_slug)
+
+    from app.models.tenant import Tenant
+
+    tenant_uuid = UUID(str(tid))
+    with SessionLocal() as db:
+        row = db.query(Tenant.slug).filter(Tenant.id == tenant_uuid).first()
+        return bool(row and row[0] and str(row[0]).strip().lower() == tenant_slug)
+
+
+def _validate_tenant_slug_header(request: Request, claims: dict[str, Any]) -> None:
+    tenant_slug = (request.headers.get("X-Tenant-Slug") or "").strip().lower()
+    if not tenant_slug:
+        return
+    tid = (
+        str(claims.get("tenant_id"))
+        if isinstance(claims, dict) and claims.get("tenant_id") is not None
+        else None
+    )
+    if tid and not _tenant_slug_matches_claimed_tenant(tid, tenant_slug):
+        raise HTTPException(status_code=403, detail="tenant_slug_mismatch")
 
 
 def with_access_claims(request: Request) -> dict[str, Any]:
@@ -27,8 +62,11 @@ def with_access_claims(request: Request) -> dict[str, Any]:
             token = auth_hdr.split(" ", 1)[1].strip()
             try:
                 claims = token_service.decode_and_validate(token, expected_type="access")
+                _validate_tenant_slug_header(request, claims)
                 request.state.access_claims = claims
                 return claims
+            except HTTPException:
+                raise
             except Exception:
                 # fall through to permissive default
                 pass
@@ -44,7 +82,7 @@ def with_access_claims(request: Request) -> dict[str, Any]:
         request.state.access_claims = claims
         return claims
 
-    # 1) extrae Authorization (o usa access_token en cookie/sesión como fallback para admin UI)
+    # 1) extrae Authorization (o usa access_token en cookie/sesion como fallback para admin UI)
     auth = request.headers.get("Authorization", "")
     token = None
     if auth.startswith("Bearer "):
@@ -76,53 +114,14 @@ def with_access_claims(request: Request) -> dict[str, Any]:
     if not isinstance(claims, dict):
         logger.error(f"Invalid token payload, type={type(claims)}")
         raise HTTPException(status_code=401, detail="Invalid token payload")
-    # ValidaciÃ³n opcional: X-Tenant-Slug debe corresponder al tenant del token
+
+    # Validacion opcional: X-Tenant-Slug debe corresponder al tenant del token.
     try:
-        tenant_slug = (request.headers.get("X-Tenant-Slug") or "").strip()
-        if tenant_slug:
-            # Soporta tokens con tenant_id como tenant_id (int) o UUID segÃºn despliegue
-            tid = (
-                str(claims.get("tenant_id"))
-                if isinstance(claims, dict) and claims.get("tenant_id") is not None
-                else None
-            )
-            if tid:
-                # Primero intenta tenants.slug si tid es numÃ©rico
-                ok = False
-                if tid.isdigit():
-                    try:
-                        with SessionLocal() as db:
-                            row = db.execute(
-                                text("SELECT slug FROM tenants WHERE tenant_id=:id"),
-                                {"id": int(tid)},
-                            ).first()
-                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
-                    except Exception:
-                        ok = False
-                # Si no ok y hay tabla tenants, valida contra tenants.slug
-                if not ok:
-                    try:
-                        with SessionLocal() as db:
-                            # tid puede ser UUID; compara por id::text o por tenant_id si es dÃ­gito
-                            if tid.isdigit():
-                                row = db.execute(
-                                    text("SELECT slug FROM tenants WHERE tenant_id =:id"),
-                                    {"id": int(tid)},
-                                ).first()
-                            else:
-                                row = db.execute(
-                                    text("SELECT slug FROM tenants WHERE tenant_id =:id"),
-                                    {"id": tid},
-                                ).first()
-                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
-                    except Exception:
-                        ok = False
-                if not ok:
-                    raise HTTPException(status_code=403, detail="tenant_slug_mismatch")
+        _validate_tenant_slug_header(request, claims)
     except HTTPException:
         raise
     except Exception:
-        # No romper si la validaciÃ³n no se puede realizar
+        # No romper si la validacion no se puede realizar
         pass
 
     request.state.access_claims = claims
