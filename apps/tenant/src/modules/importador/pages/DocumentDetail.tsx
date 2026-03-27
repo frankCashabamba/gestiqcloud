@@ -86,6 +86,12 @@ function formatFieldLabel(key: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
+function formatDestinationLabel(destination: 'recipe' | 'expense' | 'supplier_invoice' | null | undefined): string {
+  if (destination === 'supplier_invoice') return 'factura de proveedor'
+  if (destination === 'recipe') return 'receta'
+  return 'gasto'
+}
+
 type ActivityItem = {
   id: string
   title: string
@@ -171,6 +177,7 @@ export default function DocumentDetail() {
   const [selectedErrorCodes, setSelectedErrorCodes] = useState<string[]>([])
   const [selectedLineNumbers, setSelectedLineNumbers] = useState<number[]>([])
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
+  const [showSecondaryActions, setShowSecondaryActions] = useState(false)
   const lastVisibilityReloadRef = useRef(0)
 
   useEffect(() => {
@@ -223,6 +230,7 @@ export default function DocumentDetail() {
     setSelectedErrorCodes([])
     setSelectedLineNumbers([])
     setSelectedColumns([])
+    setShowSecondaryActions(false)
   }, [doc?.id])
 
   const resetSelectiveFilters = () => {
@@ -382,8 +390,39 @@ export default function DocumentDetail() {
   const saveDestination = suggestSaveDestination(doc)
   const requiresConfirmedSave = saveDestination !== 'recipe'
   const routingReadyForSave = routingDecision ? routingDecision.required_fields_ok : true
-  const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && routingReadyForSave && (!requiresConfirmedSave || hasConfirmedDocumentData(doc))
+  const confirmedDataReady = hasConfirmedDocumentData(doc)
+  const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && routingReadyForSave && (!requiresConfirmedSave || confirmedDataReady)
   const docCategory = getDocCategory(doc, sheets)
+  const simpleFlowEnabled = canSaveDocument(doc) && docCategory !== 'recipe' && docCategory !== 'daily_log'
+  const advancedActionsVisible = !simpleFlowEnabled || showSecondaryActions
+  const canEditScalars = !Array.isArray((doc.datos_extraidos as Record<string, unknown> | undefined)?.filas)
+  const flowCurrentStep = isSaved
+    ? 4
+    : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
+      ? 2
+      : saveEnabled
+        ? 4
+        : 3
+  const flowTitle = isSaved
+    ? 'Documento guardado'
+    : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
+      ? 'Estamos procesando tu documento'
+      : saveEnabled
+        ? `Listo para guardar como ${formatDestinationLabel(saveDestination)}`
+        : !routingReadyForSave
+          ? 'Faltan datos para poder guardar'
+          : doc.estado === 'REVIEW'
+            ? 'Revisa y confirma los datos'
+            : 'Documento listo para revisión'
+  const flowDescription = isSaved
+    ? 'El flujo terminó correctamente. Si hace falta, puedes volver a procesarlo.'
+    : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
+      ? 'No necesitas hacer nada ahora. Espera a que termine el análisis automático.'
+      : saveEnabled
+        ? 'La extracción ya está validada y puedes guardar con un solo paso.'
+        : !routingReadyForSave
+          ? 'Completa o corrige los campos obligatorios antes del guardado final.'
+          : 'Confirma los datos detectados antes de continuar con el guardado.'
   const activeSheetRows = (() => {
     if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
       return filasPorHoja[activeSheet]
@@ -598,6 +637,15 @@ export default function DocumentDetail() {
             </button>
           )}
 
+          {simpleFlowEnabled && (
+            <button
+              onClick={() => setShowSecondaryActions((current) => !current)}
+              style={{ ...actionBtn, background: showSecondaryActions ? '#334155' : '#64748B' }}
+            >
+              {showSecondaryActions ? 'Ocultar opciones' : 'Más opciones'}
+            </button>
+          )}
+
           {/* DAILY LOG */}
           {docCategory === 'daily_log' && (
             <>
@@ -636,8 +684,8 @@ export default function DocumentDetail() {
           {/* EXPENSE */}
           {docCategory === 'expense' && (
             <>
-              {saveEnabled && <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>{t('docDetail.buttons.saveExpense')}</button>}
-              {doc.estado === 'REVIEW' && (
+              {advancedActionsVisible && saveEnabled && <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>{t('docDetail.buttons.saveExpense')}</button>}
+              {advancedActionsVisible && doc.estado === 'REVIEW' && (
                 <>
                   <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
@@ -646,15 +694,15 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              {advancedActionsVisible && <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>}
             </>
           )}
 
           {/* SUPPLIER INVOICE */}
           {docCategory === 'supplier_invoice' && (
             <>
-              {saveEnabled && <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>{t('docDetail.buttons.saveInvoice')}</button>}
-              {doc.estado === 'REVIEW' && (
+              {advancedActionsVisible && saveEnabled && <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>{t('docDetail.buttons.saveInvoice')}</button>}
+              {advancedActionsVisible && doc.estado === 'REVIEW' && (
                 <>
                   <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
@@ -663,19 +711,19 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              {advancedActionsVisible && <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>}
             </>
           )}
 
           {/* BANK / INVENTORY / PAYROLL / OTHER — confirm + reject */}
           {(docCategory === 'bank' || docCategory === 'inventory' || docCategory === 'payroll' || docCategory === 'other') && (
             <>
-              {docCategory === 'other' && saveEnabled && (
+              {advancedActionsVisible && docCategory === 'other' && saveEnabled && (
                 <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
                   {saveDestination === 'supplier_invoice' ? t('docDetail.buttons.saveInvoice') : t('docDetail.buttons.saveExpense')}
                 </button>
               )}
-              {doc.estado === 'REVIEW' && (
+              {advancedActionsVisible && doc.estado === 'REVIEW' && (
                 <>
                   {!((doc.datos_extraidos as any)?.filas) && (
                     <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
@@ -685,12 +733,68 @@ export default function DocumentDetail() {
                   </button>
                 </>
               )}
-              <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              {advancedActionsVisible && <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>}
+              {advancedActionsVisible && <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>}
             </>
           )}
         </div>
       </div>
+
+      {simpleFlowEnabled && (
+        <div style={flowCard}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div style={{ minWidth: 260, flex: '1 1 320px' }}>
+              <div style={flowEyebrow}>Flujo simple</div>
+              <h3 style={{ margin: '0.35rem 0 0', fontSize: 22, lineHeight: 1.15 }}>{flowTitle}</h3>
+              <p style={{ margin: '0.5rem 0 0', fontSize: 14, color: '#334155' }}>{flowDescription}</p>
+            </div>
+            {!showSecondaryActions && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && !saveEnabled && !routingReadyForSave && canEditScalars && (
+                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>
+                    Corregir datos
+                  </button>
+                )}
+                {!isSaved && doc.estado === 'REVIEW' && !saveEnabled && (
+                  <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
+                    {saving ? t('docDetail.buttons.confirming') : 'Confirmar y continuar'}
+                  </button>
+                )}
+                {!isSaved && saveEnabled && (
+                  <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
+                    {saveDestination === 'supplier_invoice' ? 'Guardar factura' : saveDestination === 'recipe' ? 'Guardar receta' : 'Guardar gasto'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div style={flowStepsWrap}>
+            {[
+              { step: 1, label: 'Carga' },
+              { step: 2, label: 'Espera' },
+              { step: 3, label: 'Confirma' },
+              { step: 4, label: 'Guarda' },
+            ].map((item) => {
+              const isActive = item.step === flowCurrentStep
+              const isDone = item.step < flowCurrentStep || (isSaved && item.step <= flowCurrentStep)
+              return (
+                <div
+                  key={item.step}
+                  style={{
+                    ...flowStepChip,
+                    borderColor: isActive ? '#2563eb' : isDone ? '#86efac' : '#cbd5e1',
+                    background: isActive ? '#dbeafe' : isDone ? '#f0fdf4' : '#fff',
+                    color: isActive ? '#1d4ed8' : isDone ? '#166534' : '#475569',
+                  }}
+                >
+                  <span style={flowStepIndex}>{item.step}</span>
+                  {item.label}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Confidence warning */}
       {needsHumanReview && confPct != null && confPct < 85 && (
@@ -1445,6 +1549,11 @@ export default function DocumentDetail() {
 
 const section: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', background: '#fff' }
 const actionBtn: React.CSSProperties = { padding: '0.5rem 1rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }
+const flowCard: React.CSSProperties = { marginBottom: '1rem', border: '1px solid #bfdbfe', borderRadius: 14, padding: '1rem 1.1rem', background: 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)' }
+const flowEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }
+const flowStepsWrap: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '0.9rem' }
+const flowStepChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.45rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: 999, fontSize: 13, fontWeight: 700 }
+const flowStepIndex: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 999, background: '#fff', fontSize: 12, color: '#0f172a' }
 const selectionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.35rem 0.55rem', border: '1px solid #E5E7EB', borderRadius: 999, cursor: 'pointer', fontSize: 12 }
 const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 13, fontWeight: 600 }
 const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444', INVALID: '#EF4444', REPROCESS: '#8B5CF6', VALID: '#10B981', IMPORTED: '#0EA5E9' }

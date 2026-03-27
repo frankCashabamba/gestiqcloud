@@ -17,7 +17,7 @@ export function EditarEmpresa() {
       try {
         setLoading(true)
         const data = await getEmpresa(id as string)
-        setForm({ nombre: data?.nombre || '', slug: data?.slug || '' })
+        setForm({ nombre: data?.nombre ?? data?.name ?? '', slug: data?.slug || '' })
       } catch (e: any) {
         error(getErrorMessage(e))
       } finally {

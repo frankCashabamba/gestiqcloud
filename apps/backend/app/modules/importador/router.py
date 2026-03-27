@@ -153,6 +153,23 @@ def _get_confirmed_doc_import_data(doc) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _build_routing_source_data(doc) -> dict:
+    data = dict(_get_doc_import_data(doc))
+    if not isinstance(data, dict):
+        data = {}
+    if "vendor" not in data and getattr(doc, "proveedor_detectado", None):
+        data["vendor"] = doc.proveedor_detectado
+    if "vendor_tax_id" not in data and getattr(doc, "ruc_detectado", None):
+        data["vendor_tax_id"] = doc.ruc_detectado
+    if "total_amount" not in data and getattr(doc, "monto_total", None) is not None:
+        data["total_amount"] = doc.monto_total
+    if "issue_date" not in data and getattr(doc, "fecha_documento", None):
+        data["issue_date"] = doc.fecha_documento
+    if "currency" not in data and getattr(doc, "moneda", None):
+        data["currency"] = doc.moneda
+    return data
+
+
 def _get_raw_ai_payload(doc) -> dict:
     payload = getattr(doc, "raw_ai_json", None)
     return payload if isinstance(payload, dict) else {}
@@ -169,10 +186,12 @@ def _resolve_document_routing(doc, db: Session):
     return build_document_routing_decision(
         source_doc_type=getattr(doc, "tipo_documento_detectado", None),
         ai_confidence=getattr(doc, "confianza_clasificacion", None),
-        extracted_data=_get_doc_import_data(doc),
+        extracted_data=_build_routing_source_data(doc),
         canonical_document=_get_canonical_document(doc),
         category_keywords=get_doc_categories(db),
         requires_review=bool(getattr(doc, "requiere_revision", False)),
+        db=db,
+        tenant_id=getattr(doc, "tenant_id", None),
     )
 
 
@@ -187,11 +206,13 @@ def _resolve_destination_routing(doc, db: Session, destination: str):
     return build_document_routing_decision(
         source_doc_type=getattr(doc, "tipo_documento_detectado", None),
         ai_confidence=getattr(doc, "confianza_clasificacion", None),
-        extracted_data=_get_doc_import_data(doc),
+        extracted_data=_build_routing_source_data(doc),
         canonical_document=_get_canonical_document(doc),
         category_keywords=get_doc_categories(db),
         requires_review=bool(getattr(doc, "requiere_revision", False)),
         destination_override=destination,
+        db=db,
+        tenant_id=getattr(doc, "tenant_id", None),
     )
 
 
@@ -1426,6 +1447,8 @@ async def upload_files(
                 canonical_document=canonical_document,
                 category_keywords=get_doc_categories(db),
                 requires_review=requiere_revision,
+                db=db,
+                tenant_id=tenant_id,
             )
             raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
 

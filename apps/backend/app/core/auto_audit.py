@@ -1,23 +1,10 @@
 """
 auto_audit.py
 =============
-Auditoría automática vía SQLAlchemy after_flush.
+Automatic SQLAlchemy auditing via after_flush.
 
-Registra un AuditEvent por cada objeto creado, actualizado o eliminado
-en CUALQUIER modelo, sin necesidad de modificar los endpoints.
-
-Contexto (tenant_id, user_id) se lee de session.info, que get_db() ya puebla
-a partir del JWT del request.
-
-Tablas excluidas (para evitar recursión y ruido):
-  - audit_events, auth_audit — las propias tablas de auditoría
-  - notification_logs, sync_conflict_logs — ya son registros de eventos
-  - Cualquier tabla cuyo modelo no tenga campo `id`
-
-Campos excluidos de `changes` en updates:
-  - password_hash, token, secret, api_key, private_key — seguridad
-  - updated_at, created_at — ruido
-  - Campos > 500 chars — truncados a 500
+Registers an AuditEvent for created, updated and deleted ORM objects without
+requiring endpoint-level changes.
 """
 
 from __future__ import annotations
@@ -29,11 +16,10 @@ from typing import Any
 from sqlalchemy import event, inspect as sa_inspect
 from sqlalchemy.orm import Session
 
+from app.core.audit_events import normalize_audit_changes
+
 logger = logging.getLogger("app.auto_audit")
 
-# ---------------------------------------------------------------------------
-# Tablas que NO se auditan (nombres de __tablename__)
-# ---------------------------------------------------------------------------
 _SKIP_TABLES: frozenset[str] = frozenset(
     {
         "audit_events",
@@ -45,9 +31,6 @@ _SKIP_TABLES: frozenset[str] = frozenset(
     }
 )
 
-# ---------------------------------------------------------------------------
-# Campos que se omiten en el diff de cambios (seguridad / ruido)
-# ---------------------------------------------------------------------------
 _SKIP_FIELDS: frozenset[str] = frozenset(
     {
         "password_hash",
@@ -62,19 +45,21 @@ _SKIP_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-_MAX_FIELD_LEN = 500  # caracteres máximos por valor en changes
+_MAX_FIELD_LEN = 500
 
 
 def _safe_str(value: Any) -> Any:
-    """Convierte a string truncado si es demasiado largo."""
-    if value is None:
+    """Convert to JSON-safe data and truncate long strings recursively."""
+    normalized = normalize_audit_changes(value)
+    if normalized is None:
         return None
-    if isinstance(value, (str,)) and len(value) > _MAX_FIELD_LEN:
-        return value[:_MAX_FIELD_LEN] + "…"
-    if isinstance(value, (dict, list)):
-        s = str(value)
-        return s[:_MAX_FIELD_LEN] + "…" if len(s) > _MAX_FIELD_LEN else s
-    return value
+    if isinstance(normalized, str):
+        return normalized[:_MAX_FIELD_LEN] + "..." if len(normalized) > _MAX_FIELD_LEN else normalized
+    if isinstance(normalized, dict):
+        return {key: _safe_str(item) for key, item in normalized.items()}
+    if isinstance(normalized, list):
+        return [_safe_str(item) for item in normalized]
+    return normalized
 
 
 def _entity_type(obj: Any) -> str:
@@ -90,11 +75,8 @@ def _entity_id(obj: Any) -> str | None:
 
 def _should_audit(obj: Any) -> bool:
     table = getattr(getattr(obj, "__class__", None), "__tablename__", None)
-    if not table:
+    if not table or table in _SKIP_TABLES:
         return False
-    if table in _SKIP_TABLES:
-        return False
-    # Solo auditamos objetos con mapper (ORM declarativo)
     try:
         sa_inspect(obj)
     except Exception:
@@ -103,7 +85,7 @@ def _should_audit(obj: Any) -> bool:
 
 
 def _get_update_changes(obj: Any) -> dict[str, Any]:
-    """Retorna {campo: {old: ..., new: ...}} para los atributos modificados."""
+    """Return {field: {old: ..., new: ...}} for changed mapped attributes."""
     changes: dict[str, Any] = {}
     try:
         mapper = sa_inspect(obj)
@@ -130,7 +112,6 @@ def _get_update_changes(obj: Any) -> dict[str, Any]:
 
 
 def _coerce_uuid(value: str | None):
-    """Convierte string a UUID, o devuelve None."""
     if not value:
         return None
     try:
@@ -140,8 +121,6 @@ def _coerce_uuid(value: str | None):
 
 
 def _build_event(session: Session, action: str, obj: Any, changes: dict | None = None):
-    """Construye un AuditEvent ORM sin importarlo al inicio del módulo."""
-    # Import diferido para evitar circular imports en startup
     from app.models.core.audit_event import AuditEvent  # noqa: PLC0415
 
     tenant_id = _coerce_uuid(session.info.get("tenant_id"))
@@ -155,25 +134,16 @@ def _build_event(session: Session, action: str, obj: Any, changes: dict | None =
         entity_type=_entity_type(obj),
         entity_id=_entity_id(obj),
         source="orm",
-        changes=changes or None,
+        changes=normalize_audit_changes(changes) if changes else None,
     )
 
 
-# ---------------------------------------------------------------------------
-# Listener principal: registrado sobre SessionLocal en database.py
-# ---------------------------------------------------------------------------
 def register_auto_audit(session_factory) -> None:
-    """
-    Llama una sola vez desde database.py (o main.py) para registrar el listener.
-
-    Uso:
-        from app.core.auto_audit import register_auto_audit
-        register_auto_audit(SessionLocal)
-    """
+    """Register a single after_flush audit listener for the session factory."""
 
     @event.listens_for(session_factory, "after_flush")
     def _after_flush(session: Session, flush_context):
-        # Guard anti-recursión: evita auditar los propios AuditEvents
+        del flush_context
         if session.info.get("_auto_audit_active"):
             return
 
@@ -184,7 +154,7 @@ def register_auto_audit(session_factory) -> None:
                 if _should_audit(obj):
                     events_to_add.append(_build_event(session, "create", obj))
         except Exception:
-            logger.debug("auto_audit: error procesando session.new", exc_info=True)
+            logger.debug("auto_audit: error processing session.new", exc_info=True)
 
         try:
             for obj in list(session.dirty):
@@ -194,23 +164,23 @@ def register_auto_audit(session_factory) -> None:
                 if changes:
                     events_to_add.append(_build_event(session, "update", obj, changes))
         except Exception:
-            logger.debug("auto_audit: error procesando session.dirty", exc_info=True)
+            logger.debug("auto_audit: error processing session.dirty", exc_info=True)
 
         try:
             for obj in list(session.deleted):
                 if _should_audit(obj):
                     events_to_add.append(_build_event(session, "delete", obj))
         except Exception:
-            logger.debug("auto_audit: error procesando session.deleted", exc_info=True)
+            logger.debug("auto_audit: error processing session.deleted", exc_info=True)
 
         if not events_to_add:
             return
 
         session.info["_auto_audit_active"] = True
         try:
-            for ev in events_to_add:
-                session.add(ev)
+            for event_row in events_to_add:
+                session.add(event_row)
         except Exception:
-            logger.warning("auto_audit: error añadiendo eventos a sesión", exc_info=True)
+            logger.warning("auto_audit: error adding events to session", exc_info=True)
         finally:
             session.info["_auto_audit_active"] = False

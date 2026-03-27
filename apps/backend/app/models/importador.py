@@ -231,6 +231,84 @@ class ImpLogCambios(Base):
     documento: Mapped[ImpDocumento] = relationship("ImpDocumento", back_populates="logs")
 
 
+class ImpRoutingProfile(Base):
+    __tablename__ = "imp_routing_profile"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    document_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggested_destination: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    required_groups: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="List of OR-groups. Example: [[issue_date], [total_amount], [concept, vendor]].",
+    )
+    support_fields: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    explanation_fields: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    blocked: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    confidence_threshold: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.8,
+        server_default=text("0.8"),
+    )
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("true"),
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ImpRoutingRule(Base):
+    __tablename__ = "imp_routing_rule"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    sector: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    source_kind: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="doc_type | category",
+    )
+    source_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    profile_code: Mapped[str] = mapped_column(
+        ForeignKey("imp_routing_profile.code", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    priority: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=100,
+        server_default=text("100"),
+    )
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("true"),
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class IcuRecipe(Base):
     __tablename__ = "icu_recipe"
     __table_args__ = {"extend_existing": True}

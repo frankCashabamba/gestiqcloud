@@ -7,8 +7,13 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.importador import ImpDocumento
+from app.models.importador import ImpRoutingRule
+from app.models.tenant import Tenant
 from app.modules.importador.router import SaveDocumentRequest, _infer_save_destination, save_document
-from app.modules.importador.services.document_routing_agent import build_document_routing_decision
+from app.modules.importador.services.document_routing_agent import (
+    build_document_routing_decision,
+    invalidate_document_routing_cache,
+)
 
 
 @pytest.mark.no_db
@@ -114,3 +119,55 @@ def test_save_document_returns_409_when_required_fields_are_missing_for_destinat
     assert detail["code"] == "document_routing_review_required"
     assert detail["required_fields_ok"] is False
     assert detail["missing_fields"] == ["issue_date", "total_amount"]
+
+
+def test_document_routing_uses_tenant_rule_before_sector_and_system(db):
+    tenant_id = uuid4()
+    tenant = Tenant(
+        id=tenant_id,
+        name="Routing Override Co",
+        slug=f"routing-{tenant_id.hex[:8]}",
+        sector_template_name="panaderia",
+    )
+    db.add(tenant)
+    db.flush()
+
+    db.add_all(
+        [
+            ImpRoutingRule(
+                sector="panaderia",
+                source_kind="doc_type",
+                source_key="INVOICE",
+                profile_code="supplier_invoice",
+                priority=20,
+            ),
+            ImpRoutingRule(
+                tenant_id=tenant_id,
+                source_kind="doc_type",
+                source_key="INVOICE",
+                profile_code="expense",
+                priority=5,
+            ),
+        ]
+    )
+    db.commit()
+    invalidate_document_routing_cache()
+
+    decision = build_document_routing_decision(
+        source_doc_type="INVOICE",
+        ai_confidence=0.96,
+        extracted_data={
+            "vendor": "Proveedor Demo",
+            "issue_date": "2026-03-27",
+            "total_amount": 55,
+            "concept": "Taxi",
+        },
+        canonical_document={"fields": {}},
+        category_keywords={"invoice": ["INVOICE"]},
+        requires_review=False,
+        db=db,
+        tenant_id=tenant_id,
+    )
+
+    assert decision.document_type == "expense"
+    assert decision.suggested_destination == "expense"

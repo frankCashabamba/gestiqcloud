@@ -424,6 +424,8 @@ async def _run_processing(
                 canonical_document=canonical_document,
                 category_keywords=get_doc_categories(db),
                 requires_review=requiere_revision,
+                db=db,
+                tenant_id=getattr(doc, "tenant_id", None),
             )
             raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
 

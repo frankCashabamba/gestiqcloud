@@ -515,3 +515,97 @@ class FieldAnalysisResponse(BaseModel):
     fields: list[FieldStatOut]
     suggested_reprocess_fields: list[str]
     error_summary: dict[str, int]
+
+
+class RoutingProfileAdminIn(BaseModel):
+    code: str = Field(min_length=2, max_length=80)
+    document_type: str = Field(min_length=2, max_length=80)
+    description: str | None = None
+    suggested_destination: Literal["recipe", "expense", "supplier_invoice"] | None = None
+    required_groups: list[list[str]] = Field(default_factory=list)
+    support_fields: list[str] = Field(default_factory=list)
+    explanation_fields: list[str] = Field(default_factory=list)
+    blocked: bool = False
+    confidence_threshold: float = Field(default=0.8, ge=0, le=1)
+    active: bool = True
+
+
+class RoutingProfileAdminOut(BaseModel):
+    id: UUID
+    code: str
+    document_type: str
+    description: str | None = None
+    suggested_destination: Literal["recipe", "expense", "supplier_invoice"] | None = None
+    required_groups: list[list[str]] = Field(default_factory=list)
+    support_fields: list[str] = Field(default_factory=list)
+    explanation_fields: list[str] = Field(default_factory=list)
+    blocked: bool = False
+    confidence_threshold: float = Field(ge=0, le=1)
+    active: bool = True
+
+    model_config = {"from_attributes": True}
+
+
+class RoutingRuleAdminIn(BaseModel):
+    scope_kind: Literal["system", "sector", "tenant"]
+    tenant_id: UUID | None = None
+    sector: str | None = Field(default=None, max_length=100)
+    source_kind: Literal["doc_type", "category"]
+    source_key: str = Field(min_length=1, max_length=80)
+    profile_code: str = Field(min_length=2, max_length=80)
+    priority: int = Field(default=100, ge=0, le=10000)
+    active: bool = True
+
+
+class RoutingRuleAdminOut(BaseModel):
+    id: UUID
+    scope_kind: Literal["system", "sector", "tenant"]
+    tenant_id: UUID | None = None
+    sector: str | None = None
+    source_kind: Literal["doc_type", "category"]
+    source_key: str
+    profile_code: str
+    priority: int
+    active: bool = True
+
+    model_config = {"from_attributes": True}
+
+
+class RoutingPreviewRequest(BaseModel):
+    scope_kind: Literal["system", "sector", "tenant"] = "system"
+    document_id: UUID | None = None
+    tenant_id: UUID | None = None
+    sector: str | None = Field(default=None, max_length=100)
+    source_doc_type: str | None = Field(default=None, max_length=120)
+    source_category: str | None = Field(default=None, max_length=120)
+    ai_confidence: float = Field(default=0.85, ge=0, le=1)
+    extracted_data: dict = Field(default_factory=dict)
+    canonical_fields: dict = Field(default_factory=dict)
+    requires_review: bool = False
+    destination_override: Literal["recipe", "expense", "supplier_invoice"] | None = None
+
+
+class RoutingPreviewResponse(BaseModel):
+    decision: DocumentRoutingDecision
+    profile_code: str
+    matched_by: str
+    matched_scope: Literal["destination_override", "tenant", "sector", "system", "fallback"]
+    rule_source_kind: Literal["doc_type", "category"] | None = None
+    rule_source_key: str | None = None
+    resolved_sector: str
+    document_id: UUID | None = None
+    document_name: str | None = None
+    tenant_id: UUID | None = None
+
+
+class RoutingPreviewDocumentOut(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    nombre_archivo: str
+    tipo_documento_detectado: str | None = None
+    estado: str
+    created_at: datetime
+    proveedor_detectado: str | None = None
+    monto_total: float | None = None
+
+    model_config = {"from_attributes": True}

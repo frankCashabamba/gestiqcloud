@@ -1,0 +1,1093 @@
+import React, { useEffect, useMemo, useState } from 'react'
+
+import { getErrorMessage, useToast } from '../../shared/toast'
+import {
+  createRoutingProfile,
+  createRoutingRule,
+  deleteRoutingProfile,
+  deleteRoutingRule,
+  listRoutingProfiles,
+  listRoutingPreviewDocuments,
+  listRoutingRules,
+  previewRouting,
+  type RoutingDestination,
+  type RoutingPreviewDocument,
+  type RoutingPreviewPayload,
+  type RoutingPreviewResponse,
+  type RoutingProfile,
+  type RoutingProfilePayload,
+  type RoutingRule,
+  type RoutingRulePayload,
+  type RoutingScopeKind,
+  updateRoutingProfile,
+  updateRoutingRule,
+} from '../../services/configuracion/importador-routing'
+import { getEmpresas } from '../../services/empresa'
+import '../../pages/admin-panel.css'
+import './importador-routing.css'
+
+type ProfileFormState = {
+  code: string
+  document_type: string
+  description: string
+  suggested_destination: RoutingDestination | ''
+  required_groups_text: string
+  support_fields_text: string
+  explanation_fields_text: string
+  blocked: boolean
+  confidence_threshold: string
+  active: boolean
+}
+
+type RuleFormState = {
+  scope_kind: RoutingScopeKind
+  tenant_id: string
+  sector: string
+  source_kind: 'doc_type' | 'category'
+  source_key: string
+  profile_code: string
+  priority: string
+  active: boolean
+}
+
+type PreviewFormState = {
+  document_id: string
+  scope_kind: RoutingScopeKind
+  tenant_id: string
+  sector: string
+  source_doc_type: string
+  source_category: string
+  ai_confidence: string
+  destination_override: RoutingDestination | ''
+  requires_review: boolean
+  extracted_data_text: string
+  canonical_fields_text: string
+}
+
+type AdminCompanyOption = {
+  id: string
+  name: string
+  slug: string
+}
+
+type PreviewPreset = {
+  key: string
+  label: string
+  description: string
+  patch: Partial<PreviewFormState>
+}
+
+const PROFILE_DEFAULTS: ProfileFormState = {
+  code: '',
+  document_type: '',
+  description: '',
+  suggested_destination: '',
+  required_groups_text: 'issue_date\ntotal_amount',
+  support_fields_text: '',
+  explanation_fields_text: '',
+  blocked: false,
+  confidence_threshold: '0.80',
+  active: true,
+}
+
+const RULE_DEFAULTS: RuleFormState = {
+  scope_kind: 'system',
+  tenant_id: '',
+  sector: '',
+  source_kind: 'doc_type',
+  source_key: '',
+  profile_code: '',
+  priority: '100',
+  active: true,
+}
+
+const PREVIEW_DEFAULTS: PreviewFormState = {
+  document_id: '',
+  scope_kind: 'system',
+  tenant_id: '',
+  sector: '',
+  source_doc_type: 'INVOICE',
+  source_category: '',
+  ai_confidence: '0.90',
+  destination_override: '',
+  requires_review: false,
+  extracted_data_text: '{\n  "vendor": "Proveedor Demo",\n  "issue_date": "2026-03-27",\n  "total_amount": 125.5,\n  "concept": "Mantenimiento"\n}',
+  canonical_fields_text: '{\n  "doc_number": "A-1023"\n}',
+}
+
+const PREVIEW_PRESETS: PreviewPreset[] = [
+  {
+    key: 'supplier_invoice',
+    label: 'Factura proveedor',
+    description: 'Proveedor, fecha, subtotal, IVA y total.',
+    patch: {
+      source_doc_type: 'INVOICE',
+      source_category: 'invoice',
+      destination_override: '',
+      extracted_data_text:
+        '{\n  "vendor": "Proveedor Demo",\n  "vendor_tax_id": "A12345678",\n  "issue_date": "2026-03-27",\n  "subtotal": 100,\n  "tax_amount": 21,\n  "total_amount": 121\n}',
+      canonical_fields_text: '{\n  "doc_number": "F-2026-001"\n}',
+    },
+  },
+  {
+    key: 'expense_receipt',
+    label: 'Ticket gasto',
+    description: 'Gasto simple con concepto y total.',
+    patch: {
+      source_doc_type: 'RECEIPT',
+      source_category: 'receipt',
+      destination_override: 'expense',
+      extracted_data_text:
+        '{\n  "vendor": "Gasolinera Centro",\n  "issue_date": "2026-03-27",\n  "total_amount": 42.75,\n  "concept": "Combustible"\n}',
+      canonical_fields_text: '{\n  "doc_number": "TK-8891"\n}',
+    },
+  },
+  {
+    key: 'recipe_sheet',
+    label: 'Ficha receta',
+    description: 'Receta o escandallo con lineas.',
+    patch: {
+      source_doc_type: 'RECIPE_SHEET',
+      source_category: 'recipe',
+      destination_override: 'recipe',
+      extracted_data_text:
+        '{\n  "rows": 4,\n  "line_items": [\n    { "name": "Harina", "qty": 1.5, "unit": "kg" },\n    { "name": "Agua", "qty": 0.9, "unit": "l" }\n  ]\n}',
+      canonical_fields_text: '{\n  "doc_number": "REC-001"\n}',
+    },
+  },
+]
+
+function parseCsvLike(value: string): string[] {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function parseRequiredGroups(text: string): string[][] {
+  return text
+    .split('\n')
+    .map((line) =>
+      line
+        .split('|')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+    .filter((group) => group.length > 0)
+}
+
+function stringifyRequiredGroups(groups: string[][]): string {
+  return groups.map((group) => group.join(' | ')).join('\n')
+}
+
+function parseJsonObject(text: string, fieldName: string): Record<string, unknown> {
+  const trimmed = text.trim()
+  if (!trimmed) return {}
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      throw new Error(`${fieldName} debe ser un objeto JSON`)
+    }
+    return parsed as Record<string, unknown>
+  } catch (error: any) {
+    throw new Error(`${fieldName}: ${error?.message || 'JSON invalido'}`)
+  }
+}
+
+function stringifyFields(fields: string[]): string {
+  return fields.join(', ')
+}
+
+function buildProfilePayload(form: ProfileFormState): RoutingProfilePayload {
+  return {
+    code: form.code.trim().toLowerCase(),
+    document_type: form.document_type.trim(),
+    description: form.description.trim() || null,
+    suggested_destination: form.suggested_destination || null,
+    required_groups: parseRequiredGroups(form.required_groups_text),
+    support_fields: parseCsvLike(form.support_fields_text),
+    explanation_fields: parseCsvLike(form.explanation_fields_text),
+    blocked: form.blocked,
+    confidence_threshold: Number(form.confidence_threshold || '0.8'),
+    active: form.active,
+  }
+}
+
+function buildRulePayload(form: RuleFormState): RoutingRulePayload {
+  return {
+    scope_kind: form.scope_kind,
+    tenant_id: form.scope_kind === 'tenant' ? form.tenant_id.trim() || null : null,
+    sector: form.scope_kind === 'sector' ? form.sector.trim() || null : null,
+    source_kind: form.source_kind,
+    source_key: form.source_key.trim().toUpperCase(),
+    profile_code: form.profile_code.trim().toLowerCase(),
+    priority: Number(form.priority || '100'),
+    active: form.active,
+  }
+}
+
+function buildPreviewPayload(form: PreviewFormState): RoutingPreviewPayload {
+  return {
+    document_id: form.document_id.trim() || null,
+    scope_kind: form.scope_kind,
+    tenant_id: form.scope_kind === 'tenant' ? form.tenant_id.trim() || null : null,
+    sector: form.scope_kind === 'sector' ? form.sector.trim() || null : null,
+    source_doc_type: form.source_doc_type.trim() || null,
+    source_category: form.source_category.trim() || null,
+    ai_confidence: Number(form.ai_confidence || '0.9'),
+    extracted_data: parseJsonObject(form.extracted_data_text, 'Extracted data'),
+    canonical_fields: parseJsonObject(form.canonical_fields_text, 'Canonical fields'),
+    requires_review: form.requires_review,
+    destination_override: form.destination_override || null,
+  }
+}
+
+function profileToForm(profile: RoutingProfile): ProfileFormState {
+  return {
+    code: profile.code,
+    document_type: profile.document_type,
+    description: profile.description || '',
+    suggested_destination: profile.suggested_destination || '',
+    required_groups_text: stringifyRequiredGroups(profile.required_groups),
+    support_fields_text: stringifyFields(profile.support_fields),
+    explanation_fields_text: stringifyFields(profile.explanation_fields),
+    blocked: profile.blocked,
+    confidence_threshold: String(profile.confidence_threshold),
+    active: profile.active,
+  }
+}
+
+function ruleToForm(rule: RoutingRule): RuleFormState {
+  return {
+    scope_kind: rule.scope_kind,
+    tenant_id: rule.tenant_id || '',
+    sector: rule.sector || '',
+    source_kind: rule.source_kind,
+    source_key: rule.source_key,
+    profile_code: rule.profile_code,
+    priority: String(rule.priority),
+    active: rule.active,
+  }
+}
+
+function StatCard({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="routing-stat-card rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="mt-1 text-sm text-slate-500">{helper}</div>
+    </div>
+  )
+}
+
+function normalizeCompanyOption(input: any): AdminCompanyOption | null {
+  const id = String(input?.id ?? '').trim()
+  const name = String(input?.name ?? input?.nombre ?? '').trim()
+  if (!id || !name) return null
+  return {
+    id,
+    name,
+    slug: String(input?.slug ?? '').trim(),
+  }
+}
+
+export default function ImportadorRoutingManager() {
+  const [profiles, setProfiles] = useState<RoutingProfile[]>([])
+  const [rules, setRules] = useState<RoutingRule[]>([])
+  const [companies, setCompanies] = useState<AdminCompanyOption[]>([])
+  const [previewDocuments, setPreviewDocuments] = useState<RoutingPreviewDocument[]>([])
+  const [loading, setLoading] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingRule, setSavingRule] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [scopeFilter, setScopeFilter] = useState<RoutingScopeKind | ''>('')
+  const [profileForm, setProfileForm] = useState<ProfileFormState>(PROFILE_DEFAULTS)
+  const [ruleForm, setRuleForm] = useState<RuleFormState>(RULE_DEFAULTS)
+  const [previewForm, setPreviewForm] = useState<PreviewFormState>(PREVIEW_DEFAULTS)
+  const [previewResult, setPreviewResult] = useState<RoutingPreviewResponse | null>(null)
+  const [companyQuery, setCompanyQuery] = useState('')
+  const [documentQuery, setDocumentQuery] = useState('')
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [editingProfileCode, setEditingProfileCode] = useState<string | null>(null)
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
+  const { success, error: toastError } = useToast()
+
+  const loadAll = async (currentScope: RoutingScopeKind | '' = scopeFilter) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const [profilesData, rulesData, companiesData] = await Promise.all([
+        listRoutingProfiles(),
+        listRoutingRules(currentScope),
+        getEmpresas(),
+      ])
+      setProfiles(profilesData)
+      setRules(rulesData)
+      setCompanies(
+        (Array.isArray(companiesData) ? companiesData : [])
+          .map(normalizeCompanyOption)
+          .filter((item): item is AdminCompanyOption => Boolean(item))
+      )
+    } catch (err: any) {
+      const message = getErrorMessage(err)
+      setError(message)
+      toastError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadAll(scopeFilter)
+  }, [scopeFilter])
+
+  useEffect(() => {
+    let cancelled = false
+    const tenantId = previewForm.scope_kind === 'tenant' ? previewForm.tenant_id.trim() : ''
+    if (!tenantId) {
+      setPreviewDocuments([])
+      return
+    }
+    ;(async () => {
+      try {
+        setDocumentsLoading(true)
+        const items = await listRoutingPreviewDocuments(tenantId, documentQuery)
+        if (!cancelled) {
+          setPreviewDocuments(items)
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          toastError(getErrorMessage(err))
+          setPreviewDocuments([])
+        }
+      } finally {
+        if (!cancelled) {
+          setDocumentsLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [previewForm.scope_kind, previewForm.tenant_id, documentQuery])
+
+  const systemRules = useMemo(() => rules.filter((rule) => rule.scope_kind === 'system').length, [rules])
+  const sectorRules = useMemo(() => rules.filter((rule) => rule.scope_kind === 'sector').length, [rules])
+  const tenantRules = useMemo(() => rules.filter((rule) => rule.scope_kind === 'tenant').length, [rules])
+  const filteredCompanies = useMemo(() => {
+    const q = companyQuery.trim().toLowerCase()
+    const base = q
+      ? companies.filter((company) =>
+          [company.name, company.slug, company.id].some((value) =>
+            String(value || '')
+              .toLowerCase()
+              .includes(q)
+          )
+        )
+      : companies
+    return base.slice(0, 8)
+  }, [companies, companyQuery])
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === previewForm.tenant_id) || null,
+    [companies, previewForm.tenant_id]
+  )
+
+  const onSubmitProfile = async (event: React.FormEvent) => {
+    event.preventDefault()
+    try {
+      setSavingProfile(true)
+      const payload = buildProfilePayload(profileForm)
+      if (editingProfileCode) {
+        await updateRoutingProfile(editingProfileCode, payload)
+        success('Perfil de routing actualizado')
+      } else {
+        await createRoutingProfile(payload)
+        success('Perfil de routing creado')
+      }
+      setProfileForm(PROFILE_DEFAULTS)
+      setEditingProfileCode(null)
+      await loadAll()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const onSubmitRule = async (event: React.FormEvent) => {
+    event.preventDefault()
+    try {
+      setSavingRule(true)
+      const payload = buildRulePayload(ruleForm)
+      if (editingRuleId) {
+        await updateRoutingRule(editingRuleId, payload)
+        success('Regla de routing actualizada')
+      } else {
+        await createRoutingRule(payload)
+        success('Regla de routing creada')
+      }
+      setRuleForm(RULE_DEFAULTS)
+      setEditingRuleId(null)
+      await loadAll()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    } finally {
+      setSavingRule(false)
+    }
+  }
+
+  const onSubmitPreview = async (event: React.FormEvent) => {
+    event.preventDefault()
+    try {
+      setPreviewing(true)
+      const payload = buildPreviewPayload(previewForm)
+      const result = await previewRouting(payload)
+      setPreviewResult(result)
+      success('Preview de routing actualizado')
+    } catch (err: any) {
+      setPreviewResult(null)
+      toastError(getErrorMessage(err))
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
+  const applyPreviewPreset = (preset: PreviewPreset) => {
+    setPreviewForm((prev) => ({
+      ...prev,
+      document_id: '',
+      ...preset.patch,
+    }))
+    setPreviewResult(null)
+  }
+
+  const selectPreviewTenant = (company: AdminCompanyOption) => {
+    setPreviewForm((prev) => ({
+      ...prev,
+      scope_kind: 'tenant',
+      tenant_id: company.id,
+      document_id: '',
+    }))
+    setCompanyQuery(company.name)
+    setDocumentQuery('')
+    setPreviewDocuments([])
+    setPreviewResult(null)
+  }
+
+  const selectPreviewDocument = (doc: RoutingPreviewDocument) => {
+    setPreviewForm((prev) => ({
+      ...prev,
+      scope_kind: 'tenant',
+      tenant_id: doc.tenant_id,
+      document_id: doc.id,
+    }))
+    setPreviewResult(null)
+  }
+
+  return (
+    <div className="admin-container routing-admin">
+      <div className="admin-header-bar">
+        <div>
+          <h1 className="admin-title">Routing documental</h1>
+          <p className="admin-subtitle">
+          Administra perfiles y reglas del importador desde base de datos. La precedencia operativa es tenant, luego sector y por último sistema.
+        </p>
+        </div>
+        <button type="button" className="admin-refresh" onClick={() => void loadAll(scopeFilter)} disabled={loading}>
+          {loading ? 'Recargando...' : 'Recargar'}
+        </button>
+      </div>
+
+      <div className="routing-stats">
+        <StatCard label="Perfiles" value={String(profiles.length)} helper="Comportamientos reutilizables" />
+        <StatCard label="Reglas sistema" value={String(systemRules)} helper="Base global" />
+        <StatCard label="Reglas sector" value={String(sectorRules)} helper="Especialización por sector" />
+        <StatCard label="Reglas tenant" value={String(tenantRules)} helper="Overrides específicos" />
+      </div>
+
+      {error && <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {loading && <div className="mb-4 text-sm text-slate-500">Cargando configuración…</div>}
+
+      <section className="routing-preview-panel">
+        <div className="routing-preview-header">
+          <div>
+            <h2 className="routing-preview-title">Preview de resolucion</h2>
+            <p className="routing-preview-subtitle">
+              Prueba un `doc_type` y algunos campos antes de guardar reglas nuevas. El resultado usa el mismo resolver del backend.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="routing-secondary-button"
+            onClick={() => {
+              setPreviewForm(PREVIEW_DEFAULTS)
+              setPreviewResult(null)
+              setCompanyQuery('')
+              setDocumentQuery('')
+            }}
+          >
+            Resetear preview
+          </button>
+        </div>
+
+        <div className="routing-preset-row">
+          {PREVIEW_PRESETS.map((preset) => (
+            <button
+              key={preset.key}
+              type="button"
+              className="routing-preset-button"
+              onClick={() => applyPreviewPreset(preset)}
+              title={preset.description}
+            >
+              <span className="routing-preset-button__label">{preset.label}</span>
+              <span className="routing-preset-button__desc">{preset.description}</span>
+            </button>
+          ))}
+        </div>
+
+        <form className="routing-preview-grid" onSubmit={onSubmitPreview}>
+          <div className="routing-form">
+            <div className="routing-preview-fields">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Scope</div>
+                <select value={previewForm.scope_kind} onChange={(e) => setPreviewForm((prev) => ({ ...prev, scope_kind: e.target.value as RoutingScopeKind }))}>
+                  <option value="system">system</option>
+                  <option value="sector">sector</option>
+                  <option value="tenant">tenant</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Source doc type</div>
+                <input value={previewForm.source_doc_type} onChange={(e) => setPreviewForm((prev) => ({ ...prev, source_doc_type: e.target.value.toUpperCase() }))} placeholder="INVOICE" />
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Source category opcional</div>
+                <input value={previewForm.source_category} onChange={(e) => setPreviewForm((prev) => ({ ...prev, source_category: e.target.value }))} placeholder="invoice" />
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">AI confidence</div>
+                <input type="number" min="0" max="1" step="0.01" value={previewForm.ai_confidence} onChange={(e) => setPreviewForm((prev) => ({ ...prev, ai_confidence: e.target.value }))} />
+              </label>
+            </div>
+
+            {previewForm.scope_kind === 'sector' && (
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Sector</div>
+                <input value={previewForm.sector} onChange={(e) => setPreviewForm((prev) => ({ ...prev, sector: e.target.value }))} placeholder="panaderia" />
+              </label>
+            )}
+            {previewForm.scope_kind === 'tenant' && (
+              <div className="routing-tenant-picker">
+                <label className="text-sm">
+                  <div className="mb-1 font-medium text-slate-700">Buscar tenant</div>
+                  <input
+                    value={companyQuery}
+                    onChange={(e) => setCompanyQuery(e.target.value)}
+                    placeholder="Busca por nombre, slug o UUID"
+                  />
+                </label>
+                <label className="text-sm">
+                  <div className="mb-1 font-medium text-slate-700">Tenant UUID</div>
+                  <input value={previewForm.tenant_id} onChange={(e) => setPreviewForm((prev) => ({ ...prev, tenant_id: e.target.value }))} placeholder="00000000-0000-0000-0000-000000000000" />
+                </label>
+                {selectedCompany && (
+                  <div className="routing-selected-company">
+                    <strong>{selectedCompany.name}</strong>
+                    <span>{selectedCompany.slug || selectedCompany.id}</span>
+                  </div>
+                )}
+                <div className="routing-company-list">
+                  {filteredCompanies.map((company) => (
+                    <button
+                      key={company.id}
+                      type="button"
+                      className={`routing-company-item ${previewForm.tenant_id === company.id ? 'routing-company-item--active' : ''}`}
+                      onClick={() => selectPreviewTenant(company)}
+                    >
+                      <span className="routing-company-item__name">{company.name}</span>
+                      <span className="routing-company-item__meta">{company.slug || company.id}</span>
+                    </button>
+                  ))}
+                  {filteredCompanies.length === 0 && (
+                    <div className="routing-preview-empty">No hay tenants que coincidan con la búsqueda.</div>
+                  )}
+                </div>
+                {previewForm.tenant_id && (
+                  <div className="routing-document-picker">
+                    <div className="routing-document-picker__header">
+                      <strong>Documentos reales recientes</strong>
+                      <input
+                        value={documentQuery}
+                        onChange={(e) => setDocumentQuery(e.target.value)}
+                        placeholder="Filtra por archivo, proveedor o tipo"
+                      />
+                    </div>
+                    <div className="routing-document-list">
+                      {previewDocuments.map((doc) => (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          className={`routing-document-item ${previewForm.document_id === doc.id ? 'routing-document-item--active' : ''}`}
+                          onClick={() => selectPreviewDocument(doc)}
+                        >
+                          <span className="routing-document-item__name">{doc.nombre_archivo}</span>
+                          <span className="routing-document-item__meta">
+                            {doc.tipo_documento_detectado || 'OTRO'} | {doc.proveedor_detectado || 'sin proveedor'} | {doc.monto_total ?? '-'}
+                          </span>
+                        </button>
+                      ))}
+                      {documentsLoading && <div className="routing-preview-empty">Cargando documentos...</div>}
+                      {!documentsLoading && previewDocuments.length === 0 && (
+                        <div className="routing-preview-empty">No hay documentos disponibles para este tenant.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="routing-preview-fields">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Destino override</div>
+                <select value={previewForm.destination_override} onChange={(e) => setPreviewForm((prev) => ({ ...prev, destination_override: e.target.value as RoutingDestination | '' }))}>
+                  <option value="">Sin override</option>
+                  <option value="supplier_invoice">supplier_invoice</option>
+                  <option value="expense">expense</option>
+                  <option value="recipe">recipe</option>
+                </select>
+              </label>
+              <label className="routing-checkbox">
+                <input type="checkbox" checked={previewForm.requires_review} onChange={(e) => setPreviewForm((prev) => ({ ...prev, requires_review: e.target.checked }))} />
+                Forzar requires_review
+              </label>
+            </div>
+
+            <div className="routing-preview-fields routing-preview-fields--json">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Extracted data JSON</div>
+                <textarea value={previewForm.extracted_data_text} onChange={(e) => setPreviewForm((prev) => ({ ...prev, extracted_data_text: e.target.value }))} />
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Canonical fields JSON</div>
+                <textarea value={previewForm.canonical_fields_text} onChange={(e) => setPreviewForm((prev) => ({ ...prev, canonical_fields_text: e.target.value }))} />
+              </label>
+            </div>
+
+            {previewForm.document_id && (
+              <div className="routing-selected-company">
+                <strong>Preview desde documento real activo</strong>
+                <span>Se usaran los datos persistidos del documento seleccionado. El JSON manual queda como referencia hasta limpiar la seleccion.</span>
+              </div>
+            )}
+
+            <div className="routing-preview-actions">
+              <button type="submit" disabled={previewing}>
+                {previewing ? 'Resolviendo...' : 'Ejecutar preview'}
+              </button>
+            </div>
+          </div>
+
+          <div className="routing-preview-result">
+            {previewResult ? (
+              <>
+                <div className="routing-preview-result__header">
+                  <div>
+                    <div className="routing-preview-badge">{previewResult.matched_scope}</div>
+                    <h3>Perfil resuelto: {previewResult.profile_code}</h3>
+                  </div>
+                  <div className={`routing-confidence ${previewResult.decision.needs_human_review ? 'routing-confidence--warn' : 'routing-confidence--ok'}`}>
+                    {Math.round(previewResult.decision.confidence * 100)}%
+                  </div>
+                </div>
+
+                <div className="routing-preview-kv">
+                  {previewResult.document_name && <div><strong>Documento:</strong> {previewResult.document_name}</div>}
+                  <div><strong>Matched by:</strong> {previewResult.matched_by}</div>
+                  <div><strong>Rule source:</strong> {previewResult.rule_source_kind || '-'} {previewResult.rule_source_key || ''}</div>
+                  <div><strong>Sector resuelto:</strong> {previewResult.resolved_sector}</div>
+                  <div><strong>Document type final:</strong> {previewResult.decision.document_type}</div>
+                  <div><strong>Destino sugerido:</strong> {previewResult.decision.suggested_destination || 'manual'}</div>
+                  <div><strong>Categoria detectada:</strong> {previewResult.decision.source_category || '-'}</div>
+                </div>
+
+                <div className="routing-preview-reason">
+                  <strong>Razon:</strong> {previewResult.decision.reason}
+                </div>
+
+                <div className="routing-preview-flags">
+                  <span className={previewResult.decision.required_fields_ok ? 'routing-flag routing-flag--ok' : 'routing-flag routing-flag--warn'}>
+                    {previewResult.decision.required_fields_ok ? 'Required fields OK' : 'Required fields missing'}
+                  </span>
+                  <span className={previewResult.decision.needs_human_review ? 'routing-flag routing-flag--warn' : 'routing-flag routing-flag--ok'}>
+                    {previewResult.decision.needs_human_review ? 'Needs human review' : 'Auto review passed'}
+                  </span>
+                </div>
+
+                <div>
+                  <strong>Missing fields:</strong>
+                  {previewResult.decision.missing_fields.length > 0 ? (
+                    <ul className="routing-preview-list">
+                      {previewResult.decision.missing_fields.map((field) => (
+                        <li key={field}>{field}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="routing-preview-empty">No faltan campos obligatorios.</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="routing-preview-empty">
+                Ejecuta un preview para ver que perfil, regla y decision se aplicarian con la configuracion actual.
+              </div>
+            )}
+          </div>
+        </form>
+      </section>
+
+      <div className="routing-columns">
+        <section className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h4 className="text-lg font-semibold text-slate-900">Perfiles</h4>
+              <p className="text-sm text-slate-500">Definen campos obligatorios, score y destino sugerido.</p>
+            </div>
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => {
+                setEditingProfileCode(null)
+                setProfileForm(PROFILE_DEFAULTS)
+              }}
+            >
+              Nuevo perfil
+            </button>
+          </div>
+
+          <form className="routing-form mb-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4" onSubmit={onSubmitProfile}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Código</div>
+                <input className="w-full rounded border px-3 py-2" value={profileForm.code} onChange={(e) => setProfileForm((prev) => ({ ...prev, code: e.target.value }))} placeholder="supplier_invoice" />
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Document type final</div>
+                <input className="w-full rounded border px-3 py-2" value={profileForm.document_type} onChange={(e) => setProfileForm((prev) => ({ ...prev, document_type: e.target.value }))} placeholder="supplier_invoice" />
+              </label>
+            </div>
+
+            <label className="text-sm">
+              <div className="mb-1 font-medium text-slate-700">Descripción</div>
+              <input className="w-full rounded border px-3 py-2" value={profileForm.description} onChange={(e) => setProfileForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Facturas de proveedor listas para compras" />
+            </label>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Destino sugerido</div>
+                <select className="w-full rounded border px-3 py-2" value={profileForm.suggested_destination} onChange={(e) => setProfileForm((prev) => ({ ...prev, suggested_destination: e.target.value as RoutingDestination | '' }))}>
+                  <option value="">Sin destino automático</option>
+                  <option value="supplier_invoice">supplier_invoice</option>
+                  <option value="expense">expense</option>
+                  <option value="recipe">recipe</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Umbral de confianza</div>
+                <input type="number" min="0" max="1" step="0.01" className="w-full rounded border px-3 py-2" value={profileForm.confidence_threshold} onChange={(e) => setProfileForm((prev) => ({ ...prev, confidence_threshold: e.target.value }))} />
+              </label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Required groups</div>
+                <textarea className="min-h-[110px] w-full rounded border px-3 py-2 font-mono text-xs" value={profileForm.required_groups_text} onChange={(e) => setProfileForm((prev) => ({ ...prev, required_groups_text: e.target.value }))} />
+                <div className="mt-1 text-xs text-slate-500">Una línea por grupo. Usa `campo_a | campo_b` para OR.</div>
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Support fields</div>
+                <textarea className="min-h-[110px] w-full rounded border px-3 py-2 font-mono text-xs" value={profileForm.support_fields_text} onChange={(e) => setProfileForm((prev) => ({ ...prev, support_fields_text: e.target.value }))} />
+                <div className="mt-1 text-xs text-slate-500">Separados por coma o salto de línea.</div>
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Explanation fields</div>
+                <textarea className="min-h-[110px] w-full rounded border px-3 py-2 font-mono text-xs" value={profileForm.explanation_fields_text} onChange={(e) => setProfileForm((prev) => ({ ...prev, explanation_fields_text: e.target.value }))} />
+                <div className="mt-1 text-xs text-slate-500">Campos usados para la razón corta en UI.</div>
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={profileForm.blocked} onChange={(e) => setProfileForm((prev) => ({ ...prev, blocked: e.target.checked }))} />
+                Bloqueado para guardado automático
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={profileForm.active} onChange={(e) => setProfileForm((prev) => ({ ...prev, active: e.target.checked }))} />
+                Activo
+              </label>
+            </div>
+
+            <div className="flex gap-3">
+              <button disabled={savingProfile} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+                {savingProfile ? 'Guardando…' : editingProfileCode ? 'Actualizar perfil' : 'Crear perfil'}
+              </button>
+              {editingProfileCode && (
+                <button
+                  type="button"
+                  className="rounded border border-slate-300 px-4 py-2 text-sm"
+                  onClick={() => {
+                    setEditingProfileCode(null)
+                    setProfileForm(PROFILE_DEFAULTS)
+                  }}
+                >
+                  Cancelar edición
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-slate-200 text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-3 py-2 text-left">Código</th>
+                  <th className="px-3 py-2 text-left">Tipo final</th>
+                  <th className="px-3 py-2 text-left">Destino</th>
+                  <th className="px-3 py-2 text-left">Threshold</th>
+                  <th className="px-3 py-2 text-left">Estado</th>
+                  <th className="px-3 py-2 text-left">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {profiles.map((profile) => (
+                  <tr key={profile.id} className="border-t">
+                    <td className="px-3 py-2 font-medium text-slate-900">{profile.code}</td>
+                    <td className="px-3 py-2">{profile.document_type}</td>
+                    <td className="px-3 py-2">{profile.suggested_destination || 'manual'}</td>
+                    <td className="px-3 py-2">{profile.confidence_threshold.toFixed(2)}</td>
+                    <td className="px-3 py-2">
+                      {!profile.active ? 'Inactivo' : profile.blocked ? 'Bloqueado' : 'Activo'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:underline"
+                          onClick={() => {
+                            setEditingProfileCode(profile.code)
+                            setProfileForm(profileToForm(profile))
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-red-700 hover:underline"
+                          onClick={async () => {
+                            if (!window.confirm(`¿Eliminar perfil ${profile.code}?`)) return
+                            try {
+                              await deleteRoutingProfile(profile.code)
+                              success('Perfil eliminado')
+                              if (editingProfileCode === profile.code) {
+                                setEditingProfileCode(null)
+                                setProfileForm(PROFILE_DEFAULTS)
+                              }
+                              await loadAll()
+                            } catch (err: any) {
+                              toastError(getErrorMessage(err))
+                            }
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!loading && profiles.length === 0 && (
+                  <tr>
+                    <td className="px-3 py-4 text-slate-500" colSpan={6}>No hay perfiles cargados.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h4 className="text-lg font-semibold text-slate-900">Reglas</h4>
+              <p className="text-sm text-slate-500">Resuelven doc_type o category hacia un perfil.</p>
+            </div>
+            <div className="flex gap-2">
+              <select className="rounded border px-3 py-2 text-sm" value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as RoutingScopeKind | '')}>
+                <option value="">Todos los scopes</option>
+                <option value="system">Sistema</option>
+                <option value="sector">Sector</option>
+                <option value="tenant">Tenant</option>
+              </select>
+              <button
+                type="button"
+                className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  setEditingRuleId(null)
+                  setRuleForm(RULE_DEFAULTS)
+                }}
+              >
+                Nueva regla
+              </button>
+            </div>
+          </div>
+
+          <form className="routing-form mb-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4" onSubmit={onSubmitRule}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Scope</div>
+                <select className="w-full rounded border px-3 py-2" value={ruleForm.scope_kind} onChange={(e) => setRuleForm((prev) => ({ ...prev, scope_kind: e.target.value as RoutingScopeKind }))}>
+                  <option value="system">system</option>
+                  <option value="sector">sector</option>
+                  <option value="tenant">tenant</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Source kind</div>
+                <select className="w-full rounded border px-3 py-2" value={ruleForm.source_kind} onChange={(e) => setRuleForm((prev) => ({ ...prev, source_kind: e.target.value as 'doc_type' | 'category' }))}>
+                  <option value="doc_type">doc_type</option>
+                  <option value="category">category</option>
+                </select>
+              </label>
+            </div>
+
+            {ruleForm.scope_kind === 'sector' && (
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Sector</div>
+                <input className="w-full rounded border px-3 py-2" value={ruleForm.sector} onChange={(e) => setRuleForm((prev) => ({ ...prev, sector: e.target.value }))} placeholder="panaderia" />
+              </label>
+            )}
+            {ruleForm.scope_kind === 'tenant' && (
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Tenant UUID</div>
+                <input className="w-full rounded border px-3 py-2 font-mono text-xs" value={ruleForm.tenant_id} onChange={(e) => setRuleForm((prev) => ({ ...prev, tenant_id: e.target.value }))} placeholder="00000000-0000-0000-0000-000000000000" />
+              </label>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Source key</div>
+                <input className="w-full rounded border px-3 py-2 font-mono text-sm" value={ruleForm.source_key} onChange={(e) => setRuleForm((prev) => ({ ...prev, source_key: e.target.value.toUpperCase() }))} placeholder="INVOICE" />
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Profile code</div>
+                <select className="w-full rounded border px-3 py-2" value={ruleForm.profile_code} onChange={(e) => setRuleForm((prev) => ({ ...prev, profile_code: e.target.value }))}>
+                  <option value="">Selecciona un perfil</option>
+                  {profiles.map((profile) => (
+                    <option key={profile.id} value={profile.code}>{profile.code}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <div className="mb-1 font-medium text-slate-700">Priority</div>
+                <input type="number" min="0" max="10000" className="w-full rounded border px-3 py-2" value={ruleForm.priority} onChange={(e) => setRuleForm((prev) => ({ ...prev, priority: e.target.value }))} />
+              </label>
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={ruleForm.active} onChange={(e) => setRuleForm((prev) => ({ ...prev, active: e.target.checked }))} />
+              Activa
+            </label>
+
+            <div className="flex gap-3">
+              <button disabled={savingRule} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+                {savingRule ? 'Guardando…' : editingRuleId ? 'Actualizar regla' : 'Crear regla'}
+              </button>
+              {editingRuleId && (
+                <button
+                  type="button"
+                  className="rounded border border-slate-300 px-4 py-2 text-sm"
+                  onClick={() => {
+                    setEditingRuleId(null)
+                    setRuleForm(RULE_DEFAULTS)
+                  }}
+                >
+                  Cancelar edición
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-slate-200 text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-3 py-2 text-left">Scope</th>
+                  <th className="px-3 py-2 text-left">Source</th>
+                  <th className="px-3 py-2 text-left">Profile</th>
+                  <th className="px-3 py-2 text-left">Priority</th>
+                  <th className="px-3 py-2 text-left">Estado</th>
+                  <th className="px-3 py-2 text-left">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rules.map((rule) => (
+                  <tr key={rule.id} className="border-t">
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-slate-900">{rule.scope_kind}</div>
+                      <div className="text-xs text-slate-500">{rule.tenant_id || rule.sector || '_system'}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-mono text-xs text-slate-700">{rule.source_kind}</div>
+                      <div>{rule.source_key}</div>
+                    </td>
+                    <td className="px-3 py-2">{rule.profile_code}</td>
+                    <td className="px-3 py-2">{rule.priority}</td>
+                    <td className="px-3 py-2">{rule.active ? 'Activa' : 'Inactiva'}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:underline"
+                          onClick={() => {
+                            setEditingRuleId(rule.id)
+                            setRuleForm(ruleToForm(rule))
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-red-700 hover:underline"
+                          onClick={async () => {
+                            if (!window.confirm(`¿Eliminar regla ${rule.source_kind}:${rule.source_key}?`)) return
+                            try {
+                              await deleteRoutingRule(rule.id)
+                              success('Regla eliminada')
+                              if (editingRuleId === rule.id) {
+                                setEditingRuleId(null)
+                                setRuleForm(RULE_DEFAULTS)
+                              }
+                              await loadAll()
+                            } catch (err: any) {
+                              toastError(getErrorMessage(err))
+                            }
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!loading && rules.length === 0 && (
+                  <tr>
+                    <td className="px-3 py-4 text-slate-500" colSpan={6}>No hay reglas para el filtro actual.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}

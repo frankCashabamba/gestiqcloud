@@ -6,6 +6,7 @@ export type AdminUsuario = {
   id: string | number
   name?: string | null
   email?: string | null
+  username?: string | null
   is_company_admin?: boolean
   active?: boolean
 }

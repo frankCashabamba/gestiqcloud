@@ -9,6 +9,7 @@ import CategoriaGastoForm from './categorias-gasto/CategoriaGastoForm'
 import CategoriaGastoList from './categorias-gasto/CategoriaGastoList'
 import FieldConfigManager from './FieldConfigManager'
 import ImportCatalog from './ImportCatalog'
+import ImportadorRoutingManager from './ImportadorRoutingManager'
 import HorarioForm from './horarios/HorarioForm'
 import HorarioList from './horarios/HorarioList'
 import IdiomaForm from './idiomas/IdiomaForm'
@@ -165,6 +166,13 @@ function Index() {
             iconSize="sm"
           />
           <AdminCard
+            href="importador-routing"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Routing documental"
+            description="Perfiles y reglas para clasificar, validar y enrutar documentos importados."
+            iconSize="sm"
+          />
+          <AdminCard
             href="unidades-medida"
             iconSrc="/icons/configuracion.jpeg"
             title="Unidades de medida"
@@ -292,6 +300,7 @@ export default function ConfiguracionSistema() {
       <Route path="tipos-documento" element={<TipoDocumentoList />} />
       <Route path="tipos-documento/nuevo" element={<TipoDocumentoForm />} />
       <Route path="tipos-documento/:id/editar" element={<TipoDocumentoForm />} />
+      <Route path="importador-routing" element={<ImportadorRoutingManager />} />
       <Route path="categorias-gasto" element={<CategoriaGastoList />} />
       <Route path="categorias-gasto/nuevo" element={<CategoriaGastoForm />} />
       <Route path="categorias-gasto/:id/editar" element={<CategoriaGastoForm />} />

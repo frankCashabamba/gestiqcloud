@@ -1,24 +1,21 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy.orm import Session
 
 from app.modules.importador.category_loader import classify_doc_type
-from app.modules.importador.document_fields import safe_floatish
+from app.modules.importador.document_fields import detect_document_total, safe_floatish
 from app.modules.importador.schemas import DocumentRoutingDecision
 
-SaveDestination = Literal["recipe", "expense", "supplier_invoice"]
-
-
-@dataclass(frozen=True)
-class RoutingProfile:
-    document_type: str
-    destination: SaveDestination | None
-    required_groups: tuple[tuple[str, ...], ...]
-    support_fields: tuple[str, ...]
-    explanation_fields: tuple[str, ...]
-    blocked: bool = False
-
+from .document_routing_config import (
+    SaveDestination,
+    RoutingProfileConfig,
+    invalidate_document_routing_cache,
+    resolve_routing_profile,
+    resolve_routing_profile_match,
+)
 
 FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
     "vendor": ("vendor", "supplier", "proveedor", "emisor", "supplier_name"),
@@ -52,76 +49,6 @@ FIELD_LABELS: dict[str, str] = {
     "rows": "filas",
 }
 
-ROUTING_PROFILES: dict[str, RoutingProfile] = {
-    "supplier_invoice": RoutingProfile(
-        document_type="supplier_invoice",
-        destination="supplier_invoice",
-        required_groups=(("vendor", "vendor_tax_id"), ("issue_date",), ("total_amount",)),
-        support_fields=("subtotal", "tax_amount", "doc_number", "currency", "line_items"),
-        explanation_fields=("vendor", "issue_date", "subtotal", "tax_amount", "total_amount"),
-    ),
-    "expense": RoutingProfile(
-        document_type="expense",
-        destination="expense",
-        required_groups=(("issue_date",), ("total_amount",), ("concept", "vendor", "doc_number")),
-        support_fields=("tax_amount", "currency", "payment_method"),
-        explanation_fields=("concept", "vendor", "issue_date", "tax_amount", "total_amount"),
-    ),
-    "recipe": RoutingProfile(
-        document_type="recipe",
-        destination="recipe",
-        required_groups=(("rows", "line_items"),),
-        support_fields=("doc_number",),
-        explanation_fields=("rows", "line_items"),
-    ),
-    "inventory": RoutingProfile(
-        document_type="inventory",
-        destination=None,
-        required_groups=(("rows", "line_items"),),
-        support_fields=("doc_number",),
-        explanation_fields=("rows", "line_items"),
-        blocked=True,
-    ),
-    "bank_statement": RoutingProfile(
-        document_type="bank_statement",
-        destination=None,
-        required_groups=(("issue_date",), ("rows", "line_items")),
-        support_fields=("currency",),
-        explanation_fields=("issue_date", "rows"),
-        blocked=True,
-    ),
-    "payroll": RoutingProfile(
-        document_type="payroll",
-        destination=None,
-        required_groups=(("issue_date",), ("rows", "line_items")),
-        support_fields=("total_amount",),
-        explanation_fields=("issue_date", "rows", "total_amount"),
-        blocked=True,
-    ),
-    "other": RoutingProfile(
-        document_type="expense",
-        destination="expense",
-        required_groups=(("issue_date",), ("total_amount",)),
-        support_fields=("concept", "vendor", "tax_amount"),
-        explanation_fields=("concept", "vendor", "issue_date", "total_amount"),
-    ),
-}
-
-CATEGORY_TO_PROFILE_KEY: dict[str, str] = {
-    "invoice": "supplier_invoice",
-    "receipt": "expense",
-    "recipe": "recipe",
-    "inventory": "inventory",
-    "bank": "bank_statement",
-    "payroll": "payroll",
-}
-
-DESTINATION_TO_PROFILE_KEY: dict[SaveDestination, str] = {
-    "supplier_invoice": "supplier_invoice",
-    "expense": "expense",
-    "recipe": "recipe",
-}
-
 
 def _normalized_text(value: Any) -> str | None:
     if value is None:
@@ -153,6 +80,8 @@ def _field_from_sources(
         value = normalized_source.get(candidate.strip().lower())
         if value is not None:
             return value
+    if field_name == "total_amount":
+        return detect_document_total(source, aliases=list(FIELD_CANDIDATES["total_amount"]))
     return None
 
 
@@ -185,7 +114,7 @@ def _has_value(
 
 
 def _build_reason(
-    profile: RoutingProfile,
+    profile: RoutingProfileConfig,
     *,
     missing_fields: list[str],
     extracted_data: dict[str, Any] | None,
@@ -193,9 +122,9 @@ def _build_reason(
 ) -> str:
     if missing_fields:
         readable = ", ".join(FIELD_LABELS.get(field, field) for field in missing_fields[:4])
-        if profile.destination:
+        if profile.suggested_destination:
             return f"Faltan {readable} para guardar como {profile.document_type}."
-        return f"Faltan {readable}; requiere revisión manual."
+        return f"Faltan {readable}; requiere revision manual."
 
     found_fields = [
         FIELD_LABELS.get(field, field)
@@ -209,8 +138,8 @@ def _build_reason(
     if found_fields:
         return f"Contiene {', '.join(found_fields[:5])}."
     if profile.blocked:
-        return "Documento detectado fuera del guardado automatico; requiere revisión manual."
-    return "Documento listo para revisión y guardado."
+        return "Documento detectado fuera del guardado automatico; requiere revision manual."
+    return "Documento listo para revision y guardado."
 
 
 def _fallback_category(
@@ -296,29 +225,38 @@ def _support_ratio(
 def build_document_routing_decision(
     *,
     source_doc_type: str | None,
+    source_category_override: str | None = None,
     ai_confidence: float | None,
     extracted_data: dict[str, Any] | None,
     canonical_document: dict[str, Any] | None,
     category_keywords: dict[str, list[str]] | None,
     requires_review: bool = False,
     destination_override: SaveDestination | None = None,
+    db: Session | None = None,
+    tenant_id: UUID | str | None = None,
+    sector_override: str | None = None,
 ) -> DocumentRoutingDecision:
     source_label = _normalized_text(source_doc_type) or "OTHER"
     normalized_source = source_label.upper()
     category_map = category_keywords or {}
-    source_category = classify_doc_type(normalized_source, category_map)
+    source_category = (_normalized_text(source_category_override) or "").strip().lower()
+    if not source_category:
+        source_category = classify_doc_type(normalized_source, category_map)
     if source_category == "other":
         source_category = _fallback_category(
             extracted_data=extracted_data,
             canonical_document=canonical_document,
         )
 
-    profile_key = (
-        DESTINATION_TO_PROFILE_KEY[destination_override]
-        if destination_override is not None
-        else CATEGORY_TO_PROFILE_KEY.get(source_category, "other")
+    profile, _matched_by = resolve_routing_profile(
+        db=db,
+        tenant_id=tenant_id,
+        sector_override=sector_override,
+        source_doc_type=normalized_source,
+        source_category=source_category,
+        destination_override=destination_override,
     )
-    profile = ROUTING_PROFILES[profile_key]
+
     matched_required, missing_fields = _match_ratio(
         profile.required_groups,
         extracted_data=extracted_data,
@@ -341,7 +279,8 @@ def build_document_routing_decision(
         + (category_bonus * 0.05)
     )
     if missing_fields:
-        confidence = min(confidence, 0.79)
+        confidence = min(confidence, max(profile.confidence_threshold - 0.01, 0.0))
+
     profile_blocked = profile.blocked and destination_override is None
     if profile_blocked:
         confidence = min(confidence, 0.58)
@@ -349,10 +288,7 @@ def build_document_routing_decision(
 
     required_fields_ok = len(missing_fields) == 0
     needs_human_review = (
-        requires_review
-        or profile_blocked
-        or not required_fields_ok
-        or confidence < 0.8
+        requires_review or profile_blocked or not required_fields_ok or confidence < profile.confidence_threshold
     )
 
     return DocumentRoutingDecision(
@@ -360,7 +296,9 @@ def build_document_routing_decision(
         confidence=confidence,
         required_fields_ok=required_fields_ok,
         missing_fields=missing_fields,
-        suggested_destination=None if needs_human_review and profile_blocked else profile.destination,
+        suggested_destination=(
+            None if needs_human_review and profile_blocked else profile.suggested_destination
+        ),
         reason=_build_reason(
             profile,
             missing_fields=missing_fields,
@@ -383,3 +321,11 @@ def parse_document_routing_decision(raw_ai_json: dict[str, Any] | None) -> Docum
         return DocumentRoutingDecision.model_validate(payload)
     except Exception:
         return None
+
+
+__all__ = [
+    "build_document_routing_decision",
+    "invalidate_document_routing_cache",
+    "parse_document_routing_decision",
+    "resolve_routing_profile_match",
+]

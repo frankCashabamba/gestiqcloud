@@ -146,6 +146,7 @@ def _load_all_models():
         "app.models.pos.doc_series",
         # Import models
         "app.models.imports",
+        "app.models.importador",
         # UI config needed by sector rules seeding
         "app.models.core.ui_field_config",
     ]

@@ -880,6 +880,14 @@ except Exception as e:
     _router_logger.warning(f"Importador router mount failed: {e}")
 
 try:
+    from app.modules.importador.admin_router import router as importador_admin_router
+
+    app.include_router(importador_admin_router, prefix="/api/v1")
+    _router_logger.info("Importador admin routing router mounted at /api/v1/admin/importador")
+except Exception as e:
+    _router_logger.warning(f"Importador admin routing router mount failed: {e}")
+
+try:
     from app.modules.importador.recipe_router import router as recipe_router
 
     app.include_router(recipe_router, prefix="/api/v1")

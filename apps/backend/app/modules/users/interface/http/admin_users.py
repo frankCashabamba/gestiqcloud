@@ -43,6 +43,7 @@ def list_users(db: Session = Depends(get_db)):
             "id": str(getattr(u, "id", None)) if hasattr(u, "id") else None,
             "name": full_name or None,
             "email": getattr(u, "email", None),
+            "username": getattr(u, "username", None),
             "is_company_admin": bool(getattr(u, "is_company_admin", False)),
             "active": bool(getattr(u, "is_active", True)),
         }

@@ -229,6 +229,7 @@ function getMatchReasonLabel(reason: string | null | undefined): string {
 
 export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveDocumentModalProps) {
   const [destination, setDestination] = useState<'recipe' | 'expense' | 'supplier_invoice'>('expense')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<DocumentPaymentStatus>('pending')
   const [paymentMethodId, setPaymentMethodId] = useState('')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -282,6 +283,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
       .catch(() => setPaymentMethods([]))
 
     setUpdateStock(false)
+    setShowAdvanced(false)
     setSaveMessage('')
     setLineMatches([])
     setLineMatchSelection({})
@@ -349,6 +351,16 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   const canSaveInvoice = capabilities.purchases || capabilities.invoicing
   const canSaveExpense = capabilities.expenses !== false
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
+  const destinationTitle = destination === 'supplier_invoice'
+    ? 'Factura proveedor'
+    : destination === 'recipe'
+      ? 'Receta'
+      : 'Gasto'
+  const destinationSummary = destination === 'supplier_invoice'
+    ? 'Se guardará en compras o cuentas por pagar.'
+    : destination === 'recipe'
+      ? 'Se guardará como receta lista para producción.'
+      : 'Se registrará en el módulo de gastos.'
   const effectiveLineMatches = lineMatches.length > 0
     ? lineMatches
     : lineItems.map((item, index) => ({
@@ -485,43 +497,21 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
 
         <div style={body}>
           <div>
-            <div style={label}>Guardar como</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-              {canSaveInvoice && (
-                <button
-                  type="button"
-                  onClick={() => handleDestinationChange('supplier_invoice')}
-                  style={{ ...choiceBtn, ...(destination === 'supplier_invoice' ? choiceBtnActive : null) }}
-                  disabled={saving}
-                >
-                  Factura proveedor
-                </button>
-              )}
-              {canSaveExpense && (
-                <button
-                  type="button"
-                  onClick={() => handleDestinationChange('expense')}
-                  style={{ ...choiceBtn, ...(destination === 'expense' ? choiceBtnActive : null) }}
-                  disabled={saving}
-                >
-                  Gasto
-                </button>
-              )}
+            <div style={heroBox}>
+              <div>
+                <div style={heroEyebrow}>Guardado sugerido</div>
+                <div style={heroTitle}>{destinationTitle}</div>
+                <div style={heroCopy}>{destinationSummary}</div>
+              </div>
               <button
                 type="button"
-                onClick={() => handleDestinationChange('recipe')}
-                style={{ ...choiceBtn, ...(destination === 'recipe' ? choiceBtnActive : null) }}
+                onClick={() => setShowAdvanced((current) => !current)}
+                style={secondaryBtn}
                 disabled={saving}
               >
-                Receta
+                {showAdvanced ? 'Ocultar opciones avanzadas' : 'Cambiar destino u opciones'}
               </button>
             </div>
-            {destination === 'supplier_invoice' && (
-              <div style={hintBox}>Se guardará en compras/cuentas por pagar como factura de proveedor.</div>
-            )}
-            {destination === 'expense' && (
-              <div style={hintBox}>Se registrará como gasto en el módulo de gastos.</div>
-            )}
             {routingDecision && (
               <div style={routingDecision.required_fields_ok ? infoBox : warnBox}>
                 {routingDecision.reason || 'Decisión de routing disponible.'}
@@ -533,6 +523,42 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
               </div>
             )}
           </div>
+
+          {showAdvanced && (
+            <div style={advancedSection}>
+              <div>
+                <div style={label}>Guardar como</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+                  {canSaveInvoice && (
+                    <button
+                      type="button"
+                      onClick={() => handleDestinationChange('supplier_invoice')}
+                      style={{ ...choiceBtn, ...(destination === 'supplier_invoice' ? choiceBtnActive : null) }}
+                      disabled={saving}
+                    >
+                      Factura proveedor
+                    </button>
+                  )}
+                  {canSaveExpense && (
+                    <button
+                      type="button"
+                      onClick={() => handleDestinationChange('expense')}
+                      style={{ ...choiceBtn, ...(destination === 'expense' ? choiceBtnActive : null) }}
+                      disabled={saving}
+                    >
+                      Gasto
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDestinationChange('recipe')}
+                    style={{ ...choiceBtn, ...(destination === 'recipe' ? choiceBtnActive : null) }}
+                    disabled={saving}
+                  >
+                    Receta
+                  </button>
+                </div>
+              </div>
 
           {canUpdateStock && destination !== 'recipe' && (
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
@@ -748,6 +774,8 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
               </label>
             </>
           )}
+            </div>
+          )}
 
           {totalAmount != null && (
             <div style={summaryBox}>
@@ -769,7 +797,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
           </button>
           {!saveMessage && (
             <button onClick={submit} style={primaryBtn} disabled={saving || !canSubmit}>
-              {saving ? 'Guardando...' : destination === 'recipe' ? 'Guardar receta' : 'Guardar'}
+              {saving ? 'Guardando...' : destination === 'recipe' ? 'Guardar receta' : destination === 'supplier_invoice' ? 'Guardar factura' : 'Guardar gasto'}
             </button>
           )}
         </div>
@@ -830,6 +858,47 @@ const footer: React.CSSProperties = {
   flexShrink: 0,
   background: '#fff',
   boxShadow: '0 -10px 20px rgba(15, 23, 42, 0.06)',
+}
+
+const heroBox: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  gap: 12,
+  flexWrap: 'wrap',
+  padding: '0.95rem 1rem',
+  borderRadius: 12,
+  background: '#eff6ff',
+  border: '1px solid #bfdbfe',
+}
+
+const heroEyebrow: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+  color: '#1d4ed8',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+}
+
+const heroTitle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 20,
+  fontWeight: 800,
+  color: '#0f172a',
+}
+
+const heroCopy: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 13,
+  color: '#334155',
+  maxWidth: 420,
+}
+
+const advancedSection: React.CSSProperties = {
+  display: 'grid',
+  gap: 16,
+  paddingTop: 4,
+  borderTop: '1px solid #e2e8f0',
 }
 
 const field: React.CSSProperties = {
@@ -988,3 +1057,4 @@ const closeBtn: React.CSSProperties = {
   fontSize: 16,
   cursor: 'pointer',
 }
+
