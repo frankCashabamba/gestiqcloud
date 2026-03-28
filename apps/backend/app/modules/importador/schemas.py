@@ -625,3 +625,10 @@ class RoutingLearningInsightOut(BaseModel):
     suggested_confidence_threshold: float = Field(default=0.8, ge=0, le=1)
     avg_success_confidence: float = Field(default=0.0, ge=0, le=1)
     notes: list[str] = Field(default_factory=list)
+
+
+class RoutingProfileUpdateProposalOut(BaseModel):
+    profile_code: str
+    current_profile: RoutingProfileAdminOut
+    proposed_update: RoutingProfileAdminIn
+    based_on: RoutingLearningInsightOut

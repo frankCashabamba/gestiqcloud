@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -16,10 +17,12 @@ from .schemas import (
     RoutingPreviewResponse,
     RoutingProfileAdminIn,
     RoutingProfileAdminOut,
+    RoutingProfileUpdateProposalOut,
     RoutingRuleAdminIn,
     RoutingRuleAdminOut,
 )
 from .services.document_routing_admin_service import (
+    build_routing_profile_update_proposal,
     create_routing_profile,
     create_routing_rule,
     delete_routing_profile,
@@ -121,3 +124,28 @@ def get_routing_learning_insights(
         document_type=document_type,
         limit=limit,
     )
+
+
+@router.get("/learning-insights/proposal", response_model=RoutingProfileUpdateProposalOut)
+def get_routing_learning_proposal(
+    profile_code: str = Query(min_length=2, max_length=80),
+    tenant_id: UUID | None = Query(default=None),
+    source_doc_type: str | None = Query(default=None, max_length=80),
+    document_type: str | None = Query(default=None, max_length=80),
+    db: Session = Depends(get_db),
+):
+    try:
+        return build_routing_profile_update_proposal(
+            db,
+            profile_code=profile_code,
+            tenant_id=tenant_id,
+            source_doc_type=source_doc_type,
+            document_type=document_type,
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "routing_profile_not_found":
+            raise HTTPException(status_code=404, detail=detail)
+        if detail == "routing_learning_insight_not_found":
+            raise HTTPException(status_code=404, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)

@@ -372,3 +372,72 @@ def test_admin_importador_routing_learning_insights_returns_suggestions(
     assert "issue_date" in insight["top_changed_fields"]
     assert "total_amount" in insight["top_changed_fields"]
     assert insight["suggested_confidence_threshold"] >= 0.55
+
+
+def test_admin_importador_routing_learning_proposal_returns_profile_payload(
+    client: TestClient, superuser_factory, db
+):
+    headers = _admin_headers(client, superuser_factory)
+    tenant = Tenant(
+        id=uuid4(),
+        name="Proposal Tenant",
+        slug="proposal-tenant",
+        sector_template_name="panaderia",
+    )
+    profile = ImpRoutingProfile(
+        code="supplier_invoice",
+        document_type="supplier_invoice",
+        suggested_destination="supplier_invoice",
+        required_groups=[["issue_date"]],
+        support_fields=["vendor"],
+        explanation_fields=["vendor", "issue_date"],
+        blocked=False,
+        confidence_threshold=0.8,
+        active=True,
+    )
+    doc = ImpDocumento(
+        id=uuid4(),
+        tenant_id=tenant.id,
+        nombre_archivo="invoice-proposal.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=64,
+        tipo_documento_detectado="INVOICE",
+        confianza_clasificacion=0.9,
+        requiere_revision=False,
+        datos_confirmados={
+            "vendor": "Proveedor Tres",
+            "issue_date": "2026-03-28",
+            "total_amount": 100,
+            "currency": "USD",
+        },
+        estado="IMPORTED",
+        raw_ai_json={"canonical_document": {"fields": {}}},
+    )
+    db.add_all([tenant, profile, doc])
+    db.commit()
+
+    record_routing_signal(
+        db,
+        doc,
+        user_id="tester",
+        event="save",
+        chosen_destination="supplier_invoice",
+        changed_fields=["total_amount"],
+        payload={"status": "created"},
+    )
+    db.commit()
+
+    response = client.get(
+        f"/api/v1/admin/importador/routing/learning-insights/proposal?profile_code=supplier_invoice&tenant_id={tenant.id}&source_doc_type=INVOICE&document_type=supplier_invoice",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["profile_code"] == "supplier_invoice"
+    assert body["current_profile"]["code"] == "supplier_invoice"
+    assert body["proposed_update"]["code"] == "supplier_invoice"
+    assert body["proposed_update"]["document_type"] == "supplier_invoice"
+    assert body["proposed_update"]["confidence_threshold"] >= 0.55
+    assert "total_amount" in ",".join(
+        field for group in body["proposed_update"]["required_groups"] for field in group
+    )

@@ -7,7 +7,13 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento, ImpRoutingSignal
-from app.modules.importador.schemas import RoutingLearningInsightOut
+from app.models.importador import ImpRoutingProfile
+from app.modules.importador.schemas import (
+    RoutingLearningInsightOut,
+    RoutingProfileAdminIn,
+    RoutingProfileAdminOut,
+    RoutingProfileUpdateProposalOut,
+)
 
 
 def _normalize_text(value: Any) -> str | None:
@@ -195,3 +201,84 @@ def list_routing_learning_insights(
 
     insights.sort(key=lambda item: (-item.signals_count, item.source_doc_type, item.document_type))
     return insights[: max(1, min(limit, 50))]
+
+
+def _serialize_profile(row: ImpRoutingProfile) -> RoutingProfileAdminOut:
+    return RoutingProfileAdminOut(
+        id=row.id,
+        code=row.code,
+        document_type=row.document_type,
+        description=row.description,
+        suggested_destination=row.suggested_destination,
+        required_groups=row.required_groups or [],
+        support_fields=row.support_fields or [],
+        explanation_fields=row.explanation_fields or [],
+        blocked=bool(row.blocked),
+        confidence_threshold=float(row.confidence_threshold),
+        active=bool(row.active),
+    )
+
+
+def build_routing_profile_update_proposal(
+    db: Session,
+    *,
+    profile_code: str,
+    tenant_id: UUID | None = None,
+    source_doc_type: str | None = None,
+    document_type: str | None = None,
+) -> RoutingProfileUpdateProposalOut:
+    normalized_code = str(profile_code or "").strip().lower()
+    profile = (
+        db.query(ImpRoutingProfile)
+        .filter(ImpRoutingProfile.code == normalized_code)
+        .first()
+    )
+    if profile is None:
+        raise ValueError("routing_profile_not_found")
+
+    current_profile = _serialize_profile(profile)
+    insights = list_routing_learning_insights(
+        db,
+        tenant_id=tenant_id,
+        source_doc_type=source_doc_type,
+        document_type=document_type or current_profile.document_type,
+        limit=1,
+    )
+    if not insights:
+        raise ValueError("routing_learning_insight_not_found")
+
+    insight = insights[0]
+    merged_required_groups = current_profile.required_groups or []
+    if insight.suggested_required_groups:
+        merged_required_groups = insight.suggested_required_groups
+
+    merged_support_fields = list(dict.fromkeys([
+        *(current_profile.support_fields or []),
+        *insight.suggested_support_fields,
+        *insight.top_changed_fields[:3],
+    ]))
+
+    merged_explanation_fields = list(dict.fromkeys([
+        *(current_profile.explanation_fields or []),
+        *insight.top_changed_fields[:3],
+        *insight.top_missing_fields[:2],
+    ]))
+
+    proposed_update = RoutingProfileAdminIn(
+        code=current_profile.code,
+        document_type=current_profile.document_type,
+        description=current_profile.description,
+        suggested_destination=current_profile.suggested_destination,
+        required_groups=merged_required_groups,
+        support_fields=merged_support_fields[:8],
+        explanation_fields=merged_explanation_fields[:8],
+        blocked=current_profile.blocked,
+        confidence_threshold=insight.suggested_confidence_threshold,
+        active=current_profile.active,
+    )
+    return RoutingProfileUpdateProposalOut(
+        profile_code=current_profile.code,
+        current_profile=current_profile,
+        proposed_update=proposed_update,
+        based_on=insight,
+    )
