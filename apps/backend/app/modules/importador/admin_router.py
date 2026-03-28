@@ -10,6 +10,7 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 from .schemas import (
+    RoutingLearningInsightOut,
     RoutingPreviewDocumentOut,
     RoutingPreviewRequest,
     RoutingPreviewResponse,
@@ -24,6 +25,7 @@ from .services.document_routing_admin_service import (
     delete_routing_profile,
     delete_routing_rule,
     list_preview_documents,
+    list_routing_learning_insights,
     list_routing_profiles,
     list_routing_rules,
     preview_routing_decision,
@@ -102,3 +104,20 @@ def get_preview_documents(
     db: Session = Depends(get_db),
 ):
     return list_preview_documents(db, tenant_id=tenant_id, q=q, limit=limit)
+
+
+@router.get("/learning-insights", response_model=list[RoutingLearningInsightOut])
+def get_routing_learning_insights(
+    tenant_id: UUID | None = Query(default=None),
+    source_doc_type: str | None = Query(default=None, max_length=80),
+    document_type: str | None = Query(default=None, max_length=80),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    return list_routing_learning_insights(
+        db,
+        tenant_id=tenant_id,
+        source_doc_type=source_doc_type,
+        document_type=document_type,
+        limit=limit,
+    )

@@ -24,6 +24,7 @@ from .document_routing_agent import (
     invalidate_document_routing_cache,
     resolve_routing_profile_match,
 )
+from .document_routing_learning_insights_service import list_routing_learning_insights
 
 
 def _normalize_profile_code(value: str) -> str:

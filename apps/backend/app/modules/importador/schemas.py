@@ -609,3 +609,19 @@ class RoutingPreviewDocumentOut(BaseModel):
     monto_total: float | None = None
 
     model_config = {"from_attributes": True}
+
+
+class RoutingLearningInsightOut(BaseModel):
+    source_doc_type: str
+    document_type: str
+    signals_count: int = 0
+    save_count: int = 0
+    confirm_count: int = 0
+    edit_count: int = 0
+    top_missing_fields: list[str] = Field(default_factory=list)
+    top_changed_fields: list[str] = Field(default_factory=list)
+    suggested_required_groups: list[list[str]] = Field(default_factory=list)
+    suggested_support_fields: list[str] = Field(default_factory=list)
+    suggested_confidence_threshold: float = Field(default=0.8, ge=0, le=1)
+    avg_success_confidence: float = Field(default=0.0, ge=0, le=1)
+    notes: list[str] = Field(default_factory=list)

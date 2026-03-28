@@ -9,6 +9,7 @@ from app.modules.importador.services.document_routing_agent import (
     build_document_routing_decision,
     invalidate_document_routing_cache,
 )
+from app.modules.importador.services.document_routing_feedback_service import record_routing_signal
 
 
 def _admin_headers(client: TestClient, superuser_factory) -> dict[str, str]:
@@ -287,3 +288,87 @@ def test_admin_importador_routing_preview_can_use_real_document(
     assert body["tenant_id"] == str(tenant.id)
     assert body["decision"]["document_type"] == "supplier_invoice"
     assert body["decision"]["required_fields_ok"] is True
+
+
+def test_admin_importador_routing_learning_insights_returns_suggestions(
+    client: TestClient, superuser_factory, db
+):
+    headers = _admin_headers(client, superuser_factory)
+    tenant = Tenant(
+        id=uuid4(),
+        name="Insights Tenant",
+        slug="insights-tenant",
+        sector_template_name="panaderia",
+    )
+    db.add(tenant)
+    db.commit()
+
+    doc_a = ImpDocumento(
+        id=uuid4(),
+        tenant_id=tenant.id,
+        nombre_archivo="invoice-a.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=64,
+        tipo_documento_detectado="INVOICE",
+        confianza_clasificacion=0.72,
+        requiere_revision=True,
+        datos_confirmados={
+            "vendor": "Proveedor Uno",
+            "issue_date": "2026-03-27",
+            "total_amount": 50,
+        },
+        estado="CONFIRMED",
+        raw_ai_json={"canonical_document": {"fields": {}}},
+    )
+    doc_b = ImpDocumento(
+        id=uuid4(),
+        tenant_id=tenant.id,
+        nombre_archivo="invoice-b.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=64,
+        tipo_documento_detectado="INVOICE",
+        confianza_clasificacion=0.93,
+        requiere_revision=False,
+        datos_confirmados={
+            "vendor": "Proveedor Dos",
+            "issue_date": "2026-03-28",
+            "total_amount": 80,
+            "currency": "USD",
+        },
+        estado="IMPORTED",
+        raw_ai_json={"canonical_document": {"fields": {}}},
+    )
+    db.add_all([doc_a, doc_b])
+    db.commit()
+
+    record_routing_signal(
+        db,
+        doc_a,
+        user_id="tester",
+        event="confirm",
+        changed_fields=["issue_date", "total_amount"],
+    )
+    record_routing_signal(
+        db,
+        doc_b,
+        user_id="tester",
+        event="save",
+        chosen_destination="supplier_invoice",
+        payload={"status": "created"},
+    )
+    db.commit()
+
+    response = client.get(
+        f"/api/v1/admin/importador/routing/learning-insights?tenant_id={tenant.id}&source_doc_type=INVOICE",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) >= 1
+    insight = body[0]
+    assert insight["source_doc_type"] == "INVOICE"
+    assert insight["document_type"] == "supplier_invoice"
+    assert insight["signals_count"] >= 2
+    assert "issue_date" in insight["top_changed_fields"]
+    assert "total_amount" in insight["top_changed_fields"]
+    assert insight["suggested_confidence_threshold"] >= 0.55
