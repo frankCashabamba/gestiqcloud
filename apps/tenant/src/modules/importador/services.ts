@@ -21,6 +21,7 @@ export type Documento = {
   llm_model?: string
   raw_ai_json?: Record<string, unknown>
   routing_decision?: DocumentRoutingDecision | null
+  review_hints?: DocumentReviewHint[]
   proveedor_detectado?: string
   ruc_detectado?: string
   monto_total?: number
@@ -44,6 +45,18 @@ export type DocumentRoutingDecision = {
   needs_human_review: boolean
   source_doc_type?: string | null
   source_category?: string | null
+}
+
+export type DocumentReviewHint = {
+  field: string
+  field_type: string
+  priority: number
+  is_missing: boolean
+  corrected_count: number
+  confirmed_count: number
+  confirmed_examples: string[]
+  last_confirmed_value?: string | null
+  reason: string
 }
 
 let _categoryKeywords: Record<string, string[]> = {}
@@ -207,6 +220,31 @@ function normalizeRoutingDecision(raw: unknown): DocumentRoutingDecision | null 
   }
 }
 
+function normalizeReviewHints(raw: unknown): DocumentReviewHint[] {
+  if (!Array.isArray(raw)) return []
+  const hints: DocumentReviewHint[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const data = item as Record<string, unknown>
+    const field = String(data.field ?? '').trim()
+    if (!field) continue
+    hints.push({
+      field,
+      field_type: String(data.field_type ?? 'text').trim() || 'text',
+      priority: Math.max(1, Number(data.priority ?? 1) || 1),
+      is_missing: Boolean(data.is_missing),
+      corrected_count: Math.max(0, Number(data.corrected_count ?? 0) || 0),
+      confirmed_count: Math.max(0, Number(data.confirmed_count ?? 0) || 0),
+      confirmed_examples: Array.isArray(data.confirmed_examples)
+        ? data.confirmed_examples.map(String).filter(Boolean)
+        : [],
+      last_confirmed_value: typeof data.last_confirmed_value === 'string' ? data.last_confirmed_value : null,
+      reason: String(data.reason ?? ''),
+    })
+  }
+  return hints.sort((a, b) => a.priority - b.priority || a.field.localeCompare(b.field))
+}
+
 function normalizeDocument(raw: unknown): Documento {
   const data = (raw || {}) as Record<string, unknown>
   const importData = getDocumentData(data as { datos_confirmados?: unknown; datos_extraidos?: unknown })
@@ -215,6 +253,7 @@ function normalizeDocument(raw: unknown): Documento {
     ? data.raw_ai_json as Record<string, unknown>
     : {}
   const routingDecision = normalizeRoutingDecision(data.routing_decision ?? rawAi.routing)
+  const reviewHints = normalizeReviewHints(data.review_hints)
   const canonicalDocument = canonical.document && typeof canonical.document === 'object'
     ? canonical.document as Record<string, unknown>
     : {}
@@ -241,6 +280,7 @@ function normalizeDocument(raw: unknown): Documento {
       ? data.fecha_documento
       : (typeof inferredDate === 'string' ? inferredDate : canonicalIssueDate),
     routing_decision: routingDecision,
+    review_hints: reviewHints,
     synced_sheets: normalizeSyncedSheets(data.synced_sheets),
   }
 }

@@ -144,6 +144,66 @@ def _build_learning_prompt(memory: dict[str, dict[str, Any]]) -> str | None:
     return "\n".join(lines)
 
 
+def build_snapshot_review_hints(
+    snapshot,
+    *,
+    missing_fields: list[str] | None = None,
+    canonical_fields: dict[str, dict[str, Any]] | None = None,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    if snapshot is None or not isinstance(getattr(snapshot, "content_json", None), dict):
+        return []
+
+    content = dict(snapshot.content_json or {})
+    raw_memory = content.get("field_learning_memory")
+    if not isinstance(raw_memory, dict):
+        return []
+
+    missing = {
+        str(field).strip()
+        for field in (missing_fields or [])
+        if str(field).strip()
+    }
+    canonical_meta = canonical_fields or {}
+    ranked: list[tuple[tuple[int, int, int, str], dict[str, Any]]] = []
+
+    for raw_field, raw_payload in raw_memory.items():
+        field = _normalize_scalar(raw_field)
+        if not field or not isinstance(raw_payload, dict):
+            continue
+        corrected_count = _coerce_counter(raw_payload.get("corrected_count"))
+        confirmed_count = _coerce_counter(raw_payload.get("confirmed_count"))
+        if corrected_count <= 0 and confirmed_count <= 0:
+            continue
+
+        field_type = str((canonical_meta.get(field) or {}).get("type") or "text").strip().lower()
+        confirmed_examples = _normalize_examples(raw_payload.get("confirmed_examples"))
+        hint = {
+            "field": field,
+            "field_type": field_type or "text",
+            "priority": 1000,
+            "is_missing": field in missing,
+            "corrected_count": corrected_count,
+            "confirmed_count": confirmed_count,
+            "confirmed_examples": confirmed_examples[:3],
+            "last_confirmed_value": _normalize_scalar(raw_payload.get("last_confirmed_value")),
+            "reason": _render_learning_field_description(field, raw_payload),
+        }
+        priority_key = (
+            0 if hint["is_missing"] else 1,
+            -corrected_count,
+            -confirmed_count,
+            field,
+        )
+        ranked.append((priority_key, hint))
+
+    ranked.sort(key=lambda item: item[0])
+    hints = [hint for _key, hint in ranked[: max(1, limit)]]
+    for index, hint in enumerate(hints, start=1):
+        hint["priority"] = index
+    return hints
+
+
 def build_learning_field_descriptions(
     datos_extraidos: dict[str, Any],
     datos_confirmados: dict[str, Any],

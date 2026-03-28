@@ -86,6 +86,13 @@ function formatFieldLabel(key: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
+function getReviewInputType(fieldType: string | undefined): 'text' | 'number' | 'date' {
+  const normalized = String(fieldType || '').trim().toLowerCase()
+  if (normalized === 'numeric' || normalized === 'number') return 'number'
+  if (normalized === 'date') return 'date'
+  return 'text'
+}
+
 type ActivityItem = {
   id: string
   title: string
@@ -145,10 +152,6 @@ export default function DocumentDetail() {
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
-  const quickFixOpen = false
-  const quickFixFields: Record<string, string> = {}
-  const setQuickFixOpen = (_value: boolean) => {}
-  const setQuickFixFields = (_value: React.SetStateAction<Record<string, string>>) => {}
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncingAll, setSyncingAll] = useState(false)
@@ -254,7 +257,25 @@ export default function DocumentDetail() {
     setSaving(true)
     try {
       await confirmDocument(id, doc.datos_extraidos || {})
-      load()
+      const updated = await fetchDocument(id)
+      setDoc(updated)
+      void reprocess.refreshSummary()
+
+      const updatedRoutingReady = updated.routing_decision ? updated.routing_decision.required_fields_ok : true
+      const updatedSaveDestination = suggestSaveDestination(updated)
+      const updatedRequiresConfirmedSave = updatedSaveDestination !== 'recipe'
+      const updatedCanSave = !(
+        updated.estado === 'IMPORTED'
+        || updated.saved_as != null
+      ) && canSaveDocument(updated)
+        && hasAnySaveModule
+        && updated.estado !== 'FAILED'
+        && updatedRoutingReady
+        && (!updatedRequiresConfirmedSave || hasConfirmedDocumentData(updated))
+
+      if (updatedCanSave) {
+        setSaveModalOpen(true)
+      }
     } catch { setError(t('docDetail.errorConfirming')) }
     setSaving(false)
   }
@@ -304,6 +325,15 @@ export default function DocumentDetail() {
     try { await rejectDocument(id); load() } catch { setError(t('docDetail.errorRejecting')) }
   }
 
+  const openReimport = () => {
+    if (!doc?.id) return
+    navigate(`../upload?reimport=clean&documentId=${doc.id}&fresh=1`)
+  }
+
+  const openNewUpload = () => {
+    navigate('../upload?fresh=1')
+  }
+
   const handleSaveDailyLog = async () => {
     if (!id) return
     setSavingDailyLog(true)
@@ -323,7 +353,7 @@ export default function DocumentDetail() {
     const data = (doc?.datos_extraidos || {}) as Record<string, unknown>
     // No editar tablas (tipo inventario/nomina) — solo campos escalares
     if (data.filas && Array.isArray(data.filas)) {
-      setError('Este tipo de documento no se puede editar manualmente. Usa "Volver a procesar" para corregir los datos.')
+      setError('Este tipo de documento no se puede editar manualmente. Usa "Volver a importar" para rehacer el análisis.')
       return
     }
     const flat: Record<string, string> = {}
@@ -345,10 +375,6 @@ export default function DocumentDetail() {
     setSaving(false)
   }
 
-  const saveQuickFix = async (_confirmAfter = false) => {
-    return undefined
-  }
-
   if (loading) return <div style={{ padding: '1.5rem' }}>{t('docDetail.loading')}</div>
   if (!doc) return <div style={{ padding: '1.5rem' }}>{t('docDetail.notFound')}</div>
 
@@ -361,6 +387,11 @@ export default function DocumentDetail() {
   const confPct = effectiveConfidence != null ? Math.round(effectiveConfidence * 100) : null
   const needsHumanReview = routingDecision?.needs_human_review ?? doc.requiere_revision
   const missingFieldLabels = (routingDecision?.missing_fields || []).map(formatFieldLabel)
+  const reviewHints = Array.isArray(doc.review_hints) ? doc.review_hints : []
+  const reviewHintMap = reviewHints.reduce<Record<string, typeof reviewHints[number]>>((acc, hint) => {
+    if (hint?.field) acc[hint.field] = hint
+    return acc
+  }, {})
   const syncedSheets = Object.entries(doc.synced_sheets || {}).reduce<Record<string, { recipeId?: string; recipeName?: string; createdAt?: string }>>((acc, [sheetName, value]) => {
     const recipeId = typeof value?.recipe_id === 'string' ? value.recipe_id.trim() : ''
     if (!sheetName || !recipeId) return acc
@@ -486,6 +517,14 @@ export default function DocumentDetail() {
     `Elementos: ${formatSelection(selectedLineNumbers, 'todos')}`,
   ].join(' · ')
   const activityItems = buildUserActivity(doc?.logs)
+  const orderedEditEntries = Object.entries(editFields).sort(([leftKey], [rightKey]) => {
+    const leftHint = reviewHintMap[leftKey]
+    const rightHint = reviewHintMap[rightKey]
+    const leftPriority = leftHint?.priority ?? 999
+    const rightPriority = rightHint?.priority ?? 999
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority
+    return formatFieldLabel(leftKey).localeCompare(formatFieldLabel(rightKey))
+  })
 
   const handleSaved = (_result: SaveDocumentResult) => {
     void load()
@@ -614,10 +653,10 @@ export default function DocumentDetail() {
             {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>· {new Date(doc.saved_at).toLocaleString()}</span>}
           </span>
           <button
-            onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)}
+            onClick={openReimport}
             style={{ background: 'none', border: '1px solid #86efac', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#166534', padding: '2px 8px' }}
           >
-            Volver a procesar
+            Volver a importar
           </button>
         </div>
       )}
@@ -655,7 +694,7 @@ export default function DocumentDetail() {
                 {savingDailyLog ? t('docDetail.buttons.savingDailyLog') : dailyLogResult ? t('docDetail.buttons.resaveDailyLog') : t('docDetail.buttons.saveDailyLog')}
               </button>
               <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280' }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280' }}>Volver a importar</button>
             </>
           )}
 
@@ -679,7 +718,7 @@ export default function DocumentDetail() {
                 {syncing ? t('docDetail.buttons.saving') : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
               </button>
               <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>
+              <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>
             </>
           )}
 
@@ -696,7 +735,7 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              {advancedActionsVisible && <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>}
+              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>}
             </>
           )}
 
@@ -713,7 +752,7 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              {advancedActionsVisible && <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>}
+              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>}
             </>
           )}
 
@@ -736,7 +775,7 @@ export default function DocumentDetail() {
                 </>
               )}
               {advancedActionsVisible && <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>}
-              {advancedActionsVisible && <button onClick={() => navigate(`../upload?reimport=clean&documentId=${doc.id}`)} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>{t('docDetail.buttons.reimport')}</button>}
+              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>}
             </>
           )}
         </div>
@@ -751,17 +790,45 @@ export default function DocumentDetail() {
               <p style={{ margin: '0.5rem 0 0', fontSize: 14, color: '#334155' }}>
                 {(saveEnabled || !routingReadyForSave) && routingDecision?.reason ? routingDecision.reason : flowDescription}
               </p>
+              {!routingReadyForSave && reviewHints.length > 0 && (
+                <div style={{ marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid #FDE68A', background: '#FFFBEB' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
+                    Revisa solo esto antes de continuar
+                  </div>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {reviewHints.slice(0, 3).map((hint) => (
+                      <div key={hint.field} style={{ fontSize: 13, color: '#78350f' }}>
+                        <strong>{hint.priority}. {formatFieldLabel(hint.field)}</strong>
+                        {hint.confirmed_examples.length > 0 && (
+                          <span> · Ejemplos: {hint.confirmed_examples.join(', ')}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             {!showSecondaryActions && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && !saveEnabled && !routingReadyForSave && canEditScalars && (
-                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>
-                    Corregir datos
-                  </button>
-                )}
+              <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {!isSaved && doc.estado === 'REVIEW' && !saveEnabled && (
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
                     {saving ? t('docDetail.buttons.confirming') : 'Confirmar y continuar'}
+                  </button>
+                )}
+                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
+                  <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.9 }}>
+                    Volver a importar
+                  </button>
+                )}
+                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
+                  <button onClick={openNewUpload} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>
+                    Subir otro archivo
+                  </button>
+                )}
+                {!isSaved && !routingReadyForSave && canEditScalars && (
+                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>
+                    Revisar prioritarios
                   </button>
                 )}
                 {!isSaved && saveEnabled && (
@@ -769,77 +836,15 @@ export default function DocumentDetail() {
                     {saveDestination === 'supplier_invoice' ? 'Guardar factura' : saveDestination === 'recipe' ? 'Guardar receta' : 'Guardar gasto'}
                   </button>
                 )}
+                </div>
+                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
+                  <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
+                    Volver a importar rehace este mismo documento desde cero. Subir otro archivo abre una carga nueva sin arrastrar la sesion anterior.
+                  </div>
+                )}
               </div>
             )}
           </div>
-          {quickFixOpen && canEditScalars && (
-            <div style={{
-              marginTop: '0.9rem',
-              padding: '0.9rem',
-              borderRadius: 12,
-              border: '1px solid #FDE68A',
-              background: '#FFFBEB',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#92400e' }}>Corrección rápida</div>
-                  <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
-                    Completa solo los datos faltantes para continuar.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuickFixOpen(false)
-                    startEdit()
-                  }}
-                  style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}
-                >
-                  Editar todos los campos
-                </button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 12 }}>
-                {Object.entries(quickFixFields).map(([key, value]) => (
-                  <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-                    <span style={{ color: '#6b7280', fontWeight: 700 }}>{formatFieldLabel(key)}</span>
-                    <input
-                      value={value}
-                      onChange={(e) => setQuickFixFields((current) => ({ ...current, [key]: e.target.value }))}
-                      placeholder={`Completa ${formatFieldLabel(key).toLowerCase()}`}
-                      style={{ padding: '0.55rem 0.65rem', border: '1px solid #d1d5db', borderRadius: 8, background: '#fff' }}
-                    />
-                  </label>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => { void saveQuickFix(false) }}
-                  disabled={saving}
-                  style={{ ...actionBtn, background: '#F59E0B' }}
-                >
-                  Guardar corrección
-                </button>
-                {!isSaved && doc.estado === 'REVIEW' && (
-                  <button
-                    type="button"
-                    onClick={() => { void saveQuickFix(true) }}
-                    disabled={saving}
-                    style={{ ...actionBtn, background: '#10B981' }}
-                  >
-                    Corregir y confirmar
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setQuickFixOpen(false)}
-                  style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          )}
           <div style={flowStepsWrap}>
             {[
               { step: 1, label: 'Carga' },
@@ -907,6 +912,26 @@ export default function DocumentDetail() {
                     Faltan: {missingFieldLabels.join(', ')}
                   </div>
                 )}
+              </div>
+            )}
+            {reviewHints.length > 0 && (
+              <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>
+                  Revision prioritaria sugerida
+                </div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {reviewHints.slice(0, 3).map((hint) => (
+                    <div key={hint.field} style={{ fontSize: 13, color: '#334155' }}>
+                      <strong>{hint.priority}. {formatFieldLabel(hint.field)}</strong>
+                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Falta</span>}
+                      {hint.confirmed_examples.length > 0 && (
+                        <div style={{ marginTop: 2, color: '#475569' }}>
+                          Ejemplos confirmados: {hint.confirmed_examples.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             {doc.proveedor_detectado && <p><strong>Proveedor:</strong> {doc.proveedor_detectado}</p>}
@@ -1043,12 +1068,38 @@ export default function DocumentDetail() {
                 <h3 style={{ marginTop: 0 }}>Datos del documento</h3>
                 {editMode ? (
                   <div>
-                    {Object.entries(editFields).map(([key, val]) => (
+                    {reviewHints.length > 0 && (
+                      <div style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF', fontSize: 13, color: '#334155' }}>
+                        Edita primero los campos prioritarios sugeridos por documentos similares confirmados.
+                      </div>
+                    )}
+                    {orderedEditEntries.map(([key, val]) => {
+                      const hint = reviewHintMap[key]
+                      const inputType = getReviewInputType(hint?.field_type)
+                      return (
                       <label key={key} style={{ display: 'flex', flexDirection: 'column', marginBottom: '0.5rem', fontSize: 13 }}>
-                        <span style={{ color: '#6b7280', fontWeight: 600 }}>{formatFieldLabel(key)}</span>
-                        <input value={val} onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))} style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }} />
+                        <span style={{ color: '#6b7280', fontWeight: 600 }}>
+                          {formatFieldLabel(key)}
+                          {hint?.priority ? <span style={{ marginLeft: 6, color: '#2563eb' }}>Prioridad {hint.priority}</span> : null}
+                        </span>
+                        <input
+                          type={inputType}
+                          step={inputType === 'number' ? '0.01' : undefined}
+                          value={val}
+                          onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))}
+                          style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
+                        />
+                        {hint?.reason && (
+                          <span style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{hint.reason}</span>
+                        )}
+                        {hint?.confirmed_examples?.length ? (
+                          <span style={{ marginTop: 2, color: '#64748b', fontSize: 12 }}>
+                            Ejemplos: {hint.confirmed_examples.join(', ')}
+                          </span>
+                        ) : null}
                       </label>
-                    ))}
+                      )
+                    })}
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                       <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#6366F1' }}>{t('docDetail.buttons.saveEdit')}</button>
                       <button onClick={() => setEditMode(false)} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>{t('docDetail.buttons.cancelEdit')}</button>

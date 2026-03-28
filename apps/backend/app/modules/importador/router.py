@@ -114,6 +114,7 @@ from .services.product_matching import (
 )
 from .snapshot_learning import (
     bootstrap_learning_from_existing_document,
+    build_snapshot_review_hints,
     learn_from_confirmed_payload,
 )
 
@@ -203,6 +204,25 @@ def _resolve_document_routing(doc, db: Session):
 def _attach_document_routing(doc, db: Session):
     doc.routing_decision = _resolve_document_routing(doc, db)
     return doc.routing_decision
+
+
+def _attach_document_review_hints(doc, db: Session):
+    snapshot_id = getattr(doc, "recipe_snapshot_id", None)
+    if not snapshot_id:
+        doc.review_hints = []
+        return doc.review_hints
+
+    snapshot = recipe_crud.get_snapshot(db, snapshot_id)
+    canonical_fields = get_canonical_fields(db, tenant_id=getattr(doc, "tenant_id", None))
+    routing = getattr(doc, "routing_decision", None) or _resolve_document_routing(doc, db)
+    missing_fields = routing.missing_fields if routing else []
+    doc.review_hints = build_snapshot_review_hints(
+        snapshot,
+        missing_fields=missing_fields,
+        canonical_fields=canonical_fields,
+        limit=5,
+    )
+    return doc.review_hints
 
 
 def _resolve_destination_routing(doc, db: Session, destination: str):
@@ -1076,6 +1096,7 @@ async def upload_files(
             )
             db.commit()
             routing_decision = _attach_document_routing(existing, db)
+            review_hints = _attach_document_review_hints(existing, db)
             results.append(
                 UploadResponse(
                     id=existing.id,
@@ -1085,6 +1106,7 @@ async def upload_files(
                     requiere_revision=existing.requiere_revision,
                     datos_extraidos=existing.datos_extraidos,
                     routing_decision=routing_decision,
+                    review_hints=review_hints,
                     action="REUSED",
                     message=(
                         "Documento ya existente; se reutilizo el mismo registro. "
@@ -1533,6 +1555,7 @@ async def upload_files(
                     logger.info("Staging: %d líneas creadas para doc %s", _n_staging, doc.id)
 
             db.commit()
+            review_hints = _attach_document_review_hints(doc, db)
 
             results.append(
                 UploadResponse(
@@ -1543,6 +1566,7 @@ async def upload_files(
                     requiere_revision=routing_decision.needs_human_review,
                     datos_extraidos=datos_extraidos,
                     routing_decision=routing_decision,
+                    review_hints=review_hints,
                     action=response_action,
                     message=response_message,
                 )
@@ -1636,6 +1660,7 @@ def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     doc.synced_sheets = _get_synced_sheet_map(db, doc)
     doc.version_links = crud.list_documento_versions(db, doc.id)
     _attach_document_routing(doc, db)
+    _attach_document_review_hints(doc, db)
     return doc
 
 
@@ -1681,6 +1706,7 @@ def confirm_document(
 
     db.commit()
     _attach_document_routing(doc, db)
+    _attach_document_review_hints(doc, db)
     return doc
 
 
@@ -2143,6 +2169,7 @@ def edit_document_fields(
     )
     db.commit()
     _attach_document_routing(doc, db)
+    _attach_document_review_hints(doc, db)
     return doc
 
 
@@ -2158,6 +2185,7 @@ def reject_document(doc_id: UUID, request: Request, db: Session = Depends(get_db
     crud.add_log(db, doc.id, "REJECT", user_id)
     db.commit()
     _attach_document_routing(doc, db)
+    _attach_document_review_hints(doc, db)
     return doc
 
 

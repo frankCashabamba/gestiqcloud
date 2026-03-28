@@ -61,6 +61,19 @@ def detect_file_type(filename: str, db: Any | None = None) -> str:
     return type_map.get(ext, "UNKNOWN")
 
 
+def _ocr_text_score(text: str) -> tuple[int, int]:
+    raw = str(text or "").strip()
+    if not raw:
+        return (0, 0)
+    words = [token for token in raw.replace("\n", " ").split(" ") if token.strip()]
+    return (len(words), len(raw))
+
+
+def _is_weak_ocr_text(text: str, *, min_words: int = 4, min_chars: int = 24) -> bool:
+    words, chars = _ocr_text_score(text)
+    return words < min_words or chars < min_chars
+
+
 async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, Any]:
     """Extrae texto de cualquier archivo soportado.
     Returns: {"text": str, "pages": int, "structured_data": list[dict] | None, "format": str}
@@ -259,35 +272,51 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
     img = img.filter(ImageFilter.SHARPEN)
 
     text = _ocr_image(img)
+    vision_image_bytes = _image_to_jpeg_bytes(img)
     return {
         "text": text,
         "pages": 1,
         "structured_data": None,
         "format": "IMAGE_OCR",
-        "vision_image_bytes": file_bytes,
+        "vision_image_bytes": vision_image_bytes,
     }
 
 
 def _ocr_image(img: Image.Image) -> str:
     """Run Tesseract OCR on a PIL Image."""
+    candidates: list[str] = []
     try:
         import pytesseract
 
         text = pytesseract.image_to_string(img, lang="spa+eng")
-        return text.strip()
+        cleaned = text.strip()
+        if cleaned:
+            candidates.append(cleaned)
+        if cleaned and not _is_weak_ocr_text(cleaned):
+            return cleaned
+        logger.info(
+            "Tesseract OCR weak output detected: words=%s chars=%s; trying EasyOCR fallback",
+            *_ocr_text_score(cleaned),
+        )
     except Exception as exc:
         logger.warning("Tesseract OCR failed: %s", exc)
-        try:
-            import easyocr
 
-            reader = easyocr.Reader(["es", "en"], gpu=False)
-            import numpy as np
+    try:
+        import easyocr
+        import numpy as np
 
-            results = reader.readtext(np.array(img))
-            return "\n".join([r[1] for r in results])
-        except Exception as exc2:
-            logger.error("All OCR engines failed: %s", exc2)
-            return ""
+        reader = easyocr.Reader(["es", "en"], gpu=False)
+        results = reader.readtext(np.array(img))
+        easyocr_text = "\n".join([r[1] for r in results]).strip()
+        if easyocr_text:
+            candidates.append(easyocr_text)
+    except Exception as exc2:
+        logger.error("All OCR engines failed: %s", exc2)
+
+    if not candidates:
+        return ""
+
+    return max(candidates, key=lambda value: _ocr_text_score(value))
 
 
 def _normalize_header(h: Any, idx: int) -> str:

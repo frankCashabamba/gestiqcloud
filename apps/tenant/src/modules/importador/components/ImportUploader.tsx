@@ -154,12 +154,14 @@ type ImportUploaderProps = {
   onImported?: () => void
   initialForceReprocess?: boolean
   documentPathBuilder?: (docId: string) => string
+  restoreSession?: boolean
 }
 
 export default function ImportUploader({
   onImported,
   initialForceReprocess = false,
   documentPathBuilder = (docId) => `documents/${docId}`,
+  restoreSession = true,
 }: ImportUploaderProps) {
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -189,6 +191,12 @@ export default function ImportUploader({
   }, [initialForceReprocess])
 
   useEffect(() => {
+    if (!restoreSession) {
+      sessionStorage.removeItem(UPLOADER_SESSION_KEY)
+      dismissedEntryKeysRef.current = new Set()
+      setSessionHydrated(true)
+      return
+    }
     try {
       const raw = sessionStorage.getItem(UPLOADER_SESSION_KEY)
       if (!raw) return
@@ -218,7 +226,7 @@ export default function ImportUploader({
     } finally {
       setSessionHydrated(true)
     }
-  }, [])
+  }, [restoreSession])
 
   useEffect(() => {
     fetchRecipes().then(setRecipes).catch(() => {})
@@ -1004,8 +1012,8 @@ export default function ImportUploader({
               onChange={(e) => setForceReprocess(e.target.checked)}
               style={{ cursor: 'pointer' }}
             />
-            Volver a procesar archivo
-            <span style={{ color: '#d1d5db' }}>(usa el mismo documento si ya existe)</span>
+            Volver a importar archivo
+            <span style={{ color: '#9ca3af' }}>(rehace el analisis desde cero si ya existe)</span>
           </label>
         </div>
 

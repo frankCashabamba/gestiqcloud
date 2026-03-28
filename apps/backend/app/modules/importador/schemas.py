@@ -21,6 +21,18 @@ class DocumentRoutingDecision(BaseModel):
     source_category: str | None = None
 
 
+class DocumentReviewHintOut(BaseModel):
+    field: str
+    field_type: str = "text"
+    priority: int = Field(default=1, ge=1)
+    is_missing: bool = False
+    corrected_count: int = 0
+    confirmed_count: int = 0
+    confirmed_examples: list[str] = Field(default_factory=list)
+    last_confirmed_value: str | None = None
+    reason: str = ""
+
+
 class DocumentoOut(BaseModel):
     id: UUID
     nombre_archivo: str
@@ -45,6 +57,7 @@ class DocumentoOut(BaseModel):
     llm_model: str | None = None
     raw_ai_json: dict | None = None
     routing_decision: DocumentRoutingDecision | None = None
+    review_hints: list[DocumentReviewHintOut] = Field(default_factory=list)
     synced_sheets: dict | None = None
     saved_as: str | None = None
     saved_record_id: UUID | None = None
@@ -180,6 +193,7 @@ class UploadResponse(BaseModel):
     requiere_revision: bool = False
     datos_extraidos: dict | None = None
     routing_decision: DocumentRoutingDecision | None = None
+    review_hints: list[DocumentReviewHintOut] = Field(default_factory=list)
     action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
     message: str | None = None
 

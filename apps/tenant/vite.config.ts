@@ -79,6 +79,11 @@ export default defineConfig({
           })
         },
       },
+      '/uploads': {
+        target: targetHasApiSuffix ? apiTarget.replace(/\/api$/, '') : apiTarget,
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   resolve: { alias, dedupe: ['react', 'react-dom'] },

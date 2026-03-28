@@ -15,6 +15,7 @@ from app.modules.importador import crud
 from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
 from app.modules.importador.batch_service import enqueue_async_batch
 from app.modules.importador.router import _learn_from_confirmation, upload_files
+from app.modules.importador.snapshot_learning import build_snapshot_review_hints
 
 
 def _fake_request(tenant_id) -> SimpleNamespace:
@@ -125,6 +126,17 @@ def test_learn_from_confirmation_accumulates_snapshot_memory(db: Session, tenant
     assert memory["corrected_count"] == 2
     assert memory["confirmed_examples"][:2] == ["Deposito", "Transferencia bancaria"]
     assert "Recent examples" in snapshot.content_json["learning_prompt_user"]
+
+    hints = build_snapshot_review_hints(
+        snapshot,
+        missing_fields=["payment_method"],
+        canonical_fields={"payment_method": {"type": "payment_method"}},
+    )
+    assert len(hints) == 1
+    assert hints[0]["field"] == "payment_method"
+    assert hints[0]["is_missing"] is True
+    assert hints[0]["field_type"] == "payment_method"
+    assert hints[0]["corrected_count"] == 2
 
 
 def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_document(

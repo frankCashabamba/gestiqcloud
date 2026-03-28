@@ -465,7 +465,9 @@ async def _analyze_with_vision(
     }
 
     try:
-        timeout_secs = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+        timeout_secs = float(
+            os.getenv("OLLAMA_VISION_TIMEOUT") or os.getenv("OLLAMA_TIMEOUT", "45")
+        )
         timeout = httpx.Timeout(timeout_secs, read=timeout_secs)
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(f"{ollama_url}/api/chat", json=payload)
@@ -494,6 +496,14 @@ async def _analyze_with_vision(
         logger.warning("Vision model returned unparseable response for %s", filename)
         return None
 
+    except httpx.ReadTimeout:
+        logger.warning(
+            "Vision analysis timed out for %s after %.1fs using %s",
+            filename,
+            timeout_secs,
+            vision_model,
+        )
+        return None
     except Exception as exc:
         logger.warning("Vision analysis failed for %s: %s", filename, exc, exc_info=True)
         return None

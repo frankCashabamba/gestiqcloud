@@ -10,6 +10,7 @@ export default function UploadPage() {
   const [searchParams] = useSearchParams()
   const reimportMode = searchParams.get('reimport')
   const sourceDocumentId = searchParams.get('documentId')
+  const freshRequested = searchParams.get('fresh') === '1'
   const forceRequested = reimportMode === 'clean' || reimportMode === 'force'
 
   const [showVideo, setShowVideo] = useState(
@@ -127,9 +128,9 @@ export default function UploadPage() {
             fontSize: 14,
           }}
         >
-          <div style={{ fontWeight: 800 }}>Modo volver a procesar</div>
+          <div style={{ fontWeight: 800 }}>Modo volver a importar</div>
           <div style={{ marginTop: 4 }}>
-            Vuelve a subir el archivo original para revisar de nuevo ese documento sin crear duplicados
+            Rehace el analisis desde cero. Vuelve a subir el archivo original para revisar de nuevo ese documento sin crear duplicados
             {sourceDocumentId ? ` (${sourceDocumentId}).` : '.'}
           </div>
         </div>
@@ -137,6 +138,7 @@ export default function UploadPage() {
 
       <ImportUploader
         initialForceReprocess={forceRequested}
+        restoreSession={!forceRequested && !freshRequested}
         documentPathBuilder={(docId) => `../documents/${docId}`}
       />
     </div>

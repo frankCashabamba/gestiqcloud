@@ -348,6 +348,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   if (!canSaveDocument(doc)) return null
 
   const routingDecision = doc.routing_decision || null
+  const reviewHints = Array.isArray(doc.review_hints) ? doc.review_hints : []
   const canSaveInvoice = capabilities.purchases || capabilities.invoicing
   const canSaveExpense = capabilities.expenses !== false
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
@@ -523,6 +524,24 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                     Faltan: {routingDecision.missing_fields.join(', ')}
                   </div>
                 )}
+              </div>
+            )}
+            {reviewHints.length > 0 && (
+              <div style={{ ...infoBox, marginTop: 10 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Campos prioritarios antes de guardar</div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {reviewHints.slice(0, 3).map((hint) => (
+                    <div key={hint.field} style={{ fontSize: 13, color: '#334155' }}>
+                      <strong>{hint.priority}. {hint.field}</strong>
+                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Falta</span>}
+                      {hint.confirmed_examples.length > 0 && (
+                        <div style={{ marginTop: 2, color: '#64748b' }}>
+                          Ejemplos: {hint.confirmed_examples.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
