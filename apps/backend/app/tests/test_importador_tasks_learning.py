@@ -150,3 +150,4 @@ def test_run_processing_reuses_text_snapshot_learning_for_async_flow(
     assert len(analyze_calls) == 2
     assert analyze_calls[0] == {}
     assert "field_descriptions" in analyze_calls[1]
+    assert "Learning from confirmed similar documents:" in str(analyze_calls[1].get("prompt_user"))

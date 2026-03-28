@@ -145,6 +145,10 @@ export default function DocumentDetail() {
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
+  const quickFixOpen = false
+  const quickFixFields: Record<string, string> = {}
+  const setQuickFixOpen = (_value: boolean) => {}
+  const setQuickFixFields = (_value: React.SetStateAction<Record<string, string>>) => {}
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncingAll, setSyncingAll] = useState(false)
@@ -339,6 +343,10 @@ export default function DocumentDetail() {
       load()
     } catch { setError(t('docDetail.errorSaving')) }
     setSaving(false)
+  }
+
+  const saveQuickFix = async (_confirmAfter = false) => {
+    return undefined
   }
 
   if (loading) return <div style={{ padding: '1.5rem' }}>{t('docDetail.loading')}</div>
@@ -764,6 +772,74 @@ export default function DocumentDetail() {
               </div>
             )}
           </div>
+          {quickFixOpen && canEditScalars && (
+            <div style={{
+              marginTop: '0.9rem',
+              padding: '0.9rem',
+              borderRadius: 12,
+              border: '1px solid #FDE68A',
+              background: '#FFFBEB',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#92400e' }}>Corrección rápida</div>
+                  <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
+                    Completa solo los datos faltantes para continuar.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickFixOpen(false)
+                    startEdit()
+                  }}
+                  style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}
+                >
+                  Editar todos los campos
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 12 }}>
+                {Object.entries(quickFixFields).map(([key, value]) => (
+                  <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+                    <span style={{ color: '#6b7280', fontWeight: 700 }}>{formatFieldLabel(key)}</span>
+                    <input
+                      value={value}
+                      onChange={(e) => setQuickFixFields((current) => ({ ...current, [key]: e.target.value }))}
+                      placeholder={`Completa ${formatFieldLabel(key).toLowerCase()}`}
+                      style={{ padding: '0.55rem 0.65rem', border: '1px solid #d1d5db', borderRadius: 8, background: '#fff' }}
+                    />
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => { void saveQuickFix(false) }}
+                  disabled={saving}
+                  style={{ ...actionBtn, background: '#F59E0B' }}
+                >
+                  Guardar corrección
+                </button>
+                {!isSaved && doc.estado === 'REVIEW' && (
+                  <button
+                    type="button"
+                    onClick={() => { void saveQuickFix(true) }}
+                    disabled={saving}
+                    style={{ ...actionBtn, background: '#10B981' }}
+                  >
+                    Corregir y confirmar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setQuickFixOpen(false)}
+                  style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          )}
           <div style={flowStepsWrap}>
             {[
               { step: 1, label: 'Carga' },

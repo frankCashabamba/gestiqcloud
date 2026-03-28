@@ -60,11 +60,71 @@ def test_learn_from_confirmation_bumps_learning_version(db: Session, tenant_mini
 
     snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
     assert snapshot is not None
-    assert snapshot.content_json["field_descriptions"]["payment_method"].startswith(
-        "User corrected"
+    assert snapshot.content_json["learned_field_descriptions"]["payment_method"].startswith(
+        "Users corrected"
+    )
+    assert snapshot.content_json["field_learning_memory"]["payment_method"]["corrected_count"] == 1
+    assert snapshot.content_json["learning_prompt_user"].startswith(
+        "Learning from confirmed similar documents:"
     )
     assert snapshot.content_json["learning_version"] == 1
     assert snapshot.content_json["learning_updated_at"]
+
+
+def test_learn_from_confirmation_accumulates_snapshot_memory(db: Session, tenant_minimal):
+    tenant_id = tenant_minimal["tenant_id"]
+    _, snapshot_id, _, _, _ = resolve_auto_recipe_from_text(
+        db,
+        tenant_id,
+        "INVOICE",
+        {"currency": "PEN", "total_amount": 2145.0},
+        "PDF",
+        "tester",
+    )
+    assert snapshot_id is not None
+
+    first_document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-1.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        recipe_snapshot_id=snapshot_id,
+        datos_extraidos={"payment_method": "credito"},
+    )
+    second_document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-2.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        recipe_snapshot_id=snapshot_id,
+        datos_extraidos={"payment_method": "contado"},
+    )
+    db.add_all([first_document, second_document])
+    db.commit()
+
+    _learn_from_confirmation(
+        db,
+        first_document,
+        {"payment_method": "Transferencia bancaria"},
+        "tester",
+    )
+    _learn_from_confirmation(
+        db,
+        second_document,
+        {"payment_method": "Deposito"},
+        "tester",
+    )
+    db.commit()
+
+    snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
+    assert snapshot is not None
+    memory = snapshot.content_json["field_learning_memory"]["payment_method"]
+    assert memory["confirmed_count"] == 2
+    assert memory["corrected_count"] == 2
+    assert memory["confirmed_examples"][:2] == ["Deposito", "Transferencia bancaria"]
+    assert "Recent examples" in snapshot.content_json["learning_prompt_user"]
 
 
 def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_document(
@@ -179,6 +239,7 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
     assert len(analyze_calls) == 2
     assert analyze_calls[0] == {}
     assert "field_descriptions" in analyze_calls[1]
+    assert "Learning from confirmed similar documents:" in str(analyze_calls[1].get("prompt_user"))
 
 
 def test_enqueue_async_batch_bootstraps_learning_and_reuses_same_hash_document(

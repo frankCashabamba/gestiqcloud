@@ -177,6 +177,32 @@ def _coerce_learning_version(value: object) -> int:
     return max(0, version)
 
 
+def _merge_prompt_user(base_prompt: object, learning_prompt: object) -> str | None:
+    base = str(base_prompt or "").strip()
+    learning = str(learning_prompt or "").strip()
+    if base and learning:
+        return f"{base}\n\n{learning}"
+    if base:
+        return base
+    return learning or None
+
+
+def _snapshot_recipe_config(snapshot: IcuRecipeSnapshot) -> dict:
+    content = snapshot.content_json if isinstance(snapshot.content_json, dict) else {}
+    base_descriptions = dict(content.get("field_descriptions") or {})
+    learned_descriptions = dict(content.get("learned_field_descriptions") or {})
+    merged_descriptions = {**base_descriptions, **learned_descriptions}
+    return {
+        "prompt_system": content.get("prompt_system"),
+        "prompt_user": _merge_prompt_user(
+            content.get("prompt_user"),
+            content.get("learning_prompt_user"),
+        ),
+        "model": content.get("model") or (content.get("model_config") or {}).get("model"),
+        "field_descriptions": merged_descriptions or None,
+    }
+
+
 def get_snapshot_learning_version(snapshot: IcuRecipeSnapshot | None) -> int:
     if snapshot is None or not isinstance(snapshot.content_json, dict):
         return 0
@@ -330,15 +356,7 @@ def resolve_auto_recipe(
         )
         created = True
         db.commit()
-    recipe_config = {
-        "prompt_system": snap.content_json.get("prompt_system"),
-        "prompt_user": snap.content_json.get("prompt_user"),
-        "model": (
-            snap.content_json.get("model")
-            or (snap.content_json.get("model_config") or {}).get("model")
-        ),
-        "field_descriptions": snap.content_json.get("field_descriptions"),
-    }
+    recipe_config = _snapshot_recipe_config(snap)
     return recipe_config, snap.id, "auto_fingerprint", created, recipe_name
 
 
@@ -386,10 +404,5 @@ def resolve_auto_recipe_from_text(
         )
         was_created = True
 
-    recipe_config = {
-        "prompt_system": snap.content_json.get("prompt_system"),
-        "prompt_user": snap.content_json.get("prompt_user"),
-        "model": snap.content_json.get("model"),
-        "field_descriptions": snap.content_json.get("field_descriptions"),
-    }
+    recipe_config = _snapshot_recipe_config(snap)
     return recipe_config, snap.id, "auto_text_fingerprint", was_created, recipe_name
