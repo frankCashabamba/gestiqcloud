@@ -39,16 +39,48 @@ def build_text_fingerprint(
     tipo_doc: str, datos_extraidos: dict | None, format_hint: str
 ) -> tuple[dict, str]:
     """Build a fingerprint for PDF/XML/image/TXT based on document type + field structure."""
+    del tipo_doc
     campos = sorted(
         k
         for k in (datos_extraidos or {}).keys()
         if not k.startswith("_") and k not in ("filas", "total_filas")
     )
-    fp = {"kind": "text", "tipo_documento": tipo_doc, "campos": campos, "formato": format_hint}
+    fp = {
+        "kind": "text",
+        "campos": campos,
+        "formato": format_hint,
+    }
     return fp, _fingerprint_hash(fp)
 
 
-def find_snapshot_by_hash(db: Session, tenant_id: UUID, fp_hash: str):
+def _normalize_fingerprint_payload(fingerprint: dict | None) -> dict | None:
+    if not isinstance(fingerprint, dict):
+        return None
+
+    kind = str(fingerprint.get("kind") or "").strip().lower()
+    if kind != "text":
+        return fingerprint
+
+    campos = sorted(
+        str(key)
+        for key in (fingerprint.get("campos") or [])
+        if str(key) and not str(key).startswith("_")
+    )
+
+    return {
+        "kind": "text",
+        "campos": campos,
+        "formato": str(fingerprint.get("formato") or "").strip(),
+    }
+
+
+def find_snapshot_by_hash(
+    db: Session,
+    tenant_id: UUID,
+    fp_hash: str,
+    *,
+    fingerprint: dict | None = None,
+):
     Snap = IcuRecipeSnapshot
     stmt = (
         select(Snap)
@@ -63,11 +95,16 @@ def find_snapshot_by_hash(db: Session, tenant_id: UUID, fp_hash: str):
     if found:
         return found
 
+    normalized_target = _normalize_fingerprint_payload(fingerprint)
     fallback_stmt = select(Snap).where(Snap.tenant_id == tenant_id).order_by(Snap.created_at.desc())
     for snap in db.scalars(fallback_stmt):
         content = snap.content_json if isinstance(snap.content_json, dict) else {}
         if str(content.get("fingerprint_hash") or "").strip() == fp_hash:
             return snap
+        if normalized_target is not None:
+            stored_fingerprint = _normalize_fingerprint_payload(content.get("fingerprint"))
+            if stored_fingerprint == normalized_target:
+                return snap
     return None
 
 
@@ -337,7 +374,7 @@ def resolve_auto_recipe(
     if not sheet_profiles:
         return {}, None, "zero_shot", False, None
     fp, fp_hash = build_fingerprint(sheet_profiles)
-    snap = None if force_new else find_snapshot_by_hash(db, tenant_id, fp_hash)
+    snap = None if force_new else find_snapshot_by_hash(db, tenant_id, fp_hash, fingerprint=fp)
     created = False
     recipe_name: str | None = None
     if not snap:
@@ -384,7 +421,7 @@ def resolve_auto_recipe_from_text(
         return {}, None, "zero_shot", False, None
 
     fp, fp_hash = build_text_fingerprint(tipo_doc, datos_extraidos, format_hint)
-    snap = None if force_new else find_snapshot_by_hash(db, tenant_id, fp_hash)
+    snap = None if force_new else find_snapshot_by_hash(db, tenant_id, fp_hash, fingerprint=fp)
     was_created = False
     recipe_name: str | None = None
 

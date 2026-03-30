@@ -58,6 +58,9 @@ class DocumentoOut(BaseModel):
     raw_ai_json: dict | None = None
     routing_decision: DocumentRoutingDecision | None = None
     review_hints: list[DocumentReviewHintOut] = Field(default_factory=list)
+    last_processing_reason: str | None = None
+    last_learning_reprocess_at: datetime | None = None
+    last_confirmation_mode: str | None = None
     synced_sheets: dict | None = None
     saved_as: str | None = None
     saved_record_id: UUID | None = None
@@ -103,6 +106,9 @@ class DocumentoListOut(BaseModel):
     estado: str
     proveedor_detectado: str | None = None
     monto_total: float | None = None
+    last_processing_reason: str | None = None
+    last_learning_reprocess_at: datetime | None = None
+    last_confirmation_mode: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

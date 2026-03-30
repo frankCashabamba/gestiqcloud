@@ -84,6 +84,39 @@ function saveLabel(doc: Documento) {
   return 'Guardar como gasto'
 }
 
+function activityBadges(doc: Documento): Array<{ label: string; title: string; color: string; bg: string }> {
+  const badges: Array<{ label: string; title: string; color: string; bg: string }> = []
+  if (doc.last_processing_reason === 'learning_update') {
+    const when = doc.last_learning_reprocess_at
+      ? new Date(doc.last_learning_reprocess_at).toLocaleString()
+      : null
+    badges.push({
+      label: 'Reanalizado con aprendizaje',
+      title: when
+        ? `Se reanalizo para aplicar aprendizaje confirmado reciente el ${when}.`
+        : 'Se reanalizo para aplicar aprendizaje confirmado reciente.',
+      color: '#4338ca',
+      bg: '#e0e7ff',
+    })
+  }
+  if (doc.last_confirmation_mode === 'corrected_by_user') {
+    badges.push({
+      label: 'Confirmado con correccion',
+      title: 'La confirmacion mas reciente incluyo cambios del usuario.',
+      color: '#0f766e',
+      bg: '#ccfbf1',
+    })
+  } else if (doc.last_confirmation_mode === 'accepted_as_detected') {
+    badges.push({
+      label: 'Confirmado tal cual',
+      title: 'La confirmacion mas reciente acepto la deteccion sin cambios.',
+      color: '#166534',
+      bg: '#dcfce7',
+    })
+  }
+  return badges
+}
+
 export default function DocumentList() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -450,6 +483,7 @@ export default function DocumentList() {
               <tbody>
                 {docs.map((doc) => {
                   const isInProgress = doc.estado === 'PROCESSING' || doc.estado === 'PENDING'
+                  const docActivityBadges = activityBadges(doc)
                   const destination = suggestSaveDestination(doc)
                   const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && !isInProgress && (
                     destination === 'recipe' || hasConfirmedDocumentData(doc)
@@ -486,6 +520,28 @@ export default function DocumentList() {
                           <span style={{ fontSize: 12, color: '#64748b' }}>
                             {doc.tipo_archivo} · {Math.round(Number(doc.tamanio_bytes ?? 0) / 1024)} KB
                           </span>
+                          {docActivityBadges.length > 0 && (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {docActivityBadges.map((badge) => (
+                                <span
+                                  key={badge.label}
+                                  title={badge.title}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '0.22rem 0.55rem',
+                                    borderRadius: 999,
+                                    background: badge.bg,
+                                    color: badge.color,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {badge.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td style={td}>

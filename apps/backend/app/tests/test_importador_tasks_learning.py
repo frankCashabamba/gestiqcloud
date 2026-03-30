@@ -43,6 +43,10 @@ def test_run_processing_reuses_text_snapshot_learning_for_async_flow(
     content["field_descriptions"] = {
         "payment_method": "Recent confirmed example: Transferencia bancaria. Extract the exact printed payment method when visible.",
     }
+    content["learning_prompt_user"] = (
+        "Learning from confirmed similar documents:\n"
+        "- 'payment_method' was confirmed repeatedly in similar documents."
+    )
     snapshot.content_json = content
 
     document = ImpDocumento(

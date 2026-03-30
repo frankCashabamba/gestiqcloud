@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from typing import Any
 
 from app.services.ai.base import AITask
@@ -111,6 +112,155 @@ def _should_use_vision_fallback(
         "yes" if needs_vision else "no",
     )
     return needs_vision
+
+
+def _normalize_evidence_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", str(value or ""))
+    normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    normalized = normalized.lower()
+    normalized = re.sub(r"[^a-z0-9$€]+", " ", normalized)
+    return " ".join(normalized.split())
+
+
+def _value_token_evidence(text_normalized: str, value: Any, *, min_len: int = 4) -> bool:
+    sample = _normalize_evidence_text(str(value or ""))
+    if not sample:
+        return False
+    stop_tokens = {
+        "cliente",
+        "customer",
+        "proveedor",
+        "vendor",
+        "empresa",
+        "company",
+        "concepto",
+        "concept",
+    }
+    tokens = [
+        token
+        for token in sample.split()
+        if len(token) >= min_len and token not in stop_tokens
+    ]
+    if not tokens:
+        return sample in text_normalized
+    return any(token in text_normalized for token in tokens)
+
+
+def _digits_only(value: Any) -> str:
+    return re.sub(r"[^0-9]", "", str(value or ""))
+
+
+def _numeric_evidence(text_digits: str, value: Any, *, min_len: int = 3) -> bool:
+    digits = _digits_only(value)
+    return bool(digits and len(digits) >= min_len and digits in text_digits)
+
+
+def _currency_evidence(text_normalized: str, value: Any) -> bool:
+    raw = str(value or "").strip().upper()
+    if not raw:
+        return False
+    currency_markers = {
+        "USD": ["usd", "us$", "$", "dolar", "dolares"],
+        "EUR": ["eur", "euro", "euros", "€"],
+        "PEN": ["pen", "s/", "sol", "soles"],
+        "$": ["$", "usd", "dolar", "dolares"],
+        "S/": ["s/", "pen", "sol", "soles"],
+    }
+    markers = currency_markers.get(raw, [raw.lower()])
+    return any(marker in text_normalized for marker in markers)
+
+
+def _line_items_evidence(text_normalized: str, text_digits: str, value: Any) -> bool:
+    if not isinstance(value, list) or not value:
+        return False
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        description = item.get("description")
+        if description and _value_token_evidence(text_normalized, description):
+            return True
+        for key in ("quantity", "unit_price", "total_price"):
+            if _numeric_evidence(text_digits, item.get(key)):
+                return True
+    return False
+
+
+def _blank_low_evidence_fields(
+    fields: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+) -> int:
+    normalized_format = str(format_hint or "").strip().upper()
+    if normalized_format not in {"IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG"}:
+        return 0
+
+    quality = _estimate_text_quality(content)
+    if quality["score"] >= _ocr_quality_threshold() and quality["words"] >= 18:
+        return 0
+
+    text_normalized = _normalize_evidence_text(content)
+    text_digits = _digits_only(content)
+    cleared = 0
+
+    evidence_checks: dict[str, Any] = {
+        "vendor": lambda value: _value_token_evidence(text_normalized, value),
+        "vendor_tax_id": lambda value: _numeric_evidence(text_digits, value),
+        "customer": lambda value: _value_token_evidence(text_normalized, value),
+        "customer_tax_id": lambda value: _numeric_evidence(text_digits, value),
+        "doc_number": lambda value: (
+            _value_token_evidence(text_normalized, value, min_len=3)
+            or _numeric_evidence(text_digits, value, min_len=5)
+        ),
+        "issue_date": lambda value: _numeric_evidence(text_digits, value),
+        "currency": lambda value: _currency_evidence(text_normalized, value),
+        "payment_method": lambda value: _value_token_evidence(text_normalized, value),
+        "payment_terms": lambda value: _value_token_evidence(text_normalized, value),
+        "concept": lambda value: _value_token_evidence(text_normalized, value),
+        "subtotal": lambda value: _numeric_evidence(text_digits, value),
+        "tax_amount": lambda value: _numeric_evidence(text_digits, value),
+        "total_amount": lambda value: _numeric_evidence(text_digits, value),
+        "line_items": lambda value: _line_items_evidence(text_normalized, text_digits, value),
+    }
+
+    for field_name, checker in evidence_checks.items():
+        if field_name not in fields:
+            continue
+        value = fields.get(field_name)
+        if value in (None, "", []):
+            continue
+        if checker(value):
+            continue
+        fields[field_name] = [] if field_name == "line_items" else None
+        cleared += 1
+
+    return cleared
+
+
+def _apply_low_evidence_guard(
+    parsed: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+) -> None:
+    fields = parsed.get("fields")
+    if not isinstance(fields, dict):
+        return
+
+    cleared = _blank_low_evidence_fields(fields, content=content, format_hint=format_hint)
+    if cleared <= 0:
+        return
+
+    try:
+        parsed["confidence"] = min(float(parsed.get("confidence") or 0.0), 0.45)
+    except (TypeError, ValueError):
+        parsed["confidence"] = 0.45
+
+    reason = str(parsed.get("reasoning") or "").strip()
+    guard_reason = (
+        f"Low OCR evidence: cleared {cleared} unsupported field(s) to avoid hallucinated data."
+    )
+    parsed["reasoning"] = f"{reason} {guard_reason}".strip() if reason else guard_reason
 
 
 def _build_structured_classification_prompt(
@@ -363,6 +513,7 @@ async def _analyze_with_vision(
     image_bytes: bytes,
     filename: str,
     format_hint: str,
+    ocr_content: str = "",
     recipe_config: dict | None = None,
 ) -> dict[str, Any] | None:
     """Try to analyze a document image using a vision-capable model via Ollama.
@@ -487,6 +638,7 @@ async def _analyze_with_vision(
             parsed.setdefault("confidence", 0.8)
             parsed.setdefault("reasoning", "Vision model analysis")
             _clean_vision_fields(parsed.get("fields") or {})
+            _apply_low_evidence_guard(parsed, content=ocr_content, format_hint=format_hint)
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
             parsed["prompt_sent"] = (system_prompt + "\n\n" + user_prompt)[:500]
@@ -558,7 +710,7 @@ async def analyze_document(
 
     if not has_structured_rows and _should_use_vision_fallback(content, format_hint, image_bytes):
         vision_result = await _analyze_with_vision(
-            image_bytes, filename, format_hint, recipe_config
+            image_bytes, filename, format_hint, content, recipe_config
         )
         if vision_result:
             return vision_result
@@ -683,6 +835,7 @@ async def analyze_document(
             parsed.setdefault("fields", {})
             parsed.setdefault("confidence", 0.7)
             parsed.setdefault("reasoning", "")
+            _apply_low_evidence_guard(parsed, content=content, format_hint=format_hint)
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
             parsed["prompt_sent"] = full_prompt[:500]

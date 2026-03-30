@@ -359,7 +359,7 @@ def bootstrap_learning_from_existing_document(
     doc,
     user_id: str = "system",
 ) -> bool:
-    confirmed = doc.datos_confirmados or doc.datos_extraidos or {}
+    confirmed = doc.datos_confirmados or {}
     if not isinstance(confirmed, dict) or not confirmed:
         return False
     return learn_from_confirmed_payload(db, doc, confirmed, user_id)

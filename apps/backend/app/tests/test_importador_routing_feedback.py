@@ -4,7 +4,8 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from app.models.importador import ImpDocumento, ImpRoutingSignal
-from app.modules.importador.router import ConfirmRequest, confirm_document
+from app.modules.importador import crud
+from app.modules.importador.router import ConfirmRequest, confirm_document, list_documents
 from app.modules.importador.services.document_routing_feedback_service import record_routing_signal
 
 
@@ -97,7 +98,44 @@ def test_confirm_document_creates_routing_signal_row(db, tenant_minimal):
         .all()
     )
     assert response.estado == "CONFIRMED"
+    assert response.last_confirmation_mode == "corrected_by_user"
     assert len(signals) == 1
     assert signals[0].event == "confirm"
     assert signals[0].routing_snapshot["required_fields_ok"] is True
     assert signals[0].changed_fields == ["issue_date", "total_amount", "vendor"]
+    logs = [log for log in response.logs if log.accion == "CONFIRM"]
+    assert len(logs) == 1
+    assert logs[0].detalle["confirmation_mode"] == "corrected_by_user"
+
+
+def test_list_documents_exposes_learning_reprocess_metadata(db, tenant_minimal):
+    tenant_id = tenant_minimal["tenant_id"]
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="learning-refresh.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=32,
+        estado="REVIEW",
+        tipo_documento_detectado="INVOICE",
+        confianza_clasificacion=0.88,
+        requiere_revision=True,
+        datos_extraidos={"vendor": "Proveedor Demo"},
+    )
+    db.add(document)
+    db.commit()
+
+    crud.add_log(
+        db,
+        document.id,
+        "REPROCESS",
+        "tester",
+        {"reason": "learning_update", "mode": "async"},
+    )
+    db.commit()
+
+    docs = list_documents(_fake_request(tenant_id), estado=None, limit=50, offset=0, db=db)
+
+    assert len(docs) == 1
+    assert docs[0].id == document.id
+    assert docs[0].last_processing_reason == "learning_update"
+    assert docs[0].last_learning_reprocess_at is not None

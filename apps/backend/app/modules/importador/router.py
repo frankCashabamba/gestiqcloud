@@ -29,6 +29,7 @@ from .auto_recipe import (
     remember_snapshot_learning,
     resolve_auto_recipe,
     resolve_auto_recipe_from_text,
+    should_reprocess_existing_document,
 )
 from .canonical_document import build_document_projection
 from .document_fields import (
@@ -225,6 +226,56 @@ def _attach_document_review_hints(doc, db: Session):
         limit=5,
     )
     return doc.review_hints
+
+
+def _normalize_payload_for_audit(value):
+    if isinstance(value, dict):
+        return {
+            str(key): _normalize_payload_for_audit(item)
+            for key, item in sorted(value.items(), key=lambda entry: str(entry[0]))
+        }
+    if isinstance(value, list):
+        return [_normalize_payload_for_audit(item) for item in value]
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return value.isoformat()
+    return value
+
+
+def _derive_confirmation_mode(doc, datos_confirmados: dict) -> str:
+    detected = getattr(doc, "datos_extraidos", None)
+    detected_payload = detected if isinstance(detected, dict) else {}
+    confirmed_payload = datos_confirmados if isinstance(datos_confirmados, dict) else {}
+    if _normalize_payload_for_audit(detected_payload) == _normalize_payload_for_audit(confirmed_payload):
+        return "accepted_as_detected"
+    return "corrected_by_user"
+
+
+def _attach_document_activity_meta(doc):
+    logs = sorted((getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min)
+    doc.last_processing_reason = None
+    doc.last_learning_reprocess_at = None
+    doc.last_confirmation_mode = None
+    for log in reversed(logs):
+        detail = log.detalle if isinstance(log.detalle, dict) else {}
+        if log.accion == "REPROCESS" and doc.last_processing_reason is None:
+            reason = str(detail.get("reason") or "").strip()
+            doc.last_processing_reason = reason or None
+            if reason == "learning_update":
+                doc.last_learning_reprocess_at = log.created_at
+        if log.accion == "CONFIRM" and doc.last_confirmation_mode is None:
+            mode = str(detail.get("confirmation_mode") or "").strip()
+            doc.last_confirmation_mode = mode or None
+        if (
+            doc.last_processing_reason is not None
+            and doc.last_confirmation_mode is not None
+            and doc.last_learning_reprocess_at is not None
+        ):
+            break
+    return doc
 
 
 def _resolve_destination_routing(doc, db: Session, destination: str):
@@ -1090,15 +1141,26 @@ async def upload_files(
 
         existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
+        learning_reprocess_needed = False
+        if existing and isinstance(getattr(existing, "datos_confirmados", None), dict) and existing.datos_confirmados:
+            bootstrap_learning_from_existing_document(db, existing, user_id)
+        if existing:
+            learning_reprocess_needed = bool(
+                exact_hash_match
+                and existing.estado in ("CONFIRMED", "REVIEW")
+                and should_reprocess_existing_document(db, existing)
+            )
         reuse_existing = bool(
             existing
             and (
                 existing.estado in ("PENDING", "PROCESSING")
-                or (existing.estado in ("CONFIRMED", "REVIEW") and not force)
+                or (
+                    existing.estado in ("CONFIRMED", "REVIEW")
+                    and not force
+                    and not learning_reprocess_needed
+                )
             )
         )
-        if reuse_existing:
-            bootstrap_learning_from_existing_document(db, existing, user_id)
         if reuse_existing:
             crud.add_log(
                 db, existing.id, "SKIP_DUPLICATE", user_id, {"reason": "same hash_or_name"}
@@ -1118,8 +1180,8 @@ async def upload_files(
                     review_hints=review_hints,
                     action="REUSED",
                     message=(
-                        "Documento ya existente; se reutilizo el mismo registro. "
-                        "Usa reimportacion limpia para reprocesarlo."
+                        "Documento ya existente; se reutilizo el resultado actual porque no habia aprendizaje nuevo pendiente. "
+                        "Usa reimportacion limpia si quieres forzar otro analisis."
                     ),
                 )
             )
@@ -1137,7 +1199,12 @@ async def upload_files(
         ):
             doc = existing
             response_action = "REPROCESS"
-            response_message = "Se reproceso el mismo documento sobre el registro existente."
+            rerun_reason = "learning_update" if learning_reprocess_needed and not force else "manual"
+            response_message = (
+                "Se reanalizo el mismo documento para aplicar aprendizaje confirmado reciente."
+                if rerun_reason == "learning_update"
+                else "Se reproceso el mismo documento sobre el registro existente."
+            )
             crud.reset_documento_for_reprocess(
                 db,
                 doc,
@@ -1149,7 +1216,12 @@ async def upload_files(
                 doc.id,
                 "REPROCESS",
                 user_id,
-                {"filename": filename, "size": len(file_bytes), "mode": "in_place"},
+                {
+                    "filename": filename,
+                    "size": len(file_bytes),
+                    "mode": "in_place",
+                    "reason": rerun_reason,
+                },
             )
         else:
             predecessor = crud.find_latest_documento_by_name(
@@ -1280,7 +1352,10 @@ def list_documents(
     db: Session = Depends(get_db),
 ):
     tenant_id = _tenant_id(request)
-    return crud.list_documentos(db, tenant_id, estado=estado, limit=limit, offset=offset)
+    documents = crud.list_documentos(db, tenant_id, estado=estado, limit=limit, offset=offset)
+    for document in documents:
+        _attach_document_activity_meta(document)
+    return documents
 
 
 @router.get("/documents/{doc_id}", response_model=DocumentoDetailOut, dependencies=protected)
@@ -1300,6 +1375,7 @@ def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     doc.version_links = crud.list_documento_versions(db, doc.id)
     _attach_document_routing(doc, db)
     _attach_document_review_hints(doc, db)
+    _attach_document_activity_meta(doc)
     return doc
 
 
@@ -1328,9 +1404,9 @@ def confirm_document(
     if doc.estado == "CONFIRMED":
         raise HTTPException(status_code=400, detail="Documento ya confirmado")
 
-    crud.update_documento(
-        db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"}
-    )
+    confirmation_mode = _derive_confirmation_mode(doc, body.datos_confirmados)
+
+    crud.update_documento(db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"})
     _capture_routing_signal(
         doc,
         db,
@@ -1339,13 +1415,23 @@ def confirm_document(
         changed_fields=list(body.datos_confirmados.keys()),
     )
     _sync_batch_projection(db, doc.id, "CONFIRMED")
-    crud.add_log(db, doc.id, "CONFIRM", user_id, {"datos_confirmados": body.datos_confirmados})
+    crud.add_log(
+        db,
+        doc.id,
+        "CONFIRM",
+        user_id,
+        {
+            "datos_confirmados": body.datos_confirmados,
+            "confirmation_mode": confirmation_mode,
+        },
+    )
 
     _learn_from_confirmation(db, doc, body.datos_confirmados, user_id)
 
     db.commit()
     _attach_document_routing(doc, db)
     _attach_document_review_hints(doc, db)
+    _attach_document_activity_meta(doc)
     return doc
 
 

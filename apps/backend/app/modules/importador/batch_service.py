@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.importador import ImpBatchImport, ImpBatchItem
 
 from . import crud
+from .auto_recipe import should_reprocess_existing_document
 from .ocr_service import detect_file_type
 from .snapshot_learning import bootstrap_learning_from_existing_document
 
@@ -151,7 +152,7 @@ async def enqueue_async_batch(
     active_docs = crud.count_documentos_en_estados(db, tenant_id, ("PENDING", "PROCESSING"))
     staged_uploads: list[tuple[str, bytes, int, str, str, object | None]] = []
     existing_matches: list[tuple[object, str, int, str]] = []
-    rerun_existing: list[tuple[object, str, bytes, int, str, str]] = []
+    rerun_existing: list[tuple[object, str, bytes, int, str, str, str]] = []
     batch_size_bytes = 0
 
     for file in files:
@@ -197,11 +198,30 @@ async def enqueue_async_batch(
         )
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         if existing:
-            if existing.estado in ("CONFIRMED", "REVIEW"):
+            if isinstance(getattr(existing, "datos_confirmados", None), dict) and existing.datos_confirmados:
                 bootstrap_learning_from_existing_document(db, existing, user_id)
+            learning_reprocess_needed = bool(
+                exact_hash_match
+                and existing.estado in ("CONFIRMED", "REVIEW")
+                and should_reprocess_existing_document(db, existing)
+            )
 
             if existing.estado in ("PENDING", "PROCESSING"):
                 existing_matches.append((existing, filename, file_size, file_hash))
+                continue
+
+            if learning_reprocess_needed and not force:
+                rerun_existing.append(
+                    (
+                        existing,
+                        filename,
+                        file_bytes,
+                        file_size,
+                        file_hash,
+                        tipo_archivo,
+                        "learning_update",
+                    )
+                )
                 continue
 
             if existing.estado in ("CONFIRMED", "REVIEW") and not force:
@@ -210,7 +230,7 @@ async def enqueue_async_batch(
 
             if exact_hash_match and existing.estado in ("FAILED", "REVIEW", "CONFIRMED"):
                 rerun_existing.append(
-                    (existing, filename, file_bytes, file_size, file_hash, tipo_archivo)
+                    (existing, filename, file_bytes, file_size, file_hash, tipo_archivo, "manual")
                 )
                 continue
 
@@ -296,15 +316,15 @@ async def enqueue_async_batch(
                 "nombre_archivo": filename,
                 "action": "REUSED",
                 "message": (
-                    "Documento ya existente; se reutilizo el mismo registro. "
-                    "Usa reimportacion limpia para reprocesarlo."
+                    "Documento ya existente; se reutilizo el resultado actual porque no habia aprendizaje nuevo pendiente. "
+                    "Usa reimportacion limpia si quieres forzar otro analisis."
                 ),
             }
         )
     db.commit()
 
     rerun_start = len(existing_matches)
-    for offset, (existing, filename, file_bytes, file_size, file_hash, tipo_archivo) in enumerate(
+    for offset, (existing, filename, file_bytes, file_size, file_hash, tipo_archivo, rerun_reason) in enumerate(
         rerun_existing,
         start=rerun_start,
     ):
@@ -332,7 +352,13 @@ async def enqueue_async_batch(
             existing.id,
             "REPROCESS",
             user_id,
-            {"filename": filename, "size": file_size, "mode": "async", "batch_id": str(batch.id)},
+            {
+                "filename": filename,
+                "size": file_size,
+                "mode": "async",
+                "batch_id": str(batch.id),
+                "reason": rerun_reason,
+            },
         )
         db.commit()
 
@@ -358,7 +384,11 @@ async def enqueue_async_batch(
                 "estado": "PENDING",
                 "nombre_archivo": filename,
                 "action": "REPROCESS",
-                "message": "Se reproceso el mismo documento sobre el registro existente.",
+                "message": (
+                    "Se reanalizo el mismo documento para aplicar aprendizaje confirmado reciente."
+                    if rerun_reason == "learning_update"
+                    else "Se reproceso el mismo documento sobre el registro existente."
+                ),
             }
         )
 

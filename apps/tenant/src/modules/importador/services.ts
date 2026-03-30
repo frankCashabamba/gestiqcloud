@@ -23,6 +23,9 @@ export type Documento = {
   raw_ai_json?: Record<string, unknown>
   routing_decision?: DocumentRoutingDecision | null
   review_hints?: DocumentReviewHint[]
+  last_processing_reason?: string | null
+  last_learning_reprocess_at?: string | null
+  last_confirmation_mode?: string | null
   proveedor_detectado?: string
   ruc_detectado?: string
   monto_total?: number
@@ -281,6 +284,9 @@ function normalizeDocument(raw: unknown): Documento {
       : (typeof inferredDate === 'string' ? inferredDate : canonicalIssueDate),
     routing_decision: routingDecision,
     review_hints: reviewHints,
+    last_processing_reason: typeof data.last_processing_reason === 'string' ? data.last_processing_reason : null,
+    last_learning_reprocess_at: typeof data.last_learning_reprocess_at === 'string' ? data.last_learning_reprocess_at : null,
+    last_confirmation_mode: typeof data.last_confirmation_mode === 'string' ? data.last_confirmation_mode : null,
     synced_sheets: normalizeSyncedSheets(data.synced_sheets),
   }
 }
@@ -299,7 +305,7 @@ export async function fetchDocument(id: string): Promise<Documento> {
 
 export async function confirmDocument(id: string, datos: Record<string, unknown>): Promise<Documento> {
   const { data } = await api.post(TENANT_IMPORTADOR.confirm(id), { datos_confirmados: datos })
-  return data
+  return normalizeDocument(data)
 }
 
 export type SyncRecipeResult = {
@@ -691,13 +697,12 @@ function getImportadorStreamToken(): string {
 // --- /run-async: encola via Celery, retorna PENDING inmediatamente ---
 export async function runImportAsync(
   files: File[],
-  opts?: { force?: boolean; recipe_snapshot_id?: string }
+  opts?: { force?: boolean }
 ): Promise<AsyncRunResult[]> {
   const form = new FormData()
   files.forEach(f => form.append('files', f))
   const params: Record<string, string> = {}
   if (opts?.force) params.force = 'true'
-  if (opts?.recipe_snapshot_id) params.recipe_snapshot_id = opts.recipe_snapshot_id
   const { data } = await api.post(TENANT_IMPORTADOR.runAsync, form, {
     params,
   })

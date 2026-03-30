@@ -108,7 +108,15 @@ function summarizeLogDetail(action: string, detail: Record<string, unknown> | nu
     const filename = typeof detail.filename === 'string' ? detail.filename : null
     return filename ? `Archivo: ${filename}` : undefined
   }
+  if (action === 'CONFIRM') {
+    const mode = typeof detail.confirmation_mode === 'string' ? detail.confirmation_mode : null
+    if (mode === 'corrected_by_user') return 'Se confirmo con cambios del usuario.'
+    if (mode === 'accepted_as_detected') return 'Se confirmo tal como fue detectado.'
+    return 'Se confirmaron los datos del documento.'
+  }
   if (action === 'REPROCESS') {
+    const reason = typeof detail.reason === 'string' ? detail.reason : null
+    if (reason === 'learning_update') return 'Se reanalizo para aplicar aprendizaje confirmado reciente.'
     const mode = typeof detail.mode === 'string' ? detail.mode : null
     return mode === 'async' || mode === 'in_place' ? 'Se volvió a procesar el documento.' : undefined
   }
@@ -127,20 +135,27 @@ function summarizeLogDetail(action: string, detail: Record<string, unknown> | nu
 
 function buildUserActivity(logs: LogCambio[] | undefined): ActivityItem[] {
   if (!logs?.length) return []
-  const visibleActions: Record<string, string> = {
-    UPLOAD: 'Documento subido',
-    EDIT: 'Datos editados',
-    CONFIRM: 'Documento confirmado',
-    REJECT: 'Documento rechazado',
-    REPROCESS: 'Reprocesado solicitado',
-    SAVE_DESTINATION: 'Documento guardado',
-  }
-
   return logs
-    .filter((log) => Boolean(visibleActions[log.accion]))
+    .filter((log) => ['UPLOAD', 'EDIT', 'CONFIRM', 'REJECT', 'REPROCESS', 'SAVE_DESTINATION'].includes(log.accion))
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
     .map((log) => ({
       id: log.id,
-      title: visibleActions[log.accion],
+      title: (() => {
+        if (log.accion === 'CONFIRM') {
+          const detail = log.detalle && typeof log.detalle === 'object'
+            ? log.detalle as Record<string, unknown>
+            : null
+          const mode = typeof detail?.confirmation_mode === 'string' ? detail.confirmation_mode : null
+          if (mode === 'corrected_by_user') return 'Documento confirmado con correcciones'
+          if (mode === 'accepted_as_detected') return 'Documento confirmado tal cual'
+        }
+        if (log.accion === 'UPLOAD') return 'Documento subido'
+        if (log.accion === 'EDIT') return 'Datos editados'
+        if (log.accion === 'CONFIRM') return 'Documento confirmado'
+        if (log.accion === 'REJECT') return 'Documento rechazado'
+        if (log.accion === 'REPROCESS') return 'Reprocesado solicitado'
+        return 'Documento guardado'
+      })(),
       when: new Date(log.created_at).toLocaleString(),
       note: summarizeLogDetail(log.accion, log.detalle as Record<string, unknown> | null | undefined),
     }))
@@ -881,7 +896,7 @@ export default function DocumentDetail() {
                 </div>
                 {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
                   <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
-                    Volver a importar rehace este mismo documento desde cero. Subir otro archivo abre una carga nueva sin arrastrar la sesion anterior.
+                    Volver a importar rehace este mismo documento. Subir otro archivo crea una carga nueva. Si ya habia aprendizaje confirmado reciente, el sistema puede reanalizar este archivo automaticamente.
                   </div>
                 )}
               </div>

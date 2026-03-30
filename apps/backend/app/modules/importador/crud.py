@@ -152,11 +152,15 @@ def list_batches(
 def list_documentos(
     db: Session, tenant_id: UUID, *, estado: str | None = None, limit: int = 50, offset: int = 0
 ):
-    q = select(ImpDocumento).where(ImpDocumento.tenant_id == tenant_id)
+    q = (
+        select(ImpDocumento)
+        .options(joinedload(ImpDocumento.logs))
+        .where(ImpDocumento.tenant_id == tenant_id)
+    )
     if estado:
         q = q.where(ImpDocumento.estado == estado)
     q = q.order_by(ImpDocumento.created_at.desc()).limit(limit).offset(offset)
-    return db.scalars(q).all()
+    return db.scalars(q).unique().all()
 
 
 def update_documento(db: Session, doc: ImpDocumento, data: dict) -> ImpDocumento:

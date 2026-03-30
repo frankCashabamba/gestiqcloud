@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import ImportUploader from '../components/ImportUploader'
 import { fetchDashboard, type DashboardStats } from '../services'
 
 const EMPTY_STATS: DashboardStats = {
@@ -49,12 +48,6 @@ export default function Dashboard() {
           .importador-dashboard__hero {
             padding: 1rem !important;
           }
-          .importador-dashboard__actions {
-            width: 100%;
-          }
-          .importador-dashboard__actions button {
-            flex: 1;
-          }
           .importador-dashboard__stats {
             grid-template-columns: minmax(0, 1fr) !important;
           }
@@ -81,13 +74,6 @@ export default function Dashboard() {
               <p style={{ margin: '0.6rem 0 0', fontSize: 15, color: '#475569', maxWidth: 700 }}>
                 Sube archivos, revisa la informacion detectada y guarda cada documento en su destino. Todo el flujo queda concentrado en una sola bandeja.
               </p>
-              <p style={{ margin: '0.55rem 0 0', fontSize: 13, color: '#0f766e', maxWidth: 700, fontWeight: 700 }}>
-                El importador aprende de los documentos que validas. No hace falta elegir plantillas manuales para el flujo normal.
-              </p>
-            </div>
-            <div className="importador-dashboard__actions" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <button onClick={() => navigate('documents')} style={primaryBtn}>Ir a documentos</button>
-              <button onClick={() => navigate('upload')} style={secondaryBtn}>Nueva importacion</button>
             </div>
           </div>
 
@@ -134,19 +120,47 @@ export default function Dashboard() {
             border: '1px solid #e2e8f0',
             background: '#fff',
             boxShadow: '0 18px 36px rgba(15, 23, 42, 0.05)',
-            padding: '1rem',
+            padding: '1.1rem',
+            display: 'grid',
+            gap: '0.9rem',
           }}
         >
-          <div style={{ marginBottom: '0.9rem' }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Nueva importacion</div>
-            <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-              Carga aqui nuevos archivos. Cuando termine el procesamiento podras abrir cada documento y revisar los datos detectados.
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Siguiente paso</div>
+            <div style={{ marginTop: 4, fontSize: 13, color: '#64748b', maxWidth: 720 }}>
+              Usa esta portada para ver el estado general. La carga de archivos y la revision viven en pantallas separadas para evitar duplicaciones y mezclar pasos.
             </div>
           </div>
-          <ImportUploader
-            onImported={() => { void loadDashboard() }}
-            documentPathBuilder={(docId) => `documents/${docId}`}
-          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.8rem' }}>
+            <button
+              onClick={() => navigate('upload')}
+              style={{
+                ...primaryBtn,
+                width: '100%',
+                justifyContent: 'space-between',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <span>Nueva importacion</span>
+              <span style={{ opacity: 0.8 }}>Subir archivos</span>
+            </button>
+
+            <button
+              onClick={() => navigate('documents')}
+              style={{
+                ...secondaryBtn,
+                width: '100%',
+                justifyContent: 'space-between',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <span>Ir a documentos</span>
+              <span style={{ color: '#64748b' }}>Abrir bandeja</span>
+            </button>
+          </div>
         </section>
       </div>
     </>

@@ -65,9 +65,9 @@ function fileIcon(name: string) {
 function importActionCopy(action?: string | null) {
   switch (action) {
     case 'REUSED':
-      return { label: 'Ya existia', color: '#92400e', bg: '#fef3c7' }
+      return { label: 'Reutilizado', color: '#92400e', bg: '#fef3c7' }
     case 'REPROCESS':
-      return { label: 'Procesado otra vez', color: '#1d4ed8', bg: '#dbeafe' }
+      return { label: 'Reanalizado', color: '#1d4ed8', bg: '#dbeafe' }
     case 'CREATED':
       return { label: 'Nuevo', color: '#166534', bg: '#dcfce7' }
     default:
@@ -753,7 +753,7 @@ export default function ImportUploader({
               ))}
             </div>
             <div style={{ marginTop: '0.9rem', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
-              El sistema organiza cada documento para que luego solo tengas que revisarlo y confirmar.
+              Cuando termine el procesamiento podras abrir cada documento y revisarlo.
             </div>
             <input ref={fileRef} type="file" multiple accept={acceptedAttr} onChange={onFileChange} style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }} />
           </div>
@@ -945,7 +945,7 @@ export default function ImportUploader({
 
         <div className="import-uploader__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
           <div style={{ minWidth: 240, flex: '1 1 260px' }}>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Modo de aprendizaje</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Opciones de envio</div>
             <div
               style={{
                 padding: '0.7rem 0.85rem',
@@ -957,7 +957,7 @@ export default function ImportUploader({
                 lineHeight: 1.45,
               }}
             >
-              El sistema detecta automaticamente el mejor enfoque y mejora con los documentos que confirmas.
+              Sube los archivos, espera el procesamiento y revisa cada documento antes de confirmarlo o guardarlo.
             </div>
           </div>
           <label className="import-uploader__checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: 12, color: '#6b7280', cursor: processing ? 'default' : 'pointer', userSelect: 'none', padding: '0.72rem 0.85rem', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', minHeight: 46 }}>
@@ -969,7 +969,7 @@ export default function ImportUploader({
               style={{ cursor: 'pointer' }}
             />
             Volver a importar archivo
-            <span style={{ color: '#9ca3af' }}>(rehace el analisis desde cero si ya existe)</span>
+            <span style={{ color: '#9ca3af' }}>(solo si quieres rehacer el analisis del mismo archivo)</span>
           </label>
         </div>
 

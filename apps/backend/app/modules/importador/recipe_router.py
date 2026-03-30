@@ -39,6 +39,7 @@ from .schemas import (
     RunResponse,
     SnapshotOut,
 )
+from .auto_recipe import should_reprocess_existing_document
 from .snapshot_learning import bootstrap_learning_from_existing_document
 
 logger = logging.getLogger(__name__)
@@ -176,15 +177,26 @@ async def run_import(
 
         existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
+        learning_reprocess_needed = False
+        if existing and isinstance(getattr(existing, "datos_confirmados", None), dict) and existing.datos_confirmados:
+            bootstrap_learning_from_existing_document(db, existing, user_id)
+        if existing:
+            learning_reprocess_needed = bool(
+                exact_hash_match
+                and existing.estado in ("CONFIRMED", "REVIEW")
+                and should_reprocess_existing_document(db, existing)
+            )
         reuse_existing = bool(
             existing
             and (
                 existing.estado in ("PENDING", "PROCESSING")
-                or (existing.estado in ("CONFIRMED", "REVIEW") and not force)
+                or (
+                    existing.estado in ("CONFIRMED", "REVIEW")
+                    and not force
+                    and not learning_reprocess_needed
+                )
             )
         )
-        if reuse_existing:
-            bootstrap_learning_from_existing_document(db, existing, user_id)
         if reuse_existing:
             crud.add_log(
                 db,
@@ -213,6 +225,7 @@ async def run_import(
             return
 
         predecessor = None
+        rerun_reason = "new_upload"
         if (
             exact_hash_match
             and existing
@@ -223,6 +236,7 @@ async def run_import(
             )
         ):
             doc = existing
+            rerun_reason = "learning_update" if learning_reprocess_needed and not force else "manual"
             crud.reset_documento_for_reprocess(
                 db,
                 doc,
@@ -265,6 +279,7 @@ async def run_import(
                 "explicit_recipe_context": explicit_recipe_context,
                 "recipe_resolution": resolution_mode,
                 "recipe_snapshot_id": str(resolved_snapshot_id) if resolved_snapshot_id else None,
+                "reason": rerun_reason,
             },
         )
         db.commit()

@@ -77,7 +77,7 @@ def record_routing_signal(
         "payload": _json_safe(payload or {}),
     }
 
-    raw_payload = doc.raw_ai_json if isinstance(doc.raw_ai_json, dict) else {}
+    raw_payload = dict(doc.raw_ai_json) if isinstance(doc.raw_ai_json, dict) else {}
     raw_payload["routing"] = decision_payload
     raw_payload["routing_feedback"] = signal_payload
     crud.update_documento(db, doc, {"raw_ai_json": _json_safe(raw_payload)})
