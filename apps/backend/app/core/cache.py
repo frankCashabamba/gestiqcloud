@@ -64,6 +64,10 @@ async def get_redis_client():
 
     if _redis_client is not None and _redis_client_loop is not current_loop:
         logger.info("Recreando cliente Redis de cache para un nuevo event loop.")
+        try:
+            await _redis_client.aclose()
+        except Exception:
+            pass
         _redis_client = None
         _redis_client_loop = None
 

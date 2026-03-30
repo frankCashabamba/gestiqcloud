@@ -245,6 +245,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   const [lineMatches, setLineMatches] = useState<DocumentLineMatch[]>([])
   const [lineMatchSelection, setLineMatchSelection] = useState<Record<number, string>>({})
   const [persistAliasByLine, setPersistAliasByLine] = useState<Record<number, boolean>>({})
+  const [createNewByLine, setCreateNewByLine] = useState<Record<number, boolean>>({})
   const [loadingLineMatches, setLoadingLineMatches] = useState(false)
 
   const lineItems = useMemo(() => {
@@ -288,6 +289,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
     setLineMatches([])
     setLineMatchSelection({})
     setPersistAliasByLine({})
+    setCreateNewByLine({})
     setDestination(suggested)
     setPaymentStatus(initialDefaults.paymentStatus)
     setPaymentMethodId(initialDefaults.paymentMethodId)
@@ -439,12 +441,18 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
       const payload: SaveDocumentPayload = { destination, update_stock: updateStock && canUpdateStock }
       if (destination === 'supplier_invoice' && updateStock && canUpdateStock) {
         payload.line_matches = effectiveLineMatches
-          .map((row) => ({
-            line_index: row.line_index,
-            product_id: lineMatchSelection[row.line_index] || null,
-            persist_alias: persistAliasByLine[row.line_index] !== false,
-          }))
-          .filter((row) => row.product_id)
+          .map((row) => {
+            const selectedId = lineMatchSelection[row.line_index] || null
+            const isCreateNew = !selectedId && createNewByLine[row.line_index] === true
+            if (!selectedId && !isCreateNew) return null
+            return {
+              line_index: row.line_index,
+              product_id: selectedId || null,
+              persist_alias: persistAliasByLine[row.line_index] !== false,
+              create_new: isCreateNew,
+            }
+          })
+          .filter(Boolean) as typeof payload.line_matches
       }
 
       if (destination !== 'recipe') {
@@ -659,7 +667,12 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                             <td style={matchTd}>
                               <select
                                 value={selectedId}
-                                onChange={(e) => setLineMatchSelection((prev) => ({ ...prev, [row.line_index]: e.target.value }))}
+                                onChange={(e) => {
+                                  setLineMatchSelection((prev) => ({ ...prev, [row.line_index]: e.target.value }))
+                                  if (e.target.value) {
+                                    setCreateNewByLine((prev) => ({ ...prev, [row.line_index]: false }))
+                                  }
+                                }}
                                 style={{ ...input, minWidth: 260 }}
                                 disabled={saving}
                               >
@@ -671,20 +684,32 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                                 ))}
                               </select>
                               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                                <div style={{ fontSize: 12, color: '#64748b' }}>
-                                  {row.candidates.length > 0
-                                    ? row.candidates.slice(0, 3).map((candidate) => candidate.name).join(', ')
-                                    : 'No se encontraron candidatos.'}
-                                </div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={persistAliasByLine[row.line_index] !== false}
-                                    onChange={(e) => setPersistAliasByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
-                                    disabled={saving || !selectedId}
-                                  />
-                                  Guardar alias
-                                </label>
+                                {!selectedId ? (
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: createNewByLine[row.line_index] ? '#166534' : '#475569', fontWeight: createNewByLine[row.line_index] ? 600 : 400, cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={createNewByLine[row.line_index] === true}
+                                      onChange={(e) => setCreateNewByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
+                                      disabled={saving}
+                                    />
+                                    Crear producto nuevo (+{row.quantity} {row.description.split(' ')[0]})
+                                  </label>
+                                ) : (
+                                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                                    {row.candidates.slice(0, 3).map((candidate) => candidate.name).join(', ')}
+                                  </div>
+                                )}
+                                {selectedId && (
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={persistAliasByLine[row.line_index] !== false}
+                                      onChange={(e) => setPersistAliasByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
+                                      disabled={saving}
+                                    />
+                                    Guardar alias
+                                  </label>
+                                )}
                               </div>
                             </td>
                           </tr>

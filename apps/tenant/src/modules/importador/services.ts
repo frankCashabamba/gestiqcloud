@@ -23,6 +23,7 @@ export type Documento = {
   raw_ai_json?: Record<string, unknown>
   routing_decision?: DocumentRoutingDecision | null
   review_hints?: DocumentReviewHint[]
+  assisted_review?: AssistedReview | null
   last_processing_reason?: string | null
   last_learning_reprocess_at?: string | null
   last_confirmation_mode?: string | null
@@ -61,6 +62,15 @@ export type DocumentReviewHint = {
   confirmed_examples: string[]
   last_confirmed_value?: string | null
   reason: string
+}
+
+export type AssistedReview = {
+  mode: 'assisted_lines'
+  reason: string
+  message: string
+  line_items_count: number
+  scalar_fields_detected: number
+  can_derive_total: boolean
 }
 
 let _categoryKeywords: Record<string, string[]> = {}
@@ -248,6 +258,20 @@ function normalizeReviewHints(raw: unknown): DocumentReviewHint[] {
   return hints.sort((a, b) => a.priority - b.priority || a.field.localeCompare(b.field))
 }
 
+function normalizeAssistedReview(raw: unknown): AssistedReview | null {
+  if (!raw || typeof raw !== 'object') return null
+  const data = raw as Record<string, unknown>
+  if (data.mode !== 'assisted_lines') return null
+  return {
+    mode: 'assisted_lines',
+    reason: String(data.reason ?? ''),
+    message: String(data.message ?? ''),
+    line_items_count: Math.max(0, Number(data.line_items_count ?? 0) || 0),
+    scalar_fields_detected: Math.max(0, Number(data.scalar_fields_detected ?? 0) || 0),
+    can_derive_total: Boolean(data.can_derive_total),
+  }
+}
+
 function normalizeDocument(raw: unknown): Documento {
   const data = (raw || {}) as Record<string, unknown>
   const importData = getDocumentData(data as { datos_confirmados?: unknown; datos_extraidos?: unknown })
@@ -257,6 +281,7 @@ function normalizeDocument(raw: unknown): Documento {
     : {}
   const routingDecision = normalizeRoutingDecision(data.routing_decision ?? rawAi.routing)
   const reviewHints = normalizeReviewHints(data.review_hints)
+  const assistedReview = normalizeAssistedReview(data.assisted_review ?? rawAi.assisted_review)
   const canonicalDocument = canonical.document && typeof canonical.document === 'object'
     ? canonical.document as Record<string, unknown>
     : {}
@@ -284,6 +309,7 @@ function normalizeDocument(raw: unknown): Documento {
       : (typeof inferredDate === 'string' ? inferredDate : canonicalIssueDate),
     routing_decision: routingDecision,
     review_hints: reviewHints,
+    assisted_review: assistedReview,
     last_processing_reason: typeof data.last_processing_reason === 'string' ? data.last_processing_reason : null,
     last_learning_reprocess_at: typeof data.last_learning_reprocess_at === 'string' ? data.last_learning_reprocess_at : null,
     last_confirmation_mode: typeof data.last_confirmation_mode === 'string' ? data.last_confirmation_mode : null,
@@ -351,6 +377,7 @@ export type SaveDocumentPayload = {
     line_index: number
     product_id?: string | null
     persist_alias?: boolean
+    create_new?: boolean
   }>
 }
 

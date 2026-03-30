@@ -16,6 +16,50 @@ from app.services.ai.service import AIService
 logger = logging.getLogger("importador.ai")
 
 CONFIDENCE_THRESHOLD = 0.85
+_OCR_EVIDENCE_FORMATS = {"IMAGE_OCR", "PDF_OCR", "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"}
+_AMOUNT_LABELS: dict[str, tuple[str, ...]] = {
+    "total_amount": (
+        "valor total",
+        "importe total",
+        "total a pagar",
+        "grand total",
+        "amount due",
+        "payable amount",
+        "monto total",
+        "total",
+    ),
+    "subtotal": (
+        "subtotal sin impuestos",
+        "total sin impuestos",
+        "tax exclusive amount",
+        "base imponible",
+        "sub total",
+        "subtotal",
+    ),
+    "tax_amount": (
+        "iva",
+        "vat",
+        "igv",
+        "gst",
+        "tax amount",
+        "impuesto",
+    ),
+}
+_SPANISH_MONTHS = {
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+    "mayo": 5,
+    "junio": 6,
+    "julio": 7,
+    "agosto": 8,
+    "septiembre": 9,
+    "setiembre": 9,
+    "octubre": 10,
+    "noviembre": 11,
+    "diciembre": 12,
+}
 
 # Minimal emergency patterns — used ONLY when both AI and DB are unavailable.
 # Extend document types via DB migration (sector_field_defaults), not here.
@@ -449,6 +493,259 @@ def _clean_vision_fields(fields: dict) -> None:
             fields[key] = cleaned or val.strip()
 
 
+def _parse_amount_token(token: str) -> float | None:
+    cleaned = str(token or "").strip()
+    if not cleaned:
+        return None
+    cleaned = re.sub(r"[^\d,.\-]", "", cleaned)
+    if not cleaned or cleaned in {"-", ".", ","}:
+        return None
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif "," in cleaned:
+        cleaned = cleaned.replace(",", ".")
+    try:
+        return float(cleaned)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_amount_candidates_from_line(line: str) -> list[float]:
+    candidates: list[float] = []
+
+    combined_matches = list(re.finditer(r"(?<![\d,.])(\d{1,6})\s+(\d{2})(?![\d,.])", line))
+    combined_spans = [match.span() for match in combined_matches]
+    for match in combined_matches:
+        start, end = match.span()
+        if (
+            (start > 0 and line[start - 1] == "%")
+            or (end < len(line) and line[end:end + 1] == "%")
+        ):
+            continue
+        amount = _parse_amount_token(f"{match.group(1)}.{match.group(2)}")
+        if amount is not None:
+            candidates.append(amount)
+
+    decimal_like_matches = list(
+        re.finditer(r"(?<![\d,.])(?:\d{1,3}(?:[.,]\d{3})+|\d{1,6})(?:[.,]\d{2})?(?![\d,.])", line)
+    )
+    for match in decimal_like_matches:
+        start, end = match.span()
+        if any(start >= c_start and end <= c_end for c_start, c_end in combined_spans):
+            continue
+        if (
+            (start > 0 and line[start - 1] == "%")
+            or (end < len(line) and line[end:end + 1] == "%")
+        ):
+            continue
+        amount = _parse_amount_token(match.group(0))
+        if amount is not None:
+            candidates.append(amount)
+
+    return candidates
+
+
+def _extract_money_like_amounts_from_line(line: str) -> list[float]:
+    candidates: list[float] = []
+    combined_matches = list(re.finditer(r"(?<![\d,.])(\d{1,6})\s+(\d{2})(?![\d,.])", line))
+    for match in combined_matches:
+        start, end = match.span()
+        if (
+            (start > 0 and line[start - 1] == "%")
+            or (end < len(line) and line[end:end + 1] == "%")
+        ):
+            continue
+        amount = _parse_amount_token(f"{match.group(1)}.{match.group(2)}")
+        if amount is not None:
+            candidates.append(amount)
+
+    decimal_matches = list(
+        re.finditer(r"(?<![\d,.])\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?(?![\d,.])", line)
+    )
+    decimal_matches.extend(
+        list(re.finditer(r"(?<![\d,.])\d+[.,]\d{2}(?![\d,.])", line))
+    )
+    for match in decimal_matches:
+        start, end = match.span()
+        if (
+            (start > 0 and line[start - 1] == "%")
+            or (end < len(line) and line[end:end + 1] == "%")
+        ):
+            continue
+        amount = _parse_amount_token(match.group(0))
+        if amount is not None:
+            candidates.append(amount)
+    return candidates
+
+
+def _extract_labeled_amount(content: str, field_name: str) -> float | None:
+    labels = _AMOUNT_LABELS.get(field_name) or ()
+    if not labels:
+        return None
+
+    candidates: list[float] = []
+    label_patterns = [(label, re.compile(rf"\b{re.escape(label)}\b")) for label in labels]
+    for raw_line in str(content or "").splitlines():
+        line = " ".join(raw_line.split()).strip()
+        if not line:
+            continue
+        line_lower = line.lower()
+        match_info = next(
+            ((label, pattern.search(line_lower)) for label, pattern in label_patterns if pattern.search(line_lower)),
+            None,
+        )
+        if match_info is None:
+            continue
+        matched_label, matched = match_info
+        assert matched is not None
+        if field_name == "total_amount" and any(
+            reject in line_lower
+            for reject in ("subtotal", "sub total", "tax exclusive", "sin impuestos")
+        ):
+            continue
+        if field_name == "total_amount" and matched_label == "total" and "%" in line_lower:
+            continue
+
+        segment = line[matched.end():].strip() or line
+        for amount in reversed(_extract_amount_candidates_from_line(segment)):
+            candidates.append(amount)
+            break
+
+    if not candidates:
+        return None
+    if field_name == "subtotal":
+        return max(candidates)
+    return candidates[-1]
+
+
+def _extract_contextual_max_amount(content: str) -> float | None:
+    keywords = (
+        re.compile(r"\btotal\b"),
+        re.compile(r"\bsubtotal\b"),
+        re.compile(r"\bsub total\b"),
+        re.compile(r"\biva\b"),
+        re.compile(r"\bvat\b"),
+        re.compile(r"\bigv\b"),
+        re.compile(r"\bimpuesto\b"),
+    )
+    candidates: list[float] = []
+    for raw_line in str(content or "").splitlines():
+        line = " ".join(raw_line.split()).strip()
+        if not line:
+            continue
+        line_lower = line.lower()
+        if not any(pattern.search(line_lower) for pattern in keywords):
+            continue
+        for amount in _extract_money_like_amounts_from_line(line):
+            if amount > 0:
+                candidates.append(round(amount, 2))
+
+    if not candidates:
+        return None
+    return max(candidates)
+
+
+def _extract_issue_date_from_ocr(content: str) -> str | None:
+    text = str(content or "")
+    iso_match = re.search(r"\b(20\d{2})-(\d{2})-(\d{2})(?:[T\s]|$)", text)
+    if iso_match:
+        return f"{iso_match.group(1)}-{iso_match.group(2)}-{iso_match.group(3)}"
+
+    normalized = _normalize_evidence_text(text)
+    written_match = re.search(
+        r"\b(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(20\d{2})\b",
+        normalized,
+    )
+    if not written_match:
+        return None
+    month = _SPANISH_MONTHS.get(written_match.group(2))
+    if month is None:
+        return None
+    day = int(written_match.group(1))
+    year = int(written_match.group(3))
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def _apply_high_evidence_ocr_repairs(
+    parsed: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+) -> None:
+    normalized_format = str(format_hint or "").strip().upper()
+    if normalized_format not in _OCR_EVIDENCE_FORMATS:
+        return
+
+    fields = parsed.get("fields")
+    if not isinstance(fields, dict):
+        return
+
+    quality = _estimate_text_quality(content)
+    labeled_total = _extract_labeled_amount(content, "total_amount")
+    labeled_subtotal = _extract_labeled_amount(content, "subtotal")
+    labeled_tax = _extract_labeled_amount(content, "tax_amount")
+    ocr_issue_date = _extract_issue_date_from_ocr(content)
+
+    if quality["score"] < _ocr_quality_threshold() and not any(
+        value is not None for value in (labeled_total, labeled_subtotal, labeled_tax, ocr_issue_date)
+    ):
+        return
+
+    text_digits = _digits_only(content)
+
+    if labeled_total is None:
+        labeled_total = _extract_contextual_max_amount(content)
+    current_total = fields.get("total_amount")
+    if labeled_total is not None and (
+        current_total in (None, "")
+        or not _numeric_evidence(text_digits, current_total)
+        or abs(float(current_total) - labeled_total) > 1.0
+    ):
+        fields["total_amount"] = labeled_total
+
+    current_subtotal = fields.get("subtotal")
+    total_ceiling = fields.get("total_amount")
+    if labeled_subtotal is not None:
+        if total_ceiling not in (None, ""):
+            try:
+                if float(labeled_subtotal) <= 0 and float(total_ceiling) > 0:
+                    labeled_subtotal = None
+                elif float(labeled_subtotal) > float(total_ceiling) + 0.01:
+                    labeled_subtotal = None
+            except (TypeError, ValueError):
+                pass
+    if labeled_subtotal is not None and (
+        current_subtotal in (None, "")
+        or not _numeric_evidence(text_digits, current_subtotal)
+    ):
+        fields["subtotal"] = labeled_subtotal
+    elif labeled_subtotal is None and current_subtotal not in (None, "") and not _numeric_evidence(
+        text_digits, current_subtotal
+    ):
+        fields["subtotal"] = None
+
+    current_tax = fields.get("tax_amount")
+    if labeled_tax is not None and (
+        current_tax in (None, "")
+        or not _numeric_evidence(text_digits, current_tax)
+    ):
+        fields["tax_amount"] = labeled_tax
+    elif labeled_tax is None and current_tax not in (None, "") and not _numeric_evidence(
+        text_digits, current_tax
+    ):
+        fields["tax_amount"] = None
+
+    issue_date = fields.get("issue_date")
+    if ocr_issue_date and (
+        issue_date in (None, "")
+        or not _numeric_evidence(text_digits, issue_date)
+    ):
+        fields["issue_date"] = ocr_issue_date
+
+
 def _build_additional_field_hints(recipe_config: dict | None) -> str:
     rc = recipe_config or {}
     field_descriptions = rc.get("field_descriptions") or {}
@@ -834,6 +1131,7 @@ async def analyze_document(
             parsed.setdefault("confidence", 0.7)
             parsed.setdefault("reasoning", "")
             _apply_low_evidence_guard(parsed, content=content, format_hint=format_hint)
+            _apply_high_evidence_ocr_repairs(parsed, content=content, format_hint=format_hint)
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
             parsed["prompt_sent"] = full_prompt[:500]

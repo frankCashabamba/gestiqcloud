@@ -191,3 +191,51 @@ def test_analyze_document_preserves_fields_when_image_ocr_has_evidence(monkeypat
     assert result["fields"]["currency"] == "USD"
     assert result["fields"]["total_amount"] == 2145.0
     assert result["confidence"] == 0.94
+
+
+def test_analyze_document_repairs_total_and_date_from_explicit_ocr_labels(monkeypatch):
+    async def fake_query(**kwargs):
+        del kwargs
+        return SimpleNamespace(
+            content=(
+                '{"doc_type":"INVOICE","confidence":0.9,"reasoning":"ok",'
+                '"is_table":true,"columns":["Product"],"fields":{'
+                '"issue_date":"2028-01-16",'
+                '"subtotal":85.8,'
+                '"tax_amount":12.87,'
+                '"total_amount":98.67'
+                "}}"
+            ),
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content=(
+                "LINOS MIRAFLORES S.A.\n"
+                "2026-01-16T08:56:16-05:00\n"
+                "Fecha de Emision : viernes, 16 de enero de 2026\n"
+                "SUB TOTAL 0% 2,145.00\n"
+                "IVA 15% 0.00\n"
+                "VALOR TOTAL 2,145.00\n"
+            ),
+            filename="factura.jpg",
+            format_hint="IMAGE_OCR",
+            image_bytes=None,
+            canonical_fields={
+                "issue_date": {"type": "date"},
+                "subtotal": {"type": "numeric"},
+                "tax_amount": {"type": "numeric"},
+                "total_amount": {"type": "numeric"},
+            },
+        )
+    )
+
+    assert result["fields"]["issue_date"] == "2026-01-16"
+    assert result["fields"]["subtotal"] == 2145.0
+    assert result["fields"]["tax_amount"] == 0.0
+    assert result["fields"]["total_amount"] == 2145.0

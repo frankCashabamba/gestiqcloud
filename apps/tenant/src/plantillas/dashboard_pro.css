@@ -351,7 +351,7 @@
   scrollbar-color: var(--border) transparent;
 }
 
-.sidebar nav { flex: 1; }
+.sidebar nav { flex: 0 0 auto; }
 
 .sidebar nav ul {
   list-style: none;

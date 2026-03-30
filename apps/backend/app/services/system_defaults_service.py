@@ -200,6 +200,13 @@ _DEFAULTS: list[dict[str, Any]] = [
         "value_type": "json",
         "description": "Default document series created at tenant onboarding. JSON array. Each entry needs doc_type; receipts use name_backoffice/name_pos, others use name.",
     },
+    {
+        "key": "app.version",
+        "category": "app",
+        "value_text": "0.1.0",
+        "value_type": "text",
+        "description": "Version del sistema mostrada en la interfaz. Cambiar desde el Panel Admin para reflejarlo en todos los tenants sin redeploy.",
+    },
 ]
 
 

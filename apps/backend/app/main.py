@@ -585,6 +585,16 @@ app.add_middleware(
 )
 
 
+# App version — public, no auth required
+@app.get("/api/version", include_in_schema=False)
+def api_version():
+    from app.config.database import SessionLocal
+    from app.services.system_defaults_service import get_system_default_text
+    with SessionLocal() as db:
+        version = get_system_default_text(db, "app.version", settings.APP_VERSION)
+    return {"version": version}
+
+
 # Health and readiness
 @app.get("/health", tags=["health"])
 def health():

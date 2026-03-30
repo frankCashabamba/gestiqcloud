@@ -126,6 +126,45 @@ function createEmptyEditableLineItem(): EditableLineItem {
   return { description: '', quantity: '', unit_price: '', total_price: '' }
 }
 
+function formatLineCellValue(value: unknown): string {
+  if (value == null) return '—'
+  const text = String(value).trim()
+  if (!text || text.toLowerCase() === 'nan') return '—'
+  return text
+}
+
+function LineItemsPreview({ items, title, subtitle }: { items: Record<string, unknown>[]; title: string; subtitle?: string }) {
+  if (!items.length) return null
+  return (
+    <div style={{ marginTop: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 12, color: '#64748B' }}>{subtitle}</div>}
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: '#f9fafb' }}>
+            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Descripcion</th>
+            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Cant.</th>
+            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>P. Unit.</th>
+            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, index) => (
+            <tr key={`${index}-${String(item.description ?? '')}`} style={{ borderTop: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '0.3rem 0.5rem', color: '#111827' }}>{formatLineCellValue(item.description)}</td>
+              <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.quantity)}</td>
+              <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.unit_price)}</td>
+              <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.total_price)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function summarizeLogDetail(action: string, detail: Record<string, unknown> | null | undefined): string | undefined {
   if (!detail || typeof detail !== 'object') return undefined
   if (action === 'UPLOAD') {
@@ -183,6 +222,14 @@ function buildUserActivity(logs: LogCambio[] | undefined): ActivityItem[] {
       when: new Date(log.created_at).toLocaleString(),
       note: summarizeLogDetail(log.accion, log.detalle as Record<string, unknown> | null | undefined),
     }))
+}
+
+function latestLogByAction(logs: LogCambio[] | undefined, actions: string[]): LogCambio | undefined {
+  if (!logs?.length) return undefined
+  const actionSet = new Set(actions)
+  return logs
+    .filter((log) => actionSet.has(log.accion))
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0]
 }
 
 export default function DocumentDetail() {
@@ -469,6 +516,13 @@ export default function DocumentDetail() {
   if (!doc) return <div style={{ padding: '1.5rem' }}>{t('docDetail.notFound')}</div>
 
   const datos = getDocumentData(doc)
+  const assistedReview = doc.assisted_review && doc.assisted_review.mode === 'assisted_lines'
+    ? doc.assisted_review
+    : null
+  const isAssistedLines = Boolean(assistedReview)
+  const detectedLineItems = Array.isArray(datos.line_items)
+    ? datos.line_items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    : []
   const filasPorHoja = (datos.filas_por_hoja || {}) as Record<string, Record<string, unknown>[]>
   const sheets = Object.keys(filasPorHoja || {})
   const sheetCounts = (datos.filas_por_hoja_count || {}) as Record<string, number>
@@ -500,7 +554,16 @@ export default function DocumentDetail() {
   const unsyncedSheets = sheets.filter(sheet => !syncedSheets[sheet]?.recipeId)
   const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
   const isSynced = syncedCount > 0
-  const savedAsLog = (doc.logs ?? []).find(l => l.accion === 'SAVE_DESTINATION' || l.accion === 'SAVE_PRODUCTS')
+  const latestSaveLog = latestLogByAction(doc.logs, ['SAVE_DESTINATION', 'SAVE_PRODUCTS'])
+  const latestReprocessLog = latestLogByAction(doc.logs, ['REPROCESS'])
+  const saveLogIsCurrent = Boolean(
+    latestSaveLog
+    && (
+      !latestReprocessLog
+      || new Date(latestSaveLog.created_at).getTime() > new Date(latestReprocessLog.created_at).getTime()
+    )
+  )
+  const savedAsLog = saveLogIsCurrent ? latestSaveLog : undefined
   const _logDest = savedAsLog?.detalle?.['destination'] as string | undefined
   const inferredSavedAs: string | undefined = doc.saved_as
     ?? (savedAsLog?.accion === 'SAVE_PRODUCTS' ? 'products'
@@ -508,7 +571,7 @@ export default function DocumentDetail() {
       : _logDest === 'expense' ? 'expense'
       : savedAsLog ? 'supplier_invoice'
       : undefined)
-  const isSaved = doc.estado === 'IMPORTED' || doc.saved_as != null || savedAsLog != null
+  const isSaved = doc.estado === 'IMPORTED' || doc.saved_as != null || saveLogIsCurrent
   const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
   const saveDestination = suggestSaveDestination(doc)
   const requiresConfirmedSave = saveDestination !== 'recipe'
@@ -530,6 +593,8 @@ export default function DocumentDetail() {
     ? 'Documento guardado'
     : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
       ? 'Estamos procesando tu documento'
+      : isAssistedLines && doc.estado === 'REVIEW'
+        ? 'Revisa las lineas detectadas'
       : saveEnabled
         ? 'Listo para guardar'
         : !routingReadyForSave
@@ -541,6 +606,8 @@ export default function DocumentDetail() {
     ? 'El flujo terminó correctamente. Si hace falta, puedes volver a procesarlo.'
     : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
       ? 'No necesitas hacer nada ahora. Espera a que termine el análisis automático.'
+      : isAssistedLines && doc.estado === 'REVIEW'
+        ? (assistedReview?.message || 'Corrige las lineas y completa solo lo necesario para guardar.')
       : saveEnabled
         ? 'Si el resultado te sirve, ya puedes guardarlo.'
         : !routingReadyForSave
@@ -550,10 +617,12 @@ export default function DocumentDetail() {
     ? `Falta 1 dato obligatorio: ${missingFieldLabels[0]}.`
     : missingFieldLabels.length > 1
       ? `Faltan ${missingFieldLabels.length} datos obligatorios: ${missingFieldLabels.join(', ')}.`
+      : isAssistedLines
+        ? 'Prioriza las lineas detectadas y deja vacios los datos que no aparecen en el documento.'
       : 'Corrige los datos obligatorios antes del guardado final.'
   const flowSupportLabel = confPct != null
-    ? `Resultado provisional · confianza ${confPct}%`
-    : 'Resultado provisional'
+    ? `${isAssistedLines ? 'Modo lineas asistido' : 'Resultado provisional'} · confianza ${confPct}%`
+    : (isAssistedLines ? 'Modo lineas asistido' : 'Resultado provisional')
   const activeSheetRows = (() => {
     if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
       return filasPorHoja[activeSheet]
@@ -900,7 +969,7 @@ export default function DocumentDetail() {
                   {flowSupportLabel}
                 </div>
               )}
-              {!routingReadyForSave && reviewHints.length > 0 && (
+              {!isAssistedLines && !routingReadyForSave && reviewHints.length > 0 && (
                 <div style={{ marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid #FDE68A', background: '#FFFBEB' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
                     Corrige solo esto para poder guardar
@@ -920,9 +989,9 @@ export default function DocumentDetail() {
             </div>
             <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {!isSaved && !routingReadyForSave && canEditScalars && (
+                {!isSaved && canEditScalars && (isAssistedLines || !routingReadyForSave) && (
                   <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>
-                    Corregir datos
+                    {isAssistedLines ? 'Corregir lineas' : 'Corregir datos'}
                   </button>
                 )}
                 {!isSaved && doc.estado === 'REVIEW' && !saveEnabled && routingReadyForSave && (
@@ -976,6 +1045,27 @@ export default function DocumentDetail() {
         </div>
       )}
 
+      {isAssistedLines && detectedLineItems.length > 0 && !editMode && (
+        <div style={{ ...section, marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Lineas detectadas</h3>
+              <div style={{ marginTop: 4, fontSize: 13, color: '#64748B' }}>
+                Este documento se revisa mejor por lineas que por campos generales.
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: '#0F766E', fontWeight: 700 }}>
+              {assistedReview?.line_items_count ?? detectedLineItems.length} lineas sugeridas
+            </div>
+          </div>
+          <LineItemsPreview
+            items={detectedLineItems}
+            title="Detalle detectado"
+            subtitle={assistedReview?.can_derive_total ? 'El total puede derivarse de estas lineas.' : 'Revisa cantidades, precios y total antes de guardar.'}
+          />
+        </div>
+      )}
+
       {/* Confidence warning */}
       {!simpleFlowEnabled && needsHumanReview && confPct != null && confPct < 85 && (
         <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, marginBottom: '1rem', fontSize: 14 }}>
@@ -996,7 +1086,7 @@ export default function DocumentDetail() {
         {/* Left: Document info */}
         <div style={{ flex: 1, minWidth: 300 }}>
           <div style={section}>
-            <h3 style={{ marginTop: 0 }}>Resumen del documento</h3>
+            <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Revision asistida' : 'Resumen del documento'}</h3>
             {routingDecision && (
               <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: `1px solid ${routingDecision.required_fields_ok ? '#BBF7D0' : '#FDE68A'}`, background: routingDecision.required_fields_ok ? '#F0FDF4' : '#FFFBEB' }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
@@ -1012,9 +1102,14 @@ export default function DocumentDetail() {
                 {routingDecision.reason && routingReadyForSave && (
                   <div style={{ fontSize: 13, color: '#334155' }}>{routingDecision.reason}</div>
                 )}
+                {isAssistedLines && (
+                  <div style={{ marginTop: 6, fontSize: 13, color: '#334155' }}>
+                    Prioriza productos, cantidades y total. Los demas datos pueden quedarse vacios si no aparecen.
+                  </div>
+                )}
               </div>
             )}
-            {reviewHints.length > 0 && (
+            {!isAssistedLines && reviewHints.length > 0 && (
               <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>
                   Revision prioritaria sugerida
@@ -1160,12 +1255,17 @@ export default function DocumentDetail() {
             ) : (
               // Vista de campos para FACTURA, RECIBO, etc.
               <>
-                <h3 style={{ marginTop: 0 }}>Datos del documento</h3>
+                <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Datos opcionales del documento' : 'Datos del documento'}</h3>
                 {editMode ? (
                   <div>
-                    {reviewHints.length > 0 && (
+                    {!isAssistedLines && reviewHints.length > 0 && (
                       <div style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF', fontSize: 13, color: '#334155' }}>
                         Edita primero los campos prioritarios sugeridos por documentos similares confirmados.
+                      </div>
+                    )}
+                    {isAssistedLines && (
+                      <div style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF', fontSize: 13, color: '#334155' }}>
+                        Corrige primero las lineas y el total. Los datos superiores son opcionales si no aparecen en la imagen.
                       </div>
                     )}
                     {orderedEditEntries.map(([key, val]) => {
@@ -1287,31 +1387,12 @@ export default function DocumentDetail() {
                     </table>
                     {(() => {
                       const items = datos['line_items'] as unknown[] | undefined
-                      if (!Array.isArray(items) || items.length === 0) return null
+                      if (!Array.isArray(items) || items.length === 0 || isAssistedLines) return null
                       return (
-                        <div style={{ marginTop: '0.75rem' }}>
-                          <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 4 }}>Detalle ({items.length})</div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                            <thead>
-                              <tr style={{ background: '#f9fafb' }}>
-                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Descripción</th>
-                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Cant.</th>
-                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>P. Unit.</th>
-                                <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(items as Array<Record<string, unknown>>).map((line, i) => (
-                                <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                  <td style={{ padding: '0.3rem 0.5rem' }}>{String(line.description ?? '—')}</td>
-                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{String(line.quantity ?? '—')}</td>
-                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{line.unit_price != null ? Number(line.unit_price).toFixed(2) : '—'}</td>
-                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{line.total_price != null ? Number(line.total_price).toFixed(2) : '—'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                        <LineItemsPreview
+                          items={items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))}
+                          title={`Detalle (${items.length})`}
+                        />
                       )
                     })()}
                   </>

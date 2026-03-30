@@ -33,6 +33,15 @@ class DocumentReviewHintOut(BaseModel):
     reason: str = ""
 
 
+class AssistedReviewOut(BaseModel):
+    mode: Literal["assisted_lines"]
+    reason: str
+    message: str = ""
+    line_items_count: int = Field(default=0, ge=0)
+    scalar_fields_detected: int = Field(default=0, ge=0)
+    can_derive_total: bool = False
+
+
 class DocumentoOut(BaseModel):
     id: UUID
     nombre_archivo: str
@@ -58,6 +67,7 @@ class DocumentoOut(BaseModel):
     raw_ai_json: dict | None = None
     routing_decision: DocumentRoutingDecision | None = None
     review_hints: list[DocumentReviewHintOut] = Field(default_factory=list)
+    assisted_review: AssistedReviewOut | None = None
     last_processing_reason: str | None = None
     last_learning_reprocess_at: datetime | None = None
     last_confirmation_mode: str | None = None
@@ -106,6 +116,7 @@ class DocumentoListOut(BaseModel):
     estado: str
     proveedor_detectado: str | None = None
     monto_total: float | None = None
+    assisted_review: AssistedReviewOut | None = None
     last_processing_reason: str | None = None
     last_learning_reprocess_at: datetime | None = None
     last_confirmation_mode: str | None = None
@@ -200,6 +211,7 @@ class UploadResponse(BaseModel):
     datos_extraidos: dict | None = None
     routing_decision: DocumentRoutingDecision | None = None
     review_hints: list[DocumentReviewHintOut] = Field(default_factory=list)
+    assisted_review: AssistedReviewOut | None = None
     action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
     message: str | None = None
 
@@ -208,6 +220,7 @@ class SaveDocumentLineMatch(BaseModel):
     line_index: int = Field(ge=0)
     product_id: UUID | None = None
     persist_alias: bool = True
+    create_new: bool = False
 
 
 class SaveDocumentRequest(BaseModel):

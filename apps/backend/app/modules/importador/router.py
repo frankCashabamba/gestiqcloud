@@ -20,7 +20,7 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 from . import crud, recipe_crud
-from .ai_classifier import analyze_document
+from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .api_lifecycle import mark_legacy_processing_endpoint
 from .auto_recipe import (
     should_reprocess_existing_document,
@@ -48,6 +48,7 @@ from .runtime_config import (
     load_product_sheet_detection_config,
 )
 from .schemas import (
+    AssistedReviewOut,
     BatchDetailOut,
     BatchSummaryOut,
     BulkStagingPatch,
@@ -93,6 +94,7 @@ from .services.iteration_service import (
 from .services.product_matching import (
     _append_import_alias,
     _build_document_line_matches,
+    _create_product_from_line,
     _find_product_by_id,
     _get_line_values,
     _infer_pack_conversion_factor,
@@ -109,6 +111,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
+IMAGE_SOURCE_FORMATS = {"JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"}
 
 
 def _json_safe(obj):
@@ -318,6 +321,90 @@ def _attach_document_activity_meta(doc):
         ):
             break
     return doc
+
+
+def _count_detected_scalar_fields(data: dict) -> int:
+    ignored_keys = {
+        "line_items",
+        "filas",
+        "filas_por_hoja",
+        "metadata_por_hoja",
+        "sheet_usada",
+        "columnas",
+        "columnas_norm",
+    }
+    count = 0
+    for key, value in data.items():
+        if key in ignored_keys or str(key).startswith("_"):
+            continue
+        if isinstance(value, str) and value.strip():
+            count += 1
+            continue
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            count += 1
+    return count
+
+
+def _can_derive_total_from_line_items(items: list[dict]) -> bool:
+    for item in items:
+        total_price = safe_floatish(item.get("total_price"))
+        quantity = safe_floatish(item.get("quantity"))
+        unit_price = safe_floatish(item.get("unit_price"))
+        if total_price is not None:
+            return True
+        if quantity is not None and unit_price is not None:
+            return True
+    return False
+
+
+def _build_assisted_review(doc) -> AssistedReviewOut | None:
+    if getattr(doc, "estado", None) not in {"REVIEW", "CONFIRMED"}:
+        return None
+
+    source_format = str(getattr(doc, "tipo_archivo", "") or "").upper()
+    if source_format not in IMAGE_SOURCE_FORMATS:
+        return None
+
+    data = _get_doc_import_data(doc)
+    if not isinstance(data, dict):
+        return None
+    if isinstance(data.get("filas"), list):
+        return None
+
+    line_items = _extract_document_line_items(data)
+    line_items_count = len(line_items)
+    if line_items_count == 0:
+        return None
+
+    scalar_fields_detected = _count_detected_scalar_fields(data)
+    routing = getattr(doc, "routing_decision", None)
+    missing_fields = routing.missing_fields if routing else []
+    confidence = getattr(doc, "confianza_clasificacion", None)
+    weak_confidence = confidence is None or float(confidence) < max(CONFIDENCE_THRESHOLD, 0.7)
+    needs_review = bool(getattr(doc, "requiere_revision", False)) or bool(
+        routing.needs_human_review if routing else False
+    )
+
+    if scalar_fields_detected > 3:
+        return None
+    if line_items_count < 2 and scalar_fields_detected > 1:
+        return None
+    if not needs_review and not weak_confidence and not missing_fields:
+        return None
+
+    return AssistedReviewOut(
+        mode="assisted_lines",
+        reason="low_evidence_lines",
+        message="Revisa las lineas detectadas y completa solo lo necesario para guardar.",
+        line_items_count=line_items_count,
+        scalar_fields_detected=scalar_fields_detected,
+        can_derive_total=_can_derive_total_from_line_items(line_items),
+    )
+
+
+def _attach_document_assisted_review(doc):
+    doc.assisted_review = _build_assisted_review(doc)
+    return doc.assisted_review
 
 
 def _resolve_destination_routing(doc, db: Session, destination: str):
@@ -1021,13 +1108,19 @@ def _save_document_to_purchase(
             continue
 
         selected_match = line_match_map.get(line_index)
-        if selected_match:
+        if selected_match and selected_match.product_id:
             product = _find_product_by_id(db, tenant_id, selected_match.product_id)
             conv_factor = (
                 _infer_pack_conversion_factor(description, getattr(product, "unit", None))
                 if product
                 else 1.0
             )
+        elif selected_match and selected_match.create_new and not selected_match.product_id:
+            # Create a new product from this invoice line
+            product = _create_product_from_line(
+                db, tenant_id, description, unit_price, qty
+            )
+            conv_factor = 1.0
         else:
             product, conv_factor = _match_product(db, tenant_id, description)
         stock_qty = qty * conv_factor  # convert invoice qty to inventory units
@@ -1407,6 +1500,8 @@ def list_documents(
     documents = crud.list_documentos(db, tenant_id, estado=estado, limit=limit, offset=offset)
     for document in documents:
         _attach_document_activity_meta(document)
+        _attach_document_routing(document, db)
+        _attach_document_assisted_review(document)
     return documents
 
 
@@ -1428,6 +1523,7 @@ def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     _attach_document_routing(doc, db)
     _attach_document_review_hints(doc, db)
     _attach_document_activity_meta(doc)
+    _attach_document_assisted_review(doc)
     return doc
 
 
@@ -1486,6 +1582,7 @@ def confirm_document(
     _attach_document_routing(doc, db)
     _attach_document_review_hints(doc, db)
     _attach_document_activity_meta(doc)
+    _attach_document_assisted_review(doc)
     return doc
 
 
@@ -1976,6 +2073,7 @@ def edit_document_fields(
     _attach_document_routing(doc, db)
     _attach_document_review_hints(doc, db)
     _attach_document_activity_meta(doc)
+    _attach_document_assisted_review(doc)
     return doc
 
 
@@ -1992,6 +2090,8 @@ def reject_document(doc_id: UUID, request: Request, db: Session = Depends(get_db
     db.commit()
     _attach_document_routing(doc, db)
     _attach_document_review_hints(doc, db)
+    _attach_document_activity_meta(doc)
+    _attach_document_assisted_review(doc)
     return doc
 
 

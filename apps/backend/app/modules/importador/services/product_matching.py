@@ -84,6 +84,34 @@ def _find_product_by_id(db: Session, tenant_id: UUID, product_id: UUID | str | N
     )
 
 
+def _create_product_from_line(
+    db: Session,
+    tenant_id: UUID,
+    description: str,
+    unit_price: float,
+    initial_stock: float,
+):
+    """Create a new product from an invoice line and return it.
+
+    The product is marked as raw material (is_raw_material=True) with the
+    initial stock from the invoice quantity.
+    """
+    from app.models.core.products import Product
+
+    product = Product(
+        tenant_id=tenant_id,
+        name=description.strip()[:255],
+        cost_price=unit_price if unit_price > 0 else None,
+        stock=initial_stock,
+        unit="uds",
+        active=True,
+        is_raw_material=True,
+    )
+    db.add(product)
+    db.flush()
+    return product
+
+
 def _append_import_alias(product, description: str, factor: float, unit: str | None = None) -> None:
     description = str(description or "").strip()
     if not description:

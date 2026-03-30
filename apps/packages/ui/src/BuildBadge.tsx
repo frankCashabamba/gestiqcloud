@@ -7,6 +7,13 @@ export default function BuildBadge() {
   const [info, setInfo] = useState<{ buildId: string; version: string }>({ buildId: __APP_BUILD_ID__, version: __APP_VERSION__ })
 
   useEffect(() => {
+    // Fetch live version from DB via backend
+    fetch('/api/version')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.version) setInfo((prev) => ({ ...prev, version: d.version })) })
+      .catch(() => {})
+
+    // Also listen to service worker updates
     const onMsg = (e: MessageEvent) => {
       const d = e.data || {}
       if (d.type === 'APP_VERSION' && (d.buildId || d.version)) {
