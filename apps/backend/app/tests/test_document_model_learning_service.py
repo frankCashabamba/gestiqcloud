@@ -54,7 +54,9 @@ def test_build_signal_learning_recipe_config_uses_recent_feedback(db, tenant_min
     assert config["_signal_learning"]["source_doc_type"] == "INVOICE"
 
 
-def test_build_signal_learning_recipe_config_prefers_high_quality_matching_signals(db, tenant_minimal):
+def test_build_signal_learning_recipe_config_prefers_high_quality_matching_signals(
+    db, tenant_minimal
+):
     tenant_id = tenant_minimal["tenant_id"]
     invoice_doc = ImpDocumento(
         tenant_id=tenant_id,

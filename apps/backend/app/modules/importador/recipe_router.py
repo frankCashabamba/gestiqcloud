@@ -16,7 +16,17 @@ import logging
 import os
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -24,8 +34,9 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 from . import crud, recipe_crud
-from .api_lifecycle import mark_legacy_processing_endpoint
 from .ai_classifier import analyze_document
+from .api_lifecycle import mark_legacy_processing_endpoint
+from .auto_recipe import should_reprocess_existing_document
 from .document_fields import safe_floatish
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .processing_service import RecipeContext, process_import_document
@@ -39,7 +50,6 @@ from .schemas import (
     RunResponse,
     SnapshotOut,
 )
-from .auto_recipe import should_reprocess_existing_document
 from .snapshot_learning import bootstrap_learning_from_existing_document
 
 logger = logging.getLogger(__name__)
@@ -178,7 +188,11 @@ async def run_import(
         existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         learning_reprocess_needed = False
-        if existing and isinstance(getattr(existing, "datos_confirmados", None), dict) and existing.datos_confirmados:
+        if (
+            existing
+            and isinstance(getattr(existing, "datos_confirmados", None), dict)
+            and existing.datos_confirmados
+        ):
             bootstrap_learning_from_existing_document(db, existing, user_id)
         if existing:
             learning_reprocess_needed = bool(
@@ -236,7 +250,9 @@ async def run_import(
             )
         ):
             doc = existing
-            rerun_reason = "learning_update" if learning_reprocess_needed and not force else "manual"
+            rerun_reason = (
+                "learning_update" if learning_reprocess_needed and not force else "manual"
+            )
             crud.reset_documento_for_reprocess(
                 db,
                 doc,

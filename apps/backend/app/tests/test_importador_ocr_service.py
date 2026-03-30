@@ -16,12 +16,16 @@ def test_ocr_image_falls_back_to_easyocr_when_tesseract_is_weak(monkeypatch):
         def readtext(self, _image):
             return [(None, "NOTA DE VENTA 10246538 TOTAL 5.30", 0.99)]
 
-    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
-        "image_to_string": staticmethod(lambda img, lang=None, config=None: "...")
-    })())
-    monkeypatch.setitem(__import__("sys").modules, "easyocr", type("E", (), {
-        "Reader": FakeReader
-    })())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type(
+            "P", (), {"image_to_string": staticmethod(lambda img, lang=None, config=None: "...")}
+        )(),
+    )
+    monkeypatch.setitem(
+        __import__("sys").modules, "easyocr", type("E", (), {"Reader": FakeReader})()
+    )
 
     img = Image.new("L", (120, 80), color=255)
 
@@ -38,9 +42,11 @@ def test_ocr_image_uses_best_tesseract_variant_when_available(monkeypatch):
             return "NOTA DE VENTA 10246538 TOTAL 5.30"
         return "..."
 
-    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
-        "image_to_string": staticmethod(fake_tesseract)
-    })())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("P", (), {"image_to_string": staticmethod(fake_tesseract)})(),
+    )
 
     img = Image.new("L", (120, 80), color=255)
 
@@ -57,9 +63,11 @@ def test_ocr_image_can_use_rotated_trimmed_variant(monkeypatch):
             return "NOTA DE VENTA 2048 TOTAL 5.30"
         return "..."
 
-    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
-        "image_to_string": staticmethod(fake_tesseract)
-    })())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("P", (), {"image_to_string": staticmethod(fake_tesseract)})(),
+    )
 
     img = Image.new("L", (240, 120), color=255)
     for x in range(60, 180):
@@ -80,9 +88,11 @@ def test_ocr_image_can_use_small_deskew_variant(monkeypatch):
             return "NOTA DE VENTA CLIENTE DESCRIPCION TOTAL 5.30"
         return "..."
 
-    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
-        "image_to_string": staticmethod(fake_tesseract)
-    })())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("P", (), {"image_to_string": staticmethod(fake_tesseract)})(),
+    )
 
     img = Image.new("L", (160, 120), color=255)
 
@@ -102,9 +112,11 @@ def test_run_tesseract_tries_multiple_psm_configs(monkeypatch):
             return "FECHA CLIENTE NOTA DE VENTA DESCRIPCION VTOTAL 5.30"
         return ""
 
-    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
-        "image_to_string": staticmethod(fake_tesseract)
-    })())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("P", (), {"image_to_string": staticmethod(fake_tesseract)})(),
+    )
 
     img = Image.new("L", (120, 80), color=255)
 
@@ -198,9 +210,11 @@ def test_ocr_image_can_use_perspective_variant(monkeypatch):
         return "..."
 
     monkeypatch.setattr(ocr_service, "_rectify_document_perspective", fake_rectify)
-    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
-        "image_to_string": staticmethod(fake_tesseract)
-    })())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("P", (), {"image_to_string": staticmethod(fake_tesseract)})(),
+    )
 
     img = Image.new("L", (160, 120), color=255)
 

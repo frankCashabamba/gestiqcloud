@@ -10,8 +10,8 @@ from app.modules.importador.document_fields import detect_document_total, safe_f
 from app.modules.importador.schemas import DocumentRoutingDecision
 
 from .document_routing_config import (
-    SaveDestination,
     RoutingProfileConfig,
+    SaveDestination,
     invalidate_document_routing_cache,
     resolve_routing_profile,
     resolve_routing_profile_match,
@@ -245,7 +245,10 @@ def build_document_routing_decision(
 
     required_fields_ok = len(missing_fields) == 0
     needs_human_review = (
-        requires_review or profile_blocked or not required_fields_ok or confidence < profile.confidence_threshold
+        requires_review
+        or profile_blocked
+        or not required_fields_ok
+        or confidence < profile.confidence_threshold
     )
 
     return DocumentRoutingDecision(
@@ -268,7 +271,9 @@ def build_document_routing_decision(
     )
 
 
-def parse_document_routing_decision(raw_ai_json: dict[str, Any] | None) -> DocumentRoutingDecision | None:
+def parse_document_routing_decision(
+    raw_ai_json: dict[str, Any] | None
+) -> DocumentRoutingDecision | None:
     if not isinstance(raw_ai_json, dict):
         return None
     payload = raw_ai_json.get("routing")

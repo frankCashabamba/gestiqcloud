@@ -24,22 +24,41 @@ export default function UploadPage() {
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: 1080, display: 'grid', gap: '1rem' }}>
-      <button
-        onClick={() => navigate(-1)}
-        style={{
-          width: 'fit-content',
-          cursor: 'pointer',
-          border: '1px solid #dbe4f0',
-          background: '#fff',
-          fontSize: 14,
-          color: '#0f172a',
-          padding: '0.5rem 0.8rem',
-          borderRadius: 12,
-          boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
-        }}
-      >
-        {'<-'} Volver
-      </button>
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <button
+          onClick={() => navigate('../documents')}
+          style={{
+            width: 'fit-content',
+            cursor: 'pointer',
+            border: '1px solid #dbe4f0',
+            background: '#fff',
+            fontSize: 14,
+            color: '#0f172a',
+            padding: '0.5rem 0.8rem',
+            borderRadius: 12,
+            boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
+          }}
+        >
+          Ir a documentos
+        </button>
+        <button
+          onClick={() => navigate('../overview')}
+          style={{
+            width: 'fit-content',
+            cursor: 'pointer',
+            border: '1px solid #cbd5e1',
+            background: '#fff',
+            fontSize: 14,
+            color: '#334155',
+            padding: '0.5rem 0.85rem',
+            borderRadius: 12,
+            boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
+            fontWeight: 700,
+          }}
+        >
+          Ver resumen
+        </button>
+      </div>
 
       <section
         style={{
@@ -57,6 +76,9 @@ export default function UploadPage() {
         <p style={{ margin: '0.55rem 0 0', fontSize: 15, color: '#475569', maxWidth: 780 }}>
           Carga facturas, imagenes, hojas de calculo y otros documentos compatibles. El sistema los prepara para revision y luego podras guardarlos en su destino.
         </p>
+        <div style={{ marginTop: '0.85rem', fontSize: 13, color: '#64748b' }}>
+          Cuando termine la subida, entra en <strong style={{ color: '#0f172a' }}>Documentos</strong> para revisar los ya procesados.
+        </div>
       </section>
 
       {showVideo && (

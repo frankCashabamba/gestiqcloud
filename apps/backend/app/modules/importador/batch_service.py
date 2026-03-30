@@ -198,7 +198,10 @@ async def enqueue_async_batch(
         )
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         if existing:
-            if isinstance(getattr(existing, "datos_confirmados", None), dict) and existing.datos_confirmados:
+            if (
+                isinstance(getattr(existing, "datos_confirmados", None), dict)
+                and existing.datos_confirmados
+            ):
                 bootstrap_learning_from_existing_document(db, existing, user_id)
             learning_reprocess_needed = bool(
                 exact_hash_match
@@ -324,7 +327,15 @@ async def enqueue_async_batch(
     db.commit()
 
     rerun_start = len(existing_matches)
-    for offset, (existing, filename, file_bytes, file_size, file_hash, tipo_archivo, rerun_reason) in enumerate(
+    for offset, (
+        existing,
+        filename,
+        file_bytes,
+        file_size,
+        file_hash,
+        tipo_archivo,
+        rerun_reason,
+    ) in enumerate(
         rerun_existing,
         start=rerun_start,
     ):

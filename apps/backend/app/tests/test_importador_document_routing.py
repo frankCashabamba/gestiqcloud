@@ -6,10 +6,13 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.models.importador import ImpDocumento
-from app.models.importador import ImpRoutingRule
+from app.models.importador import ImpDocumento, ImpRoutingRule
 from app.models.tenant import Tenant
-from app.modules.importador.router import SaveDocumentRequest, _infer_save_destination, save_document
+from app.modules.importador.router import (
+    SaveDocumentRequest,
+    _infer_save_destination,
+    save_document,
+)
 from app.modules.importador.services.document_routing_agent import (
     build_document_routing_decision,
     invalidate_document_routing_cache,

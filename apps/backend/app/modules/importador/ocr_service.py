@@ -17,8 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import openpyxl
-from PIL import Image
-from PIL import ImageFilter, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 from .runtime_config import load_file_support_config
 
@@ -623,9 +622,7 @@ def _ocr_image(img: Image.Image) -> str:
                     *_ocr_text_score(cleaned),
                 )
                 return cleaned
-        logger.info(
-            "Tesseract OCR weak output detected across variants; trying EasyOCR fallback"
-        )
+        logger.info("Tesseract OCR weak output detected across variants; trying EasyOCR fallback")
     except Exception as exc:
         logger.warning("Tesseract OCR failed: %s", exc)
 

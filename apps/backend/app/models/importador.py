@@ -124,7 +124,7 @@ class ImpDocumento(Base):
     logs: Mapped[list[ImpLogCambios]] = relationship(
         "ImpLogCambios", back_populates="documento", cascade="all, delete-orphan"
     )
-    routing_signals: Mapped[list["ImpRoutingSignal"]] = relationship(
+    routing_signals: Mapped[list[ImpRoutingSignal]] = relationship(
         "ImpRoutingSignal", back_populates="documento", cascade="all, delete-orphan"
     )
     batch_items: Mapped[list[ImpBatchItem]] = relationship(

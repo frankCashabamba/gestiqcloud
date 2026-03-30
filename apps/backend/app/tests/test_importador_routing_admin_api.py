@@ -2,8 +2,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.models.importador import ImpDocumento
-from app.models.importador import ImpRoutingProfile
+from app.models.importador import ImpDocumento, ImpRoutingProfile
 from app.models.tenant import Tenant
 from app.modules.importador.services.document_routing_agent import (
     build_document_routing_decision,

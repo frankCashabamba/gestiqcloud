@@ -13,7 +13,8 @@ import logging
 import uuid
 from typing import Any
 
-from sqlalchemy import event, inspect as sa_inspect
+from sqlalchemy import event
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from app.core.audit_events import normalize_audit_changes
@@ -54,7 +55,9 @@ def _safe_str(value: Any) -> Any:
     if normalized is None:
         return None
     if isinstance(normalized, str):
-        return normalized[:_MAX_FIELD_LEN] + "..." if len(normalized) > _MAX_FIELD_LEN else normalized
+        return (
+            normalized[:_MAX_FIELD_LEN] + "..." if len(normalized) > _MAX_FIELD_LEN else normalized
+        )
     if isinstance(normalized, dict):
         return {key: _safe_str(item) for key, item in normalized.items()}
     if isinstance(normalized, list):

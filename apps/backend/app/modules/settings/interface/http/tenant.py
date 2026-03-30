@@ -126,10 +126,7 @@ def _lookup_empresa(db: Session, empresa: str | None) -> Empresa | None:
     if not empresa:
         return None
     return (
-        db.query(Empresa)
-        .filter(Empresa.slug == empresa)
-        .order_by(Empresa.created_at.asc())
-        .first()
+        db.query(Empresa).filter(Empresa.slug == empresa).order_by(Empresa.created_at.asc()).first()
     )
 
 

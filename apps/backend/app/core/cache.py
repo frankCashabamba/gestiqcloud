@@ -49,13 +49,23 @@ async def get_redis_client():
     """
     Obtiene el cliente Redis. Retorna None si Redis no está configurado.
     """
-    global _redis_client, _redis_available
+    global _redis_client, _redis_available, _redis_client_loop
+    current_loop = asyncio.get_running_loop()
 
     if _redis_available is False:
         return None
 
-    if _redis_client is not None:
+    if (
+        _redis_client is not None
+        and _redis_client_loop is current_loop
+        and not current_loop.is_closed()
+    ):
         return _redis_client
+
+    if _redis_client is not None and _redis_client_loop is not current_loop:
+        logger.info("Recreando cliente Redis de cache para un nuevo event loop.")
+        _redis_client = None
+        _redis_client_loop = None
 
     try:
         from app.config.settings import get_settings
@@ -76,6 +86,7 @@ async def get_redis_client():
             socket_connect_timeout=5,
             socket_timeout=5,
         )
+        _redis_client_loop = current_loop
 
         await _redis_client.ping()
         _redis_available = True
@@ -84,12 +95,22 @@ async def get_redis_client():
 
     except ImportError:
         _redis_available = False
+        _redis_client_loop = None
         logger.warning("redis-py no instalado. Cache deshabilitado.")
         return None
     except Exception as e:
         _redis_available = False
+        _redis_client_loop = None
         logger.warning(f"No se pudo conectar a Redis: {e}. Cache deshabilitado.")
         return None
+
+
+def _reset_redis_client_on_loop_error(exc: Exception) -> None:
+    global _redis_client, _redis_client_loop
+    if "Event loop is closed" not in str(exc):
+        return
+    _redis_client = None
+    _redis_client_loop = None
 
 
 def build_cache_key(tenant_id: str | UUID, domain: str, *parts: str) -> str:
@@ -138,6 +159,7 @@ async def cache_get(key: str) -> Any | None:
         logger.debug(f"Cache MISS: {key}")
         return None
     except Exception as e:
+        _reset_redis_client_on_loop_error(e)
         logger.warning(f"Error leyendo cache [{key}]: {e}")
         return None
 
@@ -165,6 +187,7 @@ async def cache_set(key: str, value: Any, ttl: int = CacheTTL.MEDIUM) -> bool:
         logger.debug(f"Cache SET: {key} (TTL: {ttl_seconds}s)")
         return True
     except Exception as e:
+        _reset_redis_client_on_loop_error(e)
         logger.warning(f"Error escribiendo cache [{key}]: {e}")
         return False
 
@@ -188,6 +211,7 @@ async def cache_delete(key: str) -> bool:
         logger.debug(f"Cache DELETE: {key}")
         return True
     except Exception as e:
+        _reset_redis_client_on_loop_error(e)
         logger.warning(f"Error eliminando cache [{key}]: {e}")
         return False
 
@@ -222,6 +246,7 @@ async def invalidate_pattern(pattern: str) -> int:
             logger.info(f"Cache INVALIDATE: {pattern} ({deleted} claves)")
         return deleted
     except Exception as e:
+        _reset_redis_client_on_loop_error(e)
         logger.warning(f"Error invalidando cache [{pattern}]: {e}")
         return 0
 

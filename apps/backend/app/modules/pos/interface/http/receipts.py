@@ -53,6 +53,7 @@ def _get_receipt_by_client_request_id(db: Session, tenant_id, client_request_id:
         {"tid": tenant_id, "client_request_id": client_request_id},
     ).first()
 
+
 router = APIRouter(
     prefix="/pos",
     tags=["POS — Receipts"],

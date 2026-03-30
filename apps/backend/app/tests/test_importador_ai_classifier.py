@@ -97,7 +97,7 @@ def test_analyze_document_blanks_low_evidence_fields_for_weak_image_ocr(monkeypa
                 '"tax_amount":127.5,'
                 '"total_amount":877.5,'
                 '"line_items":[{"description":"Mantenimiento preventivo","quantity":1,"unit_price":300.0,"total_price":300.0}]'
-                '}}'
+                "}}"
             ),
             model="test-model",
             is_error=False,
@@ -157,7 +157,7 @@ def test_analyze_document_preserves_fields_when_image_ocr_has_evidence(monkeypat
                 '"issue_date":"2026-01-16",'
                 '"currency":"USD",'
                 '"total_amount":2145.0'
-                '}}'
+                "}}"
             ),
             model="test-model",
             is_error=False,

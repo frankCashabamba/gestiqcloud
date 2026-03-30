@@ -235,7 +235,9 @@ def _reextract_document_scope_fields(
         str((canonical_meta.get(field) or {}).get("type") or "").strip().lower() == "list"
         for field in selected_fields
     )
-    analysis_fields = canonical_meta if requires_full_document_rerun and canonical_meta else narrowed_fields
+    analysis_fields = (
+        canonical_meta if requires_full_document_rerun and canonical_meta else narrowed_fields
+    )
 
     analysis = asyncio.run(
         analyze_document(
@@ -278,7 +280,11 @@ def _sync_document_scope_line_to_document(
 
     selected_fields = _document_scope_fields(scope)
     fields_to_apply = selected_fields or list(normalized.keys())
-    if "line_items" in fields_to_apply and "total_amount" in normalized and "total_amount" not in fields_to_apply:
+    if (
+        "line_items" in fields_to_apply
+        and "total_amount" in normalized
+        and "total_amount" not in fields_to_apply
+    ):
         fields_to_apply = [*fields_to_apply, "total_amount"]
     changed = False
     for field in fields_to_apply:
@@ -756,9 +762,7 @@ def run_iteration(
     improvement = False
     if prev:
         improvement = (
-            (imported > prev.lines_imported)
-            or (errored < prev.lines_errored)
-            or content_changed
+            (imported > prev.lines_imported) or (errored < prev.lines_errored) or content_changed
         )
     elif imported > 0:
         improvement = True

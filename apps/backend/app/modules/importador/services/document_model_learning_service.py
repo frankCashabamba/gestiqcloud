@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento, ImpRoutingSignal
 
-
 _INTERNAL_KEYS = {
     "line_items",
     "rows",
@@ -26,7 +25,9 @@ def _normalize_text(value: Any) -> str | None:
 
 def _signal_source_doc_type(signal: ImpRoutingSignal, doc: ImpDocumento) -> str:
     snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
-    raw = snapshot.get("source_doc_type") or getattr(doc, "tipo_documento_detectado", None) or "OTHER"
+    raw = (
+        snapshot.get("source_doc_type") or getattr(doc, "tipo_documento_detectado", None) or "OTHER"
+    )
     return str(raw).strip().upper() or "OTHER"
 
 
@@ -242,10 +243,12 @@ def summarize_learning_rerun(
     confidence_delta = round(float(rerun_confidence or 0.0) - float(baseline_confidence or 0.0), 3)
     field_delta = _filled_field_count(rerun_fields) - _filled_field_count(baseline_fields)
     missing_delta = len(baseline_missing) - len(rerun_missing)
-    destination_changed = (
-        baseline_routing.get("suggested_destination") != rerun_routing.get("suggested_destination")
+    destination_changed = baseline_routing.get("suggested_destination") != rerun_routing.get(
+        "suggested_destination"
     )
-    document_type_changed = baseline_routing.get("document_type") != rerun_routing.get("document_type")
+    document_type_changed = baseline_routing.get("document_type") != rerun_routing.get(
+        "document_type"
+    )
     improved = (
         confidence_delta > 0
         or field_delta > 0

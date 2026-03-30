@@ -20,8 +20,8 @@ RuleSourceKind = Literal["doc_type", "category"]
 RoutingMatchScope = Literal["destination_override", "tenant", "sector", "system", "fallback"]
 
 _CACHE_TTL = 300.0
-_profiles_cache: tuple[float, dict[str, "RoutingProfileConfig"]] | None = None
-_rules_cache: dict[str, tuple[float, list["RoutingRuleConfig"]]] = {}
+_profiles_cache: tuple[float, dict[str, RoutingProfileConfig]] | None = None
+_rules_cache: dict[str, tuple[float, list[RoutingRuleConfig]]] = {}
 
 
 class RoutingProfileConfig(BaseModel):
@@ -174,7 +174,9 @@ _FALLBACK_PROFILES: dict[str, RoutingProfileConfig] = {
 }
 
 _FALLBACK_RULES: list[RoutingRuleConfig] = [
-    RoutingRuleConfig(source_kind="category", source_key="invoice", profile_code="supplier_invoice"),
+    RoutingRuleConfig(
+        source_kind="category", source_key="invoice", profile_code="supplier_invoice"
+    ),
     RoutingRuleConfig(source_kind="category", source_key="receipt", profile_code="expense"),
     RoutingRuleConfig(source_kind="category", source_key="recipe", profile_code="recipe"),
     RoutingRuleConfig(source_kind="category", source_key="inventory", profile_code="inventory"),
@@ -292,9 +294,7 @@ def _load_rules_from_db(
     if db is not None:
         try:
             db_rows = (
-                db.query(ImpRoutingRule)
-                .filter(ImpRoutingRule.active == True)  # noqa: E712
-                .all()
+                db.query(ImpRoutingRule).filter(ImpRoutingRule.active == True).all()  # noqa: E712
             )
             for row in db_rows:
                 specificity = 0

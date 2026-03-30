@@ -11,11 +11,11 @@ from sqlalchemy import text
 from app.models.pos.receipt import POSReceipt
 from app.models.pos.register import POSRegister, POSShift
 from app.models.tenant import Tenant
-from app.modules.pos.application.invoice_integration import POSInvoicingService
 from app.modules.company.interface.http.admin import (
     admin_backfill_pos_receipt_documents,
     admin_list_pos_backfill_candidates,
 )
+from app.modules.pos.application.invoice_integration import POSInvoicingService
 from app.modules.pos.interface.http.receipts import backfill_receipt_documents
 
 

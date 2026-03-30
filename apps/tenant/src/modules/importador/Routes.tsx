@@ -14,12 +14,13 @@ export default function ImportadorRoutes() {
 
   return (
     <Routes>
-      <Route index element={<Dashboard />} />
+      <Route index element={<Navigate to="documents" replace />} />
+      <Route path="overview" element={<Dashboard />} />
       <Route path="upload" element={<UploadPage />} />
       <Route path="documents" element={<DocumentList />} />
       <Route path="documents/:id" element={<DocumentDetail />} />
       <Route path="recipes" element={<Navigate to="../upload" replace />} />
-      <Route path="*" element={<Navigate to="." replace />} />
+      <Route path="*" element={<Navigate to="documents" replace />} />
     </Routes>
   )
 }

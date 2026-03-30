@@ -3,7 +3,8 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Literal
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -27,7 +28,7 @@ from .runtime_config import (
     load_product_sheet_detection_config,
     load_prompt_config,
 )
-from .schemas import DocumentRoutingDecision, DocumentReviewHintOut
+from .schemas import DocumentReviewHintOut, DocumentRoutingDecision
 from .services.document_model_learning_service import (
     build_signal_learning_recipe_config,
     summarize_learning_rerun,
@@ -425,7 +426,9 @@ async def _process_upload_like_document(
                     learning_rerun_summary = summarize_learning_rerun(
                         baseline_doc_type=tipo_doc,
                         baseline_confidence=confianza,
-                        baseline_fields=analysis_fields if isinstance(analysis_fields, dict) else {},
+                        baseline_fields=(
+                            analysis_fields if isinstance(analysis_fields, dict) else {}
+                        ),
                         baseline_routing=baseline_routing.model_dump(mode="json"),
                         rerun_doc_type=str(rerun_normalized["doc_type"]),
                         rerun_confidence=float(rerun_normalized["confidence"]),
@@ -460,7 +463,9 @@ async def _process_upload_like_document(
     )
 
     datos_extraidos = (
-        _json_safe(datos_extraidos) if isinstance(datos_extraidos, (dict, list)) else datos_extraidos
+        _json_safe(datos_extraidos)
+        if isinstance(datos_extraidos, (dict, list))
+        else datos_extraidos
     )
     sheet_profiles = (
         _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
@@ -484,7 +489,9 @@ async def _process_upload_like_document(
             "run": {
                 "recipe_resolution": {
                     "used": resolution_mode,
-                    "recipe_snapshot_id": str(resolved_snapshot_id) if resolved_snapshot_id else None,
+                    "recipe_snapshot_id": (
+                        str(resolved_snapshot_id) if resolved_snapshot_id else None
+                    ),
                     "learning_version_applied": learning_version_applied,
                 },
                 "learning_version_applied": learning_version_applied,
@@ -624,8 +631,8 @@ async def _process_run_document(
     generated_auto_snapshot_id: UUID | None = None
     generated_auto_mode: str | None = None
     if sheet_profiles and not local_recipe_config:
-        auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = (
-            resolve_auto_recipe(db, tenant_id, sheet_profiles, user_id, force_new=force)
+        auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = resolve_auto_recipe(
+            db, tenant_id, sheet_profiles, user_id, force_new=force
         )
         generated_auto_snapshot_id = auto_snap_id
         generated_auto_mode = auto_mode
@@ -759,12 +766,16 @@ async def _process_run_document(
         if recipe_name_detected is None and meta_for_sheet:
             for key, value in meta_for_sheet.items():
                 key_norm = str(key or "").strip().lower()
-                if key_norm in (
-                    "nombre_de_la_receta",
-                    "nombre_receta",
-                    "nombre de la receta",
-                    "nombre",
-                ) and value:
+                if (
+                    key_norm
+                    in (
+                        "nombre_de_la_receta",
+                        "nombre_receta",
+                        "nombre de la receta",
+                        "nombre",
+                    )
+                    and value
+                ):
                     recipe_name_detected = str(value).strip()
                     break
         if recipe_name_detected is None:
@@ -911,7 +922,9 @@ async def _process_run_document(
     }
 
     datos_extraidos = (
-        _json_safe(datos_extraidos) if isinstance(datos_extraidos, (dict, list)) else datos_extraidos
+        _json_safe(datos_extraidos)
+        if isinstance(datos_extraidos, (dict, list))
+        else datos_extraidos
     )
     sheet_profiles = (
         _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles

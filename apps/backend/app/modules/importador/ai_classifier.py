@@ -137,9 +137,7 @@ def _value_token_evidence(text_normalized: str, value: Any, *, min_len: int = 4)
         "concept",
     }
     tokens = [
-        token
-        for token in sample.split()
-        if len(token) >= min_len and token not in stop_tokens
+        token for token in sample.split() if len(token) >= min_len and token not in stop_tokens
     ]
     if not tokens:
         return sample in text_normalized

@@ -18,9 +18,7 @@ def _req(tenant_id: str, user_id: str) -> SimpleNamespace:
     )
 
 
-def test_create_receipt_is_idempotent_by_client_request_id(
-    db: Session, tenant_minimal
-):
+def test_create_receipt_is_idempotent_by_client_request_id(db: Session, tenant_minimal):
     eng = db.get_bind()
     if eng.dialect.name != "postgresql":
         pytest.skip("Postgres-specific idempotency test")
@@ -46,7 +44,9 @@ def test_create_receipt_is_idempotent_by_client_request_id(
         },
     )
 
-    register = POSRegister(id=uuid.uuid4(), tenant_id=tenant_id, name="Caja Idempotente", active=True)
+    register = POSRegister(
+        id=uuid.uuid4(), tenant_id=tenant_id, name="Caja Idempotente", active=True
+    )
     shift = POSShift(
         id=uuid.uuid4(),
         register_id=register.id,

@@ -119,9 +119,7 @@ async def list_logs(
     channel_map: dict = {}
     if channel_ids:
         channels = (
-            db.query(NotificationChannel)
-            .filter(NotificationChannel.id.in_(channel_ids))
-            .all()
+            db.query(NotificationChannel).filter(NotificationChannel.id.in_(channel_ids)).all()
         )
         channel_map = {c.id: c.channel_type for c in channels}
 
@@ -231,12 +229,7 @@ def list_audit_events(
             )
         )
 
-    events = (
-        query.order_by(desc(AuditEvent.created_at))
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    events = query.order_by(desc(AuditEvent.created_at)).offset(offset).limit(limit).all()
 
     # Bulk-load tenant names
     tenant_ids = {e.tenant_id for e in events if e.tenant_id}

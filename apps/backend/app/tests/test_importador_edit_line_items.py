@@ -43,7 +43,12 @@ def test_edit_document_fields_supports_line_items_and_infers_total(db: Session, 
         EditFieldsRequest(
             campos={
                 "line_items": [
-                    {"description": "Big 225", "quantity": "1", "unit_price": "5.35", "total_price": ""},
+                    {
+                        "description": "Big 225",
+                        "quantity": "1",
+                        "unit_price": "5.35",
+                        "total_price": "",
+                    },
                     {"description": "Cifrut 1700", "quantity": "1", "unit_price": "5.30"},
                     {"description": "Amper", "quantity": "1", "unit_price": "5.30"},
                 ]
@@ -61,4 +66,3 @@ def test_edit_document_fields_supports_line_items_and_infers_total(db: Session, 
     assert result.datos_extraidos["total_amount"] == 15.95
     assert document.monto_total == 15.95
     assert document.raw_ai_json["canonical_document"]
-

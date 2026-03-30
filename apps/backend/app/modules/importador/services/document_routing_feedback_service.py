@@ -70,7 +70,9 @@ def record_routing_signal(
     decision_payload = decision.model_dump(mode="json")
     signal_payload = {
         "event": event,
-        "changed_fields": sorted(str(field) for field in (changed_fields or []) if str(field).strip()),
+        "changed_fields": sorted(
+            str(field) for field in (changed_fields or []) if str(field).strip()
+        ),
         "chosen_destination": chosen_destination,
         "captured_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "decision": decision_payload,

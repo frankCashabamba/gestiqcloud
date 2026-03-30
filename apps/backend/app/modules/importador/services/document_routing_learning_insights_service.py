@@ -6,8 +6,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.importador import ImpDocumento, ImpRoutingSignal
-from app.models.importador import ImpRoutingProfile
+from app.models.importador import ImpDocumento, ImpRoutingProfile, ImpRoutingSignal
 from app.modules.importador.schemas import (
     RoutingLearningInsightOut,
     RoutingProfileAdminIn,
@@ -34,7 +33,9 @@ def _event_weight(event: str) -> float:
 
 def _source_doc_type(signal: ImpRoutingSignal, doc: ImpDocumento) -> str:
     snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
-    raw = snapshot.get("source_doc_type") or getattr(doc, "tipo_documento_detectado", None) or "OTHER"
+    raw = (
+        snapshot.get("source_doc_type") or getattr(doc, "tipo_documento_detectado", None) or "OTHER"
+    )
     return str(raw).strip().upper() or "OTHER"
 
 
@@ -228,11 +229,7 @@ def build_routing_profile_update_proposal(
     document_type: str | None = None,
 ) -> RoutingProfileUpdateProposalOut:
     normalized_code = str(profile_code or "").strip().lower()
-    profile = (
-        db.query(ImpRoutingProfile)
-        .filter(ImpRoutingProfile.code == normalized_code)
-        .first()
-    )
+    profile = db.query(ImpRoutingProfile).filter(ImpRoutingProfile.code == normalized_code).first()
     if profile is None:
         raise ValueError("routing_profile_not_found")
 
@@ -252,17 +249,25 @@ def build_routing_profile_update_proposal(
     if insight.suggested_required_groups:
         merged_required_groups = insight.suggested_required_groups
 
-    merged_support_fields = list(dict.fromkeys([
-        *(current_profile.support_fields or []),
-        *insight.suggested_support_fields,
-        *insight.top_changed_fields[:3],
-    ]))
+    merged_support_fields = list(
+        dict.fromkeys(
+            [
+                *(current_profile.support_fields or []),
+                *insight.suggested_support_fields,
+                *insight.top_changed_fields[:3],
+            ]
+        )
+    )
 
-    merged_explanation_fields = list(dict.fromkeys([
-        *(current_profile.explanation_fields or []),
-        *insight.top_changed_fields[:3],
-        *insight.top_missing_fields[:2],
-    ]))
+    merged_explanation_fields = list(
+        dict.fromkeys(
+            [
+                *(current_profile.explanation_fields or []),
+                *insight.top_changed_fields[:3],
+                *insight.top_missing_fields[:2],
+            ]
+        )
+    )
 
     proposed_update = RoutingProfileAdminIn(
         code=current_profile.code,

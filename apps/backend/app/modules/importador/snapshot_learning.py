@@ -82,9 +82,7 @@ def _render_learning_field_description(field: str, payload: dict[str, Any]) -> s
             f"Users corrected '{field}' {corrected_count} time(s) in similar confirmed documents."
         )
     elif confirmed_count > 0:
-        lines.append(
-            f"'{field}' was confirmed {confirmed_count} time(s) in similar documents."
-        )
+        lines.append(f"'{field}' was confirmed {confirmed_count} time(s) in similar documents.")
 
     if corrected_examples:
         rendered = ", ".join(f"'{value}'" for value in corrected_examples[:3])
@@ -93,16 +91,12 @@ def _render_learning_field_description(field: str, payload: dict[str, Any]) -> s
         )
     elif confirmed_examples:
         rendered = ", ".join(f"'{value}'" for value in confirmed_examples[:3])
-        lines.append(
-            f"Recent confirmed examples: {rendered}. Use only if explicitly visible."
-        )
+        lines.append(f"Recent confirmed examples: {rendered}. Use only if explicitly visible.")
 
     last_original = _normalize_scalar(payload.get("last_original_value"))
     last_confirmed = _normalize_scalar(payload.get("last_confirmed_value"))
     if last_original and last_confirmed and last_original != last_confirmed:
-        lines.append(
-            f"Latest correction replaced '{last_original}' with '{last_confirmed}'."
-        )
+        lines.append(f"Latest correction replaced '{last_original}' with '{last_confirmed}'.")
 
     return " ".join(lines).strip()
 
@@ -136,9 +130,11 @@ def _build_learning_prompt(memory: dict[str, dict[str, Any]]) -> str | None:
         else:
             line = f"- '{field}' was confirmed repeatedly in similar documents."
         if confirmed_examples:
-            line += " Recent examples: " + ", ".join(
-                f"'{value}'" for value in confirmed_examples[:2]
-            ) + "."
+            line += (
+                " Recent examples: "
+                + ", ".join(f"'{value}'" for value in confirmed_examples[:2])
+                + "."
+            )
         lines.append(line)
     lines.append("- Reuse examples only when the value is explicitly visible in the document.")
     return "\n".join(lines)
@@ -159,11 +155,7 @@ def build_snapshot_review_hints(
     if not isinstance(raw_memory, dict):
         return []
 
-    missing = {
-        str(field).strip()
-        for field in (missing_fields or [])
-        if str(field).strip()
-    }
+    missing = {str(field).strip() for field in (missing_fields or []) if str(field).strip()}
     canonical_meta = canonical_fields or {}
     ranked: list[tuple[tuple[int, int, int, str], dict[str, Any]]] = []
 

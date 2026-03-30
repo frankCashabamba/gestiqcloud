@@ -230,7 +230,7 @@ export default function DocumentList() {
       `}</style>
 
       <button
-        onClick={() => navigate(-1)}
+        onClick={() => navigate('../overview')}
         style={{
           width: 'fit-content',
           cursor: 'pointer',
@@ -483,6 +483,7 @@ export default function DocumentList() {
               <tbody>
                 {docs.map((doc) => {
                   const isInProgress = doc.estado === 'PROCESSING' || doc.estado === 'PENDING'
+                  const isImported = doc.estado === 'IMPORTED' || doc.saved_as != null || doc.saved_at != null
                   const docActivityBadges = activityBadges(doc)
                   const destination = suggestSaveDestination(doc)
                   const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && !isInProgress && (
@@ -492,6 +493,8 @@ export default function DocumentList() {
                     ? 'Procesando...'
                     : doc.estado === 'FAILED'
                     ? 'Ver error'
+                    : isImported
+                    ? 'Ver documento'
                     : saveEnabled
                     ? saveLabel(doc)
                     : 'Revisar documento'
@@ -499,6 +502,8 @@ export default function DocumentList() {
                     ? 'El documento aun se esta procesando en segundo plano.'
                     : doc.estado === 'FAILED'
                     ? 'El documento tuvo un error. Haz clic para ver el detalle.'
+                    : isImported
+                    ? 'El documento ya fue guardado. Haz clic para ver el detalle.'
                     : saveEnabled
                     ? saveLabel(doc)
                     : 'Abre el documento para confirmar sus datos antes de guardarlo.'
@@ -558,7 +563,7 @@ export default function DocumentList() {
                         <button
                           onClick={(event) => {
                             event.stopPropagation()
-                            if (saveEnabled) {
+                            if (saveEnabled && !isImported) {
                               setFeedback(null)
                               setSelectedDoc(doc)
                             } else {

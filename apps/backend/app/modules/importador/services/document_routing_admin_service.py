@@ -7,8 +7,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento, ImpRoutingProfile, ImpRoutingRule
-from app.services.field_config import resolve_sector_code
 from app.modules.importador.category_loader import get_doc_categories
+from app.services.field_config import resolve_sector_code
 
 from ..schemas import (
     RoutingPreviewDocumentOut,
@@ -24,8 +24,6 @@ from .document_routing_agent import (
     invalidate_document_routing_cache,
     resolve_routing_profile_match,
 )
-from .document_routing_learning_insights_service import list_routing_learning_insights
-from .document_routing_learning_insights_service import build_routing_profile_update_proposal
 
 
 def _normalize_profile_code(value: str) -> str:
@@ -249,14 +247,11 @@ def list_routing_rules(
     elif scope_kind == "system":
         query = query.filter(ImpRoutingRule.tenant_id.is_(None), ImpRoutingRule.sector == "_system")
 
-    rows = (
-        query.order_by(
-            ImpRoutingRule.source_kind.asc(),
-            ImpRoutingRule.source_key.asc(),
-            ImpRoutingRule.priority.asc(),
-        )
-        .all()
-    )
+    rows = query.order_by(
+        ImpRoutingRule.source_kind.asc(),
+        ImpRoutingRule.source_key.asc(),
+        ImpRoutingRule.priority.asc(),
+    ).all()
     return [_serialize_rule(row) for row in rows]
 
 
@@ -317,7 +312,9 @@ def create_routing_rule(db: Session, payload: RoutingRuleAdminIn) -> RoutingRule
     return _serialize_rule(row)
 
 
-def update_routing_rule(db: Session, rule_id: UUID, payload: RoutingRuleAdminIn) -> RoutingRuleAdminOut:
+def update_routing_rule(
+    db: Session, rule_id: UUID, payload: RoutingRuleAdminIn
+) -> RoutingRuleAdminOut:
     row = db.query(ImpRoutingRule).filter(ImpRoutingRule.id == rule_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="routing_rule_not_found")
@@ -372,7 +369,11 @@ def preview_routing_decision(db: Session, payload: RoutingPreviewRequest) -> Rou
         tenant_id = payload.tenant_id or (doc.tenant_id if doc is not None else None)
         if tenant_id is None:
             raise HTTPException(status_code=400, detail="tenant_id_required")
-        if doc is not None and payload.tenant_id is not None and str(payload.tenant_id) != str(doc.tenant_id):
+        if (
+            doc is not None
+            and payload.tenant_id is not None
+            and str(payload.tenant_id) != str(doc.tenant_id)
+        ):
             raise HTTPException(status_code=400, detail="routing_preview_document_tenant_mismatch")
     elif payload.scope_kind == "sector":
         if not str(payload.sector or "").strip():
@@ -387,7 +388,9 @@ def preview_routing_decision(db: Session, payload: RoutingPreviewRequest) -> Rou
         requires_review = bool(doc.requiere_revision) or payload.requires_review
         source_category_override = payload.source_category
     else:
-        canonical_fields = payload.canonical_fields if isinstance(payload.canonical_fields, dict) else {}
+        canonical_fields = (
+            payload.canonical_fields if isinstance(payload.canonical_fields, dict) else {}
+        )
         canonical_document = {"fields": canonical_fields}
         extracted_data = payload.extracted_data if isinstance(payload.extracted_data, dict) else {}
         source_doc_type = payload.source_doc_type

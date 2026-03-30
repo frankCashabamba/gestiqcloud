@@ -20,15 +20,9 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 from . import crud, recipe_crud
+from .ai_classifier import analyze_document
 from .api_lifecycle import mark_legacy_processing_endpoint
-from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
-    get_snapshot_learning,
-    get_snapshot_learning_version,
-    remember_snapshot_learning,
-    resolve_auto_recipe,
-    resolve_auto_recipe_from_text,
     should_reprocess_existing_document,
 )
 from .canonical_document import build_document_projection
@@ -43,18 +37,15 @@ from .document_fields import (
 )
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
+from .processing_service import process_import_document
 from .product_import_service import (
     build_product_candidates,
-    looks_like_product_document,
     save_product_candidates,
 )
-from .processing_service import process_import_document
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 from .runtime_config import (
-    load_doc_type_patterns,
     load_file_support_config,
     load_product_sheet_detection_config,
-    load_prompt_config,
 )
 from .schemas import (
     BatchDetailOut,
@@ -89,6 +80,8 @@ from .schemas import (
     SyncRecipesResponse,
     UploadResponse,
 )
+from .services.document_routing_agent import build_document_routing_decision
+from .services.document_routing_feedback_service import record_routing_signal
 from .services.iteration_service import (
     build_field_analysis,
     count_lines_for_scope,
@@ -96,15 +89,6 @@ from .services.iteration_service import (
     fetch_lines_for_scope,
     load_error_affected_fields,
     run_iteration,
-    upsert_staging_lines_from_extraction,
-)
-from .services.document_routing_agent import (
-    build_document_routing_decision,
-)
-from .services.document_routing_feedback_service import record_routing_signal
-from .services.document_model_learning_service import (
-    build_signal_learning_recipe_config,
-    summarize_learning_rerun,
 )
 from .services.product_matching import (
     _append_import_alias,
@@ -249,7 +233,9 @@ def _derive_confirmation_mode(doc, datos_confirmados: dict) -> str:
     detected = getattr(doc, "datos_extraidos", None)
     detected_payload = detected if isinstance(detected, dict) else {}
     confirmed_payload = datos_confirmados if isinstance(datos_confirmados, dict) else {}
-    if _normalize_payload_for_audit(detected_payload) == _normalize_payload_for_audit(confirmed_payload):
+    if _normalize_payload_for_audit(detected_payload) == _normalize_payload_for_audit(
+        confirmed_payload
+    ):
         return "accepted_as_detected"
     return "corrected_by_user"
 
@@ -283,7 +269,9 @@ def _normalize_line_items_for_edit(value) -> list[dict]:
     return normalized_items
 
 
-def _prepare_edit_fields_payload(current: dict, campos: dict, aliases: dict[str, list[str]]) -> tuple[dict, dict]:
+def _prepare_edit_fields_payload(
+    current: dict, campos: dict, aliases: dict[str, list[str]]
+) -> tuple[dict, dict]:
     previous = {k: current.get(k) for k in campos}
     current.update(campos)
 
@@ -307,7 +295,9 @@ def _prepare_edit_fields_payload(current: dict, campos: dict, aliases: dict[str,
 
 
 def _attach_document_activity_meta(doc):
-    logs = sorted((getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min)
+    logs = sorted(
+        (getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min
+    )
     doc.last_processing_reason = None
     doc.last_learning_reprocess_at = None
     doc.last_confirmation_mode = None
@@ -363,10 +353,14 @@ def _require_routing_ready(doc, db: Session, destination: str) -> None:
     decision = _resolve_destination_routing(doc, db, destination)
     if decision.required_fields_ok:
         return
-    raise HTTPException(status_code=409, detail=_build_routing_conflict_detail(doc, db, destination))
+    raise HTTPException(
+        status_code=409, detail=_build_routing_conflict_detail(doc, db, destination)
+    )
 
 
-def _capture_routing_signal(doc, db: Session, user_id: str, *, event: str, changed_fields=None) -> None:
+def _capture_routing_signal(
+    doc, db: Session, user_id: str, *, event: str, changed_fields=None
+) -> None:
     record_routing_signal(
         db,
         doc,
@@ -1194,7 +1188,11 @@ async def upload_files(
         existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         learning_reprocess_needed = False
-        if existing and isinstance(getattr(existing, "datos_confirmados", None), dict) and existing.datos_confirmados:
+        if (
+            existing
+            and isinstance(getattr(existing, "datos_confirmados", None), dict)
+            and existing.datos_confirmados
+        ):
             bootstrap_learning_from_existing_document(db, existing, user_id)
         if existing:
             learning_reprocess_needed = bool(
@@ -1251,7 +1249,9 @@ async def upload_files(
         ):
             doc = existing
             response_action = "REPROCESS"
-            rerun_reason = "learning_update" if learning_reprocess_needed and not force else "manual"
+            rerun_reason = (
+                "learning_update" if learning_reprocess_needed and not force else "manual"
+            )
             response_message = (
                 "Se reanalizo el mismo documento para aplicar aprendizaje confirmado reciente."
                 if rerun_reason == "learning_update"
@@ -1458,7 +1458,9 @@ def confirm_document(
 
     confirmation_mode = _derive_confirmation_mode(doc, body.datos_confirmados)
 
-    crud.update_documento(db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"})
+    crud.update_documento(
+        db, doc, {"datos_confirmados": body.datos_confirmados, "estado": "CONFIRMED"}
+    )
     _capture_routing_signal(
         doc,
         db,
