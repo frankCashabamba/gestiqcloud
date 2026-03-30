@@ -14,10 +14,9 @@ import datetime
 import hashlib
 import logging
 import os
-from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -25,25 +24,11 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 from . import crud, recipe_crud
-from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-from .analysis_normalizer import _normalize_analysis_output
-from .auto_recipe import (
-    get_snapshot_learning,
-    get_snapshot_learning_version,
-    remember_snapshot_learning,
-    resolve_auto_recipe,
-    resolve_auto_recipe_from_text,
-)
-from .canonical_document import build_document_projection
+from .api_lifecycle import mark_legacy_processing_endpoint
+from .ai_classifier import analyze_document
 from .document_fields import safe_floatish
-from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
-from .product_import_service import looks_like_product_document
-from .runtime_config import (
-    load_doc_type_patterns,
-    load_product_sheet_detection_config,
-    load_prompt_config,
-)
+from .processing_service import RecipeContext, process_import_document
 from .schemas import (
     DraftCreate,
     DraftOut,
@@ -143,9 +128,15 @@ def _resolve_recipe_config(
     return {}, "zero_shot", None
 
 
-@router.post("/run", response_model=list[RunResponse], dependencies=protected)
+@router.post(
+    "/run",
+    response_model=list[RunResponse],
+    dependencies=protected,
+    deprecated=True,
+)
 async def run_import(
     request: Request,
+    response: Response,
     files: list[UploadFile] = File(...),
     recipe_id: UUID | None = Form(default=None),
     recipe_snapshot_id: UUID | None = Form(default=None),
@@ -153,7 +144,7 @@ async def run_import(
     force: bool = Form(default=False),
     db: Session = Depends(get_db),
 ):
-    """Process files with optional recipe. RB-01: recipe is NEVER required.
+    """Legacy sync recipe path. Prefer /importador/run-async for the production flow.
 
     CA-01: Works without any recipe selection.
     CA-02: Resolves prompt config: snapshot > draft > recipe_id > zero_shot.
@@ -161,6 +152,8 @@ async def run_import(
     """
     tenant_id = _tenant_id(request)
     user_id = _user_id(request)
+    mark_legacy_processing_endpoint(response)
+    logger.info("Legacy importador endpoint used: /run tenant=%s", tenant_id)
 
     # Resolve recipe (never fails — always falls back to zero_shot)
     recipe_config, resolution_mode, resolved_snapshot_id = _resolve_recipe_config(
@@ -277,433 +270,41 @@ async def run_import(
         db.commit()
 
         try:
-            extraction = await extract_text_from_file(file_bytes, filename)
-            text = extraction.get("text", "")
-            structured = extraction.get("structured_data")
-            sheet_profiles = extraction.get("sheet_profiles")
-            sheet_metadata = extraction.get("sheet_metadata") or {}
-            sheet_used = extraction.get("sheet_used")
-            headers_lower = []
-            if sheet_profiles and isinstance(sheet_profiles, dict):
-                for prof in sheet_profiles.values():
-                    headers_lower.extend([h.lower() for h in prof.get("headers", [])])
-
-            # Para Excel/CSV: las filas YA están parseadas. No necesitamos LLM para extraer datos,
-            # solo para clasificar el tipo de documento. El LLM NO decide si es tabla.
-            has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
-            structured_rows_all: list[dict] = structured if isinstance(structured, list) else []
-            structured_rows: list[dict] = list(structured_rows_all)
-
-            headers_norm: list[str] = []
-            headers_display: list[str] = []
-            if has_structured:
-                sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
-                if sheet_used is None and sheet_names:
-                    sheet_used = sheet_names[0]
-                if sheet_used and structured_rows:
-                    filtered_rows = [
-                        r
-                        for r in structured_rows
-                        if isinstance(r, dict) and r.get("_sheet") == sheet_used
-                    ]
-                    if filtered_rows:
-                        structured_rows = filtered_rows
-                if sheet_profiles:
-                    prof = sheet_profiles.get(sheet_used) or (
-                        sheet_profiles[sheet_names[0]] if sheet_names else None
-                    )
-                    if prof:
-                        headers_norm = prof.get("headers_norm") or []
-                        headers_display = prof.get("headers") or headers_norm
-
-            # Fingerprint / recipe selection
-            local_recipe_config = recipe_config or {}
-            local_resolution = (
-                "force_clean" if force_clean_reimport and not recipe_config else resolution_mode
-            )
-            local_snapshot_id = (
-                None if force_clean_reimport and not recipe_config else resolved_snapshot_id
-            )
-            local_auto_created = False
-            local_auto_name: str | None = None
-            generated_auto_snapshot_id: UUID | None = None
-            generated_auto_mode: str | None = None
-            if sheet_profiles and not recipe_config:
-                auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = (
-                    resolve_auto_recipe(db, tenant_id, sheet_profiles, user_id, force_new=force)
-                )
-                generated_auto_snapshot_id = auto_snap_id
-                generated_auto_mode = auto_mode
-                if force_clean_reimport:
-                    local_recipe_config = {}
-                    local_resolution = "force_clean"
-                    local_snapshot_id = None
-                else:
-                    if auto_rc:
-                        local_recipe_config = auto_rc
-                        local_resolution = auto_mode
-                    if auto_snap_id:
-                        local_snapshot_id = auto_snap_id
-
-            # LLM: solo clasificar el tipo de documento (para Excel/CSV)
-            # Para PDF/imagen/TXT: también extraer campos
-            recipe_name_detected: str | None = None
-            if has_structured:
-                sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
-                if sheet_used is None and sheet_names:
-                    sheet_used = sheet_names[0]
-                # Contenido mínimo para clasificación: solo cabeceras + 5 filas de muestra
-                sample_lines = [f"Columnas: {headers_display}"]
-                for row in structured_rows[:5]:
-                    if isinstance(row, dict):
-                        sample_lines.append(
-                            str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")})
-                        )
-                        if recipe_name_detected is None:
-                            for key in row.keys():
-                                key_norm = str(key or "").strip().lower()
-                                if key_norm in (
-                                    "nombre_de_la_receta",
-                                    "nombre_receta",
-                                    "nombre de la receta",
-                                    "nombre",
-                                ):
-                                    val = row.get(key)
-                                    if val:
-                                        recipe_name_detected = str(val).strip()
-                                        break
-                llm_content = "\n".join(sample_lines)
-            else:
-                llm_content = text[:6000] if text else ""
-
-            # En reimportación limpia, no reutilizar auto-plantillas para sesgar la clasificación.
-            is_image_doc = tipo_archivo in ("JPG", "PNG", "IMG")
-            is_scanned_pdf = tipo_archivo == "PDF" and extraction.get("format") == "PDF_OCR"
-            vision_image_bytes = extraction.get("vision_image_bytes")
-            if not isinstance(vision_image_bytes, (bytes, bytearray)):
-                vision_image_bytes = file_bytes if is_image_doc else None
-            recipe_snapshot = None
-            cached_analysis = None
-            if local_snapshot_id:
-                recipe_snapshot = recipe_crud.get_snapshot(db, UUID(str(local_snapshot_id)))
-                if has_structured:
-                    cached_analysis = get_snapshot_learning(
-                        recipe_snapshot,
-                        structured_only=True,
-                    )
-
-            if cached_analysis:
-                analysis = {
-                    **cached_analysis,
-                    "fields": {},
-                    "is_table": True,
-                    "columns": [],
-                    "model_used": "snapshot-cache",
-                    "prompt_sent": "",
-                    "raw_response": "snapshot-cache",
-                }
-            else:
-                _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
-                _prompt_config = load_prompt_config(db)
-                analysis = await analyze_document(
-                    llm_content,
-                    filename,
-                    extraction.get("format", tipo_archivo),
-                    has_structured_rows=has_structured,
-                    recipe_config=local_recipe_config,
-                    image_bytes=(
-                        bytes(vision_image_bytes)
-                        if (is_image_doc or is_scanned_pdf) and vision_image_bytes
-                        else None
-                    ),
-                    fallback_patterns=load_doc_type_patterns(db),
-                    canonical_fields=_canonical_fields,
-                    prompt_config=_prompt_config,
-                )
-            normalized_analysis = _normalize_analysis_output(analysis)
-
-            tipo_doc = str(normalized_analysis["doc_type"])
-            confianza = float(normalized_analysis["confidence"])
-            razonamiento = str(normalized_analysis["reasoning"])
-            analysis_fields = normalized_analysis["fields"]
-            requiere_revision = confianza < CONFIDENCE_THRESHOLD
-
-            if has_structured and recipe_snapshot:
-                remember_snapshot_learning(
-                    db,
-                    recipe_snapshot,
-                    {
-                        "doc_type": tipo_doc,
-                        "confidence": confianza,
-                        "reasoning": razonamiento,
-                    },
-                    structured_only=True,
-                )
-
-            # Construir datos_extraidos
-            if has_structured:
-                sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
-                if sheet_used is None and sheet_names:
-                    sheet_used = sheet_names[0]
-                # Excel/CSV: SIEMPRE retornar filas parseadas — el LLM no decide si es tabla
-                columnas = headers_display or headers_norm
-                if recipe_name_detected is None:
-                    for row in structured_rows[:200]:
-                        if not isinstance(row, dict):
-                            continue
-                        for key in row.keys():
-                            key_norm = str(key or "").strip().lower()
-                            if key_norm in (
-                                "nombre_de_la_receta",
-                                "nombre_receta",
-                                "nombre de la receta",
-                                "nombre",
-                            ):
-                                val = row.get(key)
-                                if val:
-                                    recipe_name_detected = str(val).strip()
-                                    break
-                        if recipe_name_detected:
-                            break
-                meta_for_sheet = None
-                if sheet_metadata:
-                    meta_for_sheet = sheet_metadata.get(sheet_used) or (
-                        sheet_metadata.get(sheet_names[0]) if sheet_names else None
-                    )
-                if recipe_name_detected is None and meta_for_sheet:
-                    for key, val in meta_for_sheet.items():
-                        key_norm = str(key or "").strip().lower()
-                        if key_norm in (
-                            "nombre_de_la_receta",
-                            "nombre_receta",
-                            "nombre de la receta",
-                            "nombre",
-                        ):
-                            if val:
-                                recipe_name_detected = str(val).strip()
-                                break
-                if recipe_name_detected is None:
-                    recipe_name_detected = (
-                        sheet_used
-                        or (list(sheet_profiles.keys())[0] if sheet_profiles else None)
-                        or Path(filename).stem
-                    )
-
-                # Agrupar todas las filas por hoja para visualización completa en el frontend
-                filas_por_hoja: dict[str, list] = {}
-                for row in structured_rows_all:
-                    if not isinstance(row, dict):
-                        continue
-                    sheet_name = row.get("_sheet") or sheet_used or ""
-                    filas_por_hoja.setdefault(str(sheet_name), []).append(row)
-                filas_count = {k: len(v) for k, v in filas_por_hoja.items()}
-
-                # Build per-sheet profiles with headers for all sheets
-                perfiles_hojas: dict[str, dict] = {}
-                for sn in sheet_names:
-                    prof_s = sheet_profiles.get(sn) if sheet_profiles else None
-                    if prof_s:
-                        perfiles_hojas[sn] = {
-                            "columnas": prof_s.get("headers") or prof_s.get("headers_norm") or [],
-                            "columnas_norm": prof_s.get("headers_norm") or [],
-                            "total_filas": len(filas_por_hoja.get(sn, [])),
-                        }
-
-                datos_extraidos = {
-                    "filas": structured_rows[:200],
-                    "total_filas": len(structured_rows),
-                    "columnas": columnas,
-                    "columnas_norm": headers_norm,
-                    "nombre_receta": recipe_name_detected,
-                    "sheet_usada": sheet_used,
-                    "hojas": sheet_names,
-                    "perfiles_hojas": perfiles_hojas,
-                }
-                if meta_for_sheet:
-                    datos_extraidos["metadata"] = meta_for_sheet
-                if filas_por_hoja:
-                    datos_extraidos["filas_por_hoja"] = {
-                        k: v[:200] for k, v in filas_por_hoja.items()
-                    }
-                    datos_extraidos["filas_por_hoja_count"] = filas_count
-                if looks_like_product_document(
-                    datos_extraidos,
-                    sheet_name=sheet_used,
-                    detection_config=load_product_sheet_detection_config(db),
-                ) and tipo_doc not in {
-                    "INVENTORY",
-                    "PRICE_LIST",
-                    "PRODUCT_LIST",
-                    "PRODUCTS",
-                }:
-                    tipo_doc = "INVENTORY"
-                    requiere_revision = True
-            else:
-                # PDF/imagen/XML/TXT: usar lo que extrajo el LLM
-                datos_extraidos = analysis_fields or {}
-
-            # Para PDF/XML/imagen/TXT: crear fingerprint post-extracción para futuros imports similares
-            auto_recipe_created = local_auto_created
-            auto_recipe_name: str | None = local_auto_name
-            if not sheet_profiles and tipo_doc != "OTHER" and not explicit_recipe_context:
-                auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = (
-                    resolve_auto_recipe_from_text(
-                        db,
-                        tenant_id,
-                        tipo_doc,
-                        datos_extraidos,
-                        extraction.get("format", tipo_archivo),
-                        user_id,
-                        force_new=force,
-                    )
-                )
-                if post_snap_id and not local_snapshot_id:
-                    local_snapshot_id = post_snap_id
-                if auto_rc2 and not auto_recipe_created and not local_recipe_config:
-                    rerun_analysis = await analyze_document(
-                        llm_content,
-                        filename,
-                        extraction.get("format", tipo_archivo),
-                        has_structured_rows=False,
-                        recipe_config=auto_rc2,
-                        image_bytes=(
-                            bytes(vision_image_bytes)
-                            if (is_image_doc or is_scanned_pdf) and vision_image_bytes
-                            else None
-                        ),
-                        fallback_patterns=load_doc_type_patterns(db),
-                        canonical_fields=_canonical_fields,
-                        prompt_config=_prompt_config,
-                    )
-                    rerun_normalized = _normalize_analysis_output(rerun_analysis)
-                    rerun_fields = rerun_normalized["fields"]
-                    if isinstance(rerun_fields, dict) and rerun_fields:
-                        analysis = rerun_analysis
-                        normalized_analysis = rerun_normalized
-                        tipo_doc = str(rerun_normalized["doc_type"])
-                        confianza = float(rerun_normalized["confidence"])
-                        razonamiento = str(rerun_normalized["reasoning"])
-                        analysis_fields = rerun_fields
-                        requiere_revision = confianza < CONFIDENCE_THRESHOLD
-                        datos_extraidos = rerun_fields
-                        local_recipe_config = auto_rc2
-
-            current_snapshot = None
-            current_snapshot_id = local_snapshot_id or resolved_snapshot_id
-            if current_snapshot_id:
-                current_snapshot = recipe_crud.get_snapshot(db, UUID(str(current_snapshot_id)))
-            learning_version_applied = get_snapshot_learning_version(current_snapshot)
-            _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-            _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
-            canonical_document, projection = build_document_projection(
-                datos_extraidos if isinstance(datos_extraidos, dict) else {},
-                doc_type=tipo_doc,
-                source_format=extraction.get("format", tipo_archivo),
-                field_aliases=_field_aliases,
-                canonical_fields=_canonical_fields,
-            )
-            model_used = analysis.get("model_used") or "unknown"
-            raw_ai_json = {
-                "run": {
-                    "recipe_resolution": {
-                        "recipe_id": str(recipe_id) if recipe_id else None,
-                        "recipe_snapshot_id": (
-                            str(local_snapshot_id or resolved_snapshot_id)
-                            if (local_snapshot_id or resolved_snapshot_id)
-                            else None
-                        ),
-                        "used": local_resolution,
-                        "force": force,
-                        "force_clean_reimport": force_clean_reimport,
-                        "explicit_recipe_context": explicit_recipe_context,
-                        "learning_version_applied": learning_version_applied,
-                        "generated_auto_snapshot_id": (
-                            str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None
-                        ),
-                        "generated_auto_snapshot_mode": generated_auto_mode,
-                    },
-                    "learning_version_applied": learning_version_applied,
-                    "model": model_used,
-                },
-                "analysis": {
-                    "prompt": analysis.get("prompt_sent", ""),
-                    "raw_response": analysis.get("raw_response", ""),
-                    "parsed": {
-                        "tipo_documento": tipo_doc,
-                        "confianza": confianza,
-                        "razonamiento": razonamiento,
-                        "es_tabla": has_structured,
-                    },
-                    "campos_extraidos": (
-                        list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
-                    ),
-                },
-                "canonical_document": canonical_document,
-            }
-
-            datos_extraidos = (
-                _json_safe(datos_extraidos)
-                if isinstance(datos_extraidos, (dict, list))
-                else datos_extraidos
-            )
-            sheet_profiles = (
-                _json_safe(sheet_profiles)
-                if isinstance(sheet_profiles, (dict, list))
-                else sheet_profiles
-            )
-            raw_ai_json = _json_safe(raw_ai_json)
-
-            crud.update_documento(
-                db,
-                doc,
-                {
-                    "texto_ocr": text[:50000],
-                    "tipo_documento_detectado": tipo_doc,
-                    "confianza_clasificacion": confianza,
-                    "requiere_revision": requiere_revision,
-                    "datos_extraidos": datos_extraidos,
-                    "estado": "REVIEW",
-                    **projection,
-                    "llm_model": model_used,
-                    "raw_ai_json": raw_ai_json,
-                    "fingerprint_json": sheet_profiles,
-                    "sheet_profiles_json": sheet_profiles,
-                    "recipe_snapshot_id": local_snapshot_id or resolved_snapshot_id,
-                },
-            )
-            crud.add_log(
-                db,
-                doc.id,
-                "EXTRACT",
-                user_id,
-                {
-                    "campos_extraidos": (
-                        list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
-                    ),
-                    "model": model_used,
-                    "recipe_mode": local_resolution,
-                    "auto_recipe_created": auto_recipe_created,
-                    "force_clean_reimport": force_clean_reimport,
-                    "generated_auto_snapshot_id": (
-                        str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None
-                    ),
-                },
+            result = await process_import_document(
+                mode="run",
+                db=db,
+                doc=doc,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                file_bytes=file_bytes,
+                filename=filename,
+                tipo_archivo=tipo_archivo,
+                force=force,
+                extract_text_fn=extract_text_from_file,
+                analyze_document_fn=analyze_document,
+                recipe_context=RecipeContext(
+                    recipe_config=recipe_config or {},
+                    resolution_mode=resolution_mode,
+                    resolved_snapshot_id=resolved_snapshot_id,
+                    explicit_recipe_context=explicit_recipe_context,
+                    force_clean_reimport=force_clean_reimport,
+                    recipe_id=recipe_id,
+                ),
             )
             db.commit()
-
             results.append(
                 RunResponse(
                     id=doc.id,
                     estado=doc.estado,
-                    tipo_documento_detectado=tipo_doc,
-                    confianza_clasificacion=confianza,
-                    requiere_revision=requiere_revision,
-                    datos_extraidos=datos_extraidos,
-                    llm_model=model_used,
-                    recipe_used=local_resolution,
-                    recipe_snapshot_id=local_snapshot_id or resolved_snapshot_id,
-                    auto_recipe_created=auto_recipe_created or None,
-                    auto_recipe_name=auto_recipe_name,
+                    tipo_documento_detectado=result.tipo_documento_detectado,
+                    confianza_clasificacion=result.confianza_clasificacion,
+                    requiere_revision=result.requiere_revision,
+                    datos_extraidos=result.datos_extraidos,
+                    llm_model=result.llm_model,
+                    recipe_used=result.recipe_used,
+                    recipe_snapshot_id=result.recipe_snapshot_id,
+                    auto_recipe_created=result.auto_recipe_created,
+                    auto_recipe_name=result.auto_recipe_name,
                 )
             )
 

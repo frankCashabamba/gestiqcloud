@@ -4,7 +4,6 @@ import { apiFetch } from '../../lib/http'
 import { queueDeletion, storeEntity } from '../../lib/offlineStore'
 import { createOfflineTempId, isNetworkIssue, stripOfflineMeta } from '../../lib/offlineHttp'
 import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../../lib/offlineResourceCache'
-import { IMPORTS } from '../../../../packages/endpoints/src/imports'
 
 // ============================================================================
 // ENDPOINTS
@@ -329,33 +328,6 @@ export async function mergeSimilarProducts(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ winner_id: winnerId, loser_ids: loserIds }),
   }) as any
-}
-
-export async function importProductosExcel(file: File): Promise<{ batch_id: string; items_count: number }> {
-  const formData = new FormData()
-  formData.append('file', file)
-  const parsed = await apiFetch<{ headers: string[]; rows: Record<string, unknown>[] }>(IMPORTS.excel.parse, {
-    method: 'POST',
-    body: formData,
-  })
-
-  const batch = await apiFetch<{ id: string }>(IMPORTS.batches.base, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source_type: 'products',
-      origin: file.name || 'products-import',
-    }),
-  })
-
-  const rows = Array.isArray(parsed?.rows) ? parsed.rows : []
-  await apiFetch(IMPORTS.batches.ingest(batch.id), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rows }),
-  })
-
-  return { batch_id: batch.id, items_count: rows.length }
 }
 
 // ============================================================================

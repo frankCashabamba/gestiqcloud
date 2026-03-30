@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useImportReprocess } from '../hooks/useImportReprocess'
@@ -45,6 +45,8 @@ const STATUS_LABELS: Record<string, string> = {
   VALID: 'Valido',
   IMPORTED: 'Guardado',
 }
+
+const DETAIL_POLL_INTERVAL_MS = 5000
 
 function toggleStringValue(values: string[], value: string, checked: boolean): string[] {
   if (!value) return values
@@ -180,6 +182,7 @@ export default function DocumentDetail() {
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
   const [showSecondaryActions, setShowSecondaryActions] = useState(false)
   const lastVisibilityReloadRef = useRef(0)
+  const loadRequestSeqRef = useRef(0)
 
   useEffect(() => {
     fetchSaveCapabilities().then(setCapabilities).catch(() => {
@@ -188,15 +191,42 @@ export default function DocumentDetail() {
   }, [])
   useEffect(() => { if (id) void reprocess.loadIterations() }, [id])
 
-  const load = async () => {
+  const load = useCallback(async ({ silent = false, clearCurrent = false }: { silent?: boolean; clearCurrent?: boolean } = {}) => {
     if (!id) return
-    setLoading(true)
-    try { setDoc(await fetchDocument(id)) } catch { setError(t('docDetail.errorLoading')) }
-    setLoading(false)
+    const requestSeq = ++loadRequestSeqRef.current
+    if (!silent) {
+      setLoading(true)
+      if (clearCurrent) {
+        setDoc(null)
+      }
+    }
+    try {
+      const nextDoc = await fetchDocument(id)
+      if (requestSeq !== loadRequestSeqRef.current) return
+      setDoc(nextDoc)
+      setError('')
+    } catch {
+      if (requestSeq !== loadRequestSeqRef.current) return
+      setError(t('docDetail.errorLoading'))
+    } finally {
+      if (requestSeq === loadRequestSeqRef.current) {
+        setLoading(false)
+      }
+    }
     void reprocess.refreshSummary()
-  }
+  }, [id, reprocess.refreshSummary, t])
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    setEditMode(false)
+    setEditFields({})
+    setSyncResult(null)
+    setBatchSyncResult(null)
+    setDailyLogResult(null)
+    setSaveProductsResult(null)
+    setSaveModalOpen(false)
+    setSaveProductsOpen(false)
+    void load({ clearCurrent: true })
+  }, [id, load])
 
   useEffect(() => {
     const reloadOnVisibility = () => {
@@ -204,13 +234,25 @@ export default function DocumentDetail() {
       const now = Date.now()
       if (now - lastVisibilityReloadRef.current < 15000) return
       lastVisibilityReloadRef.current = now
-      void load()
+      void load({ silent: true })
     }
     document.addEventListener('visibilitychange', reloadOnVisibility)
     return () => {
       document.removeEventListener('visibilitychange', reloadOnVisibility)
     }
-  }, [id])
+  }, [load])
+
+  useEffect(() => {
+    if (!doc || (doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING')) return
+
+    const intervalId = window.setInterval(() => {
+      void load({ silent: true })
+    }, DETAIL_POLL_INTERVAL_MS)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [doc?.estado, load])
 
   // Selección automática de hoja cuando llega un documento nuevo
   useEffect(() => {

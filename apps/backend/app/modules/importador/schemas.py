@@ -286,12 +286,6 @@ class SaveProductsFromDocumentResponse(BaseModel):
 # -----------  v1.3 Recipe / Run schemas  -----------
 
 
-class RunRequest(BaseModel):
-    recipe_id: UUID | None = None
-    recipe_snapshot_id: UUID | None = None
-    recipe_draft: dict | None = None
-
-
 class RunResponse(BaseModel):
     id: UUID
     estado: str

@@ -1,5 +1,6 @@
 import api from '../../shared/api/client'
 import { TENANT_IMPORTADOR } from '@shared/endpoints'
+import { IMPORTADOR_UPLOADER_SESSION_KEY } from './constants'
 
 export type Documento = {
   id: string
@@ -98,7 +99,6 @@ let productSheetConfigRequest: Promise<void> | null = null
 let docCategoryKeywordsLoaded = false
 let productSheetConfigLoaded = false
 const importBatchListRequests = new Map<string, Promise<ImportBatch[]>>()
-const IMPORTADOR_UPLOADER_SESSION_KEY = 'importador.uploader.session.v1'
 
 export type Recipe = {
   id: string
@@ -400,7 +400,7 @@ export type DocCategory =
   | 'other'
 
 /** Override the local category keyword map with server-fetched data. */
-export function setDocCategoryKeywords(map: Record<string, string[]>) {
+function setDocCategoryKeywords(map: Record<string, string[]>) {
   _categoryKeywords = map
 }
 
@@ -458,7 +458,7 @@ function _matchesLooseKeyword(value: string, keywords: string[]): boolean {
   return keywords.some((keyword) => value === keyword || value.includes(keyword))
 }
 
-export function setProductSheetDetectionConfig(config: ProductSheetDetectionConfig) {
+function setProductSheetDetectionConfig(config: ProductSheetDetectionConfig) {
   _productSheetDetection = config
 }
 

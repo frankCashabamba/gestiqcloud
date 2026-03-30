@@ -81,10 +81,13 @@ export default function Dashboard() {
               <p style={{ margin: '0.6rem 0 0', fontSize: 15, color: '#475569', maxWidth: 700 }}>
                 Sube archivos, revisa la informacion detectada y guarda cada documento en su destino. Todo el flujo queda concentrado en una sola bandeja.
               </p>
+              <p style={{ margin: '0.55rem 0 0', fontSize: 13, color: '#0f766e', maxWidth: 700, fontWeight: 700 }}>
+                El importador aprende de los documentos que validas. No hace falta elegir plantillas manuales para el flujo normal.
+              </p>
             </div>
             <div className="importador-dashboard__actions" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
               <button onClick={() => navigate('documents')} style={primaryBtn}>Ir a documentos</button>
-              <button onClick={() => navigate('recipes')} style={secondaryBtn}>Configurar plantillas</button>
+              <button onClick={() => navigate('upload')} style={secondaryBtn}>Nueva importacion</button>
             </div>
           </div>
 

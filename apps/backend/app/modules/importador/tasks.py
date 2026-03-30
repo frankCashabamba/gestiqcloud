@@ -18,6 +18,8 @@ import os
 from pathlib import Path
 from uuid import UUID
 
+from .processing_service import RecipeContext, process_import_document
+
 logger = logging.getLogger("importador.tasks")
 
 LEGACY_REDIS_KEY_PREFIX = "imp:payload:"
@@ -118,41 +120,16 @@ async def _run_processing(
     """Run OCR + AI classification + field extraction and update ImpDocumento."""
     from app.config.database import SessionLocal
     from app.modules.importador import crud
-    from app.modules.importador.ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-    from app.modules.importador.auto_recipe import (
-        get_snapshot_learning,
-        get_snapshot_learning_version,
-        remember_snapshot_learning,
-        resolve_auto_recipe,
-        resolve_auto_recipe_from_text,
-    )
-    from app.modules.importador.canonical_document import build_document_projection
-    from app.modules.importador.category_loader import get_doc_categories
-    from app.modules.importador.field_alias_loader import get_canonical_fields, get_field_aliases
+    from app.modules.importador.ai_classifier import analyze_document
     from app.modules.importador.ocr_service import extract_text_from_file
-    from app.modules.importador.product_import_service import looks_like_product_document
-    from app.modules.importador.runtime_config import (
-        load_doc_type_patterns,
-        load_product_sheet_detection_config,
-        load_prompt_config,
-    )
-    from app.modules.importador.services.document_routing_agent import build_document_routing_decision
-    from app.modules.importador.services.document_model_learning_service import (
-        build_signal_learning_recipe_config,
-        summarize_learning_rerun,
-    )
 
     with SessionLocal() as db:
-        # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
-        # manualmente para que el evento after_begin aplique los GUCs de RLS correctamente.
         from sqlalchemy import text as _text
 
-        # El worker Celery no tiene request HTTP; hay que propagar el contexto de tenant
-        # manualmente para que el evento after_begin aplique los GUCs de RLS correctamente.
         db.info["tenant_id"] = str(tenant_id)
         db.info["user_id"] = str(user_id) if user_id else None
-        db.info["bypass_rls"] = True  # worker de confianza; no es una sesión de usuario
-        db.execute(_text("SELECT 1"))  # dispara after_begin con los GUCs correctos
+        db.info["bypass_rls"] = True
+        db.execute(_text("SELECT 1"))
 
         from app.models.importador import ImpDocumento
 
@@ -168,359 +145,24 @@ async def _run_processing(
         db.commit()
 
         try:
-            extraction = await extract_text_from_file(file_bytes, filename)
-            text = extraction.get("text", "")
-            structured = extraction.get("structured_data")
-            sheet_profiles = extraction.get("sheet_profiles")
-
-            has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
-
-            headers_norm: list[str] = []
-            headers_display: list[str] = []
-            if has_structured:
-                for prof in sheet_profiles.values():
-                    headers_norm = prof.get("headers_norm") or []
-                    headers_display = prof.get("headers") or headers_norm
-                    break
-
-            resolved_snapshot_id = None
-            explicit_recipe_context = bool(recipe_snapshot_id)
-            if sheet_profiles:
-                _, resolved_snapshot_id, _, _, _ = resolve_auto_recipe(
-                    db, tenant_id, sheet_profiles, user_id
-                )
-            if recipe_snapshot_id:
-                resolved_snapshot_id = recipe_snapshot_id
-
-            if has_structured:
-                sample_lines = [f"Columnas: {headers_display}"]
-                for row in structured[:5] if isinstance(structured, list) else []:
-                    if isinstance(row, dict):
-                        sample_lines.append(
-                            str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")})
-                        )
-                llm_content = "\n".join(sample_lines)
-            else:
-                llm_content = text[:6000] if text else ""
-            vision_image_bytes = extraction.get("vision_image_bytes")
-            if not isinstance(vision_image_bytes, (bytes, bytearray)):
-                vision_image_bytes = file_bytes if tipo_archivo in ("JPG", "PNG", "IMG") else None
-
-            recipe_snapshot = None
-            recipe_config = {}
-            cached_analysis = None
-            if resolved_snapshot_id:
-                from app.modules.importador import recipe_crud
-
-                recipe_snapshot = recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
-                if recipe_snapshot and isinstance(recipe_snapshot.content_json, dict):
-                    recipe_config = {
-                        "prompt_system": recipe_snapshot.content_json.get("prompt_system"),
-                        "prompt_user": recipe_snapshot.content_json.get("prompt_user"),
-                        "model": recipe_snapshot.content_json.get("model"),
-                        "field_descriptions": recipe_snapshot.content_json.get(
-                            "field_descriptions"
-                        ),
-                    }
-                if has_structured:
-                    cached_analysis = get_snapshot_learning(
-                        recipe_snapshot,
-                        structured_only=True,
-                    )
-
-            recipe_config = build_signal_learning_recipe_config(
-                db,
-                tenant_id=tenant_id,
-                source_doc_type=None,
-                base_recipe_config=recipe_config,
-            )
-            signal_learning_meta = (
-                recipe_config.get("_signal_learning")
-                if isinstance(recipe_config, dict)
-                else None
-            )
-            learning_rerun_summary = None
-
-            if cached_analysis:
-                analysis = {
-                    **cached_analysis,
-                    "fields": {},
-                    "is_table": True,
-                    "columns": [],
-                    "model_used": "snapshot-cache",
-                    "prompt_sent": "",
-                    "raw_response": "snapshot-cache",
-                }
-            else:
-                _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
-                _prompt_config = load_prompt_config(db)
-                analysis = await analyze_document(
-                    llm_content,
-                    filename,
-                    extraction.get("format", tipo_archivo),
-                    has_structured_rows=has_structured,
-                    recipe_config=recipe_config,
-                    image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
-                    fallback_patterns=load_doc_type_patterns(db),
-                    canonical_fields=_canonical_fields,
-                    prompt_config=_prompt_config,
-                )
-
-            tipo_doc = analysis.get("doc_type", "OTHER")
-            confianza = float(analysis.get("confidence", 0.0))
-            requiere_revision = confianza < CONFIDENCE_THRESHOLD
-
-            if has_structured and recipe_snapshot:
-                remember_snapshot_learning(
-                    db,
-                    recipe_snapshot,
-                    {
-                        "doc_type": tipo_doc,
-                        "confidence": confianza,
-                        "reasoning": analysis.get("reasoning", ""),
-                    },
-                    structured_only=True,
-                )
-
-            crud.add_log(
-                db,
-                doc.id,
-                "CLASSIFY",
-                user_id,
-                {
-                    "tipo_documento": tipo_doc,
-                    "confianza": confianza,
-                    "razonamiento": analysis.get("reasoning", ""),
-                    "model_used": analysis.get("model_used"),
-                },
-            )
-
-            if has_structured:
-                sheet_used_str = extraction.get("sheet_used")
-                sheet_metadata_raw = extraction.get("sheet_metadata") or {}
-                filas_por_hoja_raw: dict[str, list] = {}
-                for row in structured or []:
-                    if isinstance(row, dict):
-                        sheet_name = str(row.get("_sheet") or sheet_used_str or "")
-                        if sheet_name:
-                            filas_por_hoja_raw.setdefault(sheet_name, []).append(row)
-                datos_extraidos = {
-                    "filas": structured[:200],
-                    "total_filas": len(structured),
-                    "columnas": headers_display or headers_norm,
-                    "columnas_norm": headers_norm,
-                    "filas_por_hoja": filas_por_hoja_raw,
-                    "metadata_por_hoja": sheet_metadata_raw,
-                    "sheet_usada": sheet_used_str,
-                }
-                if looks_like_product_document(
-                    datos_extraidos,
-                    sheet_name=sheet_used_str,
-                    detection_config=load_product_sheet_detection_config(db),
-                ) and tipo_doc not in {
-                    "INVENTORY",
-                    "PRICE_LIST",
-                    "PRODUCT_LIST",
-                    "PRODUCTS",
-                }:
-                    tipo_doc = "INVENTORY"
-                    requiere_revision = True
-            else:
-                datos_extraidos = analysis.get("fields") or {}
-                auto_recipe_created = False
-                if tipo_doc != "OTHER" and not explicit_recipe_context:
-                    auto_recipe_config, post_snapshot_id, _, auto_recipe_created, _ = (
-                        resolve_auto_recipe_from_text(
-                            db,
-                            tenant_id,
-                            tipo_doc,
-                            datos_extraidos,
-                            extraction.get("format", tipo_archivo),
-                            user_id,
-                            force_new=force,
-                        )
-                    )
-                    if post_snapshot_id:
-                        resolved_snapshot_id = post_snapshot_id
-                    if auto_recipe_config and not auto_recipe_created:
-                        baseline_routing = build_document_routing_decision(
-                            source_doc_type=tipo_doc,
-                            ai_confidence=confianza,
-                            extracted_data=datos_extraidos if isinstance(datos_extraidos, dict) else {},
-                            canonical_document={},
-                            category_keywords=get_doc_categories(db),
-                            requires_review=requiere_revision,
-                            db=db,
-                            tenant_id=tenant_id,
-                        )
-                        rerun_recipe_config = build_signal_learning_recipe_config(
-                            db,
-                            tenant_id=tenant_id,
-                            source_doc_type=tipo_doc,
-                            document_type_hint=baseline_routing.document_type,
-                            base_recipe_config=auto_recipe_config,
-                        )
-                        rerun_analysis = await analyze_document(
-                            llm_content,
-                            filename,
-                            extraction.get("format", tipo_archivo),
-                            has_structured_rows=False,
-                            recipe_config=rerun_recipe_config,
-                            image_bytes=(bytes(vision_image_bytes) if vision_image_bytes else None),
-                            fallback_patterns=load_doc_type_patterns(db),
-                            canonical_fields=_canonical_fields,
-                            prompt_config=_prompt_config,
-                        )
-                        rerun_doc_type = str(rerun_analysis.get("doc_type", tipo_doc) or tipo_doc)
-                        rerun_confidence = float(
-                            rerun_analysis.get("confidence", confianza or 0.0) or 0.0
-                        )
-                        rerun_fields = rerun_analysis.get("fields") or {}
-                        if isinstance(rerun_fields, dict) and rerun_fields:
-                            rerun_routing = build_document_routing_decision(
-                                source_doc_type=rerun_doc_type,
-                                ai_confidence=rerun_confidence,
-                                extracted_data=rerun_fields,
-                                canonical_document={},
-                                category_keywords=get_doc_categories(db),
-                                requires_review=rerun_confidence < CONFIDENCE_THRESHOLD,
-                                db=db,
-                                tenant_id=tenant_id,
-                            )
-                            learning_rerun_summary = summarize_learning_rerun(
-                                baseline_doc_type=tipo_doc,
-                                baseline_confidence=confianza,
-                                baseline_fields=(
-                                    datos_extraidos if isinstance(datos_extraidos, dict) else {}
-                                ),
-                                baseline_routing=baseline_routing.model_dump(mode="json"),
-                                rerun_doc_type=rerun_doc_type,
-                                rerun_confidence=rerun_confidence,
-                                rerun_fields=rerun_fields,
-                                rerun_routing=rerun_routing.model_dump(mode="json"),
-                                signal_learning_meta=(
-                                    rerun_recipe_config.get("_signal_learning")
-                                    if isinstance(rerun_recipe_config, dict)
-                                    else None
-                                ),
-                            )
-                            analysis = rerun_analysis
-                            tipo_doc = rerun_doc_type
-                            confianza = rerun_confidence
-                            requiere_revision = confianza < CONFIDENCE_THRESHOLD
-                            datos_extraidos = rerun_fields
-                            recipe_config = auto_recipe_config
-
-            crud.add_log(
-                db,
-                doc.id,
-                "EXTRACT",
-                user_id,
-                {
-                    "campos_extraidos": (
-                        list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
-                    )
-                },
-            )
-
-            datos_extraidos = (
-                _json_safe(datos_extraidos)
-                if isinstance(datos_extraidos, (dict, list))
-                else datos_extraidos
-            )
-            sheet_profiles = (
-                _json_safe(sheet_profiles)
-                if isinstance(sheet_profiles, (dict, list))
-                else sheet_profiles
-            )
-            current_snapshot = recipe_snapshot
-            if current_snapshot is None and resolved_snapshot_id:
-                from app.modules.importador import recipe_crud as _recipe_crud
-
-                current_snapshot = _recipe_crud.get_snapshot(db, UUID(str(resolved_snapshot_id)))
-            learning_version_applied = get_snapshot_learning_version(current_snapshot)
-            _field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-            _canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
-            canonical_document, projection = build_document_projection(
-                datos_extraidos if isinstance(datos_extraidos, dict) else {},
-                doc_type=tipo_doc,
-                source_format=extraction.get("format", tipo_archivo),
-                field_aliases=_field_aliases,
-                canonical_fields=_canonical_fields,
-            )
-            model_used = analysis.get("model_used") or "unknown"
-            raw_ai_json = _json_safe(
-                {
-                    "run": {
-                        "recipe_resolution": {
-                            "recipe_snapshot_id": (
-                                str(resolved_snapshot_id) if resolved_snapshot_id else None
-                            ),
-                            "learning_version_applied": learning_version_applied,
-                        },
-                        "learning_version_applied": learning_version_applied,
-                        "model": model_used,
-                        "signal_learning": signal_learning_meta,
-                        "learning_rerun": learning_rerun_summary,
-                    },
-                    "analysis": {
-                        "prompt": analysis.get("prompt_sent", ""),
-                        "raw_response": analysis.get("raw_response", ""),
-                        "parsed": {
-                            "tipo_documento": tipo_doc,
-                            "confianza": confianza,
-                            "razonamiento": analysis.get("reasoning", ""),
-                        },
-                        "campos_extraidos": (
-                            list(datos_extraidos.keys())
-                            if isinstance(datos_extraidos, dict)
-                            else []
-                        ),
-                    },
-                    "canonical_document": canonical_document,
-                }
-            )
-            routing_decision = build_document_routing_decision(
-                source_doc_type=tipo_doc,
-                ai_confidence=confianza,
-                extracted_data=datos_extraidos if isinstance(datos_extraidos, dict) else {},
-                canonical_document=canonical_document,
-                category_keywords=get_doc_categories(db),
-                requires_review=requiere_revision,
+            await process_import_document(
+                mode="async",
                 db=db,
-                tenant_id=getattr(doc, "tenant_id", None),
+                doc=doc,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                file_bytes=file_bytes,
+                filename=filename,
+                tipo_archivo=tipo_archivo,
+                force=force,
+                extract_text_fn=extract_text_from_file,
+                analyze_document_fn=analyze_document,
+                recipe_context=RecipeContext(
+                    resolution_mode="snapshot" if recipe_snapshot_id else "zero_shot",
+                    resolved_snapshot_id=recipe_snapshot_id,
+                    explicit_recipe_context=bool(recipe_snapshot_id),
+                ),
             )
-            raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
-
-            crud.update_documento(
-                db,
-                doc,
-                {
-                    "texto_ocr": text[:50000],
-                    "tipo_documento_detectado": tipo_doc,
-                    "confianza_clasificacion": confianza,
-                    "requiere_revision": routing_decision.needs_human_review,
-                    "datos_extraidos": datos_extraidos,
-                    "estado": "REVIEW",
-                    **projection,
-                    "fingerprint_json": sheet_profiles,
-                    "sheet_profiles_json": sheet_profiles,
-                    "llm_model": model_used,
-                    "raw_ai_json": raw_ai_json,
-                    "recipe_snapshot_id": resolved_snapshot_id,
-                },
-            )
-
-            # Poblar staging lines para habilitar el reprocesado iterativo.
-            if isinstance(datos_extraidos, dict):
-                from .services.iteration_service import upsert_staging_lines_from_extraction
-
-                _n = upsert_staging_lines_from_extraction(
-                    db, doc.id, doc.tenant_id, datos_extraidos
-                )
-                if _n:
-                    logger.info("Staging: %d líneas creadas para doc %s", _n, doc.id)
-
             for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="REVIEW"):
                 crud.refresh_batch_status(db, batch_id)
                 publish_batch_update(db, batch_id)

@@ -15,6 +15,7 @@ from typing import Any
 
 import openpyxl
 from PIL import Image
+from PIL import ImageFilter, ImageOps
 
 from .runtime_config import load_file_support_config
 
@@ -72,6 +73,84 @@ def _ocr_text_score(text: str) -> tuple[int, int]:
 def _is_weak_ocr_text(text: str, *, min_words: int = 4, min_chars: int = 24) -> bool:
     words, chars = _ocr_text_score(text)
     return words < min_words or chars < min_chars
+
+
+def _copy_with_label(img: Image.Image, label: str) -> Image.Image:
+    clone = img.copy()
+    clone.info["ocr_variant"] = label
+    return clone
+
+
+def _trim_document_edges(img: Image.Image) -> Image.Image:
+    """Crop obvious outer margins/background without document-specific assumptions."""
+    gray = img.convert("L") if img.mode != "L" else img
+    mask = gray.point(lambda px: 255 if px < 245 else 0)
+    bbox = mask.getbbox()
+    if not bbox:
+        return img.copy()
+
+    left, top, right, bottom = bbox
+    width = max(1, img.width)
+    height = max(1, img.height)
+    crop_w = max(1, right - left)
+    crop_h = max(1, bottom - top)
+
+    if crop_w / width < 0.35 or crop_h / height < 0.35:
+        return img.copy()
+
+    pad_x = max(8, int(crop_w * 0.03))
+    pad_y = max(8, int(crop_h * 0.03))
+    cropped = img.crop(
+        (
+            max(0, left - pad_x),
+            max(0, top - pad_y),
+            min(width, right + pad_x),
+            min(height, bottom + pad_y),
+        )
+    )
+    return cropped
+
+
+def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
+    """Generate generic OCR-friendly variants without document-specific rules."""
+    base = img.convert("L") if img.mode != "L" else img.copy()
+    variants = [_copy_with_label(base, "base")]
+
+    autocontrast = ImageOps.autocontrast(base)
+    variants.append(_copy_with_label(autocontrast, "autocontrast"))
+
+    sharpened = autocontrast.filter(ImageFilter.MedianFilter(size=3))
+    sharpened = sharpened.filter(ImageFilter.SHARPEN)
+    variants.append(_copy_with_label(sharpened, "median_sharpen"))
+
+    threshold = autocontrast.point(lambda px: 255 if px > 170 else 0)
+    variants.append(_copy_with_label(threshold, "threshold"))
+
+    strong_threshold = autocontrast.point(lambda px: 255 if px > 140 else 0)
+    variants.append(_copy_with_label(strong_threshold, "threshold_low"))
+
+    trimmed = _trim_document_edges(autocontrast)
+    if trimmed.size != autocontrast.size:
+        variants.append(_copy_with_label(trimmed, "trimmed"))
+        variants.append(_copy_with_label(trimmed.rotate(90, expand=True), "trimmed_rot90"))
+        variants.append(_copy_with_label(trimmed.rotate(270, expand=True), "trimmed_rot270"))
+
+    return variants
+
+
+def _run_tesseract(img: Image.Image) -> str:
+    import pytesseract
+
+    return str(pytesseract.image_to_string(img, lang="spa+eng") or "").strip()
+
+
+def _run_easyocr(img: Image.Image) -> str:
+    import easyocr
+    import numpy as np
+
+    reader = easyocr.Reader(["es", "en"], gpu=False)
+    results = reader.readtext(np.array(img))
+    return "\n".join([r[1] for r in results]).strip()
 
 
 async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, Any]:
@@ -252,7 +331,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
 
 async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
     """Image: OCR with Tesseract with preprocessing for better results."""
-    from PIL import ImageEnhance, ImageFilter
+    from PIL import ImageEnhance
 
     img = Image.open(io.BytesIO(file_bytes))
 
@@ -286,28 +365,25 @@ def _ocr_image(img: Image.Image) -> str:
     """Run Tesseract OCR on a PIL Image."""
     candidates: list[str] = []
     try:
-        import pytesseract
-
-        text = pytesseract.image_to_string(img, lang="spa+eng")
-        cleaned = text.strip()
-        if cleaned:
-            candidates.append(cleaned)
-        if cleaned and not _is_weak_ocr_text(cleaned):
-            return cleaned
+        for variant in _iter_ocr_variants(img):
+            cleaned = _run_tesseract(variant)
+            if cleaned:
+                candidates.append(cleaned)
+            if cleaned and not _is_weak_ocr_text(cleaned):
+                logger.info(
+                    "Tesseract OCR accepted variant=%s words=%s chars=%s",
+                    variant.info.get("ocr_variant", "unknown"),
+                    *_ocr_text_score(cleaned),
+                )
+                return cleaned
         logger.info(
-            "Tesseract OCR weak output detected: words=%s chars=%s; trying EasyOCR fallback",
-            *_ocr_text_score(cleaned),
+            "Tesseract OCR weak output detected across variants; trying EasyOCR fallback"
         )
     except Exception as exc:
         logger.warning("Tesseract OCR failed: %s", exc)
 
     try:
-        import easyocr
-        import numpy as np
-
-        reader = easyocr.Reader(["es", "en"], gpu=False)
-        results = reader.readtext(np.array(img))
-        easyocr_text = "\n".join([r[1] for r in results]).strip()
+        easyocr_text = _run_easyocr(_iter_ocr_variants(img)[1])
         if easyocr_text:
             candidates.append(easyocr_text)
     except Exception as exc2:

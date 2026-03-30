@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { getErrorMessage, useToast } from '../../shared/toast'
 import {
@@ -311,9 +311,17 @@ export default function ImportadorRoutingManager() {
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [editingProfileCode, setEditingProfileCode] = useState<string | null>(null)
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
-  const { success, error: toastError } = useToast()
+  const { show } = useToast()
 
-  const loadAll = async (currentScope: RoutingScopeKind | '' = scopeFilter) => {
+  const success = useCallback((message: string) => {
+    show(message, 'success')
+  }, [show])
+
+  const toastError = useCallback((message: string) => {
+    show(message, 'error')
+  }, [show])
+
+  const loadAll = useCallback(async (currentScope: RoutingScopeKind | '' = scopeFilter) => {
     try {
       setLoading(true)
       setError(null)
@@ -336,11 +344,41 @@ export default function ImportadorRoutingManager() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [scopeFilter, toastError])
+
+  const handleDeleteProfile = useCallback(async (profile: RoutingProfile) => {
+    if (!window.confirm(`¿Eliminar perfil ${profile.code}?`)) return
+    try {
+      await deleteRoutingProfile(profile.code)
+      success('Perfil eliminado')
+      if (editingProfileCode === profile.code) {
+        setEditingProfileCode(null)
+        setProfileForm(PROFILE_DEFAULTS)
+      }
+      await loadAll()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    }
+  }, [editingProfileCode, loadAll, success, toastError])
+
+  const handleDeleteRule = useCallback(async (rule: RoutingRule) => {
+    if (!window.confirm(`¿Eliminar regla ${rule.source_kind}:${rule.source_key}?`)) return
+    try {
+      await deleteRoutingRule(rule.id)
+      success('Regla eliminada')
+      if (editingRuleId === rule.id) {
+        setEditingRuleId(null)
+        setRuleForm(RULE_DEFAULTS)
+      }
+      await loadAll()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    }
+  }, [editingRuleId, loadAll, success, toastError])
 
   useEffect(() => {
     void loadAll(scopeFilter)
-  }, [scopeFilter])
+  }, [loadAll, scopeFilter])
 
   useEffect(() => {
     let cancelled = false
@@ -349,7 +387,7 @@ export default function ImportadorRoutingManager() {
       setPreviewDocuments([])
       return
     }
-    ;(async () => {
+    void (async () => {
       try {
         setDocumentsLoading(true)
         const items = await listRoutingPreviewDocuments(tenantId, documentQuery)
@@ -370,7 +408,7 @@ export default function ImportadorRoutingManager() {
     return () => {
       cancelled = true
     }
-  }, [previewForm.scope_kind, previewForm.tenant_id, documentQuery])
+  }, [documentQuery, previewForm.scope_kind, previewForm.tenant_id, toastError])
 
   const systemRules = useMemo(() => rules.filter((rule) => rule.scope_kind === 'system').length, [rules])
   const sectorRules = useMemo(() => rules.filter((rule) => rule.scope_kind === 'sector').length, [rules])
@@ -546,7 +584,7 @@ export default function ImportadorRoutingManager() {
           ))}
         </div>
 
-        <form className="routing-preview-grid" onSubmit={onSubmitPreview}>
+        <form className="routing-preview-grid" onSubmit={(event) => { void onSubmitPreview(event) }}>
           <div className="routing-form">
             <div className="routing-preview-fields">
               <label className="text-sm">
@@ -765,7 +803,7 @@ export default function ImportadorRoutingManager() {
             </button>
           </div>
 
-          <form className="routing-form mb-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4" onSubmit={onSubmitProfile}>
+          <form className="routing-form mb-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4" onSubmit={(event) => { void onSubmitProfile(event) }}>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="text-sm">
                 <div className="mb-1 font-medium text-slate-700">Código</div>
@@ -883,20 +921,7 @@ export default function ImportadorRoutingManager() {
                         <button
                           type="button"
                           className="text-red-700 hover:underline"
-                          onClick={async () => {
-                            if (!window.confirm(`¿Eliminar perfil ${profile.code}?`)) return
-                            try {
-                              await deleteRoutingProfile(profile.code)
-                              success('Perfil eliminado')
-                              if (editingProfileCode === profile.code) {
-                                setEditingProfileCode(null)
-                                setProfileForm(PROFILE_DEFAULTS)
-                              }
-                              await loadAll()
-                            } catch (err: any) {
-                              toastError(getErrorMessage(err))
-                            }
-                          }}
+                          onClick={() => { void handleDeleteProfile(profile) }}
                         >
                           Eliminar
                         </button>
@@ -940,7 +965,7 @@ export default function ImportadorRoutingManager() {
             </div>
           </div>
 
-          <form className="routing-form mb-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4" onSubmit={onSubmitRule}>
+          <form className="routing-form mb-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4" onSubmit={(event) => { void onSubmitRule(event) }}>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="text-sm">
                 <div className="mb-1 font-medium text-slate-700">Scope</div>
@@ -1057,20 +1082,7 @@ export default function ImportadorRoutingManager() {
                         <button
                           type="button"
                           className="text-red-700 hover:underline"
-                          onClick={async () => {
-                            if (!window.confirm(`¿Eliminar regla ${rule.source_kind}:${rule.source_key}?`)) return
-                            try {
-                              await deleteRoutingRule(rule.id)
-                              success('Regla eliminada')
-                              if (editingRuleId === rule.id) {
-                                setEditingRuleId(null)
-                                setRuleForm(RULE_DEFAULTS)
-                              }
-                              await loadAll()
-                            } catch (err: any) {
-                              toastError(getErrorMessage(err))
-                            }
-                          }}
+                          onClick={() => { void handleDeleteRule(rule) }}
                         >
                           Eliminar
                         </button>

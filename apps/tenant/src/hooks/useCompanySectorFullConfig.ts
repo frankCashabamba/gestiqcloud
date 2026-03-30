@@ -307,7 +307,7 @@ export function getSectorDefaults(config: SectorFullConfig | null): DefaultsConf
 export function getSectorEndpoints(config: SectorFullConfig | null): EndpointsConfig {
   return (
     config?.endpoints || {
-      imports: '/api/v1/tenant/imports/batches',
+      imports: '/api/v1/importador/batches',
       products: '/api/v1/tenant/products',
       customers: '/api/v1/tenant/customers',
     }

@@ -4,16 +4,13 @@ import {
   fetchFileSupportConfig,
   fetchImportBatch,
   fetchImportBatches,
-  fetchRecipes,
-  fetchSnapshots,
   runImportAsync,
   streamImportBatch,
   type FileSupportConfig,
   type ImportBatch,
   type ImportBatchItem,
-  type Recipe,
-  type RecipeSnapshot,
 } from '../services'
+import { IMPORTADOR_UPLOADER_SESSION_KEY } from '../constants'
 
 type ImportMode = 'files' | 'folder'
 type FileStatus = 'pending' | 'processing' | 'done' | 'error'
@@ -45,7 +42,6 @@ const MAX_IMPORT_FILE_SIZE_MB = 16
 const MAX_IMPORT_FILE_SIZE_BYTES = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024
 const TERMINAL_BATCH_STATES = new Set(['COMPLETED', 'FAILED', 'PARTIAL'])
 const TERMINAL_DOCUMENT_STATES = new Set(['REVIEW', 'CONFIRMED', 'FAILED'])
-const UPLOADER_SESSION_KEY = 'importador.uploader.session.v1'
 
 const FILE_ICONS: Record<string, string> = {
   '.pdf': 'PDF',
@@ -174,11 +170,7 @@ export default function ImportUploader({
   const [activeBatchId, setActiveBatchId] = useState('')
   const [activeBatch, setActiveBatch] = useState<ImportBatch | null>(null)
   const [forceReprocess, setForceReprocess] = useState(initialForceReprocess)
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [snapshots, setSnapshots] = useState<RecipeSnapshot[]>([])
   const [fileSupport, setFileSupport] = useState<FileSupportConfig | null>(null)
-  const [selectedRecipeId, setSelectedRecipeId] = useState('')
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState('')
   const [sessionHydrated, setSessionHydrated] = useState(false)
   const directoryInputProps: DirectoryInputProps = { webkitdirectory: 'true' }
   const clearedBatchIdsRef = useRef<Set<string>>(new Set())
@@ -192,13 +184,13 @@ export default function ImportUploader({
 
   useEffect(() => {
     if (!restoreSession) {
-      sessionStorage.removeItem(UPLOADER_SESSION_KEY)
+      sessionStorage.removeItem(IMPORTADOR_UPLOADER_SESSION_KEY)
       dismissedEntryKeysRef.current = new Set()
       setSessionHydrated(true)
       return
     }
     try {
-      const raw = sessionStorage.getItem(UPLOADER_SESSION_KEY)
+      const raw = sessionStorage.getItem(IMPORTADOR_UPLOADER_SESSION_KEY)
       if (!raw) return
       const saved = JSON.parse(raw) as {
         activeBatchId?: string
@@ -206,8 +198,6 @@ export default function ImportUploader({
         entries?: PersistedFileEntry[]
         dismissedEntryKeys?: string[]
         forceReprocess?: boolean
-        selectedRecipeId?: string
-        selectedSnapshotId?: string
       }
       sessionHadDataRef.current = true
       if (saved.activeBatchId) setActiveBatchId(saved.activeBatchId)
@@ -219,18 +209,12 @@ export default function ImportUploader({
         dismissedEntryKeysRef.current = new Set(saved.dismissedEntryKeys)
       }
       if (typeof saved.forceReprocess === 'boolean') setForceReprocess(saved.forceReprocess)
-      if (typeof saved.selectedRecipeId === 'string') setSelectedRecipeId(saved.selectedRecipeId)
-      if (typeof saved.selectedSnapshotId === 'string') setSelectedSnapshotId(saved.selectedSnapshotId)
     } catch {
-      sessionStorage.removeItem(UPLOADER_SESSION_KEY)
+      sessionStorage.removeItem(IMPORTADOR_UPLOADER_SESSION_KEY)
     } finally {
       setSessionHydrated(true)
     }
   }, [restoreSession])
-
-  useEffect(() => {
-    fetchRecipes().then(setRecipes).catch(() => {})
-  }, [])
 
   useEffect(() => {
     fetchFileSupportConfig().then(setFileSupport).catch(() => {})
@@ -255,20 +239,6 @@ export default function ImportUploader({
       })
       .catch(() => {})
   }, [activeBatchId, sessionHydrated])
-
-  useEffect(() => {
-    if (!selectedRecipeId) {
-      setSnapshots([])
-      setSelectedSnapshotId('')
-      return
-    }
-    fetchSnapshots(selectedRecipeId)
-      .then((snaps) => {
-        setSnapshots(snaps)
-        setSelectedSnapshotId(snaps[0]?.id || '')
-      })
-      .catch(() => setSnapshots([]))
-  }, [selectedRecipeId])
 
   useEffect(() => {
     if (!activeBatchId) return
@@ -396,23 +366,21 @@ export default function ImportUploader({
       .map(({ file: _file, ...entry }) => entry)
 
     if (!activeBatchId && !activeBatch && recoverableEntries.length === 0) {
-      sessionStorage.removeItem(UPLOADER_SESSION_KEY)
+      sessionStorage.removeItem(IMPORTADOR_UPLOADER_SESSION_KEY)
       return
     }
 
     sessionStorage.setItem(
-      UPLOADER_SESSION_KEY,
+      IMPORTADOR_UPLOADER_SESSION_KEY,
       JSON.stringify({
         activeBatchId,
         activeBatch,
         entries: recoverableEntries,
         dismissedEntryKeys: Array.from(dismissedEntryKeysRef.current),
         forceReprocess,
-        selectedRecipeId,
-        selectedSnapshotId,
       }),
     )
-  }, [activeBatch, activeBatchId, entries, forceReprocess, selectedRecipeId, selectedSnapshotId, sessionHydrated])
+  }, [activeBatch, activeBatchId, entries, forceReprocess, sessionHydrated])
 
   const addFiles = useCallback((fileList: FileList | File[]) => {
     const incoming = Array.from(fileList || []).filter((file) => {
@@ -460,7 +428,7 @@ export default function ImportUploader({
     setError('')
     setActiveBatch(null)
     setActiveBatchId('')
-    sessionStorage.removeItem(UPLOADER_SESSION_KEY)
+    sessionStorage.removeItem(IMPORTADOR_UPLOADER_SESSION_KEY)
   }
 
   const clearDone = () => {
@@ -540,7 +508,7 @@ export default function ImportUploader({
     try {
       const asyncResults = await runImportAsync(
         uploadable.map((entry) => entry.file),
-        { force: forceReprocess, recipe_snapshot_id: selectedSnapshotId || undefined },
+        { force: forceReprocess },
       )
 
       const batchId = asyncResults[0]?.batch_id
@@ -587,7 +555,7 @@ export default function ImportUploader({
     } finally {
       setProcessing(false)
     }
-  }, [entries, forceReprocess, selectedSnapshotId, onImported])
+  }, [entries, forceReprocess, onImported])
 
   const { pendingCount, totalCount, activeCount, errorCount, completedCount, progressPct, reviewEntries, queueEntries, errorEntries } = useMemo(() => {
     const reviewEntries = entries.filter((entry) => entry.status === 'done')
@@ -976,34 +944,22 @@ export default function ImportUploader({
         )}
 
         <div className="import-uploader__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
-          <div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Configuracion de lectura <span style={{ color: '#d1d5db' }}>opcional</span></div>
-            <select
-              className="import-uploader__select"
-              value={selectedRecipeId}
-              onChange={(e) => setSelectedRecipeId(e.target.value)}
-              disabled={processing}
-              style={{ padding: '0.55rem 0.7rem', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 13, minWidth: 220, background: '#fff' }}
+          <div style={{ minWidth: 240, flex: '1 1 260px' }}>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Modo de aprendizaje</div>
+            <div
+              style={{
+                padding: '0.7rem 0.85rem',
+                border: '1px solid #d1d5db',
+                borderRadius: 12,
+                fontSize: 13,
+                background: '#fff',
+                color: '#475569',
+                lineHeight: 1.45,
+              }}
             >
-              <option value="">Elegir automaticamente</option>
-              {recipes.map((recipe) => <option key={recipe.id} value={recipe.id}>{recipe.name}</option>)}
-            </select>
+              El sistema detecta automaticamente el mejor enfoque y mejora con los documentos que confirmas.
+            </div>
           </div>
-          {selectedRecipeId && snapshots.length > 0 && (
-            <select
-              className="import-uploader__select"
-              value={selectedSnapshotId}
-              onChange={(e) => setSelectedSnapshotId(e.target.value)}
-              disabled={processing}
-              style={{ padding: '0.55rem 0.7rem', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 13, minWidth: 190, background: '#fff' }}
-            >
-              {snapshots.map((snapshot) => (
-                <option key={snapshot.id} value={snapshot.id}>
-                  {snapshot.version_tag || `v${new Date(snapshot.created_at).toLocaleDateString()}`}
-                </option>
-              ))}
-            </select>
-          )}
           <label className="import-uploader__checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: 12, color: '#6b7280', cursor: processing ? 'default' : 'pointer', userSelect: 'none', padding: '0.72rem 0.85rem', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', minHeight: 46 }}>
             <input
               type="checkbox"
