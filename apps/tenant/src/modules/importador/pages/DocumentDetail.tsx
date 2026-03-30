@@ -651,7 +651,7 @@ export default function DocumentDetail() {
     <div style={{ padding: '1.5rem' }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f9fafb', paddingBottom: '0.75rem' }}>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('../documents')}
           style={{
             cursor: 'pointer',
             border: '1px solid #e5e7eb',

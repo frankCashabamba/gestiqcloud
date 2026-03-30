@@ -41,23 +41,6 @@ export default function UploadPage() {
         >
           Ir a documentos
         </button>
-        <button
-          onClick={() => navigate('../overview')}
-          style={{
-            width: 'fit-content',
-            cursor: 'pointer',
-            border: '1px solid #cbd5e1',
-            background: '#fff',
-            fontSize: 14,
-            color: '#334155',
-            padding: '0.5rem 0.85rem',
-            borderRadius: 12,
-            boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
-            fontWeight: 700,
-          }}
-        >
-          Ver resumen
-        </button>
       </div>
 
       <section
@@ -69,19 +52,22 @@ export default function UploadPage() {
           boxShadow: '0 22px 40px rgba(15, 23, 42, 0.06)',
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0f766e', marginBottom: 6 }}>
-          Entrada de documentos
-        </div>
-        <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>Subir archivos al importador</h1>
+        <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>
+          {forceRequested ? 'Rehacer documento' : 'Subir archivos al importador'}
+        </h1>
         <p style={{ margin: '0.55rem 0 0', fontSize: 15, color: '#475569', maxWidth: 780 }}>
-          Carga facturas, imagenes, hojas de calculo y otros documentos compatibles. El sistema los prepara para revision y luego podras guardarlos en su destino.
+          {forceRequested
+            ? 'Vuelve a subir el archivo original para procesarlo desde cero.'
+            : 'Carga facturas, imagenes, hojas de calculo y otros documentos compatibles. El sistema los prepara para revision y luego podras guardarlos en su destino.'}
         </p>
-        <div style={{ marginTop: '0.85rem', fontSize: 13, color: '#64748b' }}>
-          Cuando termine la subida, entra en <strong style={{ color: '#0f172a' }}>Documentos</strong> para revisar los ya procesados.
-        </div>
+        {!forceRequested && (
+          <div style={{ marginTop: '0.85rem', fontSize: 13, color: '#64748b' }}>
+            Cuando termine la subida, entra en <strong style={{ color: '#0f172a' }}>Documentos</strong> para revisar los ya procesados.
+          </div>
+        )}
       </section>
 
-      {showVideo && (
+      {!forceRequested && showVideo && (
         <section
           style={{
             borderRadius: 20,
@@ -142,7 +128,7 @@ export default function UploadPage() {
       {forceRequested && (
         <div
           style={{
-            padding: '0.95rem 1rem',
+            padding: '0.9rem 1rem',
             background: '#eff6ff',
             border: '1px solid #bfdbfe',
             borderRadius: 18,
@@ -150,11 +136,7 @@ export default function UploadPage() {
             fontSize: 14,
           }}
         >
-          <div style={{ fontWeight: 800 }}>Modo volver a importar</div>
-          <div style={{ marginTop: 4 }}>
-            Rehace el analisis desde cero. Vuelve a subir el archivo original para revisar de nuevo ese documento sin crear duplicados
-            {sourceDocumentId ? ` (${sourceDocumentId}).` : '.'}
-          </div>
+          Reprocesa este documento desde cero{sourceDocumentId ? ` · ${sourceDocumentId}` : '.'}
         </div>
       )}
 
@@ -162,6 +144,7 @@ export default function UploadPage() {
         initialForceReprocess={forceRequested}
         restoreSession={!forceRequested && !freshRequested}
         documentPathBuilder={(docId) => `../documents/${docId}`}
+        compact={forceRequested}
       />
     </div>
   )

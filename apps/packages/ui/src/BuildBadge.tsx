@@ -10,7 +10,7 @@ export default function BuildBadge() {
     const onMsg = (e: MessageEvent) => {
       const d = e.data || {}
       if (d.type === 'APP_VERSION' && (d.buildId || d.version)) {
-        setInfo({ buildId: d.buildId || info.buildId, version: d.version || info.version })
+        setInfo((prev) => ({ buildId: d.buildId || prev.buildId, version: d.version || prev.version }))
       }
     }
     navigator.serviceWorker?.addEventListener('message', onMsg)
@@ -18,8 +18,28 @@ export default function BuildBadge() {
   }, [])
 
   return (
-    <div style={{ position: 'fixed', left: 12, bottom: 12, zIndex: 999, fontSize: 11, color: '#94a3b8', background: 'rgba(15,23,42,.75)', padding: '4px 8px', borderRadius: 6, border: '1px solid #1f2937' }}>
-      v{info.version} · {info.buildId}
+    <div
+      title={`Build: ${info.buildId}`}
+      style={{
+        position: 'fixed',
+        right: 14,
+        bottom: 14,
+        zIndex: 40,
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: '0.02em',
+        color: '#64748b',
+        background: 'rgba(248,250,252,0.9)',
+        padding: '3px 8px',
+        borderRadius: 20,
+        border: '1px solid #e2e8f0',
+        backdropFilter: 'blur(6px)',
+        userSelect: 'none',
+        cursor: 'default',
+        pointerEvents: 'auto',
+      }}
+    >
+      v{info.version}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import {
   canSaveDocument,
@@ -119,6 +119,7 @@ function activityBadges(doc: Documento): Array<{ label: string; title: string; c
 
 export default function DocumentList() {
   const navigate = useNavigate()
+  const { empresa } = useParams<{ empresa: string }>()
   const [searchParams] = useSearchParams()
   const [docs, setDocs] = useState<Documento[]>([])
   const [loading, setLoading] = useState(true)
@@ -129,6 +130,7 @@ export default function DocumentList() {
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [purging, setPurging] = useState(false)
   const [purgePending, setPurgePending] = useState(false)
+  const homePath = empresa ? `/${empresa}` : '/dashboard'
 
   const loadDocuments = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (silent) {
@@ -229,22 +231,6 @@ export default function DocumentList() {
         }
       `}</style>
 
-      <button
-        onClick={() => navigate('../overview')}
-        style={{
-          width: 'fit-content',
-          cursor: 'pointer',
-          border: '1px solid #dbe4f0',
-          background: '#fff',
-          fontSize: 14,
-          color: '#0f172a',
-          padding: '0.5rem 0.8rem',
-          borderRadius: 12,
-          boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
-        }}
-      >
-        ← Volver
-      </button>
 
       <section
         className="importador-list__header"
@@ -267,6 +253,20 @@ export default function DocumentList() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => navigate(homePath)}
+              style={{
+                border: '1px solid #cbd5e1',
+                borderRadius: 14,
+                padding: '0.8rem 1rem',
+                background: '#fff',
+                color: '#334155',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Volver al inicio
+            </button>
             <button
               onClick={() => navigate('../upload')}
               style={{

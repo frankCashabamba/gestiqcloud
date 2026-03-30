@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/UploadPage'
 import DocumentDetail from './pages/DocumentDetail'
 import DocumentList from './pages/DocumentList'
@@ -15,7 +14,6 @@ export default function ImportadorRoutes() {
   return (
     <Routes>
       <Route index element={<Navigate to="documents" replace />} />
-      <Route path="overview" element={<Dashboard />} />
       <Route path="upload" element={<UploadPage />} />
       <Route path="documents" element={<DocumentList />} />
       <Route path="documents/:id" element={<DocumentDetail />} />

@@ -151,6 +151,7 @@ type ImportUploaderProps = {
   initialForceReprocess?: boolean
   documentPathBuilder?: (docId: string) => string
   restoreSession?: boolean
+  compact?: boolean
 }
 
 export default function ImportUploader({
@@ -158,7 +159,9 @@ export default function ImportUploader({
   initialForceReprocess = false,
   documentPathBuilder = (docId) => `documents/${docId}`,
   restoreSession = true,
+  compact = false,
 }: ImportUploaderProps) {
+  const compactMode = compact || initialForceReprocess
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
@@ -181,6 +184,10 @@ export default function ImportUploader({
   useEffect(() => {
     setForceReprocess(initialForceReprocess)
   }, [initialForceReprocess])
+
+  useEffect(() => {
+    if (compactMode) setMode('files')
+  }, [compactMode])
 
   useEffect(() => {
     if (!restoreSession) {
@@ -582,6 +589,11 @@ export default function ImportUploader({
   const headerMeta = activeBatch
     ? `${activeBatch.review_items + activeBatch.confirmed_items} listos · ${activeBatch.pending_items} pendientes · ${activeBatch.failed_items} con error`
     : 'Los documentos abiertos se retiran automaticamente de esta bandeja.'
+  const displayHeaderMeta = compactMode
+    ? (activeBatch
+      ? `${activeBatch.pending_items} pendiente${activeBatch.pending_items === 1 ? '' : 's'} · ${activeBatch.failed_items} con error`
+      : 'Abre el documento cuando termine el reproceso.')
+    : headerMeta
 
   return (
     <>
@@ -675,19 +687,21 @@ export default function ImportUploader({
         }
       `}</style>
       <div className="import-uploader" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f8faff 100%)', border: '1px solid #e5e7eb', borderRadius: 24, padding: '1.15rem', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.06)', position: 'relative', overflow: 'hidden' }}>
-        <div className="import-uploader__top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <div className="import-uploader__top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: compactMode ? '0.75rem' : '1rem' }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: 4 }}>
-              Area de carga
-            </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
-              {entries.length > 0 ? 'Sigue agregando archivos a esta bandeja' : 'Sube documentos sueltos o una carpeta completa'}
+              {compactMode
+                ? (entries.length > 0 ? 'Vuelve a subir el archivo para rehacer este documento' : 'Rehace este documento')
+                : (entries.length > 0 ? 'Sigue agregando archivos a esta bandeja' : 'Sube documentos sueltos o una carpeta completa')}
             </div>
-            <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-              {entries.length > 0 ? 'Puedes seguir agregando archivos mientras el sistema trabaja en segundo plano.' : 'Arrastra archivos, haz clic para seleccionarlos y empieza cuando tengas todo listo.'}
-            </div>
+            {!compactMode && (
+              <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
+                {entries.length > 0 ? 'Puedes seguir agregando archivos mientras el sistema trabaja en segundo plano.' : 'Arrastra archivos, haz clic para seleccionarlos y empieza cuando tengas todo listo.'}
+              </div>
+            )}
           </div>
-          <div className="import-uploader__tabs" style={{ display: 'inline-flex', gap: '0.55rem', padding: '0.35rem', borderRadius: 16, border: '1px solid #dbeafe', background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)' }}>
+          {!compactMode && (
+            <div className="import-uploader__tabs" style={{ display: 'inline-flex', gap: '0.55rem', padding: '0.35rem', borderRadius: 16, border: '1px solid #dbeafe', background: 'linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%)' }}>
             {(['files', 'folder'] as ImportMode[]).map((itemMode) => (
               <button
                 key={itemMode}
@@ -708,8 +722,9 @@ export default function ImportUploader({
                 {itemMode === 'files' ? 'Archivos' : 'Carpeta'}
               </button>
             ))}
-          </div>
-          {entries.length > 0 && !processing && (
+            </div>
+          )}
+          {entries.length > 0 && !processing && !compactMode && (
             <button
               onClick={clearAll}
               style={{ fontSize: 12, color: '#6b7280', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', padding: '0.45rem 0.8rem', borderRadius: 10, fontWeight: 700 }}
@@ -742,24 +757,32 @@ export default function ImportUploader({
             <div style={{ width: 54, height: 54, margin: '0 auto 0.85rem', borderRadius: 18, background: dragging ? '#6366F1' : 'linear-gradient(180deg, #E0E7FF 0%, #C7D2FE 100%)', color: dragging ? '#fff' : '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, boxShadow: '0 14px 26px rgba(99, 102, 241, 0.16)' }}>
               +
             </div>
-            <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#6366f1' }}>Carga directa</p>
-            <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>Arrastra tus archivos aqui</p>
-            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: '0 0 1rem' }}>o haz clic para elegirlos manualmente</p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-              {['PDF', 'JPG/PNG', 'HEIC', 'Excel', 'CSV', 'XML', 'TXT'].map((label) => (
-                <span key={label} style={{ padding: '0.22rem 0.55rem', borderRadius: 999, background: '#fff', border: '1px solid #e5e7eb', color: '#64748b', fontSize: 11, fontWeight: 700 }}>
-                  {label}
-                </span>
-              ))}
-            </div>
-            <div style={{ marginTop: '0.9rem', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
-              Cuando termine el procesamiento podras abrir cada documento y revisarlo.
-            </div>
+            {!compactMode && <p style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.45rem', color: '#6366f1' }}>Carga directa</p>}
+            <p className="import-uploader__dropzone-title" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, margin: '0 0 0.35rem', color: '#111827' }}>
+              {compactMode ? 'Sube de nuevo el archivo' : 'Arrastra tus archivos aqui'}
+            </p>
+            <p className="import-uploader__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: compactMode ? 0 : '0 0 1rem' }}>
+              {compactMode ? 'Haz clic para elegir el archivo original.' : 'o haz clic para elegirlos manualmente'}
+            </p>
+            {!compactMode && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  {['PDF', 'JPG/PNG', 'HEIC', 'Excel', 'CSV', 'XML', 'TXT'].map((label) => (
+                    <span key={label} style={{ padding: '0.22rem 0.55rem', borderRadius: 999, background: '#fff', border: '1px solid #e5e7eb', color: '#64748b', fontSize: 11, fontWeight: 700 }}>
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ marginTop: '0.9rem', fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
+                  Cuando termine el procesamiento podras abrir cada documento y revisarlo.
+                </div>
+              </>
+            )}
             <input ref={fileRef} type="file" multiple accept={acceptedAttr} onChange={onFileChange} style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }} />
           </div>
         )}
 
-        {mode === 'folder' && (
+        {!compactMode && mode === 'folder' && (
           <div
             className="import-uploader__dropzone"
             onClick={() => !processing && folderRef.current?.click()}
@@ -786,24 +809,23 @@ export default function ImportUploader({
           <div className="import-uploader__panel" style={{ marginTop: '1rem', border: '1px solid #E5E7EB', borderRadius: 18, padding: '1rem', background: 'linear-gradient(180deg, #ffffff 0%, #fafbff 100%)' }}>
             <div className="import-uploader__status" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '0.95rem 1rem', borderRadius: 16, border: '1px solid #c7d2fe', background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)' }}>
               <div style={{ flex: 1, minWidth: 260 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', marginBottom: 4 }}>
-                  Estado actual
-                </div>
                 <div className="import-uploader__status-title" style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
                   {headerTitle}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 12, color: '#4f46e5' }}>
-                  {headerMeta}
+                  {displayHeaderMeta}
                 </div>
-                <div style={{ display: 'flex', gap: '0.55rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>
-                  {statusChips.map((item) => (
-                    <div key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.65rem', borderRadius: 999, background: '#fff', border: '1px solid rgba(148, 163, 184, 0.22)' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 999, background: item.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 11, color: item.color, fontWeight: 800 }}>{item.value}</span>
-                      <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
+                {!compactMode && (
+                  <div style={{ display: 'flex', gap: '0.55rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>
+                    {statusChips.map((item) => (
+                      <div key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.65rem', borderRadius: 999, background: '#fff', border: '1px solid rgba(148, 163, 184, 0.22)' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 999, background: item.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, color: item.color, fontWeight: 800 }}>{item.value}</span>
+                        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="import-uploader__status-progress" style={{ minWidth: 220, maxWidth: 280, flex: '0 0 auto' }}>
                 {(processing || activeCount > 0 || completedCount > 0 || errorCount > 0 || activeBatch) && (
@@ -819,7 +841,7 @@ export default function ImportUploader({
                 )}
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                {!processing && completedCount > 0 && (
+                {!compactMode && !processing && completedCount > 0 && (
                   <button onClick={clearDone} style={{ fontSize: 12, color: '#6b7280', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', padding: '0.42rem 0.75rem', borderRadius: 10, fontWeight: 700 }}>
                     Ocultar revisados
                   </button>
@@ -835,10 +857,10 @@ export default function ImportUploader({
               ].filter((section) => section.entries.length > 0).map((section) => (
                 <div className="import-uploader__section" key={section.key} style={{ border: '1px solid #E5E7EB', borderRadius: 18, background: '#fff', padding: '0.9rem', boxShadow: '0 10px 22px rgba(15, 23, 42, 0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{section.title}</div>
-                      <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>{section.subtitle}</div>
-                    </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{section.title}</div>
+                        {!compactMode && <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>{section.subtitle}</div>}
+                      </div>
                     <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 700 }}>
                       {section.entries.length} archivo{section.entries.length > 1 ? 's' : ''}
                     </div>
@@ -906,7 +928,7 @@ export default function ImportUploader({
                               {entry.status === 'error' && entry.errorMessage && <span style={{ color: tone.color, fontWeight: 600 }}>{entry.errorMessage}</span>}
                               {entry.status === 'done' && <span style={{ color: tone.color }}>Se retirara de la bandeja cuando lo abras</span>}
                             </div>
-                            {entry.result?.message && (
+                            {!compactMode && entry.result?.message && (
                               <div style={{ marginTop: 6, fontSize: 11, color: '#475569' }}>
                                 {entry.result.message}
                               </div>
@@ -943,7 +965,8 @@ export default function ImportUploader({
           </div>
         )}
 
-        <div className="import-uploader__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
+        {!compactMode && (
+          <div className="import-uploader__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
           <div style={{ minWidth: 240, flex: '1 1 260px' }}>
             <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Opciones de envio</div>
             <div
@@ -971,7 +994,8 @@ export default function ImportUploader({
             Volver a importar archivo
             <span style={{ color: '#9ca3af' }}>(solo si quieres rehacer el analisis del mismo archivo)</span>
           </label>
-        </div>
+          </div>
+        )}
 
         <button
           className="import-uploader__cta"
@@ -1005,9 +1029,11 @@ export default function ImportUploader({
           ) : activeCount > 0
             ? `Procesando en segundo plano: ${completedCount + errorCount} de ${totalCount}`
             : pendingCount > 0
-              ? `Empezar con ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
+              ? compactMode
+                ? `Rehacer ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
+                : `Empezar con ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
               : entries.length > 0
-                ? 'Todo listo - puedes agregar mas archivos'
+                ? compactMode ? 'Esperando resultado' : 'Todo listo - puedes agregar mas archivos'
                 : 'Selecciona archivos para comenzar'}
         </button>
 
