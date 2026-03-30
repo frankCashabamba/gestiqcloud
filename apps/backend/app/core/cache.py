@@ -10,6 +10,7 @@ Proporciona:
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import hashlib
 import json
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 _redis_client: Any | None = None
 _redis_available: bool | None = None
+_redis_client_loop: asyncio.AbstractEventLoop | None = None
 
 CACHE_VERSION = "v1"
 CACHE_PREFIX = f"cache:{CACHE_VERSION}"

@@ -23,6 +23,7 @@ from app.models.importador import ImpDocumento, ImpIteration, ImpLineErrorLog, I
 from ..ai_classifier import analyze_document
 from ..analysis_normalizer import _normalize_analysis_output
 from ..canonical_document import build_document_projection
+from ..document_fields import detect_document_total
 from ..runtime_config import load_doc_type_patterns, load_prompt_config
 from ..schemas import IterationResultOut, IterationScopeIn, StagingLineSummary
 
@@ -230,6 +231,11 @@ def _reextract_document_scope_fields(
     narrowed_fields = {field: canonical_meta.get(field, {}) for field in selected_fields if field}
     if not narrowed_fields:
         return {}
+    requires_full_document_rerun = any(
+        str((canonical_meta.get(field) or {}).get("type") or "").strip().lower() == "list"
+        for field in selected_fields
+    )
+    analysis_fields = canonical_meta if requires_full_document_rerun and canonical_meta else narrowed_fields
 
     analysis = asyncio.run(
         analyze_document(
@@ -237,7 +243,7 @@ def _reextract_document_scope_fields(
             doc.nombre_archivo,
             doc.tipo_archivo,
             fallback_patterns=load_doc_type_patterns(db),
-            canonical_fields=narrowed_fields,
+            canonical_fields=analysis_fields,
             prompt_config=load_prompt_config(db),
         )
     )
@@ -245,11 +251,16 @@ def _reextract_document_scope_fields(
     extracted = normalized.get("fields")
     if not isinstance(extracted, dict):
         return {}
-    return {
+    result = {
         field: extracted[field]
         for field in selected_fields
         if field in extracted and extracted[field] not in (None, "", [])
     }
+    if requires_full_document_rerun and "line_items" in result:
+        derived_total = detect_document_total({"line_items": result["line_items"]})
+        if derived_total is not None:
+            result["total_amount"] = derived_total
+    return result
 
 
 def _sync_document_scope_line_to_document(
@@ -259,21 +270,23 @@ def _sync_document_scope_line_to_document(
     scope: IterationScopeIn,
     field_aliases: dict[str, list[str]],
     canonical_fields: dict[str, dict] | None,
-) -> None:
+) -> bool:
     data = dict(doc.datos_extraidos or {})
     normalized = dict(line.normalized_data or {})
     if not normalized:
-        return
+        return False
 
     selected_fields = _document_scope_fields(scope)
     fields_to_apply = selected_fields or list(normalized.keys())
+    if "line_items" in fields_to_apply and "total_amount" in normalized and "total_amount" not in fields_to_apply:
+        fields_to_apply = [*fields_to_apply, "total_amount"]
     changed = False
     for field in fields_to_apply:
         if field in normalized and data.get(field) != normalized[field]:
             data[field] = normalized[field]
             changed = True
     if not changed:
-        return
+        return False
 
     _, projection = build_document_projection(
         data,
@@ -286,6 +299,20 @@ def _sync_document_scope_line_to_document(
     for key, value in projection.items():
         setattr(doc, key, value)
     db.flush()
+    return True
+
+
+def _normalize_for_diff(value):
+    if isinstance(value, dict):
+        return {
+            str(key): _normalize_for_diff(item)
+            for key, item in sorted(value.items(), key=lambda entry: str(entry[0]))
+        }
+    if isinstance(value, list):
+        return [_normalize_for_diff(item) for item in value]
+    if isinstance(value, str):
+        return value.strip()
+    return value
 
 
 def get_last_iteration(db: Session, documento_id: UUID) -> ImpIteration | None:
@@ -637,9 +664,13 @@ def run_iteration(
     imported = 0
     errored = 0
     skipped = 0
+    content_changed = False
 
     for line in lines:
         attempted += 1
+        previous_state = line.estado
+        previous_error_code = line.error_code
+        previous_normalized = _normalize_for_diff(line.normalized_data)
         try:
             normalized = normalize_line_fields(
                 line,
@@ -685,6 +716,13 @@ def run_iteration(
                 )
                 imported += 1
 
+            if (
+                previous_state != line.estado
+                or previous_error_code != line.error_code
+                or previous_normalized != _normalize_for_diff(line.normalized_data)
+            ):
+                content_changed = True
+
         except Exception as exc:
             logger.error("Error processing line %s: %s", line.line_number, exc)
             update_staging_line_estado(
@@ -696,10 +734,16 @@ def run_iteration(
             )
             log_line_error(db, line, iteration, "SYSTEM_ERROR", str(exc))
             errored += 1
+            if (
+                previous_state != line.estado
+                or previous_error_code != line.error_code
+                or previous_normalized != _normalize_for_diff(line.normalized_data)
+            ):
+                content_changed = True
 
     document_line = next((line for line in lines if _is_document_scope_line(line)), None)
     if document_line and imported > 0:
-        _sync_document_scope_line_to_document(
+        doc_changed = _sync_document_scope_line_to_document(
             db,
             doc,
             document_line,
@@ -707,10 +751,15 @@ def run_iteration(
             field_aliases,
             canonical_fields,
         )
+        content_changed = content_changed or doc_changed
 
     improvement = False
     if prev:
-        improvement = (imported > prev.lines_imported) or (errored < prev.lines_errored)
+        improvement = (
+            (imported > prev.lines_imported)
+            or (errored < prev.lines_errored)
+            or content_changed
+        )
     elif imported > 0:
         improvement = True
 

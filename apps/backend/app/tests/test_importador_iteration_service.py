@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.importador import ImpDocumento, ImpStagingLine
 from app.modules.importador.schemas import IterationScopeIn
 from app.modules.importador.services.iteration_service import (
+    create_iteration,
     fetch_lines_for_scope,
     run_iteration,
     upsert_staging_lines_from_extraction,
@@ -232,3 +233,179 @@ def test_run_iteration_reextracts_document_scope_fields_and_syncs_document(
     assert document.datos_extraidos["customer"] == "Cliente Corregido"
     assert line.normalized_data["currency"] == "PEN"
     assert line.normalized_data["customer"] == "Cliente Corregido"
+
+
+def test_run_iteration_marks_improvement_when_document_data_changes_without_count_change(
+    db: Session, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-image.jpg",
+        tipo_archivo="JPG",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        tipo_documento_detectado="INVOICE",
+        texto_ocr="currency PEN customer Cliente Corregido",
+        datos_extraidos={"currency": "S/.", "customer": "Cliente Viejo"},
+    )
+    db.add(document)
+    db.flush()
+
+    line = ImpStagingLine(
+        tenant_id=tenant_id,
+        documento_id=document.id,
+        line_number=1,
+        sheet_name="__document__",
+        raw_data={"currency": "S/.", "customer": "Cliente Viejo"},
+        normalized_data={"currency": "S/.", "customer": "Cliente Viejo"},
+        estado="VALID",
+    )
+    db.add(line)
+    db.flush()
+
+    prev = create_iteration(
+        db,
+        {
+            "tenant_id": tenant_id,
+            "documento_id": document.id,
+            "iteration_num": 1,
+            "scope": "SELECTIVE",
+            "lines_attempted": 1,
+            "lines_imported": 1,
+            "lines_errored": 0,
+            "lines_skipped": 0,
+            "improvement": False,
+            "estado": "NO_IMPROVEMENT",
+            "initiated_by": "tester",
+        },
+    )
+    del prev
+    db.commit()
+
+    async def _fake_analyze_document(*args, **kwargs):
+        del args, kwargs
+        return {
+            "doc_type": "INVOICE",
+            "confidence": 0.95,
+            "reasoning": "focused re-extraction",
+            "fields": {
+                "currency": "PEN",
+                "customer": "Cliente Corregido",
+            },
+            "model_used": "test-model",
+            "prompt_sent": "",
+            "raw_response": "{}",
+        }
+
+    monkeypatch.setattr(
+        "app.modules.importador.services.iteration_service.analyze_document",
+        _fake_analyze_document,
+    )
+
+    result = run_iteration(
+        db,
+        document,
+        tenant_id,
+        "tester",
+        IterationScopeIn(
+            mode="SELECTIVE",
+            filter_columns=["currency", "customer"],
+            filter_lines=[1],
+        ),
+        field_aliases={
+            "currency": ["currency"],
+            "customer": ["customer"],
+        },
+        canonical_fields={
+            "currency": {"type": "text"},
+            "customer": {"type": "text"},
+        },
+    )
+    db.commit()
+    db.refresh(document)
+
+    assert result.improvement is True
+    assert result.estado == "DONE"
+    assert document.datos_extraidos["currency"] == "PEN"
+    assert document.datos_extraidos["customer"] == "Cliente Corregido"
+
+
+def test_run_iteration_reextracts_full_document_for_line_items_scope_and_derives_total(
+    db: Session, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="ticket.jpg",
+        tipo_archivo="JPG",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        tipo_documento_detectado="INVOICE",
+        texto_ocr="aceite 2 1.25 agua 8 0.10",
+        datos_extraidos={"line_items": [{"description": "aceite", "quantity": 2}]},
+    )
+    db.add(document)
+    db.flush()
+
+    line = ImpStagingLine(
+        tenant_id=tenant_id,
+        documento_id=document.id,
+        line_number=1,
+        sheet_name="__document__",
+        raw_data={"line_items": [{"description": "aceite", "quantity": 2}]},
+        estado="REPROCESS",
+    )
+    db.add(line)
+    db.commit()
+
+    analyze_payloads: list[dict] = []
+
+    async def _fake_analyze_document(*args, **kwargs):
+        analyze_payloads.append(kwargs.get("canonical_fields") or {})
+        return {
+            "doc_type": "INVOICE",
+            "confidence": 0.94,
+            "reasoning": "full rerun for line items",
+            "fields": {
+                "line_items": [
+                    {"description": "aceite", "quantity": 2, "unit_price": 1.25},
+                    {"description": "agua", "quantity": 8, "unit_price": 0.10},
+                ]
+            },
+            "model_used": "test-model",
+            "prompt_sent": "",
+            "raw_response": "{}",
+        }
+
+    monkeypatch.setattr(
+        "app.modules.importador.services.iteration_service.analyze_document",
+        _fake_analyze_document,
+    )
+
+    canonical_fields = {
+        "line_items": {"type": "list"},
+        "total_amount": {"type": "numeric"},
+    }
+    result = run_iteration(
+        db,
+        document,
+        tenant_id,
+        "tester",
+        IterationScopeIn(
+            mode="SELECTIVE",
+            filter_columns=["line_items"],
+            filter_lines=[1],
+        ),
+        field_aliases={"line_items": ["line_items"], "total_amount": ["total_amount"]},
+        canonical_fields=canonical_fields,
+    )
+    db.commit()
+    db.refresh(document)
+    db.refresh(line)
+
+    assert result.improvement is True
+    assert analyze_payloads[0] == canonical_fields
+    assert document.datos_extraidos["line_items"][0]["unit_price"] == 1.25
+    assert document.datos_extraidos["total_amount"] == 3.3
+    assert line.normalized_data["total_amount"] == 3.3
