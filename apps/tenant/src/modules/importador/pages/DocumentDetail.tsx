@@ -102,6 +102,30 @@ type ActivityItem = {
   note?: string
 }
 
+type EditableLineItem = {
+  description: string
+  quantity: string
+  unit_price: string
+  total_price: string
+}
+
+function getEditableLineItems(data: Record<string, unknown>): EditableLineItem[] {
+  const raw = data.line_items as unknown
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      description: String(item.description ?? ''),
+      quantity: String(item.quantity ?? ''),
+      unit_price: String(item.unit_price ?? ''),
+      total_price: String(item.total_price ?? ''),
+    }))
+}
+
+function createEmptyEditableLineItem(): EditableLineItem {
+  return { description: '', quantity: '', unit_price: '', total_price: '' }
+}
+
 function summarizeLogDetail(action: string, detail: Record<string, unknown> | null | undefined): string | undefined {
   if (!detail || typeof detail !== 'object') return undefined
   if (action === 'UPLOAD') {
@@ -169,6 +193,7 @@ export default function DocumentDetail() {
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
+  const [editLineItems, setEditLineItems] = useState<EditableLineItem[]>([])
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncingAll, setSyncingAll] = useState(false)
@@ -233,6 +258,7 @@ export default function DocumentDetail() {
   useEffect(() => {
     setEditMode(false)
     setEditFields({})
+    setEditLineItems([])
     setSyncResult(null)
     setBatchSyncResult(null)
     setDailyLogResult(null)
@@ -409,9 +435,10 @@ export default function DocumentDetail() {
     }
     const flat: Record<string, string> = {}
     Object.entries(data).forEach(([k, v]) => {
-      if (!k.startsWith('_') && (typeof v !== 'object' || v === null)) flat[k] = String(v ?? '')
+      if (!k.startsWith('_') && k !== 'line_items' && (typeof v !== 'object' || v === null)) flat[k] = String(v ?? '')
     })
     setEditFields(flat)
+    setEditLineItems(getEditableLineItems(data))
     setEditMode(true)
   }
 
@@ -419,8 +446,20 @@ export default function DocumentDetail() {
     if (!id) return
     setSaving(true)
     try {
-      await editDocumentFields(id, editFields)
+      const normalizedLineItems = editLineItems
+        .map((item) => ({
+          description: item.description.trim(),
+          quantity: item.quantity.trim(),
+          unit_price: item.unit_price.trim(),
+          total_price: item.total_price.trim(),
+        }))
+        .filter((item) => item.description || item.quantity || item.unit_price || item.total_price)
+      await editDocumentFields(id, {
+        ...editFields,
+        line_items: normalizedLineItems,
+      })
       setEditMode(false)
+      setEditLineItems([])
       load()
     } catch { setError(t('docDetail.errorSaving')) }
     setSaving(false)
@@ -587,6 +626,20 @@ export default function DocumentDetail() {
 
   const handleSaved = (_result: SaveDocumentResult) => {
     void load()
+  }
+
+  const updateEditLineItem = (index: number, key: keyof EditableLineItem, value: string) => {
+    setEditLineItems((current) => current.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, [key]: value } : item
+    )))
+  }
+
+  const addEditLineItem = () => {
+    setEditLineItems((current) => [...current, createEmptyEditableLineItem()])
+  }
+
+  const removeEditLineItem = (index: number) => {
+    setEditLineItems((current) => current.filter((_, itemIndex) => itemIndex !== index))
   }
 
   const handleProductsSaved = (result: SaveProductsFromDocumentResult) => {
@@ -1142,9 +1195,79 @@ export default function DocumentDetail() {
                       </label>
                       )
                     })}
+                    <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e5e7eb' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div>
+                          <div style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>Detalle de lineas</div>
+                          <div style={{ color: '#6b7280', fontSize: 12 }}>Agrega o corrige los productos detectados.</div>
+                        </div>
+                        <button onClick={addEditLineItem} type="button" style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>
+                          Agregar linea
+                        </button>
+                      </div>
+                      {editLineItems.length === 0 ? (
+                        <div style={{ padding: '0.75rem', border: '1px dashed #d1d5db', borderRadius: 8, color: '#6b7280', fontSize: 13 }}>
+                          No hay lineas cargadas. Puedes agregarlas manualmente.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gap: '0.75rem' }}>
+                          {editLineItems.map((item, index) => (
+                            <div key={`line-${index}`} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '0.75rem', background: '#f9fafb' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                <strong style={{ fontSize: 13, color: '#111827' }}>Linea {index + 1}</strong>
+                                <button onClick={() => removeEditLineItem(index)} type="button" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                                  Quitar
+                                </button>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,2fr) repeat(3,minmax(120px,1fr))', gap: '0.5rem' }}>
+                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
+                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Descripcion</span>
+                                  <input
+                                    type="text"
+                                    value={item.description}
+                                    onChange={(e) => updateEditLineItem(index, 'description', e.target.value)}
+                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
+                                  />
+                                </label>
+                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
+                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Cantidad</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.quantity}
+                                    onChange={(e) => updateEditLineItem(index, 'quantity', e.target.value)}
+                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
+                                  />
+                                </label>
+                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
+                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>P. unitario</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.unit_price}
+                                    onChange={(e) => updateEditLineItem(index, 'unit_price', e.target.value)}
+                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
+                                  />
+                                </label>
+                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
+                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Total</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.total_price}
+                                    onChange={(e) => updateEditLineItem(index, 'total_price', e.target.value)}
+                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                       <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#6366F1' }}>{t('docDetail.buttons.saveEdit')}</button>
-                      <button onClick={() => setEditMode(false)} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>{t('docDetail.buttons.cancelEdit')}</button>
+                      <button onClick={() => { setEditMode(false); setEditLineItems([]) }} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>{t('docDetail.buttons.cancelEdit')}</button>
                     </div>
                   </div>
                 ) : (
@@ -1163,7 +1286,7 @@ export default function DocumentDetail() {
                       </tbody>
                     </table>
                     {(() => {
-                      const items = (datos['lineas'] as unknown[] | undefined) || (datos['line_items'] as unknown[] | undefined)
+                      const items = datos['line_items'] as unknown[] | undefined
                       if (!Array.isArray(items) || items.length === 0) return null
                       return (
                         <div style={{ marginTop: '0.75rem' }}>
@@ -1180,10 +1303,10 @@ export default function DocumentDetail() {
                             <tbody>
                               {(items as Array<Record<string, unknown>>).map((line, i) => (
                                 <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                  <td style={{ padding: '0.3rem 0.5rem' }}>{String(line.descripcion ?? line.description ?? line.producto ?? '—')}</td>
-                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{String(line.cantidad ?? line.qty ?? line.quantity ?? '—')}</td>
-                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{(line.precio_unitario ?? line.unit_price) != null ? Number(line.precio_unitario ?? line.unit_price).toFixed(2) : '—'}</td>
-                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{(line.precio_total ?? line.total_price) != null ? Number(line.precio_total ?? line.total_price).toFixed(2) : '—'}</td>
+                                  <td style={{ padding: '0.3rem 0.5rem' }}>{String(line.description ?? '—')}</td>
+                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{String(line.quantity ?? '—')}</td>
+                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{line.unit_price != null ? Number(line.unit_price).toFixed(2) : '—'}</td>
+                                  <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{line.total_price != null ? Number(line.total_price).toFixed(2) : '—'}</td>
                                 </tr>
                               ))}
                             </tbody>

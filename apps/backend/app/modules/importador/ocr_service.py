@@ -34,7 +34,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-03-30-1"
+OCR_EXTRACTION_CACHE_VERSION = "2026-03-30-2"
 
 # UBL 2.1 namespaces
 _UBL_NS = {
@@ -221,6 +221,101 @@ def _trim_document_edges(img: Image.Image) -> Image.Image:
     return cropped
 
 
+def _order_quad_points(points) -> Any:
+    import numpy as np
+
+    pts = np.array(points, dtype="float32")
+    ordered = np.zeros((4, 2), dtype="float32")
+    sums = pts.sum(axis=1)
+    diffs = np.diff(pts, axis=1)
+    ordered[0] = pts[sums.argmin()]
+    ordered[2] = pts[sums.argmax()]
+    ordered[1] = pts[diffs.argmin()]
+    ordered[3] = pts[diffs.argmax()]
+    return ordered
+
+
+def _rectify_document_perspective(img: Image.Image) -> tuple[Image.Image, bool]:
+    """Detect a dominant document-like contour and rectify it generically."""
+    try:
+        import cv2
+        import numpy as np
+    except Exception:
+        return img.copy(), False
+
+    rgb = img.convert("RGB")
+    rgb_np = np.array(rgb)
+    gray = cv2.cvtColor(rgb_np, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 60, 180)
+    kernel = np.ones((5, 5), dtype="uint8")
+    edges = cv2.dilate(edges, kernel, iterations=1)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return rgb.copy(), False
+
+    height, width = gray.shape[:2]
+    image_area = max(1, width * height)
+
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True):
+        area = cv2.contourArea(contour)
+        if area / image_area < 0.18:
+            continue
+
+        perimeter = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
+        quad = None
+        if len(approx) == 4:
+            quad = approx.reshape(4, 2)
+        else:
+            rect = cv2.minAreaRect(contour)
+            box = cv2.boxPoints(rect)
+            if cv2.contourArea(box) / image_area < 0.18:
+                continue
+            quad = box
+
+        ordered = _order_quad_points(quad)
+        (top_left, top_right, bottom_right, bottom_left) = ordered
+
+        width_a = float(np.linalg.norm(bottom_right - bottom_left))
+        width_b = float(np.linalg.norm(top_right - top_left))
+        height_a = float(np.linalg.norm(top_right - bottom_right))
+        height_b = float(np.linalg.norm(top_left - bottom_left))
+
+        max_width = int(max(width_a, width_b))
+        max_height = int(max(height_a, height_b))
+        if max_width < width * 0.35 or max_height < height * 0.35:
+            continue
+
+        destination = np.array(
+            [
+                [0, 0],
+                [max_width - 1, 0],
+                [max_width - 1, max_height - 1],
+                [0, max_height - 1],
+            ],
+            dtype="float32",
+        )
+        transform = cv2.getPerspectiveTransform(ordered, destination)
+        warped = cv2.warpPerspective(
+            rgb_np,
+            transform,
+            (max_width, max_height),
+            flags=cv2.INTER_CUBIC,
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+        warped_img = Image.fromarray(warped)
+        if warped_img.width < 32 or warped_img.height < 32:
+            continue
+        if warped_img.size == rgb.size:
+            return warped_img, True
+        return warped_img, True
+
+    return rgb.copy(), False
+
+
 def _iter_small_rotations(
     img: Image.Image,
     *,
@@ -240,6 +335,15 @@ def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
     base = img.convert("L") if img.mode != "L" else img.copy()
     variants = [_copy_with_label(base, "base")]
     variants.extend(_iter_small_rotations(base, label_prefix="base"))
+
+    perspective_img, perspective_changed = _rectify_document_perspective(img)
+    if perspective_changed:
+        perspective_gray = perspective_img.convert("L")
+        perspective_autocontrast = ImageOps.autocontrast(perspective_gray)
+        variants.append(_copy_with_label(perspective_autocontrast, "perspective"))
+        variants.extend(_iter_small_rotations(perspective_autocontrast, label_prefix="perspective"))
+        perspective_threshold = perspective_autocontrast.point(lambda px: 255 if px > 165 else 0)
+        variants.append(_copy_with_label(perspective_threshold, "perspective_threshold"))
 
     autocontrast = ImageOps.autocontrast(base)
     variants.append(_copy_with_label(autocontrast, "autocontrast"))

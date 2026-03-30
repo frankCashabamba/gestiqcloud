@@ -249,8 +249,8 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
 
   const lineItems = useMemo(() => {
     const data = getDocumentData(doc)
-    const items = (data.line_items || data.lineas) as Array<Record<string, unknown>> | undefined
-    return Array.isArray(items) ? items.filter(it => it && (it.quantity || it.cantidad)) : []
+    const items = data.line_items as Array<Record<string, unknown>> | undefined
+    return Array.isArray(items) ? items.filter(it => it && it.quantity) : []
   }, [doc])
 
   const hasStockItems = lineItems.length > 0
@@ -369,9 +369,9 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
     ? lineMatches
     : lineItems.map((item, index) => ({
         line_index: index,
-        description: String(item.description ?? item.descripcion ?? ''),
-        quantity: Number(item.quantity ?? item.cantidad ?? 0),
-        unit_price: Number(item.unit_price ?? item.precio_unitario ?? item.precio ?? 0),
+        description: String(item.description ?? ''),
+        quantity: Number(item.quantity ?? 0),
+        unit_price: Number(item.unit_price ?? 0),
         selected_product_id: null,
         selected_reason: null,
         inferred_factor: 1,
@@ -599,7 +599,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                   {lineItems.map((it, i) => (
                     <span key={i}>
                       {i > 0 && ', '}
-                      +{String(it.quantity ?? it.cantidad)} {String(it.description ?? it.descripcion ?? '').slice(0, 40)}
+                      +{String(it.quantity ?? '')} {String(it.description ?? '').slice(0, 40)}
                     </span>
                   ))}
                 </div>

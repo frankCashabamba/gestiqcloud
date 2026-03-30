@@ -58,11 +58,9 @@ def _infer_pack_conversion_factor(description: str, product_unit: str | None) ->
 
 
 def _get_line_values(item: dict) -> tuple[str, float, float]:
-    description = str(item.get("description") or item.get("descripcion") or "").strip()
-    qty = float(item.get("quantity") or item.get("cantidad") or 0)
-    unit_price = float(
-        item.get("unit_price") or item.get("precio_unitario") or item.get("precio") or 0
-    )
+    description = str(item.get("description") or "").strip()
+    qty = float(item.get("quantity") or 0)
+    unit_price = float(item.get("unit_price") or 0)
     return description, qty, unit_price
 
 
@@ -194,7 +192,7 @@ def _build_document_line_matches(
     data = doc.datos_confirmados or doc.datos_extraidos or {}
     if not isinstance(data, dict):
         data = {}
-    line_items_raw = data.get("line_items") or data.get("lineas") or data.get("items") or []
+    line_items_raw = data.get("line_items") or []
     if not isinstance(line_items_raw, list):
         line_items_raw = []
     line_items = [item for item in line_items_raw if isinstance(item, dict)]

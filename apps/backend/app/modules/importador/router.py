@@ -254,6 +254,58 @@ def _derive_confirmation_mode(doc, datos_confirmados: dict) -> str:
     return "corrected_by_user"
 
 
+def _normalize_line_items_for_edit(value) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+
+    normalized_items: list[dict] = []
+    for raw_item in value:
+        if not isinstance(raw_item, dict):
+            continue
+        description = _first_non_empty(raw_item.get("description"))
+        quantity = safe_floatish(raw_item.get("quantity"))
+        unit_price = safe_floatish(raw_item.get("unit_price"))
+        total_price = safe_floatish(raw_item.get("total_price"))
+        if total_price is None and quantity is not None and unit_price is not None:
+            total_price = round(quantity * unit_price, 2)
+
+        normalized_row = {}
+        if description is not None:
+            normalized_row["description"] = str(description).strip()
+        if quantity is not None:
+            normalized_row["quantity"] = quantity
+        if unit_price is not None:
+            normalized_row["unit_price"] = unit_price
+        if total_price is not None:
+            normalized_row["total_price"] = total_price
+        if normalized_row:
+            normalized_items.append(normalized_row)
+    return normalized_items
+
+
+def _prepare_edit_fields_payload(current: dict, campos: dict, aliases: dict[str, list[str]]) -> tuple[dict, dict]:
+    previous = {k: current.get(k) for k in campos}
+    current.update(campos)
+
+    if "line_items" in campos or "lineas" in campos or "items" in campos:
+        raw_items = campos.get("line_items")
+        if raw_items is None:
+            raw_items = campos.get("lineas")
+        if raw_items is None:
+            raw_items = campos.get("items")
+        normalized_items = _normalize_line_items_for_edit(raw_items)
+        current["line_items"] = normalized_items
+        current.pop("lineas", None)
+        current.pop("items", None)
+
+        total_aliases = aliases.get("total_amount") or []
+        current_total = detect_document_total(current, aliases=total_aliases)
+        if current_total is not None:
+            current["total_amount"] = current_total
+
+    return current, previous
+
+
 def _attach_document_activity_meta(doc):
     logs = sorted((getattr(doc, "logs", []) or []), key=lambda log: log.created_at or datetime.datetime.min)
     doc.last_processing_reason = None
@@ -338,7 +390,7 @@ def _extract_document_line_items(data: dict, aliases: list[str] | None = None) -
     keys = aliases or []
     raw = get_data_value(data, *keys) if keys else None
     if not isinstance(raw, list):
-        raw = data.get("line_items") or data.get("lineas") or data.get("items")
+        raw = data.get("line_items")
     if not isinstance(raw, list):
         return []
     return [item for item in raw if isinstance(item, dict)]
@@ -1873,14 +1925,16 @@ def edit_document_fields(
 
     # Merge with existing extracted data and rebuild the document projection so
     # edited scalar fields affect both the detail payload and the summary fields.
-    current = doc.datos_extraidos or {}
+    current = dict(doc.datos_extraidos or {})
     previous: dict[str, object | None] = {}
     if isinstance(current, dict):
-        previous = {k: current.get(k) for k in body.campos}
-        current.update(body.campos)
+        tenant_id = _tenant_id(request)
+        aliases = get_field_aliases(db, tenant_id=tenant_id)
+        current, previous = _prepare_edit_fields_payload(current, body.campos, aliases)
 
-    tenant_id = _tenant_id(request)
-    aliases = get_field_aliases(db, tenant_id=tenant_id)
+    else:
+        tenant_id = _tenant_id(request)
+        aliases = get_field_aliases(db, tenant_id=tenant_id)
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     canonical_document, projection = build_document_projection(
         current,
@@ -1889,6 +1943,9 @@ def edit_document_fields(
         field_aliases=aliases,
         canonical_fields=canonical_fields,
     )
+    inferred_total = detect_document_total(current, aliases=aliases.get("total_amount"))
+    if inferred_total is not None and projection.get("monto_total") is None:
+        projection["monto_total"] = inferred_total
 
     raw_ai_json = dict(doc.raw_ai_json) if isinstance(doc.raw_ai_json, dict) else {}
     raw_ai_json["canonical_document"] = canonical_document

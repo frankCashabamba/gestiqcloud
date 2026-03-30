@@ -58,28 +58,20 @@ def safe_floatish(value: Any) -> float | None:
 def _extract_line_items(data: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not isinstance(data, dict):
         return []
-    raw = data.get("line_items") or data.get("lineas") or data.get("items")
+    raw = data.get("line_items")
     if not isinstance(raw, list):
         return []
     return [row for row in raw if isinstance(row, dict)]
 
 
 def _line_total(row: dict[str, Any]) -> float | None:
-    direct_total = get_data_value(
-        row,
-        "line_total",
-        "total_linea",
-        "total",
-        "importe",
-        "monto_total",
-        "vtotal",
-    )
+    direct_total = get_data_value(row, "total_price")
     total = safe_floatish(direct_total)
     if total is not None:
         return total
 
-    quantity = safe_floatish(get_data_value(row, "quantity", "qty", "cantidad"))
-    unit_price = safe_floatish(get_data_value(row, "unit_price", "precio_unitario", "precio", "vunit"))
+    quantity = safe_floatish(get_data_value(row, "quantity"))
+    unit_price = safe_floatish(get_data_value(row, "unit_price"))
     if quantity is None or unit_price is None:
         return None
     return round(quantity * unit_price, 2)
