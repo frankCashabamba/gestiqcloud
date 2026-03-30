@@ -584,7 +584,7 @@ export async function syncAllRecipes(id: string): Promise<SyncRecipesResult> {
 
 export async function editDocumentFields(id: string, campos: Record<string, unknown>): Promise<Documento> {
   const { data } = await api.patch(TENANT_IMPORTADOR.edit(id), { campos })
-  return data
+  return normalizeDocument(data)
 }
 
 export async function rejectDocument(id: string): Promise<Documento> {

@@ -1871,13 +1871,34 @@ def edit_document_fields(
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
-    # Merge with existing extracted data
+    # Merge with existing extracted data and rebuild the document projection so
+    # edited scalar fields affect both the detail payload and the summary fields.
     current = doc.datos_extraidos or {}
+    previous: dict[str, object | None] = {}
     if isinstance(current, dict):
         previous = {k: current.get(k) for k in body.campos}
         current.update(body.campos)
 
-    crud.update_documento(db, doc, {"datos_extraidos": current})
+    tenant_id = _tenant_id(request)
+    aliases = get_field_aliases(db, tenant_id=tenant_id)
+    canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+    canonical_document, projection = build_document_projection(
+        current,
+        doc_type=doc.tipo_documento_detectado,
+        source_format=doc.tipo_archivo,
+        field_aliases=aliases,
+        canonical_fields=canonical_fields,
+    )
+
+    raw_ai_json = dict(doc.raw_ai_json) if isinstance(doc.raw_ai_json, dict) else {}
+    raw_ai_json["canonical_document"] = canonical_document
+
+    update_payload = {
+        "datos_extraidos": current,
+        "raw_ai_json": _json_safe(raw_ai_json),
+        **projection,
+    }
+    crud.update_documento(db, doc, update_payload)
     _capture_routing_signal(
         doc,
         db,
@@ -1895,6 +1916,7 @@ def edit_document_fields(
     db.commit()
     _attach_document_routing(doc, db)
     _attach_document_review_hints(doc, db)
+    _attach_document_activity_meta(doc)
     return doc
 
 

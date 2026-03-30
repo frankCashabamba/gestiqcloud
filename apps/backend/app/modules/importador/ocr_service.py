@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import csv
 import datetime
+import hashlib
 import io
 import itertools
+import json
 import logging
 import xml.etree.ElementTree as ET
 import zipfile
@@ -31,12 +34,119 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
+OCR_EXTRACTION_CACHE_VERSION = "2026-03-30-1"
 
 # UBL 2.1 namespaces
 _UBL_NS = {
     "cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
     "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
 }
+
+
+def _ocr_cache_dir() -> Path:
+    from app.config.settings import settings
+
+    raw_dir = (Path(settings.UPLOADS_DIR) / "_importador_ocr_cache").resolve()
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    return raw_dir
+
+
+def _ocr_cache_path(file_bytes: bytes) -> Path:
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+    return _ocr_cache_dir() / f"{file_hash}.json"
+
+
+def _json_safe(obj: Any) -> Any:
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+def _serialize_cached_extraction(extraction: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "version": OCR_EXTRACTION_CACHE_VERSION,
+        "text": str(extraction.get("text") or ""),
+        "pages": int(extraction.get("pages") or 1),
+        "structured_data": _json_safe(extraction.get("structured_data")),
+        "format": str(extraction.get("format") or ""),
+        "sheet_profiles": _json_safe(extraction.get("sheet_profiles")),
+        "sheet_metadata": _json_safe(extraction.get("sheet_metadata")),
+        "sheet_used": extraction.get("sheet_used"),
+    }
+    vision_image_bytes = extraction.get("vision_image_bytes")
+    if isinstance(vision_image_bytes, (bytes, bytearray)):
+        payload["vision_image_b64"] = base64.b64encode(bytes(vision_image_bytes)).decode("ascii")
+    return payload
+
+
+def _deserialize_cached_extraction(payload: dict[str, Any]) -> dict[str, Any]:
+    extraction = {
+        "text": str(payload.get("text") or ""),
+        "pages": int(payload.get("pages") or 1),
+        "structured_data": payload.get("structured_data"),
+        "format": str(payload.get("format") or ""),
+    }
+    if payload.get("sheet_profiles") is not None:
+        extraction["sheet_profiles"] = payload.get("sheet_profiles")
+    if payload.get("sheet_metadata") is not None:
+        extraction["sheet_metadata"] = payload.get("sheet_metadata")
+    if payload.get("sheet_used") is not None:
+        extraction["sheet_used"] = payload.get("sheet_used")
+    vision_image_b64 = payload.get("vision_image_b64")
+    if isinstance(vision_image_b64, str) and vision_image_b64:
+        try:
+            extraction["vision_image_bytes"] = base64.b64decode(vision_image_b64.encode("ascii"))
+        except Exception:
+            logger.warning("No se pudo decodificar vision_image_b64 de cache OCR", exc_info=True)
+    return extraction
+
+
+def _can_cache_extraction(extraction: dict[str, Any]) -> bool:
+    text = str(extraction.get("text") or "").strip()
+    structured_data = extraction.get("structured_data")
+    sheet_profiles = extraction.get("sheet_profiles")
+    vision_image_bytes = extraction.get("vision_image_bytes")
+    return bool(
+        text
+        or structured_data
+        or sheet_profiles
+        or isinstance(vision_image_bytes, (bytes, bytearray))
+    )
+
+
+def _load_cached_extraction(file_bytes: bytes) -> dict[str, Any] | None:
+    cache_path = _ocr_cache_path(file_bytes)
+    if not cache_path.exists():
+        return None
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("No se pudo leer cache OCR %s", cache_path, exc_info=True)
+        return None
+    if payload.get("version") != OCR_EXTRACTION_CACHE_VERSION:
+        return None
+    return _deserialize_cached_extraction(payload)
+
+
+def _store_cached_extraction(file_bytes: bytes, extraction: dict[str, Any]) -> None:
+    if not _can_cache_extraction(extraction):
+        return
+    cache_path = _ocr_cache_path(file_bytes)
+    payload = _serialize_cached_extraction(extraction)
+    tmp_path = cache_path.with_suffix(".tmp")
+    try:
+        tmp_path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+        tmp_path.replace(cache_path)
+    except Exception:
+        logger.warning("No se pudo guardar cache OCR %s", cache_path, exc_info=True)
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def _image_to_jpeg_bytes(img: Image.Image, *, quality: int = 80) -> bytes:
@@ -111,13 +221,29 @@ def _trim_document_edges(img: Image.Image) -> Image.Image:
     return cropped
 
 
+def _iter_small_rotations(
+    img: Image.Image,
+    *,
+    label_prefix: str,
+    angles: tuple[float, ...] = (-4.0, -2.0, 2.0, 4.0),
+) -> list[Image.Image]:
+    """Generate mild deskew candidates without assuming a specific document layout."""
+    variants: list[Image.Image] = []
+    for angle in angles:
+        rotated = img.rotate(angle, expand=True, resample=Image.BICUBIC, fillcolor=255)
+        variants.append(_copy_with_label(rotated, f"{label_prefix}_rot{angle:+.0f}"))
+    return variants
+
+
 def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
     """Generate generic OCR-friendly variants without document-specific rules."""
     base = img.convert("L") if img.mode != "L" else img.copy()
     variants = [_copy_with_label(base, "base")]
+    variants.extend(_iter_small_rotations(base, label_prefix="base"))
 
     autocontrast = ImageOps.autocontrast(base)
     variants.append(_copy_with_label(autocontrast, "autocontrast"))
+    variants.extend(_iter_small_rotations(autocontrast, label_prefix="autocontrast"))
 
     sharpened = autocontrast.filter(ImageFilter.MedianFilter(size=3))
     sharpened = sharpened.filter(ImageFilter.SHARPEN)
@@ -132,6 +258,7 @@ def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
     trimmed = _trim_document_edges(autocontrast)
     if trimmed.size != autocontrast.size:
         variants.append(_copy_with_label(trimmed, "trimmed"))
+        variants.extend(_iter_small_rotations(trimmed, label_prefix="trimmed"))
         variants.append(_copy_with_label(trimmed.rotate(90, expand=True), "trimmed_rot90"))
         variants.append(_copy_with_label(trimmed.rotate(270, expand=True), "trimmed_rot270"))
 
@@ -141,7 +268,17 @@ def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
 def _run_tesseract(img: Image.Image) -> str:
     import pytesseract
 
-    return str(pytesseract.image_to_string(img, lang="spa+eng") or "").strip()
+    candidates: list[str] = []
+    for config in ("--psm 6", "--psm 11", "--psm 12"):
+        text = str(pytesseract.image_to_string(img, lang="spa+eng", config=config) or "").strip()
+        if not text:
+            continue
+        candidates.append(text)
+        if not _is_weak_ocr_text(text):
+            return text
+    if not candidates:
+        return ""
+    return max(candidates, key=lambda value: _ocr_text_score(value))
 
 
 def _run_easyocr(img: Image.Image) -> str:
@@ -158,17 +295,21 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
     Returns: {"text": str, "pages": int, "structured_data": list[dict] | None, "format": str}
     """
     ext = Path(filename).suffix.lower()
+    cached = _load_cached_extraction(file_bytes)
+    if cached is not None:
+        logger.info("OCR cache hit for %s", Path(filename).name)
+        return cached
 
     if ext == ".pdf":
-        return await _extract_pdf(file_bytes)
+        extraction = await _extract_pdf(file_bytes)
     elif ext in IMAGE_EXTENSIONS:
-        return await _extract_image(file_bytes)
+        extraction = await _extract_image(file_bytes)
     elif ext in (".xlsx", ".xls"):
         try:
-            return _extract_excel(file_bytes, ext=ext)
+            extraction = _extract_excel(file_bytes, ext=ext)
         except Exception as exc:
             logger.warning("Excel parse failed (%s): %s", ext, exc)
-            return {
+            extraction = {
                 "text": "",
                 "pages": 1,
                 "structured_data": None,
@@ -176,14 +317,14 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
                 "error": str(exc),
             }
     elif ext == ".csv":
-        return _extract_csv(file_bytes)
+        extraction = _extract_csv(file_bytes)
     elif ext == ".xml":
         try:
-            return _extract_xml(file_bytes)
+            extraction = _extract_xml(file_bytes)
         except Exception as exc:
             logger.warning("XML parse failed: %s", exc)
             preview = file_bytes[:4000].decode("utf-8", errors="ignore")
-            return {
+            extraction = {
                 "text": preview,
                 "pages": 1,
                 "structured_data": None,
@@ -191,11 +332,13 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
                 "error": str(exc),
             }
     elif ext == ".txt":
-        return _extract_txt(file_bytes)
+        extraction = _extract_txt(file_bytes)
     elif ext == ".zip":
-        return _extract_zip_summary(file_bytes, filename)
+        extraction = _extract_zip_summary(file_bytes, filename)
     else:
         raise ValueError(f"Formato no soportado: {ext}")
+    _store_cached_extraction(file_bytes, extraction)
+    return extraction
 
 
 def iter_zip_entries(

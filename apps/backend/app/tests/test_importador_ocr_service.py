@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from PIL import Image
 
 from app.modules.importador import ocr_service
@@ -15,7 +17,7 @@ def test_ocr_image_falls_back_to_easyocr_when_tesseract_is_weak(monkeypatch):
             return [(None, "NOTA DE VENTA 10246538 TOTAL 5.30", 0.99)]
 
     monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
-        "image_to_string": staticmethod(lambda img, lang=None: "...")
+        "image_to_string": staticmethod(lambda img, lang=None, config=None: "...")
     })())
     monkeypatch.setitem(__import__("sys").modules, "easyocr", type("E", (), {
         "Reader": FakeReader
@@ -30,7 +32,7 @@ def test_ocr_image_falls_back_to_easyocr_when_tesseract_is_weak(monkeypatch):
 
 
 def test_ocr_image_uses_best_tesseract_variant_when_available(monkeypatch):
-    def fake_tesseract(img, lang=None):
+    def fake_tesseract(img, lang=None, config=None):
         variant = img.info.get("ocr_variant")
         if variant == "threshold":
             return "NOTA DE VENTA 10246538 TOTAL 5.30"
@@ -49,7 +51,7 @@ def test_ocr_image_uses_best_tesseract_variant_when_available(monkeypatch):
 
 
 def test_ocr_image_can_use_rotated_trimmed_variant(monkeypatch):
-    def fake_tesseract(img, lang=None):
+    def fake_tesseract(img, lang=None, config=None):
         variant = img.info.get("ocr_variant")
         if variant == "trimmed_rot90":
             return "NOTA DE VENTA 2048 TOTAL 5.30"
@@ -68,3 +70,96 @@ def test_ocr_image_can_use_rotated_trimmed_variant(monkeypatch):
 
     assert "NOTA DE VENTA" in result
     assert "5.30" in result
+
+
+def test_ocr_image_can_use_small_deskew_variant(monkeypatch):
+    def fake_tesseract(img, lang=None, config=None):
+        del lang, config
+        variant = img.info.get("ocr_variant")
+        if variant == "autocontrast_rot+2":
+            return "NOTA DE VENTA CLIENTE DESCRIPCION TOTAL 5.30"
+        return "..."
+
+    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
+        "image_to_string": staticmethod(fake_tesseract)
+    })())
+
+    img = Image.new("L", (160, 120), color=255)
+
+    result = ocr_service._ocr_image(img)
+
+    assert "NOTA DE VENTA" in result
+    assert "5.30" in result
+
+
+def test_run_tesseract_tries_multiple_psm_configs(monkeypatch):
+    calls: list[str | None] = []
+
+    def fake_tesseract(_img, lang=None, config=None):
+        del lang
+        calls.append(config)
+        if config == "--psm 11":
+            return "FECHA CLIENTE NOTA DE VENTA DESCRIPCION VTOTAL 5.30"
+        return ""
+
+    monkeypatch.setitem(__import__("sys").modules, "pytesseract", type("P", (), {
+        "image_to_string": staticmethod(fake_tesseract)
+    })())
+
+    img = Image.new("L", (120, 80), color=255)
+
+    result = ocr_service._run_tesseract(img)
+
+    assert result == "FECHA CLIENTE NOTA DE VENTA DESCRIPCION VTOTAL 5.30"
+    assert calls == ["--psm 6", "--psm 11"]
+
+
+def test_extract_text_from_file_reuses_cached_extraction_by_hash(monkeypatch, tmp_path):
+    calls = {"count": 0}
+
+    async def fake_extract_image(_file_bytes: bytes):
+        calls["count"] += 1
+        return {
+            "text": "NOTA DE VENTA CLIENTE DESCRIPCION TOTAL 5.30",
+            "pages": 1,
+            "structured_data": None,
+            "format": "IMAGE_OCR",
+            "vision_image_bytes": b"jpeg-preview",
+        }
+
+    monkeypatch.setattr(ocr_service, "_ocr_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(ocr_service, "_extract_image", fake_extract_image)
+
+    file_bytes = b"fake-image-binary"
+
+    first = asyncio.run(ocr_service.extract_text_from_file(file_bytes, "nota.jpeg"))
+    second = asyncio.run(ocr_service.extract_text_from_file(file_bytes, "nota.jpeg"))
+
+    assert calls["count"] == 1
+    assert first["text"] == second["text"]
+    assert second["vision_image_bytes"] == b"jpeg-preview"
+
+
+def test_extract_text_from_file_does_not_cache_empty_extraction(monkeypatch, tmp_path):
+    calls = {"count": 0}
+
+    async def fake_extract_image(_file_bytes: bytes):
+        calls["count"] += 1
+        return {
+            "text": "",
+            "pages": 1,
+            "structured_data": None,
+            "format": "IMAGE_OCR",
+        }
+
+    monkeypatch.setattr(ocr_service, "_ocr_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(ocr_service, "_extract_image", fake_extract_image)
+
+    file_bytes = b"fake-empty-image"
+
+    first = asyncio.run(ocr_service.extract_text_from_file(file_bytes, "nota.jpeg"))
+    second = asyncio.run(ocr_service.extract_text_from_file(file_bytes, "nota.jpeg"))
+
+    assert first["text"] == ""
+    assert second["text"] == ""
+    assert calls["count"] == 2

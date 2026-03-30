@@ -195,7 +195,6 @@ export default function DocumentDetail() {
   const [selectedErrorCodes, setSelectedErrorCodes] = useState<string[]>([])
   const [selectedLineNumbers, setSelectedLineNumbers] = useState<number[]>([])
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
-  const [showSecondaryActions, setShowSecondaryActions] = useState(false)
   const lastVisibilityReloadRef = useRef(0)
   const loadRequestSeqRef = useRef(0)
 
@@ -288,7 +287,6 @@ export default function DocumentDetail() {
     setSelectedErrorCodes([])
     setSelectedLineNumbers([])
     setSelectedColumns([])
-    setShowSecondaryActions(false)
   }, [doc?.id])
 
   const resetSelectiveFilters = () => {
@@ -387,10 +385,6 @@ export default function DocumentDetail() {
     navigate(`../upload?reimport=clean&documentId=${doc.id}&fresh=1`)
   }
 
-  const openNewUpload = () => {
-    navigate('../upload?fresh=1')
-  }
-
   const handleSaveDailyLog = async () => {
     if (!id) return
     setSavingDailyLog(true)
@@ -484,7 +478,7 @@ export default function DocumentDetail() {
   const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && routingReadyForSave && (!requiresConfirmedSave || confirmedDataReady)
   const docCategory = getDocCategory(doc, sheets)
   const simpleFlowEnabled = canSaveDocument(doc) && docCategory !== 'recipe' && docCategory !== 'daily_log'
-  const advancedActionsVisible = !simpleFlowEnabled || showSecondaryActions
+  const advancedActionsVisible = !simpleFlowEnabled
   const canEditScalars = !Array.isArray((doc.datos_extraidos as Record<string, unknown> | undefined)?.filas)
   const flowCurrentStep = isSaved
     ? 4
@@ -502,17 +496,25 @@ export default function DocumentDetail() {
         : !routingReadyForSave
           ? 'Faltan datos para poder guardar'
           : doc.estado === 'REVIEW'
-            ? 'Revisa y confirma los datos'
+            ? 'Revisa el resultado'
             : 'Documento listo para revisión'
   const flowDescription = isSaved
     ? 'El flujo terminó correctamente. Si hace falta, puedes volver a procesarlo.'
     : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
       ? 'No necesitas hacer nada ahora. Espera a que termine el análisis automático.'
       : saveEnabled
-        ? 'La extracción ya está validada y puedes guardar con un solo paso.'
+        ? 'Si el resultado te sirve, ya puedes guardarlo.'
         : !routingReadyForSave
           ? 'Completa o corrige los campos obligatorios antes del guardado final.'
-          : 'Confirma los datos detectados antes de continuar con el guardado.'
+          : 'Si el resultado te sirve, acéptalo. Si no, vuelve a importarlo.'
+  const flowBlockingSummary = missingFieldLabels.length === 1
+    ? `Falta 1 dato obligatorio: ${missingFieldLabels[0]}.`
+    : missingFieldLabels.length > 1
+      ? `Faltan ${missingFieldLabels.length} datos obligatorios: ${missingFieldLabels.join(', ')}.`
+      : 'Corrige los datos obligatorios antes del guardado final.'
+  const flowSupportLabel = confPct != null
+    ? `Resultado provisional · confianza ${confPct}%`
+    : 'Resultado provisional'
   const activeSheetRows = (() => {
     if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
       return filasPorHoja[activeSheet]
@@ -735,15 +737,6 @@ export default function DocumentDetail() {
             </button>
           )}
 
-          {simpleFlowEnabled && (
-            <button
-              onClick={() => setShowSecondaryActions((current) => !current)}
-              style={{ ...actionBtn, background: showSecondaryActions ? '#334155' : '#64748B' }}
-            >
-              {showSecondaryActions ? 'Ocultar opciones' : 'Más opciones'}
-            </button>
-          )}
-
           {/* DAILY LOG */}
           {docCategory === 'daily_log' && (
             <>
@@ -845,12 +838,19 @@ export default function DocumentDetail() {
               <div style={flowEyebrow}>Flujo simple</div>
               <h3 style={{ margin: '0.35rem 0 0', fontSize: 22, lineHeight: 1.15 }}>{flowTitle}</h3>
               <p style={{ margin: '0.5rem 0 0', fontSize: 14, color: '#334155' }}>
-                {(saveEnabled || !routingReadyForSave) && routingDecision?.reason ? routingDecision.reason : flowDescription}
+                {!routingReadyForSave
+                  ? flowBlockingSummary
+                  : ((saveEnabled || !routingReadyForSave) && routingDecision?.reason ? routingDecision.reason : flowDescription)}
               </p>
+              {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                  {flowSupportLabel}
+                </div>
+              )}
               {!routingReadyForSave && reviewHints.length > 0 && (
                 <div style={{ marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid #FDE68A', background: '#FFFBEB' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
-                    Revisa solo esto antes de continuar
+                    Corrige solo esto para poder guardar
                   </div>
                   <div style={{ display: 'grid', gap: 6 }}>
                     {reviewHints.slice(0, 3).map((hint) => (
@@ -865,27 +865,21 @@ export default function DocumentDetail() {
                 </div>
               )}
             </div>
-            {!showSecondaryActions && (
-              <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
+            <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {!isSaved && doc.estado === 'REVIEW' && !saveEnabled && (
+                {!isSaved && !routingReadyForSave && canEditScalars && (
+                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>
+                    Corregir datos
+                  </button>
+                )}
+                {!isSaved && doc.estado === 'REVIEW' && !saveEnabled && routingReadyForSave && (
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
-                    {saving ? t('docDetail.buttons.confirming') : 'Confirmar y continuar'}
+                    {saving ? t('docDetail.buttons.confirming') : 'Usar este resultado'}
                   </button>
                 )}
                 {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
                   <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.9 }}>
-                    Volver a importar
-                  </button>
-                )}
-                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
-                  <button onClick={openNewUpload} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>
-                    Subir otro archivo
-                  </button>
-                )}
-                {!isSaved && !routingReadyForSave && canEditScalars && (
-                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>
-                    Revisar prioritarios
+                    Rehacer este documento
                   </button>
                 )}
                 {!isSaved && saveEnabled && (
@@ -896,17 +890,16 @@ export default function DocumentDetail() {
                 </div>
                 {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
                   <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
-                    Volver a importar rehace este mismo documento. Subir otro archivo crea una carga nueva. Si ya habia aprendizaje confirmado reciente, el sistema puede reanalizar este archivo automaticamente.
+                    Rehacer este documento vuelve a procesar este mismo caso desde cero.
                   </div>
                 )}
               </div>
-            )}
           </div>
           <div style={flowStepsWrap}>
             {[
               { step: 1, label: 'Carga' },
               { step: 2, label: 'Espera' },
-              { step: 3, label: 'Confirma' },
+              { step: 3, label: 'Revisa' },
               { step: 4, label: 'Guarda' },
             ].map((item) => {
               const isActive = item.step === flowCurrentStep
@@ -931,7 +924,7 @@ export default function DocumentDetail() {
       )}
 
       {/* Confidence warning */}
-      {needsHumanReview && confPct != null && confPct < 85 && (
+      {!simpleFlowEnabled && needsHumanReview && confPct != null && confPct < 85 && (
         <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, marginBottom: '1rem', fontSize: 14 }}>
           ⚠️ <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
           {routingDecision?.reason && <span style={{ display: 'block', marginTop: 6, fontWeight: 400 }}>{routingDecision.reason}</span>}
@@ -963,11 +956,8 @@ export default function DocumentDetail() {
                     </span>
                   )}
                 </div>
-                {routingDecision.reason && <div style={{ fontSize: 13, color: '#334155' }}>{routingDecision.reason}</div>}
-                {missingFieldLabels.length > 0 && (
-                  <div style={{ marginTop: 6, fontSize: 12, color: '#92400e' }}>
-                    Faltan: {missingFieldLabels.join(', ')}
-                  </div>
+                {routingDecision.reason && routingReadyForSave && (
+                  <div style={{ fontSize: 13, color: '#334155' }}>{routingDecision.reason}</div>
                 )}
               </div>
             )}
@@ -1007,11 +997,6 @@ export default function DocumentDetail() {
               </p>
             )}
             {doc.fecha_documento && <p><strong>Fecha:</strong> {doc.fecha_documento}</p>}
-            {!routingReadyForSave && (
-              <p style={{ color: '#92400e', marginBottom: 0 }}>
-                <strong>Guardar bloqueado:</strong> completa o corrige los campos obligatorios antes de guardar.
-              </p>
-            )}
           </div>
           {doc.error_detalle && (
             <div style={{ ...section, background: '#FEF2F2', border: '1px solid #FECACA' }}>
