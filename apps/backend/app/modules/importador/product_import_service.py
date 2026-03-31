@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.core.products import Product
@@ -334,12 +335,31 @@ def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float
         db.add(warehouse)
         db.flush()
 
+    pending_stock_item = next(
+        (
+            item
+            for item in db.new
+            if isinstance(item, StockItem)
+            and item.tenant_id == tenant_id
+            and item.warehouse_id == warehouse.id
+            and str(item.product_id) == str(product_id)
+            and item.lot is None
+            and item.expires_at is None
+        ),
+        None,
+    )
+    if pending_stock_item is not None:
+        pending_stock_item.qty = qty
+        return
+
     stock_item = (
         db.execute(
             select(StockItem).where(
                 StockItem.tenant_id == tenant_id,
                 StockItem.warehouse_id == warehouse.id,
                 StockItem.product_id == product_id,
+                StockItem.lot.is_(None),
+                StockItem.expires_at.is_(None),
             )
         )
         .scalars()
@@ -350,14 +370,36 @@ def _upsert_stock_item(db: Session, tenant_id: UUID, product_id: str, qty: float
         stock_item.qty = qty
         db.add(stock_item)
     else:
-        db.add(
-            StockItem(
-                tenant_id=tenant_id,
-                warehouse_id=warehouse.id,
-                product_id=product_id,
-                qty=qty,
-            )
+        stock_item = StockItem(
+            tenant_id=tenant_id,
+            warehouse_id=warehouse.id,
+            product_id=product_id,
+            qty=qty,
+            lot=None,
+            expires_at=None,
         )
+        try:
+            with db.begin_nested():
+                db.add(stock_item)
+                db.flush()
+        except IntegrityError:
+            stock_item = (
+                db.execute(
+                    select(StockItem).where(
+                        StockItem.tenant_id == tenant_id,
+                        StockItem.warehouse_id == warehouse.id,
+                        StockItem.product_id == product_id,
+                        StockItem.lot.is_(None),
+                        StockItem.expires_at.is_(None),
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if stock_item is None:
+                raise
+            stock_item.qty = qty
+            db.add(stock_item)
 
 
 def save_product_candidates(

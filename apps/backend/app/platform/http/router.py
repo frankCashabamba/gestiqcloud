@@ -276,6 +276,10 @@ def build_api_router() -> APIRouter:
     )
     # Sales
     include_router_safe(r, ("app.modules.sales.interface.http.tenant", "router"), prefix="/tenant")
+    # Promotions
+    include_router_safe(
+        r, ("app.modules.sales.interface.http.promotions", "router"), prefix="/tenant"
+    )
     include_router_safe(
         r,
         ("app.modules.sales.interface.http.tenant", "deliveries_router"),

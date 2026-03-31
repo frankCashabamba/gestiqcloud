@@ -11,11 +11,19 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.modules.products.interface.http.tenant import (
+    _generate_next_sku,
+    _normalize_category_name,
+    _resolve_category_id,
+)
+
 PACK_UNIT_PATTERN = re.compile(
     r"(?<![a-z0-9])(\d+(?:[.,]\d+)?)\s*(kg|kilos?|kilogramos?|g|gr|gramos?|"
     r"lb|lbs|libras?|oz|onzas?|ton|toneladas?|l|lt|ltr|litros?|ml|mililitros?)\b",
     re.IGNORECASE,
 )
+
+DEFAULT_NEW_PRODUCT_CATEGORY = "General"
 
 
 def _norm_import_text(value: str) -> str:
@@ -28,6 +36,15 @@ def _norm_import_text(value: str) -> str:
 def _strip_pack_tokens(value: str) -> str:
     stripped = PACK_UNIT_PATTERN.sub(" ", str(value or ""))
     return _norm_import_text(stripped)
+
+
+def _has_meaningful_match_text(value: str) -> bool:
+    tokens = [token for token in _norm_import_text(value).split(" ") if token]
+    if not tokens:
+        return False
+    if any(any(ch.isalpha() for ch in token) and len(token) >= 3 for token in tokens):
+        return True
+    return len(tokens) >= 2 and sum(len(token) for token in tokens) >= 6
 
 
 def _infer_pack_conversion_factor(description: str, product_unit: str | None) -> float:
@@ -93,19 +110,35 @@ def _create_product_from_line(
 ):
     """Create a new product from an invoice line and return it.
 
-    The product is marked as raw material (is_raw_material=True) with the
-    initial stock from the invoice quantity.
+    Stock starts at zero because the purchase receipt flow will post the
+    inventory movement and update the aggregate stock once.
     """
     from app.models.core.products import Product
 
+    category_name = _normalize_category_name(DEFAULT_NEW_PRODUCT_CATEGORY)
+    category_id = _resolve_category_id(db, tenant_id, category_name) if category_name else None
+    sku = _generate_next_sku(db, tenant_id, category_name)
+    normalized_description = description.strip()[:255]
+    initial_price = unit_price if unit_price > 0 else 0.0
+
     product = Product(
         tenant_id=tenant_id,
-        name=description.strip()[:255],
+        sku=sku,
+        name=normalized_description,
+        description=normalized_description,
+        price=initial_price,
         cost_price=unit_price if unit_price > 0 else None,
-        stock=initial_stock,
+        stock=0,
         unit="uds",
         active=True,
-        is_raw_material=True,
+        is_raw_material=False,
+        category_id=category_id,
+        product_metadata={
+            "import_source": "supplier_invoice_line_create_new",
+            "source_description": normalized_description,
+            "source_initial_unit_cost": unit_price if unit_price > 0 else None,
+            "source_initial_qty": initial_stock if initial_stock > 0 else None,
+        },
     )
     db.add(product)
     db.flush()
@@ -166,15 +199,25 @@ def _score_product_candidate(description: str, product) -> tuple[float, str | No
 
     product_name = _norm_import_text(getattr(product, "name", ""))
     product_core = _strip_pack_tokens(getattr(product, "name", ""))
+    product_name_meaningful = _has_meaningful_match_text(product_name)
+    product_core_meaningful = _has_meaningful_match_text(product_core)
     if product_name == desc_norm and 0.93 > best_score:
         best_score = 0.93
         best_reason = "name_exact"
         best_factor = inferred_factor
-    if desc_core and product_core and desc_core == product_core and 0.91 > best_score:
+    if (
+        desc_core
+        and product_core
+        and product_core_meaningful
+        and desc_core == product_core
+        and 0.91 > best_score
+    ):
         best_score = 0.91
         best_reason = "core_exact"
         best_factor = inferred_factor
     if (
+        product_name_meaningful
+        and
         product_name
         and (desc_norm in product_name or product_name in desc_norm)
         and 0.84 > best_score
@@ -183,6 +226,8 @@ def _score_product_candidate(description: str, product) -> tuple[float, str | No
         best_reason = "name_partial"
         best_factor = inferred_factor
     if (
+        product_core_meaningful
+        and
         desc_core
         and product_core
         and (desc_core in product_core or product_core in desc_core)

@@ -68,8 +68,8 @@ async def suggest_fix(incident_id: UUID, db: Session) -> dict[str, Any]:
     prompt = f"""
 Genera código Python para resolver esta incidencia:
 
-Tipo: {incident.tipo}
-Título: {incident.titulo}
+Tipo: {incident.type}
+Título: {incident.title}
 Descripción: {incident.description}
 Stack Trace: {incident.stack_trace}
 
@@ -114,7 +114,7 @@ async def auto_resolve_incident(incident_id: UUID, db: Session) -> dict[str, Any
     if not incident:
         raise ValueError(f"Incident {incident_id} no encontrado")
 
-    if incident.severidad == "critical":
+    if incident.severity == "critical":
         return {
             "success": False,
             "error": "No se auto-resuelven incidencias críticas por seguridad",
@@ -122,7 +122,7 @@ async def auto_resolve_incident(incident_id: UUID, db: Session) -> dict[str, Any
         }
 
     incident.auto_resolved = True
-    incident.estado = "resolved"
+    incident.status = "resolved"
     incident.resolved_at = datetime.now(UTC)
     db.commit()
 
@@ -144,9 +144,9 @@ def _build_analysis_prompt(incident: Incident, include_code: bool) -> str:
     prompt = f"""
 Eres un experto en diagnóstico de errores de software. Analiza esta incidencia:
 
-TIPO: {incident.tipo}
-SEVERIDAD: {incident.severidad}
-TÍTULO: {incident.titulo}
+TIPO: {incident.type}
+SEVERIDAD: {incident.severity}
+TÍTULO: {incident.title}
 DESCRIPCIÓN: {incident.description or "N/A"}
 
 STACK TRACE:
@@ -172,8 +172,8 @@ Retorna análisis en formato JSON con:
 def _mock_analysis_response(incident: Incident) -> str:
     """Genera respuesta mock cuando no hay proveedor IA disponible"""
     analysis = {
-        "root_cause": f"Error en módulo relacionado con {incident.tipo}",
-        "severity_justification": f"Severidad {incident.severidad} basada en impacto potencial",
+        "root_cause": f"Error en módulo relacionado con {incident.type}",
+        "severity_justification": f"Severidad {incident.severity} basada en impacto potencial",
         "impact": "Impacto en funcionalidad del sistema (análisis mock)",
         "recommended_actions": [
             "Revisar logs detallados",

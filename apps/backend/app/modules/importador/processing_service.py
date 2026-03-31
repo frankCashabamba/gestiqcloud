@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
-from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -21,7 +21,9 @@ from .auto_recipe import (
 )
 from .canonical_document import build_document_projection
 from .category_loader import get_doc_categories
+from .classifier_learning import learn_from_confirmation as _classifier_learn
 from .field_alias_loader import get_canonical_fields, get_field_aliases
+from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
     load_doc_type_patterns,
@@ -269,29 +271,70 @@ async def _process_upload_like_document(
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
 
-    if cached_analysis:
+    # ── Pre-classification: attempt to resolve doc_type without AI ──────────────
+    _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
+    _pre_cfg = load_pre_classifier_config(db)
+    _structured_skip_threshold = float(_pre_cfg.get("structured_skip_threshold", 0.75))
+
+    pre_class: PreClassResult | None = classify_before_ai(
+        db=db,
+        filename=filename,
+        headers_norm=headers_norm,
+        field_aliases=_field_aliases_for_pre,
+        cached_analysis=cached_analysis,
+        config=_pre_cfg,
+    )
+
+    if pre_class and pre_class.skip_ai:
+        # L1: Snapshot cache — full result, no AI call
         analysis = {
-            **cached_analysis,
+            **(pre_class.cached_analysis or {}),
             "fields": {},
             "is_table": True,
             "columns": [],
-            "model_used": "snapshot-cache",
+            "model_used": f"pre-classifier/{pre_class.layer}",
             "prompt_sent": "",
-            "raw_response": "snapshot-cache",
+            "raw_response": pre_class.reasoning,
+        }
+    elif pre_class and has_structured and pre_class.confidence >= _structured_skip_threshold:
+        # L2/L3: Structured doc with confident pre-classification — skip CLASSIFICATION AI call
+        analysis = {
+            "doc_type": pre_class.doc_type,
+            "confidence": pre_class.confidence,
+            "reasoning": pre_class.reasoning,
+            "is_table": True,
+            "columns": headers_display,
+            "fields": {},
+            "model_used": f"pre-classifier/{pre_class.layer}",
+            "prompt_sent": "",
+            "raw_response": pre_class.reasoning,
         }
     else:
+        # Inject pre-classifier hint so AI skips classification guesswork
+        _rc_for_ai = dict(recipe_config) if recipe_config else {}
+        if pre_class and pre_class.confidence >= 0.65:
+            _rc_for_ai["doc_type_hint"] = pre_class.doc_type
+            _rc_for_ai["doc_type_hint_confidence"] = pre_class.confidence
         analysis = await _analyze_with_context(
             analyze_document_fn=analyze_document_fn,
             content=llm_content,
             filename=filename,
             format_hint=extraction.get("format", tipo_archivo),
             has_structured_rows=has_structured,
-            recipe_config=recipe_config,
+            recipe_config=_rc_for_ai,
             vision_image_bytes=vision_image_bytes,
             fallback_patterns=fallback_patterns,
             canonical_fields=canonical_fields,
             prompt_config=prompt_config,
         )
+
+    # Attach pre-classification metadata for learning at confirm time
+    if pre_class:
+        analysis.setdefault("_pre_class", {
+            "layer": pre_class.layer,
+            "doc_type": pre_class.doc_type,
+            "confidence": pre_class.confidence,
+        })
 
     normalized_analysis = _normalize_analysis_output(analysis)
     tipo_doc = str(normalized_analysis["doc_type"])
@@ -498,6 +541,8 @@ async def _process_upload_like_document(
                 "model": model_used,
                 "signal_learning": signal_learning_meta,
                 "learning_rerun": learning_rerun_summary,
+                "pre_classification": analysis.get("_pre_class"),
+                "headers_norm": headers_norm,
             },
             "analysis": {
                 "prompt": analysis.get("prompt_sent", ""),

@@ -7,29 +7,114 @@ import { API_BASE, API_ENDPOINTS } from '../constants/api'
 
 import type { Incident, StockAlert } from '../types/incidents'
 
+type RawIncident = {
+  id: string
+  tenant_id?: string | null
+  type?: string | null
+  severity?: 'low' | 'medium' | 'high' | 'critical' | null
+  title?: string | null
+  description?: string | null
+  stack_trace?: string | null
+  context?: Record<string, unknown> | null
+  status?: 'open' | 'in_progress' | 'resolved' | 'closed' | null
+  auto_detected?: boolean
+  auto_resolved?: boolean
+  ia_analysis?: string | Record<string, unknown> | null
+  ia_suggestion?: string | null
+  assigned_to?: string | null
+  created_at: string
+  updated_at: string
+  resolved_at?: string | null
+}
+
+type RawStockAlert = {
+  id: string
+  tenant_id: string
+  product_id: string
+  warehouse_id?: string | null
+  current_qty?: number | null
+  threshold_qty?: number | null
+  status?: 'active' | 'acknowledged' | 'resolved' | null
+  created_at: string
+  notified_at?: string | null
+  resolved_at?: string | null
+}
+
+const getAdminToken = () =>
+  (typeof window !== 'undefined' ? sessionStorage.getItem('access_token_admin') : null)
+  || (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null)
+
 const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-  'Content-Type': 'application/json'
+  Authorization: `Bearer ${getAdminToken()}`,
+  'Content-Type': 'application/json',
 })
+
+function normalizeIncident(raw: RawIncident): Incident {
+  return {
+    id: String(raw.id),
+    tenant_id: raw.tenant_id ? String(raw.tenant_id) : undefined,
+    tipo: String(raw.type || ''),
+    severidad: (raw.severity || 'low') as Incident['severidad'],
+    titulo: String(raw.title || ''),
+    description: String(raw.description || ''),
+    estado: (raw.status || 'open') as Incident['estado'],
+    auto_detected: Boolean(raw.auto_detected),
+    auto_resolved: Boolean(raw.auto_resolved),
+    stack_trace: raw.stack_trace || undefined,
+    metadata: (raw.context as Record<string, any> | null) || undefined,
+    ia_analysis: (raw.ia_analysis as Incident['ia_analysis']) || undefined,
+    ia_suggestion: raw.ia_suggestion || undefined,
+    assigned_to: raw.assigned_to || undefined,
+    created_at: raw.created_at,
+    updated_at: raw.updated_at,
+    resolved_at: raw.resolved_at || undefined,
+  }
+}
+
+function normalizeStockAlert(raw: RawStockAlert): StockAlert {
+  return {
+    id: String(raw.id),
+    tenant_id: String(raw.tenant_id),
+    product_id: String(raw.product_id),
+    product_name: String(raw.product_id),
+    warehouse_id: String(raw.warehouse_id || ''),
+    warehouse_name: raw.warehouse_id ? String(raw.warehouse_id) : 'Sin almacén',
+    qty_on_hand: Number(raw.current_qty || 0),
+    min_qty: Number(raw.threshold_qty || 0),
+    estado: (
+      raw.status === 'acknowledged' ? 'notified' : (raw.status || 'active')
+    ) as StockAlert['estado'],
+    detected_at: raw.created_at,
+    notified_at: raw.notified_at || undefined,
+    resolved_at: raw.resolved_at || undefined,
+  }
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`)
+  }
+  return response.json() as Promise<T>
+}
 
 /**
  * Lista incidencias con filtros
  */
-export async function listIncidents(filters: { estado?: string }): Promise<Incident[]> {
+export async function listIncidents(filters: { estado?: string; tenant_id?: string }): Promise<Incident[]> {
   const params = new URLSearchParams()
   if (filters.estado) {
-    params.append('estado', filters.estado)
+    params.append('status', filters.estado)
+  }
+  if (filters.tenant_id) {
+    params.append('tenant_id', filters.tenant_id)
   }
 
-  const response = await fetch(`${API_ENDPOINTS.INCIDENTS.LIST}?${params}`, {
-    headers: getAuthHeaders()
+  const response = await fetch(`${API_ENDPOINTS.INCIDENTS.LIST}?${params.toString()}`, {
+    headers: getAuthHeaders(),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al cargar incidencias')
-  }
-
-  return response.json()
+  const data = await readJson<RawIncident[]>(response)
+  return data.map(normalizeIncident)
 }
 
 /**
@@ -37,117 +122,111 @@ export async function listIncidents(filters: { estado?: string }): Promise<Incid
  */
 export async function getIncident(id: string): Promise<Incident> {
   const response = await fetch(`${API_BASE}/admin/incidents/${id}`, {
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al cargar incidencia')
-  }
-
-  return response.json()
+  const data = await readJson<RawIncident>(response)
+  return normalizeIncident(data)
 }
 
 /**
- * Trigger análisis IA de una incidencia
+ * Trigger análisis IA de una incidencia y devuelve el detalle actualizado
  */
-export async function analyzeIncident(id: string): Promise<void> {
+export async function analyzeIncident(id: string): Promise<Incident> {
   const response = await fetch(`${API_BASE}/admin/incidents/${id}/analyze`, {
     method: 'POST',
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      use_gpt4: false,
+      include_code_suggestions: true,
+    }),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al analizar incidencia')
-  }
+  await readJson(response)
+  return getIncident(id)
 }
 
 /**
- * Auto-resolver incidencia con IA
+ * Auto-resolver incidencia con IA y devuelve el detalle actualizado
  */
-export async function autoResolveIncident(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}/auto-resolve`, {
+export async function autoResolveIncident(id: string): Promise<Incident> {
+  const response = await fetch(`${API_BASE}/admin/incidents/${id}/resolve`, {
     method: 'POST',
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al auto-resolver incidencia')
-  }
+  await readJson(response)
+  return getIncident(id)
 }
 
 /**
  * Asignar incidencia a un usuario
  */
-export async function assignIncident(id: string, userId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}/assign`, {
-    method: 'POST',
+export async function assignIncident(id: string, userId: string): Promise<Incident> {
+  const response = await fetch(`${API_BASE}/admin/incidents/${id}`, {
+    method: 'PUT',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ user_id: userId })
+    body: JSON.stringify({ assigned_to: userId, status: 'in_progress' }),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al asignar incidencia')
-  }
+  const data = await readJson<RawIncident>(response)
+  return normalizeIncident(data)
 }
 
 /**
  * Cerrar incidencia
  */
-export async function closeIncident(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}/close`, {
-    method: 'POST',
-    headers: getAuthHeaders()
+export async function closeIncident(id: string): Promise<Incident> {
+  const response = await fetch(`${API_BASE}/admin/incidents/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ status: 'closed' }),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al cerrar incidencia')
-  }
+  const data = await readJson<RawIncident>(response)
+  return normalizeIncident(data)
 }
 
 /**
  * Lista alertas de stock
  */
-export async function listStockAlerts(filters: { estado?: string }): Promise<StockAlert[]> {
+export async function listStockAlerts(filters: { estado?: string; tenant_id?: string }): Promise<StockAlert[]> {
   const params = new URLSearchParams()
   if (filters.estado) {
-    params.append('estado', filters.estado)
+    params.append('status', filters.estado)
+  }
+  if (filters.tenant_id) {
+    params.append('tenant_id', filters.tenant_id)
   }
 
-  const response = await fetch(`${API_BASE}/admin/stock-alerts?${params}`, {
-    headers: getAuthHeaders()
+  const response = await fetch(`${API_BASE}/admin/incidents/stock-alerts?${params.toString()}`, {
+    headers: getAuthHeaders(),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al cargar alertas de stock')
-  }
-
-  return response.json()
+  const data = await readJson<RawStockAlert[]>(response)
+  return data.map(normalizeStockAlert)
 }
 
 /**
  * Notificar alerta de stock
  */
 export async function notifyStockAlert(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/admin/stock-alerts/${id}/notify`, {
+  const response = await fetch(`${API_BASE}/admin/incidents/stock-alerts/${id}/notify`, {
     method: 'POST',
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al notificar alerta')
-  }
+  await readJson(response)
 }
 
 /**
  * Resolver alerta de stock
  */
 export async function resolveStockAlert(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/admin/stock-alerts/${id}/resolve`, {
+  const response = await fetch(`${API_BASE}/admin/incidents/stock-alerts/${id}/resolve`, {
     method: 'POST',
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(),
   })
 
-  if (!response.ok) {
-    throw new Error('Error al resolver alerta')
-  }
+  await readJson(response)
 }

@@ -590,6 +590,7 @@ app.add_middleware(
 def api_version():
     from app.config.database import SessionLocal
     from app.services.system_defaults_service import get_system_default_text
+
     with SessionLocal() as db:
         version = get_system_default_text(db, "app.version", settings.APP_VERSION)
     return {"version": version}

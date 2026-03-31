@@ -244,7 +244,7 @@ def list_orders(
 def get_order(
     request: Request,
     order_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     db: Session = Depends(get_db),
 ):
@@ -389,7 +389,7 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
 def update_order(
     payload: OrderUpdateIn,
     order_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     request: Request = None,
     db: Session = Depends(get_db),
@@ -480,7 +480,7 @@ class ConfirmIn(BaseModel):
 @router.post("/{order_id}/confirm", response_model=OrderOut)
 def confirm_order(
     order_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     payload: ConfirmIn | None = None,
     request: Request = None,
@@ -671,7 +671,7 @@ class CancelIn(BaseModel):
 @router.put("/{order_id}/cancel", response_model=OrderOut)
 def cancel_order(
     order_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     payload: CancelIn | None = None,
     request: Request = None,

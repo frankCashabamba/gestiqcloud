@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react'
 
 import IncidentDetailModal from '../components/IncidentDetailModal'
+import { useAuth } from '../auth/AuthContext'
 import { useAuthGuard } from '../hooks/useAuthGuard'
 import {
   listIncidents,
@@ -25,6 +26,7 @@ type Tab = 'activas' | 'resueltas' | 'stock_alerts'
 
 export default function IncidenciasPanel() {
   useAuthGuard('superadmin')
+  const { profile } = useAuth()
 
   const [activeTab, setActiveTab] = useState<Tab>('activas')
   const [incidents, setIncidents] = useState<Incident[]>([])
@@ -35,6 +37,15 @@ export default function IncidenciasPanel() {
   useEffect(() => {
     loadData()
   }, [activeTab])
+
+  const upsertIncident = (updated: Incident) => {
+    setIncidents((prev) =>
+      prev.some((item) => item.id === updated.id)
+        ? prev.map((item) => (item.id === updated.id ? updated : item))
+        : [updated, ...prev]
+    )
+    setSelectedIncident((prev) => (prev?.id === updated.id ? updated : prev))
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -56,7 +67,8 @@ export default function IncidenciasPanel() {
 
   const handleAnalyze = async (id: string) => {
     try {
-      await analyzeIncident(id)
+      const updated = await analyzeIncident(id)
+      upsertIncident(updated)
       await loadData()
       alert('✅ Análisis IA completado')
     } catch (error) {
@@ -67,7 +79,8 @@ export default function IncidenciasPanel() {
 
   const handleAutoResolve = async (id: string) => {
     try {
-      await autoResolveIncident(id)
+      const updated = await autoResolveIncident(id)
+      upsertIncident(updated)
       await loadData()
       alert('✅ Incidencia auto-resuelta')
     } catch (error) {
@@ -77,13 +90,14 @@ export default function IncidenciasPanel() {
   }
 
   const handleAssign = async (id: string) => {
-    const userId = localStorage.getItem('user_id') // O desde AuthContext
+    const userId = profile?.user_id
     if (!userId) {
       alert('No se pudo obtener el ID de usuario')
       return
     }
     try {
-      await assignIncident(id, userId)
+      const updated = await assignIncident(id, userId)
+      upsertIncident(updated)
       await loadData()
       alert('✅ Incidencia asignada')
     } catch (error) {
@@ -95,7 +109,8 @@ export default function IncidenciasPanel() {
   const handleClose = async (id: string) => {
     if (!confirm('¿Cerrar esta incidencia?')) return
     try {
-      await closeIncident(id)
+      const updated = await closeIncident(id)
+      upsertIncident(updated)
       await loadData()
       alert('✅ Incidencia cerrada')
     } catch (error) {

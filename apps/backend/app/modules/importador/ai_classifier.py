@@ -356,7 +356,7 @@ def _build_dynamic_fields_prompt(
             '    "currency": "ISO 4217 code or null",\n'
             '    "payment_method": "payment method exactly as printed or null",\n'
             '    "payment_terms": "payment terms exactly as printed or null",\n'
-            '    "line_items": [{"description":"...","quantity":number,"unit_price":number,"total_price":number}] or []'
+            '    "line_items": [{"description":"...","supplier_ref":"supplier reference/code or null","quantity":number,"unit_price":number,"total_price":number}] or []'
         )
 
     lines: list[str] = []
@@ -367,7 +367,7 @@ def _build_dynamic_fields_prompt(
         if custom_description:
             rendered = f'"{custom_description}"'
         elif field_name == "line_items" or field_type == "list":
-            rendered = '[{"description":"...","quantity":number,"unit_price":number,"total_price":number}] or []'
+            rendered = '[{"description":"...","supplier_ref":"supplier reference/code or null","quantity":number,"unit_price":number,"total_price":number}] or []'
         elif field_type == "numeric":
             rendered = "NUMBER or null"
         elif field_type == "date":
@@ -520,9 +520,8 @@ def _extract_amount_candidates_from_line(line: str) -> list[float]:
     combined_spans = [match.span() for match in combined_matches]
     for match in combined_matches:
         start, end = match.span()
-        if (
-            (start > 0 and line[start - 1] == "%")
-            or (end < len(line) and line[end:end + 1] == "%")
+        if (start > 0 and line[start - 1] == "%") or (
+            end < len(line) and line[end : end + 1] == "%"
         ):
             continue
         amount = _parse_amount_token(f"{match.group(1)}.{match.group(2)}")
@@ -536,9 +535,8 @@ def _extract_amount_candidates_from_line(line: str) -> list[float]:
         start, end = match.span()
         if any(start >= c_start and end <= c_end for c_start, c_end in combined_spans):
             continue
-        if (
-            (start > 0 and line[start - 1] == "%")
-            or (end < len(line) and line[end:end + 1] == "%")
+        if (start > 0 and line[start - 1] == "%") or (
+            end < len(line) and line[end : end + 1] == "%"
         ):
             continue
         amount = _parse_amount_token(match.group(0))
@@ -553,9 +551,8 @@ def _extract_money_like_amounts_from_line(line: str) -> list[float]:
     combined_matches = list(re.finditer(r"(?<![\d,.])(\d{1,6})\s+(\d{2})(?![\d,.])", line))
     for match in combined_matches:
         start, end = match.span()
-        if (
-            (start > 0 and line[start - 1] == "%")
-            or (end < len(line) and line[end:end + 1] == "%")
+        if (start > 0 and line[start - 1] == "%") or (
+            end < len(line) and line[end : end + 1] == "%"
         ):
             continue
         amount = _parse_amount_token(f"{match.group(1)}.{match.group(2)}")
@@ -565,14 +562,11 @@ def _extract_money_like_amounts_from_line(line: str) -> list[float]:
     decimal_matches = list(
         re.finditer(r"(?<![\d,.])\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?(?![\d,.])", line)
     )
-    decimal_matches.extend(
-        list(re.finditer(r"(?<![\d,.])\d+[.,]\d{2}(?![\d,.])", line))
-    )
+    decimal_matches.extend(list(re.finditer(r"(?<![\d,.])\d+[.,]\d{2}(?![\d,.])", line)))
     for match in decimal_matches:
         start, end = match.span()
-        if (
-            (start > 0 and line[start - 1] == "%")
-            or (end < len(line) and line[end:end + 1] == "%")
+        if (start > 0 and line[start - 1] == "%") or (
+            end < len(line) and line[end : end + 1] == "%"
         ):
             continue
         amount = _parse_amount_token(match.group(0))
@@ -594,7 +588,11 @@ def _extract_labeled_amount(content: str, field_name: str) -> float | None:
             continue
         line_lower = line.lower()
         match_info = next(
-            ((label, pattern.search(line_lower)) for label, pattern in label_patterns if pattern.search(line_lower)),
+            (
+                (label, pattern.search(line_lower))
+                for label, pattern in label_patterns
+                if pattern.search(line_lower)
+            ),
             None,
         )
         if match_info is None:
@@ -609,7 +607,7 @@ def _extract_labeled_amount(content: str, field_name: str) -> float | None:
         if field_name == "total_amount" and matched_label == "total" and "%" in line_lower:
             continue
 
-        segment = line[matched.end():].strip() or line
+        segment = line[matched.end() :].strip() or line
         for amount in reversed(_extract_amount_candidates_from_line(segment)):
             candidates.append(amount)
             break
@@ -690,7 +688,8 @@ def _apply_high_evidence_ocr_repairs(
     ocr_issue_date = _extract_issue_date_from_ocr(content)
 
     if quality["score"] < _ocr_quality_threshold() and not any(
-        value is not None for value in (labeled_total, labeled_subtotal, labeled_tax, ocr_issue_date)
+        value is not None
+        for value in (labeled_total, labeled_subtotal, labeled_tax, ocr_issue_date)
     ):
         return
 
@@ -718,30 +717,31 @@ def _apply_high_evidence_ocr_repairs(
             except (TypeError, ValueError):
                 pass
     if labeled_subtotal is not None and (
-        current_subtotal in (None, "")
-        or not _numeric_evidence(text_digits, current_subtotal)
+        current_subtotal in (None, "") or not _numeric_evidence(text_digits, current_subtotal)
     ):
         fields["subtotal"] = labeled_subtotal
-    elif labeled_subtotal is None and current_subtotal not in (None, "") and not _numeric_evidence(
-        text_digits, current_subtotal
+    elif (
+        labeled_subtotal is None
+        and current_subtotal not in (None, "")
+        and not _numeric_evidence(text_digits, current_subtotal)
     ):
         fields["subtotal"] = None
 
     current_tax = fields.get("tax_amount")
     if labeled_tax is not None and (
-        current_tax in (None, "")
-        or not _numeric_evidence(text_digits, current_tax)
+        current_tax in (None, "") or not _numeric_evidence(text_digits, current_tax)
     ):
         fields["tax_amount"] = labeled_tax
-    elif labeled_tax is None and current_tax not in (None, "") and not _numeric_evidence(
-        text_digits, current_tax
+    elif (
+        labeled_tax is None
+        and current_tax not in (None, "")
+        and not _numeric_evidence(text_digits, current_tax)
     ):
         fields["tax_amount"] = None
 
     issue_date = fields.get("issue_date")
     if ocr_issue_date and (
-        issue_date in (None, "")
-        or not _numeric_evidence(text_digits, issue_date)
+        issue_date in (None, "") or not _numeric_evidence(text_digits, issue_date)
     ):
         fields["issue_date"] = ocr_issue_date
 
@@ -883,7 +883,7 @@ async def _analyze_with_vision(
         "- doc_number: use the FULL number with series/sequence as printed.\n"
         "- customer: read the ACTUAL customer name, not the field label.\n"
         "- payment_method/payment_terms: extract them when the document shows them.\n"
-        "- line_items: only list actual PRODUCTS, not the customer name.\n"
+        "- line_items: only list actual PRODUCTS, not the customer name. Include supplier_ref if the document has a reference/code column (e.g. Ref., SKU, Cod., Art.).\n"
         "- Tax IDs: digits only, no slashes or special characters.\n"
         "- Do NOT invent data absent from the document. Use null for missing fields."
     )
@@ -1073,10 +1073,19 @@ async def analyze_document(
     )
     critical_rules_text = "\n".join(f"- {rule}" for rule in configured_rules)
 
+    _doc_type_hint = rc.get("doc_type_hint")
+    _hint_line = (
+        f"HINT: Pre-classified as {_doc_type_hint} "
+        f"(confidence={rc.get('doc_type_hint_confidence', 0):.2f}). "
+        "Confirm or override based on content.\n"
+        if _doc_type_hint
+        else ""
+    )
     user_prompt = (
         f"{tabular_note}"
         f"File: {filename} | Format: {format_hint}\n"
-        f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n\n"
+        f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n"
+        f"{_hint_line}\n"
         f"Content:\n{content[:content_limit]}\n\n"
         "Analyze the document and respond ONLY with valid JSON:\n"
         "{\n"

@@ -23,7 +23,17 @@ export default function UploadPage() {
   }
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 1080, display: 'grid', gap: '1rem' }}>
+    <div
+      style={{
+        padding: '1.5rem',
+        width: '100%',
+        maxWidth: 1080,
+        margin: '0 auto',
+        display: 'grid',
+        gap: '1rem',
+        boxSizing: 'border-box',
+      }}
+    >
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => navigate('../documents')}

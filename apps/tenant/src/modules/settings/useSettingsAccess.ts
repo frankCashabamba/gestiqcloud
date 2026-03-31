@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import { getLimites } from './services'
+import { isBakeryOperativeSector } from './sectorRules'
 
 export type SettingsSection =
   | 'general'
@@ -51,7 +52,6 @@ const ROLE_ACCESS: Record<string, AccessMap> = {
 }
 
 const ADMIN_ONLY_SECTIONS = new Set<SettingsSection>(['modulos', 'avanzado'])
-
 function normalizeRole(value?: string) {
   return (value || '').trim().toLowerCase()
 }

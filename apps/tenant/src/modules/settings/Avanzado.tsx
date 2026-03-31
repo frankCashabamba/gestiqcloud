@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import tenantApi from '../../shared/api/client'
+import { useCompanySector } from '../../contexts/CompanyConfigContext'
 import { clearCompanySettingsCache, getCompanySettings } from '../../services/companySettings'
 import { listRecipes, type Recipe } from '../../services/api/recetas'
 import { getErrorMessage, useToast } from '../../shared/toast'
 import { useSettingsAccess } from './useSettingsAccess'
+import { isBakeryOperativeSector } from './sectorRules'
 import { NUMBERING_DEFAULTS, resetToDefaults } from '../../constants/defaults'
 import { useDocTypes } from '../../hooks/useGlobalCatalogs'
 import {
@@ -65,7 +67,9 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
     const { t } = useTranslation(['settings', 'common'])
     const { success, error } = useToast()
     const { isCompanyAdmin } = useSettingsAccess()
+    const sector = useCompanySector()
     const isAdminView = variant === 'admin'
+    const showBakeryBulkPricing = !isAdminView && isBakeryOperativeSector(sector?.plantilla)
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [locale, setLocale] = useState('')
@@ -215,9 +219,11 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
         void loadSettings()
         if (variant !== 'admin') {
             void loadNumbering()
-            void loadProducts()
+            if (showBakeryBulkPricing) {
+                void loadProducts()
+            }
         }
-    }, [variant])
+    }, [showBakeryBulkPricing, variant])
 
     useEffect(() => {
         if (shouldAutoSaveBulk.current) {
@@ -415,7 +421,6 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                             </div>
                         </div>
                     </section>
-
                     <section className="border rounded-lg p-4 mb-6">
                         <h3 className="font-semibold mb-3">{t('settings:advanced.inventory')}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -466,7 +471,6 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                             </div>
                         </div>
                     </section>
-
                     <section className="border rounded-lg p-4 mb-6">
                         <h3 className="font-semibold mb-3">POS</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -555,6 +559,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                         </div>
                     </section>
 
+                    {showBakeryBulkPricing && (
                     <section className="border rounded-lg p-4 mb-6">
                         <h3 className="font-semibold mb-3">Venta por Cantidad (Panadería)</h3>
                         <p className="text-sm text-gray-600 mb-4">
@@ -763,6 +768,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                             </table>
                         </div>
                     </section>
+                    )}
 
                     <section className="border rounded-lg p-4 mb-6">
                         <h3 className="font-semibold mb-3">Numeracion</h3>

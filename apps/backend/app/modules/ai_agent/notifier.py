@@ -33,22 +33,22 @@ async def send_notification(
         body = _build_stock_alert_message(alert)
         recipient = _get_default_recipient(channel)
     elif incident:
-        subject = f"[INCIDENCIA {incident.severidad.upper()}] {incident.titulo}"
+        subject = f"[INCIDENCIA {incident.severity.upper()}] {incident.title}"
         body = _build_incident_message(incident)
         recipient = _get_default_recipient(channel)
 
     # Enviar según tipo de canal
     try:
-        if channel.tipo == "email":
+        if channel.channel_type == "email":
             result = await _send_email(channel, recipient, subject, body)
-        elif channel.tipo == "whatsapp":
+        elif channel.channel_type == "whatsapp":
             result = await _send_whatsapp(channel, recipient, body)
-        elif channel.tipo == "telegram":
+        elif channel.channel_type == "telegram":
             result = await _send_telegram(channel, recipient, body)
-        elif channel.tipo == "slack":
+        elif channel.channel_type == "slack":
             result = await _send_slack(channel, subject, body)
         else:
-            raise ValueError(f"Tipo de canal no soportado: {channel.tipo}")
+            raise ValueError(f"Tipo de canal no soportado: {channel.channel_type}")
 
         # Registrar en log
         log_entry = NotificationLog(
@@ -56,13 +56,13 @@ async def send_notification(
             channel_id=channel.id,
             incident_id=incident.id if incident else None,
             stock_alert_id=alert.id if alert else None,
-            tipo=channel.tipo,
+            notification_type=channel.channel_type,
             recipient=recipient,
             subject=subject,
             body=body,
             status="sent",
             sent_at=datetime.now(UTC),
-            metadata=result,
+            extra_data=result,
         )
         db.add(log_entry)
         db.commit()
@@ -80,7 +80,7 @@ async def send_notification(
             channel_id=channel.id,
             incident_id=incident.id if incident else None,
             stock_alert_id=alert.id if alert else None,
-            tipo=channel.tipo,
+            notification_type=channel.channel_type,
             recipient=recipient,
             subject=subject,
             body=body,
@@ -291,14 +291,14 @@ def _build_incident_message(incident: Incident) -> str:
     return f"""
 ⚠️ INCIDENCIA DETECTADA
 
-Severidad: {incident.severidad.upper()}
-Tipo: {incident.tipo}
-Título: {incident.titulo}
+Severidad: {incident.severity.upper()}
+Tipo: {incident.type}
+Título: {incident.title}
 
 Descripción:
 {incident.description or "N/A"}
 
-{"🔴 CRÍTICO - Revisar inmediatamente" if incident.severidad == "critical" else ""}
+{"🔴 CRÍTICO - Revisar inmediatamente" if incident.severity == "critical" else ""}
 
 ID: {incident.id}
 Fecha: {incident.created_at.strftime("%Y-%m-%d %H:%M:%S")}
@@ -309,13 +309,13 @@ def _get_default_recipient(channel: NotificationChannel) -> str:
     """Obtiene destinatario por defecto del canal"""
     config = channel.config
 
-    if channel.tipo == "email":
+    if channel.channel_type == "email":
         return config.get("default_recipient", "admin@example.com")
-    elif channel.tipo == "whatsapp":
+    elif channel.channel_type == "whatsapp":
         return config.get("phone", "+1234567890")
-    elif channel.tipo == "telegram":
+    elif channel.channel_type == "telegram":
         return config.get("chat_id", "mock_chat_id")
-    elif channel.tipo == "slack":
+    elif channel.channel_type == "slack":
         return config.get("channel", "#alerts")
 
     return "unknown"

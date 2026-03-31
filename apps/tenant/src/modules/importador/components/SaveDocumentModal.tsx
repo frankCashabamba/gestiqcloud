@@ -18,6 +18,7 @@ import {
 type SaveDocumentModalProps = {
   doc: Documento | null
   open: boolean
+  resumeMode?: boolean
   onClose: () => void
   onSaved?: (result: SaveDocumentResult) => void
 }
@@ -215,6 +216,7 @@ function buildInferredDefaults(
 
 function getMatchReasonLabel(reason: string | null | undefined): string {
   switch (reason) {
+    case 'create_new': return 'Crear producto nuevo'
     case 'manual': return 'Seleccion manual'
     case 'alias_exact': return 'Alias exacto'
     case 'alias': return 'Alias sugerido'
@@ -227,7 +229,7 @@ function getMatchReasonLabel(reason: string | null | undefined): string {
   }
 }
 
-export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveDocumentModalProps) {
+export default function SaveDocumentModal({ doc, open, resumeMode = false, onClose, onSaved }: SaveDocumentModalProps) {
   const [destination, setDestination] = useState<'recipe' | 'expense' | 'supplier_invoice'>('expense')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<DocumentPaymentStatus>('pending')
@@ -354,9 +356,13 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
   const canSaveInvoice = capabilities.purchases || capabilities.invoicing
   const canSaveExpense = capabilities.expenses !== false
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
-  const reviewTitle = routingDecision?.required_fields_ok ? 'Listo para guardar' : 'Revisa antes de guardar'
-  const reviewSummary = routingDecision?.reason
-    || 'Verifica el resultado y usa opciones avanzadas solo si necesitas cambiar el destino o completar datos.'
+  const reviewTitle = resumeMode
+    ? 'Completar stock pendiente'
+    : (routingDecision?.required_fields_ok ? 'Listo para guardar' : 'Revisa antes de guardar')
+  const reviewSummary = resumeMode
+    ? 'La compra ya existe. Solo se mostrara este paso si aun quedan lineas sin producto para actualizar stock.'
+    : (routingDecision?.reason
+      || 'Verifica el resultado y usa opciones avanzadas solo si necesitas cambiar el destino o completar datos.')
   const destinationTitle = destination === 'supplier_invoice'
     ? 'Factura proveedor'
     : destination === 'recipe'
@@ -379,9 +385,15 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
         inferred_factor: 1,
         candidates: [],
       }))
+  const isLineResolved = (lineIndex: number) => {
+    const selectedId = lineMatchSelection[lineIndex]
+    return (
+      (typeof selectedId === 'string' && selectedId.trim().length > 0)
+      || createNewByLine[lineIndex] === true
+    )
+  }
   const matchedLines = effectiveLineMatches.filter((row) => {
-    const selectedId = lineMatchSelection[row.line_index]
-    return typeof selectedId === 'string' && selectedId.trim().length > 0
+    return isLineResolved(row.line_index)
   }).length
   const unmatchedLines = Math.max(effectiveLineMatches.length - matchedLines, 0)
 
@@ -480,7 +492,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
 
       const result = await saveDocument(doc.id, payload)
       onSaved?.(result)
-      if (result.message && updateStock && canUpdateStock) {
+      if (result.message) {
         setSaveMessage(result.message)
       } else {
         onClose()
@@ -501,7 +513,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
       <div style={modal}>
         <div style={header}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Guardar documento</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{resumeMode ? 'Completar stock pendiente' : 'Guardar documento'}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{doc.nombre_archivo}</div>
           </div>
           <button onClick={onClose} style={closeBtn} disabled={saving}>X</button>
@@ -625,7 +637,7 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: unmatchedLines > 0 ? '#92400e' : '#166534', fontWeight: 600 }}>
-                  {matchedLines}/{effectiveLineMatches.length} lineas vinculadas
+                  {matchedLines}/{effectiveLineMatches.length} lineas resueltas
                 </div>
               </div>
 
@@ -644,12 +656,13 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
                     <tbody>
                       {effectiveLineMatches.map((row) => {
                         const selectedId = lineMatchSelection[row.line_index] || ''
+                        const isCreateNew = !selectedId && createNewByLine[row.line_index] === true
                         const selectedCandidate = row.candidates.find((candidate) => candidate.product_id === selectedId)
                         const selectedReason = selectedId
                           ? (selectedId === row.selected_product_id
                               ? row.selected_reason
                               : selectedCandidate?.reason || 'manual')
-                          : null
+                          : (isCreateNew ? 'create_new' : null)
                         return (
                           <tr key={row.line_index}>
                             <td style={matchTdCompact}>
@@ -844,7 +857,15 @@ export default function SaveDocumentModal({ doc, open, onClose, onSaved }: SaveD
           </button>
           {!saveMessage && (
             <button onClick={submit} style={primaryBtn} disabled={saving || !canSubmit}>
-              {saving ? 'Guardando...' : destination === 'recipe' ? 'Guardar receta' : destination === 'supplier_invoice' ? 'Guardar factura' : 'Guardar gasto'}
+              {saving ? 'Guardando...' : (
+                resumeMode && destination === 'supplier_invoice'
+                  ? 'Completar stock'
+                  : destination === 'recipe'
+                    ? 'Guardar receta'
+                    : destination === 'supplier_invoice'
+                      ? 'Guardar factura'
+                      : 'Guardar gasto'
+              )}
             </button>
           )}
         </div>

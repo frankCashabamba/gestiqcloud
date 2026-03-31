@@ -27,7 +27,7 @@ function fromApiChannel(channel: ApiNotificationChannel): NotificationChannel {
 
 export async function listNotificationChannels(): Promise<NotificationChannel[]> {
   const { data } = await tenantApi.get<ApiNotificationChannel[]>(
-    '/api/v1/incidents/notifications/channels'
+    '/api/v1/admin/incidents/notifications/channels'
   )
   return (data || []).map(fromApiChannel)
 }
@@ -36,7 +36,7 @@ export async function createNotificationChannel(
   payload: NotificationChannelCreate
 ): Promise<NotificationChannel> {
   const { data } = await tenantApi.post<ApiNotificationChannel>(
-    '/api/v1/incidents/notifications/channels',
+    '/api/v1/admin/incidents/notifications/channels',
     {
       channel_type: payload.tipo,
       name: payload.name,
@@ -52,7 +52,7 @@ export async function updateNotificationChannel(
   payload: NotificationChannelUpdate
 ): Promise<NotificationChannel> {
   const { data } = await tenantApi.put<ApiNotificationChannel>(
-    `/api/v1/incidents/notifications/channels/${id}`,
+    `/api/v1/admin/incidents/notifications/channels/${id}`,
     {
       name: payload.name,
       config: payload.config,

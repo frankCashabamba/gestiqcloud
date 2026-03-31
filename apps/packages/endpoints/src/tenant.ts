@@ -30,6 +30,12 @@ export const TENANT_SALES = {
   byId: (id: number | string) => `/api/v1/tenant/sales_orders/${id}`,
 }
 
+export const TENANT_PROMOTIONS = {
+  base: '/api/v1/tenant/promotions',
+  byId: (id: string) => `/api/v1/tenant/promotions/${id}`,
+  validate: '/api/v1/tenant/promotions/validate',
+}
+
 export const TENANT_PURCHASES = {
   base: '/api/v1/tenant/purchases',
   byId: (id: number | string) => `/api/v1/tenant/purchases/${id}`,

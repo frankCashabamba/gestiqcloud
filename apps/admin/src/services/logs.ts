@@ -7,8 +7,12 @@ import { API_ENDPOINTS, API_BASE } from '../constants/api'
 
 import type { LogEntry, LogFilters, LogStats, AuditEntry, AuditFilters, AuditStats } from '../types/logs'
 
+const getAdminToken = () =>
+  (typeof window !== 'undefined' ? sessionStorage.getItem('access_token_admin') : null)
+  || (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null)
+
 const AUTH_HEADER = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+  'Authorization': `Bearer ${getAdminToken()}`,
   'Content-Type': 'application/json'
 })
 

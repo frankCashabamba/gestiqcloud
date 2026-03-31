@@ -80,4 +80,35 @@ describe('SaveDocumentModal', () => {
     expect(screen.getByText('Estado de pago')).toBeInTheDocument()
     expect(screen.getByText('Guardar como')).toBeInTheDocument()
   })
+
+  it('shows resume copy and primary action when reopening a saved supplier invoice', async () => {
+    render(
+      <SaveDocumentModal
+        doc={{
+          id: 'doc-2',
+          nombre_archivo: 'factura-demo.pdf',
+          monto_total: 120.5,
+          moneda: 'USD',
+          datos_extraidos: { total: 120.5 },
+          routing_decision: {
+            document_type: 'supplier_invoice',
+            confidence: 0.94,
+            required_fields_ok: true,
+            missing_fields: [],
+            suggested_destination: 'supplier_invoice',
+            reason: 'Contiene proveedor, fecha y total.',
+            needs_human_review: false,
+            source_doc_type: 'INVOICE',
+            source_category: 'invoice',
+          },
+        } as any}
+        open={true}
+        resumeMode={true}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getAllByText('Completar stock pendiente')).toHaveLength(2)
+    expect(await screen.findByRole('button', { name: 'Completar stock' })).toBeInTheDocument()
+  })
 })

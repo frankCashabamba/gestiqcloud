@@ -5,6 +5,7 @@ import PermissionDenied from '../../components/PermissionDenied'
 import VentasList from './List'
 import VentaForm from './Form'
 import VentaDetail from './Detail'
+import PromotionsList from './promotions/PromotionsList'
 
 function CrmOpportunitiesRedirect() {
   const { empresa } = useParams<{ empresa: string }>()
@@ -29,6 +30,7 @@ export default function VentasRoutes() {
         />
         <Route path="opportunities" element={<CrmOpportunitiesRedirect />} />
         <Route path="orders" element={<Navigate to="." replace />} />
+        <Route path="promotions" element={<PromotionsList />} />
         <Route path=":id" element={<VentaDetail />} />
         <Route
           path=":id/edit"

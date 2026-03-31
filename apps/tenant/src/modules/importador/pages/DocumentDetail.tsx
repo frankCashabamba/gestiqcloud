@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useImportReprocess } from '../hooks/useImportReprocess'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
-import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, hasConfirmedDocumentData, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, hasConfirmedDocumentData, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
 
@@ -104,6 +104,7 @@ type ActivityItem = {
 
 type EditableLineItem = {
   description: string
+  supplier_ref: string
   quantity: string
   unit_price: string
   total_price: string
@@ -116,6 +117,7 @@ function getEditableLineItems(data: Record<string, unknown>): EditableLineItem[]
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
     .map((item) => ({
       description: String(item.description ?? ''),
+      supplier_ref: String(item.supplier_ref ?? ''),
       quantity: String(item.quantity ?? ''),
       unit_price: String(item.unit_price ?? ''),
       total_price: String(item.total_price ?? ''),
@@ -123,7 +125,7 @@ function getEditableLineItems(data: Record<string, unknown>): EditableLineItem[]
 }
 
 function createEmptyEditableLineItem(): EditableLineItem {
-  return { description: '', quantity: '', unit_price: '', total_price: '' }
+  return { description: '', supplier_ref: '', quantity: '', unit_price: '', total_price: '' }
 }
 
 function formatLineCellValue(value: unknown): string {
@@ -145,6 +147,7 @@ function LineItemsPreview({ items, title, subtitle }: { items: Record<string, un
         <thead>
           <tr style={{ background: '#f9fafb' }}>
             <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Descripcion</th>
+            {items.some(i => i.supplier_ref) && <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Ref.</th>}
             <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Cant.</th>
             <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>P. Unit.</th>
             <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Total</th>
@@ -154,6 +157,7 @@ function LineItemsPreview({ items, title, subtitle }: { items: Record<string, un
           {items.map((item, index) => (
             <tr key={`${index}-${String(item.description ?? '')}`} style={{ borderTop: '1px solid #e5e7eb' }}>
               <td style={{ padding: '0.3rem 0.5rem', color: '#111827' }}>{formatLineCellValue(item.description)}</td>
+              {items.some(i => i.supplier_ref) && <td style={{ padding: '0.3rem 0.5rem', color: '#6b7280', fontFamily: 'monospace', fontSize: 12 }}>{formatLineCellValue(item.supplier_ref)}</td>}
               <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.quantity)}</td>
               <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.unit_price)}</td>
               <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.total_price)}</td>
@@ -267,6 +271,7 @@ export default function DocumentDetail() {
   const [selectedErrorCodes, setSelectedErrorCodes] = useState<string[]>([])
   const [selectedLineNumbers, setSelectedLineNumbers] = useState<number[]>([])
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
+  const [savedInvoiceHasPendingStock, setSavedInvoiceHasPendingStock] = useState(false)
   const lastVisibilityReloadRef = useRef(0)
   const loadRequestSeqRef = useRef(0)
 
@@ -361,6 +366,56 @@ export default function DocumentDetail() {
     setSelectedLineNumbers([])
     setSelectedColumns([])
   }, [doc?.id])
+
+  const latestSaveLog = latestLogByAction(doc?.logs, ['SAVE_DESTINATION', 'SAVE_PRODUCTS'])
+  const latestReprocessLog = latestLogByAction(doc?.logs, ['REPROCESS'])
+  const saveLogIsCurrent = Boolean(
+    latestSaveLog
+    && (
+      !latestReprocessLog
+      || new Date(latestSaveLog.created_at).getTime() > new Date(latestReprocessLog.created_at).getTime()
+    )
+  )
+  const savedAsLog = saveLogIsCurrent ? latestSaveLog : undefined
+  const _logDest = savedAsLog?.detalle?.['destination'] as string | undefined
+  const inferredSavedAs: string | undefined = doc?.saved_as
+    ?? (savedAsLog?.accion === 'SAVE_PRODUCTS' ? 'products'
+      : _logDest === 'supplier_invoice' ? 'supplier_invoice'
+      : _logDest === 'expense' ? 'expense'
+      : savedAsLog ? 'supplier_invoice'
+      : undefined)
+  const isSaved = Boolean(doc && (doc.estado === 'IMPORTED' || doc.saved_as != null || saveLogIsCurrent))
+  const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
+  const saveDestination = doc ? suggestSaveDestination(doc) : 'expense'
+  const requiresConfirmedSave = saveDestination !== 'recipe'
+  const routingReadyForSave = doc?.routing_decision ? doc.routing_decision.required_fields_ok : true
+  const confirmedDataReady = hasConfirmedDocumentData(doc ?? { datos_confirmados: undefined })
+  const baseCanResumeSavedInvoice = isSaved && inferredSavedAs === 'supplier_invoice' && hasAnySaveModule && routingReadyForSave && confirmedDataReady
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!baseCanResumeSavedInvoice || !doc?.id) {
+      setSavedInvoiceHasPendingStock(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    fetchDocumentLineMatchCandidates(doc.id)
+      .then((rows) => {
+        if (cancelled) return
+        const hasPending = rows.some((row) => !row.selected_product_id)
+        setSavedInvoiceHasPendingStock(hasPending)
+      })
+      .catch(() => {
+        if (!cancelled) setSavedInvoiceHasPendingStock(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [baseCanResumeSavedInvoice, doc?.id])
 
   const resetSelectiveFilters = () => {
     setSelectedFields([])
@@ -496,6 +551,7 @@ export default function DocumentDetail() {
       const normalizedLineItems = editLineItems
         .map((item) => ({
           description: item.description.trim(),
+          supplier_ref: item.supplier_ref.trim() || undefined,
           quantity: item.quantity.trim(),
           unit_price: item.unit_price.trim(),
           total_price: item.total_price.trim(),
@@ -554,29 +610,7 @@ export default function DocumentDetail() {
   const unsyncedSheets = sheets.filter(sheet => !syncedSheets[sheet]?.recipeId)
   const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
   const isSynced = syncedCount > 0
-  const latestSaveLog = latestLogByAction(doc.logs, ['SAVE_DESTINATION', 'SAVE_PRODUCTS'])
-  const latestReprocessLog = latestLogByAction(doc.logs, ['REPROCESS'])
-  const saveLogIsCurrent = Boolean(
-    latestSaveLog
-    && (
-      !latestReprocessLog
-      || new Date(latestSaveLog.created_at).getTime() > new Date(latestReprocessLog.created_at).getTime()
-    )
-  )
-  const savedAsLog = saveLogIsCurrent ? latestSaveLog : undefined
-  const _logDest = savedAsLog?.detalle?.['destination'] as string | undefined
-  const inferredSavedAs: string | undefined = doc.saved_as
-    ?? (savedAsLog?.accion === 'SAVE_PRODUCTS' ? 'products'
-      : _logDest === 'supplier_invoice' ? 'supplier_invoice'
-      : _logDest === 'expense' ? 'expense'
-      : savedAsLog ? 'supplier_invoice'
-      : undefined)
-  const isSaved = doc.estado === 'IMPORTED' || doc.saved_as != null || saveLogIsCurrent
-  const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
-  const saveDestination = suggestSaveDestination(doc)
-  const requiresConfirmedSave = saveDestination !== 'recipe'
-  const routingReadyForSave = routingDecision ? routingDecision.required_fields_ok : true
-  const confirmedDataReady = hasConfirmedDocumentData(doc)
+  const canResumeSavedInvoice = baseCanResumeSavedInvoice && savedInvoiceHasPendingStock
   const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && routingReadyForSave && (!requiresConfirmedSave || confirmedDataReady)
   const docCategory = getDocCategory(doc, sheets)
   const simpleFlowEnabled = canSaveDocument(doc) && docCategory !== 'recipe' && docCategory !== 'daily_log'
@@ -603,7 +637,9 @@ export default function DocumentDetail() {
             ? 'Revisa el resultado'
             : 'Documento listo para revisión'
   const flowDescription = isSaved
-    ? 'El flujo terminó correctamente. Si hace falta, puedes volver a procesarlo.'
+    ? (canResumeSavedInvoice
+        ? 'La compra ya está guardada. Si quedaron líneas sin producto o sin stock, puedes volver a guardar para completarlas.'
+        : 'El flujo terminó correctamente. Si hace falta, puedes volver a procesarlo.')
     : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
       ? 'No necesitas hacer nada ahora. Espera a que termine el análisis automático.'
       : isAssistedLines && doc.estado === 'REVIEW'
@@ -942,12 +978,12 @@ export default function DocumentDetail() {
                     <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
                   )}
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
-                    {saving ? t('docDetail.buttons.confirming') : t('docDetail.buttons.confirm')}
+                    {saving ? t('docDetail.buttons.confirming') : 'Usar este resultado'}
                   </button>
                 </>
               )}
               {advancedActionsVisible && <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>}
-              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>}
+              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Rehacer este documento</button>}
             </>
           )}
         </div>
@@ -1007,6 +1043,11 @@ export default function DocumentDetail() {
                 {!isSaved && saveEnabled && (
                   <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
                     {saveDestination === 'supplier_invoice' ? 'Guardar factura' : saveDestination === 'recipe' ? 'Guardar receta' : 'Guardar gasto'}
+                  </button>
+                )}
+                {canResumeSavedInvoice && (
+                  <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
+                    Completar stock pendiente
                   </button>
                 )}
                 </div>
@@ -1319,7 +1360,7 @@ export default function DocumentDetail() {
                                   Quitar
                                 </button>
                               </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,2fr) repeat(3,minmax(120px,1fr))', gap: '0.5rem' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,2fr) minmax(100px,1fr) repeat(3,minmax(110px,1fr))', gap: '0.5rem' }}>
                                 <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
                                   <span style={{ color: '#6b7280', fontWeight: 600 }}>Descripcion</span>
                                   <input
@@ -1327,6 +1368,15 @@ export default function DocumentDetail() {
                                     value={item.description}
                                     onChange={(e) => updateEditLineItem(index, 'description', e.target.value)}
                                     style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
+                                  />
+                                </label>
+                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
+                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Ref. proveedor</span>
+                                  <input
+                                    type="text"
+                                    value={item.supplier_ref}
+                                    onChange={(e) => updateEditLineItem(index, 'supplier_ref', e.target.value)}
+                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'monospace' }}
                                   />
                                 </label>
                                 <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
@@ -1887,6 +1937,7 @@ export default function DocumentDetail() {
       <SaveDocumentModal
         doc={doc}
         open={saveModalOpen}
+        resumeMode={canResumeSavedInvoice}
         onClose={() => setSaveModalOpen(false)}
         onSaved={handleSaved}
       />

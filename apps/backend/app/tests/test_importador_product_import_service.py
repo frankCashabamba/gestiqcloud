@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 from app.models.core.products import Product
+from app.models.inventory.stock import StockItem
 from app.models.tenant import Tenant
 from app.modules.importador import product_import_service
 from app.modules.importador.product_import_service import (
@@ -232,3 +233,57 @@ def test_save_product_candidates_skips_existing_products_and_forwards_category(d
     assert len(resolver_calls) == 1
     assert str(resolver_calls[0][0]) == str(tenant.id)
     assert resolver_calls[0][1] == "Panaderia"
+
+
+def test_save_product_candidates_reuses_generic_stock_row_for_duplicate_product_rows(
+    db, monkeypatch
+):
+    tenant = Tenant(id=uuid4(), name="Import Tenant", slug=f"import-{uuid4().hex[:8]}")
+    db.add(tenant)
+    db.flush()
+
+    monkeypatch.setattr(product_import_service, "_resolve_category_id", lambda *_args: None)
+    monkeypatch.setattr(product_import_service, "_generate_next_sku", lambda *_args: "PAN-0001")
+
+    result = save_product_candidates(
+        db,
+        tenant.id,
+        [
+            ProductCandidate(
+                row_index=0,
+                name="Tapados",
+                price=0.13,
+                stock=658,
+                unit="unit",
+                category_name="Panaderia",
+            ),
+            ProductCandidate(
+                row_index=1,
+                name="Tapados",
+                price=0.13,
+                stock=674,
+                unit="unit",
+                category_name="Panaderia",
+            ),
+        ],
+    )
+    db.commit()
+
+    assert result["created"] == 1
+    assert result["updated"] == 1
+
+    product = db.query(Product).filter(Product.tenant_id == tenant.id, Product.name == "Tapados").one()
+    stock_rows = (
+        db.query(StockItem)
+        .filter(
+            StockItem.tenant_id == tenant.id,
+            StockItem.product_id == product.id,
+            StockItem.lot.is_(None),
+            StockItem.expires_at.is_(None),
+        )
+        .all()
+    )
+
+    assert len(stock_rows) == 1
+    assert float(product.stock) == 674.0
+    assert float(stock_rows[0].qty) == 674.0

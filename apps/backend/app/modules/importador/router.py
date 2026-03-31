@@ -17,14 +17,15 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
+from app.core.audit_events import normalize_audit_changes
 from app.core.authz import require_scope
+from app.models.ai.incident import Incident
+from app.models.core.audit_event import AuditEvent
 
 from . import crud, recipe_crud
 from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
 from .api_lifecycle import mark_legacy_processing_endpoint
-from .auto_recipe import (
-    should_reprocess_existing_document,
-)
+from .auto_recipe import should_reprocess_existing_document
 from .canonical_document import build_document_projection
 from .document_fields import (
     detect_document_date,
@@ -38,15 +39,9 @@ from .document_fields import (
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .processing_service import process_import_document
-from .product_import_service import (
-    build_product_candidates,
-    save_product_candidates,
-)
+from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
-from .runtime_config import (
-    load_file_support_config,
-    load_product_sheet_detection_config,
-)
+from .runtime_config import load_file_support_config, load_product_sheet_detection_config
 from .schemas import (
     AssistedReviewOut,
     BatchDetailOut,
@@ -577,6 +572,147 @@ def _coerce_user_uuid(user_id: str):
         return uuid.uuid4()
 
 
+def _coerce_optional_uuid_str(value: str | UUID | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return str(UUID(str(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _record_importador_save_warning(
+    db: Session,
+    request: Request,
+    *,
+    doc,
+    user_id: str,
+    purchase_result: dict | None,
+    update_stock: bool,
+) -> None:
+    if not update_stock or not isinstance(purchase_result, dict):
+        return
+
+    unmatched = [
+        str(item).strip()
+        for item in (purchase_result.get("unmatched_descriptions") or [])
+        if str(item).strip()
+    ]
+    warehouse_id = purchase_result.get("warehouse_id")
+    lines_matched = int(purchase_result.get("lines_matched") or 0)
+
+    issue_messages: list[str] = []
+    severity = "medium"
+    title = ""
+    if not warehouse_id:
+        severity = "high"
+        title = "Importador: factura guardada sin stock por almacén no configurado"
+        issue_messages.append(
+            "Se pidió actualizar stock, pero no hay almacén activo configurado para el tenant."
+        )
+    if unmatched:
+        if not title:
+            title = "Importador: factura guardada con líneas sin stock"
+        issue_messages.append(
+            f"Quedaron {len(unmatched)} línea(s) sin producto/stock: {', '.join(unmatched[:10])}."
+        )
+    elif not title and lines_matched == 0:
+        title = "Importador: factura guardada sin impacto en stock"
+        issue_messages.append(
+            "La factura se guardó, pero ninguna línea terminó actualizando stock."
+        )
+
+    if not issue_messages:
+        return
+
+    title = f"{title} [{str(doc.id)[:8]}]"[:255]
+    description = " ".join(issue_messages)
+    context = {
+        "module": "importador",
+        "document_id": str(doc.id),
+        "document_name": getattr(doc, "nombre_archivo", None),
+        "purchase_id": (
+            str(purchase_result.get("purchase_id")) if purchase_result.get("purchase_id") else None
+        ),
+        "save_status": purchase_result.get("status"),
+        "update_stock": bool(update_stock),
+        "warehouse_id": str(warehouse_id) if warehouse_id else None,
+        "lines_created": int(purchase_result.get("lines_created") or 0),
+        "lines_matched": lines_matched,
+        "unmatched_descriptions": unmatched,
+        "message": purchase_result.get("message"),
+    }
+
+    try:
+        incident = (
+            db.query(Incident)
+            .filter(
+                Incident.tenant_id == doc.tenant_id,
+                Incident.type == "warning",
+                Incident.status == "open",
+                Incident.auto_detected.is_(True),
+                Incident.title == title,
+            )
+            .first()
+        )
+        if incident:
+            incident.severity = severity
+            incident.description = description
+            incident.context = context
+        else:
+            incident = Incident(
+                tenant_id=doc.tenant_id,
+                type="warning",
+                severity=severity,
+                title=title,
+                description=description,
+                context=context,
+                auto_detected=True,
+            )
+            db.add(incident)
+        db.commit()
+    except Exception:
+        logger.warning("No se pudo persistir incidencia del importador", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        incident = None
+
+    try:
+        audit_changes = dict(context)
+        audit_changes["severity"] = severity
+        audit_changes["incident_id"] = str(incident.id) if incident else None
+        audit_user_id = _coerce_optional_uuid_str(user_id)
+        audit_ip = (
+            request.client.host
+            if hasattr(request, "client") and getattr(request, "client", None)
+            else None
+        )
+        audit_ua = request.headers.get("user-agent") if hasattr(request, "headers") else None
+        db.add(
+            AuditEvent(
+                tenant_id=UUID(str(doc.tenant_id)),
+                user_id=UUID(audit_user_id) if audit_user_id else None,
+                actor_type="system",
+                action="warning",
+                entity_type="importador_document",
+                entity_id=str(doc.id),
+                source="importador",
+                changes=normalize_audit_changes(audit_changes),
+                ip=audit_ip,
+                ua=audit_ua,
+            )
+        )
+        db.commit()
+    except Exception:
+        logger.warning("No se pudo persistir audit warning del importador", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def _infer_save_destination(doc, db: Session) -> str:
     routing_decision = _resolve_document_routing(doc, db)
     if routing_decision.suggested_destination:
@@ -985,7 +1121,7 @@ def _save_document_to_purchase(
     line_match_map = {
         int(match.line_index): match
         for match in (line_matches or [])
-        if match.product_id is not None
+        if match.product_id is not None or match.create_new
     }
 
     logger.info(
@@ -1047,6 +1183,8 @@ def _save_document_to_purchase(
         existing = existing.filter(Purchase.supplier_id == supplier_id)
     existing = existing.first()
     stock_only = False
+    reconcile_existing = False
+    existing_purchase_lines: list[PurchaseLine] = []
     logger.info(
         "save_purchase: existing=%s update_stock=%s warehouse=%s",
         existing.id if existing else None,
@@ -1054,8 +1192,16 @@ def _save_document_to_purchase(
         warehouse.id if warehouse else None,
     )
     if existing:
-        # If stock update requested but no moves exist yet, allow stock-only pass
+        # If stock update requested but no moves exist yet, allow stock-only
+        # pass. If the purchase already exists with unresolved lines, allow a
+        # reconciliation pass instead of duplicating the purchase.
         if update_stock and warehouse:
+            existing_purchase_lines = (
+                db.query(PurchaseLine)
+                .filter(PurchaseLine.purchase_id == existing.id)
+                .order_by(PurchaseLine.id.asc())
+                .all()
+            )
             has_moves = (
                 db.query(StockMove)
                 .filter(StockMove.ref_type == "purchase", StockMove.ref_id == str(existing.id))
@@ -1064,7 +1210,16 @@ def _save_document_to_purchase(
             if not has_moves:
                 stock_only = True
                 purchase = existing
-        if not stock_only:
+            elif any(line.product_id is None for line in existing_purchase_lines):
+                reconcile_existing = True
+                purchase = existing
+            elif line_matches and any(m.create_new or m.product_id for m in line_matches):
+                # User explicitly provided line matches (create_new or specific product_id)
+                # for a purchase where all lines were previously auto-matched.
+                # Allow reconciliation so the user's selections are applied.
+                reconcile_existing = True
+                purchase = existing
+        if not stock_only and not reconcile_existing:
             return {
                 "purchase_id": existing.id,
                 "status": "skipped",
@@ -1099,6 +1254,29 @@ def _save_document_to_purchase(
     def _dec(v) -> Decimal:
         return Decimal(str(v or 0)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
 
+    used_existing_line_ids: set[UUID] = set()
+
+    def _find_existing_purchase_line(
+        description: str,
+        qty: float,
+        unit_price: float,
+    ) -> PurchaseLine | None:
+        description_norm = str(description or "").strip().lower()
+        for candidate in existing_purchase_lines:
+            if candidate.id in used_existing_line_ids:
+                continue
+            candidate_desc = str(candidate.description or "").strip().lower()
+            candidate_qty = float(candidate.quantity or 0)
+            candidate_unit_price = float(candidate.unit_price or 0)
+            if (
+                candidate_desc == description_norm
+                and abs(candidate_qty - qty) < 1e-9
+                and abs(candidate_unit_price - unit_price) < 1e-9
+            ):
+                used_existing_line_ids.add(candidate.id)
+                return candidate
+        return None
+
     for line_index, item in enumerate(line_items):
         description, qty, unit_price = _get_line_values(item)
         total_price = float(
@@ -1107,7 +1285,13 @@ def _save_document_to_purchase(
         if not description or qty <= 0:
             continue
 
+        existing_line = _find_existing_purchase_line(description, qty, unit_price)
         selected_match = line_match_map.get(line_index)
+        if reconcile_existing and existing_line and existing_line.product_id:
+            if not selected_match:
+                continue
+            # User has an explicit selection for a line that was already auto-matched.
+            # We apply the user's choice but skip the stock update to avoid double-counting.
         if selected_match and selected_match.product_id:
             product = _find_product_by_id(db, tenant_id, selected_match.product_id)
             conv_factor = (
@@ -1117,10 +1301,15 @@ def _save_document_to_purchase(
             )
         elif selected_match and selected_match.create_new and not selected_match.product_id:
             # Create a new product from this invoice line
-            product = _create_product_from_line(
-                db, tenant_id, description, unit_price, qty
-            )
+            product = _create_product_from_line(db, tenant_id, description, unit_price, qty)
             conv_factor = 1.0
+        elif existing_line and existing_line.product_id:
+            product = _find_product_by_id(db, tenant_id, existing_line.product_id)
+            conv_factor = (
+                _infer_pack_conversion_factor(description, getattr(product, "unit", None))
+                if product
+                else 1.0
+            )
         else:
             product, conv_factor = _match_product(db, tenant_id, description)
         stock_qty = qty * conv_factor  # convert invoice qty to inventory units
@@ -1134,7 +1323,122 @@ def _save_document_to_purchase(
             stock_only,
         )
 
-        if product and warehouse and costing and update_stock:
+        # When reconciling an already auto-matched line (product_id already set in DB),
+        # reverse the old product's stock move and apply stock to the new product.
+        override_only = (
+            reconcile_existing
+            and existing_line is not None
+            and existing_line.product_id is not None
+            and selected_match is not None
+        )
+
+        if product and override_only:
+            old_product_id = str(existing_line.product_id)
+            new_product_id = str(product.id)
+            if old_product_id != new_product_id and warehouse and costing and update_stock:
+                # User re-assigned the line to a different product.
+                # Reverse the old product's stock move (if any) and apply a new one
+                # for the correct product to keep inventory accurate.
+                qty_dec = _dec(stock_qty)
+                cost_dec = _dec(unit_price / conv_factor if conv_factor else unit_price)
+
+                old_move = (
+                    db.query(StockMove)
+                    .filter(
+                        StockMove.ref_type == "purchase",
+                        StockMove.ref_id == str(purchase.id),
+                        StockMove.product_id == old_product_id,
+                        StockMove.qty > 0,
+                    )
+                    .first()
+                )
+                if old_move:
+                    old_stock_row = (
+                        db.query(StockItem)
+                        .filter(
+                            StockItem.warehouse_id == str(warehouse.id),
+                            StockItem.product_id == old_product_id,
+                        )
+                        .with_for_update()
+                        .first()
+                    )
+                    if old_stock_row:
+                        old_stock_row.qty = float(old_stock_row.qty or 0) - float(qty_dec)
+                        db.add(old_stock_row)
+                    old_prod = _find_product_by_id(db, tenant_id, old_product_id)
+                    if old_prod:
+                        old_prod.stock = float(old_prod.stock or 0) - float(qty_dec)
+                        db.add(old_prod)
+                    db.add(
+                        StockMove(
+                            tenant_id=str(tenant_id),
+                            product_id=old_product_id,
+                            warehouse_id=str(warehouse.id),
+                            qty=-float(qty_dec),
+                            kind="correction",
+                            tentative=False,
+                            posted=True,
+                            ref_type="purchase",
+                            ref_id=str(purchase.id),
+                            unit_cost=float(old_move.unit_cost or 0),
+                            total_cost=float(-(old_move.unit_cost or 0) * float(qty_dec)),
+                        )
+                    )
+
+                # Apply stock for the new (correct) product
+                new_stock_row = (
+                    db.query(StockItem)
+                    .filter(
+                        StockItem.warehouse_id == str(warehouse.id),
+                        StockItem.product_id == new_product_id,
+                    )
+                    .with_for_update()
+                    .first()
+                )
+                if not new_stock_row:
+                    new_stock_row = StockItem(
+                        tenant_id=str(tenant_id),
+                        warehouse_id=str(warehouse.id),
+                        product_id=new_product_id,
+                        qty=0,
+                    )
+                    db.add(new_stock_row)
+                    db.flush()
+                costing.apply_inbound(
+                    str(tenant_id),
+                    str(warehouse.id),
+                    new_product_id,
+                    qty=qty_dec,
+                    unit_cost=cost_dec,
+                    initial_qty=_dec(new_stock_row.qty),
+                    initial_avg_cost=cost_dec,
+                )
+                new_stock_row.qty = float(new_stock_row.qty or 0) + float(qty_dec)
+                db.add(new_stock_row)
+                product.stock = float(product.stock or 0) + float(qty_dec)
+                db.add(product)
+                db.add(
+                    StockMove(
+                        tenant_id=str(tenant_id),
+                        product_id=new_product_id,
+                        warehouse_id=str(warehouse.id),
+                        qty=float(qty_dec),
+                        kind="receipt",
+                        tentative=False,
+                        posted=True,
+                        ref_type="purchase",
+                        ref_id=str(purchase.id),
+                        unit_cost=float(cost_dec),
+                        total_cost=float(cost_dec * qty_dec),
+                    )
+                )
+                existing_line.product_id = product.id
+                db.add(existing_line)
+            elif old_product_id != new_product_id:
+                existing_line.product_id = product.id
+                db.add(existing_line)
+            lines_matched += 1
+        elif product and warehouse and costing and update_stock:
             qty_dec = _dec(stock_qty)
             cost_dec = _dec(unit_price / conv_factor if conv_factor else unit_price)
 
@@ -1187,6 +1491,9 @@ def _save_document_to_purchase(
                     total_cost=float(cost_dec * qty_dec),
                 )
             )
+            if existing_line and existing_line.product_id is None:
+                existing_line.product_id = product.id
+                db.add(existing_line)
             lines_matched += 1
             if selected_match and selected_match.persist_alias:
                 _append_import_alias(
@@ -1197,7 +1504,7 @@ def _save_document_to_purchase(
             if description and product is None:
                 unmatched.append(description)
 
-        if not stock_only:
+        if not stock_only and not reconcile_existing:
             db.add(
                 PurchaseLine(
                     purchase_id=purchase.id,
@@ -1213,8 +1520,9 @@ def _save_document_to_purchase(
 
     db.flush()
     logger.info(
-        "save_purchase RESULT: stock_only=%s lines_created=%d lines_matched=%d unmatched=%s",
+        "save_purchase RESULT: stock_only=%s reconcile_existing=%s lines_created=%d lines_matched=%d unmatched=%s",
         stock_only,
+        reconcile_existing,
         lines_created,
         lines_matched,
         unmatched,
@@ -1236,7 +1544,7 @@ def _save_document_to_purchase(
 
     return {
         "purchase_id": purchase.id,
-        "status": "stock_updated" if stock_only else "created",
+        "status": "stock_updated" if (stock_only or reconcile_existing) else "created",
         "lines_created": lines_created,
         "lines_matched": lines_matched,
         "unmatched_descriptions": unmatched,
@@ -1244,7 +1552,11 @@ def _save_document_to_purchase(
         "message": (
             f"Stock actualizado para compra existente.{stock_msg}"
             if stock_only
-            else f"Compra registrada.{stock_msg}"
+            else (
+                f"Compra existente actualizada.{stock_msg}"
+                if reconcile_existing
+                else f"Compra registrada.{stock_msg}"
+            )
         ),
     }
 
@@ -1537,8 +1849,37 @@ class SyncRecipesRequest(BaseModel):
 
 
 def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id: str) -> None:
-    """Persist learned hints from a confirmed document into its snapshot."""
+    """Persist learned hints from a confirmed document into its snapshot and pre-classifier."""
+    from .classifier_learning import learn_from_confirmation as _classifier_learn
+    from .field_alias_loader import get_field_aliases
+
     learn_from_confirmed_payload(db, doc, datos_confirmados, user_id)
+
+    # Pre-classifier self-feeding learning
+    try:
+        raw_ai = doc.raw_ai_json or {}
+        run_meta = raw_ai.get("run") or {}
+        pre_class_meta = run_meta.get("pre_classification") or {}
+        headers_norm = run_meta.get("headers_norm") or []
+        confirmed_type = str(
+            (datos_confirmados or {}).get("doc_type")
+            or getattr(doc, "tipo_documento_detectado", None)
+            or ""
+        ).upper().strip()
+
+        if confirmed_type:
+            field_aliases = get_field_aliases(db, tenant_id=getattr(doc, "tenant_id", None))
+            _classifier_learn(
+                db,
+                doc_filename=str(getattr(doc, "nombre_archivo", "") or ""),
+                doc_type_confirmed=confirmed_type,
+                pre_class_layer=str(pre_class_meta.get("layer") or "") or None,
+                pre_class_doc_type=str(pre_class_meta.get("doc_type") or "") or None,
+                headers_norm=headers_norm if isinstance(headers_norm, list) else [],
+                field_aliases=field_aliases,
+            )
+    except Exception as exc:
+        logger.warning("Pre-classifier learning error (non-fatal): %s", exc)
 
 
 @router.post("/documents/{doc_id}/confirm", response_model=DocumentoOut, dependencies=protected)
@@ -1811,6 +2152,7 @@ def save_document(
     )
     _require_routing_ready(doc, db, destination)
 
+    purchase_result: dict | None = None
     if destination == "recipe":
         data = doc_import_data
         available_sheets = get_available_recipe_sheets(data)
@@ -1944,6 +2286,7 @@ def save_document(
                 "line_index": match.line_index,
                 "product_id": str(match.product_id) if match.product_id else None,
                 "persist_alias": bool(match.persist_alias),
+                "create_new": bool(match.create_new),
             }
             for match in body.line_matches
         ],
@@ -2010,6 +2353,15 @@ def save_document(
         },
     )
     db.commit()
+    if destination == "supplier_invoice":
+        _record_importador_save_warning(
+            db,
+            request,
+            doc=doc,
+            user_id=user_id,
+            purchase_result=purchase_result,
+            update_stock=body.update_stock,
+        )
     return result
 
 

@@ -100,7 +100,7 @@ def create_transfer(
 def list_transfers(
     request: Request,
     db: Session = Depends(get_db),
-    status: str | None = Query(None, regex="^(draft|in_transit|completed|cancelled)$"),
+    status: str | None = Query(None, pattern="^(draft|in_transit|completed|cancelled)$"),
     product_id: str | None = None,
     from_warehouse_id: str | None = None,
     to_warehouse_id: str | None = None,
@@ -145,7 +145,7 @@ def list_transfers(
 def get_transfer(
     request: Request,
     transfer_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     db: Session = Depends(get_db),
 ):
@@ -166,7 +166,7 @@ def get_transfer(
 def start_transfer(
     request: Request,
     transfer_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     db: Session = Depends(get_db),
 ):
@@ -194,7 +194,7 @@ def start_transfer(
 def complete_transfer(
     request: Request,
     transfer_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     db: Session = Depends(get_db),
 ):
@@ -222,7 +222,7 @@ def complete_transfer(
 def cancel_transfer(
     request: Request,
     transfer_id: str = Path(
-        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ),
     db: Session = Depends(get_db),
 ):
