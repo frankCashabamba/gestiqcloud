@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from app.models.importador import ImpDocumento
 from app.modules.importador.services.document_model_learning_service import (
     build_signal_learning_recipe_config,
+    should_run_learning_rerun,
     summarize_learning_rerun,
 )
 from app.modules.importador.services.document_routing_feedback_service import record_routing_signal
@@ -142,3 +145,45 @@ def test_summarize_learning_rerun_returns_improvement_deltas():
     assert summary["field_count_delta"] > 0
     assert summary["missing_fields_delta"] > 0
     assert summary["destination_changed"] is True
+
+
+def test_should_run_learning_rerun_when_learned_fields_cover_missing_values():
+    should_rerun = should_run_learning_rerun(
+        baseline_confidence=0.92,
+        classification_threshold=0.8,
+        baseline_fields={"vendor": "Proveedor Demo", "payment_method": None},
+        baseline_routing=SimpleNamespace(
+            missing_fields=[],
+            needs_human_review=False,
+            required_fields_ok=True,
+        ),
+        base_recipe_config={},
+        candidate_recipe_config={
+            "field_descriptions": {
+                "payment_method": "Recent confirmed example: Transferencia bancaria."
+            }
+        },
+    )
+
+    assert should_rerun is True
+
+
+def test_should_not_run_learning_rerun_when_document_is_already_good():
+    should_rerun = should_run_learning_rerun(
+        baseline_confidence=0.96,
+        classification_threshold=0.8,
+        baseline_fields={
+            "vendor": "Proveedor Demo",
+            "payment_method": "Transferencia bancaria",
+            "total_amount": 125.5,
+        },
+        baseline_routing=SimpleNamespace(
+            missing_fields=[],
+            needs_human_review=False,
+            required_fields_ok=True,
+        ),
+        base_recipe_config={"prompt_user": "Base prompt"},
+        candidate_recipe_config={"prompt_user": "Base prompt"},
+    )
+
+    assert should_rerun is False

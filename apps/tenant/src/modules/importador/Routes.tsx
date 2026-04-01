@@ -17,7 +17,6 @@ export default function ImportadorRoutes() {
       <Route path="upload" element={<UploadPage />} />
       <Route path="documents" element={<DocumentList />} />
       <Route path="documents/:id" element={<DocumentDetail />} />
-      <Route path="recipes" element={<Navigate to="../upload" replace />} />
       <Route path="*" element={<Navigate to="documents" replace />} />
     </Routes>
   )

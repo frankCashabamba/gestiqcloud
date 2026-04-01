@@ -24,6 +24,24 @@ PACK_UNIT_PATTERN = re.compile(
 )
 
 DEFAULT_NEW_PRODUCT_CATEGORY = "General"
+LINE_SUPPLIER_REF_KEYS = {
+    "supplier_ref",
+    "ref",
+    "ref.",
+    "referencia",
+    "sku",
+    "cod",
+    "cod.",
+    "codigo",
+    "código",
+    "code",
+    "item code",
+    "item_code",
+    "barcode",
+    "ean",
+    "art",
+    "art.",
+}
 
 
 def _norm_import_text(value: str) -> str:
@@ -81,6 +99,98 @@ def _get_line_values(item: dict) -> tuple[str, float, float]:
     return description, qty, unit_price
 
 
+def _normalize_supplier_ref(value: object | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return None
+    return text[:120]
+
+
+def _extract_line_supplier_ref(item: dict | None) -> str | None:
+    if not isinstance(item, dict):
+        return None
+    for key in ("supplier_ref", "ref", "reference", "sku", "barcode", "ean", "codigo", "code"):
+        value = _normalize_supplier_ref(item.get(key))
+        if value:
+            return value
+    extra_columns = item.get("extra_columns")
+    if isinstance(extra_columns, dict):
+        for key, value in extra_columns.items():
+            if _norm_import_text(str(key or "")) in LINE_SUPPLIER_REF_KEYS:
+                normalized = _normalize_supplier_ref(value)
+                if normalized:
+                    return normalized
+    return None
+
+
+def _iter_product_supplier_refs(product) -> list[str]:
+    refs: list[str] = []
+    metadata = product.product_metadata if isinstance(product.product_metadata, dict) else {}
+    for key in ("source_supplier_ref", "supplier_ref"):
+        normalized = _normalize_supplier_ref(metadata.get(key))
+        if normalized:
+            refs.append(normalized)
+    raw_refs = metadata.get("supplier_refs")
+    if isinstance(raw_refs, list):
+        for value in raw_refs:
+            normalized = _normalize_supplier_ref(value)
+            if normalized:
+                refs.append(normalized)
+    elif raw_refs is not None:
+        normalized = _normalize_supplier_ref(raw_refs)
+        if normalized:
+            refs.append(normalized)
+    aliases = product.import_aliases if isinstance(product.import_aliases, list) else []
+    for alias in aliases:
+        if not isinstance(alias, dict):
+            continue
+        normalized = _normalize_supplier_ref(alias.get("supplier_ref"))
+        if normalized:
+            refs.append(normalized)
+    normalized_sku = _normalize_supplier_ref(getattr(product, "sku", None))
+    if normalized_sku:
+        refs.append(normalized_sku)
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in refs:
+        norm = _norm_import_text(value)
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        unique.append(value)
+    return unique
+
+
+def _product_has_supplier_ref(product, supplier_ref: str | None) -> bool:
+    normalized_ref = _normalize_supplier_ref(supplier_ref)
+    if not normalized_ref:
+        return False
+    target = _norm_import_text(normalized_ref)
+    return any(_norm_import_text(candidate) == target for candidate in _iter_product_supplier_refs(product))
+
+
+def _persist_product_supplier_ref(product, supplier_ref: str | None) -> None:
+    normalized_ref = _normalize_supplier_ref(supplier_ref)
+    if not normalized_ref:
+        return
+    metadata = dict(product.product_metadata or {}) if isinstance(product.product_metadata, dict) else {}
+    existing = metadata.get("supplier_refs")
+    supplier_refs: list[str]
+    if isinstance(existing, list):
+        supplier_refs = [str(value) for value in existing if _normalize_supplier_ref(value)]
+    elif existing is None:
+        supplier_refs = []
+    else:
+        supplier_refs = [str(existing)]
+    if not any(_norm_import_text(value) == _norm_import_text(normalized_ref) for value in supplier_refs):
+        supplier_refs.append(normalized_ref)
+    metadata["supplier_refs"] = supplier_refs
+    metadata.setdefault("source_supplier_ref", normalized_ref)
+    product.product_metadata = metadata
+
+
 def _find_product_by_id(db: Session, tenant_id: UUID, product_id: UUID | str | None):
     from app.models.core.products import Product
 
@@ -107,6 +217,7 @@ def _create_product_from_line(
     description: str,
     unit_price: float,
     initial_stock: float,
+    supplier_ref: str | None = None,
 ):
     """Create a new product from an invoice line and return it.
 
@@ -120,6 +231,7 @@ def _create_product_from_line(
     sku = _generate_next_sku(db, tenant_id, category_name)
     normalized_description = description.strip()[:255]
     initial_price = unit_price if unit_price > 0 else 0.0
+    normalized_supplier_ref = _normalize_supplier_ref(supplier_ref)
 
     product = Product(
         tenant_id=tenant_id,
@@ -138,39 +250,75 @@ def _create_product_from_line(
             "source_description": normalized_description,
             "source_initial_unit_cost": unit_price if unit_price > 0 else None,
             "source_initial_qty": initial_stock if initial_stock > 0 else None,
+            "source_supplier_ref": normalized_supplier_ref,
+            "supplier_refs": [normalized_supplier_ref] if normalized_supplier_ref else [],
         },
+        import_aliases=[
+            {
+                "name": normalized_description,
+                "factor": 1.0,
+                "unit": "uds",
+                "supplier_ref": normalized_supplier_ref,
+            }
+        ],
     )
     db.add(product)
     db.flush()
     return product
 
 
-def _append_import_alias(product, description: str, factor: float, unit: str | None = None) -> None:
+def _append_import_alias(
+    product,
+    description: str,
+    factor: float,
+    unit: str | None = None,
+    supplier_ref: str | None = None,
+) -> None:
     description = str(description or "").strip()
-    if not description:
+    normalized_supplier_ref = _normalize_supplier_ref(supplier_ref)
+    if not description and not normalized_supplier_ref:
         return
     aliases = product.import_aliases if isinstance(product.import_aliases, list) else []
     normalized_description = _norm_import_text(description)
     for alias in aliases:
         if not isinstance(alias, dict):
             continue
-        if _norm_import_text(str(alias.get("name") or "")) == normalized_description:
+        same_name = normalized_description and _norm_import_text(str(alias.get("name") or "")) == normalized_description
+        same_ref = normalized_supplier_ref and _norm_import_text(str(alias.get("supplier_ref") or "")) == _norm_import_text(normalized_supplier_ref)
+        if same_name or same_ref:
+            if normalized_supplier_ref and not alias.get("supplier_ref"):
+                alias["supplier_ref"] = normalized_supplier_ref
+            if factor and not alias.get("factor"):
+                alias["factor"] = float(factor or 1)
+            if unit and not alias.get("unit"):
+                alias["unit"] = str(unit or product.unit or "").strip() or None
+            _persist_product_supplier_ref(product, normalized_supplier_ref)
             return
     aliases.append(
         {
             "name": description,
             "factor": float(factor or 1),
             "unit": str(unit or product.unit or "").strip() or None,
+            "supplier_ref": normalized_supplier_ref,
         }
     )
     product.import_aliases = aliases
+    _persist_product_supplier_ref(product, normalized_supplier_ref)
 
 
-def _score_product_candidate(description: str, product) -> tuple[float, str | None, float]:
+def _score_product_candidate(
+    description: str,
+    product,
+    supplier_ref: str | None = None,
+) -> tuple[float, str | None, float]:
     from difflib import SequenceMatcher
 
     desc_norm = _norm_import_text(description)
     desc_core = _strip_pack_tokens(description)
+    normalized_supplier_ref = _normalize_supplier_ref(supplier_ref)
+    if normalized_supplier_ref and _product_has_supplier_ref(product, normalized_supplier_ref):
+        inferred_factor = _infer_pack_conversion_factor(description, getattr(product, "unit", None))
+        return 1.0, "supplier_ref_exact", inferred_factor
     if not desc_norm:
         return 0.0, None, 1.0
 
@@ -284,12 +432,17 @@ def _build_document_line_matches(
     output: list[DocumentLineMatchOut] = []
     for index, item in enumerate(line_items):
         description, qty, unit_price = _get_line_values(item)
+        supplier_ref = _extract_line_supplier_ref(item)
         if not description or qty <= 0:
             continue
 
         ranked: list[tuple[float, str, float, object]] = []
         for product in products:
-            score, reason, factor = _score_product_candidate(description, product)
+            score, reason, factor = _score_product_candidate(
+                description,
+                product,
+                supplier_ref=supplier_ref,
+            )
             if score <= 0:
                 continue
             ranked.append((score, reason or "candidate", factor, product))

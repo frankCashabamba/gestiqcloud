@@ -412,16 +412,6 @@ export type DocumentLineMatch = {
   candidates: ProductMatchCandidate[]
 }
 
-export function suggestSaveDestination(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>): DocumentSaveDestination {
-  if (doc.routing_decision?.suggested_destination) return doc.routing_decision.suggested_destination
-  const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
-  if (_matchesAny(tipo, _categoryKeywords.recipe   ?? [])) return 'recipe'
-  if (_matchesAny(tipo, _categoryKeywords.receipt  ?? [])) return 'expense'
-  if (_matchesAny(tipo, _categoryKeywords.invoice  ?? [])) return 'supplier_invoice'
-  if (doc.proveedor_detectado || doc.monto_total != null) return 'supplier_invoice'
-  return 'expense'
-}
-
 export type DocCategory =
   | 'expense'
   | 'supplier_invoice'
@@ -431,6 +421,46 @@ export type DocCategory =
   | 'inventory'
   | 'payroll'
   | 'other'
+
+function mapRoutingSourceCategory(category?: string | null): DocCategory | null {
+  switch (category) {
+    case 'invoice':
+      return 'supplier_invoice'
+    case 'receipt':
+      return 'expense'
+    case 'recipe':
+      return 'recipe'
+    case 'inventory':
+      return 'inventory'
+    case 'bank':
+      return 'bank'
+    case 'payroll':
+      return 'payroll'
+    default:
+      return null
+  }
+}
+
+function mapSuggestedDestination(destination?: DocumentSaveDestination | null): DocCategory | null {
+  switch (destination) {
+    case 'recipe':
+      return 'recipe'
+    case 'expense':
+      return 'expense'
+    case 'supplier_invoice':
+      return 'supplier_invoice'
+    default:
+      return null
+  }
+}
+
+export function suggestSaveDestination(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>): DocumentSaveDestination {
+  if (doc.routing_decision?.suggested_destination) return doc.routing_decision.suggested_destination
+  const category = getDocCategory(doc, [])
+  if (category === 'recipe') return 'recipe'
+  if (category === 'supplier_invoice') return 'supplier_invoice'
+  return 'expense'
+}
 
 /** Override the local category keyword map with server-fetched data. */
 function setDocCategoryKeywords(map: Record<string, string[]>) {
@@ -497,24 +527,13 @@ function setProductSheetDetectionConfig(config: ProductSheetDetectionConfig) {
 
 export function getDocCategory(
   doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>,
-  sheets: string[],
+  _sheets: string[],
 ): DocCategory {
-  const routedCategory = doc.routing_decision?.source_category
-  if (routedCategory === 'invoice') return 'supplier_invoice'
-  if (routedCategory === 'receipt') return 'expense'
-  if (routedCategory === 'recipe') return 'recipe'
-  if (routedCategory === 'inventory') return 'inventory'
-  if (routedCategory === 'bank') return 'bank'
-  if (routedCategory === 'payroll') return 'payroll'
+  const routedCategory = mapRoutingSourceCategory(doc.routing_decision?.source_category)
+  if (routedCategory) return routedCategory
+  const routedDestination = mapSuggestedDestination(doc.routing_decision?.suggested_destination)
+  if (routedDestination) return routedDestination
   const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
-  if (
-    tipo.includes('PRODUCTS')
-    || tipo.includes('PRODUCTOS')
-    || tipo.includes('PRODUCT_LIST')
-    || tipo.includes('CATALOG')
-    || tipo.includes('CATALOGO')
-  ) return 'inventory'
-  if (sheets.some(s => s.toLowerCase() === 'registro')) return 'daily_log'
   // Keyword substring match against the DB-driven map (works for any free-form AI label)
   if (_matchesAny(tipo, _categoryKeywords.recipe    ?? [])) return 'recipe'
   if (_matchesAny(tipo, _categoryKeywords.receipt   ?? [])) return 'expense'
@@ -522,20 +541,12 @@ export function getDocCategory(
   if (_matchesAny(tipo, _categoryKeywords.inventory ?? [])) return 'inventory'
   if (_matchesAny(tipo, _categoryKeywords.bank      ?? [])) return 'bank'
   if (_matchesAny(tipo, _categoryKeywords.payroll   ?? [])) return 'payroll'
-  // Fallback: infer from extracted metadata
-  if (doc.proveedor_detectado || doc.monto_total != null) return 'supplier_invoice'
   return 'other'
 }
 
 export function canSaveDocument(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>): boolean {
-  if (doc.routing_decision?.source_category) {
-    return !['inventory', 'bank', 'payroll'].includes(doc.routing_decision.source_category)
-  }
-  const tipo = String(doc.tipo_documento_detectado || '').trim().toUpperCase()
-  if (!tipo) return Boolean(doc.proveedor_detectado || doc.monto_total != null)
-  return !_matchesAny(tipo, _categoryKeywords.inventory ?? [])
-    && !_matchesAny(tipo, _categoryKeywords.bank     ?? [])
-    && !_matchesAny(tipo, _categoryKeywords.payroll  ?? [])
+  const category = getDocCategory(doc, [])
+  return category === 'recipe' || category === 'expense' || category === 'supplier_invoice' || category === 'daily_log'
 }
 
 export function hasConfirmedDocumentData(
@@ -724,12 +735,13 @@ function getImportadorStreamToken(): string {
 // --- /run-async: encola via Celery, retorna PENDING inmediatamente ---
 export async function runImportAsync(
   files: File[],
-  opts?: { force?: boolean }
+  opts?: { force?: boolean; recipeSnapshotId?: string }
 ): Promise<AsyncRunResult[]> {
   const form = new FormData()
   files.forEach(f => form.append('files', f))
   const params: Record<string, string> = {}
   if (opts?.force) params.force = 'true'
+  if (opts?.recipeSnapshotId) params.recipe_snapshot_id = opts.recipeSnapshotId
   const { data } = await api.post(TENANT_IMPORTADOR.runAsync, form, {
     params,
   })

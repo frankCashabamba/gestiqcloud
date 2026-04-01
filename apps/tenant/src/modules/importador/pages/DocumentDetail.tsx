@@ -5,6 +5,7 @@ import { useImportReprocess } from '../hooks/useImportReprocess'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, hasConfirmedDocumentData, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { IMPORTADOR_COPY, IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel } from '../constants'
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
 
@@ -78,6 +79,18 @@ function formatSelection(values: Array<string | number>, emptyLabel: string): st
   const items = values.map(value => String(value))
   if (items.length <= 4) return items.join(', ')
   return `${items.slice(0, 4).join(', ')} +${items.length - 4}`
+}
+
+function renderReimportButton(
+  onClick: () => void,
+  style: React.CSSProperties,
+  label: string = IMPORTADOR_COPY.reimportButton,
+) {
+  return (
+    <button onClick={onClick} style={style}>
+      {label}
+    </button>
+  )
 }
 
 function formatFieldLabel(key: string): string {
@@ -510,7 +523,10 @@ export default function DocumentDetail() {
 
   const openReimport = () => {
     if (!doc?.id) return
-    navigate(`../upload?reimport=clean&documentId=${doc.id}&fresh=1`)
+    const recipeSnapshotParam = doc.recipe_snapshot_id
+      ? `&recipeSnapshotId=${encodeURIComponent(doc.recipe_snapshot_id)}`
+      : ''
+    navigate(`../upload?reimport=force${recipeSnapshotParam}`)
   }
 
   const handleSaveDailyLog = async () => {
@@ -616,39 +632,34 @@ export default function DocumentDetail() {
   const simpleFlowEnabled = canSaveDocument(doc) && docCategory !== 'recipe' && docCategory !== 'daily_log'
   const advancedActionsVisible = !simpleFlowEnabled
   const canEditScalars = !Array.isArray((doc.datos_extraidos as Record<string, unknown> | undefined)?.filas)
+  const isProcessingDocument = doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
   const flowCurrentStep = isSaved
     ? 4
-    : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
+    : isProcessingDocument
       ? 2
-      : saveEnabled
+    : saveEnabled
         ? 4
         : 3
   const flowTitle = isSaved
-    ? 'Documento guardado'
-    : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
-      ? 'Estamos procesando tu documento'
-      : isAssistedLines && doc.estado === 'REVIEW'
-        ? 'Revisa las lineas detectadas'
-      : saveEnabled
-        ? 'Listo para guardar'
-        : !routingReadyForSave
-          ? 'Faltan datos para poder guardar'
-          : doc.estado === 'REVIEW'
-            ? 'Revisa el resultado'
-            : 'Documento listo para revisión'
+    ? 'Paso 4. Guardado'
+    : isProcessingDocument
+      ? 'Paso 2. Espera'
+      : saveEnabled || canResumeSavedInvoice
+        ? 'Paso 4. Guarda'
+        : 'Paso 3. Confirma o reprocesa'
   const flowDescription = isSaved
     ? (canResumeSavedInvoice
-        ? 'La compra ya está guardada. Si quedaron líneas sin producto o sin stock, puedes volver a guardar para completarlas.'
-        : 'El flujo terminó correctamente. Si hace falta, puedes volver a procesarlo.')
-    : doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
+        ? 'El documento ya está guardado. Si falta completar stock o productos, puedes guardarlo de nuevo.'
+        : 'El documento ya está guardado.')
+    : isProcessingDocument
       ? 'No necesitas hacer nada ahora. Espera a que termine el análisis automático.'
       : isAssistedLines && doc.estado === 'REVIEW'
-        ? (assistedReview?.message || 'Corrige las lineas y completa solo lo necesario para guardar.')
-      : saveEnabled
-        ? 'Si el resultado te sirve, ya puedes guardarlo.'
+        ? (assistedReview?.message || 'Corrige solo lo necesario, confirma si está bien o reprocesa si no te sirve.')
+      : saveEnabled || canResumeSavedInvoice
+        ? 'Si está bien, guarda. Si no, reprocesa.'
         : !routingReadyForSave
-          ? 'Completa o corrige los campos obligatorios antes del guardado final.'
-          : 'Si el resultado te sirve, acéptalo. Si no, vuelve a importarlo.'
+          ? 'Corrige los datos obligatorios antes de guardar o reprocesa si el resultado no te sirve.'
+          : 'Confirma si el resultado es correcto. Si no, reprocesa.'
   const flowBlockingSummary = missingFieldLabels.length === 1
     ? `Falta 1 dato obligatorio: ${missingFieldLabels[0]}.`
     : missingFieldLabels.length > 1
@@ -657,8 +668,34 @@ export default function DocumentDetail() {
         ? 'Prioriza las lineas detectadas y deja vacios los datos que no aparecen en el documento.'
       : 'Corrige los datos obligatorios antes del guardado final.'
   const flowSupportLabel = confPct != null
-    ? `${isAssistedLines ? 'Modo lineas asistido' : 'Resultado provisional'} · confianza ${confPct}%`
-    : (isAssistedLines ? 'Modo lineas asistido' : 'Resultado provisional')
+    ? `Confianza ${confPct}%`
+    : 'Resultado provisional'
+  const flowPrimaryAction = canResumeSavedInvoice
+    ? {
+        label: 'Guardar',
+        onClick: () => setSaveModalOpen(true),
+        style: { ...actionBtn, background: '#0f766e' },
+      }
+    : !isSaved && saveEnabled
+      ? {
+          label: 'Guardar',
+          onClick: () => setSaveModalOpen(true),
+          style: { ...actionBtn, background: '#0f766e' },
+        }
+      : !isSaved && doc.estado === 'REVIEW' && !saveEnabled && routingReadyForSave
+        ? {
+            label: saving ? t('docDetail.buttons.confirming') : 'Confirmar',
+            onClick: handleConfirm,
+            style: { ...actionBtn, background: '#10B981' },
+            disabled: saving,
+          }
+        : !isSaved && canEditScalars && (isAssistedLines || !routingReadyForSave)
+          ? {
+              label: 'Corregir',
+              onClick: startEdit,
+              style: { ...actionBtn, background: '#F59E0B' },
+            }
+          : null
   const activeSheetRows = (() => {
     if (activeSheet && Array.isArray(filasPorHoja[activeSheet])) {
       return filasPorHoja[activeSheet]
@@ -866,15 +903,10 @@ export default function DocumentDetail() {
       {isSaved && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.9rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#166534' }}>
           <span>
-            ✅ {inferredSavedAs === 'products' ? 'Productos guardados' : inferredSavedAs === 'supplier_invoice' ? 'Guardado como factura de compra' : inferredSavedAs === 'expense' ? 'Guardado como gasto' : 'Documento guardado'}
+            ✅ {getImportadorSavedAsLabel(inferredSavedAs)}
             {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>· {new Date(doc.saved_at).toLocaleString()}</span>}
           </span>
-          <button
-            onClick={openReimport}
-            style={{ background: 'none', border: '1px solid #86efac', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#166534', padding: '2px 8px' }}
-          >
-            Volver a importar
-          </button>
+          {renderReimportButton(openReimport, { background: 'none', border: '1px solid #86efac', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#166534', padding: '2px 8px' })}
         </div>
       )}
 
@@ -902,7 +934,7 @@ export default function DocumentDetail() {
                 {savingDailyLog ? t('docDetail.buttons.savingDailyLog') : dailyLogResult ? t('docDetail.buttons.resaveDailyLog') : t('docDetail.buttons.saveDailyLog')}
               </button>
               <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280' }}>Volver a importar</button>
+              {renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280' })}
             </>
           )}
 
@@ -926,7 +958,7 @@ export default function DocumentDetail() {
                 {syncing ? t('docDetail.buttons.saving') : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
               </button>
               <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>
+              {renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 })}
             </>
           )}
 
@@ -943,7 +975,7 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>}
+              {advancedActionsVisible && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 })}
             </>
           )}
 
@@ -960,7 +992,7 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Volver a importar</button>}
+              {advancedActionsVisible && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 })}
             </>
           )}
 
@@ -983,7 +1015,7 @@ export default function DocumentDetail() {
                 </>
               )}
               {advancedActionsVisible && <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>}
-              {advancedActionsVisible && <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.85 }}>Rehacer este documento</button>}
+              {advancedActionsVisible && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 }, IMPORTADOR_COPY.rerunButton)}
             </>
           )}
         </div>
@@ -1025,46 +1057,26 @@ export default function DocumentDetail() {
             </div>
             <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {!isSaved && canEditScalars && (isAssistedLines || !routingReadyForSave) && (
-                  <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>
-                    {isAssistedLines ? 'Corregir lineas' : 'Corregir datos'}
+                {flowPrimaryAction && (
+                  <button
+                    onClick={flowPrimaryAction.onClick}
+                    disabled={flowPrimaryAction.disabled}
+                    style={flowPrimaryAction.style}
+                  >
+                    {flowPrimaryAction.label}
                   </button>
                 )}
-                {!isSaved && doc.estado === 'REVIEW' && !saveEnabled && routingReadyForSave && (
-                  <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
-                    {saving ? t('docDetail.buttons.confirming') : 'Usar este resultado'}
-                  </button>
-                )}
-                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
-                  <button onClick={openReimport} style={{ ...actionBtn, background: '#6b7280', opacity: 0.9 }}>
-                    Rehacer este documento
-                  </button>
-                )}
-                {!isSaved && saveEnabled && (
-                  <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
-                    {saveDestination === 'supplier_invoice' ? 'Guardar factura' : saveDestination === 'recipe' ? 'Guardar receta' : 'Guardar gasto'}
-                  </button>
-                )}
-                {canResumeSavedInvoice && (
-                  <button onClick={() => setSaveModalOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
-                    Completar stock pendiente
-                  </button>
-                )}
+                {!isSaved && !isProcessingDocument && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.9 }, IMPORTADOR_COPY.rerunButton)}
                 </div>
-                {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
+                {!isSaved && !isProcessingDocument && (
                   <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
-                    Rehacer este documento vuelve a procesar este mismo caso desde cero.
+                    {IMPORTADOR_COPY.rerunHelpText}
                   </div>
                 )}
               </div>
           </div>
           <div style={flowStepsWrap}>
-            {[
-              { step: 1, label: 'Carga' },
-              { step: 2, label: 'Espera' },
-              { step: 3, label: 'Revisa' },
-              { step: 4, label: 'Guarda' },
-            ].map((item) => {
+            {IMPORTADOR_FLOW_STEPS.map((item) => {
               const isActive = item.step === flowCurrentStep
               const isDone = item.step < flowCurrentStep || (isSaved && item.step <= flowCurrentStep)
               return (

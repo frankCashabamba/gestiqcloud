@@ -899,12 +899,12 @@ except Exception as e:
     _router_logger.warning(f"Importador admin routing router mount failed: {e}")
 
 try:
-    from app.modules.importador.recipe_router import router as recipe_router
+    from app.modules.importador.recipes_router import router as importador_recipes_router
 
-    app.include_router(recipe_router, prefix="/api/v1")
-    _router_logger.info("Importador recipe router mounted at /api/v1/importador (recipes + /run)")
+    app.include_router(importador_recipes_router, prefix="/api/v1")
+    _router_logger.info("Importador recipes router mounted at /api/v1/importador")
 except Exception as e:
-    _router_logger.warning(f"Importador recipe router mount failed: {e}")
+    _router_logger.warning(f"Importador recipes router mount failed: {e}")
 
 # Document Storage
 try:

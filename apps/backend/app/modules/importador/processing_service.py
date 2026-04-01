@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from . import crud, recipe_crud
 from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
+    _snapshot_recipe_config,
     get_snapshot_learning,
     get_snapshot_learning_version,
     remember_snapshot_learning,
@@ -34,6 +35,7 @@ from .runtime_config import (
 from .schemas import DocumentReviewHintOut, DocumentRoutingDecision
 from .services.document_model_learning_service import (
     build_signal_learning_recipe_config,
+    should_run_learning_rerun,
     summarize_learning_rerun,
 )
 from .services.document_routing_agent import build_document_routing_decision
@@ -283,15 +285,11 @@ async def _process_upload_like_document(
     recipe_snapshot = None
     recipe_config: dict[str, Any] = {}
     cached_analysis = None
+    analysis_recipe_config: dict[str, Any] = {}
     if resolved_snapshot_id:
         recipe_snapshot = _load_snapshot(db, resolved_snapshot_id)
         if recipe_snapshot and isinstance(recipe_snapshot.content_json, dict):
-            recipe_config = {
-                "prompt_system": recipe_snapshot.content_json.get("prompt_system"),
-                "prompt_user": recipe_snapshot.content_json.get("prompt_user"),
-                "model": recipe_snapshot.content_json.get("model"),
-                "field_descriptions": recipe_snapshot.content_json.get("field_descriptions"),
-            }
+            recipe_config = _snapshot_recipe_config(recipe_snapshot)
         if has_structured:
             cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
 
@@ -307,6 +305,7 @@ async def _process_upload_like_document(
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
+    classification_threshold = load_classification_threshold(db)
 
     # ── Pre-classification: attempt to resolve doc_type without AI ──────────────
     _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
@@ -354,6 +353,7 @@ async def _process_upload_like_document(
         if pre_class and pre_class.confidence >= 0.65:
             _rc_for_ai["doc_type_hint"] = pre_class.doc_type
             _rc_for_ai["doc_type_hint_confidence"] = pre_class.confidence
+        analysis_recipe_config = dict(_rc_for_ai)
         analysis = await _analyze_with_context(
             analyze_document_fn=analyze_document_fn,
             content=llm_content,
@@ -378,7 +378,7 @@ async def _process_upload_like_document(
     normalized_analysis = _normalize_analysis_output(analysis)
     tipo_doc = str(normalized_analysis["doc_type"])
     confianza = float(normalized_analysis["confidence"])
-    requiere_revision = confianza < load_classification_threshold(db)
+    requiere_revision = confianza < classification_threshold
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
 
@@ -478,59 +478,67 @@ async def _process_upload_like_document(
                     document_type_hint=baseline_routing.document_type,
                     base_recipe_config=auto_recipe_config,
                 )
-                rerun_analysis = await _analyze_with_context(
-                    analyze_document_fn=analyze_document_fn,
-                    content=llm_content,
-                    filename=filename,
-                    format_hint=extraction.get("format", tipo_archivo),
-                    has_structured_rows=False,
-                    recipe_config=rerun_recipe_config,
-                    vision_image_bytes=vision_image_bytes,
-                    fallback_patterns=fallback_patterns,
-                    canonical_fields=canonical_fields,
-                    prompt_config=prompt_config,
-                )
-                rerun_normalized = _normalize_analysis_output(rerun_analysis)
-                rerun_fields = rerun_normalized["fields"]
-                if isinstance(rerun_fields, dict) and rerun_fields:
-                    rerun_routing = build_document_routing_decision(
-                        source_doc_type=str(rerun_normalized["doc_type"]),
-                        ai_confidence=float(rerun_normalized["confidence"]),
-                        extracted_data=rerun_fields,
-                        canonical_document={},
-                        category_keywords=get_doc_categories(db),
-                        requires_review=(
-                            float(rerun_normalized["confidence"]) < load_classification_threshold(db)
-                        ),
-                        db=db,
-                        tenant_id=tenant_id,
+                if should_run_learning_rerun(
+                    baseline_confidence=confianza,
+                    classification_threshold=classification_threshold,
+                    baseline_fields=analysis_fields if isinstance(analysis_fields, dict) else {},
+                    baseline_routing=baseline_routing,
+                    base_recipe_config=analysis_recipe_config,
+                    candidate_recipe_config=rerun_recipe_config,
+                ):
+                    rerun_analysis = await _analyze_with_context(
+                        analyze_document_fn=analyze_document_fn,
+                        content=llm_content,
+                        filename=filename,
+                        format_hint=extraction.get("format", tipo_archivo),
+                        has_structured_rows=False,
+                        recipe_config=rerun_recipe_config,
+                        vision_image_bytes=vision_image_bytes,
+                        fallback_patterns=fallback_patterns,
+                        canonical_fields=canonical_fields,
+                        prompt_config=prompt_config,
                     )
-                    learning_rerun_summary = summarize_learning_rerun(
-                        baseline_doc_type=tipo_doc,
-                        baseline_confidence=confianza,
-                        baseline_fields=(
-                            analysis_fields if isinstance(analysis_fields, dict) else {}
-                        ),
-                        baseline_routing=baseline_routing.model_dump(mode="json"),
-                        rerun_doc_type=str(rerun_normalized["doc_type"]),
-                        rerun_confidence=float(rerun_normalized["confidence"]),
-                        rerun_fields=rerun_fields,
-                        rerun_routing=rerun_routing.model_dump(mode="json"),
-                        signal_learning_meta=(
-                            rerun_recipe_config.get("_signal_learning")
-                            if isinstance(rerun_recipe_config, dict)
-                            else None
-                        ),
-                    )
-                    analysis = rerun_analysis
-                    normalized_analysis = rerun_normalized
-                    tipo_doc = str(rerun_normalized["doc_type"])
-                    confianza = float(rerun_normalized["confidence"])
-                    requiere_revision = confianza < load_classification_threshold(db)
-                    razonamiento = str(rerun_normalized["reasoning"])
-                    analysis_fields = rerun_fields
-                    datos_extraidos = rerun_fields
-                    recipe_config = auto_recipe_config
+                    rerun_normalized = _normalize_analysis_output(rerun_analysis)
+                    rerun_fields = rerun_normalized["fields"]
+                    if isinstance(rerun_fields, dict) and rerun_fields:
+                        rerun_routing = build_document_routing_decision(
+                            source_doc_type=str(rerun_normalized["doc_type"]),
+                            ai_confidence=float(rerun_normalized["confidence"]),
+                            extracted_data=rerun_fields,
+                            canonical_document={},
+                            category_keywords=get_doc_categories(db),
+                            requires_review=(
+                                float(rerun_normalized["confidence"]) < classification_threshold
+                            ),
+                            db=db,
+                            tenant_id=tenant_id,
+                        )
+                        learning_rerun_summary = summarize_learning_rerun(
+                            baseline_doc_type=tipo_doc,
+                            baseline_confidence=confianza,
+                            baseline_fields=(
+                                analysis_fields if isinstance(analysis_fields, dict) else {}
+                            ),
+                            baseline_routing=baseline_routing.model_dump(mode="json"),
+                            rerun_doc_type=str(rerun_normalized["doc_type"]),
+                            rerun_confidence=float(rerun_normalized["confidence"]),
+                            rerun_fields=rerun_fields,
+                            rerun_routing=rerun_routing.model_dump(mode="json"),
+                            signal_learning_meta=(
+                                rerun_recipe_config.get("_signal_learning")
+                                if isinstance(rerun_recipe_config, dict)
+                                else None
+                            ),
+                        )
+                        analysis = rerun_analysis
+                        normalized_analysis = rerun_normalized
+                        tipo_doc = str(rerun_normalized["doc_type"])
+                        confianza = float(rerun_normalized["confidence"])
+                        requiere_revision = confianza < classification_threshold
+                        razonamiento = str(rerun_normalized["reasoning"])
+                        analysis_fields = rerun_fields
+                        datos_extraidos = rerun_fields
+                        recipe_config = auto_recipe_config
 
     crud.add_log(
         db,
@@ -723,6 +731,10 @@ async def _process_run_document(
         if recipe_context.force_clean_reimport and not local_recipe_config
         else recipe_context.resolved_snapshot_id
     )
+    if local_snapshot_id and not local_recipe_config:
+        snapshot = _load_snapshot(db, local_snapshot_id)
+        if snapshot and isinstance(snapshot.content_json, dict):
+            local_recipe_config = _snapshot_recipe_config(snapshot)
     local_auto_created = False
     local_auto_name: str | None = None
     generated_auto_snapshot_id: UUID | None = None
@@ -780,12 +792,14 @@ async def _process_run_document(
 
     recipe_snapshot = _load_snapshot(db, local_snapshot_id)
     cached_analysis = None
+    analysis_recipe_config = dict(local_recipe_config or {})
     if recipe_snapshot and has_structured:
         cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
 
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
+    classification_threshold = load_classification_threshold(db)
     if cached_analysis:
         analysis = {
             **cached_analysis,
@@ -818,7 +832,7 @@ async def _process_run_document(
     confianza = float(normalized_analysis["confidence"])
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
-    requiere_revision = confianza < load_classification_threshold(db)
+    requiere_revision = confianza < classification_threshold
 
     if has_structured and recipe_snapshot:
         remember_snapshot_learning(
@@ -944,33 +958,51 @@ async def _process_run_document(
         if post_snap_id and not local_snapshot_id:
             local_snapshot_id = post_snap_id
         if auto_rc2 and not auto_recipe_created and not local_recipe_config:
-            rerun_analysis = await analyze_document_fn(
-                llm_content,
-                filename,
-                extraction.get("format", tipo_archivo),
-                has_structured_rows=False,
-                recipe_config=auto_rc2,
-                image_bytes=(
-                    bytes(vision_image_bytes)
-                    if (is_image_doc or is_scanned_pdf) and vision_image_bytes
-                    else None
-                ),
-                fallback_patterns=fallback_patterns,
-                canonical_fields=canonical_fields,
-                prompt_config=prompt_config,
+            baseline_routing = build_document_routing_decision(
+                source_doc_type=tipo_doc,
+                ai_confidence=confianza,
+                extracted_data=analysis_fields if isinstance(analysis_fields, dict) else {},
+                canonical_document={},
+                category_keywords=get_doc_categories(db),
+                requires_review=requiere_revision,
+                db=db,
+                tenant_id=tenant_id,
             )
-            rerun_normalized = _normalize_analysis_output(rerun_analysis)
-            rerun_fields = rerun_normalized["fields"]
-            if isinstance(rerun_fields, dict) and rerun_fields:
-                analysis = rerun_analysis
-                normalized_analysis = rerun_normalized
-                tipo_doc = str(rerun_normalized["doc_type"])
-                confianza = float(rerun_normalized["confidence"])
-                razonamiento = str(rerun_normalized["reasoning"])
-                analysis_fields = rerun_fields
-                requiere_revision = confianza < load_classification_threshold(db)
-                datos_extraidos = rerun_fields
-                local_recipe_config = auto_rc2
+            if should_run_learning_rerun(
+                baseline_confidence=confianza,
+                classification_threshold=classification_threshold,
+                baseline_fields=analysis_fields if isinstance(analysis_fields, dict) else {},
+                baseline_routing=baseline_routing,
+                base_recipe_config=analysis_recipe_config,
+                candidate_recipe_config=auto_rc2,
+            ):
+                rerun_analysis = await analyze_document_fn(
+                    llm_content,
+                    filename,
+                    extraction.get("format", tipo_archivo),
+                    has_structured_rows=False,
+                    recipe_config=auto_rc2,
+                    image_bytes=(
+                        bytes(vision_image_bytes)
+                        if (is_image_doc or is_scanned_pdf) and vision_image_bytes
+                        else None
+                    ),
+                    fallback_patterns=fallback_patterns,
+                    canonical_fields=canonical_fields,
+                    prompt_config=prompt_config,
+                )
+                rerun_normalized = _normalize_analysis_output(rerun_analysis)
+                rerun_fields = rerun_normalized["fields"]
+                if isinstance(rerun_fields, dict) and rerun_fields:
+                    analysis = rerun_analysis
+                    normalized_analysis = rerun_normalized
+                    tipo_doc = str(rerun_normalized["doc_type"])
+                    confianza = float(rerun_normalized["confidence"])
+                    razonamiento = str(rerun_normalized["reasoning"])
+                    analysis_fields = rerun_fields
+                    requiere_revision = confianza < classification_threshold
+                    datos_extraidos = rerun_fields
+                    local_recipe_config = auto_rc2
 
     current_snapshot = _load_snapshot(db, local_snapshot_id)
     learning_version_applied = get_snapshot_learning_version(current_snapshot)

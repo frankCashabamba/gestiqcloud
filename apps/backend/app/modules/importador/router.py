@@ -1552,12 +1552,17 @@ def _save_document_to_purchase(
     }
 
 
-@router.post(
-    "/upload",
-    response_model=list[UploadResponse],
-    dependencies=protected,
-    deprecated=True,
-)
+@router.post("/upload", dependencies=protected, deprecated=True, include_in_schema=False)
+async def upload_files_legacy_disabled():
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Endpoint legacy deshabilitado. Usa /api/v1/importador/run-async como unica "
+            "entrada de importacion."
+        ),
+    )
+
+
 async def upload_files(
     request: Request,
     response: Response,

@@ -132,12 +132,17 @@ def _resolve_recipe_config(
     return {}, "zero_shot", None
 
 
-@router.post(
-    "/run",
-    response_model=list[RunResponse],
-    dependencies=protected,
-    deprecated=True,
-)
+@router.post("/run", dependencies=protected, deprecated=True, include_in_schema=False)
+async def run_import_legacy_disabled():
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Endpoint legacy deshabilitado. Usa /api/v1/importador/run-async como unica "
+            "entrada de importacion."
+        ),
+    )
+
+
 async def run_import(
     request: Request,
     response: Response,

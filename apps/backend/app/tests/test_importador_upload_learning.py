@@ -15,6 +15,7 @@ from app.models.importador import IcuRecipeSnapshot, ImpDocumento
 from app.modules.importador import crud
 from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
 from app.modules.importador.batch_service import enqueue_async_batch
+from app.modules.importador.processing_service import RecipeContext, process_import_document
 from app.modules.importador.router import _learn_from_confirmation, upload_files
 from app.modules.importador.snapshot_learning import build_snapshot_review_hints
 
@@ -300,6 +301,113 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
     assert analyze_calls[0] == {}
     assert "field_descriptions" in analyze_calls[1]
     assert "Learning from confirmed similar documents:" in str(analyze_calls[1].get("prompt_user"))
+
+
+def test_process_run_document_uses_explicit_snapshot_config_on_first_pass(
+    db: Session, tenant_minimal
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    _, snapshot_id, _, _, _ = resolve_auto_recipe_from_text(
+        db,
+        tenant_id,
+        "INVOICE",
+        {"currency": "EUR", "total_amount": 718.61},
+        "PDF",
+        "tester",
+    )
+    assert snapshot_id is not None
+
+    snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
+    assert snapshot is not None
+    content = dict(snapshot.content_json or {})
+    content["field_descriptions"] = {
+        "payment_method": "Recent confirmed example: Tarjeta."
+    }
+    content["learning_prompt_user"] = (
+        "Learning from confirmed similar documents:\n"
+        "- Review 'payment_method' carefully; users corrected it 2 time(s)."
+    )
+    snapshot.content_json = content
+    db.commit()
+
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-run.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="PENDING",
+        recipe_snapshot_id=snapshot_id,
+    )
+    db.add(document)
+    db.commit()
+
+    analyze_calls: list[dict | None] = []
+
+    async def fake_extract_text_from_file(_file_bytes: bytes, _filename: str):
+        return {
+            "text": "Factura proveedor bazar",
+            "structured_data": None,
+            "format": "PDF",
+        }
+
+    async def fake_analyze_document(
+        content: str,
+        filename: str = "",
+        format_hint: str = "",
+        has_structured_rows: bool = False,
+        recipe_config: dict | None = None,
+        image_bytes: bytes | None = None,
+        fallback_patterns: dict | None = None,
+        canonical_fields: dict | None = None,
+        prompt_config: dict | None = None,
+    ):
+        del (
+            content,
+            filename,
+            format_hint,
+            has_structured_rows,
+            image_bytes,
+            fallback_patterns,
+            canonical_fields,
+            prompt_config,
+        )
+        analyze_calls.append(recipe_config)
+        return {
+            "doc_type": "INVOICE",
+            "confidence": 0.94,
+            "reasoning": "snapshot prompt reused",
+            "fields": {"currency": "EUR", "total_amount": 718.61},
+            "model_used": "test-model",
+            "prompt_sent": "test",
+            "raw_response": "{}",
+        }
+
+    result = asyncio.run(
+        process_import_document(
+            mode="run",
+            db=db,
+            doc=document,
+            tenant_id=tenant_id,
+            user_id="tester",
+            file_bytes=b"%PDF-1.4 run",
+            filename="factura-run.pdf",
+            tipo_archivo="PDF",
+            force=True,
+            extract_text_fn=fake_extract_text_from_file,
+            analyze_document_fn=fake_analyze_document,
+            recipe_context=RecipeContext(
+                resolution_mode="snapshot",
+                resolved_snapshot_id=snapshot_id,
+                explicit_recipe_context=True,
+            ),
+        )
+    )
+
+    assert result.recipe_snapshot_id is not None
+    assert len(analyze_calls) == 1
+    assert analyze_calls[0] is not None
+    assert "field_descriptions" in analyze_calls[0]
+    assert "Learning from confirmed similar documents:" in str(analyze_calls[0].get("prompt_user"))
 
 
 def test_enqueue_async_batch_bootstraps_learning_and_reprocesses_same_hash_document(

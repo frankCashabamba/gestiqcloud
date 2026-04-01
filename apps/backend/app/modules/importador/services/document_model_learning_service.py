@@ -257,3 +257,74 @@ def summarize_learning_rerun(
         },
         "signal_learning": signal_learning_meta or {},
     }
+
+
+def _material_recipe_payload(config: dict[str, Any] | None) -> dict[str, Any]:
+    payload = dict(config or {})
+    payload.pop("_signal_learning", None)
+    field_descriptions = payload.get("field_descriptions")
+    if isinstance(field_descriptions, dict):
+        payload["field_descriptions"] = {
+            str(key).strip(): str(value).strip()
+            for key, value in field_descriptions.items()
+            if str(key).strip() and str(value).strip()
+        }
+    prompt_user = payload.get("prompt_user")
+    if prompt_user is not None:
+        payload["prompt_user"] = str(prompt_user).strip()
+    return payload
+
+
+def recipe_config_has_material_hints(
+    base_recipe_config: dict[str, Any] | None,
+    candidate_recipe_config: dict[str, Any] | None,
+) -> bool:
+    return _material_recipe_payload(base_recipe_config) != _material_recipe_payload(
+        candidate_recipe_config
+    )
+
+
+def _field_needs_help(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, dict)):
+        return not value
+    return False
+
+
+def should_run_learning_rerun(
+    *,
+    baseline_confidence: float,
+    classification_threshold: float,
+    baseline_fields: dict[str, Any] | None,
+    baseline_routing: Any | None,
+    base_recipe_config: dict[str, Any] | None,
+    candidate_recipe_config: dict[str, Any] | None,
+) -> bool:
+    if not recipe_config_has_material_hints(base_recipe_config, candidate_recipe_config):
+        return False
+
+    routing = baseline_routing
+    if routing is not None:
+        missing_fields = list(getattr(routing, "missing_fields", None) or [])
+        if missing_fields:
+            return True
+        if bool(getattr(routing, "needs_human_review", False)):
+            return True
+        if not bool(getattr(routing, "required_fields_ok", False)):
+            return True
+
+    candidate_fields = (
+        candidate_recipe_config.get("field_descriptions")
+        if isinstance(candidate_recipe_config, dict)
+        else None
+    )
+    baseline = baseline_fields if isinstance(baseline_fields, dict) else {}
+    if isinstance(candidate_fields, dict):
+        for field_name in candidate_fields.keys():
+            if _field_needs_help(baseline.get(str(field_name))):
+                return True
+
+    return float(baseline_confidence or 0.0) < float(classification_threshold or 0.0)

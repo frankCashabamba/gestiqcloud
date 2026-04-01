@@ -12,7 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.cache import CacheTTL, build_cache_key, cache_set
+from app.core.cache import CacheTTL, build_cache_key, cache_get, cache_set
 from app.services.ai.base import AIRequest, AIResponse, AITask
 from app.services.ai.factory import AIProviderFactory
 from app.services.ai.logging import AILogger
@@ -21,12 +21,7 @@ from app.services.ai.recovery import recovery_manager
 logger = logging.getLogger(__name__)
 
 
-async def _store_response_in_cache(
-    tenant_id: str | None, request: AIRequest, response: AIResponse
-) -> None:
-    if response.is_error or not response.content:
-        return
-    cache_tenant = str(tenant_id or "global")
+def _cache_fingerprint_for_request(request: AIRequest) -> str:
     key_payload = {
         "task": str(request.task),
         "prompt": request.prompt,
@@ -35,12 +30,46 @@ async def _store_response_in_cache(
         "max_tokens": request.max_tokens,
         "context": request.context or {},
     }
-    fingerprint = hashlib.md5(
+    return hashlib.md5(
         json.dumps(key_payload, sort_keys=True, default=str).encode("utf-8"),
         usedforsecurity=False,
     ).hexdigest()
+
+
+def _cache_key_for_request(tenant_id: str | None, request: AIRequest) -> str:
+    cache_tenant = str(tenant_id or "global")
+    return build_cache_key(cache_tenant, "ai_recovery", _cache_fingerprint_for_request(request))
+
+
+async def _load_response_from_cache(
+    tenant_id: str | None,
+    request: AIRequest,
+) -> AIResponse | None:
+    cached = await cache_get(_cache_key_for_request(tenant_id, request))
+    if not isinstance(cached, dict) or not cached.get("content"):
+        return None
+    return AIResponse(
+        task=request.task,
+        content=str(cached.get("content") or ""),
+        model=str(cached.get("model") or "cache"),
+        tokens_used=cached.get("tokens_used"),
+        confidence=cached.get("confidence"),
+        processing_time_ms=0,
+        metadata={
+            **(cached.get("metadata") or {}),
+            "source": "redis_cache",
+            "cache_ttl": int(CacheTTL.MEDIUM),
+        },
+    )
+
+
+async def _store_response_in_cache(
+    tenant_id: str | None, request: AIRequest, response: AIResponse
+) -> None:
+    if response.is_error or not response.content:
+        return
     await cache_set(
-        build_cache_key(cache_tenant, "ai_recovery", fingerprint),
+        _cache_key_for_request(tenant_id, request),
         {
             "content": response.content,
             "model": response.model,
@@ -98,16 +127,21 @@ class AIService:
             context=context,
         )
 
+        cached_response = await _load_response_from_cache(tenant_id, request)
+
         # Generar ID para tracking
         request_id = None
         if db:
             try:
-                ai_provider = await AIProviderFactory.get_available_provider(task)
-                provider_model = ai_provider.default_model if ai_provider else "unknown"
+                provider_name = provider or ("cache" if cached_response else "auto")
+                provider_model = "cache" if cached_response else "unknown"
+                if not cached_response:
+                    ai_provider = await AIProviderFactory.get_available_provider(task)
+                    provider_model = ai_provider.default_model if ai_provider else "unknown"
                 request_id = AILogger.log_request(
                     db,
                     request,
-                    provider_name=provider or "auto",
+                    provider_name=provider_name,
                     provider_model=str(provider_model),
                     tenant_id=tenant_id,
                     module=module,
@@ -115,6 +149,12 @@ class AIService:
                 )
             except Exception as e:
                 logger.debug(f"Error logging request: {e}")
+
+        if cached_response:
+            if db and request_id:
+                AILogger.log_response(db, request_id, cached_response)
+            logger.debug(f"IA query ({task}): redis_cache hit")
+            return cached_response
 
         # Obtener proveedor
         if provider:

@@ -63,4 +63,18 @@ describe('importador routing decision helpers', () => {
     expect(canSaveDocument(doc)).toBe(false)
     expect(getDocCategory(doc, ['Productos'])).toBe('inventory')
   })
+
+  it('stays conservative when backend routing is missing', async () => {
+    const { canSaveDocument, getDocCategory, suggestSaveDestination } = await import('./services')
+    const doc = {
+      tipo_documento_detectado: 'INVOICE',
+      proveedor_detectado: 'Proveedor demo',
+      monto_total: 112,
+      routing_decision: null,
+    }
+
+    expect(getDocCategory(doc, [])).toBe('other')
+    expect(suggestSaveDestination(doc)).toBe('expense')
+    expect(canSaveDocument(doc)).toBe(false)
+  })
 })

@@ -9,9 +9,8 @@ export default function UploadPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const reimportMode = searchParams.get('reimport')
-  const sourceDocumentId = searchParams.get('documentId')
-  const freshRequested = searchParams.get('fresh') === '1'
-  const forceRequested = reimportMode === 'clean' || reimportMode === 'force'
+  const sourceRecipeSnapshotId = searchParams.get('recipeSnapshotId') || ''
+  const forceRequested = reimportMode === 'force'
 
   const [showVideo, setShowVideo] = useState(
     () => localStorage.getItem(STORAGE_KEY) !== 'true'
@@ -146,13 +145,14 @@ export default function UploadPage() {
             fontSize: 14,
           }}
         >
-          Reprocesa este documento desde cero{sourceDocumentId ? ` · ${sourceDocumentId}` : '.'}
+          Reprocesa este documento desde cero.
         </div>
       )}
 
       <ImportUploader
         initialForceReprocess={forceRequested}
-        restoreSession={!forceRequested && !freshRequested}
+        initialRecipeSnapshotId={sourceRecipeSnapshotId}
+        restoreSession={!forceRequested}
         documentPathBuilder={(docId) => `../documents/${docId}`}
         compact={forceRequested}
       />

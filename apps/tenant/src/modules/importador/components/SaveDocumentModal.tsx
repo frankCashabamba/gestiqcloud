@@ -14,6 +14,7 @@ import {
   type SaveDocumentPayload,
   type SaveDocumentResult,
 } from '../services'
+import { IMPORTADOR_DESTINATION_LABELS, getImportadorSaveActionLabel } from '../constants'
 
 type SaveDocumentModalProps = {
   doc: Documento | null
@@ -578,7 +579,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                       style={{ ...choiceBtn, ...(destination === 'supplier_invoice' ? choiceBtnActive : null) }}
                       disabled={saving}
                     >
-                      Factura proveedor
+                      {IMPORTADOR_DESTINATION_LABELS.supplier_invoice}
                     </button>
                   )}
                   {canSaveExpense && (
@@ -588,7 +589,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                       style={{ ...choiceBtn, ...(destination === 'expense' ? choiceBtnActive : null) }}
                       disabled={saving}
                     >
-                      Gasto
+                      {IMPORTADOR_DESTINATION_LABELS.expense}
                     </button>
                   )}
                   <button
@@ -597,7 +598,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                     style={{ ...choiceBtn, ...(destination === 'recipe' ? choiceBtnActive : null) }}
                     disabled={saving}
                   >
-                    Receta
+                    {IMPORTADOR_DESTINATION_LABELS.recipe}
                   </button>
                 </div>
               </div>
@@ -860,11 +861,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
               {saving ? 'Guardando...' : (
                 resumeMode && destination === 'supplier_invoice'
                   ? 'Completar stock'
-                  : destination === 'recipe'
-                    ? 'Guardar receta'
-                    : destination === 'supplier_invoice'
-                      ? 'Guardar factura'
-                      : 'Guardar gasto'
+                  : getImportadorSaveActionLabel(destination)
               )}
             </button>
           )}
