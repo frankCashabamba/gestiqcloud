@@ -15,36 +15,13 @@ from app.modules.importador.schemas import (
     RoutingProfileUpdateProposalOut,
 )
 
-
-def _normalize_text(value: Any) -> str | None:
-    text = str(value or "").strip()
-    return text or None
-
-
-def _event_weight(event: str, weights: dict | None = None) -> float:
-    w = weights or {}
-    normalized = str(event or "").strip().lower()
-    if normalized == "save":
-        return float(w.get("event_weight_save", 4.0))
-    if normalized == "confirm":
-        return float(w.get("event_weight_confirm", 3.0))
-    if normalized == "edit":
-        return float(w.get("event_weight_edit", 1.35))
-    return float(w.get("event_weight_default", 1.0))
-
-
-def _source_doc_type(signal: ImpRoutingSignal, doc: ImpDocumento) -> str:
-    snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
-    raw = (
-        snapshot.get("source_doc_type") or getattr(doc, "tipo_documento_detectado", None) or "OTHER"
-    )
-    return str(raw).strip().upper() or "OTHER"
-
-
-def _document_type(signal: ImpRoutingSignal) -> str:
-    snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
-    raw = snapshot.get("document_type") or signal.chosen_destination or "other"
-    return str(raw).strip().lower() or "other"
+from ._routing_signals import (
+    document_type as _document_type,
+    event_weight as _event_weight,
+    normalize_text as _normalize_text,
+    source_doc_type as _source_doc_type,
+)
+from .document_routing_admin_service import _serialize_profile
 
 
 def _missing_fields(signal: ImpRoutingSignal) -> list[str]:
@@ -205,22 +182,6 @@ def list_routing_learning_insights(
 
     insights.sort(key=lambda item: (-item.signals_count, item.source_doc_type, item.document_type))
     return insights[: max(1, min(limit, 50))]
-
-
-def _serialize_profile(row: ImpRoutingProfile) -> RoutingProfileAdminOut:
-    return RoutingProfileAdminOut(
-        id=row.id,
-        code=row.code,
-        document_type=row.document_type,
-        description=row.description,
-        suggested_destination=row.suggested_destination,
-        required_groups=row.required_groups or [],
-        support_fields=row.support_fields or [],
-        explanation_fields=row.explanation_fields or [],
-        blocked=bool(row.blocked),
-        confidence_threshold=float(row.confidence_threshold),
-        active=bool(row.active),
-    )
 
 
 def build_routing_profile_update_proposal(

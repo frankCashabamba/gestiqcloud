@@ -95,16 +95,7 @@ def publish_batch_update(db, batch_id: UUID) -> None:
         logger.warning("No se pudo publicar batch %s: %s", batch_id, exc)
 
 
-def _json_safe(obj):
-    if isinstance(obj, (datetime.datetime, datetime.date)):
-        return obj.isoformat()
-    if isinstance(obj, UUID):
-        return str(obj)
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_json_safe(v) for v in obj]
-    return obj
+from .utils import json_safe as _json_safe
 
 
 async def _run_processing(

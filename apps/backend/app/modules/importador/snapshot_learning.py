@@ -11,10 +11,6 @@ from .constants import INTERNAL_STRUCTURAL_KEYS
 _MAX_LEARNING_EXAMPLES = 5
 
 
-def _is_scalar_learning_value(value: Any) -> bool:
-    return value is not None and not isinstance(value, (dict, list, tuple, set, bool))
-
-
 def _normalize_scalar(value: Any) -> str | None:
     if value is None:
         return None

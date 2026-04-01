@@ -8,46 +8,19 @@ from sqlalchemy.orm import Session
 from app.models.importador import ImpDocumento, ImpRoutingSignal
 from app.modules.importador.runtime_config import load_learning_config
 
+from ._routing_signals import (
+    document_type as _signal_document_type,
+    event_weight as _event_weight,
+    is_scalar as _is_scalar,
+    normalize_text as _normalize_text,
+    source_doc_type as _signal_source_doc_type,
+)
+
 _INTERNAL_KEYS = {
     "line_items",
     "rows",
     "_save",
 }
-
-
-def _is_scalar(value: Any) -> bool:
-    return value is not None and not isinstance(value, (dict, list, tuple, set, bool))
-
-
-def _normalize_text(value: Any) -> str | None:
-    text = str(value or "").strip()
-    return text or None
-
-
-def _signal_source_doc_type(signal: ImpRoutingSignal, doc: ImpDocumento) -> str:
-    snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
-    raw = (
-        snapshot.get("source_doc_type") or getattr(doc, "tipo_documento_detectado", None) or "OTHER"
-    )
-    return str(raw).strip().upper() or "OTHER"
-
-
-def _signal_document_type(signal: ImpRoutingSignal) -> str:
-    snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
-    raw = snapshot.get("document_type") or signal.chosen_destination or "other"
-    return str(raw).strip().lower() or "other"
-
-
-def _event_weight(event: str, weights: dict | None = None) -> float:
-    w = weights or {}
-    normalized = str(event or "").strip().lower()
-    if normalized == "save":
-        return float(w.get("event_weight_save", 4.0))
-    if normalized == "confirm":
-        return float(w.get("event_weight_confirm", 3.0))
-    if normalized == "edit":
-        return float(w.get("event_weight_edit", 1.35))
-    return float(w.get("event_weight_default", 1.0))
 
 
 def _signal_quality_weight(signal: ImpRoutingSignal, weights: dict | None = None) -> float:

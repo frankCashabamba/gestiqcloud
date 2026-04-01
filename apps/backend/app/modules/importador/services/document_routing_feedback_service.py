@@ -10,40 +10,11 @@ from app.modules.importador import crud
 from app.modules.importador.category_loader import get_doc_categories
 
 from .document_routing_agent import build_document_routing_decision
-
-
-def _json_safe(value: Any) -> Any:
-    if isinstance(value, (datetime.datetime, datetime.date)):
-        return value.isoformat()
-    if isinstance(value, dict):
-        return {str(key): _json_safe(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, tuple):
-        return [_json_safe(item) for item in value]
-    return value
-
-
-def _document_source_data(doc) -> dict[str, Any]:
-    raw = doc.datos_confirmados or doc.datos_extraidos or {}
-    data = dict(raw) if isinstance(raw, dict) else {}
-    if "vendor" not in data and getattr(doc, "proveedor_detectado", None):
-        data["vendor"] = doc.proveedor_detectado
-    if "vendor_tax_id" not in data and getattr(doc, "ruc_detectado", None):
-        data["vendor_tax_id"] = doc.ruc_detectado
-    if "total_amount" not in data and getattr(doc, "monto_total", None) is not None:
-        data["total_amount"] = doc.monto_total
-    if "issue_date" not in data and getattr(doc, "fecha_documento", None):
-        data["issue_date"] = doc.fecha_documento
-    if "currency" not in data and getattr(doc, "moneda", None):
-        data["currency"] = doc.moneda
-    return data
-
-
-def _canonical_document(doc) -> dict[str, Any]:
-    raw_ai_json = doc.raw_ai_json if isinstance(doc.raw_ai_json, dict) else {}
-    canonical_document = raw_ai_json.get("canonical_document")
-    return canonical_document if isinstance(canonical_document, dict) else {}
+from ..utils import json_safe as _json_safe
+from .document_routing_admin_service import (
+    _document_canonical_payload as _canonical_document,
+    _document_routing_source_data as _document_source_data,
+)
 
 
 def record_routing_signal(

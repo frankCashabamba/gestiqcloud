@@ -109,16 +109,7 @@ protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
 IMAGE_SOURCE_FORMATS = {"JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"}
 
 
-def _json_safe(obj):
-    if isinstance(obj, (datetime.datetime, datetime.date)):
-        return obj.isoformat()
-    if isinstance(obj, UUID):
-        return str(obj)
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_json_safe(v) for v in obj]
-    return obj
+from .utils import json_safe as _json_safe
 
 
 def _tenant_id(request: Request) -> UUID:

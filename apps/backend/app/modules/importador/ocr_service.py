@@ -55,14 +55,7 @@ def _ocr_cache_path(file_bytes: bytes) -> Path:
     return _ocr_cache_dir() / f"{file_hash}.json"
 
 
-def _json_safe(obj: Any) -> Any:
-    if isinstance(obj, (datetime.datetime, datetime.date)):
-        return obj.isoformat()
-    if isinstance(obj, dict):
-        return {str(k): _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_json_safe(v) for v in obj]
-    return obj
+from .utils import json_safe as _json_safe
 
 
 def _serialize_cached_extraction(extraction: dict[str, Any]) -> dict[str, Any]:
