@@ -1,14 +1,39 @@
 import React, { useEffect, useState } from 'react'
+import { useEnv } from './env'
 
 declare const __APP_BUILD_ID__: string
 declare const __APP_VERSION__: string
 
+function buildVersionUrl(rawApiUrl: string): string {
+  const fallback = '/api/version'
+
+  try {
+    const base = String(rawApiUrl || '').trim()
+    if (!base) return fallback
+
+    const url = new URL(base, window.location.origin)
+    const normalizedPath = url.pathname.replace(/\/+$/g, '').replace(/\/(?:api(?:\/v1)?|v1)$/i, '')
+    url.pathname = `${normalizedPath || ''}/api/version`
+    url.search = ''
+    url.hash = ''
+
+    if (url.origin === window.location.origin) {
+      return url.pathname
+    }
+
+    return url.toString()
+  } catch {
+    return fallback
+  }
+}
+
 export default function BuildBadge() {
+  const env = useEnv()
   const [info, setInfo] = useState<{ buildId: string; version: string }>({ buildId: __APP_BUILD_ID__, version: __APP_VERSION__ })
 
   useEffect(() => {
     // Fetch live version from DB via backend
-    fetch('/api/version')
+    fetch(buildVersionUrl(env.apiUrl))
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d?.version) setInfo((prev) => ({ ...prev, version: d.version })) })
       .catch(() => {})
@@ -22,7 +47,7 @@ export default function BuildBadge() {
     }
     navigator.serviceWorker?.addEventListener('message', onMsg)
     return () => navigator.serviceWorker?.removeEventListener('message', onMsg)
-  }, [])
+  }, [env.apiUrl])
 
   return (
     <div
