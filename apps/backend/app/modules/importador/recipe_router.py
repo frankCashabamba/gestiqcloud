@@ -10,7 +10,6 @@ Business Rules:
 from __future__ import annotations
 
 import asyncio
-import datetime
 import hashlib
 import logging
 import os
@@ -56,9 +55,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador v1.3"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
-
-
-from .utils import json_safe as _json_safe
 
 
 def _tenant_id(request: Request) -> UUID:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("importador.runtime_config")
@@ -9,14 +11,7 @@ logger = logging.getLogger("importador.runtime_config")
 _CACHE_TTL = 300.0
 _cache: dict[str, tuple[float, dict]] = {}
 
-_DEFAULT_DOC_TYPE_PATTERNS: dict[str, list[str]] = {
-    "INVOICE": ["invoice", "factura", "rechnung", "fattura", "fatura", "facture"],
-    "RECEIPT": ["receipt", "recibo", "boleta", "ticket", "voucher"],
-    "BANK_STATEMENT": ["bank statement", "extracto", "estado de cuenta", "kontoauszug"],
-    "PAYROLL": ["payroll", "nomina", "planilla", "lohnabrechnung"],
-    "INVENTORY": ["inventory", "inventario", "stock", "price list", "lista precios"],
-    "COSTING": ["costing", "costeo", "recipe", "receta", "food cost"],
-}
+_RUNTIME_SEED_PATH = Path(__file__).with_name("runtime_seed.json")
 
 _DEFAULT_FILE_SUPPORT = {
     "accepted_extensions": [
@@ -56,31 +51,6 @@ _DEFAULT_FILE_SUPPORT = {
     },
 }
 
-_DEFAULT_PROMPT_CONFIG = {
-    "extraction_system": (
-        "You are a universal accounting document analyzer. "
-        "Always respond with valid JSON using the configured canonical fields."
-    ),
-    "structured_table_note": (
-        "NOTE: Content is already pre-processed as a structured table. "
-        "If you recognize a list or table, set is_table=true and provide clean column names. "
-        "Do NOT return individual rows."
-    ),
-    "doc_type_instruction": (
-        "A short uppercase label describing the document type in English. "
-        "Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable."
-    ),
-    "critical_rules": [
-        "The document may be in any language. Read it as-is and map to the configured canonical fields.",
-        "total_amount must represent the grand total, not a quantity.",
-        "vendor is the entity that issues or signs the document.",
-        "If is_table=true, return columns and only visible summary values in fields.",
-        "Extract payment_method and payment_terms when visible.",
-        "Dates must use YYYY-MM-DD. Amounts must use dot decimal notation. Missing fields must be null.",
-        "Do not invent data absent from the document.",
-    ],
-}
-
 _DEFAULT_CLASSIFICATION_CONFIG: dict[str, float] = {
     "confidence_threshold": 0.85,
 }
@@ -95,59 +65,6 @@ _DEFAULT_LEARNING_CONFIG: dict[str, float] = {
     "quality_bonus_has_destination": 0.35,
     "filename_pattern_base_confidence": 0.65,
 }
-
-_DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG = {
-    "summary_names": ["total", "subtotal", "resumen", "sum", "totales"],
-    "name_keywords": [
-        "producto",
-        "nombre",
-        "descripcion",
-        "description",
-        "item",
-        "articulo",
-        "product",
-        "name",
-        "denominacion",
-    ],
-    "price_keywords": [
-        "precio unitario",
-        "unit price",
-        "precio venta",
-        "sale price",
-        "pvp",
-        "price",
-        "precio",
-        "valor",
-    ],
-    "price_reject_keywords": ["total", "importe total", "subtotal"],
-    "cost_keywords": ["costo", "cost", "compra", "purchase"],
-    "sku_keywords": ["sku", "codigo", "code", "ean", "barcode", "referencia", "ref"],
-    "category_keywords": ["categoria", "category", "familia", "grupo", "linea"],
-    "description_keywords": ["descripcion", "description", "detalle", "detalle producto"],
-    "explicit_stock_keywords": [
-        "stock",
-        "existencia",
-        "disponible",
-        "inventario",
-        "saldo",
-        "cantidad stock",
-    ],
-    "ambiguous_stock_keywords": ["cantidad", "qty", "quantity", "unidades", "units"],
-    "operational_keywords": ["venta", "diaria", "sobrante", "produc", "consumo", "merma"],
-    "sheet_hint_keywords": [
-        "product",
-        "producto",
-        "productos",
-        "catalog",
-        "catalogo",
-        "inventory",
-        "inventario",
-        "stock",
-        "price list",
-        "lista precios",
-    ],
-}
-
 
 def _cache_get(key: str) -> dict | None:
     entry = _cache.get(key)
@@ -172,13 +89,60 @@ def _load_module_rows(db: Any, module: str) -> list[Any]:
     return db.query(ImpConfig).filter(ImpConfig.module == module).all()
 
 
+def _load_runtime_seed() -> dict[str, Any]:
+    try:
+        payload = json.loads(_RUNTIME_SEED_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("No se pudo cargar runtime seed del importador: %s", exc)
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _seed_module_payload(module: str) -> dict[str, Any]:
+    payload = _load_runtime_seed().get(module)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _ensure_module_seeded(db: Any, module: str) -> list[Any]:
+    rows = _load_module_rows(db, module)
+    if rows:
+        return rows
+
+    payload = _seed_module_payload(module)
+    if not payload:
+        return rows
+
+    try:
+        from app.models.importador import ImpConfig
+
+        for key, value in payload.items():
+            db.add(
+                ImpConfig(
+                    module=module,
+                    key=str(key),
+                    value_text=(str(value).strip() if isinstance(value, str) else None),
+                    value_list=(list(value) if isinstance(value, list) else None),
+                    label=f"Seeded runtime config for {module}.{key}",
+                )
+            )
+        db.commit()
+        return _load_module_rows(db, module)
+    except Exception as exc:
+        logger.warning("No se pudo sembrar imp_config para %s: %s", module, exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return rows
+
+
 def load_doc_type_patterns(db: Any) -> dict[str, list[str]]:
     cached = _cache_get("doc_type_patterns")
     if cached is not None:
         return cached  # type: ignore[return-value]
 
     try:
-        rows = _load_module_rows(db, "doc_type_patterns")
+        rows = _ensure_module_seeded(db, "doc_type_patterns")
         patterns: dict[str, list[str]] = {}
         for row in rows:
             if not isinstance(row.value_list, list):
@@ -191,7 +155,8 @@ def load_doc_type_patterns(db: Any) -> dict[str, list[str]]:
     except Exception as exc:
         logger.warning("No se pudo cargar doc_type_patterns desde imp_config: %s", exc)
 
-    return _DEFAULT_DOC_TYPE_PATTERNS
+    seed = _seed_module_payload("doc_type_patterns")
+    return {str(key).strip().upper(): list(value) for key, value in seed.items() if isinstance(value, list)}
 
 
 def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
@@ -210,10 +175,10 @@ def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
             for row in rows:
                 key = str(row.key).strip()
                 value_list = row.value_list
-                if key in {"accepted_extensions", "image_extensions"} and isinstance(value_list, list):
-                    config[key] = [
-                        str(v).strip().lower() for v in value_list if str(v).strip()
-                    ]
+                if key in {"accepted_extensions", "image_extensions"} and isinstance(
+                    value_list, list
+                ):
+                    config[key] = [str(v).strip().lower() for v in value_list if str(v).strip()]
                 elif key == "type_map" and isinstance(value_list, list):
                     parsed_type_map: dict[str, str] = {}
                     for item in value_list:
@@ -242,23 +207,33 @@ def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
 
     if db is not None:
         try:
-            rows = _load_module_rows(db, "prompt_config")
-            config = dict(_DEFAULT_PROMPT_CONFIG)
+            rows = _ensure_module_seeded(db, "prompt_config")
+            config = dict(_seed_module_payload("prompt_config"))
             for row in rows:
                 key = str(row.key).strip()
-                if key in {"extraction_system", "structured_table_note", "doc_type_instruction"}:
+                if key in {
+                    "extraction_system",
+                    "vision_extraction_preamble",
+                    "structured_table_note",
+                    "doc_type_instruction",
+                }:
                     value = str(row.value_text or "").strip()
                     if value:
                         config[key] = value
-                elif key == "critical_rules" and isinstance(row.value_list, list):
+                elif key in {"critical_rules", "vision_critical_rules"} and isinstance(
+                    row.value_list, list
+                ):
                     values = [str(v).strip() for v in row.value_list if str(v).strip()]
                     if values:
                         config[key] = values
+            config["amount_labels"] = load_amount_label_config(db)
             return _cache_set("prompt_config", config)
         except Exception as exc:
             logger.warning("No se pudo cargar prompt_config desde imp_config: %s", exc)
 
-    return _DEFAULT_PROMPT_CONFIG
+    config = dict(_seed_module_payload("prompt_config"))
+    config["amount_labels"] = load_amount_label_config(db)
+    return config
 
 
 def load_classification_threshold(db: Any) -> float:
@@ -270,7 +245,11 @@ def load_classification_threshold(db: Any) -> float:
     """
     cached = _cache_get("classification")
     if cached is not None:
-        return float(cached.get("confidence_threshold", _DEFAULT_CLASSIFICATION_CONFIG["confidence_threshold"]))
+        return float(
+            cached.get(
+                "confidence_threshold", _DEFAULT_CLASSIFICATION_CONFIG["confidence_threshold"]
+            )
+        )
 
     if db is not None:
         try:
@@ -298,9 +277,11 @@ def load_product_sheet_detection_config(db: Any | None = None) -> dict[str, list
 
     if db is not None:
         try:
-            rows = _load_module_rows(db, "product_sheet_detection")
+            rows = _ensure_module_seeded(db, "product_sheet_detection")
             config = {
-                key: list(value) for key, value in _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG.items()
+                key: list(value)
+                for key, value in _seed_module_payload("product_sheet_detection").items()
+                if isinstance(value, list)
             }
             for row in rows:
                 key = str(row.key).strip()
@@ -313,7 +294,42 @@ def load_product_sheet_detection_config(db: Any | None = None) -> dict[str, list
         except Exception as exc:
             logger.warning("No se pudo cargar product_sheet_detection desde imp_config: %s", exc)
 
-    return _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG
+    return {
+        key: list(value)
+        for key, value in _seed_module_payload("product_sheet_detection").items()
+        if isinstance(value, list)
+    }
+
+
+def load_amount_label_config(db: Any | None = None) -> dict[str, list[str]]:
+    cached = _cache_get("amount_label_config")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "amount_label_config")
+            config = {
+                key: list(value)
+                for key, value in _seed_module_payload("amount_label_config").items()
+                if isinstance(value, list)
+            }
+            for row in rows:
+                key = str(row.key).strip()
+                if not key or not isinstance(row.value_list, list):
+                    continue
+                values = [str(v).strip().lower() for v in row.value_list if str(v).strip()]
+                if values:
+                    config[key] = values
+            return _cache_set("amount_label_config", config)  # type: ignore[return-value]
+        except Exception as exc:
+            logger.warning("No se pudo cargar amount_label_config desde imp_config: %s", exc)
+
+    return {
+        key: list(value)
+        for key, value in _seed_module_payload("amount_label_config").items()
+        if isinstance(value, list)
+    }
 
 
 def load_learning_config(db: Any) -> dict[str, float]:

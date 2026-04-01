@@ -66,3 +66,52 @@ def test_edit_document_fields_supports_line_items_and_infers_total(db: Session, 
     assert result.datos_extraidos["total_amount"] == 15.95
     assert document.monto_total == 15.95
     assert document.raw_ai_json["canonical_document"]
+
+
+def test_edit_document_fields_preserves_extra_columns_and_promotes_supplier_ref(
+    db: Session, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    monkeypatch.setattr(
+        "app.modules.importador.router.get_field_aliases",
+        lambda _db, tenant_id=None: {
+            "line_items": ["line_items"],
+            "total_amount": ["total_amount"],
+            "supplier_ref": ["Ref."],
+        },
+    )
+
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-bazar.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=256,
+        estado="REVIEW",
+        tipo_documento_detectado="INVOICE",
+        datos_extraidos={"line_items": []},
+        raw_ai_json={},
+    )
+    db.add(document)
+    db.commit()
+
+    result = edit_document_fields(
+        document.id,
+        EditFieldsRequest(
+            campos={
+                "line_items": [
+                    {
+                        "description": "Set de tazas de ceramica 350 ml",
+                        "quantity": "24",
+                        "unit_price": "2.35",
+                        "extra_columns": {"Ref.": "REF-BZ-1042"},
+                    }
+                ]
+            }
+        ),
+        request=_fake_request(tenant_id),
+        db=db,
+    )
+
+    row = result.datos_extraidos["line_items"][0]
+    assert row["supplier_ref"] == "REF-BZ-1042"
+    assert "extra_columns" not in row

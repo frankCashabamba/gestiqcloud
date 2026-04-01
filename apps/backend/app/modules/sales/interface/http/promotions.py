@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import Column, Boolean, Date, DateTime, Integer, Numeric, String, Text, ARRAY
+from sqlalchemy import ARRAY, Boolean, Column, Date, DateTime, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
@@ -67,37 +66,37 @@ class Promotion(Base):
 
 class PromotionIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = None
+    description: str | None = None
     type: str = Field("percentage", pattern="^(percentage|fixed|bogo)$")
     value: float = Field(..., ge=0)
-    valid_from: Optional[date] = None
-    valid_to: Optional[date] = None
+    valid_from: date | None = None
+    valid_to: date | None = None
     min_purchase: float = Field(0, ge=0)
     applies_to: str = Field("all", pattern="^(all|products)$")
-    product_ids: Optional[list[str]] = None
-    promo_code: Optional[str] = Field(None, max_length=100)
+    product_ids: list[str] | None = None
+    promo_code: str | None = Field(None, max_length=100)
     is_active: bool = True
-    usage_limit: Optional[int] = Field(None, ge=1)
+    usage_limit: int | None = Field(None, ge=1)
 
 
 class PromotionOut(BaseModel):
     id: str
     tenant_id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     type: str
     value: float
-    valid_from: Optional[date] = None
-    valid_to: Optional[date] = None
+    valid_from: date | None = None
+    valid_to: date | None = None
     min_purchase: float
     applies_to: str
-    product_ids: Optional[list[str]] = None
-    promo_code: Optional[str] = None
+    product_ids: list[str] | None = None
+    promo_code: str | None = None
     is_active: bool
-    usage_limit: Optional[int] = None
+    usage_limit: int | None = None
     usage_count: int
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -109,7 +108,7 @@ class ValidateIn(BaseModel):
 
 class ValidateOut(BaseModel):
     valid: bool
-    promotion_id: Optional[str] = None
+    promotion_id: str | None = None
     discount_amount: float = 0
     message: str
 
@@ -158,7 +157,7 @@ def _compute_discount(promotion: Promotion, cart_total: float) -> float:
 @router.get("", response_model=list[PromotionOut])
 def list_promotions(
     request: Request,
-    is_active: Optional[bool] = Query(None),
+    is_active: bool | None = Query(None),
     db: Session = Depends(get_db),
 ):
     tenant_id = _tenant_id(request)

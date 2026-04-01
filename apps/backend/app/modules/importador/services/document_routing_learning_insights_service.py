@@ -11,16 +11,13 @@ from app.modules.importador.runtime_config import load_learning_config
 from app.modules.importador.schemas import (
     RoutingLearningInsightOut,
     RoutingProfileAdminIn,
-    RoutingProfileAdminOut,
     RoutingProfileUpdateProposalOut,
 )
 
-from ._routing_signals import (
-    document_type as _document_type,
-    event_weight as _event_weight,
-    normalize_text as _normalize_text,
-    source_doc_type as _source_doc_type,
-)
+from ._routing_signals import document_type as _document_type
+from ._routing_signals import event_weight as _event_weight
+from ._routing_signals import normalize_text as _normalize_text
+from ._routing_signals import source_doc_type as _source_doc_type
 from .document_routing_admin_service import _serialize_profile
 
 
@@ -209,9 +206,20 @@ def build_routing_profile_update_proposal(
         raise ValueError("routing_learning_insight_not_found")
 
     insight = insights[0]
-    merged_required_groups = current_profile.required_groups or []
+    merged_required_groups = [list(group) for group in (current_profile.required_groups or [])]
     if insight.suggested_required_groups:
-        merged_required_groups = insight.suggested_required_groups
+        merged_required_groups = [list(group) for group in insight.suggested_required_groups]
+
+    required_seen = {
+        field
+        for group in merged_required_groups
+        for field in group
+        if isinstance(field, str) and field
+    }
+    for field in insight.top_changed_fields[:3]:
+        if field and field not in required_seen:
+            merged_required_groups.append([field])
+            required_seen.add(field)
 
     merged_support_fields = list(
         dict.fromkeys(

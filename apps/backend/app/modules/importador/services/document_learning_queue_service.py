@@ -12,7 +12,6 @@ from uuid import UUID
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 
-
 _REPROCESS_QUEUE_SQL = """
 SELECT
     d.id,
@@ -88,7 +87,7 @@ def flag_reprocess_candidates(
         sa_text(
             "UPDATE imp_documento "
             "SET requiere_revision = TRUE "
-            "WHERE id = ANY(:ids::uuid[]) AND requiere_revision = FALSE"
+            "WHERE id = ANY(CAST(:ids AS uuid[])) AND requiere_revision = FALSE"
         ),
         {"ids": ids},
     )

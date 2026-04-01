@@ -239,3 +239,51 @@ def test_analyze_document_repairs_total_and_date_from_explicit_ocr_labels(monkey
     assert result["fields"]["subtotal"] == 2145.0
     assert result["fields"]["tax_amount"] == 0.0
     assert result["fields"]["total_amount"] == 2145.0
+
+
+def test_analyze_document_rebuilds_line_item_extra_columns_from_ocr(monkeypatch):
+    async def fake_query(**kwargs):
+        del kwargs
+        return SimpleNamespace(
+            content=(
+                '{"doc_type":"INVOICE","confidence":0.9,"reasoning":"ok",'
+                '"is_table":false,"columns":[],"fields":{"line_items":['
+                '{"description":"Set de tazas de ceramica 350 ml","quantity":24,"unit_price":2.35,"total_price":56.40},'
+                '{"description":"Caja organizadora plastica mediana","quantity":18,"unit_price":4.80,"total_price":86.40}'
+                "]}}"
+            ),
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content=(
+                "Articulo\n"
+                "Ref.\n"
+                "Cant.\n"
+                "Precio ud.\n"
+                "Importe\n"
+                "Set de tazas de ceramica 350 ml\n"
+                "REF-BZ-1042\n"
+                "24\n"
+                "2,35 €\n"
+                "56,40 €\n"
+                "Caja organizadora plastica mediana\n"
+                "REF-HG-2210\n"
+                "18\n"
+                "4,80 €\n"
+                "86,40 €\n"
+            ),
+            filename="factura-bazar.pdf",
+            format_hint="PDF_OCR",
+            canonical_fields={"line_items": {"type": "list"}},
+        )
+    )
+
+    line_items = result["fields"]["line_items"]
+    assert line_items[0]["extra_columns"]["Ref."] == "REF-BZ-1042"
+    assert line_items[1]["extra_columns"]["Ref."] == "REF-HG-2210"

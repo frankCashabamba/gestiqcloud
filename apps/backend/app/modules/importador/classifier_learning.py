@@ -19,7 +19,7 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -33,14 +33,53 @@ _MIN_ALIAS_LEN = 2
 _MAX_ALIAS_LEN = 50
 
 # Palabras reservadas SQL/DDL que nunca deben tratarse como nombres de columna
-_SQL_BLOCKLIST: frozenset[str] = frozenset({
-    "select", "insert", "update", "delete", "drop", "create", "alter",
-    "truncate", "exec", "execute", "union", "where", "from", "join",
-    "grant", "revoke", "commit", "rollback", "declare", "cast", "into",
-    "table", "index", "view", "schema", "database", "trigger", "function",
-    "procedure", "column", "constraint", "primary", "foreign", "key",
-    "null", "not", "and", "or", "like", "exists", "having", "order", "group",
-})
+_SQL_BLOCKLIST: frozenset[str] = frozenset(
+    {
+        "select",
+        "insert",
+        "update",
+        "delete",
+        "drop",
+        "create",
+        "alter",
+        "truncate",
+        "exec",
+        "execute",
+        "union",
+        "where",
+        "from",
+        "join",
+        "grant",
+        "revoke",
+        "commit",
+        "rollback",
+        "declare",
+        "cast",
+        "into",
+        "table",
+        "index",
+        "view",
+        "schema",
+        "database",
+        "trigger",
+        "function",
+        "procedure",
+        "column",
+        "constraint",
+        "primary",
+        "foreign",
+        "key",
+        "null",
+        "not",
+        "and",
+        "or",
+        "like",
+        "exists",
+        "having",
+        "order",
+        "group",
+    }
+)
 
 
 def _is_safe_column_name(raw: str) -> bool:
@@ -127,6 +166,7 @@ def learn_from_confirmation(
 
 # ── Filename learning ───────────────────────────────────────────────────────────
 
+
 def _learn_filename(
     db: Session,
     *,
@@ -192,6 +232,7 @@ def _learn_filename(
 
 # ── Header → doc_type learning ──────────────────────────────────────────────────
 
+
 def _learn_header_mapping(
     db: Session,
     *,
@@ -204,9 +245,7 @@ def _learn_header_mapping(
 
     reverse_map = _build_reverse_alias_map(field_aliases)
     matched = {
-        reverse_map[h.strip().lower()]
-        for h in headers_norm
-        if h.strip().lower() in reverse_map
+        reverse_map[h.strip().lower()] for h in headers_norm if h.strip().lower() in reverse_map
     }
     if not matched:
         return 0
@@ -238,6 +277,7 @@ def _learn_header_mapping(
 
 # ── Column alias learning ───────────────────────────────────────────────────────
 
+
 def _learn_column_aliases(
     db: Session,
     *,
@@ -250,9 +290,7 @@ def _learn_column_aliases(
 
     reverse_map = _build_reverse_alias_map(field_aliases)
     known_aliases: set[str] = {
-        alias.strip().lower()
-        for aliases in field_aliases.values()
-        for alias in aliases
+        alias.strip().lower() for aliases in field_aliases.values() for alias in aliases
     }
 
     from sqlalchemy import text as sa_text
@@ -307,14 +345,13 @@ def _learn_column_aliases(
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
 
+
 def _normalize_stem(filename: str) -> str:
     stem = Path(filename).stem
     nfd = unicodedata.normalize("NFD", stem)
     stem = "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
     stem = stem.lower()
-    stem = re.sub(
-        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "", stem
-    )
+    stem = re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "", stem)
     stem = re.sub(r"\b\d{4}[-_]\d{2}[-_]\d{2}\b", "", stem)
     stem = re.sub(r"\b\d{2}[-_]\d{2}[-_]\d{4}\b", "", stem)
     stem = re.sub(r"\b\d{4,}\b", "", stem)
@@ -335,7 +372,7 @@ def _is_uuid_like(stem: str) -> bool:
 
 
 def _canonical_fields_hash(fields: list[str]) -> str:
-    payload = ",".join(sorted(set(str(f).strip().lower() for f in fields if f)))
+    payload = ",".join(sorted({str(f).strip().lower() for f in fields if f}))
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
@@ -349,13 +386,14 @@ def _build_reverse_alias_map(field_aliases: dict[str, list[str]]) -> dict[str, s
 
 # ── Vendor → snapshot learning ─────────────────────────────────────────────────
 
+
 def learn_vendor_snapshot(
     db: Session,
     *,
     ruc: str | None,
     vendor_norm: str | None,
-    snapshot_id: "UUID",
-    tenant_id: "UUID",
+    snapshot_id: UUID,
+    tenant_id: UUID,
 ) -> bool:
     """Asocia un proveedor (RUC y/o nombre normalizado) con un snapshot confirmado.
 
@@ -403,12 +441,13 @@ def learn_vendor_snapshot(
 
 # ── Column candidate discovery ──────────────────────────────────────────────────
 
+
 def learn_column_candidates(
     db: Session,
     *,
     col_names: list[str],
     doc_type: str | None,
-    tenant_id: "UUID | None",
+    tenant_id: UUID | None,
     field_aliases: dict[str, list[str]],
 ) -> int:
     """Registra nombres de columnas desconocidos encontrados en documentos procesados.

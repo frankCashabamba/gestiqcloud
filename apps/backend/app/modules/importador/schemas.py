@@ -663,6 +663,7 @@ class RoutingProfileUpdateProposalOut(BaseModel):
 
 # ── Column Candidate ──────────────────────────────────────────────────────────
 
+
 class ColumnCandidateOut(BaseModel):
     id: UUID
     alias: str
@@ -684,6 +685,7 @@ class ColumnCandidateAssignIn(BaseModel):
 
 # ── Field Alias ───────────────────────────────────────────────────────────────
 
+
 class FieldAliasOut(BaseModel):
     id: UUID
     canonical_field: str
@@ -704,6 +706,7 @@ class FieldAliasCreateIn(BaseModel):
 
 
 # ── Canonical Field ───────────────────────────────────────────────────────────
+
 
 class CanonicalFieldOut(BaseModel):
     name: str

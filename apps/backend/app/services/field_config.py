@@ -111,6 +111,7 @@ _FIELD_MODULE_ALIASES = {
     "supplier": "suppliers",
 }
 
+
 def _normalize(items: list[dict]) -> list[dict]:
     out: list[dict] = []
     for it in items or []:

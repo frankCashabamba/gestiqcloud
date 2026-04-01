@@ -272,7 +272,9 @@ def test_save_product_candidates_reuses_generic_stock_row_for_duplicate_product_
     assert result["created"] == 1
     assert result["updated"] == 1
 
-    product = db.query(Product).filter(Product.tenant_id == tenant.id, Product.name == "Tapados").one()
+    product = (
+        db.query(Product).filter(Product.tenant_id == tenant.id, Product.name == "Tapados").one()
+    )
     stock_rows = (
         db.query(StockItem)
         .filter(

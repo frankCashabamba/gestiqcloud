@@ -9,12 +9,10 @@ from app.models.importador import ImpRoutingSignal
 from app.modules.importador import crud
 from app.modules.importador.category_loader import get_doc_categories
 
-from .document_routing_agent import build_document_routing_decision
 from ..utils import json_safe as _json_safe
-from .document_routing_admin_service import (
-    _document_canonical_payload as _canonical_document,
-    _document_routing_source_data as _document_source_data,
-)
+from .document_routing_admin_service import _document_canonical_payload as _canonical_document
+from .document_routing_admin_service import _document_routing_source_data as _document_source_data
+from .document_routing_agent import build_document_routing_decision
 
 
 def record_routing_signal(

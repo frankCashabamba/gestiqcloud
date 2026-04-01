@@ -11,7 +11,6 @@ Async flow:
 from __future__ import annotations
 
 import asyncio
-import datetime
 import json
 import logging
 import os
@@ -19,6 +18,7 @@ from pathlib import Path
 from uuid import UUID
 
 from .processing_service import RecipeContext, process_import_document
+from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.tasks")
 
@@ -93,9 +93,6 @@ def publish_batch_update(db, batch_id: UUID) -> None:
         _get_redis().publish(f"imp:batch:{batch_id}", json.dumps(_json_safe(payload)))
     except Exception as exc:
         logger.warning("No se pudo publicar batch %s: %s", batch_id, exc)
-
-
-from .utils import json_safe as _json_safe
 
 
 async def _run_processing(

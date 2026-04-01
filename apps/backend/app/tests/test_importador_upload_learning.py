@@ -320,9 +320,7 @@ def test_process_run_document_uses_explicit_snapshot_config_on_first_pass(
     snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
     assert snapshot is not None
     content = dict(snapshot.content_json or {})
-    content["field_descriptions"] = {
-        "payment_method": "Recent confirmed example: Tarjeta."
-    }
+    content["field_descriptions"] = {"payment_method": "Recent confirmed example: Tarjeta."}
     content["learning_prompt_user"] = (
         "Learning from confirmed similar documents:\n"
         "- Review 'payment_method' carefully; users corrected it 2 time(s)."

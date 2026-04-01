@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import datetime
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,7 +22,6 @@ from .auto_recipe import (
 from .canonical_document import build_document_projection
 from .category_loader import get_doc_categories
 from .classifier_learning import learn_column_candidates as _learn_column_candidates
-from .classifier_learning import learn_from_confirmation as _classifier_learn
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
@@ -41,13 +40,13 @@ from .services.document_model_learning_service import (
 from .services.document_routing_agent import build_document_routing_decision
 from .services.iteration_service import upsert_staging_lines_from_extraction
 from .snapshot_learning import build_snapshot_review_hints
+from .utils import json_safe as _json_safe
+
+logger = logging.getLogger("importador.processing")
 
 AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[[bytes, str], Awaitable[dict[str, Any]]]
 ProcessingMode = Literal["upload", "run", "async"]
-
-
-from .utils import json_safe as _json_safe
 
 
 def _normalize_line_item_extra_columns(
@@ -84,6 +83,7 @@ def _normalize_line_item_extra_columns(
         extra = item.pop("extra_columns", None)
         if not isinstance(extra, dict):
             continue
+        remaining_extra: dict[str, Any] = {}
         for col_name, col_value in extra.items():
             canonical = reverse_map.get(_normalize_alias(col_name))
             if canonical and canonical not in item:
@@ -91,6 +91,11 @@ def _normalize_line_item_extra_columns(
             elif not canonical and col_name not in seen_unmapped:
                 unmapped.append(col_name)
                 seen_unmapped.add(col_name)
+                remaining_extra[col_name] = col_value
+            elif not canonical:
+                remaining_extra[col_name] = col_value
+        if remaining_extra:
+            item["extra_columns"] = remaining_extra
 
     return unmapped
 
@@ -369,11 +374,14 @@ async def _process_upload_like_document(
 
     # Attach pre-classification metadata for learning at confirm time
     if pre_class:
-        analysis.setdefault("_pre_class", {
-            "layer": pre_class.layer,
-            "doc_type": pre_class.doc_type,
-            "confidence": pre_class.confidence,
-        })
+        analysis.setdefault(
+            "_pre_class",
+            {
+                "layer": pre_class.layer,
+                "doc_type": pre_class.doc_type,
+                "confidence": pre_class.confidence,
+            },
+        )
 
     normalized_analysis = _normalize_analysis_output(analysis)
     tipo_doc = str(normalized_analysis["doc_type"])

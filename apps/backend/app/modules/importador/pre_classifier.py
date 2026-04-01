@@ -19,7 +19,8 @@ import logging
 import re
 import time
 import unicodedata
-from dataclasses import dataclass, field as dc_field
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from pathlib import Path
 from typing import Any
 
@@ -31,18 +32,20 @@ _cache: dict[str, tuple[float, Any]] = {}
 
 # ── Result ─────────────────────────────────────────────────────────────────────
 
+
 @dataclass(slots=True)
 class PreClassResult:
     doc_type: str
     confidence: float
-    layer: str          # "snapshot_cache" | "filename_pattern" | "header_mapping"
+    layer: str  # "snapshot_cache" | "filename_pattern" | "header_mapping"
     reasoning: str
-    skip_ai: bool = False               # True only for snapshot_cache on structured docs
+    skip_ai: bool = False  # True only for snapshot_cache on structured docs
     cached_analysis: dict | None = None  # Populated when skip_ai=True
     matched_canonicals: list[str] = dc_field(default_factory=list)
 
 
 # ── Config loading ──────────────────────────────────────────────────────────────
+
 
 def load_pre_classifier_config(db: Any) -> dict[str, float]:
     """Load thresholds from imp_config (module='pre_classifier'), cached 5 min."""
@@ -161,6 +164,7 @@ def _load_header_doc_types(db: Any, min_confirmations: int) -> list[dict]:
 
 # ── Main entry point ────────────────────────────────────────────────────────────
 
+
 def classify_before_ai(
     *,
     db: Any,
@@ -275,6 +279,7 @@ def classify_before_ai(
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
 
+
 def _effective_confidence(
     base: float,
     confirmed_count: int,
@@ -297,9 +302,7 @@ def _normalize_filename_stem(filename: str) -> str:
     stem = "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
     stem = stem.lower()
     # Remove UUID patterns
-    stem = re.sub(
-        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", " ", stem
-    )
+    stem = re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", " ", stem)
     # Remove date patterns
     stem = re.sub(r"\b\d{4}[-_]\d{2}[-_]\d{2}\b", " ", stem)
     stem = re.sub(r"\b\d{2}[-_]\d{2}[-_]\d{4}\b", " ", stem)
@@ -317,7 +320,7 @@ def _is_uuid_like(stem: str) -> bool:
 
 
 def _canonical_fields_hash(fields: list[str]) -> str:
-    payload = ",".join(sorted(set(str(f).strip().lower() for f in fields if f)))
+    payload = ",".join(sorted({str(f).strip().lower() for f in fields if f}))
     return hashlib.sha256(payload.encode()).hexdigest()
 
 

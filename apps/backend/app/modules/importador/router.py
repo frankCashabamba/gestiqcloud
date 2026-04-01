@@ -38,7 +38,7 @@ from .document_fields import (
 )
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
-from .processing_service import process_import_document
+from .processing_service import _normalize_line_item_extra_columns, process_import_document
 from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 from .runtime_config import load_file_support_config, load_product_sheet_detection_config
@@ -90,26 +90,25 @@ from .services.product_matching import (
     _append_import_alias,
     _build_document_line_matches,
     _create_product_from_line,
+    _extract_line_supplier_ref,
     _find_product_by_id,
     _get_line_values,
     _infer_pack_conversion_factor,
     _norm_import_text,
-    _strip_pack_tokens,
+    _score_product_candidate,
 )
 from .snapshot_learning import (
     bootstrap_learning_from_existing_document,
     build_snapshot_review_hints,
     learn_from_confirmed_payload,
 )
+from .utils import json_safe as _json_safe
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
 IMAGE_SOURCE_FORMATS = {"JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"}
-
-
-from .utils import json_safe as _json_safe
 
 
 def _tenant_id(request: Request) -> UUID:
@@ -244,7 +243,7 @@ def _normalize_line_items_for_edit(value) -> list[dict]:
         if total_price is None and quantity is not None and unit_price is not None:
             total_price = round(quantity * unit_price, 2)
 
-        normalized_row = {}
+        normalized_row: dict[str, object] = {}
         if description is not None:
             normalized_row["description"] = str(description).strip()
         if quantity is not None:
@@ -253,6 +252,20 @@ def _normalize_line_items_for_edit(value) -> list[dict]:
             normalized_row["unit_price"] = unit_price
         if total_price is not None:
             normalized_row["total_price"] = total_price
+        extra_columns = raw_item.get("extra_columns")
+        if isinstance(extra_columns, dict):
+            kept_extra = {
+                str(key): value
+                for key, value in extra_columns.items()
+                if str(key).strip() and value not in (None, "")
+            }
+            if kept_extra:
+                normalized_row["extra_columns"] = kept_extra
+        for key, raw_value in raw_item.items():
+            if key in {"description", "quantity", "unit_price", "total_price", "extra_columns"}:
+                continue
+            if isinstance(raw_value, (str, int, float, bool)) and raw_value not in ("", None):
+                normalized_row[str(key)] = raw_value
         if normalized_row:
             normalized_items.append(normalized_row)
     return normalized_items
@@ -272,6 +285,7 @@ def _prepare_edit_fields_payload(
             raw_items = campos.get("items")
         normalized_items = _normalize_line_items_for_edit(raw_items)
         current["line_items"] = normalized_items
+        _normalize_line_item_extra_columns(current, aliases)
         current.pop("lineas", None)
         current.pop("items", None)
 
@@ -1270,6 +1284,7 @@ def _save_document_to_purchase(
 
     for line_index, item in enumerate(line_items):
         description, qty, unit_price = _get_line_values(item)
+        supplier_ref = _extract_line_supplier_ref(item)
         total_price = float(
             item.get("total_price") or item.get("total") or item.get("importe") or qty * unit_price
         )
@@ -1292,7 +1307,14 @@ def _save_document_to_purchase(
             )
         elif selected_match and selected_match.create_new and not selected_match.product_id:
             # Create a new product from this invoice line
-            product = _create_product_from_line(db, tenant_id, description, unit_price, qty)
+            product = _create_product_from_line(
+                db,
+                tenant_id,
+                description,
+                unit_price,
+                qty,
+                supplier_ref=supplier_ref,
+            )
             conv_factor = 1.0
         elif existing_line and existing_line.product_id:
             product = _find_product_by_id(db, tenant_id, existing_line.product_id)
@@ -1302,7 +1324,12 @@ def _save_document_to_purchase(
                 else 1.0
             )
         else:
-            product, conv_factor = _match_product(db, tenant_id, description)
+            product, conv_factor = _match_product(
+                db,
+                tenant_id,
+                description,
+                supplier_ref=supplier_ref,
+            )
         stock_qty = qty * conv_factor  # convert invoice qty to inventory units
         logger.info(
             "save_purchase line: index=%s desc='%s' qty=%s matched=%s conv=%s stock_only=%s",
@@ -1313,6 +1340,15 @@ def _save_document_to_purchase(
             conv_factor,
             stock_only,
         )
+        if product and (supplier_ref or (selected_match and selected_match.persist_alias)):
+            _append_import_alias(
+                product,
+                description,
+                conv_factor,
+                getattr(product, "unit", None),
+                supplier_ref=supplier_ref,
+            )
+            db.add(product)
 
         # When reconciling an already auto-matched line (product_id already set in DB),
         # reverse the old product's stock move and apply stock to the new product.
@@ -1486,11 +1522,6 @@ def _save_document_to_purchase(
                 existing_line.product_id = product.id
                 db.add(existing_line)
             lines_matched += 1
-            if selected_match and selected_match.persist_alias:
-                _append_import_alias(
-                    product, description, conv_factor, getattr(product, "unit", None)
-                )
-                db.add(product)
         else:
             if description and product is None:
                 unmatched.append(description)
@@ -1857,11 +1888,15 @@ def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id:
         run_meta = raw_ai.get("run") or {}
         pre_class_meta = run_meta.get("pre_classification") or {}
         headers_norm = run_meta.get("headers_norm") or []
-        confirmed_type = str(
-            (datos_confirmados or {}).get("doc_type")
-            or getattr(doc, "tipo_documento_detectado", None)
-            or ""
-        ).upper().strip()
+        confirmed_type = (
+            str(
+                (datos_confirmados or {}).get("doc_type")
+                or getattr(doc, "tipo_documento_detectado", None)
+                or ""
+            )
+            .upper()
+            .strip()
+        )
 
         if confirmed_type:
             field_aliases = get_field_aliases(db, tenant_id=getattr(doc, "tenant_id", None))
@@ -1885,7 +1920,8 @@ def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id:
                 doc_type_confirmed=confirmed_type,
                 pre_class_layer=str(pre_class_meta.get("layer") or "") or None,
                 pre_class_doc_type=str(pre_class_meta.get("doc_type") or "") or None,
-                headers_norm=(headers_norm if isinstance(headers_norm, list) else []) + line_item_col_names,
+                headers_norm=(headers_norm if isinstance(headers_norm, list) else [])
+                + line_item_col_names,
                 field_aliases=field_aliases,
             )
     except Exception as exc:
@@ -1898,8 +1934,10 @@ def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id:
         snapshot_id = getattr(doc, "recipe_snapshot_id", None)
         t_id = getattr(doc, "tenant_id", None)
         if snapshot_id and t_id and (ruc or proveedor):
+            import re as _re
+            import unicodedata as _ud
+
             from .classifier_learning import learn_vendor_snapshot
-            import unicodedata as _ud, re as _re
 
             def _norm_vendor(name: str) -> str:
                 nfd = _ud.normalize("NFD", name)
@@ -2831,7 +2869,13 @@ async def save_as_daily_log(
     return SaveDailyLogResponse(**result)
 
 
-def _match_product(db: Session, tenant_id: UUID, description: str):
+def _match_product(
+    db: Session,
+    tenant_id: UUID,
+    description: str,
+    *,
+    supplier_ref: str | None = None,
+):
     """Fuzzy product lookup by description → (Product, conversion_factor) or (None, 1).
 
     import_aliases format on Product:
@@ -2840,9 +2884,7 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
     """
     from app.models.core.products import Product
 
-    desc_norm = _norm_import_text(description)
-    desc_core = _strip_pack_tokens(description)
-    if not desc_norm:
+    if not _norm_import_text(description):
         return None, 1.0
 
     products = (
@@ -2850,46 +2892,25 @@ def _match_product(db: Session, tenant_id: UUID, description: str):
         .filter(Product.tenant_id == str(tenant_id), Product.active == True)  # noqa: E712
         .all()
     )
-
-    # 1) Check import_aliases first (exact or substring)
-    for p in products:
-        aliases = p.import_aliases or []
-        if not isinstance(aliases, list):
+    ranked: list[tuple[float, float, object]] = []
+    for product in products:
+        score, _reason, factor = _score_product_candidate(
+            description,
+            product,
+            supplier_ref=supplier_ref,
+        )
+        if score <= 0:
             continue
-        for alias in aliases:
-            if not isinstance(alias, dict):
-                continue
-            alias_name = _norm_import_text(str(alias.get("name") or ""))
-            if not alias_name:
-                continue
-            if alias_name == desc_norm or alias_name in desc_norm or desc_norm in alias_name:
-                factor = float(alias.get("factor") or 1)
-                return p, factor
+        ranked.append((score, factor, product))
 
-    # 2) Exact name match
-    for p in products:
-        if _norm_import_text(p.name) == desc_norm:
-            factor = _infer_pack_conversion_factor(description, getattr(p, "unit", None))
-            return p, factor
+    if not ranked:
+        return None, 1.0
 
-    # 3) Substring match
-    for p in products:
-        pn = _norm_import_text(p.name)
-        if desc_norm in pn or pn in desc_norm:
-            factor = _infer_pack_conversion_factor(description, getattr(p, "unit", None))
-            return p, factor
-
-    # 4) Core-name match ignoring presentation tokens like "50 KG"
-    if desc_core:
-        for p in products:
-            pn_core = _strip_pack_tokens(p.name)
-            if not pn_core:
-                continue
-            if desc_core == pn_core or desc_core in pn_core or pn_core in desc_core:
-                factor = _infer_pack_conversion_factor(description, getattr(p, "unit", None))
-                return p, factor
-
-    return None, 1.0
+    ranked.sort(key=lambda row: (-row[0], getattr(row[2], "name", "")))
+    top_score, top_factor, top_product = ranked[0]
+    if top_score < 0.84:
+        return None, 1.0
+    return top_product, float(top_factor or 1.0)
 
 
 # ---------------------------------------------------------------------------

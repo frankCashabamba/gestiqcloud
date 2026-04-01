@@ -17,34 +17,6 @@ logger = logging.getLogger("importador.ai")
 
 CONFIDENCE_THRESHOLD = 0.85
 _OCR_EVIDENCE_FORMATS = {"IMAGE_OCR", "PDF_OCR", "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"}
-_AMOUNT_LABELS: dict[str, tuple[str, ...]] = {
-    "total_amount": (
-        "valor total",
-        "importe total",
-        "total a pagar",
-        "grand total",
-        "amount due",
-        "payable amount",
-        "monto total",
-        "total",
-    ),
-    "subtotal": (
-        "subtotal sin impuestos",
-        "total sin impuestos",
-        "tax exclusive amount",
-        "base imponible",
-        "sub total",
-        "subtotal",
-    ),
-    "tax_amount": (
-        "iva",
-        "vat",
-        "igv",
-        "gst",
-        "tax amount",
-        "impuesto",
-    ),
-}
 _SPANISH_MONTHS = {
     "enero": 1,
     "febrero": 2,
@@ -380,6 +352,61 @@ def _build_dynamic_fields_prompt(
     return ",\n".join(lines)
 
 
+def _build_json_response_contract(
+    *,
+    dynamic_fields_prompt: str,
+    doc_type_instruction: str,
+    is_table_literal: str,
+    columns_literal: str,
+    reasoning_hint: str,
+) -> str:
+    return (
+        "{\n"
+        f'  "doc_type": "{doc_type_instruction}",\n'
+        '  "confidence": 0.0-1.0,\n'
+        f'  "reasoning": "{reasoning_hint}",\n'
+        f'  "is_table": {is_table_literal},\n'
+        f'  "columns": {columns_literal},\n'
+        '  "fields": {\n'
+        f"{dynamic_fields_prompt}\n"
+        "  }\n"
+        "}"
+    )
+
+
+def _build_configured_rules(
+    *,
+    prompt_config: dict[str, Any] | None,
+    current_year: int,
+    vision_mode: bool = False,
+) -> list[str]:
+    pc = prompt_config or {}
+    rules_key = "vision_critical_rules" if vision_mode else "critical_rules"
+    configured_rules = [
+        str(rule).strip() for rule in (pc.get(rules_key) or []) if str(rule).strip()
+    ]
+    if not configured_rules:
+        configured_rules = [
+            "The document may be in any language. Read it as-is and map to the configured canonical fields.",
+            "total_amount must represent the grand total, not a quantity.",
+            "vendor is the entity that issues or signs the document.",
+            "If is_table=true, return columns and only visible summary values in fields.",
+            "Extract payment_method and payment_terms when visible.",
+            "Dates must use YYYY-MM-DD. Amounts must use dot decimal notation. Missing fields must be null.",
+            "Do not invent data absent from the document.",
+        ]
+    configured_rules.append(
+        f"YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100})."
+    )
+    configured_rules.append(
+        "line_items: only list actual PRODUCTS. "
+        "For every visible line-item column that does not clearly map to the configured base fields, "
+        "preserve it verbatim in extra_columns using the original header label and cell value. "
+        "Do not drop visible line-item columns just because their meaning is uncertain."
+    )
+    return configured_rules
+
+
 async def _analyze_structured_document(
     content: str,
     filename: str,
@@ -575,8 +602,34 @@ def _extract_money_like_amounts_from_line(line: str) -> list[float]:
     return candidates
 
 
-def _extract_labeled_amount(content: str, field_name: str) -> float | None:
-    labels = _AMOUNT_LABELS.get(field_name) or ()
+def _amount_labels(prompt_config: dict[str, Any] | None = None) -> dict[str, tuple[str, ...]]:
+    configured = (prompt_config or {}).get("amount_labels")
+    if not isinstance(configured, dict):
+        try:
+            from .runtime_config import load_amount_label_config
+
+            configured = load_amount_label_config(None)
+        except Exception:
+            configured = {}
+    if not isinstance(configured, dict):
+        return {}
+    result: dict[str, tuple[str, ...]] = {}
+    for field_name, values in configured.items():
+        if not isinstance(values, list):
+            continue
+        cleaned = tuple(str(value).strip().lower() for value in values if str(value).strip())
+        if cleaned:
+            result[str(field_name).strip()] = cleaned
+    return result
+
+
+def _extract_labeled_amount(
+    content: str,
+    field_name: str,
+    *,
+    prompt_config: dict[str, Any] | None = None,
+) -> float | None:
+    labels = _amount_labels(prompt_config).get(field_name) or ()
     if not labels:
         return None
 
@@ -672,6 +725,7 @@ def _apply_high_evidence_ocr_repairs(
     *,
     content: str,
     format_hint: str,
+    prompt_config: dict[str, Any] | None = None,
 ) -> None:
     normalized_format = str(format_hint or "").strip().upper()
     if normalized_format not in _OCR_EVIDENCE_FORMATS:
@@ -682,9 +736,11 @@ def _apply_high_evidence_ocr_repairs(
         return
 
     quality = _estimate_text_quality(content)
-    labeled_total = _extract_labeled_amount(content, "total_amount")
-    labeled_subtotal = _extract_labeled_amount(content, "subtotal")
-    labeled_tax = _extract_labeled_amount(content, "tax_amount")
+    labeled_total = _extract_labeled_amount(
+        content, "total_amount", prompt_config=prompt_config
+    )
+    labeled_subtotal = _extract_labeled_amount(content, "subtotal", prompt_config=prompt_config)
+    labeled_tax = _extract_labeled_amount(content, "tax_amount", prompt_config=prompt_config)
     ocr_issue_date = _extract_issue_date_from_ocr(content)
 
     if quality["score"] < _ocr_quality_threshold() and not any(
@@ -744,6 +800,114 @@ def _apply_high_evidence_ocr_repairs(
         issue_date in (None, "") or not _numeric_evidence(text_digits, issue_date)
     ):
         fields["issue_date"] = ocr_issue_date
+
+
+def _find_sequential_anchor_indexes(lines: list[str], anchors: list[str]) -> list[int]:
+    indexes: list[int] = []
+    search_start = 0
+    normalized_lines = [_normalize_evidence_text(line) for line in lines]
+    for anchor in anchors:
+        anchor_norm = _normalize_evidence_text(anchor)
+        if not anchor_norm:
+            return []
+        found_index = -1
+        for idx in range(search_start, len(normalized_lines)):
+            if anchor_norm in normalized_lines[idx]:
+                found_index = idx
+                break
+        if found_index < 0:
+            return []
+        indexes.append(found_index)
+        search_start = found_index + 1
+    return indexes
+
+
+def _rebuild_line_item_extra_columns_from_ocr(
+    parsed: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+) -> None:
+    normalized_format = str(format_hint or "").strip().upper()
+    if normalized_format not in _OCR_EVIDENCE_FORMATS:
+        return
+
+    fields = parsed.get("fields")
+    if not isinstance(fields, dict):
+        return
+    items = fields.get("line_items")
+    if not isinstance(items, list) or len(items) < 2:
+        return
+
+    line_items = [item for item in items if isinstance(item, dict)]
+    if len(line_items) < 2:
+        return
+
+    descriptions = [str(item.get("description") or "").strip() for item in line_items]
+    if any(not desc for desc in descriptions):
+        return
+
+    lines = [str(line).strip() for line in str(content or "").splitlines() if str(line).strip()]
+    if len(lines) < len(line_items) * 2:
+        return
+
+    anchor_indexes = _find_sequential_anchor_indexes(lines, descriptions)
+    if len(anchor_indexes) < len(line_items):
+        return
+
+    gap_sizes = [
+        next_index - current_index
+        for current_index, next_index in zip(anchor_indexes, anchor_indexes[1:])
+        if next_index > current_index
+    ]
+    candidate_cell_count = min(gap_sizes) if gap_sizes else 0
+    if candidate_cell_count < 4 or candidate_cell_count > 8:
+        return
+
+    header_start = anchor_indexes[0] - candidate_cell_count
+    if header_start < 0:
+        return
+    header_labels = lines[header_start : anchor_indexes[0]]
+    if len(header_labels) != candidate_cell_count:
+        return
+
+    for item, start_index in zip(line_items, anchor_indexes):
+        row_cells = lines[start_index : start_index + candidate_cell_count]
+        if len(row_cells) != candidate_cell_count:
+            continue
+
+        quantity_digits = _digits_only(item.get("quantity"))
+        unit_price_digits = _digits_only(item.get("unit_price"))
+        total_price_digits = _digits_only(item.get("total_price"))
+        matched_positions: set[int] = {0}
+
+        for pos, cell in enumerate(row_cells[1:], start=1):
+            cell_digits = _digits_only(cell)
+            if quantity_digits and cell_digits == quantity_digits and "quantity" in item:
+                matched_positions.add(pos)
+                continue
+            if unit_price_digits and cell_digits == unit_price_digits and "unit_price" in item:
+                matched_positions.add(pos)
+                continue
+            if total_price_digits and cell_digits == total_price_digits and "total_price" in item:
+                matched_positions.add(pos)
+                continue
+
+        extra_columns = item.get("extra_columns")
+        if not isinstance(extra_columns, dict):
+            extra_columns = {}
+
+        for pos, cell in enumerate(row_cells):
+            if pos in matched_positions:
+                continue
+            header_label = str(header_labels[pos] or "").strip()
+            cell_value = str(cell or "").strip()
+            if not header_label or not cell_value:
+                continue
+            extra_columns.setdefault(header_label, cell_value)
+
+        if extra_columns:
+            item["extra_columns"] = extra_columns
 
 
 def _build_additional_field_hints(recipe_config: dict | None) -> str:
@@ -864,36 +1028,40 @@ async def _analyze_with_vision(
     )
 
     current_year = datetime.datetime.now().year
+    vision_preamble = str(
+        pc.get("vision_extraction_preamble")
+        or "Read this document image very carefully, character by character."
+    ).strip()
+    doc_type_instruction = str(
+        pc.get("doc_type_instruction")
+        or "INVOICE, RECEIPT, TICKET, CREDIT_NOTE, PURCHASE_ORDER, QUOTE, "
+        "DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, BANK_STATEMENT, "
+        "BANK_MOVEMENTS, or any descriptive label"
+    ).strip()
+    critical_rules_text = "\n".join(
+        f"- {rule}"
+        for rule in _build_configured_rules(
+            prompt_config=pc,
+            current_year=current_year,
+            vision_mode=True,
+        )
+    )
+    response_contract = _build_json_response_contract(
+        dynamic_fields_prompt=dynamic_fields_prompt,
+        doc_type_instruction=doc_type_instruction,
+        is_table_literal="false",
+        columns_literal="[]",
+        reasoning_hint="brief explanation",
+    )
 
     user_prompt = (
         f"File: {filename} | Format: {format_hint}\n"
         f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n\n"
-        "Read this document image VERY carefully, character by character. "
+        f"{vision_preamble}\n"
         "Respond ONLY with valid JSON:\n"
-        "{\n"
-        '  "doc_type": "INVOICE, RECEIPT, TICKET, CREDIT_NOTE, PURCHASE_ORDER, QUOTE, '
-        "DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, BANK_STATEMENT, "
-        'BANK_MOVEMENTS, or any descriptive label",\n'
-        '  "confidence": 0.0-1.0,\n'
-        '  "reasoning": "brief explanation",\n'
-        '  "is_table": false,\n'
-        '  "columns": [],\n'
-        '  "fields": {\n'
-        f"{dynamic_fields_prompt}\n"
-        "  }\n"
-        "}\n"
+        f"{response_contract}\n"
         "CRITICAL RULES:\n"
-        '- ALL amounts MUST be plain numbers with dot decimal (2145.00 NOT "2,145.00").\n'
-        "- Dates MUST be YYYY-MM-DD only (no time, no timezone). Read the year VERY carefully.\n"
-        f"- YEAR: We are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100}). Double-check!\n"
-        "- doc_number: use the FULL number with series/sequence as printed.\n"
-        "- customer: read the ACTUAL customer name, not the field label.\n"
-        "- payment_method/payment_terms: extract them when the document shows them.\n"
-        "- line_items: only list actual PRODUCTS, not the customer name. "
-        "If the document has extra columns beyond description/quantity/price (e.g. Ref., SKU, Cod., Art., CP), "
-        "include them verbatim in extra_columns: {\"Ref.\": \"REF-001\", \"SKU\": \"ABC123\"}.\n"
-        "- Tax IDs: digits only, no slashes or special characters.\n"
-        "- Do NOT invent data absent from the document. Use null for missing fields."
+        f"{critical_rules_text}"
     )
 
     custom_user = rc.get("prompt_user")
@@ -942,6 +1110,11 @@ async def _analyze_with_vision(
             parsed.setdefault("reasoning", "Vision model analysis")
             _clean_vision_fields(parsed.get("fields") or {})
             _apply_low_evidence_guard(parsed, content=ocr_content, format_hint=format_hint)
+            _rebuild_line_item_extra_columns_from_ocr(
+                parsed,
+                content=ocr_content,
+                format_hint=format_hint,
+            )
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
             parsed["prompt_sent"] = (system_prompt + "\n\n" + user_prompt)[:500]
@@ -1063,28 +1236,21 @@ async def analyze_document(
         or "A short uppercase label describing the document type in English. "
         "Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable."
     ).strip()
-    configured_rules = [
-        str(rule).strip() for rule in (pc.get("critical_rules") or []) if str(rule).strip()
-    ]
-    if not configured_rules:
-        configured_rules = [
-            "The document may be in any language. Read it as-is and map to the configured canonical fields.",
-            "total_amount must represent the grand total, not a quantity.",
-            "vendor is the entity that issues or signs the document.",
-            "If is_table=true, return columns and only visible summary values in fields.",
-            "Extract payment_method and payment_terms when visible.",
-            "Dates must use YYYY-MM-DD. Amounts must use dot decimal notation. Missing fields must be null.",
-            "Do not invent data absent from the document.",
-        ]
-    configured_rules.append(
-        f"YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100})."
+    critical_rules_text = "\n".join(
+        f"- {rule}"
+        for rule in _build_configured_rules(
+            prompt_config=pc,
+            current_year=current_year,
+            vision_mode=False,
+        )
     )
-    configured_rules.append(
-        "line_items: only list actual PRODUCTS. "
-        "If the document has extra columns beyond description/quantity/price (e.g. Ref., SKU, Cod., Art., CP, Barcode), "
-        'include them verbatim in extra_columns: {"Ref.": "REF-001", "SKU": "ABC123"}.'
+    response_contract = _build_json_response_contract(
+        dynamic_fields_prompt=dynamic_fields_prompt,
+        doc_type_instruction=doc_type_instruction,
+        is_table_literal="true or false",
+        columns_literal='["col1", "col2"]',
+        reasoning_hint="brief explanation of classification",
     )
-    critical_rules_text = "\n".join(f"- {rule}" for rule in configured_rules)
 
     _doc_type_hint = rc.get("doc_type_hint")
     _hint_line = (
@@ -1101,16 +1267,7 @@ async def analyze_document(
         f"{_hint_line}\n"
         f"Content:\n{content[:content_limit]}\n\n"
         "Analyze the document and respond ONLY with valid JSON:\n"
-        "{\n"
-        f'  "doc_type": "{doc_type_instruction}",\n'
-        '  "confidence": 0.0-1.0,\n'
-        '  "reasoning": "brief explanation of classification",\n'
-        '  "is_table": true or false,\n'
-        '  "columns": ["col1", "col2"],\n'
-        '  "fields": {\n'
-        f"{dynamic_fields_prompt}\n"
-        "  }\n"
-        "}\n"
+        f"{response_contract}\n"
         "CRITICAL rules:\n"
         f"{critical_rules_text}"
     )
@@ -1153,7 +1310,17 @@ async def analyze_document(
             parsed.setdefault("confidence", 0.7)
             parsed.setdefault("reasoning", "")
             _apply_low_evidence_guard(parsed, content=content, format_hint=format_hint)
-            _apply_high_evidence_ocr_repairs(parsed, content=content, format_hint=format_hint)
+            _apply_high_evidence_ocr_repairs(
+                parsed,
+                content=content,
+                format_hint=format_hint,
+                prompt_config=pc,
+            )
+            _rebuild_line_item_extra_columns_from_ocr(
+                parsed,
+                content=content,
+                format_hint=format_hint,
+            )
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
             parsed["prompt_sent"] = full_prompt[:500]

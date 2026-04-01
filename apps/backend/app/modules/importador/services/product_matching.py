@@ -11,37 +11,13 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.modules.products.interface.http.tenant import (
-    _generate_next_sku,
-    _normalize_category_name,
-    _resolve_category_id,
-)
+from app.modules.products.interface.http.tenant import _generate_next_sku
 
 PACK_UNIT_PATTERN = re.compile(
     r"(?<![a-z0-9])(\d+(?:[.,]\d+)?)\s*(kg|kilos?|kilogramos?|g|gr|gramos?|"
     r"lb|lbs|libras?|oz|onzas?|ton|toneladas?|l|lt|ltr|litros?|ml|mililitros?)\b",
     re.IGNORECASE,
 )
-
-DEFAULT_NEW_PRODUCT_CATEGORY = "General"
-LINE_SUPPLIER_REF_KEYS = {
-    "supplier_ref",
-    "ref",
-    "ref.",
-    "referencia",
-    "sku",
-    "cod",
-    "cod.",
-    "codigo",
-    "código",
-    "code",
-    "item code",
-    "item_code",
-    "barcode",
-    "ean",
-    "art",
-    "art.",
-}
 
 
 def _norm_import_text(value: str) -> str:
@@ -111,18 +87,7 @@ def _normalize_supplier_ref(value: object | None) -> str | None:
 def _extract_line_supplier_ref(item: dict | None) -> str | None:
     if not isinstance(item, dict):
         return None
-    for key in ("supplier_ref", "ref", "reference", "sku", "barcode", "ean", "codigo", "code"):
-        value = _normalize_supplier_ref(item.get(key))
-        if value:
-            return value
-    extra_columns = item.get("extra_columns")
-    if isinstance(extra_columns, dict):
-        for key, value in extra_columns.items():
-            if _norm_import_text(str(key or "")) in LINE_SUPPLIER_REF_KEYS:
-                normalized = _normalize_supplier_ref(value)
-                if normalized:
-                    return normalized
-    return None
+    return _normalize_supplier_ref(item.get("supplier_ref"))
 
 
 def _iter_product_supplier_refs(product) -> list[str]:
@@ -168,14 +133,18 @@ def _product_has_supplier_ref(product, supplier_ref: str | None) -> bool:
     if not normalized_ref:
         return False
     target = _norm_import_text(normalized_ref)
-    return any(_norm_import_text(candidate) == target for candidate in _iter_product_supplier_refs(product))
+    return any(
+        _norm_import_text(candidate) == target for candidate in _iter_product_supplier_refs(product)
+    )
 
 
 def _persist_product_supplier_ref(product, supplier_ref: str | None) -> None:
     normalized_ref = _normalize_supplier_ref(supplier_ref)
     if not normalized_ref:
         return
-    metadata = dict(product.product_metadata or {}) if isinstance(product.product_metadata, dict) else {}
+    metadata = (
+        dict(product.product_metadata or {}) if isinstance(product.product_metadata, dict) else {}
+    )
     existing = metadata.get("supplier_refs")
     supplier_refs: list[str]
     if isinstance(existing, list):
@@ -184,7 +153,9 @@ def _persist_product_supplier_ref(product, supplier_ref: str | None) -> None:
         supplier_refs = []
     else:
         supplier_refs = [str(existing)]
-    if not any(_norm_import_text(value) == _norm_import_text(normalized_ref) for value in supplier_refs):
+    if not any(
+        _norm_import_text(value) == _norm_import_text(normalized_ref) for value in supplier_refs
+    ):
         supplier_refs.append(normalized_ref)
     metadata["supplier_refs"] = supplier_refs
     metadata.setdefault("source_supplier_ref", normalized_ref)
@@ -226,8 +197,8 @@ def _create_product_from_line(
     """
     from app.models.core.products import Product
 
-    category_name = _normalize_category_name(DEFAULT_NEW_PRODUCT_CATEGORY)
-    category_id = _resolve_category_id(db, tenant_id, category_name) if category_name else None
+    category_name = None
+    category_id = None
     sku = _generate_next_sku(db, tenant_id, category_name)
     normalized_description = description.strip()[:255]
     initial_price = unit_price if unit_price > 0 else 0.0
@@ -278,13 +249,22 @@ def _append_import_alias(
     normalized_supplier_ref = _normalize_supplier_ref(supplier_ref)
     if not description and not normalized_supplier_ref:
         return
-    aliases = product.import_aliases if isinstance(product.import_aliases, list) else []
+    aliases = (
+        [dict(alias) for alias in product.import_aliases]
+        if isinstance(product.import_aliases, list)
+        else []
+    )
     normalized_description = _norm_import_text(description)
     for alias in aliases:
         if not isinstance(alias, dict):
             continue
-        same_name = normalized_description and _norm_import_text(str(alias.get("name") or "")) == normalized_description
-        same_ref = normalized_supplier_ref and _norm_import_text(str(alias.get("supplier_ref") or "")) == _norm_import_text(normalized_supplier_ref)
+        same_name = (
+            normalized_description
+            and _norm_import_text(str(alias.get("name") or "")) == normalized_description
+        )
+        same_ref = normalized_supplier_ref and _norm_import_text(
+            str(alias.get("supplier_ref") or "")
+        ) == _norm_import_text(normalized_supplier_ref)
         if same_name or same_ref:
             if normalized_supplier_ref and not alias.get("supplier_ref"):
                 alias["supplier_ref"] = normalized_supplier_ref
@@ -292,6 +272,7 @@ def _append_import_alias(
                 alias["factor"] = float(factor or 1)
             if unit and not alias.get("unit"):
                 alias["unit"] = str(unit or product.unit or "").strip() or None
+            product.import_aliases = aliases
             _persist_product_supplier_ref(product, normalized_supplier_ref)
             return
     aliases.append(
@@ -365,8 +346,7 @@ def _score_product_candidate(
         best_factor = inferred_factor
     if (
         product_name_meaningful
-        and
-        product_name
+        and product_name
         and (desc_norm in product_name or product_name in desc_norm)
         and 0.84 > best_score
     ):
@@ -375,8 +355,7 @@ def _score_product_candidate(
         best_factor = inferred_factor
     if (
         product_core_meaningful
-        and
-        desc_core
+        and desc_core
         and product_core
         and (desc_core in product_core or product_core in desc_core)
         and 0.81 > best_score

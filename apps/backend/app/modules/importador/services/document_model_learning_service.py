@@ -8,13 +8,11 @@ from sqlalchemy.orm import Session
 from app.models.importador import ImpDocumento, ImpRoutingSignal
 from app.modules.importador.runtime_config import load_learning_config
 
-from ._routing_signals import (
-    document_type as _signal_document_type,
-    event_weight as _event_weight,
-    is_scalar as _is_scalar,
-    normalize_text as _normalize_text,
-    source_doc_type as _signal_source_doc_type,
-)
+from ._routing_signals import document_type as _signal_document_type
+from ._routing_signals import event_weight as _event_weight
+from ._routing_signals import is_scalar as _is_scalar
+from ._routing_signals import normalize_text as _normalize_text
+from ._routing_signals import source_doc_type as _signal_source_doc_type
 
 _INTERNAL_KEYS = {
     "line_items",

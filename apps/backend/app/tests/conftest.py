@@ -363,7 +363,11 @@ def _ensure_ui_field_config_scope_rules(session) -> None:
             .first()
         )
         if exists:
-            if exists.active is not True or exists.action != "deny" or exists.reason != rule["reason"]:
+            if (
+                exists.active is not True
+                or exists.action != "deny"
+                or exists.reason != rule["reason"]
+            ):
                 exists.active = True
                 exists.action = "deny"
                 exists.reason = rule["reason"]

@@ -20,6 +20,7 @@ import openpyxl
 from PIL import Image, ImageFilter, ImageOps
 
 from .runtime_config import load_file_support_config
+from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.ocr")
 
@@ -53,9 +54,6 @@ def _ocr_cache_dir() -> Path:
 def _ocr_cache_path(file_bytes: bytes) -> Path:
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     return _ocr_cache_dir() / f"{file_hash}.json"
-
-
-from .utils import json_safe as _json_safe
 
 
 def _serialize_cached_extraction(extraction: dict[str, Any]) -> dict[str, Any]:

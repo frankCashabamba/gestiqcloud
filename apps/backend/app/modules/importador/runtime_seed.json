@@ -1,0 +1,53 @@
+{
+  "doc_type_patterns": {
+    "INVOICE": ["invoice", "factura", "rechnung", "fattura", "fatura", "facture"],
+    "RECEIPT": ["receipt", "recibo", "boleta", "ticket", "voucher"],
+    "BANK_STATEMENT": ["bank statement", "extracto", "estado de cuenta", "kontoauszug"],
+    "PAYROLL": ["payroll", "nomina", "planilla", "lohnabrechnung"],
+    "INVENTORY": ["inventory", "inventario", "stock", "price list", "lista precios"],
+    "COSTING": ["costing", "costeo", "recipe", "receta", "food cost"]
+  },
+  "prompt_config": {
+    "extraction_system": "You are a universal accounting document analyzer. Always respond with valid JSON using the configured canonical fields.",
+    "vision_extraction_preamble": "Read this document image very carefully, character by character.",
+    "structured_table_note": "NOTE: Content is already pre-processed as a structured table. If you recognize a list or table, set is_table=true and provide clean column names. Do NOT return individual rows.",
+    "doc_type_instruction": "A short uppercase label describing the document type in English. Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable.",
+    "critical_rules": [
+      "The document may be in any language. Read it as-is and map to the configured canonical fields.",
+      "total_amount must represent the grand total, not a quantity.",
+      "vendor is the entity that issues or signs the document.",
+      "If is_table=true, return columns and only visible summary values in fields.",
+      "Extract payment_method and payment_terms when visible.",
+      "Dates must use YYYY-MM-DD. Amounts must use dot decimal notation. Missing fields must be null.",
+      "Do not invent data absent from the document."
+    ],
+    "vision_critical_rules": [
+      "ALL amounts MUST be plain numbers with dot decimal notation.",
+      "Dates MUST be YYYY-MM-DD only.",
+      "doc_number must use the full series/sequence exactly as printed.",
+      "customer must be the actual customer name, not the field label.",
+      "Extract payment_method and payment_terms when visible.",
+      "Tax IDs must contain digits only, with no slashes or punctuation.",
+      "Do not invent data absent from the document. Use null for missing fields."
+    ]
+  },
+  "product_sheet_detection": {
+    "summary_names": ["total", "subtotal", "resumen", "sum", "totales"],
+    "name_keywords": ["producto", "nombre", "descripcion", "description", "item", "articulo", "product", "name", "denominacion"],
+    "price_keywords": ["precio unitario", "unit price", "precio venta", "sale price", "pvp", "price", "precio", "valor"],
+    "price_reject_keywords": ["total", "importe total", "subtotal"],
+    "cost_keywords": ["costo", "cost", "compra", "purchase"],
+    "sku_keywords": ["sku", "codigo", "code", "ean", "barcode", "referencia", "ref"],
+    "category_keywords": ["categoria", "category", "familia", "grupo", "linea"],
+    "description_keywords": ["descripcion", "description", "detalle", "detalle producto"],
+    "explicit_stock_keywords": ["stock", "existencia", "disponible", "inventario", "saldo", "cantidad stock"],
+    "ambiguous_stock_keywords": ["cantidad", "qty", "quantity", "unidades", "units"],
+    "operational_keywords": ["venta", "diaria", "sobrante", "produc", "consumo", "merma"],
+    "sheet_hint_keywords": ["product", "producto", "productos", "catalog", "catalogo", "inventory", "inventario", "stock", "price list", "lista precios"]
+  },
+  "amount_label_config": {
+    "total_amount": ["valor total", "importe total", "total a pagar", "grand total", "amount due", "payable amount", "monto total", "total"],
+    "subtotal": ["subtotal sin impuestos", "total sin impuestos", "tax exclusive amount", "base imponible", "sub total", "subtotal"],
+    "tax_amount": ["iva", "vat", "igv", "gst", "tax amount", "impuesto"]
+  }
+}

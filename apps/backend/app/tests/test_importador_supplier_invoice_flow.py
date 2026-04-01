@@ -10,10 +10,10 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.accounting.chart_of_accounts import ChartOfAccounts
-from app.models.ai.incident import Incident
 from app.models.accounting.pos_settings import PaymentMethod
-from app.models.core.products import Product
+from app.models.ai.incident import Incident
 from app.models.core.audit_event import AuditEvent
+from app.models.core.products import Product
 from app.models.expenses.expense import Expense
 from app.models.importador import ImpDocumento, ImpStagingLine
 from app.models.inventory.stock import StockItem, StockMove
@@ -193,6 +193,7 @@ def test_save_document_to_purchase_creates_new_product_from_line_match_without_r
             "line_items": [
                 {
                     "description": "Caja organizadora plastica mediana",
+                    "supplier_ref": "REF-HG-2210",
                     "quantity": 5,
                     "unit_price": 4.8,
                     "total_price": 24.0,
@@ -209,9 +210,7 @@ def test_save_document_to_purchase_creates_new_product_from_line_match_without_r
         user_id=str(uuid4()),
         doc=document,
         update_stock=True,
-        line_matches=[
-            SaveDocumentLineMatch(line_index=0, product_id=None, create_new=True)
-        ],
+        line_matches=[SaveDocumentLineMatch(line_index=0, product_id=None, create_new=True)],
     )
     db.flush()
 
@@ -233,24 +232,82 @@ def test_save_document_to_purchase_creates_new_product_from_line_match_without_r
         .one()
     )
     purchase_line = (
-        db.query(PurchaseLine)
-        .filter(PurchaseLine.purchase_id == result["purchase_id"])
-        .one()
+        db.query(PurchaseLine).filter(PurchaseLine.purchase_id == result["purchase_id"]).one()
     )
 
     assert result["lines_created"] == 1
     assert result["lines_matched"] == 1
     assert product.is_raw_material is False
     assert product.sku is not None
-    assert product.sku.startswith("GEN-")
-    assert product.category_id is not None
+    assert product.sku.startswith("PRO-")
+    assert product.category_id is None
     assert product.price == pytest.approx(4.8)
     assert product.stock == pytest.approx(5.0)
     assert product.cost_price == pytest.approx(4.8)
     assert product.product_metadata is not None
     assert product.product_metadata["import_source"] == "supplier_invoice_line_create_new"
+    assert product.product_metadata["source_supplier_ref"] == "REF-HG-2210"
+    assert "REF-HG-2210" in product.product_metadata["supplier_refs"]
+    assert product.import_aliases[0]["supplier_ref"] == "REF-HG-2210"
     assert float(stock_item.qty) == pytest.approx(5.0)
     assert purchase_line.product_id == product.id
+
+
+def test_save_document_to_purchase_matches_existing_product_by_supplier_ref(
+    db: Session, tenant_minimal
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    if db.get_bind().dialect.name == "sqlite":
+        db.execute(text("PRAGMA foreign_keys=OFF"))
+    warehouse = Warehouse(tenant_id=tenant_id, code="ALM-1", name="Principal", is_active=True)
+    product = Product(
+        tenant_id=tenant_id,
+        sku="PRO-001",
+        name="Articulo interno distinto",
+        active=True,
+        stock=0,
+        unit="uds",
+        product_metadata={"supplier_refs": ["REF-BZ-1042"]},
+        import_aliases=[],
+    )
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-bazar.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="REVIEW",
+        fecha_documento="2026-03-19",
+        monto_total=56.4,
+        datos_confirmados={
+            "numero_factura": "FAC-REF-001",
+            "line_items": [
+                {
+                    "description": "Set de tazas de ceramica 350 ml",
+                    "supplier_ref": "REF-BZ-1042",
+                    "quantity": 24,
+                    "unit_price": 2.35,
+                    "total_price": 56.4,
+                }
+            ],
+        },
+    )
+    db.add_all([warehouse, product, document])
+    db.flush()
+
+    result = _save_document_to_purchase(
+        db=db,
+        tenant_id=tenant_id,
+        user_id=str(uuid4()),
+        doc=document,
+        update_stock=True,
+    )
+    db.flush()
+    db.refresh(product)
+
+    assert result["lines_matched"] == 1
+    assert product.stock == pytest.approx(24.0)
+    assert isinstance(product.import_aliases, list)
+    assert product.import_aliases[0]["supplier_ref"] == "REF-BZ-1042"
 
 
 def test_build_document_line_matches_does_not_autoselect_trivial_partial_match(

@@ -25,6 +25,10 @@ from .schemas import (
     RoutingRuleAdminIn,
     RoutingRuleAdminOut,
 )
+from .services.document_learning_queue_service import (
+    flag_reprocess_candidates,
+    list_reprocess_candidates,
+)
 from .services.document_routing_admin_service import (
     create_routing_profile,
     create_routing_rule,
@@ -36,10 +40,6 @@ from .services.document_routing_admin_service import (
     preview_routing_decision,
     update_routing_profile,
     update_routing_rule,
-)
-from .services.document_learning_queue_service import (
-    flag_reprocess_candidates,
-    list_reprocess_candidates,
 )
 from .services.document_routing_learning_insights_service import (
     build_routing_profile_update_proposal,
@@ -163,6 +163,7 @@ def get_routing_learning_proposal(
 
 # ── Learning Reprocess Queue ──────────────────────────────────────────────────
 
+
 @router.get("/learning/reprocess-queue")
 def get_reprocess_queue(
     tenant_id: UUID,
@@ -188,6 +189,7 @@ def post_flag_reprocess_queue(
 
 # ── Column Candidates ─────────────────────────────────────────────────────────
 
+
 @router.get("/column-candidates", response_model=list[ColumnCandidateOut])
 def get_column_candidates(
     unassigned_only: bool = Query(default=False),
@@ -208,10 +210,17 @@ def get_column_candidates(
     ).fetchall()
     return [
         ColumnCandidateOut(
-            id=row[0], alias=row[1], alias_norm=row[2], doc_type=row[3],
-            tenant_id=row[4], seen_count=row[5], first_seen_at=row[6],
-            last_seen_at=row[7], canonical_field=row[8],
-            assigned_at=row[9], assigned_by=row[10],
+            id=row[0],
+            alias=row[1],
+            alias_norm=row[2],
+            doc_type=row[3],
+            tenant_id=row[4],
+            seen_count=row[5],
+            first_seen_at=row[6],
+            last_seen_at=row[7],
+            canonical_field=row[8],
+            assigned_at=row[9],
+            assigned_by=row[10],
         )
         for row in rows
     ]
@@ -225,6 +234,7 @@ def assign_column_candidate(
 ):
     """Asigna un campo canónico a un candidato y lo promueve a imp_field_alias."""
     from sqlalchemy import text as sa_text
+
     from .classifier_learning import _normalize_alias
 
     row = db.execute(
@@ -263,6 +273,7 @@ def assign_column_candidate(
 
     db.commit()
     from .field_alias_loader import invalidate_cache
+
     invalidate_cache()
     return {"ok": True}
 
@@ -282,6 +293,7 @@ def delete_column_candidate(candidate_id: UUID, db: Session = Depends(get_db)):
 
 
 # ── Field Aliases ─────────────────────────────────────────────────────────────
+
 
 @router.get("/field-aliases", response_model=list[FieldAliasOut])
 def get_field_aliases_admin(
@@ -307,9 +319,15 @@ def get_field_aliases_admin(
     ).fetchall()
     return [
         FieldAliasOut(
-            id=row[0], canonical_field=row[1], alias=row[2], tenant_id=row[3],
-            active=row[4], priority=row[5], source=row[6],
-            confirmed_count=row[7], last_seen_at=row[8],
+            id=row[0],
+            canonical_field=row[1],
+            alias=row[2],
+            tenant_id=row[3],
+            active=row[4],
+            priority=row[5],
+            source=row[6],
+            confirmed_count=row[7],
+            last_seen_at=row[8],
         )
         for row in rows
     ]
@@ -318,7 +336,8 @@ def get_field_aliases_admin(
 @router.post("/field-aliases")
 def create_field_alias(payload: FieldAliasCreateIn, db: Session = Depends(get_db)):
     from sqlalchemy import text as sa_text
-    from .classifier_learning import _normalize_alias, _is_safe_column_name
+
+    from .classifier_learning import _is_safe_column_name, _normalize_alias
 
     if not _is_safe_column_name(payload.alias):
         raise HTTPException(status_code=422, detail="alias_unsafe")
@@ -345,6 +364,7 @@ def create_field_alias(payload: FieldAliasCreateIn, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     from .field_alias_loader import invalidate_cache
+
     invalidate_cache()
     return {"ok": True}
 
@@ -362,11 +382,13 @@ def delete_field_alias(alias_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="alias_not_found_or_seed")
 
     from .field_alias_loader import invalidate_cache
+
     invalidate_cache()
     return {"ok": True}
 
 
 # ── Canonical Fields ──────────────────────────────────────────────────────────
+
 
 @router.get("/canonical-fields", response_model=list[CanonicalFieldOut])
 def get_canonical_fields_admin(db: Session = Depends(get_db)):
@@ -379,6 +401,5 @@ def get_canonical_fields_admin(db: Session = Depends(get_db)):
         )
     ).fetchall()
     return [
-        CanonicalFieldOut(name=row[0], field_type=row[1], projection_column=row[2])
-        for row in rows
+        CanonicalFieldOut(name=row[0], field_type=row[1], projection_column=row[2]) for row in rows
     ]
