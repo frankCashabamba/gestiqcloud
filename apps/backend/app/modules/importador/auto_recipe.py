@@ -53,6 +53,59 @@ def build_text_fingerprint(
     return fp, _fingerprint_hash(fp)
 
 
+def _excel_header_overlap(target_sheets: dict, stored_sheets: dict) -> float:
+    """Jaccard similarity entre el conjunto de headers de dos fingerprints Excel."""
+    target_headers: set[str] = set()
+    stored_headers: set[str] = set()
+    for prof in target_sheets.values():
+        target_headers.update(str(h).strip().lower() for h in (prof.get("headers") or []) if h)
+    for prof in stored_sheets.values():
+        stored_headers.update(str(h).strip().lower() for h in (prof.get("headers") or []) if h)
+    if not target_headers or not stored_headers:
+        return 0.0
+    intersection = len(target_headers & stored_headers)
+    union = len(target_headers | stored_headers)
+    return intersection / union if union else 0.0
+
+
+def find_similar_excel_snapshot(
+    db: Session,
+    tenant_id: UUID,
+    fingerprint: dict,
+    *,
+    min_overlap: float = 0.80,
+) -> IcuRecipeSnapshot | None:
+    """Busca el snapshot Excel más similar por overlap de headers (Jaccard >= min_overlap).
+
+    Solo aplica a fingerprints de tipo 'excel'. Retorna el mejor candidato o None.
+    Limita la búsqueda a los 100 snapshots más recientes del tenant para rendimiento.
+    """
+    if not isinstance(fingerprint, dict) or fingerprint.get("kind") != "excel":
+        return None
+    target_sheets = fingerprint.get("sheets") or {}
+    if not target_sheets:
+        return None
+
+    stmt = (
+        select(IcuRecipeSnapshot)
+        .where(IcuRecipeSnapshot.tenant_id == tenant_id)
+        .order_by(IcuRecipeSnapshot.created_at.desc())
+        .limit(100)
+    )
+    best_snap: IcuRecipeSnapshot | None = None
+    best_overlap = 0.0
+    for snap in db.scalars(stmt):
+        content = snap.content_json if isinstance(snap.content_json, dict) else {}
+        stored_fp = content.get("fingerprint")
+        if not isinstance(stored_fp, dict) or stored_fp.get("kind") != "excel":
+            continue
+        overlap = _excel_header_overlap(target_sheets, stored_fp.get("sheets") or {})
+        if overlap >= min_overlap and overlap > best_overlap:
+            best_overlap = overlap
+            best_snap = snap
+    return best_snap
+
+
 def _normalize_fingerprint_payload(fingerprint: dict | None) -> dict | None:
     if not isinstance(fingerprint, dict):
         return None
@@ -379,6 +432,17 @@ def resolve_auto_recipe(
     recipe_name: str | None = None
     if not snap:
         prompts = _auto_prompts_excel(_flatten_headers(sheet_profiles))
+        extra_content: dict = {"sheet_profiles": sheet_profiles}
+        # Fuzzy match: si hay un snapshot Excel con >=80% de headers en común,
+        # heredar sus prompts aprendidos en lugar de empezar desde cero.
+        fuzzy_source = find_similar_excel_snapshot(db, tenant_id, fp)
+        if fuzzy_source:
+            source_cfg = _snapshot_recipe_config(fuzzy_source)
+            if source_cfg.get("prompt_system"):
+                prompts["prompt_system"] = source_cfg["prompt_system"]
+            if source_cfg.get("prompt_user"):
+                prompts["prompt_user"] = source_cfg["prompt_user"]
+            extra_content["fuzzy_source_snapshot_id"] = str(fuzzy_source.id)
         name = f"auto-excel-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
         recipe_name, snap = _create_recipe_and_snapshot(
             db,
@@ -388,7 +452,7 @@ def resolve_auto_recipe(
             fp,
             fp_hash,
             prompts,
-            {"sheet_profiles": sheet_profiles},
+            extra_content,
             created_by,
         )
         created = True

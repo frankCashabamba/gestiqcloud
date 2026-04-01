@@ -320,6 +320,8 @@ async def _process_upload_like_document(
         field_aliases=_field_aliases_for_pre,
         cached_analysis=cached_analysis,
         config=_pre_cfg,
+        ocr_text=text if not has_structured else None,
+        tenant_id=tenant_id,
     )
 
     if pre_class and pre_class.skip_ai:

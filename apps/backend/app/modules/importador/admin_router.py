@@ -37,6 +37,10 @@ from .services.document_routing_admin_service import (
     update_routing_profile,
     update_routing_rule,
 )
+from .services.document_learning_queue_service import (
+    flag_reprocess_candidates,
+    list_reprocess_candidates,
+)
 from .services.document_routing_learning_insights_service import (
     build_routing_profile_update_proposal,
     list_routing_learning_insights,
@@ -155,6 +159,31 @@ def get_routing_learning_proposal(
         if detail == "routing_learning_insight_not_found":
             raise HTTPException(status_code=404, detail=detail)
         raise HTTPException(status_code=400, detail=detail)
+
+
+# ── Learning Reprocess Queue ──────────────────────────────────────────────────
+
+@router.get("/learning/reprocess-queue")
+def get_reprocess_queue(
+    tenant_id: UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    """Lista documentos confirmados cuyo snapshot aprendió cosas nuevas desde su procesamiento."""
+    return {
+        "items": list_reprocess_candidates(db, tenant_id=tenant_id, limit=limit),
+    }
+
+
+@router.post("/learning/reprocess-queue/flag")
+def post_flag_reprocess_queue(
+    tenant_id: UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    """Marca como requiere_revision los documentos con aprendizaje pendiente de aplicar."""
+    flagged = flag_reprocess_candidates(db, tenant_id=tenant_id, limit=limit)
+    return {"ok": True, "flagged": flagged}
 
 
 # ── Column Candidates ─────────────────────────────────────────────────────────

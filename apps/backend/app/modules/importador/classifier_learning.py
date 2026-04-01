@@ -347,6 +347,60 @@ def _build_reverse_alias_map(field_aliases: dict[str, list[str]]) -> dict[str, s
     return result
 
 
+# ── Vendor → snapshot learning ─────────────────────────────────────────────────
+
+def learn_vendor_snapshot(
+    db: Session,
+    *,
+    ruc: str | None,
+    vendor_norm: str | None,
+    snapshot_id: "UUID",
+    tenant_id: "UUID",
+) -> bool:
+    """Asocia un proveedor (RUC y/o nombre normalizado) con un snapshot confirmado.
+
+    Actualiza confirmed_count si ya existe. Devuelve True si hubo cambio.
+    """
+    from sqlalchemy import text as sa_text
+
+    ruc_clean = str(ruc or "").strip() or None
+    vendor_clean = str(vendor_norm or "").strip().lower() or None
+    if not ruc_clean and not vendor_clean:
+        return False
+
+    try:
+        if ruc_clean:
+            db.execute(
+                sa_text(
+                    "INSERT INTO imp_vendor_snapshot "
+                    "    (tenant_id, ruc, recipe_snapshot_id, confirmed_count, last_seen_at) "
+                    "VALUES (:tid, :ruc, :snap_id, 1, now()) "
+                    "ON CONFLICT (tenant_id, ruc) WHERE ruc IS NOT NULL DO UPDATE "
+                    "    SET recipe_snapshot_id = EXCLUDED.recipe_snapshot_id, "
+                    "        confirmed_count = imp_vendor_snapshot.confirmed_count + 1, "
+                    "        last_seen_at = now(), active = TRUE"
+                ),
+                {"tid": str(tenant_id), "ruc": ruc_clean, "snap_id": str(snapshot_id)},
+            )
+        if vendor_clean:
+            db.execute(
+                sa_text(
+                    "INSERT INTO imp_vendor_snapshot "
+                    "    (tenant_id, vendor_norm, recipe_snapshot_id, confirmed_count, last_seen_at) "
+                    "VALUES (:tid, :vendor, :snap_id, 1, now()) "
+                    "ON CONFLICT (tenant_id, vendor_norm) WHERE vendor_norm IS NOT NULL DO UPDATE "
+                    "    SET recipe_snapshot_id = EXCLUDED.recipe_snapshot_id, "
+                    "        confirmed_count = imp_vendor_snapshot.confirmed_count + 1, "
+                    "        last_seen_at = now(), active = TRUE"
+                ),
+                {"tid": str(tenant_id), "vendor": vendor_clean, "snap_id": str(snapshot_id)},
+            )
+        return True
+    except Exception as exc:
+        logger.debug("Could not learn vendor snapshot: %s", exc)
+        return False
+
+
 # ── Column candidate discovery ──────────────────────────────────────────────────
 
 def learn_column_candidates(

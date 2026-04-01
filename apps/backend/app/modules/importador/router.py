@@ -1886,6 +1886,31 @@ def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id:
     except Exception as exc:
         logger.warning("Pre-classifier learning error (non-fatal): %s", exc)
 
+    # L4: Vendor/RUC learning
+    try:
+        ruc = str(getattr(doc, "ruc_detectado", None) or "").strip() or None
+        proveedor = str(getattr(doc, "proveedor_detectado", None) or "").strip() or None
+        snapshot_id = getattr(doc, "recipe_snapshot_id", None)
+        t_id = getattr(doc, "tenant_id", None)
+        if snapshot_id and t_id and (ruc or proveedor):
+            from .classifier_learning import learn_vendor_snapshot
+            import unicodedata as _ud, re as _re
+
+            def _norm_vendor(name: str) -> str:
+                nfd = _ud.normalize("NFD", name)
+                text = "".join(c for c in nfd if _ud.category(c) != "Mn")
+                return _re.sub(r"[^a-z0-9\s]", " ", text.lower()).strip()
+
+            learn_vendor_snapshot(
+                db,
+                ruc=ruc,
+                vendor_norm=_norm_vendor(proveedor) if proveedor else None,
+                snapshot_id=snapshot_id,
+                tenant_id=t_id,
+            )
+    except Exception as exc:
+        logger.warning("Vendor snapshot learning error (non-fatal): %s", exc)
+
 
 @router.post("/documents/{doc_id}/confirm", response_model=DocumentoOut, dependencies=protected)
 def confirm_document(

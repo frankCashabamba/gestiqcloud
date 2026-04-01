@@ -593,3 +593,31 @@ class ImpConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+
+class ImpVendorSnapshot(Base):
+    """Asocia proveedores (RUC y/o nombre normalizado) con snapshots de recetas.
+
+    Alimenta la capa L4 del pre-clasificador: cuando se reconoce el RUC de un
+    proveedor en el texto OCR antes de invocar la IA, se reutiliza el snapshot
+    ya aprendido para ese proveedor.
+    """
+
+    __tablename__ = "imp_vendor_snapshot"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    ruc: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    vendor_norm: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    recipe_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("icu_recipe_snapshot.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    confirmed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

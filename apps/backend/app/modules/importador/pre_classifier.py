@@ -169,6 +169,8 @@ def classify_before_ai(
     field_aliases: dict[str, list[str]],
     cached_analysis: dict | None,
     config: dict[str, float] | None = None,
+    ocr_text: str | None = None,
+    tenant_id: Any = None,
 ) -> PreClassResult | None:
     """
     Try to classify without calling the AI.
@@ -178,6 +180,7 @@ def classify_before_ai(
     - L2: Filename match  → skip_ai=False, doc_type hint for AI
     - L3: Header mapping  → skip_ai=False, doc_type hint for AI
       (for structured docs, if confidence >= structured_skip_threshold → skip AI classification)
+    - L4: Vendor/RUC     → skip_ai=False, snapshot hint via proveedor conocido
     """
     cfg = config or load_pre_classifier_config(db)
     filename_min_conf = cfg.get("filename_min_confidence", 0.70)
@@ -251,6 +254,22 @@ def classify_before_ai(
                             matched_canonicals=sorted(matched),
                         )
 
+    # L4: Vendor/RUC — buscar proveedor conocido en texto OCR
+    if ocr_text and tenant_id is not None:
+        ruc = _extract_ruc_from_text(ocr_text)
+        if ruc:
+            vendor_snaps = _load_vendor_snapshots(db, tenant_id)
+            for vs in vendor_snaps:
+                if vs["ruc"] == ruc and vs["confirmed_count"] >= 2:
+                    return PreClassResult(
+                        doc_type="OTHER",  # El tipo real lo resuelve la IA con el snapshot
+                        confidence=0.0,
+                        layer="vendor_ruc",
+                        reasoning=f"RUC {ruc} matches vendor snapshot (confirmed={vs['confirmed_count']})",
+                        skip_ai=False,
+                        cached_analysis={"vendor_snapshot_id": vs["snapshot_id"], "ruc": ruc},
+                    )
+
     return None
 
 
@@ -320,6 +339,66 @@ def _match_headers_to_canonical(
         if canonical:
             matched.add(canonical)
     return matched
+
+
+def _extract_ruc_from_text(text: str) -> str | None:
+    """Extrae el primer RUC/NIF/CUIT encontrado en el texto OCR.
+
+    Soporta formatos comunes: RUC peruano (11 dígitos), NIF español (9 chars),
+    CUIT argentino (XX-XXXXXXXX-X). Devuelve solo dígitos del match.
+    """
+    if not text:
+        return None
+    # Patrones comunes de identificación fiscal (prefijados por keywords)
+    patterns = [
+        r"(?:R\.?U\.?C\.?|RUC|NIF|CIF|CUIT|CUIL|RFC)\s*[:\-#]?\s*([0-9][\d\-]{6,19})",
+        r"\b(20\d{9}|10\d{9})\b",  # RUC peruano: empieza por 20 (empresa) o 10 (persona)
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text[:3000], re.IGNORECASE)
+        if match:
+            digits = re.sub(r"\D", "", match.group(1))
+            if 8 <= len(digits) <= 15:
+                return digits
+    return None
+
+
+def _load_vendor_snapshots(db: Any, tenant_id: Any) -> list[dict]:
+    """Carga snapshots de proveedores activos para el tenant, cacheados 5 min."""
+    cache_key = f"vendor_snapshots:{tenant_id}"
+    entry = _cache.get(cache_key)
+    if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
+        return entry[1]  # type: ignore[return-value]
+
+    if db is None:
+        return []
+    try:
+        from sqlalchemy import text as sa_text
+
+        rows = db.execute(
+            sa_text(
+                "SELECT ruc, vendor_norm, recipe_snapshot_id, confirmed_count "
+                "FROM imp_vendor_snapshot "
+                "WHERE tenant_id = :tid AND active = TRUE "
+                "ORDER BY confirmed_count DESC"
+            ),
+            {"tid": str(tenant_id)},
+        ).fetchall()
+        result = [
+            {
+                "ruc": str(r[0]) if r[0] else None,
+                "vendor_norm": str(r[1]) if r[1] else None,
+                "snapshot_id": str(r[2]),
+                "confirmed_count": int(r[3]),
+            }
+            for r in rows
+        ]
+        _cache[cache_key] = (time.monotonic(), result)
+        return result
+    except Exception as exc:
+        logger.debug("Could not load vendor snapshots: %s", exc)
+        _cache[cache_key] = (time.monotonic(), [])
+        return []
 
 
 def invalidate_pre_classifier_cache() -> None:
