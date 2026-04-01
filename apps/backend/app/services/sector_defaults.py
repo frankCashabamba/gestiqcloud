@@ -16,7 +16,11 @@ from sqlalchemy.orm import Session
 from app.config.database import SessionLocal
 from app.models.company.company import SectorTemplate
 from app.models.core.ui_field_config import SectorFieldDefault
-from app.services.field_config import canonical_field_module_key, resolve_sector_code
+from app.services.field_config import (
+    canonical_field_module_key,
+    is_ui_field_config_scope,
+    resolve_sector_code,
+)
 
 
 def _get_fallback_sector(session: Session) -> str:
@@ -96,6 +100,8 @@ def get_sector_defaults(
     try:
         sector_code = resolve_sector_code(session, sector)
         module_key = canonical_field_module_key(module)
+        if not is_ui_field_config_scope(session, module_key, sector_code):
+            return []
         module_candidates = [module_key]
         if module_key == "productos":
             module_candidates.append("products")

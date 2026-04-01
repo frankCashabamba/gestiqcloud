@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.company.company import SectorTemplate
-from app.models.core.ui_field_config import SectorFieldDefault
+from app.models.core.ui_field_config import SectorFieldDefault, UiFieldConfigScopeRule
 
 _CLIENT_SECTOR_DEFAULTS: dict[str, list[dict[str, Any]]] = {
     "default": [
@@ -111,7 +111,6 @@ _FIELD_MODULE_ALIASES = {
     "supplier": "suppliers",
 }
 
-
 def _normalize(items: list[dict]) -> list[dict]:
     out: list[dict] = []
     for it in items or []:
@@ -166,6 +165,34 @@ def canonical_field_module_key(module: str | None) -> str:
     return _FIELD_MODULE_ALIASES.get(raw, raw)
 
 
+def is_ui_field_config_scope(db: Session, module: str | None, sector: str | None = None) -> bool:
+    raw_module = str(module or "").strip().lower()
+    raw_sector = str(sector or "").strip().lower()
+    try:
+        rules = (
+            db.query(UiFieldConfigScopeRule)
+            .filter(
+                UiFieldConfigScopeRule.active == True,  # noqa: E712
+                UiFieldConfigScopeRule.action == "deny",
+            )
+            .all()
+        )
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return True
+    for rule in rules:
+        if rule.scope_type == "sector_exact" and raw_sector == str(rule.scope_value or "").lower():
+            return False
+        if rule.scope_type == "module_prefix" and raw_module.startswith(
+            str(rule.scope_value or "").lower()
+        ):
+            return False
+    return True
+
+
 def _field_module_candidates(module: str | None) -> list[str]:
     canonical = canonical_field_module_key(module)
     candidates = [canonical]
@@ -178,7 +205,7 @@ def _field_module_candidates(module: str | None) -> list[str]:
 def _template_field_items(db: Session, sector: str | None, module: str) -> list[dict]:
     sector_key = resolve_sector_code(db, sector)
     module_key = canonical_field_module_key(module)
-    if not sector_key:
+    if not sector_key or not is_ui_field_config_scope(db, module_key, sector_key):
         return []
     try:
         tpl = (
@@ -208,6 +235,8 @@ def ensure_sector_field_defaults_seeded(db: Session, *, module: str, sector: str
     module_candidates = _field_module_candidates(module)
     module_key = canonical_field_module_key(module)
     sector_key = resolve_sector_code(db, sector)
+    if not is_ui_field_config_scope(db, module_key, sector_key):
+        return
 
     exists = (
         db.query(SectorFieldDefault)
@@ -328,6 +357,8 @@ def resolve_fields(
     module_key = canonical_field_module_key(module)
     module_candidates = _field_module_candidates(module)
     sector_key = resolve_sector_code(db, sector)
+    if not is_ui_field_config_scope(db, module_key, sector_key):
+        return []
 
     # Load tenant overrides
     tenant_items: list[dict] = []

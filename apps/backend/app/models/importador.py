@@ -1,6 +1,7 @@
 """Modelos del Módulo Importador Contable Universal v1.3.
 
 Tablas:
+  - imp_config          : configuración runtime del importador (reemplaza sector_field_defaults)
   - imp_batch_import    : lote de importacion async persistente
   - imp_batch_item      : archivo individual dentro de un lote
   - imp_documento       : cada documento subido y procesado
@@ -17,6 +18,7 @@ from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -559,4 +561,35 @@ class ImpReviewSession(Base):
     )
     linked_iteration_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("imp_iteration.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class ImpConfig(Base):
+    """Configuración runtime del módulo importador.
+
+    Reemplaza el uso de sector_field_defaults (sector='_system', module='importador.*')
+    que era semánticamente incorrecto: sector_field_defaults es para config de UI
+    de formularios por sector, no para config de sistema del importador.
+
+    Convención:
+      module     = sub-módulo sin prefijo 'importador.' (ej: 'pre_classifier')
+      key        = nombre de la clave dentro del módulo
+      value_text = valor escalar: número como string, texto, prompt
+      value_list = valor lista: array JSONB de keywords, reglas, extensiones
+      label      = descripción legible para humanos / documentación interna
+    """
+
+    __tablename__ = "imp_config"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    module: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    value_list: Mapped[list | None] = mapped_column(
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
+        nullable=True,
+    )
+    label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )

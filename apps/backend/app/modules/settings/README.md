@@ -16,6 +16,7 @@ Config multi-tenant de módulos/campos. No cubre catálogos globales (ver `admin
   - `GET /sector?module=<mod>&sector=<slug>` / `PUT /sector`
   - `PUT /tenant` (override por empresa/slug), `PUT /tenant/mode` (form_mode `mixed|tenant|sector|basic`)
   - `GET /ui-plantillas` y `/ui-plantillas/health`
+  - Namespace reservado solo para UI/campos: reglas DB-backed en `ui_field_config_scope_rules` rechazan scopes legacy no-UI como `sector=_system` o `module=importador.*`
 
 ### Ejemplos
 ```

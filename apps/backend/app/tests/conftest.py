@@ -259,7 +259,7 @@ _ensure_test_env()
 
 @pytest.fixture(scope="session")
 def client() -> TestClient:
-    from app.config.database import Base, engine
+    from app.config.database import Base, SessionLocal, engine
 
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
@@ -267,6 +267,11 @@ def client() -> TestClient:
     _create_tables_in_order(engine, Base.metadata)
     _ensure_sqlite_stub_tables(engine)
     _ensure_default_tenant(engine)
+    session = SessionLocal()
+    try:
+        _ensure_ui_field_config_scope_rules(session)
+    finally:
+        session.close()
 
     # Import the app only after DB is prepared to avoid importing PG-only models
     from app.main import app
@@ -320,6 +325,7 @@ def db():
         assert not missing, f"Missing tables after create_all: {missing}"
     session = SessionLocal()
     try:
+        _ensure_ui_field_config_scope_rules(session)
         yield session
     except Exception:
         session.rollback()
@@ -328,6 +334,53 @@ def db():
         session.close()
         # Keep SQLite schema alive across tests because session-scoped fixtures
         # (e.g. `client`) may execute after other tests and still need tables.
+
+
+def _ensure_ui_field_config_scope_rules(session) -> None:
+    from app.models.core.ui_field_config import UiFieldConfigScopeRule
+
+    desired_rules = [
+        {
+            "scope_type": "sector_exact",
+            "scope_value": "_system",
+            "reason": "Namespace reservado para configuracion no-UI del sistema.",
+        },
+        {
+            "scope_type": "module_prefix",
+            "scope_value": "importador.",
+            "reason": "El runtime del importador no debe vivir en field-config UI.",
+        },
+    ]
+
+    dirty = False
+    for rule in desired_rules:
+        exists = (
+            session.query(UiFieldConfigScopeRule)
+            .filter(
+                UiFieldConfigScopeRule.scope_type == rule["scope_type"],
+                UiFieldConfigScopeRule.scope_value == rule["scope_value"],
+            )
+            .first()
+        )
+        if exists:
+            if exists.active is not True or exists.action != "deny" or exists.reason != rule["reason"]:
+                exists.active = True
+                exists.action = "deny"
+                exists.reason = rule["reason"]
+                dirty = True
+            continue
+        session.add(
+            UiFieldConfigScopeRule(
+                scope_type=rule["scope_type"],
+                scope_value=rule["scope_value"],
+                action="deny",
+                reason=rule["reason"],
+                active=True,
+            )
+        )
+        dirty = True
+    if dirty:
+        session.commit()
 
 
 @pytest.fixture(autouse=True)

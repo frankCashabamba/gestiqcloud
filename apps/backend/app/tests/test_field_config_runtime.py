@@ -218,3 +218,27 @@ def test_admin_sector_fields_seed_suppliers_from_template_config(client: TestCli
         .all()
     )
     assert [row.field for row in rows] == ["name", "phone"]
+
+
+def test_company_field_config_rejects_non_ui_module_namespaces(client: TestClient):
+    response = client.get("/api/v1/company/settings/fields?module=importador.file_support")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "field_config_ui_only"
+
+
+def test_admin_sector_fields_reject_reserved_non_ui_scope(client: TestClient):
+    response = client.get("/api/v1/admin/field-config/sector?module=importador.file_support&sector=_system")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "field_config_ui_only"
+
+
+def test_admin_import_table_rejects_reserved_system_sector(client: TestClient):
+    response = client.post(
+        "/api/v1/admin/field-config/import-table",
+        json={"table": "products", "module": "imports_products", "sector": "_system"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "field_config_ui_only"

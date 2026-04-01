@@ -7,7 +7,7 @@ Layers (evaluated in order):
 
 Returns PreClassResult or None (caller must invoke AI).
 
-All thresholds are loaded from sector_field_defaults (importador.pre_classifier).
+All thresholds are loaded from imp_config (module='pre_classifier').
 All patterns are loaded from imp_filename_pattern and imp_header_doc_type.
 Nothing is hardcoded.
 """
@@ -45,7 +45,7 @@ class PreClassResult:
 # ── Config loading ──────────────────────────────────────────────────────────────
 
 def load_pre_classifier_config(db: Any) -> dict[str, float]:
-    """Load thresholds from sector_field_defaults, cached 5 min."""
+    """Load thresholds from imp_config (module='pre_classifier'), cached 5 min."""
     entry = _cache.get("config")
     if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
         return entry[1]  # type: ignore[return-value]
@@ -61,23 +61,16 @@ def load_pre_classifier_config(db: Any) -> dict[str, float]:
         return defaults
 
     try:
-        from app.models.core.ui_field_config import SectorFieldDefault
+        from app.models.importador import ImpConfig
 
-        rows = (
-            db.query(SectorFieldDefault)
-            .filter(
-                SectorFieldDefault.sector == "_system",
-                SectorFieldDefault.module == "importador.pre_classifier",
-            )
-            .all()
-        )
+        rows = db.query(ImpConfig).filter(ImpConfig.module == "pre_classifier").all()
         cfg = dict(defaults)
         for row in rows:
-            key = str(row.field or "").strip()
-            val = row.options
+            key = str(row.key or "").strip()
+            val = row.value_text
             if key in cfg and val is not None:
                 try:
-                    cfg[key] = float(val[0]) if isinstance(val, list) and val else float(val)
+                    cfg[key] = float(val)
                 except (ValueError, TypeError):
                     pass
         _cache["config"] = (time.monotonic(), cfg)

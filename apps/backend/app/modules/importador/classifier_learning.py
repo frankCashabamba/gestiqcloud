@@ -23,6 +23,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.modules.importador.runtime_config import load_learning_config
+
 logger = logging.getLogger("importador.classifier_learning")
 
 _MIN_STEM_LEN = 3
@@ -167,17 +169,19 @@ def _learn_filename(
         return updated
 
     escaped = re.escape(anchor)
+    learning_cfg = load_learning_config(db)
+    base_confidence = learning_cfg.get("filename_pattern_base_confidence", 0.65)
     try:
         db.execute(
             sa_text(
                 "INSERT INTO imp_filename_pattern "
                 "    (pattern, doc_type, base_confidence, confirmed_count, source) "
-                "VALUES (:pattern, :doc_type, 0.65, 1, 'learned') "
+                "VALUES (:pattern, :doc_type, :base_confidence, 1, 'learned') "
                 "ON CONFLICT (pattern, doc_type) DO UPDATE "
                 "    SET confirmed_count = imp_filename_pattern.confirmed_count + 1, "
                 "        updated_at = now()"
             ),
-            {"pattern": escaped, "doc_type": confirmed_type},
+            {"pattern": escaped, "doc_type": confirmed_type, "base_confidence": base_confidence},
         )
         updated += 1
     except Exception as exc:

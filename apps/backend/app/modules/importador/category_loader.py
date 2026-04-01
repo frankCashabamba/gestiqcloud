@@ -1,7 +1,7 @@
 """Loads document-type category keywords from the database.
 
-Keywords live in sector_field_defaults (sector='_system', module='importador.doc_categories').
-Each row: field = category name (invoice/receipt/recipe/…), options = JSON array of keyword substrings.
+Keywords live in imp_config (module='doc_categories').
+Each row: key = category name (invoice/receipt/recipe/…), value_list = JSON array of keyword substrings.
 
 Cache refreshes every 5 minutes. On DB failure falls back to a minimal hardcoded set
 so the system degrades gracefully without crashing.
@@ -41,28 +41,21 @@ def get_doc_categories(db: Any) -> dict[str, list[str]]:
         return _cache
 
     try:
-        from app.models.core.ui_field_config import SectorFieldDefault
+        from app.models.importador import ImpConfig
 
-        rows = (
-            db.query(SectorFieldDefault)
-            .filter(
-                SectorFieldDefault.sector == "_system",
-                SectorFieldDefault.module == "importador.doc_categories",
-            )
-            .all()
-        )
+        rows = db.query(ImpConfig).filter(ImpConfig.module == "doc_categories").all()
         if rows:
             result: dict[str, list[str]] = {}
             for row in rows:
-                kws = row.options
+                kws = row.value_list
                 if isinstance(kws, list) and kws:
-                    result[row.field] = [str(k).upper() for k in kws]
+                    result[row.key] = [str(k).upper() for k in kws]
             if result:
                 _cache = result
                 _cache_ts = now
                 return result
     except Exception as exc:
-        logger.warning("Could not load doc categories from DB: %s", exc)
+        logger.warning("Could not load doc categories from imp_config: %s", exc)
 
     return _BUILTIN_FALLBACK
 

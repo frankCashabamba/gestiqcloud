@@ -20,6 +20,7 @@ from app.models.tenant import Tenant as Empresa
 from app.services.field_config import (
     canonical_field_module_key,
     ensure_sector_field_defaults_seeded,
+    is_ui_field_config_scope,
     resolve_fields,
     resolve_sector_code,
 )
@@ -29,6 +30,14 @@ from app.services.system_defaults_service import get_system_default_text
 router = APIRouter()
 admin_router = APIRouter(prefix="/admin/field-config", tags=["admin-field-config"])
 token_service = get_token_service()
+
+
+def _ensure_ui_field_config_scope(
+    db: Session, module: str | None, sector: str | None = None
+) -> None:
+    if is_ui_field_config_scope(db, module, sector):
+        return
+    raise HTTPException(status_code=400, detail="field_config_ui_only")
 
 
 def _normalize_sector_slug(name: str | None) -> str | None:
@@ -297,6 +306,7 @@ def get_field_config(
         )
         sector = resolve_sector_code(db, raw_sector)
 
+    _ensure_ui_field_config_scope(db, module, sector)
     ensure_sector_field_defaults_seeded(db, module=module, sector=sector)
 
     items = resolve_fields(
@@ -324,6 +334,7 @@ def get_sector_fields(
     requested_module = module
     module = canonical_field_module_key(module)
     s = resolve_sector_code(db, sector)
+    _ensure_ui_field_config_scope(db, module, s)
     ensure_sector_field_defaults_seeded(db, module=module, sector=s)
     rows = (
         db.query(SectorFieldDefault)
@@ -357,6 +368,7 @@ def put_sector_fields(payload: dict, db: Session = Depends(get_db)):
     items = payload.get("items") or []
     if not module:
         return {"ok": False, "error": "module is required"}
+    _ensure_ui_field_config_scope(db, module, sector)
     # Upsert: clear and insert for simplicity
     db.query(SectorFieldDefault).filter(
         SectorFieldDefault.sector == sector, SectorFieldDefault.module == module
@@ -390,6 +402,7 @@ def put_tenant_fields(payload: dict, db: Session = Depends(get_db)):
     items = payload.get("items") or []
     if not module:
         return {"ok": False, "error": "module is required"}
+    _ensure_ui_field_config_scope(db, module)
     tenant_id = None
     if empresa:
         emp = (
@@ -510,6 +523,7 @@ def import_fields_from_table(payload: dict, db: Session = Depends(get_db)):
     # Forzar módulo canónico imports_<tabla> si no viene o no es imports_*
     if not module or not module.startswith("imports_"):
         module = f"imports_{table}"
+    _ensure_ui_field_config_scope(db, module, sector)
     # Leer columnas de information_schema (solo nombres/tipos)
     rows = db.execute(
         text(
@@ -605,6 +619,7 @@ def put_tenant_module_mode(payload: dict, db: Session = Depends(get_db)):
     form_mode = str(payload.get("form_mode") or "mixed").lower()
     if not module:
         return {"ok": False, "error": "module is required"}
+    _ensure_ui_field_config_scope(db, module)
     tenant_id = None
     if empresa:
         emp = (

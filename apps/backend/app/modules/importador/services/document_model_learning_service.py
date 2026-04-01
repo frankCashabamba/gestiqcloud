@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento, ImpRoutingSignal
+from app.modules.importador.runtime_config import load_learning_config
 
 _INTERNAL_KEYS = {
     "line_items",
@@ -37,26 +38,28 @@ def _signal_document_type(signal: ImpRoutingSignal) -> str:
     return str(raw).strip().lower() or "other"
 
 
-def _event_weight(event: str) -> float:
+def _event_weight(event: str, weights: dict | None = None) -> float:
+    w = weights or {}
     normalized = str(event or "").strip().lower()
     if normalized == "save":
-        return 4.0
+        return float(w.get("event_weight_save", 4.0))
     if normalized == "confirm":
-        return 3.0
+        return float(w.get("event_weight_confirm", 3.0))
     if normalized == "edit":
-        return 1.35
-    return 1.0
+        return float(w.get("event_weight_edit", 1.35))
+    return float(w.get("event_weight_default", 1.0))
 
 
-def _signal_quality_weight(signal: ImpRoutingSignal) -> float:
+def _signal_quality_weight(signal: ImpRoutingSignal, weights: dict | None = None) -> float:
+    w = weights or {}
     snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
-    weight = _event_weight(signal.event)
+    weight = _event_weight(signal.event, w)
     if bool(snapshot.get("required_fields_ok")):
-        weight += 0.75
+        weight += float(w.get("quality_bonus_required_fields_ok", 0.75))
     if not bool(snapshot.get("needs_human_review")):
-        weight += 0.45
+        weight += float(w.get("quality_bonus_no_review_needed", 0.45))
     if str(signal.chosen_destination or "").strip():
-        weight += 0.35
+        weight += float(w.get("quality_bonus_has_destination", 0.35))
     return weight
 
 
@@ -129,13 +132,14 @@ def build_signal_learning_recipe_config(
     if not recent:
         return base
 
+    weights = load_learning_config(db)
     route_counter: Counter[str] = Counter()
     corrected_fields: Counter[str] = Counter()
     confirmed_examples: dict[str, Counter[str]] = {}
 
     for index, (signal, doc) in enumerate(recent):
         recency_weight = max(0.45, 1.0 - (index * 0.04))
-        signal_weight = _signal_quality_weight(signal) * recency_weight
+        signal_weight = _signal_quality_weight(signal, weights) * recency_weight
         snapshot = signal.routing_snapshot if isinstance(signal.routing_snapshot, dict) else {}
         document_type = _normalize_text(snapshot.get("document_type"))
         if document_type:

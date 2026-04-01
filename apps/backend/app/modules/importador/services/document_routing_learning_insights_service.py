@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento, ImpRoutingProfile, ImpRoutingSignal
+from app.modules.importador.runtime_config import load_learning_config
 from app.modules.importador.schemas import (
     RoutingLearningInsightOut,
     RoutingProfileAdminIn,
@@ -20,15 +21,16 @@ def _normalize_text(value: Any) -> str | None:
     return text or None
 
 
-def _event_weight(event: str) -> float:
+def _event_weight(event: str, weights: dict | None = None) -> float:
+    w = weights or {}
     normalized = str(event or "").strip().lower()
     if normalized == "save":
-        return 4.0
+        return float(w.get("event_weight_save", 4.0))
     if normalized == "confirm":
-        return 3.0
+        return float(w.get("event_weight_confirm", 3.0))
     if normalized == "edit":
-        return 1.35
-    return 1.0
+        return float(w.get("event_weight_edit", 1.35))
+    return float(w.get("event_weight_default", 1.0))
 
 
 def _source_doc_type(signal: ImpRoutingSignal, doc: ImpDocumento) -> str:
@@ -103,6 +105,7 @@ def list_routing_learning_insights(
     wanted_source = str(source_doc_type or "").strip().upper()
     wanted_doc_type = str(document_type or "").strip().lower()
 
+    weights = load_learning_config(db)
     grouped: dict[tuple[str, str], dict[str, Any]] = defaultdict(
         lambda: {
             "signals_count": 0,
@@ -136,7 +139,7 @@ def list_routing_learning_insights(
         elif event == "edit":
             bucket["edit_count"] += 1
 
-        weight = _event_weight(event)
+        weight = _event_weight(event, weights)
         for field in _missing_fields(signal):
             bucket["missing_counter"][field] += weight
         for field in signal.changed_fields or []:

@@ -27,7 +27,7 @@ class TenantFieldConfig(Base):
     ord: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     label: Mapped[str | None] = mapped_column(Text, nullable=True)
     help: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Nuevas columnas para importación dinámica
+    # Nuevas columnas para importacion dinamica
     aliases: Mapped[dict | None] = mapped_column(
         JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
@@ -37,7 +37,7 @@ class TenantFieldConfig(Base):
         String(20), nullable=True, comment="'string', 'number', 'date', 'boolean'"
     )
     validation_pattern: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="Regex para validación"
+        String(500), nullable=True, comment="Regex para validacion"
     )
     validation_rules: Mapped[dict | None] = mapped_column(
         JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
@@ -50,7 +50,7 @@ class TenantFieldConfig(Base):
     options: Mapped[dict | None] = mapped_column(
         JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
-        comment="Array de opciones para select: ['Opción 1', 'Opción 2']",
+        comment="Array de opciones para select: ['Opcion 1', 'Opcion 2']",
     )
 
 
@@ -70,8 +70,21 @@ class SectorFieldDefault(Base):
     options: Mapped[dict | None] = mapped_column(
         JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
-        comment="Array de opciones para select: ['Opción 1', 'Opción 2']",
+        comment="Array de opciones para select: ['Opcion 1', 'Opcion 2']",
     )
     validation_pattern: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="Regex para validación"
+        String(500), nullable=True, comment="Regex para validacion"
     )
+
+
+class UiFieldConfigScopeRule(Base):
+    __tablename__ = "ui_field_config_scope_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
+    scope_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True, comment="sector_exact | module_prefix"
+    )
+    scope_value: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(16), nullable=False, default="deny")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

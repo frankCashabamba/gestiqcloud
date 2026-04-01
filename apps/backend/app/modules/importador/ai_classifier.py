@@ -62,7 +62,7 @@ _SPANISH_MONTHS = {
 }
 
 # Minimal emergency patterns — used ONLY when both AI and DB are unavailable.
-# Extend document types via DB migration (sector_field_defaults), not here.
+# Extend document types via DB migration (imp_config, module='doc_type_patterns'), not here.
 _EMERGENCY_PATTERNS: dict[str, list[str]] = {
     "INVOICE": ["invoice", "factura", "rechnung", "fattura", "fatura", "facture"],
     "RECEIPT": ["receipt", "recibo", "reçu", "quittung", "boleta", "ticket"],
