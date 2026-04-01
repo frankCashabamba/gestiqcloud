@@ -5,6 +5,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TENANT_BILLING } from '@shared/endpoints'
 import SubscriptionManager from './SubscriptionManager'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const messages: Record<string, string> = {
+        'subscription.title': 'Suscripción',
+        'subscription.cycle': 'Ciclo de facturación',
+        'subscription.monthly': 'Mensual',
+        'subscription.yearly': 'Anual',
+        'subscription.availablePlans': 'Planes disponibles',
+        'subscription.perMonth': '/mes',
+        'subscription.perYear': '/año',
+        'subscription.maxUsersInfo': 'Usuarios',
+        'subscription.maxBranchesInfo': 'Sucursales',
+        'subscription.includedModulesLabel': 'Módulos incluidos',
+        'subscription.subscribe': 'Suscribirse',
+      }
+      return messages[key] ?? key
+    },
+  }),
+}))
+
 const getMock = vi.fn()
 const postMock = vi.fn()
 const successMock = vi.fn()

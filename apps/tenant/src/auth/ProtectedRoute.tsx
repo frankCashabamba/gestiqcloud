@@ -65,12 +65,12 @@ function UnauthorizedDefault({ permission, action }: { permission: string; actio
         border: '1px solid color-mix(in srgb, var(--gc-danger) 30%, white)',
       }}
     >
-      <h2 style={{ color: 'var(--gc-danger)', marginBottom: '0.5rem' }}>Unauthorized</h2>
+      <h2 style={{ color: 'var(--gc-danger)', marginBottom: '0.5rem' }}>No autorizado</h2>
       <p style={{ color: 'var(--gc-foreground)', marginBottom: '0.5rem' }}>
-        You do not have permission to access: <code>{displayPerm}</code>
+        No tienes permiso para acceder a: <code>{displayPerm}</code>
       </p>
       <p style={{ color: 'var(--gc-foreground)', fontSize: '0.875rem' }}>
-        Contact your administrator if you believe you should have access.
+        Contacta a tu administrador si crees que deberías tener acceso.
       </p>
     </div>
   )

@@ -3,22 +3,23 @@
  * Coverage: Autenticación con cookies HttpOnly
  */
 import { renderHook, act, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
 import { AuthProvider, useAuth } from '../AuthContext'
 
 // Mock fetch
-global.fetch = jest.fn()
+global.fetch = vi.fn() as typeof fetch
 
 describe('AuthContext', () => {
   beforeEach(() => {
     // Reset mocks
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     localStorage.clear()
   })
 
   describe('Login', () => {
     it('should login successfully with cookies', async () => {
       // Mock successful login
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           user: {
@@ -59,7 +60,7 @@ describe('AuthContext', () => {
 
     it('should handle login failure', async () => {
       // Mock failed login
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
         status: 401,
         json: async () => ({ detail: 'Invalid credentials' })
@@ -87,7 +88,7 @@ describe('AuthContext', () => {
   describe('Logout', () => {
     it('should logout and clear cookies via backend', async () => {
       // Mock logout
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ message: 'Logged out' })
       })
@@ -118,7 +119,7 @@ describe('AuthContext', () => {
   describe('Protected Fetch', () => {
     it('should send cookies automatically', async () => {
       // Mock protected endpoint
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ data: 'protected data' })
       })
@@ -134,7 +135,7 @@ describe('AuthContext', () => {
       })
 
       // Verificar que NO se agregó Authorization header
-      const fetchCall = (global.fetch as jest.Mock).mock.calls[0]
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
       const headers = fetchCall[1]?.headers || {}
 
       expect(headers.Authorization).toBeUndefined()

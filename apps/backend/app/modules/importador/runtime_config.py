@@ -66,6 +66,7 @@ _DEFAULT_LEARNING_CONFIG: dict[str, float] = {
     "filename_pattern_base_confidence": 0.65,
 }
 
+
 def _cache_get(key: str) -> dict | None:
     entry = _cache.get(key)
     if not entry:
@@ -156,7 +157,11 @@ def load_doc_type_patterns(db: Any) -> dict[str, list[str]]:
         logger.warning("No se pudo cargar doc_type_patterns desde imp_config: %s", exc)
 
     seed = _seed_module_payload("doc_type_patterns")
-    return {str(key).strip().upper(): list(value) for key, value in seed.items() if isinstance(value, list)}
+    return {
+        str(key).strip().upper(): list(value)
+        for key, value in seed.items()
+        if isinstance(value, list)
+    }
 
 
 def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
@@ -216,6 +221,7 @@ def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
                     "vision_extraction_preamble",
                     "structured_table_note",
                     "doc_type_instruction",
+                    "fallback_dynamic_fields_prompt",
                 }:
                     value = str(row.value_text or "").strip()
                     if value:

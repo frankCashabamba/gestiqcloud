@@ -12,6 +12,7 @@
     "vision_extraction_preamble": "Read this document image very carefully, character by character.",
     "structured_table_note": "NOTE: Content is already pre-processed as a structured table. If you recognize a list or table, set is_table=true and provide clean column names. Do NOT return individual rows.",
     "doc_type_instruction": "A short uppercase label describing the document type in English. Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable.",
+    "fallback_dynamic_fields_prompt": "    \"vendor\": \"issuing/selling party name or null\",\n    \"vendor_tax_id\": \"tax ID of the issuer or null\",\n    \"customer\": \"receiving/buying party name or null\",\n    \"customer_tax_id\": \"tax ID of the buyer or null\",\n    \"doc_number\": \"document reference number or null\",\n    \"issue_date\": \"YYYY-MM-DD or null\",\n    \"total_amount\": NUMBER or null,\n    \"subtotal\": NUMBER or null,\n    \"tax_amount\": NUMBER or null,\n    \"currency\": \"ISO 4217 code or null\",\n    \"payment_method\": \"payment method exactly as printed or null\",\n    \"payment_terms\": \"payment terms exactly as printed or null\",\n    \"line_items\": [{\"description\":\"...\",\"quantity\":number,\"unit_price\":number,\"total_price\":number,\"extra_columns\":{\"ColNameAsInDoc\":\"value\"}}] or []",
     "critical_rules": [
       "The document may be in any language. Read it as-is and map to the configured canonical fields.",
       "total_amount must represent the grand total, not a quantity.",

@@ -10,6 +10,7 @@ import re
 import unicodedata
 from typing import Any
 
+from app.modules.importador.runtime_config import load_doc_type_patterns, load_prompt_config
 from app.services.ai.base import AITask
 from app.services.ai.service import AIService
 
@@ -31,23 +32,6 @@ _SPANISH_MONTHS = {
     "octubre": 10,
     "noviembre": 11,
     "diciembre": 12,
-}
-
-# Minimal emergency patterns — used ONLY when both AI and DB are unavailable.
-# Extend document types via DB migration (imp_config, module='doc_type_patterns'), not here.
-_EMERGENCY_PATTERNS: dict[str, list[str]] = {
-    "INVOICE": ["invoice", "factura", "rechnung", "fattura", "fatura", "facture"],
-    "RECEIPT": ["receipt", "recibo", "reçu", "quittung", "boleta", "ticket"],
-    "BANK_STATEMENT": [
-        "bank statement",
-        "extracto",
-        "kontoauszug",
-        "état de compte",
-        "estado de cuenta",
-    ],
-    "PAYROLL": ["payroll", "nomina", "planilla", "lohnabrechnung"],
-    "INVENTORY": ["inventory", "inventario", "stock", "bestandsliste"],
-    "COSTING": ["costing", "costeo", "kalkulation", "receta"],
 }
 
 
@@ -285,7 +269,7 @@ def _build_structured_classification_prompt(
     prompt_config: dict[str, Any] | None = None,
 ) -> str:
     rc = recipe_config or {}
-    pc = prompt_config or {}
+    pc = prompt_config or load_prompt_config(None)
     system_prefix = str(rc.get("prompt_system") or "").strip()
     doc_type_instruction = str(
         pc.get("doc_type_instruction")
@@ -312,24 +296,12 @@ def _build_structured_classification_prompt(
 def _build_dynamic_fields_prompt(
     canonical_fields: dict[str, dict] | None,
     field_descriptions: dict[str, str] | None = None,
+    prompt_config: dict[str, Any] | None = None,
 ) -> str:
     descriptions = field_descriptions or {}
+    pc = prompt_config or load_prompt_config(None)
     if not canonical_fields:
-        return (
-            '    "vendor": "issuing/selling party name or null",\n'
-            '    "vendor_tax_id": "tax ID of the issuer or null",\n'
-            '    "customer": "receiving/buying party name or null",\n'
-            '    "customer_tax_id": "tax ID of the buyer or null",\n'
-            '    "doc_number": "document reference number or null",\n'
-            '    "issue_date": "YYYY-MM-DD or null",\n'
-            '    "total_amount": NUMBER or null,\n'
-            '    "subtotal": NUMBER or null,\n'
-            '    "tax_amount": NUMBER or null,\n'
-            '    "currency": "ISO 4217 code or null",\n'
-            '    "payment_method": "payment method exactly as printed or null",\n'
-            '    "payment_terms": "payment terms exactly as printed or null",\n'
-            '    "line_items": [{"description":"...","quantity":number,"unit_price":number,"total_price":number,"extra_columns":{"ColNameAsInDoc":"value"}}] or []'
-        )
+        return str(pc.get("fallback_dynamic_fields_prompt") or "").rstrip()
 
     lines: list[str] = []
     for field_name in sorted(canonical_fields.keys()):
@@ -380,7 +352,7 @@ def _build_configured_rules(
     current_year: int,
     vision_mode: bool = False,
 ) -> list[str]:
-    pc = prompt_config or {}
+    pc = prompt_config or load_prompt_config(None)
     rules_key = "vision_critical_rules" if vision_mode else "critical_rules"
     configured_rules = [
         str(rule).strip() for rule in (pc.get(rules_key) or []) if str(rule).strip()
@@ -736,9 +708,7 @@ def _apply_high_evidence_ocr_repairs(
         return
 
     quality = _estimate_text_quality(content)
-    labeled_total = _extract_labeled_amount(
-        content, "total_amount", prompt_config=prompt_config
-    )
+    labeled_total = _extract_labeled_amount(content, "total_amount", prompt_config=prompt_config)
     labeled_subtotal = _extract_labeled_amount(content, "subtotal", prompt_config=prompt_config)
     labeled_tax = _extract_labeled_amount(content, "tax_amount", prompt_config=prompt_config)
     ocr_issue_date = _extract_issue_date_from_ocr(content)
@@ -1004,7 +974,7 @@ async def _analyze_with_vision(
         return None
 
     rc = recipe_config or {}
-    pc = prompt_config or {}
+    pc = prompt_config or load_prompt_config(None)
     system_prompt = (
         rc.get("prompt_system")
         or pc.get("extraction_system")
@@ -1025,6 +995,7 @@ async def _analyze_with_vision(
             "subtotal": _f_subtotal,
             "tax_amount": _f_tax,
         },
+        prompt_config=pc,
     )
 
     current_year = datetime.datetime.now().year
@@ -1192,7 +1163,7 @@ async def analyze_document(
             return vision_result
 
     rc = recipe_config or {}
-    pc = prompt_config or {}
+    pc = prompt_config or load_prompt_config(None)
 
     system_prompt = (
         rc.get("prompt_system")
@@ -1220,6 +1191,7 @@ async def analyze_document(
             "subtotal": _f_subtotal,
             "tax_amount": _f_tax,
         },
+        prompt_config=pc,
     )
 
     tabular_note = (
@@ -1350,13 +1322,13 @@ def _fallback_classify(
 ) -> dict[str, Any]:
     """Rule-based classification used only when the AI service is unavailable.
 
-    Uses _EMERGENCY_PATTERNS (universal cross-language terms) plus any
-    tenant-specific patterns passed via extra_patterns.
+    Uses runtime-configured doc_type patterns plus any tenant-specific patterns
+    passed via extra_patterns.
     """
     text_lower = text.lower()
     fn_lower = filename.lower()
 
-    patterns = {**_EMERGENCY_PATTERNS, **(extra_patterns or {})}
+    patterns = {**load_doc_type_patterns(None), **(extra_patterns or {})}
 
     best_type = "OTHER"
     best_score = 0.0

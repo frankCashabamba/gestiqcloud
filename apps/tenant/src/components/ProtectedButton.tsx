@@ -100,7 +100,7 @@ export default function ProtectedButton({
       onClick={handleClick}
       style={mergedStyle}
       className={className}
-      title={!hasAccess ? `Permission denied: ${permissionLabel}` : ''}
+      title={!hasAccess ? `No tienes permiso para: ${permissionLabel}` : ''}
     >
       {children}
     </button>

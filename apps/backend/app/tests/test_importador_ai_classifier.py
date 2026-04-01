@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from app.modules.importador.ai_classifier import analyze_document
+from app.modules.importador.ai_classifier import _fallback_classify, analyze_document
 
 
 def test_analyze_document_uses_runtime_prompt_config_and_canonical_fields(monkeypatch):
@@ -78,6 +78,56 @@ def test_analyze_document_uses_runtime_doc_type_instruction_for_structured_input
 
     assert result["doc_type"] == "PRICE_LIST"
     assert "Use DB labels only for structured previews." in captured["prompt"]
+
+
+def test_analyze_document_uses_runtime_fallback_dynamic_fields_prompt(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_query(**kwargs):
+        captured["prompt"] = kwargs["prompt"]
+        return SimpleNamespace(
+            content='{"doc_type":"INVOICE","confidence":0.88,"reasoning":"ok","is_table":false,"columns":[],"fields":{}}',
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+    monkeypatch.setattr(
+        "app.modules.importador.ai_classifier.load_prompt_config",
+        lambda _db=None: {
+            "extraction_system": "System from seed",
+            "doc_type_instruction": "Configured type from seed",
+            "critical_rules": ["Rule from seed"],
+            "fallback_dynamic_fields_prompt": '    "custom_field": "from runtime seed"',
+        },
+    )
+
+    result = asyncio.run(
+        analyze_document(
+            content="Documento con campos genericos",
+            filename="doc.pdf",
+            format_hint="PDF",
+            canonical_fields=None,
+            prompt_config=None,
+        )
+    )
+
+    assert result["doc_type"] == "INVOICE"
+    assert '"custom_field": "from runtime seed"' in captured["prompt"]
+    assert "System from seed" in captured["prompt"]
+
+
+def test_fallback_classify_uses_runtime_doc_type_patterns(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.ai_classifier.load_doc_type_patterns",
+        lambda _db=None: {"DELIVERY_NOTE": ["albaran", "delivery note"]},
+    )
+
+    result = _fallback_classify("Documento ALBARAN con entrega", "entrega.txt")
+
+    assert result["doc_type"] == "DELIVERY_NOTE"
+    assert result["confidence"] > 0.2
 
 
 def test_analyze_document_blanks_low_evidence_fields_for_weak_image_ocr(monkeypatch):
