@@ -161,6 +161,7 @@ class Settings(BaseSettings):
         "X-CSRF-Token",
         "X-CSRFToken",
         "X-CSRF",
+        "X-Tenant-Slug",
         "X-Client-Version",
         "X-Client-Revision",
         "X-Confirm-Delete-Tenant",

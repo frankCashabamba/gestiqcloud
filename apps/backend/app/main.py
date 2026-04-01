@@ -518,7 +518,7 @@ if isinstance(raw_headers, str):
 else:
     allow_headers = [str(h).strip() for h in raw_headers if str(h).strip()]
 
-_must_allow_headers = ["X-Confirm-Delete-Tenant", "X-Offline-Managed"]
+_must_allow_headers = ["X-Confirm-Delete-Tenant", "X-Offline-Managed", "X-Tenant-Slug"]
 for h in _must_allow_headers:
     if h.lower() not in {x.lower() for x in allow_headers}:
         allow_headers.append(h)
