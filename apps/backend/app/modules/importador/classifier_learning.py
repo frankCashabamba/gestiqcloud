@@ -30,6 +30,47 @@ _MAX_STEM_LEN = 35
 _MIN_ALIAS_LEN = 2
 _MAX_ALIAS_LEN = 50
 
+# Palabras reservadas SQL/DDL que nunca deben tratarse como nombres de columna
+_SQL_BLOCKLIST: frozenset[str] = frozenset({
+    "select", "insert", "update", "delete", "drop", "create", "alter",
+    "truncate", "exec", "execute", "union", "where", "from", "join",
+    "grant", "revoke", "commit", "rollback", "declare", "cast", "into",
+    "table", "index", "view", "schema", "database", "trigger", "function",
+    "procedure", "column", "constraint", "primary", "foreign", "key",
+    "null", "not", "and", "or", "like", "exists", "having", "order", "group",
+})
+
+
+def _is_safe_column_name(raw: str) -> bool:
+    """True si el nombre de columna es seguro para almacenar en BD.
+
+    Rechaza: SQL keywords, patrones de inyección, strings vacíos,
+    demasiado largos/cortos, o con caracteres peligrosos.
+    """
+    if not raw or not isinstance(raw, str):
+        return False
+    stripped = raw.strip()
+    if len(stripped) < _MIN_ALIAS_LEN or len(stripped) > _MAX_ALIAS_LEN:
+        return False
+    # Caracteres de inyección SQL
+    if any(c in stripped for c in (";", "--", "/*", "*/", "=", "'", '"', "\\")):
+        return False
+    # Secuencias de dígitos largas (probablemente un valor, no un nombre de columna)
+    if re.search(r"\d{5,}", stripped):
+        return False
+    # Email o URL
+    if "@" in stripped or "://" in stripped:
+        return False
+    normalized = _normalize_alias(stripped)
+    # Tras normalizar, cada palabra no puede ser SQL keyword
+    words = set(normalized.split())
+    if words & _SQL_BLOCKLIST:
+        return False
+    # Debe tener al menos una letra
+    if not re.search(r"[a-z]", normalized):
+        return False
+    return True
+
 
 def learn_from_confirmation(
     db: Session,
@@ -300,3 +341,90 @@ def _build_reverse_alias_map(field_aliases: dict[str, list[str]]) -> dict[str, s
         for alias in aliases:
             result[alias.strip().lower()] = canonical
     return result
+
+
+# ── Column candidate discovery ──────────────────────────────────────────────────
+
+def learn_column_candidates(
+    db: Session,
+    *,
+    col_names: list[str],
+    doc_type: str | None,
+    tenant_id: "UUID | None",
+    field_aliases: dict[str, list[str]],
+) -> int:
+    """Registra nombres de columnas desconocidos encontrados en documentos procesados.
+
+    - Columnas ya mapeadas a un campo canónico: bumps confirmed_count en imp_field_alias.
+    - Columnas desconocidas pero seguras: upsert en imp_column_candidate para revisión.
+    - Columnas que no pasan el filtro de seguridad: descartadas silenciosamente.
+
+    Diseñado para ser llamado en tiempo de procesamiento (no solo en confirmación).
+    """
+    if not col_names:
+        return 0
+
+    from sqlalchemy import text as sa_text
+
+    reverse_map = _build_reverse_alias_map(field_aliases)
+    saved = 0
+
+    for raw in col_names:
+        if not _is_safe_column_name(raw):
+            logger.debug("Column candidate rejected (unsafe): %r", raw)
+            continue
+
+        alias_clean = _normalize_alias(raw)
+        if not alias_clean:
+            continue
+
+        canonical = reverse_map.get(alias_clean)
+
+        if canonical:
+            # Ya conocida — bump confirmed_count en imp_field_alias
+            try:
+                db.execute(
+                    sa_text(
+                        "UPDATE imp_field_alias "
+                        "SET confirmed_count = confirmed_count + 1, last_seen_at = now() "
+                        "WHERE canonical_field = :c AND alias = :a AND tenant_id IS NULL"
+                    ),
+                    {"c": canonical, "a": alias_clean},
+                )
+            except Exception as exc:
+                logger.debug("Could not bump alias count '%s': %s", alias_clean, exc)
+        else:
+            # Desconocida — guardar en imp_column_candidate para revisión
+            try:
+                db.execute(
+                    sa_text(
+                        "INSERT INTO imp_column_candidate "
+                        "    (alias, alias_norm, doc_type, tenant_id) "
+                        "VALUES (:alias, :alias_norm, :doc_type, :tenant_id) "
+                        "ON CONFLICT (alias_norm, tenant_id) WHERE tenant_id IS NULL DO UPDATE "
+                        "    SET seen_count = imp_column_candidate.seen_count + 1, "
+                        "        last_seen_at = now(), "
+                        "        doc_type = COALESCE(EXCLUDED.doc_type, imp_column_candidate.doc_type) "
+                        "ON CONFLICT (alias_norm, tenant_id) WHERE tenant_id IS NOT NULL DO UPDATE "
+                        "    SET seen_count = imp_column_candidate.seen_count + 1, "
+                        "        last_seen_at = now(), "
+                        "        doc_type = COALESCE(EXCLUDED.doc_type, imp_column_candidate.doc_type)"
+                    ),
+                    {
+                        "alias": raw[:100],
+                        "alias_norm": alias_clean[:100],
+                        "doc_type": (doc_type or "")[:50] or None,
+                        "tenant_id": str(tenant_id) if tenant_id else None,
+                    },
+                )
+                saved += 1
+            except Exception as exc:
+                logger.debug("Could not save column candidate '%s': %s", alias_clean, exc)
+
+    if saved > 0:
+        try:
+            db.commit()
+        except Exception as exc:
+            logger.debug("Could not commit column candidates: %s", exc)
+
+    return saved

@@ -659,3 +659,53 @@ class RoutingProfileUpdateProposalOut(BaseModel):
     current_profile: RoutingProfileAdminOut
     proposed_update: RoutingProfileAdminIn
     based_on: RoutingLearningInsightOut
+
+
+# ── Column Candidate ──────────────────────────────────────────────────────────
+
+class ColumnCandidateOut(BaseModel):
+    id: UUID
+    alias: str
+    alias_norm: str
+    doc_type: str | None = None
+    tenant_id: UUID | None = None
+    seen_count: int
+    first_seen_at: datetime
+    last_seen_at: datetime
+    canonical_field: str | None = None
+    assigned_at: datetime | None = None
+    assigned_by: str | None = None
+
+
+class ColumnCandidateAssignIn(BaseModel):
+    canonical_field: str = Field(min_length=1, max_length=100)
+    assigned_by: str | None = None
+
+
+# ── Field Alias ───────────────────────────────────────────────────────────────
+
+class FieldAliasOut(BaseModel):
+    id: UUID
+    canonical_field: str
+    alias: str
+    tenant_id: UUID | None = None
+    active: bool
+    priority: int
+    source: str
+    confirmed_count: int
+    last_seen_at: datetime | None = None
+
+
+class FieldAliasCreateIn(BaseModel):
+    canonical_field: str = Field(min_length=1, max_length=100)
+    alias: str = Field(min_length=1, max_length=100)
+    tenant_id: UUID | None = None
+    priority: int = Field(default=5, ge=0, le=100)
+
+
+# ── Canonical Field ───────────────────────────────────────────────────────────
+
+class CanonicalFieldOut(BaseModel):
+    name: str
+    field_type: str
+    projection_column: str | None = None

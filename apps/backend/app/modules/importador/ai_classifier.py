@@ -356,7 +356,7 @@ def _build_dynamic_fields_prompt(
             '    "currency": "ISO 4217 code or null",\n'
             '    "payment_method": "payment method exactly as printed or null",\n'
             '    "payment_terms": "payment terms exactly as printed or null",\n'
-            '    "line_items": [{"description":"...","supplier_ref":"supplier reference/code or null","quantity":number,"unit_price":number,"total_price":number}] or []'
+            '    "line_items": [{"description":"...","quantity":number,"unit_price":number,"total_price":number,"extra_columns":{"ColNameAsInDoc":"value"}}] or []'
         )
 
     lines: list[str] = []
@@ -367,7 +367,7 @@ def _build_dynamic_fields_prompt(
         if custom_description:
             rendered = f'"{custom_description}"'
         elif field_name == "line_items" or field_type == "list":
-            rendered = '[{"description":"...","supplier_ref":"supplier reference/code or null","quantity":number,"unit_price":number,"total_price":number}] or []'
+            rendered = '[{"description":"...","quantity":number,"unit_price":number,"total_price":number,"extra_columns":{"ColNameAsInDoc":"value"}}] or []'
         elif field_type == "numeric":
             rendered = "NUMBER or null"
         elif field_type == "date":
@@ -883,7 +883,9 @@ async def _analyze_with_vision(
         "- doc_number: use the FULL number with series/sequence as printed.\n"
         "- customer: read the ACTUAL customer name, not the field label.\n"
         "- payment_method/payment_terms: extract them when the document shows them.\n"
-        "- line_items: only list actual PRODUCTS, not the customer name. Include supplier_ref if the document has a reference/code column (e.g. Ref., SKU, Cod., Art.).\n"
+        "- line_items: only list actual PRODUCTS, not the customer name. "
+        "If the document has extra columns beyond description/quantity/price (e.g. Ref., SKU, Cod., Art., CP), "
+        "include them verbatim in extra_columns: {\"Ref.\": \"REF-001\", \"SKU\": \"ABC123\"}.\n"
         "- Tax IDs: digits only, no slashes or special characters.\n"
         "- Do NOT invent data absent from the document. Use null for missing fields."
     )
@@ -1070,6 +1072,11 @@ async def analyze_document(
         ]
     configured_rules.append(
         f"YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100})."
+    )
+    configured_rules.append(
+        "line_items: only list actual PRODUCTS. "
+        "If the document has extra columns beyond description/quantity/price (e.g. Ref., SKU, Cod., Art., CP, Barcode), "
+        'include them verbatim in extra_columns: {"Ref.": "REF-001", "SKU": "ABC123"}.'
     )
     critical_rules_text = "\n".join(f"- {rule}" for rule in configured_rules)
 

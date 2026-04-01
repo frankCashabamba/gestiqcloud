@@ -2,14 +2,24 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { getErrorMessage, useToast } from '../../shared/toast'
 import {
+  assignColumnCandidate,
+  createFieldAlias,
   createRoutingProfile,
   createRoutingRule,
+  deleteColumnCandidate,
+  deleteFieldAlias,
   deleteRoutingProfile,
   deleteRoutingRule,
+  listCanonicalFields,
+  listColumnCandidates,
+  listFieldAliases,
   listRoutingProfiles,
   listRoutingPreviewDocuments,
   listRoutingRules,
   previewRouting,
+  type CanonicalField,
+  type ColumnCandidate,
+  type FieldAlias,
   type RoutingDestination,
   type RoutingPreviewDocument,
   type RoutingPreviewPayload,
@@ -311,6 +321,18 @@ export default function ImportadorRoutingManager() {
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [editingProfileCode, setEditingProfileCode] = useState<string | null>(null)
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
+  // Vocabulario
+  const [vocabTab, setVocabTab] = useState<'candidates' | 'aliases'>('candidates')
+  const [candidates, setCandidates] = useState<ColumnCandidate[]>([])
+  const [aliases, setAliases] = useState<FieldAlias[]>([])
+  const [canonicalFields, setCanonicalFields] = useState<CanonicalField[]>([])
+  const [vocabLoading, setVocabLoading] = useState(false)
+  const [unassignedOnly, setUnassignedOnly] = useState(true)
+  const [assigningId, setAssigningId] = useState<string | null>(null)
+  const [assignValue, setAssignValue] = useState('')
+  const [newAliasCanonical, setNewAliasCanonical] = useState('')
+  const [newAliasValue, setNewAliasValue] = useState('')
+  const [savingAlias, setSavingAlias] = useState(false)
   const { show } = useToast()
 
   const success = useCallback((message: string) => {
@@ -346,6 +368,74 @@ export default function ImportadorRoutingManager() {
     }
   }, [scopeFilter, toastError])
 
+  const loadVocab = useCallback(async (currentUnassigned = unassignedOnly) => {
+    try {
+      setVocabLoading(true)
+      const [candidatesData, aliasesData, fieldsData] = await Promise.all([
+        listColumnCandidates(currentUnassigned),
+        listFieldAliases(),
+        listCanonicalFields(),
+      ])
+      setCandidates(candidatesData)
+      setAliases(aliasesData)
+      setCanonicalFields(fieldsData)
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    } finally {
+      setVocabLoading(false)
+    }
+  }, [unassignedOnly, toastError])
+
+  const handleAssignCandidate = useCallback(async (id: string, canonicalField: string) => {
+    if (!canonicalField) return
+    try {
+      await assignColumnCandidate(id, canonicalField)
+      success(`Asignado a "${canonicalField}" y promovido a aliases`)
+      setAssigningId(null)
+      setAssignValue('')
+      await loadVocab()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    }
+  }, [loadVocab, success, toastError])
+
+  const handleDeleteCandidate = useCallback(async (id: string, alias: string) => {
+    if (!window.confirm(`¿Descartar columna "${alias}"?`)) return
+    try {
+      await deleteColumnCandidate(id)
+      success('Columna descartada')
+      await loadVocab()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    }
+  }, [loadVocab, success, toastError])
+
+  const handleCreateAlias = useCallback(async () => {
+    if (!newAliasCanonical.trim() || !newAliasValue.trim()) return
+    setSavingAlias(true)
+    try {
+      await createFieldAlias({ canonical_field: newAliasCanonical.trim(), alias: newAliasValue.trim() })
+      success('Alias creado')
+      setNewAliasValue('')
+      await loadVocab()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    } finally {
+      setSavingAlias(false)
+    }
+  }, [newAliasCanonical, newAliasValue, loadVocab, success, toastError])
+
+  const handleDeleteAlias = useCallback(async (id: string, alias: string) => {
+    if (!window.confirm(`¿Eliminar alias "${alias}"?`)) return
+    try {
+      await deleteFieldAlias(id)
+      success('Alias eliminado')
+      await loadVocab()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    }
+  }, [loadVocab, success, toastError])
+
   const handleDeleteProfile = useCallback(async (profile: RoutingProfile) => {
     if (!window.confirm(`¿Eliminar perfil ${profile.code}?`)) return
     try {
@@ -379,6 +469,10 @@ export default function ImportadorRoutingManager() {
   useEffect(() => {
     void loadAll(scopeFilter)
   }, [loadAll, scopeFilter])
+
+  useEffect(() => {
+    void loadVocab(unassignedOnly)
+  }, [loadVocab, unassignedOnly])
 
   useEffect(() => {
     let cancelled = false
@@ -1100,6 +1194,166 @@ export default function ImportadorRoutingManager() {
           </div>
         </section>
       </div>
+
+      {/* ── Vocabulario ─────────────────────────────────────────── */}
+      <section className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm" style={{ marginTop: '1.5rem' }}>
+        <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h4 className="text-lg font-semibold text-slate-900">Vocabulario de columnas</h4>
+            <p className="text-sm text-slate-500">Columnas detectadas automáticamente en documentos procesados. Asígnalas a campos canónicos para que el sistema las reconozca en futuros documentos.</p>
+          </div>
+          <button type="button" className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => { void loadVocab() }}>
+            Recargar
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-4 flex gap-1 border-b border-slate-200">
+          {(['candidates', 'aliases'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setVocabTab(tab)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${vocabTab === tab ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              {tab === 'candidates' ? `Pendientes (${candidates.filter(c => !c.canonical_field).length})` : `Aliases (${aliases.length})`}
+            </button>
+          ))}
+        </div>
+
+        {vocabLoading && <div className="py-4 text-center text-sm text-slate-400">Cargando...</div>}
+
+        {/* Columnas pendientes */}
+        {!vocabLoading && vocabTab === 'candidates' && (
+          <div>
+            <div className="mb-3 flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={unassignedOnly} onChange={(e) => setUnassignedOnly(e.target.checked)} />
+                Solo sin asignar
+              </label>
+              <span className="text-xs text-slate-400">{candidates.length} columnas</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full border border-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Columna (original)</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Normalizada</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Tipo doc</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-600">Visto</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Campo canónico</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {candidates.map((c) => (
+                    <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-3 py-2 font-mono text-xs">{c.alias}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-slate-500">{c.alias_norm}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500">{c.doc_type ?? '—'}</td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-indigo-600">{c.seen_count}</td>
+                      <td className="px-3 py-2">
+                        {c.canonical_field ? (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{c.canonical_field}</span>
+                        ) : assigningId === c.id ? (
+                          <div className="flex items-center gap-1">
+                            <select
+                              className="rounded border px-2 py-1 text-xs"
+                              value={assignValue}
+                              onChange={(e) => setAssignValue(e.target.value)}
+                            >
+                              <option value="">— campo —</option>
+                              {canonicalFields.map((f) => (
+                                <option key={f.name} value={f.name}>{f.name}</option>
+                              ))}
+                            </select>
+                            <button type="button" disabled={!assignValue} onClick={() => { void handleAssignCandidate(c.id, assignValue) }} className="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-40">OK</button>
+                            <button type="button" onClick={() => { setAssigningId(null); setAssignValue('') }} className="rounded border px-2 py-1 text-xs text-slate-600 hover:bg-slate-100">✕</button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">Sin asignar</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          {!c.canonical_field && assigningId !== c.id && (
+                            <button type="button" onClick={() => { setAssigningId(c.id); setAssignValue('') }} className="rounded border border-indigo-300 px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50">Asignar</button>
+                          )}
+                          <button type="button" onClick={() => { void handleDeleteCandidate(c.id, c.alias) }} className="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50">Descartar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {candidates.length === 0 && (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-400 text-sm">No hay columnas {unassignedOnly ? 'pendientes' : 'registradas'}.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Aliases de campos */}
+        {!vocabLoading && vocabTab === 'aliases' && (
+          <div>
+            {/* Añadir alias manual */}
+            <div className="mb-4 flex items-end gap-2 flex-wrap rounded-lg bg-slate-50 border border-slate-200 p-3">
+              <label className="text-sm flex flex-col gap-1">
+                <span className="font-medium text-slate-700">Campo canónico</span>
+                <select className="rounded border px-2 py-1.5 text-sm" value={newAliasCanonical} onChange={(e) => setNewAliasCanonical(e.target.value)}>
+                  <option value="">— seleccionar —</option>
+                  {canonicalFields.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
+                </select>
+              </label>
+              <label className="text-sm flex flex-col gap-1">
+                <span className="font-medium text-slate-700">Alias (nombre de columna)</span>
+                <input className="rounded border px-2 py-1.5 text-sm" placeholder="ej: n° art." value={newAliasValue} onChange={(e) => setNewAliasValue(e.target.value)} />
+              </label>
+              <button type="button" disabled={savingAlias || !newAliasCanonical || !newAliasValue.trim()} onClick={() => { void handleCreateAlias() }} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-40">
+                {savingAlias ? 'Guardando...' : 'Añadir alias'}
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full border border-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Campo canónico</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Alias</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Origen</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-600">Confirmaciones</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-600">Última vez visto</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aliases.map((a) => (
+                    <tr key={a.id} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-3 py-2 font-mono text-xs font-semibold text-indigo-700">{a.canonical_field}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{a.alias}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.source === 'seed' ? 'bg-slate-100 text-slate-600' : a.source === 'learned' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {a.source}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-slate-700">{a.confirmed_count}</td>
+                      <td className="px-3 py-2 text-xs text-slate-400">{a.last_seen_at ? new Date(a.last_seen_at).toLocaleDateString() : '—'}</td>
+                      <td className="px-3 py-2">
+                        {a.source !== 'seed' && (
+                          <button type="button" onClick={() => { void handleDeleteAlias(a.id, a.alias) }} className="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50">Eliminar</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {aliases.length === 0 && (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-400 text-sm">No hay aliases registrados.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

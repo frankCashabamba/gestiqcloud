@@ -209,3 +209,109 @@ export async function listRoutingPreviewDocuments(tenantId: string, q?: string):
   const { data } = await api.get<Array<Partial<RoutingPreviewDocument>>>(`${BASE}/documents?${params.toString()}`)
   return Array.isArray(data) ? data.map(normalizePreviewDocument) : []
 }
+
+// ── Column Candidates ─────────────────────────────────────────────────────────
+
+export type ColumnCandidate = {
+  id: string
+  alias: string
+  alias_norm: string
+  doc_type: string | null
+  tenant_id: string | null
+  seen_count: number
+  first_seen_at: string
+  last_seen_at: string
+  canonical_field: string | null
+  assigned_at: string | null
+  assigned_by: string | null
+}
+
+function normalizeColumnCandidate(input: Partial<ColumnCandidate>): ColumnCandidate {
+  return {
+    id: String(input.id || ''),
+    alias: String(input.alias || ''),
+    alias_norm: String(input.alias_norm || ''),
+    doc_type: input.doc_type ? String(input.doc_type) : null,
+    tenant_id: input.tenant_id ? String(input.tenant_id) : null,
+    seen_count: Number(input.seen_count ?? 1),
+    first_seen_at: String(input.first_seen_at || ''),
+    last_seen_at: String(input.last_seen_at || ''),
+    canonical_field: input.canonical_field ? String(input.canonical_field) : null,
+    assigned_at: input.assigned_at ? String(input.assigned_at) : null,
+    assigned_by: input.assigned_by ? String(input.assigned_by) : null,
+  }
+}
+
+export async function listColumnCandidates(unassignedOnly = false): Promise<ColumnCandidate[]> {
+  const qs = unassignedOnly ? '?unassigned_only=true' : ''
+  const { data } = await api.get<Array<Partial<ColumnCandidate>>>(`${BASE}/column-candidates${qs}`)
+  return Array.isArray(data) ? data.map(normalizeColumnCandidate) : []
+}
+
+export async function assignColumnCandidate(id: string, canonicalField: string, assignedBy?: string): Promise<void> {
+  await api.put(`${BASE}/column-candidates/${encodeURIComponent(id)}/assign`, {
+    canonical_field: canonicalField,
+    assigned_by: assignedBy ?? null,
+  })
+}
+
+export async function deleteColumnCandidate(id: string): Promise<void> {
+  await api.delete(`${BASE}/column-candidates/${encodeURIComponent(id)}`)
+}
+
+// ── Field Aliases ─────────────────────────────────────────────────────────────
+
+export type FieldAlias = {
+  id: string
+  canonical_field: string
+  alias: string
+  tenant_id: string | null
+  active: boolean
+  priority: number
+  source: string
+  confirmed_count: number
+  last_seen_at: string | null
+}
+
+function normalizeFieldAlias(input: Partial<FieldAlias>): FieldAlias {
+  return {
+    id: String(input.id || ''),
+    canonical_field: String(input.canonical_field || ''),
+    alias: String(input.alias || ''),
+    tenant_id: input.tenant_id ? String(input.tenant_id) : null,
+    active: Boolean(input.active ?? true),
+    priority: Number(input.priority ?? 5),
+    source: String(input.source || 'manual'),
+    confirmed_count: Number(input.confirmed_count ?? 0),
+    last_seen_at: input.last_seen_at ? String(input.last_seen_at) : null,
+  }
+}
+
+export async function listFieldAliases(canonicalField?: string): Promise<FieldAlias[]> {
+  const qs = canonicalField ? `?canonical_field=${encodeURIComponent(canonicalField)}` : ''
+  const { data } = await api.get<Array<Partial<FieldAlias>>>(`${BASE}/field-aliases${qs}`)
+  return Array.isArray(data) ? data.map(normalizeFieldAlias) : []
+}
+
+export async function createFieldAlias(payload: { canonical_field: string; alias: string; priority?: number }): Promise<void> {
+  await api.post(`${BASE}/field-aliases`, payload)
+}
+
+export async function deleteFieldAlias(id: string): Promise<void> {
+  await api.delete(`${BASE}/field-aliases/${encodeURIComponent(id)}`)
+}
+
+// ── Canonical Fields ──────────────────────────────────────────────────────────
+
+export type CanonicalField = {
+  name: string
+  field_type: string
+  projection_column: string | null
+}
+
+export async function listCanonicalFields(): Promise<CanonicalField[]> {
+  const { data } = await api.get<CanonicalField[]>(`${BASE}/canonical-fields`)
+  return Array.isArray(data)
+    ? data.map((f) => ({ name: String(f.name || ''), field_type: String(f.field_type || 'text'), projection_column: f.projection_column ?? null }))
+    : []
+}

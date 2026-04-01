@@ -1869,13 +1869,27 @@ def _learn_from_confirmation(db: Session, doc, datos_confirmados: dict, user_id:
 
         if confirmed_type:
             field_aliases = get_field_aliases(db, tenant_id=getattr(doc, "tenant_id", None))
+
+            # Para PDFs: extraer nombres de columnas de extra_columns en line_items
+            # confirmados, para alimentarlos al mismo sistema de aprendizaje de aliases
+            line_item_col_names: list[str] = []
+            confirmed_items = (datos_confirmados or {}).get("line_items") or []
+            if not isinstance(confirmed_items, list):
+                confirmed_items = []
+            for item in confirmed_items:
+                if not isinstance(item, dict):
+                    continue
+                for col in (item.get("extra_columns") or {}).keys():
+                    if col and col not in line_item_col_names:
+                        line_item_col_names.append(col)
+
             _classifier_learn(
                 db,
                 doc_filename=str(getattr(doc, "nombre_archivo", "") or ""),
                 doc_type_confirmed=confirmed_type,
                 pre_class_layer=str(pre_class_meta.get("layer") or "") or None,
                 pre_class_doc_type=str(pre_class_meta.get("doc_type") or "") or None,
-                headers_norm=headers_norm if isinstance(headers_norm, list) else [],
+                headers_norm=(headers_norm if isinstance(headers_norm, list) else []) + line_item_col_names,
                 field_aliases=field_aliases,
             )
     except Exception as exc:

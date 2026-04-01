@@ -21,6 +21,7 @@ from .auto_recipe import (
 )
 from .canonical_document import build_document_projection
 from .category_loader import get_doc_categories
+from .classifier_learning import learn_column_candidates as _learn_column_candidates
 from .classifier_learning import learn_from_confirmation as _classifier_learn
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
@@ -54,6 +55,51 @@ def _json_safe(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_json_safe(v) for v in obj]
     return obj
+
+
+def _normalize_line_item_extra_columns(
+    datos_extraidos: dict[str, Any],
+    field_aliases: dict[str, list[str]],
+) -> list[str]:
+    """Normaliza extra_columns en line_items usando el mapa de aliases de la BD.
+
+    Para cada item de line_items, toma las claves de extra_columns, las busca en
+    el mapa inverso de aliases (e.g. "ref." -> "supplier_ref") y las promueve
+    al nivel del item con el nombre canónico. Modifica datos_extraidos in-place.
+    Usa _normalize_alias de classifier_learning para consistencia con el sistema de aprendizaje.
+
+    Retorna la lista de nombres de columnas que NO pudieron mapearse, para
+    ser registrados en imp_column_candidate por el caller.
+    """
+    from .classifier_learning import _normalize_alias
+
+    items = datos_extraidos.get("line_items")
+    if not isinstance(items, list):
+        return []
+
+    reverse_map: dict[str, str] = {}
+    for canonical, aliases in field_aliases.items():
+        for alias in aliases:
+            reverse_map[_normalize_alias(alias)] = canonical
+
+    unmapped: list[str] = []
+    seen_unmapped: set[str] = set()
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        extra = item.pop("extra_columns", None)
+        if not isinstance(extra, dict):
+            continue
+        for col_name, col_value in extra.items():
+            canonical = reverse_map.get(_normalize_alias(col_name))
+            if canonical and canonical not in item:
+                item[canonical] = col_value
+            elif not canonical and col_name not in seen_unmapped:
+                unmapped.append(col_name)
+                seen_unmapped.add(col_name)
+
+    return unmapped
 
 
 @dataclass(slots=True)
@@ -515,6 +561,19 @@ async def _process_upload_like_document(
     )
     field_aliases = get_field_aliases(db, tenant_id=tenant_id)
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+    if isinstance(datos_extraidos, dict):
+        unmapped_cols = _normalize_line_item_extra_columns(datos_extraidos, field_aliases)
+        if unmapped_cols:
+            try:
+                _learn_column_candidates(
+                    db,
+                    col_names=unmapped_cols,
+                    doc_type=tipo_doc,
+                    tenant_id=tenant_id,
+                    field_aliases=field_aliases,
+                )
+            except Exception as exc:
+                logger.debug("Column candidate learning error (non-fatal): %s", exc)
     canonical_document, projection = build_document_projection(
         datos_extraidos if isinstance(datos_extraidos, dict) else {},
         doc_type=tipo_doc,
@@ -924,6 +983,19 @@ async def _process_run_document(
     learning_version_applied = get_snapshot_learning_version(current_snapshot)
     field_aliases = get_field_aliases(db, tenant_id=tenant_id)
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+    if isinstance(datos_extraidos, dict):
+        unmapped_cols = _normalize_line_item_extra_columns(datos_extraidos, field_aliases)
+        if unmapped_cols:
+            try:
+                _learn_column_candidates(
+                    db,
+                    col_names=unmapped_cols,
+                    doc_type=tipo_doc,
+                    tenant_id=tenant_id,
+                    field_aliases=field_aliases,
+                )
+            except Exception as exc:
+                logger.debug("Column candidate learning error (non-fatal): %s", exc)
     canonical_document, projection = build_document_projection(
         datos_extraidos if isinstance(datos_extraidos, dict) else {},
         doc_type=tipo_doc,
