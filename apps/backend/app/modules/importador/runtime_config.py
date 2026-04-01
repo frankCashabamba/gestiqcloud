@@ -81,6 +81,10 @@ _DEFAULT_PROMPT_CONFIG = {
     ],
 }
 
+_DEFAULT_CLASSIFICATION_CONFIG: dict[str, float] = {
+    "confidence_threshold": 0.85,
+}
+
 _DEFAULT_PRODUCT_SHEET_DETECTION_CONFIG = {
     "summary_names": ["total", "subtotal", "resumen", "sum", "totales"],
     "name_keywords": [
@@ -257,6 +261,37 @@ def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
             logger.warning("No se pudo cargar importador.prompt_config desde BD: %s", exc)
 
     return _DEFAULT_PROMPT_CONFIG
+
+
+def load_classification_threshold(db: Any) -> float:
+    """Return the confidence threshold that marks a document as requiring human review.
+
+    Loaded from SectorFieldDefault(module='importador.classification',
+    field='confidence_threshold'). Falls back to 0.85 when DB is unavailable.
+    Cached for 5 minutes alongside the rest of runtime config.
+    """
+    cached = _cache_get("classification")
+    if cached is not None:
+        return float(cached.get("confidence_threshold", _DEFAULT_CLASSIFICATION_CONFIG["confidence_threshold"]))
+
+    if db is not None:
+        try:
+            rows = _load_module_rows(db, "importador.classification")
+            config: dict[str, float] = dict(_DEFAULT_CLASSIFICATION_CONFIG)
+            for row in rows:
+                key = str(row.field or "").strip()
+                if key == "confidence_threshold" and row.options is not None:
+                    try:
+                        val = row.options[0] if isinstance(row.options, list) and row.options else row.options
+                        config[key] = max(0.0, min(1.0, float(val)))
+                    except (TypeError, ValueError):
+                        pass
+            _cache_set("classification", config)
+            return float(config["confidence_threshold"])
+        except Exception as exc:
+            logger.warning("No se pudo cargar importador.classification desde BD: %s", exc)
+
+    return float(_DEFAULT_CLASSIFICATION_CONFIG["confidence_threshold"])
 
 
 def load_product_sheet_detection_config(db: Any | None = None) -> dict[str, list[str]]:

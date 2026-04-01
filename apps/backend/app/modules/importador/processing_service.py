@@ -10,7 +10,6 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from . import crud, recipe_crud
-from .ai_classifier import CONFIDENCE_THRESHOLD
 from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
     get_snapshot_learning,
@@ -27,6 +26,7 @@ from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
+    load_classification_threshold,
     load_doc_type_patterns,
     load_product_sheet_detection_config,
     load_prompt_config,
@@ -385,7 +385,7 @@ async def _process_upload_like_document(
     normalized_analysis = _normalize_analysis_output(analysis)
     tipo_doc = str(normalized_analysis["doc_type"])
     confianza = float(normalized_analysis["confidence"])
-    requiere_revision = confianza < CONFIDENCE_THRESHOLD
+    requiere_revision = confianza < load_classification_threshold(db)
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
 
@@ -507,7 +507,7 @@ async def _process_upload_like_document(
                         canonical_document={},
                         category_keywords=get_doc_categories(db),
                         requires_review=(
-                            float(rerun_normalized["confidence"]) < CONFIDENCE_THRESHOLD
+                            float(rerun_normalized["confidence"]) < load_classification_threshold(db)
                         ),
                         db=db,
                         tenant_id=tenant_id,
@@ -533,7 +533,7 @@ async def _process_upload_like_document(
                     normalized_analysis = rerun_normalized
                     tipo_doc = str(rerun_normalized["doc_type"])
                     confianza = float(rerun_normalized["confidence"])
-                    requiere_revision = confianza < CONFIDENCE_THRESHOLD
+                    requiere_revision = confianza < load_classification_threshold(db)
                     razonamiento = str(rerun_normalized["reasoning"])
                     analysis_fields = rerun_fields
                     datos_extraidos = rerun_fields
@@ -825,7 +825,7 @@ async def _process_run_document(
     confianza = float(normalized_analysis["confidence"])
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
-    requiere_revision = confianza < CONFIDENCE_THRESHOLD
+    requiere_revision = confianza < load_classification_threshold(db)
 
     if has_structured and recipe_snapshot:
         remember_snapshot_learning(
@@ -975,7 +975,7 @@ async def _process_run_document(
                 confianza = float(rerun_normalized["confidence"])
                 razonamiento = str(rerun_normalized["reasoning"])
                 analysis_fields = rerun_fields
-                requiere_revision = confianza < CONFIDENCE_THRESHOLD
+                requiere_revision = confianza < load_classification_threshold(db)
                 datos_extraidos = rerun_fields
                 local_recipe_config = auto_rc2
 

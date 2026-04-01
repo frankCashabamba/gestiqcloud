@@ -810,6 +810,7 @@ async def _analyze_with_vision(
     format_hint: str,
     ocr_content: str = "",
     recipe_config: dict | None = None,
+    prompt_config: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Try to analyze a document image using a vision-capable model via Ollama.
 
@@ -839,9 +840,14 @@ async def _analyze_with_vision(
         return None
 
     rc = recipe_config or {}
-    system_prompt = rc.get("prompt_system") or (
-        "You are a universal accounting document analyzer with vision capabilities. "
-        "You can read documents in ANY language. Extract all visible information accurately."
+    pc = prompt_config or {}
+    system_prompt = (
+        rc.get("prompt_system")
+        or pc.get("extraction_system")
+        or (
+            "You are a universal accounting document analyzer with vision capabilities. "
+            "You can read documents in ANY language. Extract all visible information accurately."
+        )
     )
 
     _fd = rc.get("field_descriptions") or {}
@@ -1007,7 +1013,7 @@ async def analyze_document(
 
     if not has_structured_rows and _should_use_vision_fallback(content, format_hint, image_bytes):
         vision_result = await _analyze_with_vision(
-            image_bytes, filename, format_hint, content, recipe_config
+            image_bytes, filename, format_hint, content, recipe_config, prompt_config
         )
         if vision_result:
             return vision_result
