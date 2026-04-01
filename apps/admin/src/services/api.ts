@@ -151,7 +151,7 @@ export const apiClient = {
 
   // UI Configuration Endpoints
   uiConfig: {
-    basePath: "/v1/admin/ui-config",
+    basePath: "/admin/ui-config",
     // Sections
     getSections: (params?: Record<string, any>) => {
       const query = new URLSearchParams(params).toString();

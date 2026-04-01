@@ -22,10 +22,10 @@ export default function FieldConfigManager() {
     try {
       // Prefer tenant config when empresa slug is present; otherwise sector defaults
       if (empresa) {
-        const { data } = await api.get(`/v1/company/settings/fields`, { params: { module: moduleKey, empresa } })
+        const { data } = await api.get(`/company/settings/fields`, { params: { module: moduleKey, empresa } })
         setItems(data.items || [])
       } else {
-        const { data } = await api.get(`/v1/admin/field-config/sector`, { params: { module: moduleKey, sector } })
+        const { data } = await api.get(`/admin/field-config/sector`, { params: { module: moduleKey, sector } })
         setItems(data.items || [])
       }
     } catch (e: any) {
@@ -40,10 +40,10 @@ export default function FieldConfigManager() {
     setLoading(true)
     try {
       if (empresa) {
-        await api.put(`/v1/admin/field-config/tenant`, { empresa, module: moduleKey, items })
-        await api.put(`/v1/admin/field-config/tenant/mode`, { empresa, module: moduleKey, form_mode: formMode })
+        await api.put(`/admin/field-config/tenant`, { empresa, module: moduleKey, items })
+        await api.put(`/admin/field-config/tenant/mode`, { empresa, module: moduleKey, form_mode: formMode })
       } else {
-        await api.put(`/v1/admin/field-config/sector`, { sector, module: moduleKey, items })
+        await api.put(`/admin/field-config/sector`, { sector, module: moduleKey, items })
       }
       setMsg('Configuration saved')
     } catch (e: any) {
