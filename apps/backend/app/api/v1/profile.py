@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -83,8 +83,9 @@ def _infer_onboarding_complete(
 
 
 @router.get("/tenant", dependencies=[Depends(require_scope("tenant"))])
-def me_tenant(request: Request, db: Session = Depends(get_db)):
+def me_tenant(request: Request, response: Response, db: Session = Depends(get_db)):
     c = request.state.access_claims
+    response.headers["Cache-Control"] = "private, no-store"
     tenant_id = c.get("tenant_id")
     onboarding_complete = False
     sector_nombre = None
@@ -116,8 +117,9 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/admin", dependencies=[Depends(require_scope("admin"))])
-def me_admin(request: Request):
+def me_admin(request: Request, response: Response):
     c = request.state.access_claims
+    response.headers["Cache-Control"] = "private, no-store"
     return {
         "user_id": c.get("user_id"),
         "is_superadmin": c.get("is_superadmin", True),
