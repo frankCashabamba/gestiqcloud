@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.core.jwt_provider import get_token_service
 from app.models.company.company import SectorTemplate
+from app.models.core.audit_event import AuditEvent
 from app.models.core.ui_field_config import SectorFieldDefault
 from app.models.tenant import Tenant
 
@@ -38,6 +39,38 @@ def test_admin_sector_fields_for_clientes_are_seeded_into_db(client: TestClient,
     )
     assert len(rows) == len(body["items"])
     assert all(row.options == [] for row in rows)
+
+
+def test_admin_sector_fields_for_global_clientes_seed_with_system_audit(client: TestClient, db):
+    response = client.get("/api/v1/admin/field-config/sector?module=clientes&sector=global")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sector"] == "global"
+    field_names = [item["field"] for item in body["items"]]
+    assert "nombre" in field_names
+    assert "email" in field_names
+
+    rows = (
+        db.query(SectorFieldDefault)
+        .filter(SectorFieldDefault.sector == "global", SectorFieldDefault.module == "clientes")
+        .order_by(SectorFieldDefault.ord.asc().nulls_last())
+        .all()
+    )
+    assert len(rows) == len(body["items"])
+
+    row_ids = [str(row.id) for row in rows]
+    audit_rows = (
+        db.query(AuditEvent)
+        .filter(
+            AuditEvent.action == "create",
+            AuditEvent.entity_type == "SectorFieldDefault",
+            AuditEvent.tenant_id.is_(None),
+            AuditEvent.entity_id.in_(row_ids),
+        )
+        .all()
+    )
+    assert len(audit_rows) == len(rows)
 
 
 def test_company_field_config_uses_db_seed_for_tenant_sector(client: TestClient, db):
