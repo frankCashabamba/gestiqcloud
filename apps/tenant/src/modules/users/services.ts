@@ -122,7 +122,7 @@ export async function seedOperationalRoles(): Promise<RolSeedSummary> {
   return data
 }
 
-export async function listGlobalPermissions(force = false): Promise<GlobalPermission[]> {
+export async function listAvailablePermissions(force = false): Promise<GlobalPermission[]> {
   const now = Date.now()
   if (!force && permissionsCache && now - permissionsCache.ts < PERMISSIONS_TTL_MS) {
     return permissionsCache.data
@@ -131,7 +131,7 @@ export async function listGlobalPermissions(force = false): Promise<GlobalPermis
     return permissionsPromise
   }
   permissionsPromise = (async () => {
-    const { data } = await tenantApi.get<GlobalPermission[]>('/api/v1/roles-base/global-permissions')
+    const { data } = await tenantApi.get<GlobalPermission[]>(TENANT_ROLES.availablePermissions)
     const safe = Array.isArray(data) ? data : []
     permissionsCache = { data: safe, ts: Date.now() }
     return safe
@@ -142,3 +142,5 @@ export async function listGlobalPermissions(force = false): Promise<GlobalPermis
     permissionsPromise = null
   }
 }
+
+export const listGlobalPermissions = listAvailablePermissions

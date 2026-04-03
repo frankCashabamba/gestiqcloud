@@ -4,6 +4,7 @@
   "icon": "🏭",
   "category": "operations",
   "description": "Production orders, BOM and manufacturing tracking",
+  "surface": "sector",
   "required": false,
   "default_enabled": false,
   "dependencies": ["inventory"],

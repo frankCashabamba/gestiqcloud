@@ -135,5 +135,44 @@ export function useMisModulos() {
     return new Set(list.filter((m) => m.active !== false).map(toSlug))
   }, [modules])
 
-  return { modules, allowedSlugs, loading, error }
+  const routedSlugs = useMemo(() => {
+    const list = Array.isArray(modules) ? modules : []
+    return new Set(
+      list
+        .filter((m) => m.active !== false && m.use_module_loader !== false)
+        .map(toSlug),
+    )
+  }, [modules])
+
+  const sidebarModules = useMemo(
+    () => modules.filter((m) => (m.nav_group || 'sidebar') === 'sidebar'),
+    [modules],
+  )
+
+  const backofficeModules = useMemo(
+    () => modules.filter((m) => m.nav_group === 'backoffice'),
+    [modules],
+  )
+
+  const userMenuModules = useMemo(
+    () => modules.filter((m) => m.nav_group === 'user_menu'),
+    [modules],
+  )
+
+  const visibleModules = useMemo(
+    () => modules.filter((m) => (m.nav_group || 'sidebar') !== 'hidden'),
+    [modules],
+  )
+
+  return {
+    modules,
+    visibleModules,
+    sidebarModules,
+    backofficeModules,
+    userMenuModules,
+    allowedSlugs,
+    routedSlugs,
+    loading,
+    error,
+  }
 }

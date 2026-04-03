@@ -4,6 +4,8 @@
   "icon": "👥",
   "category": "people",
   "description": "Payroll, attendance, vacations and contracts",
+  "surface": "backoffice",
+  "nav_group": "backoffice",
   "required": false,
   "default_enabled": false,
   "dependencies": [],

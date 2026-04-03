@@ -10,8 +10,10 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models import GlobalActionPermission
 from app.models.company.company_role import CompanyRole as CompanyRole
 from app.models.company.tenant import Empresa
+from app.models.core.module import CompanyModule, Module
 from app.schemas.company_role import (
     CompanyRoleCreate,
     CompanyRoleOut,
@@ -19,6 +21,7 @@ from app.schemas.company_role import (
     CompanyRoleSeedSummary,
     CompanyRoleUpdate,
 )
+from app.schemas.configuracion import GlobalActionPermissionSchema
 
 router = APIRouter(
     prefix="/tenant/roles",
@@ -37,6 +40,117 @@ def _normalize_sector_slug(raw: str | None) -> str | None:
     if value in {"panerp", "panaderia"}:
         return "panaderia"
     return value
+
+
+def _normalize_module_code(raw: str | None) -> str | None:
+    value = (raw or "").strip().lower()
+    return value or None
+
+
+def _canonical_permission_key(raw: str | None) -> str:
+    return (raw or "").strip().lower().replace(":", ".")
+
+
+def _permission_module_from_key(raw: str | None) -> str | None:
+    key = _canonical_permission_key(raw)
+    if "." not in key:
+        return None
+    return key.split(".", 1)[0]
+
+
+def _flatten_permission_keys(permissions: dict | None) -> set[str]:
+    result: set[str] = set()
+    if not isinstance(permissions, dict):
+        return result
+
+    for key, value in permissions.items():
+        if isinstance(value, dict):
+            for action, allowed in value.items():
+                if allowed:
+                    result.add(_canonical_permission_key(f"{key}.{action}"))
+        elif value:
+            result.add(_canonical_permission_key(str(key)))
+    return result
+
+
+def _get_contracted_module_codes(db: Session, tenant_id: UUID | str | None) -> set[str]:
+    tenant_key = str(tenant_id) if tenant_id is not None else None
+    rows = db.execute(
+        select(Module.url, Module.name)
+        .join(CompanyModule, CompanyModule.module_id == Module.id)
+        .where(
+            CompanyModule.tenant_id == tenant_key,
+            CompanyModule.active.is_(True),
+        )
+    ).all()
+
+    codes: set[str] = set()
+    for url, name in rows:
+        for raw in (url, name):
+            normalized = _normalize_module_code(raw)
+            if normalized:
+                codes.add(normalized)
+    return codes
+
+
+def _list_available_permissions_for_tenant(
+    db: Session, tenant_id: UUID | str | None
+) -> list[GlobalActionPermission]:
+    contracted_modules = _get_contracted_module_codes(db, tenant_id)
+    if not contracted_modules:
+        return []
+
+    permissions = (
+        db.execute(
+            select(GlobalActionPermission).order_by(
+                GlobalActionPermission.module.asc(),
+                GlobalActionPermission.key.asc(),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    return [
+        perm for perm in permissions if _normalize_module_code(perm.module) in contracted_modules
+    ]
+
+
+def _validate_role_permissions(
+    db: Session,
+    tenant_id: UUID | str | None,
+    permissions: dict | None,
+) -> None:
+    submitted_keys = _flatten_permission_keys(permissions)
+    if not submitted_keys:
+        return
+
+    available_permissions = _list_available_permissions_for_tenant(db, tenant_id)
+    allowed_keys = {_canonical_permission_key(item.key) for item in available_permissions}
+    modules_by_key = {
+        _canonical_permission_key(item.key): _normalize_module_code(item.module)
+        for item in available_permissions
+    }
+
+    invalid_keys = sorted(key for key in submitted_keys if key not in allowed_keys)
+    if not invalid_keys:
+        return
+
+    invalid_modules = sorted(
+        {
+            modules_by_key.get(key) or _permission_module_from_key(key) or "general"
+            for key in invalid_keys
+        }
+    )
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={
+            "code": "invalid_role_permissions",
+            "message": "Role contains permissions for modules not contracted by the tenant",
+            "invalid_modules": invalid_modules,
+            "invalid_permissions": invalid_keys,
+        },
+    )
 
 
 def _operational_role_presets(sector: str | None) -> list[dict]:
@@ -166,6 +280,15 @@ async def seed_operational_roles(
     )
 
 
+@router.get("/available-permissions", response_model=list[GlobalActionPermissionSchema])
+async def list_available_permissions(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(require_scope("tenant")),
+):
+    tenant_id = claims.get("tenant_id")
+    return _list_available_permissions_for_tenant(db, tenant_id)
+
+
 @router.get("/{role_id}", response_model=CompanyRoleOut)
 async def get_role(
     role_id: UUID,
@@ -211,6 +334,8 @@ async def create_role(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"A role with the name '{payload.name}' already exists",
         )
+
+    _validate_role_permissions(db, tenant_id, payload.permissions)
 
     new_role = CompanyRole(
         tenant_id=tenant_id,
@@ -261,6 +386,9 @@ async def update_role(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"A role with the name '{update_data['name']}' already exists",
             )
+
+    if "permissions" in update_data:
+        _validate_role_permissions(db, role.tenant_id, update_data.get("permissions"))
 
     for field, value in update_data.items():
         setattr(role, field, value)

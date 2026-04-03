@@ -16,7 +16,7 @@ export async function deleteEmpresa(id: number | string): Promise<any> {
   return data
 }
 
-export async function createEmpresaFull(payload: any): Promise<{ msg: string; id?: number }> {
+export async function createEmpresaFull(payload: any): Promise<{ msg: string; id?: string | number }> {
   const { data } = await api.post(ADMIN_COMPANIES.createFull, payload)
   return data
 }

@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { useAuth } from '../auth/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+
+import { useAuth } from '../auth/AuthContext'
 import { useEnv } from '@ui/env'
 import { resolveTenantPath } from '../lib/tenantNavigation'
 
@@ -53,159 +54,99 @@ export default function Login() {
   }
 
   return (
-    <div className="gc-login-page relative overflow-hidden bg-[#1a2b45]">
-      {/* Background glows */}
+    <div className="gc-login-page relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#edf4ff_0%,#f8fbff_45%,#f4efe6_100%)]">
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div className="absolute left-[-120px] top-[-120px] h-[280px] w-[280px] rounded-full bg-blue-400/15 blur-3xl" />
-        <div className="absolute bottom-[-100px] right-[-60px] h-[260px] w-[260px] rounded-full bg-indigo-400/10 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(99,102,241,0.08),transparent_30%)]" />
+        <div className="absolute left-[-120px] top-[-140px] h-[320px] w-[320px] rounded-full bg-sky-300/35 blur-3xl" />
+        <div className="absolute bottom-[-140px] right-[-100px] h-[320px] w-[320px] rounded-full bg-amber-200/40 blur-3xl" />
+        <div className="absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.12),transparent_55%)]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1240px] items-center px-4 py-8 sm:px-6 lg:px-10">
-        <div className="grid w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/70 shadow-2xl shadow-slate-950/30 backdrop-blur-xl lg:grid-cols-[1.08fr,0.92fr]">
-
-          {/* ─── Hero panel (desktop only) ─── */}
-          <aside className="relative hidden overflow-hidden bg-[#1e3054] p-9 text-white lg:flex lg:min-h-[700px] lg:flex-col lg:justify-between xl:p-11">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[1180px] items-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid w-full gap-6 lg:grid-cols-[0.92fr,1.08fr]">
+          <section className="relative overflow-hidden rounded-[32px] bg-[#0f172a] p-8 text-white shadow-[0_30px_90px_rgba(15,23,42,0.28)] sm:p-10">
             <div
-              className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_10%_-10%,rgba(59,130,246,.22),transparent),radial-gradient(ellipse_50%_70%_at_100%_100%,rgba(99,102,241,.12),transparent)]"
+              className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.22),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.16),transparent_32%)]"
               aria-hidden="true"
             />
             <div
-              className="absolute inset-0 opacity-[0.05]"
+              className="absolute inset-0 opacity-[0.07]"
               style={{
                 backgroundImage:
-                  'url("data:image/svg+xml,%3Csvg width=\'42\' height=\'42\' viewBox=\'0 0 42 42\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'%23fff\' fill-rule=\'evenodd\'%3E%3Ccircle cx=\'21\' cy=\'21\' r=\'1\'/%3E%3C/g%3E%3C/svg%3E")',
+                  'url("data:image/svg+xml,%3Csvg width=\'44\' height=\'44\' viewBox=\'0 0 44 44\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.9\'%3E%3Ccircle cx=\'6\' cy=\'6\' r=\'1\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
               }}
               aria-hidden="true"
             />
 
-            <div className="relative z-10 space-y-7">
-              {/* Brand + demo CTA */}
-              <div className="flex items-center justify-between gap-4">
+            <div className="relative z-10 flex h-full flex-col justify-between gap-10">
+              <div className="space-y-8">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-sm font-extrabold text-white ring-1 ring-white/15 backdrop-blur-sm">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-sm font-extrabold text-white ring-1 ring-white/15 backdrop-blur">
                     GC
                   </div>
                   <div>
-                    <p className="text-sm font-semibold tracking-wide text-white/90">GestiqCloud</p>
+                    <p className="text-sm font-semibold tracking-wide text-white">GestiqCloud</p>
                     <p className="text-xs text-slate-400">{t('login.subtitle')}</p>
                   </div>
                 </div>
 
-                <Link
-                  to="/demo"
-                  className="inline-flex items-center rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
-                >
-                  {t('login.requestDemo')}
-                </Link>
-              </div>
+                <div className="max-w-xl space-y-4">
+                  <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-sky-100 ring-1 ring-white/15">
+                    {t('login.quickAccessBadge')}
+                  </span>
+                  <h1 className="text-[2rem] font-bold leading-[1.05] tracking-[-0.03em] text-white sm:text-[2.35rem]">
+                    {t('login.quickAccessTitle')}
+                  </h1>
+                  <p className="max-w-lg text-sm leading-6 text-slate-300">
+                    {t('login.quickAccessSubtitle')}
+                  </p>
+                </div>
 
-              {/* Hero copy */}
-              <div className="max-w-xl">
-                <span className="inline-flex items-center gap-2 rounded-full bg-blue-500/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-blue-200 ring-1 ring-blue-400/20">
-                  {t('login.badgePlatform')}
-                </span>
-
-                <h1 className="mt-4 text-[1.65rem] font-bold leading-[1.15] tracking-[-0.02em] text-white xl:text-[1.9rem]">
-                  {t('login.heroTagline')}
-                </h1>
-
-                <p className="mt-3 max-w-lg text-sm leading-6 text-slate-300/90">
-                  {t('login.heroDescription')}
-                </p>
-              </div>
-
-              {/* Stats */}
-              <div className="grid gap-4 sm:grid-cols-3">
-                {([
-                  { value: '99.9%', label: t('login.stat1Label') },
-                  { value: 'RBAC',  label: t('login.stat2Label') },
-                  { value: 'MFA',   label: t('login.stat3Label') },
-                ] as const).map(({ value, label }) => (
-                  <div key={value} className="rounded-xl border border-white/10 bg-white/5 px-3 py-3 backdrop-blur-sm">
-                    <p className="text-lg font-bold text-white">{value}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">{label}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Features */}
-              <div className="grid gap-3">
-                {([
-                  t('login.featurePipeline'),
-                  t('login.featureOps'),
-                  t('login.featureBilling'),
-                ] as const).map((item, index) => (
-                  <div
-                    key={item}
-                    className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 backdrop-blur-sm"
-                  >
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-500/25 text-[11px] font-bold text-blue-200 ring-1 ring-white/10">
-                      {index + 1}
+                <div className="flex flex-wrap gap-3">
+                  {([
+                    t('login.quickItemWorkspace'),
+                    t('login.quickItemModules'),
+                    t('login.quickItemSecure'),
+                  ] as const).map((item) => (
+                    <span
+                      key={item}
+                      className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 backdrop-blur-sm"
+                    >
+                      {item}
                     </span>
-                    <p className="text-xs leading-5 text-slate-300">{item}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Trust badges */}
-            <div className="relative z-10 flex flex-wrap gap-3 text-xs text-slate-400">
-              {([
-                { color: 'bg-emerald-400', label: t('login.badgeSecurityLabel') },
-                { color: 'bg-blue-400',    label: t('login.badgeRolesLabel') },
-                { color: 'bg-cyan-300',    label: t('login.badgeMt') },
-              ] as const).map(({ color, label }) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur-sm"
-                >
-                  <span className={`h-2 w-2 rounded-full ${color}`} />
-                  {label}
-                </span>
-              ))}
-            </div>
-          </aside>
-
-          {/* ─── Form panel ─── */}
-          <section className="flex flex-col justify-center bg-white px-6 py-10 sm:px-10 lg:px-12 lg:py-14 xl:px-14">
-
-            {/* Mobile brand + demo (hidden on lg+) */}
-            <div className="mb-8 flex items-center justify-between gap-4 lg:hidden">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--gc-primary)] text-xs font-extrabold text-white shadow-lg shadow-blue-600/25">
-                  GC
+                  ))}
                 </div>
+              </div>
+
+              <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-700">GestiqCloud</p>
-                  <p className="text-[11px] text-slate-400">{t('login.subtitle')}</p>
+                  <Link
+                    to="/demo"
+                    className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                  >
+                    {t('login.requestDemo')}
+                  </Link>
                 </div>
+                <p className="text-xs text-slate-400">{t('login.quickAccessNote')}</p>
               </div>
-
-              <Link
-                to="/demo"
-                className="inline-flex items-center rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                {t('login.requestDemo')}
-              </Link>
             </div>
+          </section>
 
+          <section className="rounded-[32px] border border-slate-200/70 bg-white/90 p-6 shadow-[0_24px_70px_rgba(148,163,184,0.18)] backdrop-blur sm:p-8 lg:p-10">
             <div className="mx-auto w-full max-w-[430px]">
-              <header className="space-y-2">
-                <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--gc-primary)]">
+              <header className="space-y-3">
+                <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--gc-primary)]">
                   {t('login.clientAccess')}
                 </span>
-                <h2 className="text-2xl font-bold tracking-[-0.02em] text-slate-800">
+                <h2 className="text-3xl font-bold tracking-[-0.03em] text-slate-900">
                   {t('login.accessTitle')}
                 </h2>
-                <p className="text-sm leading-5 text-slate-500">
+                <p className="text-sm leading-6 text-slate-500">
                   {t('login.accessSubtitle')}
                 </p>
               </header>
 
-              <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
-                {/* Username */}
-                <div className="space-y-1.5">
+              <form onSubmit={onSubmit} className="mt-8 space-y-5" noValidate>
+                <div className="space-y-2">
                   <label
                     htmlFor="identificador"
                     className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400"
@@ -217,16 +158,15 @@ export default function Login() {
                     name="identificador"
                     type="text"
                     autoComplete="username"
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[var(--gc-primary)] focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    className="h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[var(--gc-primary)] focus:bg-white focus:ring-4 focus:ring-sky-100"
                     value={identificador}
                     onChange={(event) => setIdentificador(event.target.value)}
-                    placeholder="usuario@empresa.com"
+                    placeholder={t('login.usernamePlaceholder')}
                     required
                   />
                 </div>
 
-                {/* Password */}
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <label
                       htmlFor="password"
@@ -248,7 +188,7 @@ export default function Login() {
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
-                      className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 pr-20 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[var(--gc-primary)] focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      className="h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 pr-20 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[var(--gc-primary)] focus:bg-white focus:ring-4 focus:ring-sky-100"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="••••••••"
@@ -266,7 +206,6 @@ export default function Login() {
                   </div>
                 </div>
 
-                {/* Error */}
                 {error && (
                   <div
                     className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -276,24 +215,17 @@ export default function Login() {
                   </div>
                 )}
 
-                {/* Remember + MFA row */}
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  <label className="inline-flex cursor-pointer items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-[var(--gc-primary)] focus:ring-[var(--gc-primary)]"
-                    />
-                    <span>{t('login.rememberSession')}</span>
-                  </label>
-                  <span className="hidden text-xs font-medium text-slate-400 sm:inline">
-                    {t('login.mfaEnabled')}
-                  </span>
-                </div>
+                <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-[var(--gc-primary)] focus:ring-[var(--gc-primary)]"
+                  />
+                  <span>{t('login.rememberSession')}</span>
+                </label>
 
-                {/* Submit */}
                 <button
                   type="submit"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,var(--gc-primary),#0ea5e9)] px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-600/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gc-primary)] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,var(--gc-primary),#0ea5e9)] px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-sky-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gc-primary)] disabled:cursor-not-allowed disabled:opacity-70"
                   disabled={submitting}
                 >
                   {submitting && (
@@ -309,25 +241,26 @@ export default function Login() {
                   {submitting ? t('login.signingIn') : t('login.signIn')}
                 </button>
 
-                {/* Sign up CTA */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">
-                  <span>{t('login.noAccount')} </span>
-                  <Link
-                    to="/demo"
-                    className="font-semibold text-[var(--gc-primary)] hover:underline"
-                  >
-                    {t('login.requestDemo')}
-                  </Link>
+                <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4 sm:p-5">
+                  <p className="text-sm font-semibold text-slate-900">{t('login.noAccount')}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">{t('login.newUserSubtitle')}</p>
+                  <div className="mt-4">
+                    <Link
+                      to="/demo"
+                      className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      {t('login.requestDemo')}
+                    </Link>
+                  </div>
                 </div>
               </form>
 
               <footer className="mt-8 space-y-1.5 text-center text-xs text-slate-400">
                 <p>{t('login.copyright', { year })}</p>
-                <p className="text-slate-400">{t('login.footerTagline')}</p>
+                <p>{t('login.footerTagline')}</p>
               </footer>
             </div>
           </section>
-
         </div>
       </div>
     </div>

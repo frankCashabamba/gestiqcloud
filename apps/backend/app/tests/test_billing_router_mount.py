@@ -16,6 +16,7 @@ def test_build_api_router_mounts_tenant_billing_routes():
     assert "/tenant/billing/cancel" in paths
     assert "/tenant/billing/portal" in paths
     assert "/tenant/billing/webhook/stripe" in paths
+    assert "/admin/billing/plans" in paths
     assert "/admin/companies/{tenant_id}/billing/plans" in paths
     assert "/admin/companies/{tenant_id}/billing/subscription" in paths
     assert "/admin/companies/{tenant_id}/billing/subscribe" in paths

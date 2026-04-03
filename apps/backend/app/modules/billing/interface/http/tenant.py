@@ -24,6 +24,8 @@ from app.modules.billing.service import (
     load_billing_contact,
     load_existing_customer_id,
     load_plan,
+    normalize_plan_features,
+    normalize_plan_modules,
     resolve_return_url,
     stripe_is_configured,
     stripe_status_to_local,
@@ -111,8 +113,8 @@ def list_plans(db: Session = Depends(get_db)):
             "price_yearly": float(r[4]) if r[4] else None,
             "max_users": r[5] or 1,
             "max_branches": r[6] or 1,
-            "included_modules": list(r[7] or []),
-            "features": dict(r[8] or {}),
+            "included_modules": normalize_plan_modules(r[7]),
+            "features": normalize_plan_features(r[8]),
         }
         for r in rows
     ]
@@ -158,8 +160,8 @@ def get_current_subscription(request: Request, db: Session = Depends(get_db)):
             "price_yearly": float(row[11]) if row[11] else None,
             "max_users": row[12] or 1,
             "max_branches": row[13] or 1,
-            "included_modules": list(row[14] or []),
-            "features": dict(row[15] or {}),
+            "included_modules": normalize_plan_modules(row[14]),
+            "features": normalize_plan_features(row[15]),
         },
     }
 

@@ -73,7 +73,7 @@ export type Rol = {
   id: string
   name: string
   description?: string
-  permissions: Record<string, boolean>
+  permissions: Record<string, unknown>
   tenant_id: string
   base_role_id?: string
   created_by_company: boolean

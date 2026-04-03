@@ -5,12 +5,10 @@ import { useAuth } from '../auth/AuthContext'
 import { useMisModulos } from '../hooks/useMisModulos'
 import { getMiEmpresa, type Empresa } from '../services/empresa'
 
-const HIDDEN_SLUGS = new Set(['templates', 'webhooks', 'reports', 'copilot'])
-
 export default function Dashboard() {
   const { t } = useTranslation()
   const { profile } = useAuth()
-  const { modules, loading } = useMisModulos()
+  const { visibleModules, loading } = useMisModulos()
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
   const [empresaInfo, setEmpresaInfo] = useState<Empresa | null>(null)
@@ -29,10 +27,14 @@ export default function Dashboard() {
       ? t('pages.dashboard.greetingAfternoon')
       : t('pages.dashboard.greetingEvening')
 
+  const cardModules = useMemo(
+    () => visibleModules.filter((m) => m.nav_group !== 'user_menu'),
+    [visibleModules],
+  )
+
   const grouped = useMemo(() => {
-    const visible = modules.filter(m => !HIDDEN_SLUGS.has(m.slug || ''))
-    const acc: Record<string, typeof modules> = {}
-    for (const m of visible) {
+    const acc: Record<string, typeof cardModules> = {}
+    for (const m of cardModules) {
       const cat = (m.categoria || 'General').toString()
       if (!acc[cat]) acc[cat] = []
       acc[cat].push(m)
@@ -42,7 +44,7 @@ export default function Dashboard() {
       acc[cat].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     }
     return acc
-  }, [modules])
+  }, [cardModules])
 
   const sortedCategories = useMemo(() => Object.keys(grouped).sort((a, b) => a.localeCompare(b)), [grouped])
 
@@ -75,7 +77,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {!loading && modules.length === 0 && (
+      {!loading && cardModules.length === 0 && (
         <div className="gc-empty">
           <div className="gc-empty__icon">📦</div>
           <p className="gc-empty__title">{t('pages.dashboard.noModules')}</p>

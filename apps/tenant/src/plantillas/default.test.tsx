@@ -9,6 +9,7 @@ import DefaultPlantilla from './default'
 vi.mock('../hooks/useMisModulos', () => ({
   useMisModulos: () => ({
     modules: [],
+    visibleModules: [],
     allowedSlugs: new Set(['sales', 'expenses', 'invoicing']),
   }),
 }))

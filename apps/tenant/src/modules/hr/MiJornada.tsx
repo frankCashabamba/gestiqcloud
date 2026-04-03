@@ -8,6 +8,7 @@ import { createVacacion, listVacaciones } from '../../services/api/rrhh'
 import { registrarFichaje, actualizarFichaje } from './services/fichajes'
 import { useFichajes } from './hooks/useFichajes'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { useCurrency } from '../../hooks/useCurrency'
 import type { Vacacion } from '../../types/hr'
 import './hr.css'
 
@@ -84,8 +85,22 @@ function formatMonth(value: string) {
   return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1))
 }
 
-function formatCurrency(value: number, currency = 'EUR') {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(value)
+function formatCurrencyValue(value: number, currency?: string) {
+  const normalizedCurrency = (currency || '').trim().toUpperCase()
+  if (!normalizedCurrency) {
+    return new Intl.NumberFormat('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+  try {
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: normalizedCurrency }).format(value)
+  } catch {
+    return new Intl.NumberFormat('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
 }
 
 function calcDuration(start?: string, end?: string) {
@@ -135,6 +150,7 @@ const VAC_FORM_INIT: VacForm = { fecha_inicio: '', fecha_fin: '', tipo: 'vacacio
 export default function MiJornada() {
   const navigate = useNavigate()
   const { success, error: toastError, warning, info } = useToast()
+  const { currency: companyCurrency, formatCurrency: formatCompanyCurrency } = useCurrency()
 
   // Perfil
   const [me, setMe] = useState<MeEmployee | null>(null)
@@ -364,7 +380,7 @@ export default function MiJornada() {
           {me.salario_base != null && (
             <div className="hr-kpi-card">
               <div className="hr-kpi-card__label">Salario base</div>
-              <div className="hr-kpi-card__value">{formatCurrency(me.salario_base)}</div>
+              <div className="hr-kpi-card__value">{formatCompanyCurrency(me.salario_base)}</div>
               <div className="hr-kpi-card__hint">{me.modalidad_pago ?? ''}</div>
             </div>
           )}
@@ -639,9 +655,9 @@ export default function MiJornada() {
                 {nominas.map((n) => (
                   <tr key={n.payroll_detail_id}>
                     <td style={{ fontWeight: 500 }}>{formatMonth(n.payroll_month)}</td>
-                    <td>{formatCurrency(n.gross_salary, n.currency)}</td>
-                    <td style={{ color: 'var(--gc-danger)' }}>−{formatCurrency(n.total_deductions, n.currency)}</td>
-                    <td style={{ fontWeight: 600, color: 'var(--gc-success)' }}>{formatCurrency(n.net_salary, n.currency)}</td>
+                    <td>{formatCurrencyValue(n.gross_salary, n.currency || companyCurrency)}</td>
+                    <td style={{ color: 'var(--gc-danger)' }}>−{formatCurrencyValue(n.total_deductions, n.currency || companyCurrency)}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--gc-success)' }}>{formatCurrencyValue(n.net_salary, n.currency || companyCurrency)}</td>
                     <td><span className={payrollStatusBadge(n.status)}>{payrollStatusLabel(n.status)}</span></td>
                     <td>{formatDate(n.payroll_date)}</td>
                   </tr>

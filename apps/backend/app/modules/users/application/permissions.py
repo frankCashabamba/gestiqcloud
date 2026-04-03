@@ -34,9 +34,15 @@ def _flatten_perms(perms: dict) -> set[str]:
             for act, allowed in v.items():
                 if allowed:
                     out.add(f"{k}:{act}")
+                    out.add(f"{k}.{act}")
         else:
             if v:
-                out.add(str(k))
+                key = str(k)
+                out.add(key)
+                if "." in key:
+                    out.add(key.replace(".", ":", 1))
+                elif ":" in key:
+                    out.add(key.replace(":", ".", 1))
     return out
 
 

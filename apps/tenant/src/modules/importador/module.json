@@ -4,6 +4,8 @@
   "icon": "📥",
   "category": "operations",
   "description": "Bulk loading of products, customers and data via Excel/CSV",
+  "surface": "backoffice",
+  "nav_group": "backoffice",
   "required": false,
   "default_enabled": true,
   "dependencies": [],

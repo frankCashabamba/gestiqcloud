@@ -267,6 +267,174 @@ def test_seed_operational_roles_uses_generic_operator_outside_bakery(
     assert "Panadero" not in role_names
 
 
+def test_list_available_role_permissions_filters_by_contracted_modules(
+    client: TestClient, tenant_headers, db, seed_tenant_context
+):
+    from app.models import GlobalActionPermission
+    from app.models.core.module import CompanyModule, Module
+
+    _, tenant = seed_tenant_context
+
+    users_module = db.query(Module).filter(Module.url == "users").first()
+    if not users_module:
+        users_module = Module(
+            name="Users",
+            url="users",
+            description="Users module",
+            active=True,
+            initial_template="default",
+            context_type="none",
+        )
+        db.add(users_module)
+
+    hr_module = db.query(Module).filter(Module.url == "hr").first()
+    if not hr_module:
+        hr_module = Module(
+            name="HR",
+            url="hr",
+            description="HR module",
+            active=True,
+            initial_template="default",
+            context_type="none",
+        )
+        db.add(hr_module)
+
+    db.flush()
+
+    users_link = (
+        db.query(CompanyModule).filter_by(tenant_id=tenant.id, module_id=users_module.id).first()
+    )
+    if not users_link:
+        db.add(CompanyModule(tenant_id=tenant.id, module_id=users_module.id, active=True))
+    else:
+        users_link.active = True
+
+    hr_link = db.query(CompanyModule).filter_by(tenant_id=tenant.id, module_id=hr_module.id).first()
+    if hr_link:
+        hr_link.active = False
+
+    if not db.query(GlobalActionPermission).filter_by(key="users.read").first():
+        db.add(
+            GlobalActionPermission(
+                key="users.read",
+                module="users",
+                description="View users",
+            )
+        )
+    if not db.query(GlobalActionPermission).filter_by(key="hr.read").first():
+        db.add(
+            GlobalActionPermission(
+                key="hr.read",
+                module="hr",
+                description="View HR",
+            )
+        )
+
+    db.commit()
+
+    response = client.get("/api/v1/tenant/roles/available-permissions", headers=tenant_headers)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+    keys = {item["key"] for item in response.json()}
+    assert "users.read" in keys
+    assert "hr.read" not in keys
+
+
+def test_role_creation_rejects_permissions_from_non_contracted_modules(
+    client: TestClient, tenant_headers, db, seed_tenant_context
+):
+    from app.models import GlobalActionPermission
+    from app.models.core.module import CompanyModule, Module
+
+    _, tenant = seed_tenant_context
+
+    users_module = db.query(Module).filter(Module.url == "users").first()
+    if not users_module:
+        users_module = Module(
+            name="Users",
+            url="users",
+            description="Users module",
+            active=True,
+            initial_template="default",
+            context_type="none",
+        )
+        db.add(users_module)
+
+    hr_module = db.query(Module).filter(Module.url == "hr").first()
+    if not hr_module:
+        hr_module = Module(
+            name="HR",
+            url="hr",
+            description="HR module",
+            active=True,
+            initial_template="default",
+            context_type="none",
+        )
+        db.add(hr_module)
+
+    db.flush()
+
+    users_link = (
+        db.query(CompanyModule).filter_by(tenant_id=tenant.id, module_id=users_module.id).first()
+    )
+    if not users_link:
+        db.add(CompanyModule(tenant_id=tenant.id, module_id=users_module.id, active=True))
+    else:
+        users_link.active = True
+
+    hr_link = db.query(CompanyModule).filter_by(tenant_id=tenant.id, module_id=hr_module.id).first()
+    if hr_link:
+        hr_link.active = False
+
+    if not db.query(GlobalActionPermission).filter_by(key="users.read").first():
+        db.add(
+            GlobalActionPermission(
+                key="users.read",
+                module="users",
+                description="View users",
+            )
+        )
+    if not db.query(GlobalActionPermission).filter_by(key="hr.read").first():
+        db.add(
+            GlobalActionPermission(
+                key="hr.read",
+                module="hr",
+                description="View HR",
+            )
+        )
+
+    db.commit()
+
+    valid_payload = {
+        "name": f"Users role {_uuid.uuid4().hex[:6]}",
+        "description": "Valid users-only role",
+        "permissions": {"users.read": True},
+    }
+    valid_response = client.post("/api/v1/tenant/roles", json=valid_payload, headers=tenant_headers)
+    assert (
+        valid_response.status_code == 201
+    ), f"Expected 201, got {valid_response.status_code}: {valid_response.text}"
+
+    invalid_payload = {
+        "name": f"HR role {_uuid.uuid4().hex[:6]}",
+        "description": "Invalid HR role",
+        "permissions": {"hr.read": True},
+    }
+    invalid_response = client.post(
+        "/api/v1/tenant/roles",
+        json=invalid_payload,
+        headers=tenant_headers,
+    )
+    assert (
+        invalid_response.status_code == 422
+    ), f"Expected 422, got {invalid_response.status_code}: {invalid_response.text}"
+
+    body = invalid_response.json()
+    assert body["detail"]["code"] == "invalid_role_permissions"
+    assert "hr" in body["detail"]["invalid_modules"]
+    assert "hr.read" in body["detail"]["invalid_permissions"]
+
+
 def test_check_username_public(client: TestClient, db):
     r = client.get("/api/v1/users/check-username/algunusuario")
     assert r.status_code in (200, 400)

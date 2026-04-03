@@ -5,6 +5,7 @@ import api from "../utils/axios";
 export interface Modulo {
   id: string;
   name: string;
+  url?: string | null;
   icon?: string;
   description?: string;
   category?: string | null;
@@ -13,6 +14,7 @@ export interface Modulo {
 type BackendModulo = {
   id: string;
   name?: string;
+  url?: string | null;
   description?: string | null;
   icon?: string | null;
   category?: string | null;
@@ -24,65 +26,52 @@ export type UseModulosResult = {
   error: string | null;
 };
 
-// Map common Spanish module slugs to their English label so we can dedupe
-const SPANISH_TO_ENGLISH: Record<string, string> = {
-  ventas: "Sales",
-  facturacion: "Billing",
-  facturacion_electronica: "eInvoicing",
-  compras: "Purchases",
-  proveedores: "Suppliers",
-  clientes: "Customers",
-  inventario: "Inventory",
-  gastos: "Expenses",
-  finanzas: "Finances",
-  contabilidad: "Accounting",
-  rrhh: "HR",
-  recursos_humanos: "HR",
-  produccion: "Productions",
-  produccion_fabrica: "Productions",
-  reportes: "Reports",
-  ajustes: "Settings",
-  configuracion: "Settings",
-  notificaciones: "Notifications",
-  punto_de_venta: "POS",
-  tienda: "POS",
-  plantillas: "Templates",
-  usuarios: "Users",
-  webhooks: "Webhooks",
-  crm: "CRM",
-  productos: "Products",
-  conciliacion: "Reconciliation",
-  conciliaciones: "Reconciliation",
-};
-
-const slugify = (value: string): string =>
-  (value || "")
+function slugify(value: string): string {
+  return (value || "")
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
 
-function normalizeNameToEnglish(name: string): {
-  displayName: string;
-  key: string;
-  wasTranslated: boolean;
-} {
-  const slug = slugify(name);
-  const mapped = SPANISH_TO_ENGLISH[slug];
-  const displayName = mapped || name;
-  const key = slugify(mapped || name);
-  return { displayName, key, wasTranslated: Boolean(mapped) };
+export function normalizeModuloLookupKey(value: string): string {
+  return slugify(value);
+}
+
+function prettifyModuloName(value: string): string {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+  if (/[A-Z]/.test(raw) || raw.includes(" ")) return raw;
+  return raw
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function normalizeModulo(raw: BackendModulo): Modulo {
   return {
     id: String(raw.id),
-    name: (raw.name || "").trim(),
+    name: prettifyModuloName((raw.name || "").trim()),
+    url: raw.url ?? null,
     icon: raw.icon || undefined,
     description: raw.description || undefined,
     category: raw.category ?? null,
   };
+}
+
+export function buildModuloLookup(modulos: Modulo[]): Map<string, string> {
+  const lookup = new Map<string, string>();
+  modulos.forEach((modulo) => {
+    const keys = new Set<string>([
+      normalizeModuloLookupKey(modulo.url || ""),
+      normalizeModuloLookupKey(modulo.name),
+      normalizeModuloLookupKey(modulo.id),
+    ]);
+    keys.forEach((key) => {
+      if (key) lookup.set(key, modulo.id);
+    });
+  });
+  return lookup;
 }
 
 export function useModulos(): UseModulosResult {
@@ -101,30 +90,23 @@ export function useModulos(): UseModulosResult {
           { signal: ac.signal } as any
         );
         const data = res.data || [];
-        const dedup = new Map<string, { modulo: Modulo; wasTranslated: boolean }>();
+        const dedup = new Map<string, Modulo>();
 
-        data.map(normalizeModulo).forEach((m) => {
-          const { displayName, key, wasTranslated } = normalizeNameToEnglish(m.name);
-          const candidate: Modulo = { ...m, name: displayName };
-          const current = dedup.get(key);
-
-          if (!current) {
-            dedup.set(key, { modulo: candidate, wasTranslated });
-            return;
-          }
-
-          // Prefer the version that already comes in English (wasTranslated === false)
-          if (current.wasTranslated && !wasTranslated) {
-            dedup.set(key, { modulo: candidate, wasTranslated });
-          }
+        data.map(normalizeModulo).forEach((modulo) => {
+          const key =
+            normalizeModuloLookupKey(modulo.url || "") ||
+            normalizeModuloLookupKey(modulo.name) ||
+            normalizeModuloLookupKey(modulo.id);
+          if (!key) return;
+          if (!dedup.has(key)) dedup.set(key, modulo);
         });
 
-        setModulos(Array.from(dedup.values()).map((item) => item.modulo));
+        setModulos(Array.from(dedup.values()));
       } catch (err: any) {
         if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
-        console.error("Error cargando módulos", err);
+        console.error("Error cargando mÃ³dulos", err);
         setError(
-          err?.response?.data?.detail || err?.message || "No se pudieron cargar los módulos"
+          err?.response?.data?.detail || err?.message || "No se pudieron cargar los mÃ³dulos"
         );
       } finally {
         setLoading(false);

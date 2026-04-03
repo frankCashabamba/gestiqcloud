@@ -4,7 +4,9 @@ import SaveDocumentModal from '../components/SaveDocumentModal'
 import {
   canSaveDocument,
   fetchDocuments,
+  getDocumentDisplayStatus,
   hasConfirmedDocumentData,
+  isDocumentSaved,
   purgeAllImportador,
   suggestSaveDestination,
   type Documento,
@@ -19,6 +21,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   PROCESSING: { label: 'Procesando', color: '#7c3aed', bg: '#ede9fe' },
   PENDING: { label: 'En cola', color: '#92400e', bg: '#fef3c7' },
   FAILED: { label: 'Con error', color: '#991b1b', bg: '#fee2e2' },
+  IMPORTED: { label: 'Guardado', color: '#0f766e', bg: '#ccfbf1' },
 }
 
 const FILTERS = [
@@ -121,7 +124,7 @@ export default function DocumentList() {
   const navigate = useNavigate()
   const { empresa } = useParams<{ empresa: string }>()
   const [searchParams] = useSearchParams()
-  const [docs, setDocs] = useState<Documento[]>([])
+  const [allDocs, setAllDocs] = useState<Documento[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
@@ -139,8 +142,8 @@ export default function DocumentList() {
       setLoading(true)
     }
     try {
-      const items = await fetchDocuments({ estado: filter || undefined })
-      setDocs(items)
+      const items = await fetchDocuments()
+      setAllDocs(items)
       setLastUpdatedAt(new Date())
     } catch {
       setFeedback({ message: 'No se pudieron cargar los documentos.', type: 'error' })
@@ -157,23 +160,28 @@ export default function DocumentList() {
     void loadDocuments()
   }, [filter])
 
+  const docs = useMemo(() => {
+    if (!filter) return allDocs
+    return allDocs.filter((doc) => getDocumentDisplayStatus(doc) === filter)
+  }, [allDocs, filter])
+
   const processingCount = useMemo(() => {
     const cutoff = Date.now() - STALE_THRESHOLD_MS
-    return docs.filter(
+    return allDocs.filter(
       (doc) => doc.estado === 'PROCESSING' && new Date(doc.updated_at || doc.created_at).getTime() > cutoff
     ).length
-  }, [docs])
+  }, [allDocs])
 
   const pendingCount = useMemo(() => {
     const cutoff = Date.now() - STALE_THRESHOLD_MS
-    return docs.filter(
+    return allDocs.filter(
       (doc) => doc.estado === 'PENDING' && new Date(doc.created_at).getTime() > cutoff
     ).length
-  }, [docs])
+  }, [allDocs])
 
-  const reviewCount = useMemo(() => docs.filter((doc) => doc.estado === 'REVIEW').length, [docs])
-  const confirmedCount = useMemo(() => docs.filter((doc) => doc.estado === 'CONFIRMED').length, [docs])
-  const failedCount = useMemo(() => docs.filter((doc) => doc.estado === 'FAILED').length, [docs])
+  const reviewCount = useMemo(() => allDocs.filter((doc) => getDocumentDisplayStatus(doc) === 'REVIEW').length, [allDocs])
+  const confirmedCount = useMemo(() => allDocs.filter((doc) => getDocumentDisplayStatus(doc) === 'CONFIRMED').length, [allDocs])
+  const failedCount = useMemo(() => allDocs.filter((doc) => doc.estado === 'FAILED').length, [allDocs])
 
   const backgroundActive = processingCount > 0 || pendingCount > 0
 
@@ -483,7 +491,8 @@ export default function DocumentList() {
               <tbody>
                 {docs.map((doc) => {
                   const isInProgress = doc.estado === 'PROCESSING' || doc.estado === 'PENDING'
-                  const isImported = doc.estado === 'IMPORTED' || doc.saved_as != null || doc.saved_at != null
+                  const isImported = isDocumentSaved(doc)
+                  const displayStatus = getDocumentDisplayStatus(doc)
                   const docActivityBadges = activityBadges(doc)
                   const destination = suggestSaveDestination(doc)
                   const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && !isInProgress && (
@@ -494,7 +503,7 @@ export default function DocumentList() {
                     : doc.estado === 'FAILED'
                     ? 'Ver error'
                     : isImported
-                    ? 'Ver documento'
+                    ? 'Guardado'
                     : saveEnabled
                     ? saveLabel(doc)
                     : 'Revisar documento'
@@ -503,7 +512,7 @@ export default function DocumentList() {
                     : doc.estado === 'FAILED'
                     ? 'El documento tuvo un error. Haz clic para ver el detalle.'
                     : isImported
-                    ? 'El documento ya fue guardado. Haz clic para ver el detalle.'
+                    ? 'El documento ya fue confirmado y guardado. Haz clic para ver el detalle.'
                     : saveEnabled
                     ? saveLabel(doc)
                     : 'Abre el documento para confirmar sus datos antes de guardarlo.'
@@ -557,7 +566,7 @@ export default function DocumentList() {
                       <td style={td}>{confidenceBadge(doc.confianza_clasificacion)}</td>
                       <td style={td}>{doc.proveedor_detectado || '-'}</td>
                       <td style={td}>{formatCurrency(doc)}</td>
-                      <td style={td}>{statusBadge(doc.estado)}</td>
+                      <td style={td}>{statusBadge(displayStatus)}</td>
                       <td style={td}>{new Date(doc.created_at).toLocaleDateString()}</td>
                       <td style={{ ...td, minWidth: 190 }}>
                         <button
@@ -573,7 +582,7 @@ export default function DocumentList() {
                           disabled={isInProgress}
                           style={{
                             ...saveBtn,
-                            background: isInProgress ? '#e2e8f0' : saveEnabled ? '#0f766e' : doc.estado === 'FAILED' ? '#dc2626' : '#64748b',
+                            background: isInProgress ? '#e2e8f0' : isImported ? '#166534' : saveEnabled ? '#0f766e' : doc.estado === 'FAILED' ? '#dc2626' : '#64748b',
                             color: isInProgress ? '#94a3b8' : '#fff',
                             cursor: isInProgress ? 'not-allowed' : 'pointer',
                           }}

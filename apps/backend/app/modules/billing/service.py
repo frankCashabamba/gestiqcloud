@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -9,6 +10,8 @@ from urllib.parse import urlparse
 from fastapi import HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.modules.settings.application.modules_catalog import canonicalize_module_id
 
 
 @dataclass
@@ -20,6 +23,46 @@ class BillingPlanRecord:
     price_yearly: float | None
     stripe_price_id_monthly: str | None
     stripe_price_id_yearly: str | None
+
+
+def normalize_plan_modules(value: Any) -> list[str]:
+    raw_items: list[Any]
+    if value in (None, ""):
+        raw_items = []
+    elif isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            raw_items = [value]
+        else:
+            raw_items = list(parsed) if isinstance(parsed, list) else []
+    else:
+        raw_items = list(value or [])
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        raw = str(item or "").strip()
+        if not raw:
+            continue
+        canonical = canonicalize_module_id(raw) or raw.lower()
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        result.append(canonical)
+    return result
+
+
+def normalize_plan_features(value: Any) -> dict[str, Any]:
+    if value in (None, ""):
+        return {}
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return dict(value or {})
 
 
 def stripe_is_configured() -> bool:

@@ -17,7 +17,8 @@
     "company": "Empresa",
     "operation": "Operación",
     "communications": "Comunicaciones",
-    "planControl": "Plan y Control"
+    "planControl": "Plan y Control",
+    "workspace": "Espacio de trabajo"
   },
   "sections": {
     "general": "General",
@@ -61,6 +62,30 @@
     "avanzado": {
       "label": "Avanzado",
       "desc": "JSON e integraciones"
+    },
+    "users": {
+      "label": "Usuarios",
+      "desc": "Equipo, accesos y roles del tenant"
+    },
+    "templates": {
+      "label": "Plantillas",
+      "desc": "Configura vistas y plantillas internas"
+    },
+    "webhooks": {
+      "label": "Webhooks",
+      "desc": "Suscripciones y entregas de integraciones"
+    },
+    "notificationCenter": {
+      "label": "Centro de notificaciones",
+      "desc": "Revisa avisos y eventos del sistema"
+    },
+    "einvoicing": {
+      "label": "Facturación electrónica",
+      "desc": "Estado y envío electrónico de comprobantes"
+    },
+    "reconciliation": {
+      "label": "Conciliación",
+      "desc": "Importa y concilia movimientos bancarios"
     }
   },
   "branding": {
@@ -131,7 +156,19 @@
     "subscription": "Suscripción",
     "subscriptionDesc": "Plan y facturación",
     "security": "Seguridad (MFA)",
-    "securityDesc": "Autenticación de dos factores"
+    "securityDesc": "Autenticación de dos factores",
+    "users": "Usuarios",
+    "usersDesc": "Equipo, accesos y roles",
+    "templates": "Plantillas",
+    "templatesDesc": "Vistas y configuración interna",
+    "webhooks": "Webhooks",
+    "webhooksDesc": "Suscripciones y eventos salientes",
+    "notificationCenter": "Centro de notificaciones",
+    "notificationCenterDesc": "Avisos y eventos del sistema",
+    "einvoicing": "Facturación electrónica",
+    "einvoicingDesc": "Envío y seguimiento electrónico",
+    "reconciliation": "Conciliación",
+    "reconciliationDesc": "Extractos y conciliación bancaria"
   },
   "general": {
     "title": "Configuración General",

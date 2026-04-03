@@ -25,19 +25,20 @@ const kpiCard = (key: string, title: string, helper: string) => (
 
 const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   const { t } = useTranslation()
-  const { modules, allowedSlugs } = useMisModulos()
+  const { visibleModules, allowedSlugs } = useMisModulos()
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
 
   const sideNav = useMemo(
     () =>
-      [...modules]
+      [...visibleModules]
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .filter((m) => m.nav_group !== 'user_menu')
         .map((m) => ({
           label: m.name || buildSlug(m.name, m.url, m.slug),
           to: `/${buildSlug(m.name, m.url, m.slug)}`,
         })),
-    [modules]
+    [visibleModules]
   )
 
   const quickAccess = useMemo(() => sideNav.slice(0, 6), [sideNav])

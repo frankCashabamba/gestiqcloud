@@ -36,7 +36,20 @@ export interface FormularioEmpresa {
   modulos: string[];
 }
 
+export type BillingCycle = 'monthly' | 'yearly'
+
+export interface BillingSubscriptionResult {
+  mode?: string
+  plan?: string
+  billing_cycle?: BillingCycle
+  subscription_id?: string
+  checkout_url?: string
+  trial_ends_at?: string
+}
+
 export interface CrearEmpresaResponse {
-  msg: string;
-  id?: number;
+  msg: string
+  id?: string | number
+  subscription?: BillingSubscriptionResult | null
+  subscriptionError?: string | null
 }

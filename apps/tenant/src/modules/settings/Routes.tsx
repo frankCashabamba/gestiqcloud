@@ -17,11 +17,25 @@ import MFASettings from './MFASettings'
 import SettingsLayout from './SettingsLayout'
 import SettingsHome from './SettingsHome'
 import { useSettingsAccess, type SettingsSection } from './useSettingsAccess'
+import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
+import UsersRoutes from '../users/Routes'
+import TemplatesRoutes from '../templates/Routes'
+import WebhooksRoutes from '../webhooks/Routes'
+import NotificationsRoutes from '../notifications/Routes'
+import EinvoicingRoutes from '../einvoicing/Routes'
+import ReconciliationRoutes from '../reconciliation/Routes'
 
 function Guard({ section, children }: { section: SettingsSection; children: React.ReactElement }) {
   const { canAccessSection, limitsLoading } = useSettingsAccess()
   if (limitsLoading) return <div className="p-4">Loading permissions...</div>
   if (!canAccessSection(section)) return <Navigate to="." replace />
+  return children
+}
+
+function ModuleGuard({ moduleKey, children }: { moduleKey: string; children: React.ReactElement }) {
+  const { isModuleEnabled, loading } = useCompanyConfig()
+  if (loading) return <div className="p-4">Loading module...</div>
+  if (!isModuleEnabled(moduleKey)) return <Navigate to="." replace />
   return children
 }
 
@@ -102,6 +116,26 @@ export default function SettingsRoutes() {
         <Route path="subscription" element={<SubscriptionManager />} />
         <Route path="receipt-template" element={<ReceiptTemplateSettings />} />
         <Route path="security" element={<MFASettings />} />
+        <Route
+          path="users/*"
+          element={
+            <ModuleGuard moduleKey="users">
+              <UsersRoutes />
+            </ModuleGuard>
+          }
+        />
+        <Route path="templates/*" element={<TemplatesRoutes />} />
+        <Route path="webhooks/*" element={<WebhooksRoutes />} />
+        <Route path="notification-center/*" element={<NotificationsRoutes />} />
+        <Route
+          path="einvoicing/*"
+          element={
+            <ModuleGuard moduleKey="einvoicing">
+              <EinvoicingRoutes />
+            </ModuleGuard>
+          }
+        />
+        <Route path="reconciliation/*" element={<ReconciliationRoutes />} />
         <Route path="*" element={<Navigate to="." replace />} />
         </Route>
       </Routes>

@@ -53,6 +53,7 @@ vi.mock('react-i18next', () => ({
         'login.invalidCredentials': 'Usuario o contraseña incorrectos',
         'login.serverError': 'Error del servidor. Intenta de nuevo más tarde.',
         'login.tooManyAttempts': `Demasiados intentos. Espera ${params?.wait ?? 'a few'} segundos.`,
+        'login.requestDemo': 'Solicitar demo',
       }
       return messages[key] ?? key
     },
@@ -98,5 +99,15 @@ describe('Login page', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Usuario o contraseña incorrectos')
     expect(screen.queryByText('fallback_disabled')).not.toBeInTheDocument()
+  })
+
+  it('exposes a demo path for prospects', () => {
+    render(<Login />)
+
+    const demoLinks = screen.getAllByRole('link', { name: 'Solicitar demo' })
+    expect(demoLinks.length).toBeGreaterThan(0)
+    demoLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/demo')
+    })
   })
 })

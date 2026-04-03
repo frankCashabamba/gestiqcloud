@@ -29,6 +29,81 @@ def _normalize_key(value: str | None) -> str:
 # En runtime SIEMPRE usar get_module_categories(db).
 MODULE_CATEGORIES: list[dict[str, Any]] = []
 
+DEFAULT_MODULE_SURFACE = "business"
+DEFAULT_MODULE_NAV_GROUP = "sidebar"
+_RUNTIME_META_KEYS = ("surface", "nav_group", "contractable", "use_module_loader")
+_HIERARCHY_META_KEYS = ("parent_module",)
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+
+def _runtime_meta_from_entry(entry: dict[str, Any] | None) -> dict[str, Any]:
+    source = entry or {}
+    return {
+        "surface": str(source.get("surface") or DEFAULT_MODULE_SURFACE),
+        "nav_group": str(source.get("nav_group") or DEFAULT_MODULE_NAV_GROUP),
+        "contractable": _coerce_bool(source.get("contractable"), True),
+        "use_module_loader": _coerce_bool(source.get("use_module_loader"), True),
+    }
+
+
+def resolve_module_runtime_meta(
+    module_id: str | None,
+    *,
+    context_filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    _ensure_modules_loaded()
+    canonical = canonicalize_module_id(module_id)
+    entry = _ALL_MODULES_BY_ID.get(canonical or "")
+    resolved = _runtime_meta_from_entry(entry)
+    extra = context_filters or {}
+    if "surface" in extra and extra["surface"]:
+        resolved["surface"] = str(extra["surface"])
+    if "nav_group" in extra and extra["nav_group"]:
+        resolved["nav_group"] = str(extra["nav_group"])
+    if "contractable" in extra:
+        resolved["contractable"] = _coerce_bool(extra["contractable"], resolved["contractable"])
+    if "use_module_loader" in extra:
+        resolved["use_module_loader"] = _coerce_bool(
+            extra["use_module_loader"], resolved["use_module_loader"]
+        )
+    return resolved
+
+
+def resolve_module_parent(
+    module_id: str | None,
+    *,
+    context_filters: dict[str, Any] | None = None,
+) -> str | None:
+    _ensure_modules_loaded()
+    canonical = canonicalize_module_id(module_id)
+    entry = _ALL_MODULES_BY_ID.get(canonical or "")
+    parent = entry.get("parent_module") if entry else None
+    extra = context_filters or {}
+    if extra.get("parent_module"):
+        parent = extra.get("parent_module")
+    if parent is None:
+        return None
+    return str(parent)
+
+
+def is_standalone_module(
+    module_id: str | None,
+    *,
+    context_filters: dict[str, Any] | None = None,
+) -> bool:
+    return not resolve_module_parent(module_id, context_filters=context_filters)
+
 
 def get_module_categories(db: Session) -> list[dict[str, Any]]:
     """Lee las categorías de módulos SIEMPRE desde system_defaults (BD).
@@ -106,6 +181,11 @@ def _discover_modules_from_fs() -> list[dict[str, Any]]:
                 "sectors": data.get("sectors"),
                 "aliases": data.get("aliases") or [],
                 "implemented": bool(data.get("implemented", True)),
+                "surface": data.get("surface") or DEFAULT_MODULE_SURFACE,
+                "nav_group": data.get("nav_group") or DEFAULT_MODULE_NAV_GROUP,
+                "contractable": _coerce_bool(data.get("contractable"), True),
+                "use_module_loader": _coerce_bool(data.get("use_module_loader"), True),
+                "parent_module": data.get("parent_module"),
             }
         )
 
@@ -195,6 +275,8 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "countries": ["ES", "EC"],
         "aliases": [],
         "implemented": True,
+        "contractable": True,
+        "parent_module": "settings",
     },
     {
         "id": "expenses",
@@ -273,6 +355,7 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "countries": ["ES", "EC"],
         "aliases": ["notificaciones"],
         "implemented": True,
+        "parent_module": "settings",
     },
     {
         "id": "pos",
@@ -338,6 +421,7 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "countries": ["ES", "EC"],
         "aliases": ["conciliacion", "conciliación", "conciliacionbancaria"],
         "implemented": True,
+        "parent_module": "settings",
     },
     {
         "id": "reports",
@@ -403,6 +487,7 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "countries": ["ES", "EC"],
         "aliases": ["plantillas"],
         "implemented": True,
+        "parent_module": "settings",
     },
     {
         "id": "users",
@@ -416,6 +501,8 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "countries": ["ES", "EC"],
         "aliases": ["usuarios"],
         "implemented": True,
+        "contractable": True,
+        "parent_module": "settings",
     },
     {
         "id": "webhooks",
@@ -429,6 +516,7 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "countries": ["ES", "EC"],
         "aliases": [],
         "implemented": True,
+        "parent_module": "settings",
     },
 ]
 
@@ -507,21 +595,31 @@ def _module_catalog_id(module_row: Module) -> str | None:
 def _module_row_to_dict(row: Module) -> dict[str, Any]:
     """Convierte una fila de modules a dict normalizado."""
     catalog_id = _module_catalog_id(row) or str(getattr(row, "url", None) or row.name)
+    context_filters = getattr(row, "context_filters", None) or {}
+    catalog_entry = _ALL_MODULES_BY_ID.get(catalog_id) or {}
+    runtime_meta = resolve_module_runtime_meta(catalog_id, context_filters=context_filters)
     return {
         "id": catalog_id,
-        "name": row.name,
-        "name_en": row.name,
-        "icon": getattr(row, "icon", None),
-        "category": getattr(row, "category", None),
-        "description": getattr(row, "description", None),
+        "name": getattr(row, "name", None) or catalog_entry.get("name") or catalog_id,
+        "name_en": getattr(row, "name", None) or catalog_entry.get("name") or catalog_id,
+        "icon": getattr(row, "icon", None) or catalog_entry.get("icon"),
+        "category": getattr(row, "category", None) or catalog_entry.get("category"),
+        "description": getattr(row, "description", None) or catalog_entry.get("description"),
         "active": bool(getattr(row, "active", True)),
-        "implemented": bool(getattr(row, "implemented", True)),
-        "required": bool(getattr(row, "required", False)),
-        "default_enabled": bool(getattr(row, "default_enabled", True)),
-        "dependencies": getattr(row, "dependencies", None) or [],
-        "aliases": getattr(row, "aliases", None) or [catalog_id],
-        "countries": getattr(row, "countries", None) or ["ES", "EC"],
-        "sectors": getattr(row, "sectors", None),
+        "implemented": bool(getattr(row, "implemented", catalog_entry.get("implemented", True))),
+        "required": bool(getattr(row, "required", catalog_entry.get("required", False))),
+        "default_enabled": bool(
+            getattr(row, "default_enabled", catalog_entry.get("default_enabled", True))
+        ),
+        "dependencies": getattr(row, "dependencies", None)
+        or catalog_entry.get("dependencies")
+        or [],
+        "aliases": getattr(row, "aliases", None) or catalog_entry.get("aliases") or [catalog_id],
+        "countries": getattr(row, "countries", None)
+        or catalog_entry.get("countries")
+        or ["ES", "EC"],
+        "sectors": getattr(row, "sectors", None) or catalog_entry.get("sectors"),
+        **runtime_meta,
     }
 
 
@@ -566,7 +664,14 @@ def ensure_module_catalog_seeded(db: Session) -> None:
             url=catalog_id,
             initial_template=catalog_id,
             context_type="none",
-            context_filters={"catalog_id": catalog_id},
+            context_filters={
+                "catalog_id": catalog_id,
+                **{
+                    key: entry.get(key)
+                    for key in (*_RUNTIME_META_KEYS, *_HIERARCHY_META_KEYS)
+                    if key in entry
+                },
+            },
             category=entry.get("category"),
         )
         for field in (

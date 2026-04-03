@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import ParamRedirect from './ParamRedirect'
 import ProtectedRoute from './ProtectedRoute'
 import { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast } from '@shared/ui'
@@ -18,6 +18,7 @@ const Signup = lazy(() => import('../pages/Signup'))
 const ErrorPage = lazy(() => import('../pages/ErrorPage'))
 const Unauthorized = lazy(() => import('../pages/Unauthorized'))
 const ModuleLoader = lazy(() => import('../modules/ModuleLoader'))
+const SettingsRoutes = lazy(() => import('../modules/settings/Routes'))
 
 // Fallback de carga
 const PageLoader = () => (
@@ -32,6 +33,12 @@ const PageLoader = () => (
     Loading...
   </div>
 )
+
+function LegacySettingsRedirect({ child }: { child: string }) {
+  const { empresa, '*': rest } = useParams()
+  const suffix = rest ? `/${rest}` : ''
+  return <Navigate to={`/${empresa}/settings/${child}${suffix}`} replace />
+}
 
 export default function App() {
   return (
@@ -48,7 +55,14 @@ export default function App() {
               <Route path='/:empresa/dashboard' element={<Dashboard />} />
               <Route path='/dashboard' element={<Dashboard />} />
               <Route path='/onboarding' element={<Onboarding />} />
-              {/* Company-scoped module routes only */}
+              <Route path='/:empresa/settings/*' element={<SettingsRoutes />} />
+              <Route path='/:empresa/users/*' element={<LegacySettingsRedirect child='users' />} />
+              <Route path='/:empresa/templates/*' element={<LegacySettingsRedirect child='templates' />} />
+              <Route path='/:empresa/webhooks/*' element={<LegacySettingsRedirect child='webhooks' />} />
+              <Route path='/:empresa/notifications/*' element={<LegacySettingsRedirect child='notification-center' />} />
+              <Route path='/:empresa/einvoicing/*' element={<LegacySettingsRedirect child='einvoicing' />} />
+              <Route path='/:empresa/reconciliation/*' element={<LegacySettingsRedirect child='reconciliation' />} />
+              {/* Company-scoped dynamic module routes only */}
               <Route path='/:empresa/:mod/*' element={<ModuleLoader />} />
               {/* Legacy redirects only when slug changed (avoid loops) */}
 

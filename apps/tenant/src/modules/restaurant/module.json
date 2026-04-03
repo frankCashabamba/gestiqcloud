@@ -4,5 +4,6 @@
   "icon": "🍽️",
   "version": "1.0.0",
   "description": "Gestión de mesas y comandas",
-  "category": "operations"
+  "category": "operations",
+  "surface": "sector"
 }

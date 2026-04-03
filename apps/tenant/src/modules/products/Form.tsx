@@ -12,6 +12,7 @@ import { getCompanySettings, getDefaultReorderPoint } from '../../services/compa
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
+import { useProductionModuleEnabled } from '../../contexts/CompanyConfigContext'
 import ProductVariants from './ProductVariants'
 
 const BARCODE_META_FIELDS = ['codigo_barras', 'barcode', 'ean', 'upc'] as const
@@ -108,6 +109,7 @@ export default function ProductoForm() {
         () => (fields || []).some((cfg) => ['peso_unitario', 'caducidad_dias', 'ingredientes', 'receta_id'].includes(cfg.field)),
         [fields]
     )
+    const isProductionEnabled = useProductionModuleEnabled()
 
     useEffect(() => {
         if (!id || !isBakerySector) return
@@ -124,7 +126,7 @@ export default function ProductoForm() {
             { field: 'description', visible: true, required: false, ord: 25, label: t('products:form.description'), type: 'textarea' },
             { field: 'price', visible: true, required: true, ord: 30, label: `${t('products:form.price')} (${currencySymbol})`, type: 'number' },
             { field: 'stock', visible: true, required: false, ord: 35, label: t('products:form.stock'), type: 'number' },
-            { field: 'is_raw_material', visible: isBakerySector, required: false, ord: 37, label: t('products:form.rawMaterial', 'Materia prima'), type: 'boolean', help: t('products:form.rawMaterialHelp', 'Marca este producto si se usa como ingrediente o insumo de producción.') },
+            { field: 'is_raw_material', visible: true, required: false, ord: 37, label: t('products:form.rawMaterial', 'Materia prima'), type: 'boolean', help: t('products:form.rawMaterialHelp', 'Marca este producto si se usa como ingrediente o insumo de producción.') },
             { field: 'tax_rate', visible: true, required: false, ord: 40, label: t('products:form.tax'), type: 'number' },
             { field: 'active', visible: true, required: false, ord: 50, label: t('products:form.active'), type: 'boolean' },
             { field: 'import_aliases', visible: false, required: false, ord: 90, label: t('products:form.importAliases', 'Alias de importación'), type: 'import_aliases', help: t('products:form.importAliasesHelp', 'Nombres alternativos en facturas de proveedor con factor de conversión.') },
@@ -145,8 +147,11 @@ export default function ProductoForm() {
                 map.set(cfg.field, merged)
             })
 
+        // is_raw_material solo visible con módulo de producción activo, sin importar lo que devuelva el API
+        if (!isProductionEnabled) map.delete('is_raw_material')
+
         return Array.from(map.values()).sort((a, b) => (a.ord || 999) - (b.ord || 999))
-    }, [fields, currencySymbol, isBakerySector, t])
+    }, [fields, currencySymbol, isBakerySector, isProductionEnabled, t])
 
     const suggestedPrice = Number((form as any).suggested_price ?? 0) || 0
     const useSuggestedPrice = Boolean((form as any).use_suggested_price)

@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, ReactNode, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMisModulos } from '../../hooks/useMisModulos'
+import { usePermission } from '../../hooks/usePermission'
 import { fetchCompanyTheme, type ThemeResponse } from '../../services/theme'
 import tenantApi from '../../shared/api/client'
 
@@ -14,6 +15,7 @@ interface DashboardProProps {
   children: ReactNode
   customLinks?: Array<{ label: string; href: string; icon: string }>
   darkModeDefault?: boolean
+  hideSidebar?: boolean
 }
 
 const getModuleIcon = (slug: string): string => {
@@ -110,14 +112,21 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   children,
   customLinks = [],
   darkModeDefault = false,
+  hideSidebar = false,
 }) => {
   const { t } = useTranslation()
+  const can = usePermission()
   const { empresa } = useParams()
   const [_theme, setTheme] = useState<ThemeResponse | null>(null)
   const [darkMode, setDarkMode] = useState(darkModeDefault)
   const [branches, setBranches] = useState<Array<{ id: string; name: string; is_main: boolean }>>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
-  const { modules, loading: modulosLoading } = useMisModulos()
+  const {
+    sidebarModules,
+    backofficeModules,
+    userMenuModules,
+    loading: modulosLoading,
+  } = useMisModulos()
   const [isMobileView, setIsMobileView] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
     return window.innerWidth <= 1024
@@ -186,29 +195,37 @@ const DashboardPro: React.FC<DashboardProProps> = ({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const settingsModules = useMemo(
-    () => modules.filter(isSettingsModule),
-    [modules]
-  )
+  const settingsModules = useMemo(() => {
+    const items = [...userMenuModules]
+    const hasSettingsEntry = items.some((modulo) => nrm(modulo.slug || modulo.name || '') === 'settings')
+    if (can('settings:read') && !hasSettingsEntry) {
+      items.unshift({
+        id: 'settings-shortcut',
+        name: t('nav.settings'),
+        slug: 'settings',
+        active: true,
+        nav_group: 'user_menu',
+      } as any)
+    }
+    return items
+  }, [can, t, userMenuModules])
 
   const filteredModules = useMemo(() => {
     const term = moduleSearch.trim().toLowerCase()
-    const visible = modules.filter(
-      (m) => !HIDDEN_SLUGS.has(nrm(m.slug || '')) && !isSettingsModule(m)
-    )
+    const visible = [...sidebarModules, ...backofficeModules]
     if (!term) return visible
     return visible.filter((m) =>
       (m.name || '').toLowerCase().includes(term) || (m.slug || '').toLowerCase().includes(term)
     )
-  }, [modules, moduleSearch])
+  }, [sidebarModules, backofficeModules, moduleSearch])
 
   const primaryModules = useMemo(
-    () => filteredModules.filter((m) => !BACKOFFICE_SLUGS.has(nrm(m.slug || ''))),
+    () => filteredModules.filter((m) => (m.nav_group || 'sidebar') === 'sidebar'),
     [filteredModules]
   )
 
   const backOfficeModules = useMemo(
-    () => filteredModules.filter((m) => BACKOFFICE_SLUGS.has(nrm(m.slug || ''))),
+    () => filteredModules.filter((m) => m.nav_group === 'backoffice'),
     [filteredModules]
   )
 
@@ -219,7 +236,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   ])
 
   const groupedModules = useMemo(() => {
-    return primaryModules.reduce((acc: Record<string, typeof modules>, modulo: any) => {
+    return primaryModules.reduce((acc: Record<string, typeof primaryModules>, modulo: any) => {
       const rawCat = (modulo.categoria || modulo.category || 'General').toString()
       // Si la categoría es de tipo settings, se ignoró el módulo en el paso anterior;
       // pero por si acaso, los reagrupamos en General
@@ -287,11 +304,11 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   )
 
   return (
-    <div className={`dashboard-pro-app ${darkMode ? 'dark' : 'light'}`}>
+    <div className={`dashboard-pro-app ${darkMode ? 'dark' : 'light'}${hideSidebar ? ' dashboard-pro-app--no-sidebar' : ''}`}>
 
       {/* ── Topbar ── */}
       <header className="topbar">
-        {isMobileView && (
+        {isMobileView && !hideSidebar && (
           <button className="icon-btn" onClick={() => setIsMenuOpen(true)} aria-label={t('dashboardPro.openMenu')}>
             <span className="menu-bars" aria-hidden />
           </button>
@@ -366,7 +383,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
       </header>
 
       {/* ── Sidebar ── */}
-      <aside className="sidebar">
+      {!hideSidebar && <aside className="sidebar">
         <nav>
           <ul>
             <li>
@@ -406,10 +423,10 @@ const DashboardPro: React.FC<DashboardProProps> = ({
         <div className="sidebar-hint">
           <small>{t('dashboardPro.shortcuts')}</small>
         </div>
-      </aside>
+      </aside>}
 
       {/* ── Mobile drawer ── */}
-      {isMobileView && (
+      {isMobileView && !hideSidebar && (
         <>
           <div className={`mobile-drawer ${isMenuOpen ? 'open' : ''}`}>
             <div className="mobile-drawer__header">

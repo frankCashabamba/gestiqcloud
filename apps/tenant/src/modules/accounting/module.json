@@ -4,6 +4,8 @@
   "icon": "📚",
   "category": "finance",
   "description": "Ledger, journal entries and accounting controls",
+  "surface": "backoffice",
+  "nav_group": "backoffice",
   "required": false,
   "default_enabled": false,
   "dependencies": [],

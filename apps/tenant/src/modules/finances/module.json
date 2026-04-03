@@ -4,6 +4,8 @@
   "icon": "💼",
   "category": "finance",
   "description": "Cash, banks and treasury operations",
+  "surface": "backoffice",
+  "nav_group": "backoffice",
   "required": false,
   "default_enabled": true,
   "dependencies": [],

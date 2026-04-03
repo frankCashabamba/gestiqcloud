@@ -32,7 +32,6 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
   const [templates, setTemplates] = useState<SectorTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showDetails, setShowDetails] = useState(false)
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -62,10 +61,7 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
     }
   }
 
-  const getIcon = (template: SectorTemplate) => {
-    // FASE 7: Obtener icon de BD, no hardcodeado
-    return template.branding?.icon || '🏢'
-  }
+  const getIcon = (template: SectorTemplate) => template.branding?.icon || '🏢'
 
   if (loading) {
     return (
@@ -88,10 +84,8 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
   return (
     <div className="sector-plantilla-selector">
       <div className="sector-header">
-        <h3>Tipo de Negocio *</h3>
-        <p className="sector-description">
-          Selecciona el sector para configurar branding y categorías por defecto. Los módulos se activarán manualmente después.
-        </p>
+        <h3>Tipo de negocio *</h3>
+        <p className="sector-description">Elige una base y sigue. El resto se puede ajustar después.</p>
       </div>
 
       <div className="templates-grid">
@@ -99,286 +93,214 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
           const isSelected = value === template.id
 
           return (
-            <div
+            <button
               key={template.id}
+              type="button"
               className={`template-card ${isSelected ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
               onClick={() => handleSelect(template.id)}
               style={{
                 borderColor: isSelected ? template.branding.color_primario : '#e5e7eb',
                 backgroundColor: isSelected ? `${template.branding.color_primario}08` : '#fff',
                 cursor: disabled ? 'not-allowed' : 'pointer',
-                opacity: disabled ? 0.6 : 1
+                opacity: disabled ? 0.6 : 1,
               }}
             >
               <div
                 className="template-icon"
                 style={{
                   background: `linear-gradient(135deg, ${template.branding.color_primario}, ${template.branding.color_primario}dd)`,
-                  color: '#fff'
+                  color: '#fff',
                 }}
               >
-                <span style={{ fontSize: '2rem' }}>{getIcon(template)}</span>
+                <span>{getIcon(template)}</span>
               </div>
 
               <div className="template-content">
-                <h4>{template.name}</h4>
-
+                <div className="template-head">
+                  <h4>{template.name}</h4>
+                  {isSelected && <div className="selected-indicator">✓</div>}
+                </div>
                 <div className="template-stats">
                   <span className="stat">
-                    <strong>{template.categories.length}</strong> categorías por defecto
+                    <strong>{template.categories.length}</strong> categorías
                   </span>
+                  {template.currency && <span className="stat">{template.currency}</span>}
                 </div>
-
-                <div className="template-categories">
+                <div className="template-categories" title={template.categories.join(', ')}>
                   <small>{template.categories.slice(0, 3).join(', ')}</small>
-                  {template.categories.length > 3 && (
-                    <small className="more">+{template.categories.length - 3} más</small>
-                  )}
+                  {template.categories.length > 3 && <small className="more">+{template.categories.length - 3}</small>}
                 </div>
-
                 <div className="template-color-badges">
-                  <div
-                    className="template-color-badge"
-                    style={{ backgroundColor: template.branding.color_primario }}
-                  >
+                  <div className="template-color-badge" style={{ backgroundColor: template.branding.color_primario }}>
                     {template.branding.color_primario}
                   </div>
                   {template.branding.color_secundario && (
-                    <div
-                      className="template-color-badge"
-                      style={{ backgroundColor: template.branding.color_secundario }}
-                    >
+                    <div className="template-color-badge dark" style={{ backgroundColor: template.branding.color_secundario }}>
                       {template.branding.color_secundario}
                     </div>
                   )}
                 </div>
               </div>
-
-              {isSelected && (
-                <div className="selected-indicator">✓</div>
-              )}
-            </div>
+            </button>
           )
         })}
       </div>
 
-
-
       <style>{`
         .sector-plantilla-selector {
-          margin: 20px 0;
+          margin: 6px 0 0;
         }
 
         .sector-header {
-          margin-bottom: 20px;
+          margin-bottom: 10px;
         }
 
         .sector-header h3 {
-          margin: 0 0 8px 0;
-          font-size: 18px;
+          margin: 0 0 4px 0;
+          font-size: 15px;
           font-weight: 600;
           color: #111827;
         }
 
         .sector-description {
-          margin: 0 0 12px 0;
-          font-size: 14px;
+          margin: 0;
+          font-size: 12px;
           color: #6b7280;
-        }
-
-        .btn-link {
-          background: none;
-          border: none;
-          color: #3b82f6;
-          cursor: pointer;
-          font-size: 13px;
-          padding: 0;
-          text-decoration: underline;
         }
 
         .templates-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 16px;
-          margin-bottom: 20px;
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+          gap: 10px;
         }
 
         .template-card {
           position: relative;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 20px;
-          border: 2px solid #e5e7eb;
+          display: grid;
+          grid-template-columns: 44px minmax(0, 1fr);
+          gap: 10px;
+          align-items: start;
+          width: 100%;
+          padding: 12px;
+          border: 1px solid #e5e7eb;
           border-radius: 12px;
-          transition: all 0.2s ease;
+          transition: all 0.18s ease;
+          text-align: left;
         }
 
         .template-card:not(.disabled):hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          transform: translateY(-1px);
+          box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
         }
 
         .template-card.selected {
-          border-width: 3px;
+          border-width: 2px;
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
         }
 
         .template-icon {
-          width: 80px;
-          height: 80px;
-          border-radius: 16px;
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
-          margin-bottom: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+          font-size: 20px;
         }
 
         .template-content {
-          text-align: center;
-          width: 100%;
+          min-width: 0;
+        }
+
+        .template-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 8px;
         }
 
         .template-content h4 {
-          margin: 0 0 12px 0;
-          font-size: 16px;
+          margin: 0 0 4px 0;
+          font-size: 14px;
           font-weight: 600;
+          line-height: 1.25;
           color: #111827;
         }
 
         .template-stats {
           display: flex;
-          justify-content: center;
-          gap: 16px;
-          margin-bottom: 8px;
+          flex-wrap: wrap;
+          gap: 6px 10px;
+          margin-bottom: 4px;
         }
 
         .stat {
-          font-size: 13px;
+          font-size: 11px;
           color: #6b7280;
         }
 
         .stat strong {
           color: #111827;
-          font-weight: 600;
+          font-weight: 700;
         }
 
         .template-categories {
-          font-size: 12px;
+          font-size: 11px;
           color: #9ca3af;
-          margin-bottom: 12px;
-          min-height: 32px;
+          margin-bottom: 8px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .template-categories .more {
-          font-weight: 600;
-          color: #6b7280;
           margin-left: 4px;
+          color: #6b7280;
+          font-weight: 700;
         }
 
         .template-color-badges {
           display: flex;
-          justify-content: center;
-          gap: 8px;
+          gap: 6px;
           flex-wrap: wrap;
         }
 
         .template-color-badge {
           display: inline-block;
-          padding: 4px 12px;
+          padding: 3px 8px;
           border-radius: 999px;
           color: #fff;
-          font-size: 11px;
+          font-size: 10px;
           font-family: monospace;
-          font-weight: 600;
+          font-weight: 700;
         }
 
         .selected-indicator {
-          position: absolute;
-          top: 12px;
-          right: 12px;
-          width: 32px;
-          height: 32px;
+          width: 18px;
+          height: 18px;
           background: #10b981;
           color: #fff;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 18px;
-          font-weight: bold;
-        }
-
-        .template-details {
-          margin-top: 20px;
-          padding: 20px;
-          background: #f9fafb;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
-        }
-
-        .details-panel h4 {
-          margin: 0 0 12px 0;
-          font-size: 15px;
-          font-weight: 600;
-          color: #111827;
-        }
-
-        .details-panel ul {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-
-        .details-panel li {
-          padding: 8px 0;
-          font-size: 14px;
-          color: #374151;
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .details-panel li:last-child {
-          border-bottom: none;
-        }
-
-        .color-preview {
-          display: inline-block;
-          padding: 2px 8px;
-          margin-left: 8px;
-          border-radius: 4px;
-          color: #fff;
           font-size: 11px;
-          font-family: monospace;
-        }
-
-        .categories-list {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 6px;
-        }
-
-        .category-tag {
-          display: inline-block;
-          padding: 4px 10px;
-          background: #fff;
-          border: 1px solid #d1d5db;
-          border-radius: 999px;
-          font-size: 12px;
-          color: #374151;
+          font-weight: 700;
+          flex-shrink: 0;
         }
 
         .sector-selector-loading,
         .sector-selector-error {
           text-align: center;
-          padding: 40px;
+          padding: 28px;
         }
 
         .spinner {
-          width: 40px;
-          height: 40px;
-          margin: 0 auto 12px;
-          border: 4px solid #f3f4f6;
+          width: 30px;
+          height: 30px;
+          margin: 0 auto 10px;
+          border: 3px solid #f3f4f6;
           border-top-color: #3b82f6;
           border-radius: 50%;
           animation: spin 1s linear infinite;

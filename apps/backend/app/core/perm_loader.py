@@ -1,8 +1,10 @@
 # app/core/perm_loader.py
 from typing import Any
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.config.database import temp_rls_bypass
 from app.models.company.company_role import CompanyRole
 from app.models.company.company_user import CompanyUser
 from app.models.company.company_user_role import CompanyUserRole
@@ -37,39 +39,53 @@ def build_tenant_claims(db: Session, user: CompanyUser) -> dict[str, Any]:
             "export_data": True,
         }
     else:
-        # Usuario regular: cargar permisos desde todos los roles activos
+        # Usuario regular: cargar permisos desde todos los roles activos.
+        # Se usa temp_rls_bypass porque company_user_roles tiene FORCE RLS
+        # y las GUCs pueden no estar activas (ej. si hubo rollback previo)
+        # o los registros pueden tener tenant_id=NULL (creados antes del RLS).
         try:
-            relaciones = (
-                db.query(CompanyUserRole)
-                .filter(CompanyUserRole.user_id == user.id, CompanyUserRole.is_active.is_(True))
-                .all()
-            )
+            with temp_rls_bypass(db):
+                relaciones = (
+                    db.query(CompanyUserRole)
+                    .filter(
+                        CompanyUserRole.user_id == user.id,
+                        or_(
+                            CompanyUserRole.tenant_id == user.tenant_id,
+                            CompanyUserRole.tenant_id.is_(None),
+                        ),
+                        CompanyUserRole.is_active.is_(True),
+                    )
+                    .all()
+                )
 
-            for relacion_rol in relaciones:
-                rol = db.query(CompanyRole).filter(CompanyRole.id == relacion_rol.role_id).first()
-                if rol and isinstance(rol.permissions, dict):
-                    for k, v in rol.permissions.items():
-                        if isinstance(v, dict) and isinstance(permisos.get(k), dict):
-                            # merge granular: { "hr": { "read": true } }
-                            permisos[k] = {**permisos[k], **v}
-                        else:
-                            permisos[k] = v
+                for relacion_rol in relaciones:
+                    rol = (
+                        db.query(CompanyRole).filter(CompanyRole.id == relacion_rol.role_id).first()
+                    )
+                    if rol and isinstance(rol.permissions, dict):
+                        for k, v in rol.permissions.items():
+                            if isinstance(v, dict) and isinstance(permisos.get(k), dict):
+                                # merge granular: { "hr": { "read": true } }
+                                permisos[k] = {**permisos[k], **v}
+                            else:
+                                permisos[k] = v
         except Exception:
             # Si la tabla no existe o hay error, usuario sin permisos de rol
             pass
 
     # Permisos automáticos por módulos asignados (auto_view_module)
-    modulos_asignados = (
-        db.query(AssignedModule)
-        .join(Module, Module.id == AssignedModule.module_id)
-        .filter(
-            AssignedModule.user_id == user.id,
-            AssignedModule.tenant_id == user.tenant_id,
-            AssignedModule.auto_view_module == True,  # noqa
+    with temp_rls_bypass(db):
+        modulos_asignados = (
+            db.query(AssignedModule)
+            .join(Module, Module.id == AssignedModule.module_id)
+            .filter(
+                AssignedModule.user_id == user.id,
+                AssignedModule.tenant_id == user.tenant_id,
+                AssignedModule.auto_view_module == True,  # noqa
+            )
+            .all()
         )
-        .all()
-    )
-    permisos_modulos = {f"ver_{m.module.url}": True for m in modulos_asignados}
+        permisos_modulos = {f"ver_{m.module.url}": True for m in modulos_asignados}
 
     # Normalizar permisos al formato { "module": { "action": True } }
     # Casos:

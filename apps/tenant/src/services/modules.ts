@@ -2,7 +2,19 @@ import { apiFetch } from '../lib/http'
 import { isNetworkIssue } from '../lib/offlineHttp'
 import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../lib/offlineResourceCache'
 
-export type Modulo = { id: string; name: string; url?: string; slug?: string; icono?: string; categoria?: string; active: boolean };
+export type Modulo = {
+  id: string;
+  name: string;
+  url?: string;
+  slug?: string;
+  icono?: string;
+  categoria?: string;
+  active: boolean;
+  surface?: string | null;
+  nav_group?: 'sidebar' | 'backoffice' | 'user_menu' | 'hidden' | string | null;
+  contractable?: boolean;
+  use_module_loader?: boolean;
+};
 
 // Cache sencillo para evitar múltiples llamadas concurrentes (previene 429)
 type CacheEntry = { ts: number; data: Modulo[]; inflight?: Promise<Modulo[]> }

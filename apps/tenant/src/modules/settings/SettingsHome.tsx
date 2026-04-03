@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { useSettingsAccess } from './useSettingsAccess'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
-import { SETTINGS_SECTIONS, SECTION_GROUPS } from './sections'
+import { SETTINGS_NESTED_ITEMS, SETTINGS_SECTIONS, SECTION_GROUPS } from './sections'
+import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
 
 export default function SettingsHome() {
   const { t } = useTranslation(['settings', 'common'])
   const can = usePermission()
-  const { canAccessSection } = useSettingsAccess()
+  const { canAccessSection, isCompanyAdmin } = useSettingsAccess()
+  const { isModuleEnabled } = useCompanyConfig()
 
   const groups = useMemo(() => {
     return SECTION_GROUPS.map((group) => ({
@@ -24,6 +26,21 @@ export default function SettingsHome() {
       })),
     })).filter((group) => group.items.length > 0)
   }, [canAccessSection])
+
+  const nestedItems = useMemo(
+    () =>
+      isCompanyAdmin
+        ? SETTINGS_NESTED_ITEMS
+            .filter((item) => (item.moduleKey ? isModuleEnabled(item.moduleKey) : true))
+            .map((item) => ({
+            key: item.key,
+            path: item.path,
+            labelKey: item.labelKey.replace('nav', 'cards'),
+            descKey: item.descKey.replace('nav', 'cards'),
+          }))
+        : [],
+    [isCompanyAdmin, isModuleEnabled],
+  )
 
   if (!can('settings:read')) {
     return <PermissionDenied permission="settings:read" />
@@ -53,6 +70,23 @@ export default function SettingsHome() {
             </div>
           </section>
         ))}
+        {nestedItems.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-slate-700 mb-3">{t('settings:groups.workspace')}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {nestedItems.map((item) => (
+                <Link
+                  key={item.key}
+                  to={item.path}
+                  className="border rounded-lg p-4 hover:border-slate-300 hover:bg-slate-50 transition"
+                >
+                  <div className="font-semibold">{t(item.labelKey)}</div>
+                  <div className="text-sm text-slate-600">{t(item.descKey)}</div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )

@@ -18,4 +18,8 @@ class ModuloOutSchema(BaseModel):
     context_type: str | None = None
     target_model: str | None = None
     context_filters: dict | None = None
+    surface: str | None = None
+    nav_group: str | None = None
+    contractable: bool = True
+    use_module_loader: bool = True
     active: bool

@@ -555,6 +555,25 @@ export function hasConfirmedDocumentData(
   return Boolean(doc.datos_confirmados && Object.keys(doc.datos_confirmados).length > 0)
 }
 
+export function isDocumentSaved(
+  doc: Pick<Documento, 'estado' | 'saved_as' | 'saved_at' | 'synced_recipe_id' | 'synced_sheets'>
+): boolean {
+  const hasDirectRecipeSync = typeof doc.synced_recipe_id === 'string' && doc.synced_recipe_id.trim().length > 0
+  const hasSheetRecipeSync = Boolean(doc.synced_sheets && Object.keys(doc.synced_sheets).length > 0)
+  return doc.estado === 'IMPORTED'
+    || doc.saved_as != null
+    || Boolean(doc.saved_at)
+    || hasDirectRecipeSync
+    || hasSheetRecipeSync
+}
+
+export function getDocumentDisplayStatus(
+  doc: Pick<Documento, 'estado' | 'saved_as' | 'saved_at' | 'synced_recipe_id' | 'synced_sheets'>
+): string {
+  if (isDocumentSaved(doc)) return 'CONFIRMED'
+  return doc.estado
+}
+
 export function canSaveProductsSheet(
   docCategory: DocCategory,
   sheetName: string | null,

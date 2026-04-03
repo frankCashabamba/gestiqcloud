@@ -8,25 +8,13 @@ interface Props {
   showTitle?: boolean
 }
 
-function titleCase(s: string) {
-  const t = (s || '').trim()
-  if (!t) return ''
-  return t.charAt(0).toUpperCase() + t.slice(1)
-}
-
-const NAME_MAP: Record<string, string> = {
-  rrhh: 'HR',
-  recursos_humanos: 'HR',
-  importador: 'Importer',
-  finanzas: 'Finance',
-  proveedores: 'Suppliers',
-  gastos: 'Expenses',
-  inventario: 'Inventory',
-}
-
 function formatNombre(raw: string) {
-  const key = (raw || '').trim().toLowerCase().replace(/\s+/g, '_')
-  return NAME_MAP[key] || titleCase(raw)
+  const value = (raw || '').trim()
+  if (!value) return ''
+  if (/[A-Z]/.test(value) || value.includes(' ')) return value
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
 export default function ModuloSelector({ selected, onChange, showTitle = false }: Props) {
@@ -74,48 +62,48 @@ export default function ModuloSelector({ selected, onChange, showTitle = false }
   }
 
   const styles = {
-    section: { display: 'flex', flexDirection: 'column' as const, gap: '16px' },
+    section: { display: 'flex', flexDirection: 'column' as const, gap: '12px' },
     header: { display: 'flex', flexWrap: 'wrap' as const, gap: '12px', alignItems: 'center', justifyContent: 'space-between' as const },
-    title: { fontSize: '18px', fontWeight: 600, color: '#0f172a' },
+    title: { fontSize: '15px', fontWeight: 600, color: '#0f172a' },
     pill: { fontSize: '12px', fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '4px 8px', borderRadius: '999px' },
     searchWrap: { position: 'relative' as const },
-    search: { width: '260px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '10px 12px', fontSize: '14px', boxShadow: '0 1px 2px rgba(15,23,42,0.08)' },
-    searchIcon: { position: 'absolute' as const, right: '10px', top: '9px', color: '#94a3b8', pointerEvents: 'none' as const },
-    toggleAll: { display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#334155' },
-    grid: { display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' },
+    search: { width: '220px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '8px 10px', fontSize: '13px', boxShadow: '0 1px 2px rgba(15,23,42,0.08)' },
+    searchIcon: { position: 'absolute' as const, right: '10px', top: '7px', color: '#94a3b8', pointerEvents: 'none' as const },
+    toggleAll: { display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600, color: '#334155' },
+    grid: { display: 'grid', gap: '10px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', maxHeight: '320px', overflowY: 'auto' as const, paddingRight: '4px' },
     card: (checked: boolean, disabled: boolean) => ({
       position: 'relative' as const,
       display: 'flex',
-      gap: '12px',
+      gap: '10px',
       alignItems: 'flex-start',
       width: '100%',
-      borderRadius: '14px',
+      borderRadius: '12px',
       border: `1px solid ${checked ? '#c7d2fe' : '#e2e8f0'}`,
       background: checked ? '#f8fafc' : '#fff',
-      padding: '14px',
+      padding: '10px',
       textAlign: 'left' as const,
-      boxShadow: '0 1px 4px rgba(15,23,42,0.08)',
+      boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
       cursor: disabled ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.65 : 1,
       transition: 'all 150ms ease',
     }),
     icon: (checked: boolean) => ({
-      height: '42px',
-      width: '42px',
-      borderRadius: '12px',
+      height: '34px',
+      width: '34px',
+      borderRadius: '10px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: '20px',
+      fontSize: '16px',
       background: checked ? '#e0e7ff' : '#f1f5f9',
       color: checked ? '#4338ca' : '#475569',
       flexShrink: 0,
-      marginTop: '2px',
+      marginTop: '1px',
     }),
-    name: { fontSize: '14px', fontWeight: 700, color: '#0f172a', lineHeight: 1.3, margin: 0 },
-    desc: { fontSize: '12px', color: '#64748b', marginTop: '4px', marginBottom: 0 },
+    name: { fontSize: '13px', fontWeight: 700, color: '#0f172a', lineHeight: 1.2, margin: 0 },
+    desc: { fontSize: '11px', color: '#64748b', marginTop: '3px', marginBottom: 0, lineHeight: 1.35 },
     checkbox: { marginTop: '2px' },
-    empty: { gridColumn: '1 / -1', border: '1px dashed #e2e8f0', background: '#f8fafc', borderRadius: '12px', padding: '20px', textAlign: 'center' as const, color: '#64748b', fontSize: '13px' },
+    empty: { gridColumn: '1 / -1', border: '1px dashed #e2e8f0', background: '#f8fafc', borderRadius: '12px', padding: '20px', textAlign: 'center' as const, color: '#64748b', fontSize: '12px' },
   }
 
   return (

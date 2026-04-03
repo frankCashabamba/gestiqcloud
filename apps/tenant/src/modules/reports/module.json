@@ -4,6 +4,8 @@
   "icon": "📊",
   "category": "analytics",
   "description": "Custom reports, dashboards and exports",
+  "surface": "backoffice",
+  "nav_group": "backoffice",
   "required": false,
   "default_enabled": true,
   "dependencies": [],

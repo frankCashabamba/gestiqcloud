@@ -17,7 +17,8 @@
     "company": "Company",
     "operation": "Operation",
     "communications": "Communications",
-    "planControl": "Plan & Control"
+    "planControl": "Plan & Control",
+    "workspace": "Workspace"
   },
   "sections": {
     "general": "General",
@@ -61,6 +62,30 @@
     "avanzado": {
       "label": "Advanced",
       "desc": "JSON and integrations"
+    },
+    "users": {
+      "label": "Users",
+      "desc": "Team, access and tenant roles"
+    },
+    "templates": {
+      "label": "Templates",
+      "desc": "Internal views and template configuration"
+    },
+    "webhooks": {
+      "label": "Webhooks",
+      "desc": "Integration subscriptions and deliveries"
+    },
+    "notificationCenter": {
+      "label": "Notification center",
+      "desc": "Review alerts and system events"
+    },
+    "einvoicing": {
+      "label": "E-invoicing",
+      "desc": "Electronic document status and delivery"
+    },
+    "reconciliation": {
+      "label": "Reconciliation",
+      "desc": "Import and reconcile bank movements"
     }
   },
   "branding": {
@@ -126,7 +151,19 @@
     "subscription": "Subscription",
     "subscriptionDesc": "Plan and billing",
     "security": "Security (MFA)",
-    "securityDesc": "Two-factor authentication"
+    "securityDesc": "Two-factor authentication",
+    "users": "Users",
+    "usersDesc": "Team, access and roles",
+    "templates": "Templates",
+    "templatesDesc": "Views and internal configuration",
+    "webhooks": "Webhooks",
+    "webhooksDesc": "Subscriptions and outgoing events",
+    "notificationCenter": "Notification center",
+    "notificationCenterDesc": "Alerts and system events",
+    "einvoicing": "E-invoicing",
+    "einvoicingDesc": "Electronic delivery and tracking",
+    "reconciliation": "Reconciliation",
+    "reconciliationDesc": "Statements and bank reconciliation"
   },
   "general": {
     "title": "General Settings",

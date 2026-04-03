@@ -76,6 +76,13 @@
   margin: 0 auto;
 }
 
+.dashboard-pro-app--no-sidebar {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "topbar"
+    "main";
+}
+
 /* ─── Topbar ────────────────────────────────── */
 
 .topbar {
@@ -535,6 +542,10 @@
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
+}
+
+.dashboard-pro-app--no-sidebar .main-content {
+  max-width: 1480px;
 }
 
 .main-content h1 {

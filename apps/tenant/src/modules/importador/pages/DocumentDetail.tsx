@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useImportReprocess } from '../hooks/useImportReprocess'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import SaveProductsModal from '../components/SaveProductsModal'
-import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, hasConfirmedDocumentData, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 import { IMPORTADOR_COPY, IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel } from '../constants'
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
@@ -397,7 +397,7 @@ export default function DocumentDetail() {
       : _logDest === 'expense' ? 'expense'
       : savedAsLog ? 'supplier_invoice'
       : undefined)
-  const isSaved = Boolean(doc && (doc.estado === 'IMPORTED' || doc.saved_as != null || saveLogIsCurrent))
+  const isSaved = Boolean(doc && (isDocumentSaved(doc) || saveLogIsCurrent))
   const hasAnySaveModule = Boolean(capabilities.purchases || capabilities.invoicing || capabilities.expenses)
   const saveDestination = doc ? suggestSaveDestination(doc) : 'expense'
   const requiresConfirmedSave = saveDestination !== 'recipe'
@@ -626,6 +626,7 @@ export default function DocumentDetail() {
   const unsyncedSheets = sheets.filter(sheet => !syncedSheets[sheet]?.recipeId)
   const syncedRecipeId = activeSheetSync?.recipeId || doc.synced_recipe_id
   const isSynced = syncedCount > 0
+  const displayStatus = getDocumentDisplayStatus(doc)
   const canResumeSavedInvoice = baseCanResumeSavedInvoice && savedInvoiceHasPendingStock
   const saveEnabled = !isSaved && canSaveDocument(doc) && hasAnySaveModule && doc.estado !== 'FAILED' && routingReadyForSave && (!requiresConfirmedSave || confirmedDataReady)
   const docCategory = getDocCategory(doc, sheets)
@@ -1129,7 +1130,12 @@ export default function DocumentDetail() {
 
       {/* Status badge */}
       <div style={{ marginBottom: '1rem' }}>
-        <span style={{ ...statusBadge, background: statusColor[doc.estado] || '#9CA3AF' }}>{STATUS_LABELS[doc.estado] || doc.estado}</span>
+        <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>{STATUS_LABELS[displayStatus] || displayStatus}</span>
+        {isSaved && (
+          <span style={{ marginLeft: 8, background: '#dcfce7', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#166534', fontWeight: 700 }}>
+            Guardado
+          </span>
+        )}
         {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }}>{doc.tipo_documento_detectado}</span>}
         {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Confianza: {confPct}%</span>}
       </div>

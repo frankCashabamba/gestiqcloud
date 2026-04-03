@@ -16,7 +16,11 @@ export default function ModuleLoader() {
   const [Component, setComponent] = useState<React.ComponentType<any> | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const { t } = useTranslation()
-  const { allowedSlugs, loading } = useMisModulos()
+  const { routedSlugs, allowedSlugs, loading } = useMisModulos() as {
+    routedSlugs?: Set<string>
+    allowedSlugs: Set<string>
+    loading: boolean
+  }
 
   const canonicalModule = useMemo(() => (mod ? canonicalizeCompanyModuleKey(mod) : ''), [mod])
   const folder = useMemo(() => {
@@ -57,7 +61,8 @@ export default function ModuleLoader() {
   if (!mod) return <Navigate to="/error" replace />
   if (loading) return <div style={{ padding: 16 }}>{t('common.loadingModule')}</div>
   if (canonicalModule) {
-    const isAllowed = allowedSlugs.has(canonicalModule)
+    const allowedRouteSlugs = routedSlugs ?? allowedSlugs
+    const isAllowed = allowedRouteSlugs.has(canonicalModule)
     if (!isAllowed) return <Navigate to="/unauthorized" replace />
   }
   if (loadError === 'not-found') return <div style={{ padding: 16 }}>{t('errors.moduleNotFound')}</div>

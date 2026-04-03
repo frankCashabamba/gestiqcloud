@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatCurrency, usePanaderiaKPIs } from '../hooks/useDashboardKPIs'
 import { useMisModulos } from '../hooks/useMisModulos'
+import { canonicalizeCompanyModuleKey } from '../lib/companyModuleKeys'
+import type { Modulo } from '../services/modules'
 import DashboardPro from './components/DashboardPro'
 import {
   calculateProduction,
@@ -129,6 +131,119 @@ const getQuickErrorMessage = (error: any): string => {
   return ''
 }
 
+const normalizeModuleToken = (value: string): string =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+
+const buildModuleHref = (prefix: string, module: Pick<Modulo, 'slug' | 'name'>): string => {
+  const slug = canonicalizeCompanyModuleKey(module.slug || module.name || '')
+  return `${prefix}/${slug}`
+}
+
+type FocusModuleAppearance = {
+  eyebrow: string
+  summary: string
+  actionLabel: string
+  accent: 'amber' | 'blue' | 'slate' | 'olive'
+}
+
+const getFocusModuleAppearance = (module: Pick<Modulo, 'slug' | 'name'>): FocusModuleAppearance => {
+  const slug = normalizeModuleToken(module.slug || '')
+  const name = normalizeModuleToken(module.name || '')
+  const key = slug || name
+
+  if (key.includes('pos') || key.includes('puntodeventa') || key.includes('puntoventa') || name.includes('caja')) {
+    return {
+      eyebrow: 'Venta directa',
+      summary: 'Caja, cobro y atencion del mostrador listos para trabajar sin pasos extra.',
+      actionLabel: 'Abrir POS',
+      accent: 'amber',
+    }
+  }
+
+  if (key.includes('import') || key.includes('document')) {
+    return {
+      eyebrow: 'Carga documental',
+      summary: 'Revisa importaciones, adjunta soportes y deja la documentacion operativa al dia.',
+      actionLabel: 'Abrir importaciones',
+      accent: 'blue',
+    }
+  }
+
+  if (key.includes('rrhh') || key === 'hr' || name.includes('personal') || name.includes('jornada')) {
+    return {
+      eyebrow: 'Equipo',
+      summary: 'Accede a jornada, fichajes y tareas de RRHH desde un panel mas claro para empleado.',
+      actionLabel: 'Abrir RRHH',
+      accent: 'slate',
+    }
+  }
+
+  return {
+    eyebrow: 'Modulo habilitado',
+    summary: 'Acceso directo al espacio de trabajo asignado para este turno.',
+    actionLabel: 'Abrir modulo',
+    accent: 'olive',
+  }
+}
+
+const BakeryEmployeeWorkspace: React.FC<{
+  modules: Modulo[]
+  prefix: string
+}> = ({ modules, prefix }) => {
+  const dayLabel = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })
+  const cards = modules.map((module) => ({
+    ...getFocusModuleAppearance(module),
+    id: module.id,
+    name: module.name,
+    href: buildModuleHref(prefix, module),
+  }))
+
+  return (
+    <section className="bakery-workspace">
+      <div className="bakery-workspace__intro">
+        <div>
+          <span className="bakery-workspace__eyebrow">Acceso operativo</span>
+          <h2 className="bakery-workspace__title">Panel de empleado enfocado en el turno</h2>
+          <p className="bakery-workspace__desc">
+            Esta cuenta trabaja con {cards.length} modulos. Priorizamos accesos directos y tareas concretas para evitar un panel vacio o demasiado administrativo.
+          </p>
+        </div>
+        <div className="bakery-workspace__meta">
+          <span className="bakery-workspace__pill">{cards.length} modulos activos</span>
+          <span className="bakery-workspace__pill bakery-workspace__pill--soft">{dayLabel}</span>
+        </div>
+      </div>
+
+      <div className="bakery-workspace__grid">
+        {cards.map((card) => (
+          <Link
+            key={card.id}
+            to={card.href}
+            className={`bakery-workspace-card bakery-workspace-card--${card.accent}`}
+          >
+            <div className="bakery-workspace-card__header">
+              <span className="bakery-workspace-card__eyebrow">{card.eyebrow}</span>
+              <span className="bakery-workspace-card__status">Disponible</span>
+            </div>
+            <div className="bakery-workspace-card__body">
+              <h3>{card.name}</h3>
+              <p>{card.summary}</p>
+            </div>
+            <div className="bakery-workspace-card__footer">
+              <span>{card.actionLabel}</span>
+              <span className="bakery-workspace-card__arrow">-&gt;</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ─── BakeryHero ───────────────────────────────────────────────────────────────
 
 interface BakeryHeroProps {
@@ -142,13 +257,19 @@ interface BakeryHeroProps {
   prefix: string
   onNuevaProduccion: () => void
   onNuevoPedido: () => void
+  hidePosShortcut?: boolean
 }
 
 const BakeryHero: React.FC<BakeryHeroProps> = ({
   ventas, hornadasPendientes, stockVenta, stockMateriaPrima, loading,
   isModuleEnabled, isProductionEnabled, prefix, onNuevaProduccion, onNuevoPedido,
+  hidePosShortcut = false,
 }) => {
   const dayName = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })
+  const showSalesAction = isModuleEnabled('sales')
+  const showProductionAction = isProductionEnabled()
+  const showPosAction = isModuleEnabled('pos') && !hidePosShortcut
+  const hasActions = showSalesAction || showProductionAction || showPosAction
   return (
     <div className="bakery-hero">
       <div className="bakery-hero__left">
@@ -196,24 +317,26 @@ const BakeryHero: React.FC<BakeryHeroProps> = ({
           )}
         </div>
       </div>
+      {hasActions && (
       <div className="bakery-hero__actions">
-        {isModuleEnabled('sales') && (
+        {showSalesAction && (
           <button className="btn btn--primary" onClick={onNuevoPedido}>
             🎂 Nuevo pedido
           </button>
         )}
-        {isProductionEnabled() && (
+        {showProductionAction && (
           <button className="btn" onClick={onNuevaProduccion}>
             + Nueva producción
           </button>
         )}
-        {isModuleEnabled('pos') && (
+        {showPosAction && (
           <a className="btn" href={`${prefix}/pos`}>Abrir POS</a>
         )}
-        {isProductionEnabled() && (
+        {showProductionAction && (
           <a className="btn" href={`${prefix}/manufacturing/recetas`}>Ver recetas</a>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -888,6 +1011,8 @@ const PanaderiaDashboard: React.FC = () => {
 
   const prefix      = empresa ? `/${empresa}` : ''
   const customLinks: Array<{ label: string; href: string; icon: string }> = []
+  const hasOperationalKpis = isModuleEnabled('sales') || isModuleEnabled('inventory') || isProductionEnabled()
+  const useFocusedEmployeeWorkspace = modules.length > 1 && modules.length <= 4 && !hasOperationalKpis
 
   // ── Effects (all unchanged) ────────────────────────────
 
@@ -1108,7 +1233,12 @@ const PanaderiaDashboard: React.FC = () => {
   // ── Render ─────────────────────────────────────────────
 
   return (
-    <DashboardPro sectorName={t('dashboard:panaderia.sectorName')} sectorIcon="🍞" customLinks={customLinks}>
+    <DashboardPro
+      sectorName={t('dashboard:panaderia.sectorName')}
+      sectorIcon="🍞"
+      customLinks={customLinks}
+      hideSidebar={useFocusedEmployeeWorkspace}
+    >
 
       {/* Onboarding: solo customers habilitado */}
       {modules.length === 1 && isModuleEnabled('customers') && (
@@ -1133,6 +1263,7 @@ const PanaderiaDashboard: React.FC = () => {
         prefix={prefix}
         onNuevaProduccion={openQuickProduction}
         onNuevoPedido={openQuickOrder}
+        hidePosShortcut={useFocusedEmployeeWorkspace}
       />
 
       {/* Toast de éxito post-producción */}
@@ -1152,6 +1283,11 @@ const PanaderiaDashboard: React.FC = () => {
         pedidosPendientesEntrega={pedidos.pendientes_entrega || 0}
       />
 
+      {useFocusedEmployeeWorkspace && (
+        <BakeryEmployeeWorkspace modules={modules} prefix={prefix} />
+      )}
+
+      {!useFocusedEmployeeWorkspace && (
       <div className="dashboard-grid">
 
         {/* ── Fila 1: Producción + Ventas ── */}
@@ -1325,6 +1461,7 @@ const PanaderiaDashboard: React.FC = () => {
         )}
 
       </div>
+      )}
 
       {/* Modal de pedido rápido */}
       {orderOpen && (

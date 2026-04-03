@@ -115,6 +115,11 @@ export async function getCompanyBillingPlans(tenantId: string): Promise<CompanyP
   return response.data;
 }
 
+export async function getAdminBillingPlans(): Promise<CompanyPlan[]> {
+  const response = await api.get('/v1/admin/billing/plans');
+  return response.data;
+}
+
 export async function getCompanySubscription(tenantId: string): Promise<CompanySubscription | null> {
   const response = await api.get(`/v1/admin/companies/${tenantId}/billing/subscription`);
   return response.data;

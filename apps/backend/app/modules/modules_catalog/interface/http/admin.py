@@ -23,6 +23,8 @@ from app.modules.settings.application.modules_catalog import (
     canonicalize_module_id,
     get_available_modules,
     get_module_aliases,
+    is_standalone_module,
+    resolve_module_runtime_meta,
 )
 
 router = APIRouter(
@@ -34,7 +36,10 @@ router = APIRouter(
 
 def _module_to_response(m: Module) -> dict:
     """Map Module ORM to response (english only)."""
-
+    runtime_meta = resolve_module_runtime_meta(
+        getattr(m, "url", None) or getattr(m, "name", None),
+        context_filters=getattr(m, "context_filters", None) or {},
+    )
     return {
         "id": m.id,
         "name": m.name,
@@ -47,6 +52,7 @@ def _module_to_response(m: Module) -> dict:
         "context_type": getattr(m, "context_type", None),
         "target_model": getattr(m, "target_model", None),
         "context_filters": getattr(m, "context_filters", None) or {},
+        **runtime_meta,
     }
 
 
@@ -236,6 +242,10 @@ def _build_module_payload(
         "aliases": _manifest_value(manifest, "aliases", default=[]) or [],
         "countries": _manifest_value(manifest, "countries", default=["ES", "EC"]) or ["ES", "EC"],
         "sectors": _manifest_value(manifest, "sectors", default=None),
+        "surface": _manifest_value(manifest, "surface", default=None),
+        "nav_group": _manifest_value(manifest, "nav_group", default=None),
+        "contractable": _manifest_value(manifest, "contractable", default=None),
+        "use_module_loader": _manifest_value(manifest, "use_module_loader", default=None),
     }
 
 
@@ -259,6 +269,9 @@ def _merge_catalog_context_filters(
     )
     if catalog_id:
         merged["catalog_id"] = catalog_id
+    for key in ("surface", "nav_group", "contractable", "use_module_loader"):
+        if key in payload and payload.get(key) is not None:
+            merged[key] = payload[key]
 
     return merged
 
@@ -287,6 +300,9 @@ def _collect_filesystem_module_entries(
 
         name = _normalize_module_name(folder_name)
         manifest = _load_module_manifest(module_dir / "module.json", name, errors)
+        if _manifest_value(manifest, "parent_module", default=None):
+            ignored.append(folder_name)
+            continue
         default_icon, default_category = _guess_defaults(name)
         initial_template = _detect_initial_template(panel_path, routes_path, name)
         payload = _build_module_payload(
@@ -311,6 +327,11 @@ def _collect_catalog_module_entries() -> tuple[list[dict], list[str], list[dict]
         if not raw_id:
             ignored.append(str(item))
             continue
+        if not is_standalone_module(
+            raw_id, context_filters={"parent_module": item.get("parent_module")}
+        ):
+            ignored.append(raw_id)
+            continue
 
         name = _normalize_module_name(raw_id)
         if name in seen:
@@ -328,6 +349,10 @@ def _collect_catalog_module_entries() -> tuple[list[dict], list[str], list[dict]
             "description": item.get("description"),
             "target_model": None,
             "category": item.get("category"),
+            "surface": item.get("surface"),
+            "nav_group": item.get("nav_group"),
+            "contractable": item.get("contractable"),
+            "use_module_loader": item.get("use_module_loader"),
         }
         entries.append({"name": name, "payload": payload})
 
@@ -481,7 +506,17 @@ def list_user_modules(
 
 @router.get("/", response_model=list[ModuloOutSchema])
 def list_admin_modules(db: Session = Depends(get_db)):
-    modules = db.query(Module).filter(Module.active).order_by(Module.id.asc()).all()  # noqa: E712
+    modules = [
+        module
+        for module in db.query(Module)
+        .filter(Module.active)
+        .order_by(Module.id.asc())
+        .all()  # noqa: E712
+        if is_standalone_module(
+            getattr(module, "url", None) or getattr(module, "name", None),
+            context_filters=getattr(module, "context_filters", None) or {},
+        )
+    ]
 
     return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 
@@ -518,7 +553,14 @@ def get_public_modules(db: Session = Depends(get_db)):
 
     """
 
-    modules = mod_crud.list_public_modules(db)
+    modules = [
+        module
+        for module in mod_crud.list_public_modules(db)
+        if resolve_module_runtime_meta(
+            getattr(module, "url", None) or getattr(module, "name", None),
+            context_filters=getattr(module, "context_filters", None) or {},
+        ).get("contractable", True)
+    ]
 
     return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 

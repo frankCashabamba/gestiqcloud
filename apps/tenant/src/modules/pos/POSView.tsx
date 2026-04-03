@@ -51,6 +51,7 @@ import { useToast } from '../../shared/toast'
 import { useCurrency } from '../../hooks/useCurrency'
 import { useAuth } from '../../auth/AuthContext'
 import { usePermissions } from '../../contexts/PermissionsContext'
+import { useCompany } from '../../contexts/CompanyContext'
 import { savePosTheme } from '../../services/companySettings'
 import { listWarehouses } from '../inventory/services'
 import { createRegister } from './services'
@@ -68,6 +69,7 @@ export default function POSView() {
     const { symbol: currencySymbol } = useCurrency()
     const { token, loading: authLoading, profile } = useAuth()
     const { loading: permissionsLoading } = usePermissions()
+    const { sector } = useCompany()
     const toast = useToast()
     const { isOnline, pendingCount, syncing, lastSyncAt } = useOfflineSync()
     const { loading: documentIdTypesLoading } = useDocumentIDTypes()
@@ -151,6 +153,17 @@ export default function POSView() {
     const canViewReports = hasRoles ? (isAdminRole || roleList.includes('manager')) : true
     const canManagePending = hasRoles ? (isAdminRole || roleList.includes('manager')) : true
     const canDiscount = hasRoles ? (isAdminRole || roleList.includes('supervisor')) : true
+    const isBakerySector = (sector?.plantilla || '').toLowerCase() === 'panaderia'
+    const orderButtonPermission = can('sales:create')
+        ? 'sales:create'
+        : can('pos:create')
+            ? 'pos:create'
+            : 'pos:update'
+    const canCreateBakeryOrder = isBakerySector && (
+        can('sales:create') ||
+        can('pos:create') ||
+        can('pos:update')
+    )
 
     const dashboardPath = useMemo(() => {
         const slug = (profile as any)?.empresa_slug
@@ -230,7 +243,7 @@ export default function POSView() {
     // Atajos de teclado
     // -----------------------------------------------------------------------
     useKeyboardShortcuts({
-        onF1: () => openQuickOrderFromPOS(),
+        onF1: () => { if (canCreateBakeryOrder) openQuickOrderFromPOS() },
         onF2: () => { state.searchInputRef.current?.focus(); setSearchExpanded(true) },
         onF4: () => setShowBuyerModal(true),
         onF5: () => setShowResumeTicketModal(true),
@@ -385,8 +398,9 @@ export default function POSView() {
                 </div>
 
                 <div className="actions top-actions">
+                    {canCreateBakeryOrder && (
                     <ProtectedButton
-                        permission="sales:create"
+                        permission={orderButtonPermission}
                         className="btn sm pos-action-btn"
                         unstyled
                         style={{ color: '#d97706', borderColor: '#fbbf24' }}
@@ -395,6 +409,7 @@ export default function POSView() {
                     >
                         🎂 <span className="pos-action-label">Pedido <kbd>F1</kbd></span>
                     </ProtectedButton>
+                    )}
                     <ProtectedButton permission="pos:update" className="btn sm pos-action-btn" unstyled onClick={() => setShowBuyerModal(true)}>
                         <UserRound size={14} />
                         <span className="pos-action-label">{t('pos:header.customer', { defaultValue: 'Customer' })}</span>

@@ -76,6 +76,7 @@ export const TENANT_ROLES = {
   base: '/api/v1/tenant/roles',
   byId: (id: number | string) => `/api/v1/tenant/roles/${id}`,
   seedOperational: '/api/v1/tenant/roles/seed-operational',
+  availablePermissions: '/api/v1/tenant/roles/available-permissions',
 }
 
 export const TENANT_SETTINGS = {

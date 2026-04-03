@@ -65,7 +65,7 @@ def _seed_plan(db, *, plan_id: str) -> None:
                 stripe_price_id_monthly, stripe_price_id_yearly, sort_order
             ) VALUES (
                 :id, 'pro', 'Pro', 29, 290,
-                10, 3, '[]', '{}', 1,
+                10, 3, '[\"clients\", \"users\", \"einvoicing\"]', '{}', 1,
                 'price_monthly_pro', 'price_yearly_pro', 1
             )
             """
@@ -89,6 +89,52 @@ def _tenant_headers(client, usuario_empresa_factory):
     assert login.status_code == 200, login.text
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}, _tenant
+
+
+def _admin_headers(client, superuser_factory):
+    password = "secret123"
+    superuser_factory(
+        email="billing-admin-root@example.com",
+        username="billing_root",
+        password=password,
+    )
+    response = client.post(
+        "/api/v1/admin/auth/login",
+        json={"identificador": "billing-admin-root@example.com", "password": password},
+    )
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def test_admin_plan_catalog_lists_available_plans(client, db, superuser_factory):
+    _ensure_billing_tables(db)
+    plan_id = str(uuid4())
+    _seed_plan(db, plan_id=plan_id)
+    headers = _admin_headers(client, superuser_factory)
+
+    response = client.get("/api/v1/admin/billing/plans", headers=headers)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["id"] == plan_id
+    assert body[0]["display_name"] == "Pro"
+    assert body[0]["max_users"] == 10
+    assert body[0]["included_modules"] == ["customers", "users", "einvoicing"]
+
+
+def test_tenant_plan_catalog_normalizes_included_modules(client, db, usuario_empresa_factory):
+    _ensure_billing_tables(db)
+    plan_id = str(uuid4())
+    _seed_plan(db, plan_id=plan_id)
+    headers, _tenant = _tenant_headers(client, usuario_empresa_factory)
+
+    response = client.get("/api/v1/tenant/billing/plans", headers=headers)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    plan = next(item for item in body if item["id"] == plan_id)
+    assert plan["included_modules"] == ["customers", "users", "einvoicing"]
 
 
 def test_tenant_subscribe_returns_checkout_url(client, db, usuario_empresa_factory, monkeypatch):

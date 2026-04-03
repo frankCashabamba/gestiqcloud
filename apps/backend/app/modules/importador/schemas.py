@@ -110,17 +110,24 @@ class DocumentoListOut(BaseModel):
     id: UUID
     nombre_archivo: str
     tipo_archivo: str
+    tamanio_bytes: int | None = None
     tipo_documento_detectado: str | None = None
     confianza_clasificacion: float | None = None
     requiere_revision: bool = False
     estado: str
     proveedor_detectado: str | None = None
     monto_total: float | None = None
+    synced_recipe_id: UUID | None = None
+    synced_sheets: dict | None = None
+    saved_as: str | None = None
+    saved_record_id: UUID | None = None
+    saved_at: datetime | None = None
     assisted_review: AssistedReviewOut | None = None
     last_processing_reason: str | None = None
     last_learning_reprocess_at: datetime | None = None
     last_confirmation_mode: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

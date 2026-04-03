@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   createRol,
   updateRol,
-  listGlobalPermissions,
+  listAvailablePermissions,
   type GlobalPermission,
   type RolCreatePayload,
 } from './services'
@@ -16,6 +16,31 @@ type Props = {
   rol?: Rol | null
   onClose: () => void
   onSuccess: () => void
+}
+
+const normalizePermissionKey = (key: string) => key.trim().toLowerCase().replace(/:/g, '.')
+
+const flattenRolePermissions = (input: unknown): Record<string, boolean> => {
+  const result: Record<string, boolean> = {}
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return result
+  }
+
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [action, allowed] of Object.entries(value as Record<string, unknown>)) {
+        if (allowed) {
+          result[normalizePermissionKey(`${key}.${action}`)] = true
+        }
+      }
+      continue
+    }
+    if (value) {
+      result[normalizePermissionKey(key)] = true
+    }
+  }
+
+  return result
 }
 
 export default function RolModal({ rol, onClose, onSuccess }: Props) {
@@ -38,16 +63,22 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
     if (rol) {
       setNombre(rol.name)
       setDescription(rol.description || '')
-      setPermissions(rol.permissions || {})
+      setPermissions(flattenRolePermissions(rol.permissions || {}))
+      return
     }
+    setNombre('')
+    setDescription('')
+    setPermissions({})
   }, [rol])
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const perms = await listGlobalPermissions()
-        if (!cancelled) setAvailablePermissions(perms)
+        const perms = await listAvailablePermissions()
+        if (!cancelled) {
+          setAvailablePermissions(perms)
+        }
       } catch (e: any) {
         if (!cancelled) {
           toastError(getErrorMessage(e))
@@ -56,6 +87,18 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
     })()
     return () => { cancelled = true }
   }, [toastError])
+
+  useEffect(() => {
+    if (availablePermissions.length === 0) {
+      return
+    }
+    const allowedKeys = new Set(availablePermissions.map((item) => normalizePermissionKey(item.key)))
+    setPermissions((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([key, allowed]) => allowed && allowedKeys.has(normalizePermissionKey(key)))
+      )
+    )
+  }, [availablePermissions])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,16 +134,17 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
   }
 
   const togglePermiso = (key: string) => {
+    const normalizedKey = normalizePermissionKey(key)
     setPermissions(prev => ({
       ...prev,
-      [key]: !prev[key]
+      [normalizedKey]: !prev[normalizedKey]
     }))
   }
 
   // Permisos comunes
   const moduleFromPermission = (p: GlobalPermission) => {
-    if (p.module) return p.module
-    const parts = (p.key || '').split('.')
+    if (p.module) return p.module.toLowerCase()
+    const parts = normalizePermissionKey(p.key || '').split('.')
     return parts.length > 1 ? parts[0] : 'general'
   }
 
@@ -117,7 +161,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
   const permisosDisponibles = availablePermissions
     .filter((p) => moduleFilter === 'all' || moduleFromPermission(p) === moduleFilter)
     .map((p) => ({
-      key: p.key,
+      key: normalizePermissionKey(p.key),
       label: p.description ? `${p.description} (${p.key})` : p.key,
     }))
     .sort((a, b) => a.label.localeCompare(b.label))

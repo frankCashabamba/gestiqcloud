@@ -211,6 +211,9 @@ def build_api_router() -> APIRouter:
     # Empresas
     _mount_empresas(r)
     include_router_safe(r, ("app.modules.billing.interface.http.admin", "router"), prefix="/admin")
+    include_router_safe(
+        r, ("app.modules.billing.interface.http.admin", "catalog_router"), prefix="/admin"
+    )
     # Onboarding initialization
     include_router_safe(r, ("app.modules.onboarding.interface.http.tenant", "router"))
     # Tenant subscription billing

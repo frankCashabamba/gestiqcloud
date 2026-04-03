@@ -1835,9 +1835,16 @@ def list_documents(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
+    from app.models.recipes import Recipe
+
     tenant_id = _tenant_id(request)
     documents = crud.list_documentos(db, tenant_id, estado=estado, limit=limit, offset=offset)
     for document in documents:
+        if document.synced_recipe_id:
+            exists = db.query(Recipe.id).filter(Recipe.id == document.synced_recipe_id).first()
+            if not exists:
+                document.synced_recipe_id = None
+        document.synced_sheets = _get_synced_sheet_map(db, document)
         _attach_document_activity_meta(document)
         _attach_document_routing(document, db)
         _attach_document_assisted_review(document)

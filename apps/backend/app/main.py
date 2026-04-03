@@ -289,6 +289,7 @@ init_fastapi(app)
 _error_logger = logging.getLogger("app.errors")
 
 
+from fastapi.encoders import jsonable_encoder  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
@@ -367,13 +368,20 @@ def _record_auto_incident(request: Request, exc: Exception) -> None:
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_log(request: Request, exc: RequestValidationError):
+    detail = jsonable_encoder(
+        exc.errors(),
+        custom_encoder={
+            ValueError: str,
+            Exception: str,
+        },
+    )
     _error_logger.warning(
         "422 Validation Error | %s %s | %s",
         request.method,
         request.url.path,
-        exc.errors(),
+        detail,
     )
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
 @app.exception_handler(Exception)
