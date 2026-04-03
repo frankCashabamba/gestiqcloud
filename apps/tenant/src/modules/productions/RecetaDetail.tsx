@@ -165,7 +165,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const { t } = useTranslation(['productions', 'common']);
   const can = usePermission();
   const { config } = useCompanyConfig();
-  const canWrite = can('produccion:write');
+  const canWrite = can('manufacturing:update');
   const { units } = useUnits();
   const { success: toastSuccess, error: toastError } = useToast();
   const aiOptimizationEnabled = config?.features?.copilot_enabled !== false;

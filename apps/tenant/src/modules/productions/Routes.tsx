@@ -15,8 +15,8 @@ import IngredientesMaestros from './IngredientesMaestros'
 export default function ProduccionRoutes() {
     return (
         <ProtectedRoute
-            permission="produccion:read"
-            fallback={<PermissionDenied permission="produccion:read" />}
+            permission="manufacturing:read"
+            fallback={<PermissionDenied permission="manufacturing:read" />}
         >
             <Routes>
                 <Route index element={<Navigate to="recetas" replace />} />
@@ -26,7 +26,7 @@ export default function ProduccionRoutes() {
                 <Route
                     path="ordenes/nuevo"
                     element={
-                        <ProtectedRoute permission="produccion:write">
+                        <ProtectedRoute permission="manufacturing:create">
                             <OrderForm />
                         </ProtectedRoute>
                     }
@@ -34,7 +34,7 @@ export default function ProduccionRoutes() {
                 <Route
                     path="ordenes/:id/editar"
                     element={
-                        <ProtectedRoute permission="produccion:write">
+                        <ProtectedRoute permission="manufacturing:update">
                             <OrderForm />
                         </ProtectedRoute>
                     }
@@ -43,7 +43,7 @@ export default function ProduccionRoutes() {
                 <Route
                     path="recetas/nueva"
                     element={
-                        <ProtectedRoute permission="produccion:write">
+                        <ProtectedRoute permission="manufacturing:create">
                             <RecetaCreatePage />
                         </ProtectedRoute>
                     }
@@ -52,7 +52,7 @@ export default function ProduccionRoutes() {
                 <Route
                     path="recetas/:rid/editar"
                     element={
-                        <ProtectedRoute permission="produccion:write">
+                        <ProtectedRoute permission="manufacturing:update">
                             <RecetaEditPage />
                         </ProtectedRoute>
                     }
@@ -61,7 +61,7 @@ export default function ProduccionRoutes() {
                 <Route
                     path="costos"
                     element={
-                        <ProtectedRoute permission="produccion:write">
+                        <ProtectedRoute permission="manufacturing:update">
                             <CostDriversPage />
                         </ProtectedRoute>
                     }

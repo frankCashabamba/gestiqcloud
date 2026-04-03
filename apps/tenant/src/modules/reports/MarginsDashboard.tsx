@@ -117,8 +117,8 @@ export default function MarginsDashboard() {
     return { low, negative }
   }, [productRows, threshold])
 
-  if (!can('reportes:read')) {
-    return <PermissionDenied permission="reportes:read" />
+  if (!can('reports:read')) {
+    return <PermissionDenied permission="reports:read" />
   }
 
   return (

@@ -44,7 +44,9 @@ function OrdersListContent() {
     const { t } = useTranslation(['productions', 'common'])
     const can = usePermission()
     const features = useResolvedCompanyFeatures()
-    const canWrite = can('produccion:write')
+    const canCreate = can('manufacturing:create')
+    const canWrite = can('manufacturing:update') // operar órdenes (start/complete/cancel)
+    const canDeleteOrder = can('manufacturing:delete')
     const [items, setItems] = useState<ProductionOrder[]>([])
     const [loading, setLoading] = useState(false)
     const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -211,7 +213,7 @@ function OrdersListContent() {
                     <button className="px-3 py-1 rounded border" onClick={() => nav('../planificacion')}>
                         {t('productions:planner.open')}
                     </button>
-                    {canWrite && (
+                    {canCreate && (
                         <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>
                             {t('productions:new')}
                         </button>
@@ -301,7 +303,7 @@ function OrdersListContent() {
                                                 {t('productions:actionsLabels.cancel')}
                                             </button>
                                         )}
-                                        {canWrite && canDelete(o) && (
+                                        {canDeleteOrder && canDelete(o) && (
                                             <button className="text-red-700 disabled:text-gray-400" disabled={busy} onClick={() => setDeleteTarget(o)}>
                                                 {t('productions:delete')}
                                             </button>

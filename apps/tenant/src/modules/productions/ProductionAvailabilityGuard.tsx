@@ -21,7 +21,7 @@ export default function ProductionAvailabilityGuard({
 
   return (
     <PermissionDenied
-      permission="produccion:read"
+      permission="manufacturing:read"
       severity="warning"
       message={`Produccion deshabilitada para el tenant o el sector ${sectorLabel}.`}
       footer="Activa el modulo o habilita la feature correspondiente en la configuracion del sector."

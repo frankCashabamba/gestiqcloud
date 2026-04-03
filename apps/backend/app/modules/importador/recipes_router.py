@@ -71,8 +71,7 @@ def list_recipes(
 
 @router.get("/recipes/{recipe_id}", response_model=RecipeOut, dependencies=protected)
 def get_recipe(recipe_id: UUID, request: Request, db: Session = Depends(get_db)):
-    del request
-    recipe = recipe_crud.get_recipe(db, recipe_id)
+    recipe = recipe_crud.get_recipe(db, recipe_id, tenant_id=_tenant_id(request))
     if not recipe:
         raise HTTPException(404, "Receta no encontrada")
     return recipe
@@ -82,8 +81,7 @@ def get_recipe(recipe_id: UUID, request: Request, db: Session = Depends(get_db))
 def update_recipe(
     recipe_id: UUID, body: RecipeUpdate, request: Request, db: Session = Depends(get_db)
 ):
-    del request
-    recipe = recipe_crud.get_recipe(db, recipe_id)
+    recipe = recipe_crud.get_recipe(db, recipe_id, tenant_id=_tenant_id(request))
     if not recipe:
         raise HTTPException(404, "Receta no encontrada")
     recipe_crud.update_recipe(db, recipe, body.model_dump(exclude_unset=True))
@@ -95,7 +93,7 @@ def update_recipe(
 def create_draft(
     recipe_id: UUID, body: DraftCreate, request: Request, db: Session = Depends(get_db)
 ):
-    recipe = recipe_crud.get_recipe(db, recipe_id)
+    recipe = recipe_crud.get_recipe(db, recipe_id, tenant_id=_tenant_id(request))
     if not recipe:
         raise HTTPException(404, "Receta no encontrada")
     draft = recipe_crud.create_draft(
@@ -115,14 +113,12 @@ def create_draft(
 
 @router.get("/recipes/{recipe_id}/drafts", response_model=list[DraftOut], dependencies=protected)
 def list_drafts(recipe_id: UUID, request: Request, db: Session = Depends(get_db)):
-    del request
-    return recipe_crud.list_drafts(db, recipe_id)
+    return recipe_crud.list_drafts(db, recipe_id, tenant_id=_tenant_id(request))
 
 
 @router.get("/drafts/{draft_id}", response_model=DraftOut, dependencies=protected)
 def get_draft(draft_id: UUID, request: Request, db: Session = Depends(get_db)):
-    del request
-    draft = recipe_crud.get_draft(db, draft_id)
+    draft = recipe_crud.get_draft(db, draft_id, tenant_id=_tenant_id(request))
     if not draft:
         raise HTTPException(404, "Borrador no encontrado")
     return draft
@@ -132,7 +128,7 @@ def get_draft(draft_id: UUID, request: Request, db: Session = Depends(get_db)):
 def update_draft(
     draft_id: UUID, body: DraftUpdate, request: Request, db: Session = Depends(get_db)
 ):
-    draft = recipe_crud.get_draft(db, draft_id)
+    draft = recipe_crud.get_draft(db, draft_id, tenant_id=_tenant_id(request))
     if not draft:
         raise HTTPException(404, "Borrador no encontrado")
     data = {}
@@ -155,7 +151,7 @@ def create_snapshot(
     version_tag: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    draft = recipe_crud.get_draft(db, draft_id)
+    draft = recipe_crud.get_draft(db, draft_id, tenant_id=_tenant_id(request))
     if not draft:
         raise HTTPException(404, "Borrador no encontrado")
     content = {
@@ -163,7 +159,7 @@ def create_snapshot(
         "prompt_user": draft.prompt_user,
         "model_config": draft.model_config,
     }
-    prev = recipe_crud.get_latest_snapshot(db, draft.recipe_id)
+    prev = recipe_crud.get_latest_snapshot(db, draft.recipe_id, tenant_id=_tenant_id(request))
     if prev and prev.content_json:
         if prev.content_json.get("fingerprint_hash"):
             content["fingerprint_hash"] = prev.content_json["fingerprint_hash"]
@@ -188,14 +184,12 @@ def create_snapshot(
     "/recipes/{recipe_id}/snapshots", response_model=list[SnapshotOut], dependencies=protected
 )
 def list_snapshots(recipe_id: UUID, request: Request, db: Session = Depends(get_db)):
-    del request
-    return recipe_crud.list_snapshots(db, recipe_id)
+    return recipe_crud.list_snapshots(db, recipe_id, tenant_id=_tenant_id(request))
 
 
 @router.get("/snapshots/{snapshot_id}", response_model=SnapshotOut, dependencies=protected)
 def get_snapshot(snapshot_id: UUID, request: Request, db: Session = Depends(get_db)):
-    del request
-    snap = recipe_crud.get_snapshot(db, snapshot_id)
+    snap = recipe_crud.get_snapshot(db, snapshot_id, tenant_id=_tenant_id(request))
     if not snap:
         raise HTTPException(404, "Snapshot no encontrado")
     return snap

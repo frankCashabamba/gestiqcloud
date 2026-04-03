@@ -93,7 +93,8 @@ export default function ProductionPlanner() {
 function ProductionPlannerContent() {
     const { t, i18n } = useTranslation(['productions', 'common'])
     const can = usePermission()
-    const canWrite = can('produccion:write')
+    const canCreate = can('manufacturing:create')
+    const canWrite = can('manufacturing:update')
     const { success, error: toastError } = useToast()
     const locale = i18n.resolvedLanguage || i18n.language || 'es-ES'
 
@@ -438,7 +439,7 @@ function ProductionPlannerContent() {
                         </div>
                     )}
 
-                    {canWrite && (
+                    {canCreate && (
                         <button
                             type="button"
                             className="gc-btn gc-btn--primary"

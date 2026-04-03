@@ -12,8 +12,8 @@ import RealProfitReport from './RealProfitReport'
 export default function ReportesRoutes() {
   return (
     <ProtectedRoute
-      permission="reportes:read"
-      fallback={<PermissionDenied permission="reportes:read" />}
+      permission="reports:read"
+      fallback={<PermissionDenied permission="reports:read" />}
     >
       <RouterRoutes>
         <Route index element={<ReportsDashboard />} />

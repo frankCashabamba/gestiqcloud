@@ -33,7 +33,9 @@ export default function RecetasList() {
 function RecetasListContent() {
   const { t } = useTranslation(['costing', 'common'])
   const can = usePermission()
-  const canWrite = can('produccion:write')
+  const canCreate = can('manufacturing:create')
+  const canUpdate = can('manufacturing:update')
+  const canDelete = can('manufacturing:delete')
   const { success, error: toastError } = useToast()
   const navigate = useNavigate()
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -234,7 +236,7 @@ function RecetasListContent() {
   }
 
   const handleDeleteConfirm = async () => {
-    if (!canWrite || !deleteModal) return
+    if (!canDelete || !deleteModal) return
     setDeleting(true)
     try {
       await deleteRecipe(deleteModal.id)
@@ -271,7 +273,7 @@ function RecetasListContent() {
               {category !== 'all' && ` · ${category}`}
             </p>
           </div>
-          {canWrite && (
+          {canCreate && (
             <button
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-colors"
               onClick={() => navigate('nueva')}
@@ -414,7 +416,7 @@ function RecetasListContent() {
                     const newMult = Number((1 + v / 100).toFixed(2))
                     setMultiplier(newMult)
                     try { localStorage.setItem('produccion_margin_multiplier', String(newMult)) } catch {}
-                    if (canWrite) scheduleAutoSave(newMult, v)
+                    if (canUpdate) scheduleAutoSave(newMult, v)
                   }
                 }}
               />
@@ -426,16 +428,16 @@ function RecetasListContent() {
             {/* Create from product */}
             <select
               className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-48"
-              onChange={(e) => canWrite && e.target.value && navigate(`nueva?productId=${encodeURIComponent(e.target.value)}`)}
+              onChange={(e) => canCreate && e.target.value && navigate(`nueva?productId=${encodeURIComponent(e.target.value)}`)}
               value=""
-              disabled={!canWrite}
+              disabled={!canCreate}
             >
               <option value="">{t('recipesList.createFromProduct')}</option>
               {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
 
             {/* Indicador de auto-guardado */}
-            {canWrite && saveStatus !== 'idle' && (
+            {canUpdate && saveStatus !== 'idle' && (
               <>
                 <div className="flex-1" />
                 <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: saveStatus === 'saved' ? 'var(--gc-primary)' : 'var(--gc-muted)' }}>
@@ -461,7 +463,7 @@ function RecetasListContent() {
           <div className="py-20 text-center border-2 border-dashed border-gray-200 rounded-2xl">
             <div className="text-4xl mb-3">🍞</div>
             <p className="text-gray-500 font-medium">{t('recipesList.noRecipes')}</p>
-            {canWrite && (
+            {canCreate && (
               <button
                 className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold"
                 onClick={() => navigate('nueva')}
@@ -589,7 +591,7 @@ function RecetasListContent() {
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                           Ver
                         </button>
-                        {canWrite && (
+                        {canUpdate && (
                           <button
                             className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             onClick={() => navigate(`${r.id}/editar`)}
@@ -598,7 +600,7 @@ function RecetasListContent() {
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           </button>
                         )}
-                        {canWrite && (
+                        {canDelete && (
                           <button
                             className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                             onClick={() => setDeleteModal({ id: r.id, name: r.name })}
@@ -640,7 +642,7 @@ function RecetasListContent() {
       </div>
 
       {/* Delete modal */}
-      {canWrite && deleteModal && (
+      {canDelete && deleteModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={() => !deleting && setDeleteModal(null)}

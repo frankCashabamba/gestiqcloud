@@ -3437,6 +3437,9 @@ def patch_staging_line(
     Puede cambiar el estado, los campos en revisión, o los datos normalizados.
     """
     _tenant_id(request)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
     from sqlalchemy import select
 
     from app.models.importador import ImpStagingLine
@@ -3444,7 +3447,8 @@ def patch_staging_line(
     line = db.scalars(
         select(ImpStagingLine).where(
             ImpStagingLine.id == line_id,
-            ImpStagingLine.documento_id == doc_id,
+            ImpStagingLine.documento_id == doc.id,
+            ImpStagingLine.tenant_id == doc.tenant_id,
         )
     ).first()
     if not line:
@@ -3480,6 +3484,9 @@ def bulk_patch_staging_lines(
     El usuario selecciona líneas en la tabla y aplica una acción.
     """
     _tenant_id(request)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
     from sqlalchemy import select
 
     from app.models.importador import ImpStagingLine
@@ -3487,7 +3494,8 @@ def bulk_patch_staging_lines(
     lines = list(
         db.scalars(
             select(ImpStagingLine).where(
-                ImpStagingLine.documento_id == doc_id,
+                ImpStagingLine.documento_id == doc.id,
+                ImpStagingLine.tenant_id == doc.tenant_id,
                 ImpStagingLine.id.in_([str(lid) for lid in body.line_ids]),
             )
         ).all()

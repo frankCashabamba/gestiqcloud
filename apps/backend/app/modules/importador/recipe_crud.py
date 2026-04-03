@@ -18,8 +18,11 @@ def create_recipe(db: Session, data: dict) -> IcuRecipe:
     return obj
 
 
-def get_recipe(db: Session, recipe_id: UUID) -> IcuRecipe | None:
-    return db.get(IcuRecipe, recipe_id)
+def get_recipe(db: Session, recipe_id: UUID, tenant_id: UUID | None = None) -> IcuRecipe | None:
+    q = select(IcuRecipe).where(IcuRecipe.id == recipe_id)
+    if tenant_id is not None:
+        q = q.where(IcuRecipe.tenant_id == tenant_id)
+    return db.scalars(q).first()
 
 
 def list_recipes(db: Session, tenant_id: UUID, *, include_archived: bool = False):
@@ -46,16 +49,25 @@ def create_draft(db: Session, data: dict) -> IcuRecipeDraft:
     return obj
 
 
-def get_draft(db: Session, draft_id: UUID) -> IcuRecipeDraft | None:
-    return db.get(IcuRecipeDraft, draft_id)
+def get_draft(
+    db: Session,
+    draft_id: UUID,
+    tenant_id: UUID | None = None,
+) -> IcuRecipeDraft | None:
+    q = select(IcuRecipeDraft).where(IcuRecipeDraft.id == draft_id)
+    if tenant_id is not None:
+        q = q.where(IcuRecipeDraft.tenant_id == tenant_id)
+    return db.scalars(q).first()
 
 
-def list_drafts(db: Session, recipe_id: UUID):
+def list_drafts(db: Session, recipe_id: UUID, tenant_id: UUID | None = None):
     q = (
         select(IcuRecipeDraft)
         .where(IcuRecipeDraft.recipe_id == recipe_id)
         .order_by(IcuRecipeDraft.updated_at.desc())
     )
+    if tenant_id is not None:
+        q = q.where(IcuRecipeDraft.tenant_id == tenant_id)
     return db.scalars(q).all()
 
 
@@ -75,20 +87,33 @@ def create_snapshot(db: Session, data: dict) -> IcuRecipeSnapshot:
     return obj
 
 
-def get_snapshot(db: Session, snapshot_id: UUID) -> IcuRecipeSnapshot | None:
-    return db.get(IcuRecipeSnapshot, snapshot_id)
+def get_snapshot(
+    db: Session,
+    snapshot_id: UUID,
+    tenant_id: UUID | None = None,
+) -> IcuRecipeSnapshot | None:
+    q = select(IcuRecipeSnapshot).where(IcuRecipeSnapshot.id == snapshot_id)
+    if tenant_id is not None:
+        q = q.where(IcuRecipeSnapshot.tenant_id == tenant_id)
+    return db.scalars(q).first()
 
 
-def list_snapshots(db: Session, recipe_id: UUID):
+def list_snapshots(db: Session, recipe_id: UUID, tenant_id: UUID | None = None):
     q = (
         select(IcuRecipeSnapshot)
         .where(IcuRecipeSnapshot.recipe_id == recipe_id)
         .order_by(IcuRecipeSnapshot.created_at.desc())
     )
+    if tenant_id is not None:
+        q = q.where(IcuRecipeSnapshot.tenant_id == tenant_id)
     return db.scalars(q).all()
 
 
-def get_latest_snapshot(db: Session, recipe_id: UUID) -> IcuRecipeSnapshot | None:
+def get_latest_snapshot(
+    db: Session,
+    recipe_id: UUID,
+    tenant_id: UUID | None = None,
+) -> IcuRecipeSnapshot | None:
     """Get the most recent snapshot for a recipe."""
     q = (
         select(IcuRecipeSnapshot)
@@ -96,4 +121,6 @@ def get_latest_snapshot(db: Session, recipe_id: UUID) -> IcuRecipeSnapshot | Non
         .order_by(IcuRecipeSnapshot.created_at.desc())
         .limit(1)
     )
+    if tenant_id is not None:
+        q = q.where(IcuRecipeSnapshot.tenant_id == tenant_id)
     return db.scalars(q).first()
