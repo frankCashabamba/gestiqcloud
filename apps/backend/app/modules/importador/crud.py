@@ -139,10 +139,13 @@ def list_batches(
     db: Session,
     tenant_id: UUID,
     *,
+    usuario_id: str | None = None,
     active_only: bool = False,
     limit: int = 10,
 ) -> list[ImpBatchImport]:
     q = select(ImpBatchImport).where(ImpBatchImport.tenant_id == tenant_id)
+    if usuario_id:
+        q = q.where(ImpBatchImport.usuario_id == usuario_id)
     if active_only:
         q = q.where(ImpBatchImport.estado.in_(("PENDING", "PROCESSING")))
     q = q.order_by(ImpBatchImport.created_at.desc()).limit(limit)
@@ -150,13 +153,21 @@ def list_batches(
 
 
 def list_documentos(
-    db: Session, tenant_id: UUID, *, estado: str | None = None, limit: int = 50, offset: int = 0
+    db: Session,
+    tenant_id: UUID,
+    *,
+    usuario_id: str | None = None,
+    estado: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
 ):
     q = (
         select(ImpDocumento)
         .options(joinedload(ImpDocumento.logs))
         .where(ImpDocumento.tenant_id == tenant_id)
     )
+    if usuario_id:
+        q = q.where(ImpDocumento.usuario_id == usuario_id)
     if estado:
         q = q.where(ImpDocumento.estado == estado)
     q = q.order_by(ImpDocumento.created_at.desc()).limit(limit).offset(offset)
@@ -214,13 +225,14 @@ def update_batch_item(db: Session, item: ImpBatchItem, data: dict) -> ImpBatchIt
     return item
 
 
-def count_documentos(db: Session, tenant_id: UUID) -> dict:
+def count_documentos(db: Session, tenant_id: UUID, usuario_id: str | None = None) -> dict:
     """Return counts by estado for dashboard."""
-    rows = db.execute(
-        select(ImpDocumento.estado, func.count(ImpDocumento.id))
-        .where(ImpDocumento.tenant_id == tenant_id)
-        .group_by(ImpDocumento.estado)
-    ).all()
+    stmt = select(ImpDocumento.estado, func.count(ImpDocumento.id)).where(
+        ImpDocumento.tenant_id == tenant_id
+    )
+    if usuario_id:
+        stmt = stmt.where(ImpDocumento.usuario_id == usuario_id)
+    rows = db.execute(stmt.group_by(ImpDocumento.estado)).all()
     return dict(rows)
 
 
@@ -340,6 +352,8 @@ def find_existing_documento(
     nombre_archivo: str,
     tamanio_bytes: int,
     hash_sha256: str | None = None,
+    *,
+    usuario_id: str | None = None,
 ) -> ImpDocumento | None:
     """Busca un documento ya subido para dedupe.
 
@@ -356,32 +370,32 @@ def find_existing_documento(
     )
 
     if hash_sha256:
-        doc = db.scalars(
-            select(ImpDocumento)
-            .where(
-                and_(
-                    ImpDocumento.tenant_id == tenant_id,
-                    ImpDocumento.hash_sha256 == hash_sha256,
-                )
+        stmt = select(ImpDocumento).where(
+            and_(
+                ImpDocumento.tenant_id == tenant_id,
+                ImpDocumento.hash_sha256 == hash_sha256,
             )
-            .order_by(status_priority.asc(), ImpDocumento.created_at.desc())
-            .limit(1)
+        )
+        if usuario_id:
+            stmt = stmt.where(ImpDocumento.usuario_id == usuario_id)
+        doc = db.scalars(
+            stmt.order_by(status_priority.asc(), ImpDocumento.created_at.desc()).limit(1)
         ).first()
         if doc:
             return doc
 
-    return db.scalars(
-        select(ImpDocumento)
-        .where(
-            and_(
-                ImpDocumento.tenant_id == tenant_id,
-                ImpDocumento.nombre_archivo == nombre_archivo,
-                ImpDocumento.tamanio_bytes == tamanio_bytes,
-                ImpDocumento.hash_sha256.is_(None),
-            )
+    stmt = select(ImpDocumento).where(
+        and_(
+            ImpDocumento.tenant_id == tenant_id,
+            ImpDocumento.nombre_archivo == nombre_archivo,
+            ImpDocumento.tamanio_bytes == tamanio_bytes,
+            ImpDocumento.hash_sha256.is_(None),
         )
-        .order_by(status_priority.asc(), ImpDocumento.created_at.desc())
-        .limit(1)
+    )
+    if usuario_id:
+        stmt = stmt.where(ImpDocumento.usuario_id == usuario_id)
+    return db.scalars(
+        stmt.order_by(status_priority.asc(), ImpDocumento.created_at.desc()).limit(1)
     ).first()
 
 
@@ -391,6 +405,7 @@ def find_latest_documento_by_name(
     nombre_archivo: str,
     *,
     exclude_hash_sha256: str | None = None,
+    usuario_id: str | None = None,
 ) -> ImpDocumento | None:
     q = select(ImpDocumento).where(
         and_(
@@ -398,6 +413,8 @@ def find_latest_documento_by_name(
             ImpDocumento.nombre_archivo == nombre_archivo,
         )
     )
+    if usuario_id:
+        q = q.where(ImpDocumento.usuario_id == usuario_id)
     if exclude_hash_sha256:
         q = q.where(
             (ImpDocumento.hash_sha256.is_(None)) | (ImpDocumento.hash_sha256 != exclude_hash_sha256)

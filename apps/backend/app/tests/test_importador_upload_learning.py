@@ -467,7 +467,7 @@ def test_enqueue_async_batch_bootstraps_learning_and_reprocesses_same_hash_docum
         enqueue_async_batch(
             files=[upload],
             tenant_id=tenant_id,
-            user_id=str(uuid4()),
+            user_id="tester",
             force=False,
             recipe_snapshot_id=None,
             db=db,
@@ -543,7 +543,7 @@ def test_enqueue_async_batch_does_not_learn_from_review_only_document(
         enqueue_async_batch(
             files=[upload],
             tenant_id=tenant_id,
-            user_id=str(uuid4()),
+            user_id="tester",
             force=False,
             recipe_snapshot_id=None,
             db=db,
@@ -618,7 +618,7 @@ def test_enqueue_async_batch_reprocesses_same_hash_when_learning_version_is_newe
         enqueue_async_batch(
             files=[upload],
             tenant_id=tenant_id,
-            user_id=str(uuid4()),
+            user_id="tester",
             force=False,
             recipe_snapshot_id=None,
             db=db,
@@ -629,6 +629,133 @@ def test_enqueue_async_batch_reprocesses_same_hash_when_learning_version_is_newe
     assert len(result) == 1
     assert result[0]["action"] == "REPROCESS"
     assert existing.estado == "PENDING"
+    assert str(existing.recipe_snapshot_id) == str(snapshot_id)
+
+
+def test_upload_files_learning_reprocess_preserves_snapshot_context(
+    db: Session, tenant_minimal, monkeypatch
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    file_bytes = b"%PDF-1.4 duplicate-learning-sync"
+    filename = "factura-learning-sync.pdf"
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    _, snapshot_id, _, _, _ = resolve_auto_recipe_from_text(
+        db,
+        tenant_id,
+        "INVOICE",
+        {"currency": "PEN", "total_amount": 2145.0},
+        "PDF",
+        "tester",
+    )
+    assert snapshot_id is not None
+
+    snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
+    assert snapshot is not None
+    snapshot.content_json = {
+        **dict(snapshot.content_json or {}),
+        "learning_version": 2,
+        "field_descriptions": {
+            "payment_method": "Recent confirmed example: Transferencia bancaria.",
+        },
+        "learning_prompt_user": (
+            "Learning from confirmed similar documents:\n"
+            "- 'payment_method' was confirmed repeatedly in similar documents."
+        ),
+    }
+    db.commit()
+
+    existing = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo=filename,
+        tipo_archivo="PDF",
+        tamanio_bytes=len(file_bytes),
+        hash_sha256=file_hash,
+        estado="REVIEW",
+        usuario_id="tester",
+        recipe_snapshot_id=snapshot_id,
+        datos_extraidos={"currency": "PEN", "total_amount": 2145.0},
+        datos_confirmados={"currency": "PEN", "total_amount": 2145.0},
+        raw_ai_json={"run": {"learning_version_applied": 0}},
+    )
+    db.add(existing)
+    db.commit()
+
+    async def fake_extract_text_from_file(_file_bytes: bytes, _filename: str):
+        return {
+            "text": "Factura de proveedor con forma de pago transferencia bancaria",
+            "structured_data": None,
+            "format": "PDF",
+        }
+
+    analyze_calls: list[dict] = []
+
+    async def fake_analyze_document(
+        content: str,
+        filename: str = "",
+        format_hint: str = "",
+        has_structured_rows: bool = False,
+        recipe_config: dict | None = None,
+        image_bytes: bytes | None = None,
+        fallback_patterns: dict | None = None,
+        canonical_fields: dict | None = None,
+        prompt_config: dict | None = None,
+    ):
+        del (
+            content,
+            filename,
+            format_hint,
+            has_structured_rows,
+            image_bytes,
+            fallback_patterns,
+            canonical_fields,
+            prompt_config,
+        )
+        recipe_config = recipe_config or {}
+        analyze_calls.append(recipe_config)
+        return {
+            "doc_type": "INVOICE",
+            "confidence": 0.97,
+            "reasoning": "reused learned snapshot",
+            "fields": {
+                "currency": "PEN",
+                "payment_method": "Transferencia bancaria",
+                "total_amount": 2145.0,
+            },
+            "model_used": "learned-model",
+            "prompt_sent": "rerun",
+            "raw_response": "{}",
+        }
+
+    monkeypatch.setattr(
+        "app.modules.importador.router.extract_text_from_file",
+        fake_extract_text_from_file,
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.router.analyze_document",
+        fake_analyze_document,
+    )
+
+    upload = UploadFile(BytesIO(file_bytes), filename=filename)
+    result = asyncio.run(
+        upload_files(
+            request=_fake_request(tenant_id),
+            response=Response(),
+            files=[upload],
+            force=False,
+            db=db,
+        )
+    )
+
+    assert len(result) == 1
+    assert result[0].action == "REPROCESS"
+    assert analyze_calls
+    assert "field_descriptions" in analyze_calls[0]
+    assert "Learning from confirmed similar documents:" in str(
+        analyze_calls[0].get("prompt_user")
+    )
+    db.refresh(existing)
+    assert str(existing.recipe_snapshot_id) == str(snapshot_id)
 
 
 def test_upload_files_links_same_name_new_hash_as_successor(

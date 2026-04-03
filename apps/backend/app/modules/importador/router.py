@@ -38,7 +38,11 @@ from .document_fields import (
 )
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
-from .processing_service import _normalize_line_item_extra_columns, process_import_document
+from .processing_service import (
+    RecipeContext,
+    _normalize_line_item_extra_columns,
+    process_import_document,
+)
 from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 from .runtime_config import load_file_support_config, load_product_sheet_detection_config
@@ -122,6 +126,47 @@ def _tenant_id(request: Request) -> UUID:
 def _user_id(request: Request) -> str:
     claims = getattr(request.state, "access_claims", None) or {}
     return str(claims.get("user_id", "unknown"))
+
+
+def _can_view_all_importador(request: Request) -> bool:
+    claims = getattr(request.state, "access_claims", None) or {}
+    return _claims_can_view_all_importador(claims)
+
+
+def _scoped_importador_user_id(request: Request) -> str | None:
+    return None if _can_view_all_importador(request) else _user_id(request)
+
+
+def _require_document_access(request: Request, doc):
+    if not doc or getattr(doc, "tenant_id", None) != _tenant_id(request):
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    if _can_view_all_importador(request):
+        return doc
+    owner_id = str(getattr(doc, "usuario_id", "") or "").strip()
+    if owner_id and owner_id == _user_id(request):
+        return doc
+    raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+
+def _require_batch_access(request: Request, batch):
+    if not batch or getattr(batch, "tenant_id", None) != _tenant_id(request):
+        raise HTTPException(status_code=404, detail="Batch no encontrado")
+    if _can_view_all_importador(request):
+        return batch
+    owner_id = str(getattr(batch, "usuario_id", "") or "").strip()
+    if owner_id and owner_id == _user_id(request):
+        return batch
+    raise HTTPException(status_code=404, detail="Batch no encontrado")
+
+
+def _claims_can_view_all_importador(claims: dict | None) -> bool:
+    claims = claims or {}
+    return bool(
+        claims.get("is_company_admin")
+        or claims.get("is_admin_company")
+        or claims.get("es_admin_empresa")
+    )
+
 
 
 def _get_doc_import_data(doc) -> dict:
@@ -1159,6 +1204,31 @@ def _save_document_to_purchase(
                 )
                 .first()
             )
+        if warehouse is None and warehouse_id:
+            warehouse = (
+                db.query(Warehouse)
+                .filter(
+                    Warehouse.tenant_id == str(tenant_id),
+                    Warehouse.id == str(warehouse_id),
+                )
+                .first()
+            )
+        if warehouse is None:
+            warehouse = (
+                db.query(Warehouse)
+                .filter(Warehouse.tenant_id == str(tenant_id))
+                .order_by(Warehouse.id.asc())
+                .first()
+            )
+        if warehouse is None:
+            warehouse = Warehouse(
+                tenant_id=str(tenant_id),
+                code="PRINCIPAL",
+                name="Almacén Principal",
+                is_active=True,
+            )
+            db.add(warehouse)
+            db.flush()
 
     logger.info("save_purchase: warehouse=%s", warehouse.id if warehouse else None)
 
@@ -1617,7 +1687,14 @@ async def upload_files(
         response_action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
         response_message = "Se creo un nuevo documento para esta importacion."
 
-        existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        existing = crud.find_existing_documento(
+            db,
+            tenant_id,
+            filename,
+            len(file_bytes),
+            file_hash,
+            usuario_id=None if _can_view_all_importador(request) else user_id,
+        )
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         learning_reprocess_needed = False
         if (
@@ -1689,11 +1766,15 @@ async def upload_files(
                 if rerun_reason == "learning_update"
                 else "Se reproceso el mismo documento sobre el registro existente."
             )
+            preserve_learning_snapshot = (
+                rerun_reason == "learning_update" and getattr(doc, "recipe_snapshot_id", None)
+            )
             crud.reset_documento_for_reprocess(
                 db,
                 doc,
                 estado="PROCESSING",
-                clear_recipe_snapshot=True,
+                recipe_snapshot_id=doc.recipe_snapshot_id if preserve_learning_snapshot else None,
+                clear_recipe_snapshot=not bool(preserve_learning_snapshot),
             )
             crud.add_log(
                 db,
@@ -1713,6 +1794,7 @@ async def upload_files(
                 tenant_id,
                 filename,
                 exclude_hash_sha256=file_hash,
+                usuario_id=None if _can_view_all_importador(request) else user_id,
             )
             doc = crud.create_documento(
                 db,
@@ -1750,6 +1832,20 @@ async def upload_files(
                 force=force,
                 extract_text_fn=extract_text_from_file,
                 analyze_document_fn=analyze_document,
+                recipe_context=RecipeContext(
+                    resolution_mode=(
+                        "snapshot"
+                        if getattr(doc, "recipe_snapshot_id", None) and not force
+                        else "zero_shot"
+                    ),
+                    resolved_snapshot_id=(
+                        getattr(doc, "recipe_snapshot_id", None) if not force else None
+                    ),
+                    explicit_recipe_context=bool(
+                        getattr(doc, "recipe_snapshot_id", None) and not force
+                    ),
+                    force_clean_reimport=force,
+                ),
             )
             db.commit()
             results.append(
@@ -1838,7 +1934,14 @@ def list_documents(
     from app.models.recipes import Recipe
 
     tenant_id = _tenant_id(request)
-    documents = crud.list_documentos(db, tenant_id, estado=estado, limit=limit, offset=offset)
+    documents = crud.list_documentos(
+        db,
+        tenant_id,
+        usuario_id=_scoped_importador_user_id(request),
+        estado=estado,
+        limit=limit,
+        offset=offset,
+    )
     for document in documents:
         if document.synced_recipe_id:
             exists = db.query(Recipe.id).filter(Recipe.id == document.synced_recipe_id).first()
@@ -1855,9 +1958,7 @@ def list_documents(
 def get_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     from app.models.recipes import Recipe
 
-    doc = crud.get_documento(db, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     # Si synced_recipe_id apunta a una receta que ya no existe, limpiar la referencia
     if doc.synced_recipe_id:
         exists = db.query(Recipe.id).filter(Recipe.id == doc.synced_recipe_id).first()
@@ -1967,7 +2068,7 @@ def confirm_document(
     doc_id: UUID, body: ConfirmRequest, request: Request, db: Session = Depends(get_db)
 ):
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     if doc.estado == "CONFIRMED":
@@ -2016,7 +2117,7 @@ def sync_recipe(
     from app.models.recipes import Recipe
 
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -2083,7 +2184,7 @@ def sync_recipes(
     from app.models.recipes import Recipe
 
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -2203,7 +2304,7 @@ def get_document_line_match_candidates(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     tenant_id = _tenant_id(request)
@@ -2220,11 +2321,17 @@ def save_document(
     db: Session = Depends(get_db),
 ):
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     destination = body.destination or _infer_save_destination(doc, db)
+    if body.update_stock and destination != "supplier_invoice":
+        raise HTTPException(
+            status_code=400,
+            detail="Actualizar stock solo está disponible al guardar en compras.",
+        )
+
     doc_import_data = (
         _require_confirmed_doc_import_data(doc, destination)
         if destination in ("expense", "supplier_invoice")
@@ -2450,7 +2557,7 @@ def edit_document_fields(
     doc_id: UUID, body: EditFieldsRequest, request: Request, db: Session = Depends(get_db)
 ):
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -2512,7 +2619,7 @@ def edit_document_fields(
 @router.post("/documents/{doc_id}/reject", response_model=DocumentoOut, dependencies=protected)
 def reject_document(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -2539,7 +2646,7 @@ def save_document_as_products(
     db: Session = Depends(get_db),
 ):
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -2657,7 +2764,7 @@ def get_product_sheet_config(db: Session = Depends(get_db)):
 @router.get("/dashboard", response_model=DashboardStats, dependencies=protected)
 def get_dashboard(request: Request, db: Session = Depends(get_db)):
     tenant_id = _tenant_id(request)
-    counts = crud.count_documentos(db, tenant_id)
+    counts = crud.count_documentos(db, tenant_id, usuario_id=_scoped_importador_user_id(request))
     return DashboardStats(
         total=sum(counts.values()),
         pendientes=counts.get("PENDING", 0) + counts.get("PROCESSING", 0),
@@ -2675,16 +2782,20 @@ def list_batches(
     db: Session = Depends(get_db),
 ):
     tenant_id = _tenant_id(request)
-    batches = crud.list_batches(db, tenant_id, active_only=active_only, limit=limit)
+    batches = crud.list_batches(
+        db,
+        tenant_id,
+        usuario_id=_scoped_importador_user_id(request),
+        active_only=active_only,
+        limit=limit,
+    )
     return [BatchSummaryOut(**crud.summarize_batch(db, batch)) for batch in batches]
 
 
 @router.get("/batches/{batch_id}", response_model=BatchDetailOut, dependencies=protected)
 def get_batch(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     tenant_id = _tenant_id(request)
-    batch = crud.get_batch(db, batch_id, tenant_id)
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch no encontrado")
+    batch = _require_batch_access(request, crud.get_batch(db, batch_id, tenant_id))
     return BatchDetailOut(**crud.serialize_batch_detail(db, batch))
 
 
@@ -2713,6 +2824,8 @@ async def batch_status_stream(
         raise HTTPException(status_code=401, detail="tenant_id ausente en token")
 
     tenant_id = UUID(str(tenant_raw))
+    requester_user_id = str(claims.get("user_id", ""))
+    can_view_all = _claims_can_view_all_importador(claims)
     terminal_states = {"COMPLETED", "FAILED", "PARTIAL"}
     channel = f"imp:batch:{batch_id}"
     redis_url = os.getenv("REDIS_URL") or os.getenv("DEV_REDIS_URL") or "redis://localhost:6379/0"
@@ -2727,6 +2840,10 @@ async def batch_status_stream(
             with SessionLocal() as db_session:
                 batch = crud.get_batch(db_session, batch_id, tenant_id)
                 if batch is None:
+                    yield 'event: error\ndata: {"detail":"not_found"}\n\n'
+                    return
+                owner_id = str(getattr(batch, "usuario_id", "") or "").strip()
+                if not can_view_all and (not owner_id or owner_id != requester_user_id):
                     yield 'event: error\ndata: {"detail":"not_found"}\n\n'
                     return
                 initial_payload = crud.serialize_batch_detail(db_session, batch)
@@ -2832,7 +2949,7 @@ async def save_as_daily_log(
 
     tenant_id = _tenant_id(request)
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="documento_no_encontrado")
 
@@ -3033,7 +3150,7 @@ def purge_all_importador(request: Request, db: Session = Depends(get_db)):
 def get_staging_summary(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Estado actual de todas las líneas de staging de un documento."""
     _tenant_id(request)  # verifica acceso
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     return count_staging_lines(db, doc_id)
@@ -3056,7 +3173,7 @@ def list_staging_lines(
 ):
     """Lista líneas de staging con filtros. Base para la tabla de revisión."""
     _tenant_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -3094,7 +3211,7 @@ def get_field_analysis(
     Muestra al usuario el estado real de sus datos — no una lista genérica.
     """
     _tenant_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -3118,7 +3235,7 @@ def get_field_analysis(
 def list_iterations(doc_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Historial de todas las iteraciones de un documento."""
     _tenant_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -3153,7 +3270,7 @@ def iterate_document(
     """
     tenant_id = _tenant_id(request)
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -3182,7 +3299,7 @@ def create_review_session(
     """
     tenant_id = _tenant_id(request)
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -3245,7 +3362,7 @@ def run_review_session(
     """Ejecuta la iteración definida por la sesión de revisión."""
     tenant_id = _tenant_id(request)
     user_id = _user_id(request)
-    doc = crud.get_documento(db, doc_id)
+    doc = _require_document_access(request, crud.get_documento(db, doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 

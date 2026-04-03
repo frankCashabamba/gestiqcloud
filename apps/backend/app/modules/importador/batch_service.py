@@ -194,7 +194,14 @@ async def enqueue_async_batch(
         existing = (
             None
             if force and not file_hash
-            else crud.find_existing_documento(db, tenant_id, filename, file_size, file_hash)
+            else crud.find_existing_documento(
+                db,
+                tenant_id,
+                filename,
+                file_size,
+                file_hash,
+                usuario_id=user_id,
+            )
         )
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         if existing:
@@ -242,6 +249,7 @@ async def enqueue_async_batch(
             tenant_id,
             filename,
             exclude_hash_sha256=file_hash,
+            usuario_id=user_id,
         )
         staged_uploads.append(
             (filename, file_bytes, file_size, file_hash, tipo_archivo, predecessor)
@@ -339,11 +347,15 @@ async def enqueue_async_batch(
         rerun_existing,
         start=rerun_start,
     ):
+        preserve_learning_snapshot = (
+            rerun_reason == "learning_update" and getattr(existing, "recipe_snapshot_id", None)
+        )
         crud.reset_documento_for_reprocess(
             db,
             existing,
             estado="PENDING",
-            clear_recipe_snapshot=True,
+            recipe_snapshot_id=existing.recipe_snapshot_id if preserve_learning_snapshot else None,
+            clear_recipe_snapshot=not bool(preserve_learning_snapshot),
         )
         batch_item = crud.create_batch_item(
             db,

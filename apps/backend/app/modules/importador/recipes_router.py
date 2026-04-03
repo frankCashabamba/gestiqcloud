@@ -43,6 +43,7 @@ def _user_id(request: Request) -> str:
     return str(claims.get("user_id", "unknown"))
 
 
+
 @router.post("/recipes", response_model=RecipeOut, dependencies=protected)
 def create_recipe(body: RecipeCreate, request: Request, db: Session = Depends(get_db)):
     recipe = recipe_crud.create_recipe(
@@ -203,6 +204,32 @@ def get_snapshot(snapshot_id: UUID, request: Request, db: Session = Depends(get_
 @router.get("/save-capabilities", dependencies=protected)
 def get_save_capabilities(request: Request, db: Session = Depends(get_db)):
     """Return active tenant modules for save button visibility."""
+    from app.models.core.module import CompanyModule, Module
+
+    tenant_id = _tenant_id(request)
+    relevant = {"purchases", "expenses", "inventory", "invoicing", "accounting", "suppliers"}
+    es_to_en: dict[str, list[str]] = {
+        "compras": ["purchases"],
+        "gastos": ["expenses"],
+        "inventario": ["inventory"],
+        "facturación": ["invoicing"],
+        "facturacion": ["invoicing"],
+        "contabilidad": ["accounting"],
+        "proveedores": ["suppliers"],
+    }
+    rows = (
+        db.query(Module.name)
+        .join(CompanyModule, CompanyModule.module_id == Module.id)
+        .filter(CompanyModule.tenant_id == tenant_id, CompanyModule.active.is_(True))
+        .all()
+    )
+    active_names = {name.lower().strip() for (name,) in rows}
+    resolved: set[str] = set()
+    for name in active_names:
+        resolved.add(name)
+        if name in es_to_en:
+            resolved.update(es_to_en[name])
+    return {mod: mod in resolved or any(mod in n for n in resolved) for mod in relevant}
     from app.models.core.module import CompanyModule, Module
 
     tenant_id = _tenant_id(request)

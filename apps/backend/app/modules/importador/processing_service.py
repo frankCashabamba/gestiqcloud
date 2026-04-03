@@ -258,6 +258,13 @@ async def _process_upload_like_document(
     resolved_snapshot_id = recipe_context.resolved_snapshot_id
     resolution_mode = recipe_context.resolution_mode or "zero_shot"
     explicit_recipe_context = recipe_context.explicit_recipe_context
+    if not resolved_snapshot_id and not recipe_context.force_clean_reimport:
+        existing_snapshot_id = getattr(doc, "recipe_snapshot_id", None)
+        if existing_snapshot_id:
+            resolved_snapshot_id = existing_snapshot_id
+            explicit_recipe_context = True
+            if resolution_mode == "zero_shot":
+                resolution_mode = "snapshot"
     if sheet_profiles:
         _, auto_snapshot_id, auto_resolution_mode, _, _ = resolve_auto_recipe(
             db,

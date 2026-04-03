@@ -327,11 +327,6 @@ def _collect_catalog_module_entries() -> tuple[list[dict], list[str], list[dict]
         if not raw_id:
             ignored.append(str(item))
             continue
-        if not is_standalone_module(
-            raw_id, context_filters={"parent_module": item.get("parent_module")}
-        ):
-            ignored.append(raw_id)
-            continue
 
         name = _normalize_module_name(raw_id)
         if name in seen:

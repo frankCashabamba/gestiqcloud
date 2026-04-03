@@ -179,7 +179,14 @@ async def run_import(
         tipo_archivo = tipo_archivo or detect_file_type(filename, db)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-        existing = crud.find_existing_documento(db, tenant_id, filename, len(file_bytes), file_hash)
+        existing = crud.find_existing_documento(
+            db,
+            tenant_id,
+            filename,
+            len(file_bytes),
+            file_hash,
+            usuario_id=user_id,
+        )
         exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
         learning_reprocess_needed = False
         if (
@@ -260,6 +267,7 @@ async def run_import(
                 tenant_id,
                 filename,
                 exclude_hash_sha256=file_hash,
+                usuario_id=user_id,
             )
             doc = crud.create_documento(
                 db,

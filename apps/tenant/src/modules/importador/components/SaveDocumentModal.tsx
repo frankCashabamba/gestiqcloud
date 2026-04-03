@@ -250,7 +250,6 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   const [persistAliasByLine, setPersistAliasByLine] = useState<Record<number, boolean>>({})
   const [createNewByLine, setCreateNewByLine] = useState<Record<number, boolean>>({})
   const [loadingLineMatches, setLoadingLineMatches] = useState(false)
-
   const lineItems = useMemo(() => {
     const data = getDocumentData(doc)
     const items = data.line_items as Array<Record<string, unknown>> | undefined
@@ -258,7 +257,9 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   }, [doc])
 
   const hasStockItems = lineItems.length > 0
-  const canUpdateStock = hasStockItems && capabilities.inventory
+  const canSaveInvoice = Boolean(capabilities.purchases || capabilities.invoicing)
+  const canSaveExpense = capabilities.expenses !== false
+  const canUpdateStock = hasStockItems && Boolean(capabilities.inventory)
 
   const totalAmount = useMemo(() => {
     if (!doc) return null
@@ -354,8 +355,6 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
   const routingDecision = doc.routing_decision || null
   const reviewHints = Array.isArray(doc.review_hints) ? doc.review_hints : []
-  const canSaveInvoice = capabilities.purchases || capabilities.invoicing
-  const canSaveExpense = capabilities.expenses !== false
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
   const reviewTitle = resumeMode
     ? 'Completar stock pendiente'
@@ -422,9 +421,13 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     setDestination(nextDestination)
     setError('')
     if (nextDestination === 'recipe') {
+      setUpdateStock(false)
       setPaidAmount('')
       setPendingAmount('')
       return
+    }
+    if (nextDestination !== 'supplier_invoice') {
+      setUpdateStock(false)
     }
     handlePaymentStatusChange(paymentStatus)
   }
@@ -603,7 +606,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                 </div>
               </div>
 
-          {canUpdateStock && destination !== 'recipe' && (
+          {canUpdateStock && destination === 'supplier_invoice' && (
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
               <input
                 type="checkbox"
