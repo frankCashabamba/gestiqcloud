@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useImportReprocess } from '../hooks/useImportReprocess'
-import SaveDocumentModal from '../components/SaveDocumentModal'
-import SaveProductsModal from '../components/SaveProductsModal'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type StagingLine, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 import { IMPORTADOR_COPY, IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel } from '../constants'
+
+const SaveDocumentModal = lazy(() => import('../components/SaveDocumentModal'))
+const SaveProductsModal = lazy(() => import('../components/SaveProductsModal'))
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
 
@@ -1952,23 +1953,31 @@ export default function DocumentDetail() {
         </div>
       )}
 
-      <SaveDocumentModal
-        doc={doc}
-        open={saveModalOpen}
-        resumeMode={canResumeSavedInvoice}
-        onClose={() => setSaveModalOpen(false)}
-        onSaved={handleSaved}
-      />
-      <SaveProductsModal
-        doc={doc}
-        open={saveProductsOpen}
-        onClose={() => setSaveProductsOpen(false)}
-        onSaved={handleProductsSaved}
-        sheetName={activeSheet}
-        rows={activeSheetRows}
-        columnKeys={activeNormKeys}
-        columnLabels={activeDisplayNames}
-      />
+      {saveModalOpen && (
+        <Suspense fallback={null}>
+          <SaveDocumentModal
+            doc={doc}
+            open={saveModalOpen}
+            resumeMode={canResumeSavedInvoice}
+            onClose={() => setSaveModalOpen(false)}
+            onSaved={handleSaved}
+          />
+        </Suspense>
+      )}
+      {saveProductsOpen && (
+        <Suspense fallback={null}>
+          <SaveProductsModal
+            doc={doc}
+            open={saveProductsOpen}
+            onClose={() => setSaveProductsOpen(false)}
+            onSaved={handleProductsSaved}
+            sheetName={activeSheet}
+            rows={activeSheetRows}
+            columnKeys={activeNormKeys}
+            columnLabels={activeDisplayNames}
+          />
+        </Suspense>
+      )}
       {rejectPending && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">

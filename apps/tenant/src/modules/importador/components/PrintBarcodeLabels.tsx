@@ -7,7 +7,7 @@
 
 import React, { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import JsBarcode from 'jsbarcode'
+import { useCurrency } from '../../../hooks/useCurrency'
 
 // ─── Tipos públicos ────────────────────────────────────────────────────────────
 
@@ -132,10 +132,11 @@ export default function PrintBarcodeLabels({
   onSelectPrinter,
   printerSaving,
   modalExtras,
-  currencySymbol = '$',
+  currencySymbol = '',
 }: PrintBarcodeLabelsProps) {
   const { t } = useTranslation(['importer'])
   const printRef = useRef<HTMLDivElement>(null)
+  const barcodeRendererRef = useRef<null | ((element: HTMLCanvasElement, text: string, options?: object) => void)>(null)
 
   const [localConfig, setLocalConfig] = useState<PrintConfig>(defaultConfig ?? DEFAULT_CONFIG)
   const [internalMode, setInternalMode] = useState<'browser' | 'agent'>(printMode ?? 'browser')
@@ -184,33 +185,54 @@ export default function PrintBarcodeLabels({
 
   // Regenerar barcodes cuando cambia algo visual
   React.useEffect(() => {
+    let cancelled = false
     setGenerating(true)
     const tid = setTimeout(() => {
-      if (!printRef.current) { setGenerating(false); return }
-      const canvases = printRef.current.querySelectorAll<HTMLCanvasElement>('.barcode-canvas')
-      let idx = 0
-      products.forEach((product) => {
-        const n = perProductCopies[product.id] ?? Math.max(1, localConfig.copies)
-        for (let i = 0; i < n; i++) {
-          const canvas = canvases[idx++]
-          if (!canvas) continue
-          try {
-            JsBarcode(canvas, product.codigo_barras, {
-              format: detectBarcodeFormat(product.codigo_barras),
-              width: clamp(localConfig.barcodeWidth, 1, 5),
-              height: clamp(localConfig.heightMm * 1.2, 35, 80),
-              displayValue: true,
-              fontSize: 12,
-              margin: 5,
-            })
-          } catch {
-            // barcode inválido — canvas queda vacío
-          }
+      void (async () => {
+        if (!printRef.current) {
+          if (!cancelled) setGenerating(false)
+          return
         }
+
+        const renderBarcode = barcodeRendererRef.current ?? (await import('jsbarcode')).default
+        barcodeRendererRef.current = renderBarcode
+
+        if (cancelled || !printRef.current) {
+          if (!cancelled) setGenerating(false)
+          return
+        }
+
+        const canvases = printRef.current.querySelectorAll<HTMLCanvasElement>('.barcode-canvas')
+        let idx = 0
+        products.forEach((product) => {
+          const n = perProductCopies[product.id] ?? Math.max(1, localConfig.copies)
+          for (let i = 0; i < n; i++) {
+            const canvas = canvases[idx++]
+            if (!canvas) continue
+            try {
+              renderBarcode(canvas, product.codigo_barras, {
+                format: detectBarcodeFormat(product.codigo_barras),
+                width: clamp(localConfig.barcodeWidth, 1, 5),
+                height: clamp(localConfig.heightMm * 1.2, 35, 80),
+                displayValue: true,
+                fontSize: 12,
+                margin: 5,
+              })
+            } catch {
+              // barcode invalido; el canvas queda vacio
+            }
+          }
+        })
+
+        if (!cancelled) setGenerating(false)
+      })().catch(() => {
+        if (!cancelled) setGenerating(false)
       })
-      setGenerating(false)
     }, 80)
-    return () => clearTimeout(tid)
+    return () => {
+      cancelled = true
+      clearTimeout(tid)
+    }
   }, [products, localConfig.copies, localConfig.heightMm, localConfig.barcodeWidth, perProductCopies])
 
   // Helpers de config
@@ -711,12 +733,13 @@ type PrintStateConfig = {
 }
 
 export function usePrintBarcodeLabels() {
+  const { symbol: tenantSymbol } = useCurrency()
   const [isOpen, setIsOpen] = useState(false)
   const [products, setProducts] = useState<ProductLabel[]>([])
   const [config, setConfig] = useState<PrintStateConfig>({
     printConfig: DEFAULT_CONFIG,
     printMode: 'browser',
-    currencySymbol: '$',
+    currencySymbol: '',
   })
 
   const open = (productsData: ProductLabel[], options?: PrintOptions) => {
@@ -728,7 +751,7 @@ export function usePrintBarcodeLabels() {
       printMode: options?.printMode ?? prev.printMode ?? 'browser',
       onChangePrintMode: options?.onChangePrintMode,
       modalExtras: options?.modalExtras,
-      currencySymbol: options?.currencySymbol ?? prev.currencySymbol,
+      currencySymbol: options?.currencySymbol ?? tenantSymbol ?? '',
     }))
     setIsOpen(true)
   }

@@ -17,7 +17,7 @@ class Currency(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     code = Column(String(3), nullable=False, unique=True)  # ISO 4217: USD, EUR, etc.
     name = Column(String(50), nullable=False)
-    symbol = Column(String(5), nullable=False, default="$")
+    symbol = Column(String(5), nullable=False, default="")
     decimal_places = Column(Numeric, default=2)
     is_active = Column(Boolean, default=True)
 

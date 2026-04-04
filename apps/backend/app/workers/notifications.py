@@ -333,7 +333,7 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
             "BRL": "R$",
             "JPY": "¥",
         }
-        iso = getattr(invoice.empresa, "base_currency", None) or "EUR"
+        iso = getattr(invoice.empresa, "base_currency", None) or ""
         symbol = currency_symbols.get(iso, iso)
         body = (
             f"<h2>Factura #{invoice.numero}</h2>"

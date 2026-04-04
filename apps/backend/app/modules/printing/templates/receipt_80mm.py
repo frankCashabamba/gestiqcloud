@@ -58,7 +58,7 @@ class ReceiptData:
     company_address: str = ""
     company_ruc: str = ""
     company_phone: str = ""
-    currency_symbol: str = "$"
+    currency_symbol: str = ""
     notes: str | None = None
     footer_message: str = "¡Gracias por su compra!"
 
@@ -104,7 +104,7 @@ def _columns(left: str, right: str, width: int = WIDTH) -> str:
     return left + " " * space + right
 
 
-def _format_money(amount: Decimal, symbol: str = "$") -> str:
+def _format_money(amount: Decimal, symbol: str = "") -> str:
     return f"{symbol}{amount:,.2f}"
 
 

@@ -28,7 +28,7 @@ interface ProductVariantsProps {
 
 const BASE = '/api/v1/tenant/products/variants'
 
-export default function ProductVariants({ productId, basePrice, currencySymbol = '$' }: ProductVariantsProps) {
+export default function ProductVariants({ productId, basePrice, currencySymbol = '' }: ProductVariantsProps) {
   const { t } = useTranslation('products')
   const { error: toastError } = useToast()
   const [variants, setVariants] = useState<Variant[]>([])
