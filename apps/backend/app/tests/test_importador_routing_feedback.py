@@ -13,7 +13,7 @@ def _fake_request(tenant_id, user_id: str = "tester"):
     return SimpleNamespace(
         state=SimpleNamespace(
             tenant_id=tenant_id,
-            access_claims={"tenant_id": str(tenant_id), "user_id": user_id},
+            access_claims={"tenant_id": str(tenant_id), "user_id": user_id, "is_company_admin": True},
         )
     )
 

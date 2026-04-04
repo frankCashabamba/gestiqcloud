@@ -360,11 +360,20 @@ async def _process_upload_like_document(
             "raw_response": pre_class.reasoning,
         }
     else:
-        # Inject pre-classifier hint so AI skips classification guesswork
+        # Inject pre-classifier hint so AI skips classification guesswork.
+        # Exception: never inject table-only type hints (INVENTORY, PRICE_LIST, etc.)
+        # for non-structured docs (PDFs, images) — those types require spreadsheet rows
+        # that a PDF can never provide, causing datos_extraidos to be always empty.
+        _TABLE_ONLY_TYPES = {
+            "INVENTORY", "PRICE_LIST", "COSTING", "PAYROLL",
+            "BANK_STATEMENT", "BANK_MOVEMENTS", "PRODUCT_LIST",
+        }
         _rc_for_ai = dict(recipe_config) if recipe_config else {}
         if pre_class and pre_class.confidence >= 0.65:
-            _rc_for_ai["doc_type_hint"] = pre_class.doc_type
-            _rc_for_ai["doc_type_hint_confidence"] = pre_class.confidence
+            _hint_type = pre_class.doc_type.upper()
+            if has_structured or _hint_type not in _TABLE_ONLY_TYPES:
+                _rc_for_ai["doc_type_hint"] = pre_class.doc_type
+                _rc_for_ai["doc_type_hint_confidence"] = pre_class.confidence
         analysis_recipe_config = dict(_rc_for_ai)
         analysis = await _analyze_with_context(
             analyze_document_fn=analyze_document_fn,

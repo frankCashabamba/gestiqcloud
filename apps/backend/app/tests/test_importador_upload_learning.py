@@ -24,7 +24,7 @@ def _fake_request(tenant_id) -> SimpleNamespace:
     return SimpleNamespace(
         state=SimpleNamespace(
             tenant_id=tenant_id,
-            access_claims={"tenant_id": str(tenant_id), "user_id": "tester"},
+            access_claims={"tenant_id": str(tenant_id), "user_id": "tester", "is_company_admin": True},
         )
     )
 
@@ -751,9 +751,7 @@ def test_upload_files_learning_reprocess_preserves_snapshot_context(
     assert result[0].action == "REPROCESS"
     assert analyze_calls
     assert "field_descriptions" in analyze_calls[0]
-    assert "Learning from confirmed similar documents:" in str(
-        analyze_calls[0].get("prompt_user")
-    )
+    assert "Learning from confirmed similar documents:" in str(analyze_calls[0].get("prompt_user"))
     db.refresh(existing)
     assert str(existing.recipe_snapshot_id) == str(snapshot_id)
 
@@ -888,7 +886,7 @@ def test_enqueue_async_batch_force_reprocesses_same_hash_without_creating_duplic
         enqueue_async_batch(
             files=[upload],
             tenant_id=tenant_id,
-            user_id=str(uuid4()),
+            user_id="tester",
             force=True,
             recipe_snapshot_id=None,
             db=db,

@@ -138,7 +138,8 @@ def _scoped_importador_user_id(request: Request) -> str | None:
 
 
 def _require_document_access(request: Request, doc):
-    if not doc or getattr(doc, "tenant_id", None) != _tenant_id(request):
+    doc_tid = getattr(doc, "tenant_id", None) if doc else None
+    if not doc or str(doc_tid) != str(_tenant_id(request)):
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     if _can_view_all_importador(request):
         return doc
@@ -149,7 +150,8 @@ def _require_document_access(request: Request, doc):
 
 
 def _require_batch_access(request: Request, batch):
-    if not batch or getattr(batch, "tenant_id", None) != _tenant_id(request):
+    batch_tid = getattr(batch, "tenant_id", None) if batch else None
+    if not batch or str(batch_tid) != str(_tenant_id(request)):
         raise HTTPException(status_code=404, detail="Batch no encontrado")
     if _can_view_all_importador(request):
         return batch
@@ -166,7 +168,6 @@ def _claims_can_view_all_importador(claims: dict | None) -> bool:
         or claims.get("is_admin_company")
         or claims.get("es_admin_empresa")
     )
-
 
 
 def _get_doc_import_data(doc) -> dict:
@@ -1766,8 +1767,8 @@ async def upload_files(
                 if rerun_reason == "learning_update"
                 else "Se reproceso el mismo documento sobre el registro existente."
             )
-            preserve_learning_snapshot = (
-                rerun_reason == "learning_update" and getattr(doc, "recipe_snapshot_id", None)
+            preserve_learning_snapshot = rerun_reason == "learning_update" and getattr(
+                doc, "recipe_snapshot_id", None
             )
             crud.reset_documento_for_reprocess(
                 db,

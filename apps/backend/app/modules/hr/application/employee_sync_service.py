@@ -126,7 +126,9 @@ class EmployeeSyncService:
         return ""
 
     @staticmethod
-    def _ensure_salary(db: Session, employee: Employee, effective_date: date, currency: str = "") -> None:
+    def _ensure_salary(
+        db: Session, employee: Employee, effective_date: date, currency: str = ""
+    ) -> None:
         if employee.salaries:
             return
         db.add(
@@ -201,7 +203,9 @@ class EmployeeSyncService:
         if user.is_active:
             tenant_currency = EmployeeSyncService._resolve_tenant_currency(db, user.tenant_id)
             if salary_base is None:
-                EmployeeSyncService._ensure_salary(db, employee, employee.hire_date or hire_date, tenant_currency)
+                EmployeeSyncService._ensure_salary(
+                    db, employee, employee.hire_date or hire_date, tenant_currency
+                )
             else:
                 current_salary = current_salary_amount(employee)
                 desired_salary = Decimal(str(salary_base))

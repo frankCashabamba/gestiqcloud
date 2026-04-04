@@ -212,11 +212,9 @@ def _resolve_cost_driver_unit_code(db: Session, tenant_id: UUID, raw_unit: str |
 
 
 def _require_recipe_for_tenant(db: Session, tenant_id: UUID, recipe_id: UUID) -> Recipe:
-    recipe = (
-        db.execute(
-            select(Recipe).where(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
-        ).scalar_one_or_none()
-    )
+    recipe = db.execute(
+        select(Recipe).where(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
+    ).scalar_one_or_none()
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
     return recipe
@@ -224,9 +222,7 @@ def _require_recipe_for_tenant(db: Session, tenant_id: UUID, recipe_id: UUID) ->
 
 def _require_product_for_tenant(db: Session, tenant_id: UUID, product_id: UUID) -> Product:
     product = (
-        db.query(Product)
-        .filter(Product.id == product_id, Product.tenant_id == tenant_id)
-        .first()
+        db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
     )
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_not_found")
@@ -387,11 +383,9 @@ def _seed_default_order_costs(db: Session, order: ProductionOrder) -> None:
     if existing_cost:
         return
 
-    recipe = (
-        db.execute(
-            select(Recipe).where(Recipe.id == order.recipe_id, Recipe.tenant_id == order.tenant_id)
-        ).scalar_one_or_none()
-    )
+    recipe = db.execute(
+        select(Recipe).where(Recipe.id == order.recipe_id, Recipe.tenant_id == order.tenant_id)
+    ).scalar_one_or_none()
     if not recipe:
         return
 
@@ -720,14 +714,12 @@ def _create_expense_for_completed_production(
 
     recipe_name = "Production"
     try:
-        recipe = (
-            db.execute(
-                select(Recipe).where(
-                    Recipe.id == order.recipe_id,
-                    Recipe.tenant_id == order.tenant_id,
-                )
-            ).scalar_one_or_none()
-        )
+        recipe = db.execute(
+            select(Recipe).where(
+                Recipe.id == order.recipe_id,
+                Recipe.tenant_id == order.tenant_id,
+            )
+        ).scalar_one_or_none()
         if recipe and recipe.name:
             recipe_name = str(recipe.name)
     except Exception:

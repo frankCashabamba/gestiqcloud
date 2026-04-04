@@ -105,5 +105,28 @@ export default defineConfig({
             }
         })
     ],
-    build: { outDir: 'dist' }
+    build: {
+        outDir: 'dist',
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    // MUI y Emotion solo los usan los módulos de productions.
+                    // Sin esto, cada chunk que usa MUI incluye su propia copia.
+                    if (/@mui\/|@emotion\//.test(id)) return 'vendor-mui'
+                    // React y router cambian poco → chunk estable para caché de larga vida.
+                    if (/node_modules\/(react|react-dom|react-is|scheduler)\//.test(id)) return 'vendor-react'
+                    if (/node_modules\/react-router(-dom)?\//.test(id)) return 'vendor-router'
+                    // PermissionsContext + ProtectedRoute son compartidos por todos los Routes
+                    // pero Rollup los extrae en un chunk propio no controlado (~79kB).
+                    // Forzarlos aquí garantiza un chunk nombrado y predecible.
+                    if (
+                        id.includes('/contexts/PermissionsContext') ||
+                        id.includes('/auth/ProtectedRoute') ||
+                        id.includes('/hooks/usePermission') ||
+                        id.includes('/components/PermissionDenied')
+                    ) return 'app-shared'
+                }
+            }
+        }
+    }
 });

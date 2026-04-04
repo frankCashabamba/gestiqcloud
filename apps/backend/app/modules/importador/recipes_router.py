@@ -43,7 +43,6 @@ def _user_id(request: Request) -> str:
     return str(claims.get("user_id", "unknown"))
 
 
-
 @router.post("/recipes", response_model=RecipeOut, dependencies=protected)
 def create_recipe(body: RecipeCreate, request: Request, db: Session = Depends(get_db)):
     recipe = recipe_crud.create_recipe(

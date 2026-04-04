@@ -204,9 +204,9 @@ class CheckoutService:
             return warehouse_id
 
         warehouses = self.db.execute(
-            text("SELECT id FROM warehouses WHERE tenant_id = :tid AND active = true LIMIT 2").bindparams(
-                bindparam("tid", type_=PGUUID(as_uuid=True))
-            ),
+            text(
+                "SELECT id FROM warehouses WHERE tenant_id = :tid AND active = true LIMIT 2"
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
             {"tid": tenant_id},
         ).fetchall()
 

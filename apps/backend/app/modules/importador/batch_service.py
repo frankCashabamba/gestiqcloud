@@ -347,8 +347,8 @@ async def enqueue_async_batch(
         rerun_existing,
         start=rerun_start,
     ):
-        preserve_learning_snapshot = (
-            rerun_reason == "learning_update" and getattr(existing, "recipe_snapshot_id", None)
+        preserve_learning_snapshot = rerun_reason == "learning_update" and getattr(
+            existing, "recipe_snapshot_id", None
         )
         crud.reset_documento_for_reprocess(
             db,
