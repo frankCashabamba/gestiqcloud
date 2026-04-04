@@ -211,6 +211,39 @@ def _resolve_cost_driver_unit_code(db: Session, tenant_id: UUID, raw_unit: str |
     raise HTTPException(status_code=400, detail=f"Unidad de costo no válida: {unit}")
 
 
+def _require_recipe_for_tenant(db: Session, tenant_id: UUID, recipe_id: UUID) -> Recipe:
+    recipe = (
+        db.execute(
+            select(Recipe).where(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
+        ).scalar_one_or_none()
+    )
+    if not recipe:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
+    return recipe
+
+
+def _require_product_for_tenant(db: Session, tenant_id: UUID, product_id: UUID) -> Product:
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id, Product.tenant_id == tenant_id)
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product_not_found")
+    return product
+
+
+def _require_warehouse_for_tenant(db: Session, tenant_id: UUID, warehouse_id: UUID) -> Warehouse:
+    warehouse = (
+        db.query(Warehouse)
+        .filter(Warehouse.id == warehouse_id, Warehouse.tenant_id == str(tenant_id))
+        .first()
+    )
+    if not warehouse:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="warehouse_not_found")
+    return warehouse
+
+
 def _ensure_order_costs_indexes_and_rls(db: Session) -> None:
     if IS_SQLITE:
         return
@@ -354,7 +387,11 @@ def _seed_default_order_costs(db: Session, order: ProductionOrder) -> None:
     if existing_cost:
         return
 
-    recipe = db.execute(select(Recipe).where(Recipe.id == order.recipe_id)).scalar_one_or_none()
+    recipe = (
+        db.execute(
+            select(Recipe).where(Recipe.id == order.recipe_id, Recipe.tenant_id == order.tenant_id)
+        ).scalar_one_or_none()
+    )
     if not recipe:
         return
 
@@ -637,7 +674,7 @@ async def _create_stock_move_for_output(
 
 def _resolve_warehouse_id(db: Session, tenant_id: UUID, preferred: UUID | None = None) -> UUID:
     if preferred:
-        return preferred
+        return UUID(str(_require_warehouse_for_tenant(db, tenant_id, preferred).id))
     # Try to find from stock items first
     stmt = (
         select(StockItem.warehouse_id)
@@ -683,7 +720,14 @@ def _create_expense_for_completed_production(
 
     recipe_name = "Production"
     try:
-        recipe = db.execute(select(Recipe).where(Recipe.id == order.recipe_id)).scalar_one_or_none()
+        recipe = (
+            db.execute(
+                select(Recipe).where(
+                    Recipe.id == order.recipe_id,
+                    Recipe.tenant_id == order.tenant_id,
+                )
+            ).scalar_one_or_none()
+        )
         if recipe and recipe.name:
             recipe_name = str(recipe.name)
     except Exception:
@@ -914,11 +958,15 @@ async def create_production_order(
 ):
     tenant_id = UUID(claims["tenant_id"])
     user_id = UUID(claims["user_id"])
-    recipe_stmt = select(Recipe).where(Recipe.id == order_in.recipe_id)
-    recipe_result = db.execute(recipe_stmt)
-    recipe = recipe_result.scalar_one_or_none()
-    if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
+    recipe = _require_recipe_for_tenant(db, tenant_id, order_in.recipe_id)
+    product = _require_product_for_tenant(db, tenant_id, order_in.product_id)
+    if order_in.warehouse_id is not None:
+        _require_warehouse_for_tenant(db, tenant_id, order_in.warehouse_id)
+    if UUID(str(recipe.product_id)) != product.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="recipe_product_mismatch",
+        )
     numero = _generate_next_numero(db, tenant_id)
     order = ProductionOrder(
         tenant_id=tenant_id,
@@ -1320,11 +1368,7 @@ async def calculate_production(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
-    recipe_stmt = select(Recipe).where(Recipe.id == request.recipe_id)
-    recipe_result = db.execute(recipe_stmt)
-    recipe = recipe_result.scalar_one_or_none()
-    if not recipe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
+    recipe = _require_recipe_for_tenant(db, tenant_id, request.recipe_id)
     ingredients_stmt = select(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id)
     ingredients_result = db.execute(ingredients_stmt)
     ingredients = ingredients_result.scalars().all()

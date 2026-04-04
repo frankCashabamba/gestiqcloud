@@ -5,7 +5,7 @@
 
 import { useEffect } from 'react'
 import { useCompanyConfig } from '../contexts/CompanyConfigContext'
-import { normalizeLang } from './index'
+import { changeAppLanguage, normalizeLang } from './index'
 import i18n from './index'
 import type { SupportedLang } from './index'
 
@@ -22,7 +22,7 @@ export function useTenantLanguage(): SupportedLang {
 
     // Solo cambiar si es diferente al idioma actual
     if (i18n.language !== normalized) {
-      i18n.changeLanguage(normalized).catch(err => {
+      changeAppLanguage(normalized).catch(err => {
         console.warn(`Failed to change language to ${normalized}:`, err)
       })
     }

@@ -34,7 +34,7 @@ import React, {
 import { apiFetch } from '../lib/http'
 import { hasCompanyModuleEnabled } from '../lib/companyModuleKeys'
 import { useCompanySectorFullConfig as useCompanySectorFullConfigHook, SectorFullConfig, FeaturesConfig as SectorFeaturesConfig } from '../hooks/useCompanySectorFullConfig'
-import i18n, { normalizeLang } from '../i18n'
+import i18n, { changeAppLanguage, normalizeLang } from '../i18n'
 import { useAuth } from '../auth/AuthContext'
 import { getOfflineCacheScope, readCachedResource, writeCachedResource } from '../lib/offlineResourceCache'
 import { isNetworkIssue } from '../lib/offlineHttp'
@@ -201,7 +201,7 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
       const lang = normalizeLang(mapped?.settings?.locale)
       if (i18n.resolvedLanguage !== lang) {
         try {
-          await i18n.changeLanguage(lang)
+          await changeAppLanguage(lang)
         } catch {}
       }
       try {

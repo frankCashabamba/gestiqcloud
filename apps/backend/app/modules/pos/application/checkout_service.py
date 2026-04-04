@@ -98,7 +98,7 @@ class CheckoutService:
                 f"insufficient_payment: received={float(paid):.2f} required={float(total):.2f}"
             )
 
-        warehouse_id = self._resolve_warehouse(req.warehouse_id)
+        warehouse_id = self._resolve_warehouse(req.tenant_id, req.warehouse_id)
         self._process_stock_lines(req.receipt_id, req.tenant_id, warehouse_id, req.stock_selections)
         self._mark_paid(req.receipt_id, req.tenant_id, subtotal, tax, warehouse_id)
         self.db.commit()
@@ -188,12 +188,26 @@ class CheckoutService:
 
         return resolve_default_tax_rate(self.db)
 
-    def _resolve_warehouse(self, warehouse_id: UUID | None) -> UUID:
+    def _resolve_warehouse(self, tenant_id: UUID, warehouse_id: UUID | None) -> UUID:
         if warehouse_id:
+            row = self.db.execute(
+                text(
+                    "SELECT id FROM warehouses WHERE id = :wid AND tenant_id = :tid AND active = true"
+                ).bindparams(
+                    bindparam("wid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"wid": warehouse_id, "tid": tenant_id},
+            ).first()
+            if not row:
+                raise ValueError("warehouse_not_found")
             return warehouse_id
 
         warehouses = self.db.execute(
-            text("SELECT id FROM warehouses WHERE active = true LIMIT 2")
+            text("SELECT id FROM warehouses WHERE tenant_id = :tid AND active = true LIMIT 2").bindparams(
+                bindparam("tid", type_=PGUUID(as_uuid=True))
+            ),
+            {"tid": tenant_id},
         ).fetchall()
 
         if len(warehouses) == 0:
@@ -213,6 +227,7 @@ class CheckoutService:
             ensure_generic_stock_row,
             load_locked_stock_rows,
             normalize_lot,
+            require_tenant_product,
             resolve_inventory_costing_method,
             resolve_outbound_stock_fifo,
             resolve_selected_stock_row,
@@ -239,6 +254,7 @@ class CheckoutService:
                 float(line[3]),
                 float(line[4] or 0),
             )
+            require_tenant_product(self.db, tenant_id, product_id)
             self._process_line(
                 line_id=line_id,
                 product_id=product_id,
@@ -284,7 +300,7 @@ class CheckoutService:
         normalize_lot = helpers["normalize_lot"]
         to_dec = helpers["to_decimal_q"]
 
-        stock_rows = load_locked(self.db, warehouse_id, product_id)
+        stock_rows = load_locked(self.db, tenant_id, warehouse_id, product_id)
         allocations: list[tuple] = []
 
         if line_selection is not None:
@@ -328,8 +344,11 @@ class CheckoutService:
 
         current_qty = sum_qty(stock_rows)
         cost_price = self.db.execute(
-            text("SELECT cost_price FROM products WHERE id = :pid"),
-            {"pid": product_id},
+            text("SELECT cost_price FROM products WHERE id = :pid AND tenant_id = :tid").bindparams(
+                bindparam("pid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"pid": product_id, "tid": tenant_id},
         ).scalar()
         fallback_cost = to_dec(float(cost_price or 0), "0.000001")
         qty_dec = to_dec(qty_sold, "0.000001")

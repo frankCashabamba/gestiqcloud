@@ -33,6 +33,8 @@ from ._deps import (
     is_company_admin,
     is_tax_enabled,
     load_locked_stock_rows,
+    require_tenant_product,
+    require_tenant_warehouse,
     resolve_default_tax_rate,
     resolve_inventory_costing_method,
     sum_stock_rows_qty,
@@ -194,11 +196,17 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
                 raise HTTPException(status_code=400, detail="customer_not_found")
 
         shift = db.execute(
-            text("SELECT status FROM pos_shifts WHERE id = :sid AND register_id = :rid").bindparams(
+            text(
+                "SELECT ps.status "
+                "FROM pos_shifts ps "
+                "JOIN pos_registers pr ON pr.id = ps.register_id "
+                "WHERE ps.id = :sid AND ps.register_id = :rid AND pr.tenant_id = :tid"
+            ).bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("rid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"sid": shift_uuid, "rid": register_uuid},
+            {"sid": shift_uuid, "rid": register_uuid, "tid": tenant_id},
         ).first()
 
         if not shift:
@@ -266,6 +274,7 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
 
         for line in payload.lines:
             product_uuid = validate_uuid(line.product_id, "Product ID")
+            require_tenant_product(db, tenant_id, product_uuid)
 
             tax_rate = line.tax_rate
             if not tax_enabled:
@@ -672,6 +681,8 @@ def checkout(
                 status_code=400,
                 detail="Múltiples almacenes disponibles, debe especificar warehouse_id",
             )
+        if "warehouse_not_found" in detail:
+            raise HTTPException(status_code=404, detail="Warehouse not found")
         raise HTTPException(status_code=400, detail=detail)
     except Exception as e:
         db.rollback()
@@ -761,6 +772,7 @@ def refund_receipt(
         warehouse_uuid = receipt[1]
         if not warehouse_uuid:
             raise HTTPException(status_code=400, detail="Recibo sin warehouse_id")
+        require_tenant_warehouse(db, tenant_id, warehouse_uuid)
 
         has_refunds = db.execute(
             text(
@@ -802,7 +814,8 @@ def refund_receipt(
             qty_dec = to_decimal_q(qty_return, "0.000001")
             cogs_unit_dec = to_decimal_q(cogs_unit, "0.000001")
 
-            stock_rows = load_locked_stock_rows(db, warehouse_uuid, product_id)
+            require_tenant_product(db, tenant_id, product_id)
+            stock_rows = load_locked_stock_rows(db, tenant_id, warehouse_uuid, product_id)
             current_qty = sum_stock_rows_qty(stock_rows)
             stock_item = ensure_generic_stock_row(
                 db,

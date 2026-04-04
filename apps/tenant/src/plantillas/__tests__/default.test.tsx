@@ -4,9 +4,9 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
-import DefaultPlantilla from './default'
+import DefaultPlantilla from '../default'
 
-vi.mock('../hooks/useMisModulos', () => ({
+vi.mock('../../hooks/useMisModulos', () => ({
   useMisModulos: () => ({
     modules: [],
     visibleModules: [],
@@ -20,7 +20,7 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('./components/SectorLayout', () => ({
+vi.mock('../components/SectorLayout', () => ({
   default: ({ kpis, children }: { kpis: ReactNode[]; children: ReactNode }) => (
     <div>
       <div>{kpis}</div>

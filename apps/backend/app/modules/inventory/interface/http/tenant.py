@@ -91,6 +91,34 @@ def _normalize_lot(value: str | None) -> str | None:
     return normalized or None
 
 
+def _require_tenant_warehouse(db: Session, tenant_id: str, warehouse_id: str) -> Warehouse:
+    warehouse = (
+        db.query(Warehouse)
+        .filter(
+            Warehouse.id == _coerce_uuid(warehouse_id),
+            Warehouse.tenant_id == _coerce_uuid(tenant_id),
+        )
+        .first()
+    )
+    if not warehouse:
+        raise HTTPException(status_code=404, detail="warehouse_not_found")
+    return warehouse
+
+
+def _require_tenant_product(db: Session, tenant_id: str, product_id: str) -> Product:
+    product = (
+        db.query(Product)
+        .filter(
+            Product.id == _coerce_uuid(product_id),
+            Product.tenant_id == _coerce_uuid(tenant_id),
+        )
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="product_not_found")
+    return product
+
+
 def _stock_item_query(
     db: Session,
     *,
@@ -469,6 +497,8 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
     # Find or create stock item
     tid = _require_tenant_id(request)
     lot = _normalize_lot(payload.lote)
+    warehouse = _require_tenant_warehouse(db, tid, payload.warehouse_id)
+    product = _require_tenant_product(db, tid, payload.product_id)
     if payload.delta >= 0:
         row = _ensure_receipt_stock_item(
             db,
@@ -505,14 +535,6 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
 
     qty_abs = abs(payload.delta)
     qty_dec = _dec(qty_abs)
-    product = (
-        db.query(Product)
-        .filter(
-            Product.id == _coerce_uuid(payload.product_id),
-            Product.tenant_id == _coerce_uuid(tid),
-        )
-        .first()
-    )
     fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
 
     costing = InventoryCostingService(db)
@@ -642,15 +664,6 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
 
     db.commit()
     db.refresh(row)
-    product = (
-        db.query(Product)
-        .filter(
-            Product.id == _coerce_uuid(payload.product_id),
-            Product.tenant_id == _coerce_uuid(tid),
-        )
-        .first()
-    )
-    warehouse = db.query(Warehouse).filter(Warehouse.id == payload.warehouse_id).first()
     return _serialize_stock_item(row, product=product, warehouse=warehouse)
 
 
@@ -667,6 +680,9 @@ class TransferIn(BaseModel):
 def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(get_db)):
     tid = _require_tenant_id(request)
     lot = _normalize_lot(payload.lote)
+    _require_tenant_warehouse(db, tid, payload.from_warehouse_id)
+    _require_tenant_warehouse(db, tid, payload.to_warehouse_id)
+    product = _require_tenant_product(db, tid, payload.product_id)
     # Create issue from source and receipt to destination, post atomically
     # Source
     src_item = _resolve_issue_stock_item(
@@ -701,9 +717,6 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
     )
 
     qty_dec = _dec(payload.qty)
-    product = (
-        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
-    )
     fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
 
     costing = InventoryCostingService(db)
@@ -845,6 +858,8 @@ class CycleCountIn(BaseModel):
 def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(get_db)):
     tid = _require_tenant_id(request)
     lot = _normalize_lot(payload.lote)
+    warehouse = _require_tenant_warehouse(db, tid, payload.warehouse_id)
+    product = _require_tenant_product(db, tid, payload.product_id)
     item = _resolve_issue_stock_item(
         db,
         tenant_id=tid,
@@ -871,11 +886,6 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
     delta = float(payload.counted_qty) - current
     if delta != 0:
         qty_dec = _dec(abs(delta))
-        product = (
-            db.query(Product)
-            .filter(Product.id == payload.product_id, Product.tenant_id == tid)
-            .first()
-        )
         fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
         costing = InventoryCostingService(db)
 
@@ -968,15 +978,6 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
         db.add(item)
     db.commit()
     db.refresh(item)
-    product = (
-        db.query(Product)
-        .filter(
-            Product.id == _coerce_uuid(payload.product_id),
-            Product.tenant_id == _coerce_uuid(tid),
-        )
-        .first()
-    )
-    warehouse = db.query(Warehouse).filter(Warehouse.id == payload.warehouse_id).first()
     return _serialize_stock_item(item, product=product, warehouse=warehouse)
 
 

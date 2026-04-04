@@ -34,17 +34,6 @@ import { useDocumentIDTypes } from '../../hooks/useDocumentIDTypes'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
 import ShiftManager from './components/ShiftManager'
-import PaymentModal from './components/PaymentModal'
-import ConvertToInvoiceModal from './components/ConvertToInvoiceModal'
-import { POSPaymentBar } from './components/POSPaymentBar'
-import { POSKeyboardHelp } from './components/POSKeyboardHelp'
-import { CatalogSection } from './components/CatalogSection'
-import { CartSection } from './components/CartSection'
-import { DiscountModal } from './components/DiscountModal'
-import { ResumeTicketModal } from './components/ResumeTicketModal'
-import { WasteModal } from './components/WasteModal'
-import { QuickInputModal } from './components/QuickInputModal'
-import PendingReceiptsModal from './components/PendingReceiptsModal'
 import useOfflineSync from './hooks/useOfflineSync'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useToast } from '../../shared/toast'
@@ -58,9 +47,37 @@ import { createRegister } from './services'
 import { POS_DEFAULTS } from '../../constants/defaults'
 import { normalizePosTheme, POS_THEME_KEY, usePOSState } from './hooks/usePOSState'
 import { usePOSActions } from './hooks/usePOSActions'
-import QuickOrderModal from '../sales/components/QuickOrderModal'
 import { createVenta, checkoutOrder, type VentaLinea } from '../sales/services'
 import './pos-styles.css'
+
+const PaymentModal = React.lazy(() => import('./components/PaymentModal'))
+const ConvertToInvoiceModal = React.lazy(() => import('./components/ConvertToInvoiceModal'))
+const POSPaymentBar = React.lazy(() =>
+    import('./components/POSPaymentBar').then((module) => ({ default: module.POSPaymentBar }))
+)
+const CatalogSection = React.lazy(() =>
+    import('./components/CatalogSection').then((module) => ({ default: module.CatalogSection }))
+)
+const CartSection = React.lazy(() =>
+    import('./components/CartSection').then((module) => ({ default: module.CartSection }))
+)
+const POSKeyboardHelp = React.lazy(() =>
+    import('./components/POSKeyboardHelp').then((module) => ({ default: module.POSKeyboardHelp }))
+)
+const DiscountModal = React.lazy(() =>
+    import('./components/DiscountModal').then((module) => ({ default: module.DiscountModal }))
+)
+const ResumeTicketModal = React.lazy(() =>
+    import('./components/ResumeTicketModal').then((module) => ({ default: module.ResumeTicketModal }))
+)
+const WasteModal = React.lazy(() =>
+    import('./components/WasteModal').then((module) => ({ default: module.WasteModal }))
+)
+const QuickInputModal = React.lazy(() =>
+    import('./components/QuickInputModal').then((module) => ({ default: module.QuickInputModal }))
+)
+const PendingReceiptsModal = React.lazy(() => import('./components/PendingReceiptsModal'))
+const QuickOrderModal = React.lazy(() => import('../sales/components/QuickOrderModal'))
 
 export default function POSView() {
     const navigate = useNavigate()
@@ -73,6 +90,7 @@ export default function POSView() {
     const toast = useToast()
     const { isOnline, pendingCount, syncing, lastSyncAt } = useOfflineSync()
     const { loading: documentIdTypesLoading } = useDocumentIDTypes()
+    const lazyFallback = null
 
     const isCompanyAdmin = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
 
@@ -518,60 +536,66 @@ export default function POSView() {
             <>
                 <ShiftManager ref={shiftManagerRef} register={selectedRegister} onShiftChange={setCurrentShift} compact />
 
-                <CatalogSection
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    barcodeInput={barcodeInput}
-                    setBarcodeInput={setBarcodeInput}
-                    searchExpanded={searchExpanded}
-                    setSearchExpanded={setSearchExpanded}
-                    selectedCategory={selectedCategory}
-                    setSelectedCategory={setSelectedCategory}
-                    viewMode={viewMode}
-                    setViewMode={setViewMode}
-                    filteredProducts={filteredProducts}
-                    categories={categories}
-                    searchInputRef={state.searchInputRef}
-                    onAddToCart={addToCart}
-                    onSearchEnter={actions.handleSearchEnter}
-                    onBarcodeEnter={actions.handleBarcodeEnter}
-                />
+                <React.Suspense fallback={lazyFallback}>
+                    <CatalogSection
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        barcodeInput={barcodeInput}
+                        setBarcodeInput={setBarcodeInput}
+                        searchExpanded={searchExpanded}
+                        setSearchExpanded={setSearchExpanded}
+                        selectedCategory={selectedCategory}
+                        setSelectedCategory={setSelectedCategory}
+                        viewMode={viewMode}
+                        setViewMode={setViewMode}
+                        filteredProducts={filteredProducts}
+                        categories={categories}
+                        searchInputRef={state.searchInputRef}
+                        onAddToCart={addToCart}
+                        onSearchEnter={actions.handleSearchEnter}
+                        onBarcodeEnter={actions.handleBarcodeEnter}
+                    />
+                </React.Suspense>
 
-                <CartSection
-                    cart={cart}
-                    totals={totals}
-                    isLoading={loading}
-                    bulkPricingItems={(companySettings?.pos_config as any)?.bulk_pricing_items || []}
-                    onUpdateQty={updateQty}
-                    onQtyChange={(idx, newQty) => {
-                        const updated = [...cart]
-                        const product = state.products.find((p) => p.id === updated[idx].product_id)
-                        if (product) updated[idx] = applyPricingToCartItem(updated[idx], product, newQty)
-                        else updated[idx].qty = newQty
-                        setCart(updated)
-                    }}
-                    onRemoveItem={removeItem}
-                    onSetLineDiscount={setLineDiscount}
-                    onSetLineNote={setLineNote}
-                    onCheckout={handleCheckout}
-                    onQuickConsumerFinal={() => { void handleQuickConsumerFinal() }}
-                    onQuickInvoice={() => { void handleQuickInvoice() }}
-                    onQuickNoTicket={() => { void handleQuickNoTicket() }}
-                    onExpressCash={() => { void handleExpressCash({ printTicket: false }) }}
-                    onExpressCashPrint={() => { void handleExpressCash({ printTicket: true }) }}
-                />
+                <React.Suspense fallback={lazyFallback}>
+                    <CartSection
+                        cart={cart}
+                        totals={totals}
+                        isLoading={loading}
+                        bulkPricingItems={(companySettings?.pos_config as any)?.bulk_pricing_items || []}
+                        onUpdateQty={updateQty}
+                        onQtyChange={(idx, newQty) => {
+                            const updated = [...cart]
+                            const product = state.products.find((p) => p.id === updated[idx].product_id)
+                            if (product) updated[idx] = applyPricingToCartItem(updated[idx], product, newQty)
+                            else updated[idx].qty = newQty
+                            setCart(updated)
+                        }}
+                        onRemoveItem={removeItem}
+                        onSetLineDiscount={setLineDiscount}
+                        onSetLineNote={setLineNote}
+                        onCheckout={handleCheckout}
+                        onQuickConsumerFinal={() => { void handleQuickConsumerFinal() }}
+                        onQuickInvoice={() => { void handleQuickInvoice() }}
+                        onQuickNoTicket={() => { void handleQuickNoTicket() }}
+                        onExpressCash={() => { void handleExpressCash({ printTicket: false }) }}
+                        onExpressCashPrint={() => { void handleExpressCash({ printTicket: true }) }}
+                    />
+                </React.Suspense>
 
                 {cart.length > 0 && (
                     <footer className="bottom">
-                        <POSPaymentBar
-                            subtotal={totals.subtotal}
-                            discount={totals.line_discounts + totals.global_discount}
-                            tax={totals.tax}
-                            cartTotal={totals.total}
-                            cartIsEmpty={cart.length === 0 || !currentShift}
-                            onPayClick={handleCheckout}
-                            isLoading={loading}
-                        />
+                        <React.Suspense fallback={lazyFallback}>
+                            <POSPaymentBar
+                                subtotal={totals.subtotal}
+                                discount={totals.line_discounts + totals.global_discount}
+                                tax={totals.tax}
+                                cartTotal={totals.total}
+                                cartIsEmpty={cart.length === 0 || !currentShift}
+                                onPayClick={handleCheckout}
+                                isLoading={loading}
+                            />
+                        </React.Suspense>
                     </footer>
                 )}
             </>
@@ -681,26 +705,30 @@ export default function POSView() {
 
             {/* Payment */}
             {showPaymentModal && currentReceiptId && (
-                <PaymentModal
-                    receiptId={currentReceiptId}
-                    totalAmount={totals.total}
-                    warehouseId={headerWarehouseId || undefined}
-                    draftLines={paymentDraftContext?.draftLines}
-                    offlineCreatePayload={paymentDraftContext?.createPayload}
-                    baseDocumentDraft={buildSaleDraft([])}
-                    onSuccess={handlePaymentSuccess}
-                    onCancel={handlePaymentCancel}
-                    isWholesaleCustomer={isWholesaleCustomer}
-                />
+                <React.Suspense fallback={lazyFallback}>
+                    <PaymentModal
+                        receiptId={currentReceiptId}
+                        totalAmount={totals.total}
+                        warehouseId={headerWarehouseId || undefined}
+                        draftLines={paymentDraftContext?.draftLines}
+                        offlineCreatePayload={paymentDraftContext?.createPayload}
+                        baseDocumentDraft={buildSaleDraft([])}
+                        onSuccess={handlePaymentSuccess}
+                        onCancel={handlePaymentCancel}
+                        isWholesaleCustomer={isWholesaleCustomer}
+                    />
+                </React.Suspense>
             )}
 
             {/* Convert to Invoice */}
             {showInvoiceModal && currentReceiptId && (
-                <ConvertToInvoiceModal
-                    receiptId={currentReceiptId}
-                    onSuccess={() => { setShowInvoiceModal(false); setCurrentReceiptId(null); setAutoCreateInvoice(false); toast.success(t('pos:errors.invoiceGeneratedSuccess')) }}
-                    onCancel={() => { setShowInvoiceModal(false); setAutoCreateInvoice(false) }}
-                />
+                <React.Suspense fallback={lazyFallback}>
+                    <ConvertToInvoiceModal
+                        receiptId={currentReceiptId}
+                        onSuccess={() => { setShowInvoiceModal(false); setCurrentReceiptId(null); setAutoCreateInvoice(false); toast.success(t('pos:errors.invoiceGeneratedSuccess')) }}
+                        onCancel={() => { setShowInvoiceModal(false); setAutoCreateInvoice(false) }}
+                    />
+                </React.Suspense>
             )}
 
             {/* Quick create product */}
@@ -765,50 +793,74 @@ export default function POSView() {
             )}
 
             {orderOpen && (
-                <QuickOrderModal
-                    saving={orderSaving}
-                    error={orderError}
-                    lineas={orderLineas}
-                    clienteId={orderClienteId}
-                    clienteName={orderClienteName}
-                    deliveryDate={orderDeliveryDate}
-                    notes={orderNotes}
-                    deposit={orderDeposit}
-                    depositPaid={orderDepositPaid}
-                    paymentMethod={orderPaymentMethod}
-                    showPicker={orderShowPicker}
-                    yaCobrado={orderYaCobrado}
-                    onClienteChange={(id, name) => { setOrderClienteId(id ? String(id) : undefined); setOrderClienteName(name) }}
-                    onDeliveryDate={setOrderDeliveryDate}
-                    onNotes={setOrderNotes}
-                    onDeposit={setOrderDeposit}
-                    onDepositPaid={setOrderDepositPaid}
-                    onPaymentMethod={setOrderPaymentMethod}
-                    onYaCobrado={setOrderYaCobrado}
-                    onAddLinea={l => setOrderLineas(prev => [...prev, l])}
-                    onUpdateLinea={(idx, field, value) => setOrderLineas(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l))}
-                    onRemoveLinea={idx => setOrderLineas(prev => prev.filter((_, i) => i !== idx))}
-                    onTogglePicker={() => setOrderShowPicker(v => !v)}
-                    onClose={() => setOrderOpen(false)}
-                    onSubmit={handleSaveOrderFromPOS}
-                />
+                <React.Suspense fallback={lazyFallback}>
+                    <QuickOrderModal
+                        saving={orderSaving}
+                        error={orderError}
+                        lineas={orderLineas}
+                        clienteId={orderClienteId}
+                        clienteName={orderClienteName}
+                        deliveryDate={orderDeliveryDate}
+                        notes={orderNotes}
+                        deposit={orderDeposit}
+                        depositPaid={orderDepositPaid}
+                        paymentMethod={orderPaymentMethod}
+                        showPicker={orderShowPicker}
+                        yaCobrado={orderYaCobrado}
+                        onClienteChange={(id, name) => { setOrderClienteId(id ? String(id) : undefined); setOrderClienteName(name) }}
+                        onDeliveryDate={setOrderDeliveryDate}
+                        onNotes={setOrderNotes}
+                        onDeposit={setOrderDeposit}
+                        onDepositPaid={setOrderDepositPaid}
+                        onPaymentMethod={setOrderPaymentMethod}
+                        onYaCobrado={setOrderYaCobrado}
+                        onAddLinea={l => setOrderLineas(prev => [...prev, l])}
+                        onUpdateLinea={(idx, field, value) => setOrderLineas(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l))}
+                        onRemoveLinea={idx => setOrderLineas(prev => prev.filter((_, i) => i !== idx))}
+                        onTogglePicker={() => setOrderShowPicker(v => !v)}
+                        onClose={() => setOrderOpen(false)}
+                        onSubmit={handleSaveOrderFromPOS}
+                    />
+                </React.Suspense>
             )}
 
-            <POSKeyboardHelp bulkPricingItems={(companySettings?.pos_config as any)?.bulk_pricing_items || []} />
+            <React.Suspense fallback={lazyFallback}>
+                <POSKeyboardHelp bulkPricingItems={(companySettings?.pos_config as any)?.bulk_pricing_items || []} />
+            </React.Suspense>
 
-            <PendingReceiptsModal isOpen={showPendingModal} shiftId={currentShift?.id || undefined} onClose={() => setShowPendingModal(false)} canManage={isCompanyAdmin} onPaid={() => { }} />
+            {showPendingModal && (
+                <React.Suspense fallback={lazyFallback}>
+                    <PendingReceiptsModal isOpen={showPendingModal} shiftId={currentShift?.id || undefined} onClose={() => setShowPendingModal(false)} canManage={isCompanyAdmin} onPaid={() => { }} />
+                </React.Suspense>
+            )}
 
-            <DiscountModal isOpen={showDiscountModal} currentValue={globalDiscountPct} onConfirm={(value) => { setGlobalDiscountPct(value); setShowDiscountModal(false) }} onCancel={() => setShowDiscountModal(false)} />
+            {showDiscountModal && (
+                <React.Suspense fallback={lazyFallback}>
+                    <DiscountModal isOpen={showDiscountModal} currentValue={globalDiscountPct} onConfirm={(value) => { setGlobalDiscountPct(value); setShowDiscountModal(false) }} onCancel={() => setShowDiscountModal(false)} />
+                </React.Suspense>
+            )}
 
-            <ResumeTicketModal isOpen={showResumeTicketModal} heldTickets={heldTickets} onConfirm={handleResumeTicketConfirm} onCancel={() => setShowResumeTicketModal(false)} />
+            {showResumeTicketModal && (
+                <React.Suspense fallback={lazyFallback}>
+                    <ResumeTicketModal isOpen={showResumeTicketModal} heldTickets={heldTickets} onConfirm={handleResumeTicketConfirm} onCancel={() => setShowResumeTicketModal(false)} />
+                </React.Suspense>
+            )}
 
-            <QuickInputModal isOpen={quickInputState.open} title={quickInputState.title} initialValue={quickInputState.value} placeholder={quickInputState.placeholder} type={quickInputState.type} multiline={quickInputState.multiline} onConfirm={(value) => quickInputState.onConfirm?.(value)} onCancel={closeQuickInput} />
+            {quickInputState.open && (
+                <React.Suspense fallback={lazyFallback}>
+                    <QuickInputModal isOpen={quickInputState.open} title={quickInputState.title} initialValue={quickInputState.value} placeholder={quickInputState.placeholder} type={quickInputState.type} multiline={quickInputState.multiline} onConfirm={(value) => quickInputState.onConfirm?.(value)} onCancel={closeQuickInput} />
+                </React.Suspense>
+            )}
 
-            <WasteModal
-                isOpen={showWasteModal}
-                onCancel={() => setShowWasteModal(false)}
-                onConfirm={async (payload) => { setShowWasteModal(false); await handleWasteAdjust(payload) }}
-            />
+            {showWasteModal && (
+                <React.Suspense fallback={lazyFallback}>
+                    <WasteModal
+                        isOpen={showWasteModal}
+                        onCancel={() => setShowWasteModal(false)}
+                        onConfirm={async (payload) => { setShowWasteModal(false); await handleWasteAdjust(payload) }}
+                    />
+                </React.Suspense>
+            )}
         </div>
     )
 }

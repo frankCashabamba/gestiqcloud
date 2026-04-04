@@ -15,6 +15,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import set_tenant_guc, tenant_id_sql_expr_text
 from app.models.company.company import SectorTemplate
+from app.models.company.company_settings import CompanySettings
 from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/dashboard/kpis", tags=["Dashboard KPIs"])
@@ -29,19 +30,35 @@ def _resolve_sector(sector: str | None, tenant: Tenant | None) -> str:
     return "default"
 
 
+def _resolve_tenant_currency(db: Session, tenant_id: str | None) -> str | None:
+    if not tenant_id:
+        return None
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    if settings and settings.currency:
+        return str(settings.currency).strip().upper() or None
+    tenant = db.get(Tenant, tenant_id)
+    if tenant and tenant.base_currency:
+        return str(tenant.base_currency).strip().upper() or None
+    return None
+
+
 def _resolve_sector_currency(
-    db: Session, sector_code: str, fallback: str | None = None
+    db: Session, sector_code: str, tenant_id: str | None = None
 ) -> str | None:
+    # Tenant currency always takes priority over sector template defaults
+    tenant_currency = _resolve_tenant_currency(db, tenant_id)
+    if tenant_currency:
+        return tenant_currency
     tpl = (
         db.query(SectorTemplate)
         .filter(SectorTemplate.code == sector_code, SectorTemplate.is_active == True)  # noqa: E712
         .first()
     )
     if not tpl:
-        return fallback
+        return None
     config = tpl.template_config or {}
     defaults = config.get("defaults", {}) or {}
-    return defaults.get("currency", fallback)
+    return defaults.get("currency") or None
 
 
 def _sector_kpis_payload(
@@ -618,7 +635,7 @@ def get_current_sector_kpis(
 
     # Enable RLS
     set_tenant_guc(db, tenant_id)
-    currency = _resolve_sector_currency(db, sector_code)
+    currency = _resolve_sector_currency(db, sector_code, tenant_id=str(tenant_id))
 
     return _sector_kpis_payload(sector_code, str(tenant_id), db, currency)
 
@@ -641,6 +658,6 @@ def get_sector_kpis(
     set_tenant_guc(db, tenant_id)
     tenant = db.get(Tenant, tenant_id)
     sector_code = _resolve_sector(sector, tenant)
-    currency = _resolve_sector_currency(db, sector_code)
+    currency = _resolve_sector_currency(db, sector_code, tenant_id=str(tenant_id))
 
     return _sector_kpis_payload(sector_code, str(tenant_id), db, currency)

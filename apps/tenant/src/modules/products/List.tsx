@@ -13,11 +13,9 @@ import {
   updateProducto,
   type Producto,
 } from './productsApi'
-import SimilarProductsMergeModal from './SimilarProductsMergeModal'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useTranslation } from 'react-i18next'
 import { usePagination, Pagination } from '../../shared/pagination'
-import CategoriasModal from './CategoriesModal'
 import { useCurrency } from '../../hooks/useCurrency'
 import {
   useSectorFeaturesFromConfig,
@@ -25,7 +23,6 @@ import {
 } from '../../contexts/CompanyConfigContext'
 import { listRecipes } from '../../services/api/recetas'
 import {
-  usePrintBarcodeLabels,
   type ProductLabel,
   type PrinterInfo,
   type PrintModalExtras,
@@ -36,6 +33,10 @@ import { apiFetch } from '../../lib/http'
 import { usePermission } from '../../hooks/usePermission'
 import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
+
+const CategoriesModal = React.lazy(() => import('./CategoriesModal'))
+const SimilarProductsMergeModal = React.lazy(() => import('./SimilarProductsMergeModal'))
+const PrintBarcodeLabelsModal = React.lazy(() => import('../importador/components/PrintBarcodeLabels'))
 
 type RawPrinterLabelConfig = {
   id: string
@@ -77,9 +78,11 @@ export default function ProductosList() {
   const [filterCategoria, setFilterCategoria] = useState<string>('all')
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [showMergeModal, setShowMergeModal] = useState(false)
+  const [showPrintLabelsModal, setShowPrintLabelsModal] = useState(false)
+  const [printLabelProducts, setPrintLabelProducts] = useState<ProductLabel[]>([])
+  const [printMode, setPrintMode] = useState<'browser' | 'agent'>('browser')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [categorias, setCategorias] = useState<Array<{ id: string; name: string }>>([])
-  const { open: openPrintLabels, PrintModal, updateModalExtras } = usePrintBarcodeLabels()
   const [printers, setPrinters] = useState<PrinterInfo[]>([])
   const [selectedPrinter, setSelectedPrinter] = useState<PrinterInfo | null>(null)
   const selectedPrinterRef = useRef<PrinterInfo | null>(null)
@@ -293,29 +296,6 @@ export default function ProductosList() {
     },
     [fetchSavedConfigsForPrinter],
   )
-
-  const extrasSignature = useMemo(
-    () =>
-      [
-        selectedPrinter?.port ?? '',
-        selectedSavedConfigId ?? '',
-        savedConfigs.map((config) => config.id).join(','),
-        printerSaving ? 'saving' : 'idle',
-        configsLoading ? 'loading' : 'ready',
-      ].join('|'),
-    [selectedPrinter?.port, selectedSavedConfigId, savedConfigs, printerSaving, configsLoading],
-  )
-
-  const extrasRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    const signature = extrasSignature
-    if (extrasRef.current === signature) {
-      return
-    }
-    extrasRef.current = signature
-    updateModalExtras?.(buildModalExtras(selectedPrinter))
-  }, [buildModalExtras, extrasSignature, selectedPrinter, updateModalExtras])
 
   const promptToSaveLabelConfig = useCallback(
     (printConfig: PrintConfig) => {
@@ -650,18 +630,27 @@ export default function ProductosList() {
       return
     }
 
-    const extras = buildModalExtras(selectedPrinter)
-    openPrintLabels(
-      sourceProducts.map((product) => buildLabelFromProduct(product)),
-      {
-        defaultConfig: defaultPrintConfig,
-        onPrint: handleSendToPrinter,
-        modalExtras: extras,
-        currencySymbol,
-      },
-    )
-    updateModalExtras?.(extras)
+    setPrintLabelProducts(sourceProducts.map((product) => buildLabelFromProduct(product)))
+    setShowPrintLabelsModal(true)
   }
+
+  const closePrintLabelsModal = useCallback(() => {
+    setShowPrintLabelsModal(false)
+    setPrintLabelProducts([])
+  }, [])
+
+  const printModalExtras = useMemo(
+    () => buildModalExtras(selectedPrinter),
+    [buildModalExtras, selectedPrinter],
+  )
+
+  const lazyModalFallback = (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="rounded-lg bg-white px-4 py-3 text-sm text-slate-600">
+        {t('common:loading')}
+      </div>
+    </div>
+  )
 
   const exportCSV = () => {
     const headers = [t('products:code'), t('products:name'), t('products:price'), t('products:tax'), t('products:status')]
@@ -1146,7 +1135,8 @@ export default function ProductosList() {
 
       {/* Modal de categorías */}
       {showCategoriesModal && (
-        <CategoriasModal
+        <React.Suspense fallback={lazyModalFallback}>
+          <CategoriesModal
           onClose={() => setShowCategoriesModal(false)}
           onCategoryCreated={() => {
             // Recargar productos para ver nuevas categorías
@@ -1155,7 +1145,8 @@ export default function ProductosList() {
               .then((data) => setItems(data))
               .finally(() => setLoading(false))
           }}
-        />
+          />
+        </React.Suspense>
       )}
       {/* Modal: purgar todos los productos */}
       {purgeModal && (
@@ -1264,12 +1255,33 @@ export default function ProductosList() {
         </div>
       )}
 
-      {PrintModal}
-      <SimilarProductsMergeModal
-        open={showMergeModal}
-        onClose={() => setShowMergeModal(false)}
-        onMerged={reloadProducts}
-      />
+      {showPrintLabelsModal && (
+        <React.Suspense fallback={lazyModalFallback}>
+          <PrintBarcodeLabelsModal
+            products={printLabelProducts}
+            defaultConfig={defaultPrintConfig}
+            onClose={closePrintLabelsModal}
+            onPrint={handleSendToPrinter}
+            printMode={printMode}
+            onChangePrintMode={setPrintMode}
+            printers={printModalExtras.printers}
+            selectedPrinter={printModalExtras.selectedPrinter}
+            onSelectPrinter={printModalExtras.onSelectPrinter}
+            printerSaving={printModalExtras.printerSaving}
+            modalExtras={printModalExtras}
+            currencySymbol={currencySymbol}
+          />
+        </React.Suspense>
+      )}
+      {showMergeModal && (
+        <React.Suspense fallback={lazyModalFallback}>
+          <SimilarProductsMergeModal
+            open={showMergeModal}
+            onClose={() => setShowMergeModal(false)}
+            onMerged={reloadProducts}
+          />
+        </React.Suspense>
+      )}
     </div>
   )
 }

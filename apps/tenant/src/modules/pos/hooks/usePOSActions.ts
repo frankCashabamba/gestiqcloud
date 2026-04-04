@@ -557,7 +557,6 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
                 if (found) setProducts((prev) => prev.some((p) => p.id === found.id) ? prev : [found, ...prev])
             } catch { /* silencioso — se reintenta al presionar la tecla */ }
         })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bulkShortcutItems.length])
 
     const resolveBakeryShortcutProduct = useCallback(async (item: BulkPricingItem) => {

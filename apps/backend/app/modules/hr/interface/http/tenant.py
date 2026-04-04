@@ -456,7 +456,7 @@ def _tenant_currency(db: Session, tenant_id: UUID) -> str:
     )
     if tenant and tenant.base_currency:
         return str(tenant.base_currency).strip().upper()
-    return "EUR"
+    return ""
 
 
 # ============================================================================

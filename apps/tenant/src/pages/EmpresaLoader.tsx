@@ -7,7 +7,22 @@ import { fetchCompanyTheme } from '../services/theme'
 type LazyComp = React.LazyExoticComponent<React.ComponentType<any>>
 type ThemeResp = { sector?: string } & Record<string, any>
 
-const PLANTILLAS = import.meta.glob('../plantillas/*.tsx')
+const rawPlantillas = import.meta.glob('../plantillas/*.tsx')
+const allowedPlantillas = new Set([
+  '../plantillas/default.tsx',
+  '../plantillas/panaderia.tsx',
+  '../plantillas/panaderia_pro.tsx',
+  '../plantillas/retail.tsx',
+  '../plantillas/retail_pro.tsx',
+  '../plantillas/retail_pro_v2.tsx',
+  '../plantillas/retail_pro_v2_i18n.tsx',
+  '../plantillas/taller.tsx',
+  '../plantillas/taller_pro.tsx',
+  '../plantillas/todoa100.tsx',
+])
+const PLANTILLAS = Object.fromEntries(
+  Object.entries(rawPlantillas).filter(([path]) => allowedPlantillas.has(path)),
+)
 
 export default function EmpresaLoader() {
   const { empresa } = useParams()

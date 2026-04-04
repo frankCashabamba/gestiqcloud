@@ -1,29 +1,32 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from '../../auth/ProtectedRoute'
 import PermissionDenied from '../../components/PermissionDenied'
-import GeneralSettings from './General'
-import BrandingSettings from './Branding'
-import FiscalSettings from './Fiscal'
-import HorariosSettings from './Horarios'
-import ModulosPanel from './ModulosPanel'
-import NotificacionesSettings from './Notificaciones'
-import AvanzadoSettings from './Avanzado'
-import OperativoSettings from './Operativo'
-import BranchesManager from './BranchesManager'
-import SubscriptionManager from './SubscriptionManager'
-import ReceiptTemplateSettings from './ReceiptTemplateSettings'
-import MFASettings from './MFASettings'
-import SettingsLayout from './SettingsLayout'
-import SettingsHome from './SettingsHome'
 import { useSettingsAccess, type SettingsSection } from './useSettingsAccess'
 import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
-import UsersRoutes from '../users/Routes'
-import TemplatesRoutes from '../templates/Routes'
-import WebhooksRoutes from '../webhooks/Routes'
-import NotificationsRoutes from '../notifications/Routes'
-import EinvoicingRoutes from '../einvoicing/Routes'
-import ReconciliationRoutes from '../reconciliation/Routes'
+
+const GeneralSettings = lazy(() => import('./General'))
+const BrandingSettings = lazy(() => import('./Branding'))
+const FiscalSettings = lazy(() => import('./Fiscal'))
+const HorariosSettings = lazy(() => import('./Horarios'))
+const ModulosPanel = lazy(() => import('./ModulosPanel'))
+const NotificacionesSettings = lazy(() => import('./Notificaciones'))
+const AvanzadoSettings = lazy(() => import('./Avanzado'))
+const OperativoSettings = lazy(() => import('./Operativo'))
+const BranchesManager = lazy(() => import('./BranchesManager'))
+const SubscriptionManager = lazy(() => import('./SubscriptionManager'))
+const ReceiptTemplateSettings = lazy(() => import('./ReceiptTemplateSettings'))
+const MFASettings = lazy(() => import('./MFASettings'))
+const SettingsLayout = lazy(() => import('./SettingsLayout'))
+const SettingsHome = lazy(() => import('./SettingsHome'))
+const UsersRoutes = lazy(() => import('../users/Routes'))
+const TemplatesRoutes = lazy(() => import('../templates/Routes'))
+const WebhooksRoutes = lazy(() => import('../webhooks/Routes'))
+const NotificationsRoutes = lazy(() => import('../notifications/Routes'))
+const EinvoicingRoutes = lazy(() => import('../einvoicing/Routes'))
+const ReconciliationRoutes = lazy(() => import('../reconciliation/Routes'))
+
+const RouteLoader = () => <div className="p-4">Loading...</div>
 
 function Guard({ section, children }: { section: SettingsSection; children: React.ReactElement }) {
   const { canAccessSection, limitsLoading } = useSettingsAccess()
@@ -39,6 +42,10 @@ function ModuleGuard({ moduleKey, children }: { moduleKey: string; children: Rea
   return children
 }
 
+function LazyElement({ children }: { children: React.ReactElement }) {
+  return <Suspense fallback={<RouteLoader />}>{children}</Suspense>
+}
+
 export default function SettingsRoutes() {
   return (
     <ProtectedRoute
@@ -46,13 +53,13 @@ export default function SettingsRoutes() {
       fallback={<PermissionDenied permission="settings:read" />}
     >
       <Routes>
-        <Route element={<SettingsLayout />}>
-        <Route index element={<SettingsHome />} />
+        <Route element={<LazyElement><SettingsLayout /></LazyElement>}>
+        <Route index element={<LazyElement><SettingsHome /></LazyElement>} />
         <Route
           path="general"
           element={
             <Guard section="general">
-              <GeneralSettings />
+              <LazyElement><GeneralSettings /></LazyElement>
             </Guard>
           }
         />
@@ -60,7 +67,7 @@ export default function SettingsRoutes() {
           path="branding"
           element={
             <Guard section="branding">
-              <BrandingSettings />
+              <LazyElement><BrandingSettings /></LazyElement>
             </Guard>
           }
         />
@@ -68,7 +75,7 @@ export default function SettingsRoutes() {
           path="fiscal"
           element={
             <Guard section="fiscal">
-              <FiscalSettings />
+              <LazyElement><FiscalSettings /></LazyElement>
             </Guard>
           }
         />
@@ -76,7 +83,7 @@ export default function SettingsRoutes() {
           path="operativo"
           element={
             <Guard section="operativo">
-              <OperativoSettings />
+              <LazyElement><OperativoSettings /></LazyElement>
             </Guard>
           }
         />
@@ -84,7 +91,7 @@ export default function SettingsRoutes() {
           path="horarios"
           element={
             <Guard section="horarios">
-              <HorariosSettings />
+              <LazyElement><HorariosSettings /></LazyElement>
             </Guard>
           }
         />
@@ -92,7 +99,7 @@ export default function SettingsRoutes() {
           path="notificaciones"
           element={
             <Guard section="notificaciones">
-              <NotificacionesSettings />
+              <LazyElement><NotificacionesSettings /></LazyElement>
             </Guard>
           }
         />
@@ -100,7 +107,7 @@ export default function SettingsRoutes() {
           path="modulos"
           element={
             <Guard section="modulos">
-              <ModulosPanel />
+              <LazyElement><ModulosPanel /></LazyElement>
             </Guard>
           }
         />
@@ -108,34 +115,34 @@ export default function SettingsRoutes() {
           path="avanzado"
           element={
             <Guard section="avanzado">
-              <AvanzadoSettings variant="admin" />
+              <LazyElement><AvanzadoSettings variant="admin" /></LazyElement>
             </Guard>
           }
         />
-        <Route path="branches" element={<BranchesManager />} />
-        <Route path="subscription" element={<SubscriptionManager />} />
-        <Route path="receipt-template" element={<ReceiptTemplateSettings />} />
-        <Route path="security" element={<MFASettings />} />
+        <Route path="branches" element={<LazyElement><BranchesManager /></LazyElement>} />
+        <Route path="subscription" element={<LazyElement><SubscriptionManager /></LazyElement>} />
+        <Route path="receipt-template" element={<LazyElement><ReceiptTemplateSettings /></LazyElement>} />
+        <Route path="security" element={<LazyElement><MFASettings /></LazyElement>} />
         <Route
           path="users/*"
           element={
             <ModuleGuard moduleKey="users">
-              <UsersRoutes />
+              <LazyElement><UsersRoutes /></LazyElement>
             </ModuleGuard>
           }
         />
-        <Route path="templates/*" element={<TemplatesRoutes />} />
-        <Route path="webhooks/*" element={<WebhooksRoutes />} />
-        <Route path="notification-center/*" element={<NotificationsRoutes />} />
+        <Route path="templates/*" element={<LazyElement><TemplatesRoutes /></LazyElement>} />
+        <Route path="webhooks/*" element={<LazyElement><WebhooksRoutes /></LazyElement>} />
+        <Route path="notification-center/*" element={<LazyElement><NotificationsRoutes /></LazyElement>} />
         <Route
           path="einvoicing/*"
           element={
             <ModuleGuard moduleKey="einvoicing">
-              <EinvoicingRoutes />
+              <LazyElement><EinvoicingRoutes /></LazyElement>
             </ModuleGuard>
           }
         />
-        <Route path="reconciliation/*" element={<ReconciliationRoutes />} />
+        <Route path="reconciliation/*" element={<LazyElement><ReconciliationRoutes /></LazyElement>} />
         <Route path="*" element={<Navigate to="." replace />} />
         </Route>
       </Routes>

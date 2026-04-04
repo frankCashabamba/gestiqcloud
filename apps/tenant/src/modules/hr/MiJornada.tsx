@@ -655,9 +655,9 @@ export default function MiJornada() {
                 {nominas.map((n) => (
                   <tr key={n.payroll_detail_id}>
                     <td style={{ fontWeight: 500 }}>{formatMonth(n.payroll_month)}</td>
-                    <td>{formatCurrencyValue(n.gross_salary, n.currency || companyCurrency)}</td>
-                    <td style={{ color: 'var(--gc-danger)' }}>−{formatCurrencyValue(n.total_deductions, n.currency || companyCurrency)}</td>
-                    <td style={{ fontWeight: 600, color: 'var(--gc-success)' }}>{formatCurrencyValue(n.net_salary, n.currency || companyCurrency)}</td>
+                    <td>{formatCurrencyValue(n.gross_salary, companyCurrency || n.currency)}</td>
+                    <td style={{ color: 'var(--gc-danger)' }}>−{formatCurrencyValue(n.total_deductions, companyCurrency || n.currency)}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--gc-success)' }}>{formatCurrencyValue(n.net_salary, companyCurrency || n.currency)}</td>
                     <td><span className={payrollStatusBadge(n.status)}>{payrollStatusLabel(n.status)}</span></td>
                     <td>{formatDate(n.payroll_date)}</td>
                   </tr>

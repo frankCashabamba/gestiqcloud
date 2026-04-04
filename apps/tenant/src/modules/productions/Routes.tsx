@@ -1,16 +1,23 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from '../../auth/ProtectedRoute'
 import PermissionDenied from '../../components/PermissionDenied'
-import OrdersList from './OrdersList'
-import OrderForm from './OrderForm'
-import ProductionPlanner from './ProductionPlanner'
-import RecetasList from './RecetasList'
-import RecetaCreatePage from './RecetaCreatePage'
-import RecetaShowPage from './RecetaShowPage'
-import RecetaEditPage from './RecetaEditPage'
-import CostDriversPage from './CostDriversPage'
-import IngredientesMaestros from './IngredientesMaestros'
+
+const OrdersList = lazy(() => import('./OrdersList'))
+const OrderForm = lazy(() => import('./OrderForm'))
+const ProductionPlanner = lazy(() => import('./ProductionPlanner'))
+const RecetasList = lazy(() => import('./RecetasList'))
+const RecetaCreatePage = lazy(() => import('./RecetaCreatePage'))
+const RecetaShowPage = lazy(() => import('./RecetaShowPage'))
+const RecetaEditPage = lazy(() => import('./RecetaEditPage'))
+const CostDriversPage = lazy(() => import('./CostDriversPage'))
+const IngredientesMaestros = lazy(() => import('./IngredientesMaestros'))
+
+const RouteLoader = () => <div className="p-4">Loading...</div>
+
+function LazyElement({ children }: { children: React.ReactElement }) {
+    return <Suspense fallback={<RouteLoader />}>{children}</Suspense>
+}
 
 export default function ProduccionRoutes() {
     return (
@@ -20,14 +27,14 @@ export default function ProduccionRoutes() {
         >
             <Routes>
                 <Route index element={<Navigate to="recetas" replace />} />
-                <Route path="planificacion" element={<ProductionPlanner />} />
+                <Route path="planificacion" element={<LazyElement><ProductionPlanner /></LazyElement>} />
                 <Route path="planner" element={<Navigate to="../planificacion" replace />} />
-                <Route path="ordenes" element={<OrdersList />} />
+                <Route path="ordenes" element={<LazyElement><OrdersList /></LazyElement>} />
                 <Route
                     path="ordenes/nuevo"
                     element={
                         <ProtectedRoute permission="manufacturing:create">
-                            <OrderForm />
+                            <LazyElement><OrderForm /></LazyElement>
                         </ProtectedRoute>
                     }
                 />
@@ -35,34 +42,34 @@ export default function ProduccionRoutes() {
                     path="ordenes/:id/editar"
                     element={
                         <ProtectedRoute permission="manufacturing:update">
-                            <OrderForm />
+                            <LazyElement><OrderForm /></LazyElement>
                         </ProtectedRoute>
                     }
                 />
-                <Route path="recetas" element={<RecetasList />} />
+                <Route path="recetas" element={<LazyElement><RecetasList /></LazyElement>} />
                 <Route
                     path="recetas/nueva"
                     element={
                         <ProtectedRoute permission="manufacturing:create">
-                            <RecetaCreatePage />
+                            <LazyElement><RecetaCreatePage /></LazyElement>
                         </ProtectedRoute>
                     }
                 />
-                <Route path="recetas/:rid" element={<RecetaShowPage />} />
+                <Route path="recetas/:rid" element={<LazyElement><RecetaShowPage /></LazyElement>} />
                 <Route
                     path="recetas/:rid/editar"
                     element={
                         <ProtectedRoute permission="manufacturing:update">
-                            <RecetaEditPage />
+                            <LazyElement><RecetaEditPage /></LazyElement>
                         </ProtectedRoute>
                     }
                 />
-                <Route path="ingredientes" element={<IngredientesMaestros />} />
+                <Route path="ingredientes" element={<LazyElement><IngredientesMaestros /></LazyElement>} />
                 <Route
                     path="costos"
                     element={
                         <ProtectedRoute permission="manufacturing:update">
-                            <CostDriversPage />
+                            <LazyElement><CostDriversPage /></LazyElement>
                         </ProtectedRoute>
                     }
                 />

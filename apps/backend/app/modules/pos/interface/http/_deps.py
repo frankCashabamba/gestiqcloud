@@ -93,6 +93,49 @@ def validate_uuid(value: str, field_name: str = "ID") -> UUID:
 
 
 # ============================================================================
+# TENANT SCOPING
+# ============================================================================
+
+
+def require_tenant_warehouse(
+    db: Session,
+    tenant_id: UUID,
+    warehouse_id: UUID,
+    *,
+    detail: str = "warehouse_not_found",
+) -> UUID:
+    row = db.execute(
+        text("SELECT 1 FROM warehouses WHERE id = :wid AND tenant_id = :tid LIMIT 1").bindparams(
+            bindparam("wid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"wid": warehouse_id, "tid": tenant_id},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=detail)
+    return warehouse_id
+
+
+def require_tenant_product(
+    db: Session,
+    tenant_id: UUID,
+    product_id: UUID,
+    *,
+    detail: str = "product_not_found",
+) -> UUID:
+    row = db.execute(
+        text("SELECT 1 FROM products WHERE id = :pid AND tenant_id = :tid LIMIT 1").bindparams(
+            bindparam("pid", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"pid": product_id, "tid": tenant_id},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=detail)
+    return product_id
+
+
+# ============================================================================
 # DECIMAL
 # ============================================================================
 
@@ -255,17 +298,18 @@ def normalize_lot(value: str | None) -> str | None:
     return normalized or None
 
 
-def load_locked_stock_rows(db: Session, warehouse_id: UUID, product_id: UUID):
+def load_locked_stock_rows(db: Session, tenant_id: UUID, warehouse_id: UUID, product_id: UUID):
     return db.execute(
         text(
             "SELECT id, qty, lot, expires_at FROM stock_items "
-            "WHERE warehouse_id = :wid AND product_id = :pid "
+            "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid "
             "FOR UPDATE"
         ).bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
             bindparam("wid", type_=PGUUID(as_uuid=True)),
             bindparam("pid", type_=PGUUID(as_uuid=True)),
         ),
-        {"wid": warehouse_id, "pid": product_id},
+        {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
     ).fetchall()
 
 
@@ -358,14 +402,15 @@ def ensure_generic_stock_row(
     row = db.execute(
         text(
             "SELECT id, qty FROM stock_items "
-            "WHERE warehouse_id = :wid AND product_id = :pid "
+            "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid "
             "AND lot IS NULL AND expires_at IS NULL "
             "FOR UPDATE"
         ).bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
             bindparam("wid", type_=PGUUID(as_uuid=True)),
             bindparam("pid", type_=PGUUID(as_uuid=True)),
         ),
-        {"wid": warehouse_id, "pid": product_id},
+        {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
     ).first()
     if row is not None:
         return row
@@ -383,14 +428,15 @@ def ensure_generic_stock_row(
     return db.execute(
         text(
             "SELECT id, qty FROM stock_items "
-            "WHERE warehouse_id = :wid AND product_id = :pid "
+            "WHERE tenant_id = :tid AND warehouse_id = :wid AND product_id = :pid "
             "AND lot IS NULL AND expires_at IS NULL "
             "FOR UPDATE"
         ).bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
             bindparam("wid", type_=PGUUID(as_uuid=True)),
             bindparam("pid", type_=PGUUID(as_uuid=True)),
         ),
-        {"wid": warehouse_id, "pid": product_id},
+        {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
     ).first()
 
 

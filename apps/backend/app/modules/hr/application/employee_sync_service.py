@@ -8,9 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.company.company_role import CompanyRole
+from app.models.company.company_settings import CompanySettings
 from app.models.company.company_user import CompanyUser
 from app.models.company.company_user_role import CompanyUserRole
 from app.models.hr.employee import Employee, EmployeeSalary
+from app.models.tenant import Tenant
 from app.modules.hr.application.compensation import (
     build_salary_notes,
     current_salary_amount,
@@ -107,14 +109,31 @@ class EmployeeSyncService:
         return EmployeeSyncService._find_employee(db, user) is not None
 
     @staticmethod
-    def _ensure_salary(db: Session, employee: Employee, effective_date: date) -> None:
+    def _resolve_tenant_currency(db: Session, tenant_id: UUID | str | None) -> str:
+        if tenant_id is None:
+            return ""
+        db_tid = EmployeeSyncService._db_tenant_id(db, tenant_id)
+        settings = (
+            db.execute(select(CompanySettings).where(CompanySettings.tenant_id == db_tid))
+            .scalars()
+            .first()
+        )
+        if settings and settings.currency:
+            return str(settings.currency).strip().upper()
+        tenant = db.execute(select(Tenant).where(Tenant.id == db_tid)).scalars().first()
+        if tenant and tenant.base_currency:
+            return str(tenant.base_currency).strip().upper()
+        return ""
+
+    @staticmethod
+    def _ensure_salary(db: Session, employee: Employee, effective_date: date, currency: str = "") -> None:
         if employee.salaries:
             return
         db.add(
             EmployeeSalary(
                 employee_id=employee.id,
                 salary_amount=Decimal("0"),
-                currency="EUR",
+                currency=currency,
                 effective_date=effective_date,
                 notes=build_salary_notes("mensual", "Auto-created from company user"),
                 created_at=datetime.now(UTC),
@@ -180,8 +199,9 @@ class EmployeeSyncService:
             employee.notes = EmployeeSyncService._merge_notes(employee.notes, user.id)
 
         if user.is_active:
+            tenant_currency = EmployeeSyncService._resolve_tenant_currency(db, user.tenant_id)
             if salary_base is None:
-                EmployeeSyncService._ensure_salary(db, employee, employee.hire_date or hire_date)
+                EmployeeSyncService._ensure_salary(db, employee, employee.hire_date or hire_date, tenant_currency)
             else:
                 current_salary = current_salary_amount(employee)
                 desired_salary = Decimal(str(salary_base))
@@ -190,7 +210,7 @@ class EmployeeSyncService:
                         EmployeeSalary(
                             employee_id=employee.id,
                             salary_amount=desired_salary,
-                            currency="EUR",
+                            currency=tenant_currency,
                             effective_date=employee.hire_date or hire_date,
                             notes=build_salary_notes(
                                 payment_mode or "mensual",

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import i18n, { normalizeLang } from './index'
+import i18n, { changeAppLanguage, ensureLanguageResources, normalizeLang } from './index'
 
 type Dict = Record<string, any>
 
@@ -23,6 +23,7 @@ function getNsAndKey(key: string): [string, string] {
 export const I18nProvider: React.FC<{ defaultLang?: string; children: React.ReactNode }>= ({ defaultLang = 'en', children }) => {
   const [lang, setLangState] = useState(() => normalizeLang(i18n.resolvedLanguage || i18n.language || defaultLang))
   const [dicts, setDicts] = useState<Record<string, Dict>>({})
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     const handler = (lng: string) => setLangState(normalizeLang(lng))
@@ -35,6 +36,9 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
   useEffect(() => {
     let cancelled = false
     async function loadAll() {
+      setReady(false)
+      await ensureLanguageResources(lang)
+
       const loaded: Record<string, Dict> = {
         ...(i18n.getDataByLanguage(lang) as Record<string, Dict> | undefined),
       }
@@ -54,7 +58,10 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
         } catch {}
       }
 
-      if (!cancelled) setDicts(loaded)
+      if (!cancelled) {
+        setDicts(loaded)
+        setReady(true)
+      }
       try { document.documentElement.lang = lang } catch {}
     }
     loadAll()
@@ -62,8 +69,7 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
   }, [lang])
 
   const setLang = useCallback((lng: string) => {
-    const normalized = normalizeLang(lng)
-    i18n.changeLanguage(normalized)
+    void changeAppLanguage(lng)
   }, [])
 
   const t = useCallback((key: string, vars?: Record<string, string | number>) => {
@@ -80,6 +86,7 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
   }, [dicts])
 
   const value = useMemo<I18nContextType>(() => ({ lang, setLang, t }), [lang, setLang, t])
+  if (!ready) return null
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 

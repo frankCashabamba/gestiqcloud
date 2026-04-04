@@ -263,7 +263,7 @@ class PayrollService:
         currency = (
             (company_settings.currency if company_settings else None)
             or getattr(tenant, "base_currency", None)
-            or "EUR"
+            or ""
         )
         return {
             "country_code": str(country_code).strip().upper(),

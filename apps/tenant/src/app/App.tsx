@@ -2,10 +2,7 @@ import React, { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import ParamRedirect from './ParamRedirect'
 import ProtectedRoute from './ProtectedRoute'
-import { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast } from '@shared/ui'
 import CompanyShell from './CompanyShell'
-import ConflictResolver from '@/components/ConflictResolver'
-import OfflineSyncDashboard from '@/components/OfflineSyncDashboard'
 
 // Lazy load de páginas para reducir bundle inicial
 const Login = lazy(() => import('../pages/Login'))
@@ -19,6 +16,12 @@ const ErrorPage = lazy(() => import('../pages/ErrorPage'))
 const Unauthorized = lazy(() => import('../pages/Unauthorized'))
 const ModuleLoader = lazy(() => import('../modules/ModuleLoader'))
 const SettingsRoutes = lazy(() => import('../modules/settings/Routes'))
+const OfflineBanner = lazy(async () => ({ default: (await import('@shared/ui')).OfflineBanner }))
+const BuildBadge = lazy(async () => ({ default: (await import('@shared/ui')).BuildBadge }))
+const UpdatePrompt = lazy(async () => ({ default: (await import('@shared/ui')).UpdatePrompt }))
+const OfflineReadyToast = lazy(async () => ({ default: (await import('@shared/ui')).OfflineReadyToast }))
+const ConflictResolver = lazy(() => import('@/components/ConflictResolver'))
+const OfflineSyncDashboard = lazy(() => import('@/components/OfflineSyncDashboard'))
 
 // Fallback de carga
 const PageLoader = () => (
@@ -79,16 +82,20 @@ export default function App() {
       </Suspense>
 
       {/* Offline Support Components */}
-      <OfflineBanner />
-      <ConflictResolver onConflictResolved={() => {
-        console.log('Conflict resolved - UI updated')
-      }} />
-      <OfflineSyncDashboard position='bottom-right' compact={false} />
+      <Suspense fallback={null}>
+        <OfflineBanner />
+        <ConflictResolver onConflictResolved={() => {
+          console.log('Conflict resolved - UI updated')
+        }} />
+        <OfflineSyncDashboard position='bottom-right' compact={false} />
+      </Suspense>
 
       {/* PWA Components */}
-      <BuildBadge />
-      <UpdatePrompt />
-      <OfflineReadyToast />
+      <Suspense fallback={null}>
+        <BuildBadge />
+        <UpdatePrompt />
+        <OfflineReadyToast />
+      </Suspense>
     </>
   )
 }

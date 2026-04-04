@@ -14,6 +14,7 @@ export default tseslint.config(
       "node_modules/**",
       "*.config.ts",
       "*.config.js",
+      "*.config.cjs",
       "vite-env.d.ts",
       "eslint.config.js",
       "src/**/*.test.ts",

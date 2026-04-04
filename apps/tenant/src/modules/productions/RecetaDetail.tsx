@@ -7,11 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  Typography, Box, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Paper, Chip, Alert, CircularProgress, Grid,
-  TextField, IconButton, Tabs, Tab, Divider, FormControlLabel, Checkbox, ButtonBase
+  Typography, Box, Alert, CircularProgress, Grid,
+  TextField, Tabs, Tab
 } from '@mui/material';
-import { Add, Delete, AutoFixHigh } from '@mui/icons-material';
+import { AutoFixHigh } from '@mui/icons-material';
 import {
   getRecipe,
   getCostBreakdown,
@@ -45,6 +44,13 @@ import {
   formatIngredientReference,
   type IngredientMasterRow,
 } from './ingredientCatalog';
+import type { IngredientInsightMeta } from './RecetaIngredientInsightDialog';
+
+const RecetaIngredientsTab = React.lazy(() => import('./RecetaIngredientsTab'));
+const RecetaParametersTab = React.lazy(() => import('./RecetaParametersTab'));
+const RecetaCostsTab = React.lazy(() => import('./RecetaCostsTab'));
+const RecetaIngredientInsightDialog = React.lazy(() => import('./RecetaIngredientInsightDialog'));
+const RecetaOptimizerDialog = React.lazy(() => import('./RecetaOptimizerDialog'));
 
 const HOUR_LIKE_DRIVER_UNITS = new Set(['h', 'hh', 'hr', 'hrs', 'hora', 'horas', 'hour', 'hours']);
 
@@ -233,13 +239,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const [ingredientInsightOpen, setIngredientInsightOpen] = useState(false);
   const [ingredientInsightLoading, setIngredientInsightLoading] = useState(false);
   const [ingredientInsightError, setIngredientInsightError] = useState<string | null>(null);
-  const [ingredientInsightMeta, setIngredientInsightMeta] = useState<{
-    productId: string;
-    productName: string;
-    recipeQtyLabel: string;
-    recipeQtyReference: string | null;
-    estimatedCost: number;
-  } | null>(null);
+  const [ingredientInsightMeta, setIngredientInsightMeta] = useState<IngredientInsightMeta | null>(null);
   const [ingredientInsightRow, setIngredientInsightRow] = useState<IngredientMasterRow | null>(null);
   const [ingredientCatalogRows, setIngredientCatalogRows] = useState<IngredientMasterRow[] | null>(null);
 
@@ -723,6 +723,11 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
     correctedWaste > 0 ||
     correctedOverhead > 0
   );
+  const tabFallback = (
+    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+      <CircularProgress size={24} />
+    </Box>
+  );
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: dialogPaperSx }}>
@@ -912,547 +917,55 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
         {/* ── Pestaña 1: Ingredientes ── */}
         {activeTab === 1 && (
-          <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155' }}>
-                Ingredientes de la receta
-              </Typography>
-              {isEditing && (
-                <Button size="small" startIcon={<Add />} onClick={addNewIngredientRow} sx={{ borderRadius: 2.5, fontWeight: 600 }}>
-                  {t('productions:recipe.addIngredient')}
-                </Button>
-              )}
-            </Box>
-            <TableContainer component={Paper} variant="outlined" sx={tableContainerSx}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>{t('productions:recipe.ingredients')}</TableCell>
-                    <TableCell align="right">{t('productions:recipe.quantity')}</TableCell>
-                    {isEditing && <TableCell>Unidad</TableCell>}
-                    <TableCell align="right">{t('productions:recipe.cost')}</TableCell>
-                    <TableCell align="right">%</TableCell>
-                    {isEditing && <TableCell />}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {ingredientsDraft.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={isEditing ? 6 : 4} align="center">
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                          {t('productions:recipe.noIngredients')}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {ingredientsDraft.map((item, index) => {
-                    const product = products.find((p) => p.id === item.product_id);
-                    const productName = product?.name || (item as any)?.product_name || '-';
-                    const qty = Number(item.qty ?? 0);
-                    const qtyReference = formatIngredientReference(qty, item.unit, units);
-                    const qtyInPackageUnit = convertQtyToUnit(
-                      Number(item.qty || 0),
-                      item.unit,
-                      item.package_unit || item.unit,
-                    );
-                    const estimatedCost =
-                      (qtyInPackageUnit / Math.max(Number(item.qty_per_package || 1), 0.0001)) *
-                      Number(item.package_cost || 0);
-                    const pct = totalCost > 0 ? (estimatedCost / totalCost) * 100 : 0;
-                    return (
-                      <TableRow key={index}>
-                        <TableCell>
-                          {isEditing ? (
-                            <TextField
-                              select
-                              SelectProps={{ native: true }}
-                              value={item.product_id}
-                              onChange={(e) => setIngredientField(index, 'product_id', e.target.value)}
-                              size="small"
-                              fullWidth
-                            >
-                              <option value="">{t('productions:recipe.selectProduct')}</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                              ))}
-                            </TextField>
-                          ) : (
-                            <ButtonBase
-                              onClick={() => void openIngredientInsight(item, productName)}
-                              sx={{
-                                display: 'flex',
-                                width: '100%',
-                                alignItems: 'flex-start',
-                                flexDirection: 'column',
-                                textAlign: 'left',
-                                borderRadius: 2,
-                                px: 0.5,
-                                py: 0.25,
-                                '&:hover': {
-                                  backgroundColor: '#eff6ff',
-                                },
-                              }}
-                            >
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a' }}>
-                                {productName}
-                              </Typography>
-                              <Typography variant="caption" color="primary.main">
-                                Ver ficha del ingrediente
-                              </Typography>
-                            </ButtonBase>
-                          )}
-                        </TableCell>
-                        <TableCell align="right">
-                          {isEditing ? (
-                            <TextField
-                              type="number"
-                              value={item.qty}
-                              onChange={(e) => setIngredientField(index, 'qty', Number(e.target.value))}
-                              size="small"
-                              sx={{ width: 90 }}
-                            />
-                          ) : (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                              <Typography variant="body2">{`${qty.toFixed(2)} ${item.unit || ''}`.trim()}</Typography>
-                              {qtyReference && (
-                                <Typography variant="caption" color="text.secondary">
-                                  Equiv.: {qtyReference}
-                                </Typography>
-                              )}
-                            </Box>
-                          )}
-                        </TableCell>
-                        {isEditing && (
-                          <TableCell>
-                            <TextField
-                              select
-                              SelectProps={{ native: true }}
-                              value={normalizeUnitCode(item.unit, units)}
-                              onChange={(e) => setIngredientField(index, 'unit', e.target.value)}
-                              size="small"
-                              sx={{ width: 90 }}
-                            >
-                              {units.map((unit) => (
-                                <option key={unit.code} value={unit.code}>{unit.label}</option>
-                              ))}
-                            </TextField>
-                          </TableCell>
-                        )}
-                        <TableCell align="right">
-                          <strong>${estimatedCost.toFixed(2)}</strong>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${pct.toFixed(1)}%`}
-                            size="small"
-                            color={pct > 30 ? 'error' : pct > 15 ? 'warning' : 'default'}
-                          />
-                        </TableCell>
-                        {isEditing && (
-                          <TableCell align="right">
-                            <IconButton color="error" onClick={() => removeIngredientRow(index)} size="small">
-                              <Delete fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
+          <React.Suspense fallback={tabFallback}>
+            <RecetaIngredientsTab
+              t={t}
+              isEditing={isEditing}
+              ingredientsDraft={ingredientsDraft}
+              products={products}
+              units={units}
+              totalCost={totalCost}
+              tableContainerSx={tableContainerSx}
+              onAddIngredient={addNewIngredientRow}
+              onSetIngredientField={setIngredientField}
+              onRemoveIngredient={removeIngredientRow}
+              onOpenIngredientInsight={openIngredientInsight}
+            />
+          </React.Suspense>
         )}
 
-        {/* ── Pestaña 2: Parámetros de producción ── */}
-        {activeTab === 2 && (
-          <Box>
-            {isEditing ? (
-              <Box sx={fieldGroupSx}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    {t('productions:recipe.productionParameters')}
-                  </Typography>
-                </Box>
-                <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label={t('productions:recipe.prepTime')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.prep_time_minutes ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, prep_time_minutes: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 0 }}
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label={t('productions:recipe.bakingTime')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.baking_time_minutes ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, baking_time_minutes: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 0 }}
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label={t('productions:recipe.ovenTemp')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.oven_temp_celsius ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, oven_temp_celsius: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 0 }}
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label={t('productions:recipe.restTime')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.rest_time_minutes ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, rest_time_minutes: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 0 }}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Alert severity="info" sx={infoAlertSx}>
-                      🟢 Touch = {t('productions:recipe.touchDescription')} | ⚫ {t('productions:recipe.processDescription')}
-                    </Alert>
-                  </Grid>
-                  <Grid item xs={6} sm={6}>
-                    <TextField
-                      label={t('productions:recipe.activeWorkMin')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.touch_minutes_standard ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, touch_minutes_standard: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 0 }}
-                      helperText={t('productions:recipe.activeWorkHelper')}
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={6}>
-                    <TextField
-                      label={t('productions:recipe.passiveProcess')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={Math.max((prodParams.prep_time_minutes || 0) - (prodParams.touch_minutes_standard || 0), 0) || ''}
-                      InputProps={{ readOnly: true }}
-                      inputProps={{ min: 0 }}
-                      helperText={t('productions:recipe.passiveProcessHelper')}
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label={t('productions:recipe.wastePct')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.waste_pct ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, waste_pct: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 0, max: 100, step: 0.1 }}
-                      helperText="Pérdida de materiales"
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label="% Depreciación"
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.overhead_pct ?? 5}
-                      onChange={(e) => setProdParams((p) => ({ ...p, overhead_pct: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 0, max: 100, step: 0.1 }}
-                      helperText="Amort. maquinaria (default 5%)"
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label={t('productions:recipe.traysPerBatch')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.trays_per_batch ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, trays_per_batch: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 1 }}
-                    />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <TextField
-                      label={t('productions:recipe.unitsPerTray')}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={prodParams.units_per_tray ?? ''}
-                      onChange={(e) => setProdParams((p) => ({ ...p, units_per_tray: e.target.value ? Number(e.target.value) : null }))}
-                      inputProps={{ min: 1 }}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      label={t('productions:recipe.instructions')}
-                      size="small"
-                      fullWidth
-                      multiline
-                      minRows={2}
-                      value={prodParams.instructions}
-                      onChange={(e) => setProdParams((p) => ({ ...p, instructions: e.target.value }))}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            ) : (
-              <Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    {t('productions:recipe.productionParameters')}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {recipe.prep_time_minutes != null && (
-                    <Chip label={`⏱️ ${t('productions:recipe.prepLabel')}: ${recipe.prep_time_minutes} min`} color="primary" size="small" />
-                  )}
-                  {recipe.baking_time_minutes != null && (
-                    <Chip label={`🔥 ${t('productions:recipe.bakingLabel')}: ${recipe.baking_time_minutes} min`} color="warning" size="small" />
-                  )}
-                  {recipe.oven_temp_celsius != null && (
-                    <Chip label={`🌡️ ${recipe.oven_temp_celsius} °C`} color="default" size="small" />
-                  )}
-                  {recipe.rest_time_minutes != null && (
-                    <Chip label={`⏸️ ${t('productions:recipe.restLabel')}: ${recipe.rest_time_minutes} min`} color="info" size="small" />
-                  )}
-                  {(recipe as any).touch_minutes_standard != null && (recipe as any).touch_minutes_standard > 0 && (
-                    <Chip label={`🟢 ${t('productions:recipe.activeWorkMin')}: ${(recipe as any).touch_minutes_standard} min`} color="success" size="small" />
-                  )}
-                  {(recipe as any).process_minutes != null && (recipe as any).process_minutes > 0 && (
-                    <Chip label={`⚫ ${t('productions:recipe.processLabel')}: ${(recipe as any).process_minutes} min`} color="default" size="small" />
-                  )}
-                  {recipe.waste_pct != null && recipe.waste_pct > 0 && (
-                    <Chip label={`📉 ${t('productions:recipe.wasteLabel')}: ${recipe.waste_pct}%`} color="error" size="small" />
-                  )}
-                  {recipe.overhead_pct != null && recipe.overhead_pct > 0 && (
-                    <Chip label={`🔧 Depreciación: ${recipe.overhead_pct}%`} color="warning" size="small" />
-                  )}
-                  {recipe.trays_per_batch != null && (
-                    <Chip label={`🍞 ${recipe.trays_per_batch} ${t('productions:recipe.traysLabel')}`} color="default" size="small" />
-                  )}
-                  {recipe.units_per_tray != null && (
-                    <Chip label={`${recipe.units_per_tray} ${t('productions:recipe.unitsPerTrayLabel')}`} color="default" size="small" />
-                  )}
-                </Box>
-                {recipe.instructions && (
-                  <Box sx={{ mt: 2, p: 2, borderRadius: 2, border: '1px solid #e2e8f0', background: '#fff' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-                      {t('productions:recipe.instructions')}
-                    </Typography>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#334155', lineHeight: 1.7 }}>
-                      {recipe.instructions}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            )}
-          </Box>
+        {/* Parametros de produccion */}
+        {activeTab === 2 && recipe && (
+          <React.Suspense fallback={tabFallback}>
+            <RecetaParametersTab
+              t={t}
+              isEditing={isEditing}
+              recipe={recipe}
+              prodParams={prodParams}
+              fieldGroupSx={fieldGroupSx}
+              infoAlertSx={infoAlertSx}
+              onSetProdParams={setProdParams}
+            />
+          </React.Suspense>
         )}
 
-        {/* ── Pestaña 3: Costos Indirectos ── */}
+        {/* Costos indirectos */}
         {activeTab === 3 && (
-          <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155' }}>
-                {t('productions:recipe.indirectCosts')}
-              </Typography>
-            </Box>
-
-            {costDrivers.length === 0 && !isEditing && (
-              <Alert severity="info" sx={{ ...infoAlertSx }}>
-                {t('productions:recipe.noCostDriversInfo')}
-              </Alert>
-            )}
-
-            {(costLinesDraft.length > 0 || isEditing) && (
-              <TableContainer component={Paper} variant="outlined" sx={{ ...tableContainerSx, mb: isEditing ? 1.5 : 0 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>{t('productions:recipe.costType')}</TableCell>
-                      <TableCell align="right">{t('productions:recipe.qty')}</TableCell>
-                      <TableCell align="right">{t('productions:recipe.headcount')}</TableCell>
-                      <TableCell align="right">{t('productions:recipe.rate')}</TableCell>
-                      <TableCell align="right">{t('productions:recipe.subtotal')}</TableCell>
-                      {isEditing && <TableCell />}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {costLinesDraft.map((cl, idx) => {
-                      const driver = costDrivers.find((d) => d.id === cl.driver_id);
-                      const rate = cl.rate_override ?? (driver?.default_rate || 0);
-                      const driverUnitNorm = normalizeCostDriverUnit(driver?.unit);
-                      const isLaborAuto = isLaborAutoDriver(driver);
-                      const isEnergyDriver = !!driver && !isLaborAuto && (driver.consumption_rate ?? 0) > 0;
-                      const isOvenAuto = isEnergyDriver;
-                      const laborMinutes = prodParams.touch_minutes_standard ?? prodParams.prep_time_minutes ?? 0;
-                      const recipeLaborHours = laborMinutes / 60;
-                      const laborSource = prodParams.touch_minutes_standard != null
-                        ? 'touch'
-                        : (prodParams.prep_time_minutes != null ? 'prep' : null);
-                      const ovenMinutes = prodParams.baking_time_minutes ?? 0;
-                      const ovenHours = ovenMinutes / 60;
-                      const ovenAutoQty = isOvenAuto ? ovenHours * (driver!.consumption_rate ?? 0) : 0;
-                      const effectiveQty = isLaborAuto && recipeLaborHours > 0
-                        ? recipeLaborHours
-                        : isOvenAuto && ovenMinutes > 0
-                          ? ovenAutoQty
-                          : Number(cl.qty_standard);
-                      const subtotal = effectiveQty * Number(rate) * (cl.headcount || 1);
-                      return (
-                        <TableRow key={idx}>
-                          <TableCell>
-                            {isEditing ? (
-                              <TextField
-                                select
-                                SelectProps={{ native: true }}
-                                value={cl.driver_id}
-                                onChange={(e) => {
-                                  setCostLinesDraft((prev) => {
-                                    const next = [...prev];
-                                    next[idx] = { ...next[idx], driver_id: e.target.value };
-                                    return next;
-                                  });
-                                }}
-                                size="small"
-                                fullWidth
-                              >
-                                <option value="">{t('productions:recipe.selectType')}</option>
-                                {costDrivers.filter((d) => d.is_active).map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.name} ({d.unit} @ ${Number(d.default_rate).toFixed(2)})
-                                  </option>
-                                ))}
-                              </TextField>
-                            ) : (
-                              <>
-                                <Typography variant="body2">{driver?.name || '-'}</Typography>
-                                <Typography variant="caption" color="text.secondary">{driver?.unit || ''}</Typography>
-                              </>
-                            )}
-                          </TableCell>
-                          <TableCell align="right">
-                            {isLaborAuto && recipeLaborHours > 0 ? (
-                              <Box>
-                                <Typography variant="body2">{effectiveQty.toFixed(2)}h</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  ⚡ auto ({laborSource === 'touch' ? 'touch' : 'prep'} {laborMinutes} min)
-                                </Typography>
-                              </Box>
-                            ) : isOvenAuto && ovenMinutes > 0 ? (
-                              <Box>
-                                <Typography variant="body2">{effectiveQty.toFixed(3)} {driverUnitNorm.includes('kw') ? 'kWh' : 'L'}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  🔥 auto (horno {ovenMinutes} min)
-                                </Typography>
-                              </Box>
-                            ) : isEnergyDriver && !isOvenAuto ? (
-                              <Box>
-                                <Typography variant="body2" color="warning.main" sx={{ fontSize: '0.72rem' }}>⚙️ Sin consumo/hr</Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Configura en Costos Indirectos</Typography>
-                              </Box>
-                            ) : isEditing ? (
-                              <TextField
-                                type="number"
-                                value={cl.qty_standard}
-                                onChange={(e) => {
-                                  setCostLinesDraft((prev) => {
-                                    const next = [...prev];
-                                    next[idx] = { ...next[idx], qty_standard: Number(e.target.value) };
-                                    return next;
-                                  });
-                                }}
-                                size="small"
-                                sx={{ width: 90 }}
-                                inputProps={{ min: 0, step: 0.25 }}
-                              />
-                            ) : (
-                              Number(cl.qty_standard).toFixed(2)
-                            )}
-                          </TableCell>
-                          <TableCell align="right">
-                            {isEditing ? (
-                              <TextField
-                                type="number"
-                                value={cl.headcount}
-                                onChange={(e) => {
-                                  setCostLinesDraft((prev) => {
-                                    const next = [...prev];
-                                    next[idx] = { ...next[idx], headcount: Number(e.target.value) || 1 };
-                                    return next;
-                                  });
-                                }}
-                                size="small"
-                                sx={{ width: 70 }}
-                                inputProps={{ min: 1 }}
-                              />
-                            ) : (
-                              cl.headcount
-                            )}
-                          </TableCell>
-                          <TableCell align="right">${Number(rate).toFixed(2)}</TableCell>
-                          <TableCell align="right"><strong>${subtotal.toFixed(2)}</strong></TableCell>
-                          {isEditing && (
-                            <TableCell align="right">
-                              <IconButton
-                                color="error"
-                                size="small"
-                                onClick={() => {
-                                  setCostLinesDraft((prev) => {
-                                    const target = prev[idx];
-                                    if (target?.id) {
-                                      setDeletedCostLineIds((ids) => [...ids, target.id!]);
-                                    }
-                                    return prev.filter((_, i) => i !== idx);
-                                  });
-                                }}
-                              >
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-
-            {isEditing && (
-              costDrivers.length > 0 ? (
-                <Button
-                  size="small"
-                  startIcon={<Add />}
-                  onClick={() => {
-                    setCostLinesDraft((prev) => [
-                      ...prev,
-                      { driver_id: '', qty_standard: 1, headcount: 1, rate_override: null, line_order: prev.length, _isNew: true },
-                    ]);
-                  }}
-                  sx={{ mt: 1 }}
-                >
-                  {t('productions:recipe.addIndirectCost')}
-                </Button>
-              ) : (
-                <Alert severity="warning" sx={{ borderRadius: 2.5, backgroundColor: '#fff7ed', border: '1px solid #fdba74', '& .MuiAlert-icon': { color: '#ea580c' } }}>
-                  {t('productions:recipe.noCostDrivers')}
-                </Alert>
-              )
-            )}
-          </Box>
+          <React.Suspense fallback={tabFallback}>
+            <RecetaCostsTab
+              t={t}
+              isEditing={isEditing}
+              costDrivers={costDrivers}
+              costLinesDraft={costLinesDraft}
+              prodParams={prodParams}
+              infoAlertSx={infoAlertSx}
+              tableContainerSx={tableContainerSx}
+              normalizeCostDriverUnit={normalizeCostDriverUnit}
+              isLaborAutoDriver={isLaborAutoDriver}
+              onSetCostLinesDraft={setCostLinesDraft}
+              onSetDeletedCostLineIds={setDeletedCostLineIds}
+            />
+          </React.Suspense>
         )}
       </DialogContent>
 
@@ -1518,384 +1031,51 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         </Box>
       </DialogActions>
 
-      <Dialog
-        open={ingredientInsightOpen}
-        onClose={closeIngredientInsight}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: dialogPaperSx }}
-      >
-        <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
-          {ingredientInsightMeta?.productName || 'Ingrediente'}
-        </DialogTitle>
-        <DialogContent sx={{ px: 3, py: 3, backgroundColor: '#f8fafc' }}>
-          {ingredientInsightMeta && (
-            <Box sx={{ ...sectionCardSx, mb: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Uso en esta receta
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Cantidad</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                    {ingredientInsightMeta.recipeQtyLabel}
-                  </Typography>
-                  {ingredientInsightMeta.recipeQtyReference && (
-                    <Typography variant="caption" color="text.secondary">
-                      Equiv.: {ingredientInsightMeta.recipeQtyReference}
-                    </Typography>
-                  )}
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Costo estimado en el lote</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                    ${ingredientInsightMeta.estimatedCost.toFixed(2)}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Box>
-          )}
+      <React.Suspense fallback={null}>
+        <RecetaIngredientInsightDialog
+          open={ingredientInsightOpen}
+          loading={ingredientInsightLoading}
+          error={ingredientInsightError}
+          meta={ingredientInsightMeta}
+          row={ingredientInsightRow}
+          onClose={closeIngredientInsight}
+          onOpenIngredientMaster={openIngredientMasterPage}
+          onOpenRecipe={openRecipeFromIngredientInsight}
+          dialogPaperSx={dialogPaperSx}
+          dialogActionsSx={dialogActionsSx}
+          sectionCardSx={sectionCardSx}
+        />
+      </React.Suspense>
 
-          {ingredientInsightLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : ingredientInsightError ? (
-            <Alert severity="warning" sx={{ borderRadius: 2.5 }}>
-              {ingredientInsightError}
-            </Alert>
-          ) : ingredientInsightRow ? (
-            <Box sx={{ ...sectionCardSx, mb: 0 }}>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                {ingredientInsightRow.inventory_product ? (
-                  <Chip
-                    size="small"
-                    color="success"
-                    label={`Inventario · ${ingredientInsightRow.inventory_product.unit || ingredientInsightRow.unit || '-'}`}
-                  />
-                ) : (
-                  <Chip size="small" color="warning" label="Sin vínculo de inventario" />
-                )}
-                {ingredientInsightRow.hasDivergence && (
-                  <Chip size="small" color="warning" label="Valores distintos entre recetas" />
-                )}
-              </Box>
-
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Empaque</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {ingredientInsightRow.purchase_packaging || '-'}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Contenido</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {ingredientInsightRow.qty_per_package} {ingredientInsightRow.package_unit || ingredientInsightRow.unit || ''}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Costo del pack</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    ${Number(ingredientInsightRow.package_cost || 0).toFixed(2)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Costo por unidad base</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    $
-                    {(
-                      Number(ingredientInsightRow.package_cost || 0) /
-                      Math.max(Number(ingredientInsightRow.qty_per_package || 1), 0.0001)
-                    ).toFixed(4)} / {ingredientInsightRow.package_unit || ingredientInsightRow.unit || '-'}
-                  </Typography>
-                </Grid>
-              </Grid>
-
-              <Divider sx={{ my: 2 }} />
-
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Recetas que lo usan
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {ingredientInsightRow.refs.map((ref) => (
-                  <Button
-                    key={ref.ingredient_id || ref.recipe_id}
-                    variant="outlined"
-                    size="small"
-                    onClick={() => openRecipeFromIngredientInsight(ref.recipe_id)}
-                    sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 600 }}
-                  >
-                    {ref.recipe_name} · {Number(ref.qty || 0).toFixed(2)} {ref.unit || ''}
-                  </Button>
-                ))}
-              </Box>
-            </Box>
-          ) : (
-            <Alert severity="info" sx={{ borderRadius: 2.5 }}>
-              No se encontró una ficha maestra para este ingrediente.
-            </Alert>
-          )}
-        </DialogContent>
-        <DialogActions sx={dialogActionsSx}>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button onClick={closeIngredientInsight} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>
-              Cerrar
-            </Button>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button
-              variant="outlined"
-              onClick={openIngredientMasterPage}
-              disabled={!ingredientInsightMeta?.productId}
-              sx={{ borderRadius: 2.5, fontWeight: 600 }}
-            >
-              Abrir en ingredientes
-            </Button>
-          </Box>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={aiOptimizationEnabled && optimizerOpen}
-        onClose={closeOptimizer}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: dialogPaperSx }}
-      >
-        <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
-          Optimización de receta con IA
-        </DialogTitle>
-        <DialogContent sx={{ px: 3, py: 3, backgroundColor: '#f8fafc' }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Usa costes actuales y restricciones operativas para proponer una versión más eficiente de la receta.
-          </Typography>
-
-          {optimizerError && (
-            <Alert severity="error" sx={{ mb: 2, borderRadius: 2.5 }}>
-              {optimizerError}
-            </Alert>
-          )}
-
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                label="Precio de venta"
-                type="number"
-                fullWidth
-                size="small"
-                value={optimizerSellingPrice}
-                onChange={(e) => setOptimizerSellingPrice(e.target.value)}
-                inputProps={{ min: 0, step: 0.01 }}
-                helperText="Opcional, para recalcular margen"
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                label="Margen objetivo %"
-                type="number"
-                fullWidth
-                size="small"
-                value={optimizerTargetMargin}
-                onChange={(e) => setOptimizerTargetMargin(e.target.value)}
-                inputProps={{ min: 0, max: 100, step: 0.1 }}
-                helperText="Opcional"
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                label="Máx. ingredientes a cambiar"
-                type="number"
-                fullWidth
-                size="small"
-                value={optimizerMaxChanges}
-                onChange={(e) => setOptimizerMaxChanges(e.target.value)}
-                inputProps={{ min: 1, max: 20, step: 1 }}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                label="Restricciones"
-                fullWidth
-                size="small"
-                multiline
-                minRows={3}
-                value={optimizerConstraints}
-                onChange={(e) => setOptimizerConstraints(e.target.value)}
-                placeholder="Ej.: no tocar harina madre, mantener textura crujiente, no bajar rendimiento, evitar cambios >5% en sal."
-              />
-            </Grid>
-          </Grid>
-
-          <Box sx={{ ...sectionCardSx, mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-              Ingredientes bloqueados
-            </Typography>
-            <Grid container spacing={0.5}>
-              {ingredientsDraft.length === 0 ? (
-                <Grid item xs={12}>
-                  <Typography variant="body2" color="text.secondary">No hay ingredientes cargados.</Typography>
-                </Grid>
-              ) : (
-                ingredientsDraft.map((item) => {
-                  const product = products.find((p) => p.id === item.product_id);
-                  const label = product?.name || item.product_id;
-                  return (
-                    <Grid item xs={12} sm={6} key={item.product_id}>
-                      <FormControlLabel
-                        control={(
-                          <Checkbox
-                            size="small"
-                            checked={optimizerLockedIds.includes(item.product_id)}
-                            onChange={() => toggleLockedIngredient(item.product_id)}
-                          />
-                        )}
-                        label={<Typography variant="body2">{label}</Typography>}
-                      />
-                    </Grid>
-                  );
-                })
-              )}
-            </Grid>
-          </Box>
-
-          {optimizerResult && (
-            <Box sx={{ ...sectionCardSx, mb: 0 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 0.75 }}>
-                Propuesta optimizada
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {optimizerResult.summary}
-              </Typography>
-
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} sm={4}>
-                  <Box sx={metricCardSx}>
-                    <Typography variant="caption" color="text.secondary">Costo actual / u</Typography>
-                    <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
-                      ${Number(optimizerResult.current.full_cost_unit || 0).toFixed(4)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Margen: {optimizerResult.current.margin_pct != null ? `${Number(optimizerResult.current.margin_pct).toFixed(2)}%` : 'n/d'}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Box sx={metricCardSx}>
-                    <Typography variant="caption" color="text.secondary">Costo optimizado / u</Typography>
-                    <Typography variant="h6" color="success.main" sx={{ mt: 0.5, fontWeight: 700 }}>
-                      ${Number(optimizerResult.optimized.full_cost_unit || 0).toFixed(4)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Margen: {optimizerResult.optimized.margin_pct != null ? `${Number(optimizerResult.optimized.margin_pct).toFixed(2)}%` : 'n/d'}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Box sx={metricCardSx}>
-                    <Typography variant="caption" color="text.secondary">Ahorro estimado</Typography>
-                    <Typography variant="h6" color={optimizerResult.savings_total >= 0 ? 'success.main' : 'error.main'} sx={{ mt: 0.5, fontWeight: 700 }}>
-                      ${Number(optimizerResult.savings_total || 0).toFixed(2)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {Number(optimizerResult.savings_pct || 0).toFixed(2)}% del lote
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-
-              {optimizerResult.warnings.length > 0 && (
-                <Alert severity="warning" sx={{ mb: 2, borderRadius: 2.5 }}>
-                  {optimizerResult.warnings.join(' ')}
-                </Alert>
-              )}
-
-              {optimizerResult.assumptions.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>
-                    Supuestos
-                  </Typography>
-                  {optimizerResult.assumptions.map((item, idx) => (
-                    <Typography key={idx} variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      • {item}
-                    </Typography>
-                  ))}
-                </Box>
-              )}
-
-              <Divider sx={{ my: 2 }} />
-
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Cambios sugeridos
-              </Typography>
-              <TableContainer component={Paper} variant="outlined" sx={tableContainerSx}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Ingrediente</TableCell>
-                      <TableCell align="right">Actual</TableCell>
-                      <TableCell align="right">Sugerido</TableCell>
-                      <TableCell align="right">Impacto</TableCell>
-                      <TableCell>Motivo</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {optimizerResult.changes.map((change, idx) => (
-                      <TableRow key={`${change.product_id}-${change.line_order ?? idx}-${idx}`}>
-                        <TableCell>{change.product_name}</TableCell>
-                        <TableCell align="right">{Number(change.current_qty || 0).toFixed(4)} {change.unit}</TableCell>
-                        <TableCell align="right">
-                          <Typography
-                            variant="body2"
-                            color={change.change_type === 'adjust_qty' ? 'success.main' : 'text.primary'}
-                            sx={{ fontWeight: change.change_type === 'adjust_qty' ? 700 : 400 }}
-                          >
-                            {Number(change.suggested_qty || 0).toFixed(4)} {change.unit}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          ${Number(change.estimated_cost_delta || 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell>{change.rationale || '-'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={dialogActionsSx}>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button onClick={closeOptimizer} disabled={optimizing} sx={{ borderRadius: 2.5, color: '#475569', fontWeight: 600 }}>
-              Cerrar
-            </Button>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {optimizerResult && canWrite && (
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleApplyOptimization}
-                disabled={optimizing}
-                sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
-              >
-                {optimizing ? <CircularProgress size={16} color="inherit" /> : 'Aplicar propuesta'}
-              </Button>
-            )}
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleRunOptimization}
-              disabled={optimizing || !recipe}
-              startIcon={optimizing ? undefined : <AutoFixHigh />}
-              sx={{ borderRadius: 2.5, fontWeight: 700, boxShadow: 'none' }}
-            >
-              {optimizing ? <CircularProgress size={16} color="inherit" /> : 'Analizar con IA'}
-            </Button>
-          </Box>
-        </DialogActions>
-      </Dialog>
+      <React.Suspense fallback={null}>
+        <RecetaOptimizerDialog
+          open={aiOptimizationEnabled && optimizerOpen}
+          canWrite={canWrite}
+          optimizing={optimizing}
+          optimizerError={optimizerError}
+          optimizerResult={optimizerResult}
+          optimizerSellingPrice={optimizerSellingPrice}
+          optimizerTargetMargin={optimizerTargetMargin}
+          optimizerMaxChanges={optimizerMaxChanges}
+          optimizerConstraints={optimizerConstraints}
+          optimizerLockedIds={optimizerLockedIds}
+          ingredientsDraft={ingredientsDraft}
+          products={products}
+          onChangeSellingPrice={setOptimizerSellingPrice}
+          onChangeTargetMargin={setOptimizerTargetMargin}
+          onChangeMaxChanges={setOptimizerMaxChanges}
+          onChangeConstraints={setOptimizerConstraints}
+          onToggleLockedIngredient={toggleLockedIngredient}
+          onClose={closeOptimizer}
+          onRun={handleRunOptimization}
+          onApply={handleApplyOptimization}
+          dialogPaperSx={dialogPaperSx}
+          dialogActionsSx={dialogActionsSx}
+          sectionCardSx={sectionCardSx}
+          metricCardSx={metricCardSx}
+          tableContainerSx={tableContainerSx}
+        />
+      </React.Suspense>
 
       <Dialog open={canWrite && orderPromptOpen} onClose={() => setOrderPromptOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
         <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: '1px solid #e5e7eb', backgroundImage: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>

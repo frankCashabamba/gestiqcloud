@@ -2,59 +2,40 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 
-import en from './locales/en.json'
-import es from './locales/es.json'
-import commonEn from '../locales/en/common.json'
-import commonEs from '../locales/es/common.json'
-import importerEn from '../locales/en/importer.json'
-import importerEs from '../locales/es/importer.json'
-import crmEn from '../locales/en/crm.json'
-import crmEs from '../locales/es/crm.json'
-import customersEn from '../locales/en/customers.json'
-import customersEs from '../locales/es/customers.json'
-import expensesEn from '../locales/en/expenses.json'
-import expensesEs from '../locales/es/expenses.json'
-import financesEn from '../locales/en/finances.json'
-import financesEs from '../locales/es/finances.json'
-import inventoryEn from '../locales/en/inventory.json'
-import inventoryEs from '../locales/es/inventory.json'
-import permissionsEn from '../locales/en/permissions.json'
-import permissionsEs from '../locales/es/permissions.json'
-import posEn from '../locales/en/pos.json'
-import posEs from '../locales/es/pos.json'
-import productsEn from '../locales/en/products.json'
-import productsEs from '../locales/es/products.json'
-import reportsEn from '../locales/en/reports.json'
-import reportsEs from '../locales/es/reports.json'
-import settingsEn from '../locales/en/settings.json'
-import settingsEs from '../locales/es/settings.json'
-import suppliersEn from '../locales/en/suppliers.json'
-import suppliersEs from '../locales/es/suppliers.json'
-import costingEn from '../locales/en/costing.json'
-import costingEs from '../locales/es/costing.json'
-import hrEn from '../locales/en/hr.json'
-import hrEs from '../locales/es/hr.json'
-import copilotEn from '../locales/en/copilot.json'
-import copilotEs from '../locales/es/copilot.json'
-import einvoicingEn from '../locales/en/einvoicing.json'
-import einvoicingEs from '../locales/es/einvoicing.json'
-import notificationsEn from '../locales/en/notifications.json'
-import notificationsEs from '../locales/es/notifications.json'
-import reconciliationEn from '../locales/en/reconciliation.json'
-import reconciliationEs from '../locales/es/reconciliation.json'
-import purchasesEn from '../locales/en/purchases.json'
-import purchasesEs from '../locales/es/purchases.json'
-import usersEn from '../locales/en/users.json'
-import usersEs from '../locales/es/users.json'
-import templatesEn from '../locales/en/templates.json'
-import templatesEs from '../locales/es/templates.json'
-import productionsEn from '../locales/en/productions.json'
-import productionsEs from '../locales/es/productions.json'
-import dashboardEn from '../locales/en/dashboard.json'
-import dashboardEs from '../locales/es/dashboard.json'
-
 type BuiltInLang = 'en' | 'es'
 const BUILTIN_LANGS: BuiltInLang[] = ['en', 'es']
+const coreLocaleModules = import.meta.glob('./locales/*.json')
+const namespaceLocaleModules = import.meta.glob('../locales/*/*.json')
+const loadedLanguages = new Set<BuiltInLang>()
+const inflightLoads = new Map<BuiltInLang, Promise<void>>()
+
+const NS = [
+  'translation',
+  'common',
+  'crm',
+  'customers',
+  'expenses',
+  'finances',
+  'importer',
+  'inventory',
+  'permissions',
+  'pos',
+  'products',
+  'reports',
+  'settings',
+  'suppliers',
+  'costing',
+  'hr',
+  'copilot',
+  'einvoicing',
+  'notifications',
+  'reconciliation',
+  'purchases',
+  'users',
+  'templates',
+  'productions',
+  'dashboard',
+] as const
 
 function parseSupportedLangs(raw?: string | null): BuiltInLang[] {
   if (!raw) return BUILTIN_LANGS
@@ -75,95 +56,63 @@ export function normalizeLang(value?: string | null): SupportedLang {
   return 'en'
 }
 
-const resources = {
-  en: {
-    translation: en,
-    common: commonEn,
-    crm: crmEn,
-    customers: customersEn,
-    expenses: expensesEn,
-    finances: financesEn,
-    importer: importerEn,
-    inventory: inventoryEn,
-    permissions: permissionsEn,
-    pos: posEn,
-    products: productsEn,
-    reports: reportsEn,
-    settings: settingsEn,
-    suppliers: suppliersEn,
-    costing: costingEn,
-    hr: hrEn,
-    copilot: copilotEn,
-    einvoicing: einvoicingEn,
-    notifications: notificationsEn,
-    reconciliation: reconciliationEn,
-    purchases: purchasesEn,
-    users: usersEn,
-    templates: templatesEn,
-    productions: productionsEn,
-    dashboard: dashboardEn,
-  },
-  es: {
-    translation: es,
-    common: commonEs,
-    crm: crmEs,
-    customers: customersEs,
-    expenses: expensesEs,
-    finances: financesEs,
-    importer: importerEs,
-    inventory: inventoryEs,
-    permissions: permissionsEs,
-    pos: posEs,
-    products: productsEs,
-    reports: reportsEs,
-    settings: settingsEs,
-    suppliers: suppliersEs,
-    costing: costingEs,
-    hr: hrEs,
-    copilot: copilotEs,
-    einvoicing: einvoicingEs,
-    notifications: notificationsEs,
-    reconciliation: reconciliationEs,
-    purchases: purchasesEs,
-    users: usersEs,
-    templates: templatesEs,
-    productions: productionsEs,
-    dashboard: dashboardEs,
-  },
+async function loadCoreTranslation(lang: SupportedLang) {
+  const path = `./locales/${lang}.json`
+  const importer = coreLocaleModules[path]
+  if (!importer) return
+  const mod = await (importer as () => Promise<any>)()
+  i18n.addResourceBundle(lang, 'translation', mod.default ?? mod, true, true)
+}
+
+async function loadNamedNamespaces(lang: SupportedLang) {
+  const entries = Object.entries(namespaceLocaleModules).filter(([path]) =>
+    path.includes(`../locales/${lang}/`),
+  )
+
+  await Promise.all(
+    entries.map(async ([path, importer]) => {
+      const fileName = path.split('/').pop() || ''
+      const namespace = fileName.replace(/\.json$/, '')
+      const mod = await (importer as () => Promise<any>)()
+      i18n.addResourceBundle(lang, namespace, mod.default ?? mod, true, true)
+    }),
+  )
+}
+
+export async function ensureLanguageResources(lang: SupportedLang): Promise<void> {
+  const normalized = normalizeLang(lang)
+  if (loadedLanguages.has(normalized)) return
+
+  const existing = inflightLoads.get(normalized)
+  if (existing) return existing
+
+  const promise = (async () => {
+    await Promise.all([loadCoreTranslation(normalized), loadNamedNamespaces(normalized)])
+    loadedLanguages.add(normalized)
+    inflightLoads.delete(normalized)
+  })().catch((error) => {
+    inflightLoads.delete(normalized)
+    throw error
+  })
+
+  inflightLoads.set(normalized, promise)
+  return promise
+}
+
+export async function changeAppLanguage(lang: string): Promise<SupportedLang> {
+  const normalized = normalizeLang(lang)
+  await ensureLanguageResources(normalized)
+  if (i18n.resolvedLanguage !== normalized) {
+    await i18n.changeLanguage(normalized)
+  }
+  return normalized
 }
 
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources,
-    ns: [
-      'translation',
-      'common',
-      'crm',
-      'customers',
-      'expenses',
-      'finances',
-      'importer',
-      'inventory',
-      'permissions',
-      'pos',
-      'products',
-      'reports',
-      'settings',
-      'suppliers',
-      'costing',
-      'hr',
-      'copilot',
-      'einvoicing',
-      'notifications',
-      'reconciliation',
-      'purchases',
-      'users',
-      'templates',
-      'productions',
-      'dashboard',
-    ],
+    ns: [...NS],
     defaultNS: 'translation',
     fallbackNS: ['common'],
     supportedLngs: [...SUPPORTED_LANGS],

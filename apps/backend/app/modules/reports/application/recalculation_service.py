@@ -219,7 +219,11 @@ class RecalculationService:
             return Decimal(str(recipe.unit_cost))
 
         # Fallback to product.cost_price
-        product = self.db.query(Product).filter(Product.id == product_id).first()
+        product = (
+            self.db.query(Product)
+            .filter(Product.id == product_id, Product.tenant_id == tenant_id)
+            .first()
+        )
         if product and product.cost_price:
             return Decimal(str(product.cost_price))
 
