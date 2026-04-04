@@ -365,8 +365,13 @@ async def _process_upload_like_document(
         # for non-structured docs (PDFs, images) — those types require spreadsheet rows
         # that a PDF can never provide, causing datos_extraidos to be always empty.
         _TABLE_ONLY_TYPES = {
-            "INVENTORY", "PRICE_LIST", "COSTING", "PAYROLL",
-            "BANK_STATEMENT", "BANK_MOVEMENTS", "PRODUCT_LIST",
+            "INVENTORY",
+            "PRICE_LIST",
+            "COSTING",
+            "PAYROLL",
+            "BANK_STATEMENT",
+            "BANK_MOVEMENTS",
+            "PRODUCT_LIST",
         }
         _rc_for_ai = dict(recipe_config) if recipe_config else {}
         if pre_class and pre_class.confidence >= 0.65:
