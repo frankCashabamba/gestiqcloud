@@ -13,6 +13,10 @@ vi.mock('../../components/PermissionDenied', () => ({
   default: () => <div>Permission denied</div>,
 }))
 
+vi.mock('./promotions/PromotionsList', () => ({
+  default: () => <div><h2>Promotions</h2></div>,
+}))
+
 vi.mock('./List', () => ({
   default: () => <div>Sales list</div>,
 }))

@@ -217,8 +217,7 @@ async def _analyze_with_context(
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
     text_is_sufficient = bool(content and len(content.strip()) >= 100)
     image_bytes = (
-        None if text_is_sufficient
-        else bytes(vision_image_bytes) if vision_image_bytes else None
+        None if text_is_sufficient else bytes(vision_image_bytes) if vision_image_bytes else None
     )
     return await analyze_document_fn(
         content,

@@ -58,7 +58,9 @@ class Product(Base):
         back_populates="product", uselist=False
     )
     used_in_ingredients: Mapped[list["RecipeIngredient"]] = relationship(  # noqa: F821
-        back_populates="product"
+        back_populates="product",
+        passive_deletes=True,
+        cascade="none",
     )
 
     @property

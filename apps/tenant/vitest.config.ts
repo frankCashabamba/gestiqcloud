@@ -19,6 +19,10 @@ const alias = {
   '@shared/telemetry': pkgPath('../packages/telemetry/src'),
   '@shared': pkgPath('../packages/shared/src'),
   zod: pkgPath('../packages/zod/index.ts'),
+  // Packages reference these but can't resolve from their own directory
+  axios: pkgPath('node_modules/axios'),
+  'react-router-dom': pkgPath('node_modules/react-router-dom'),
+  'idb-keyval': pkgPath('node_modules/idb-keyval'),
 }
 
 export default defineConfig({

@@ -183,7 +183,7 @@ def _match_same_line(
         p1 = rf"^{escaped}[\w\s%#]*?(?:[:：]|\.)\s+(.+)"
         m = re.search(p1, line_norm)
         if m:
-            raw_value = line[m.start(1):].strip()
+            raw_value = line[m.start(1) :].strip()
             if raw_value:
                 candidates.append((raw_value, 20 + len(label_norm)))
                 continue
@@ -192,7 +192,7 @@ def _match_same_line(
         p2 = rf"^{escaped}[\w\s.%#]*?(?:\s{{2,}}|\s*\$\s*)(.+)"
         m = re.search(p2, line_norm)
         if m:
-            raw_value = line[m.start(1):].strip()
+            raw_value = line[m.start(1) :].strip()
             if raw_value:
                 candidates.append((raw_value, 18 + len(label_norm)))
     return candidates
@@ -308,16 +308,16 @@ def extract_fields_from_text(
         candidates: list[_Candidate] = []
         for i, (line, line_norm) in enumerate(zip(lines, lines_norm)):
             candidates.extend(_match_same_line(spec, line, line_norm))
-            candidates.extend(
-                _match_next_line(spec, lines, lines_norm, i, all_labels)
-            )
+            candidates.extend(_match_next_line(spec, lines, lines_norm, i, all_labels))
 
         best = _best_candidate(candidates, spec["type"])
         if best is not None:
             result[field_name] = best
 
     # Extract line_items from tabular OCR text
-    line_items = _extract_line_items_from_text(lines, lines_norm, field_aliases, pdf_config=pdf_config)
+    line_items = _extract_line_items_from_text(
+        lines, lines_norm, field_aliases, pdf_config=pdf_config
+    )
     if line_items:
         result["line_items"] = line_items
 
@@ -378,7 +378,9 @@ def _find_table_header(
         known_count = sum(1 for f in matched_fields if f)
         if known_count >= 2 and len(raw_names) >= 3:
             matched_fields = _dedupe_header_fields(
-                matched_fields, raw_names, reverse_prio,
+                matched_fields,
+                raw_names,
+                reverse_prio,
             )
             return i, matched_fields, raw_names
 
@@ -405,7 +407,9 @@ def _find_table_header(
                 break
         if sum(1 for f in header_fields if f) >= 2 and len(header_fields) >= 3:
             header_fields = _dedupe_header_fields(
-                header_fields, header_names, reverse_prio,
+                header_fields,
+                header_names,
+                reverse_prio,
             )
             return i, header_fields, header_names
 
@@ -481,10 +485,18 @@ def _extract_line_items_from_text(
 
     if vertical:
         return _parse_vertical_table(
-            lines, data_start, num_cols, matched_fields, column_names, field_aliases,
-            unit_values=unit_values_set, footer_patterns=footer_patterns,
+            lines,
+            data_start,
+            num_cols,
+            matched_fields,
+            column_names,
+            field_aliases,
+            unit_values=unit_values_set,
+            footer_patterns=footer_patterns,
         )
-    return _parse_tabular_table(lines, lines_norm, header_idx + 1, num_cols, matched_fields, column_names, field_aliases)
+    return _parse_tabular_table(
+        lines, lines_norm, header_idx + 1, num_cols, matched_fields, column_names, field_aliases
+    )
 
 
 def _is_vertical_layout(lines: list[str], data_start: int, num_cols: int) -> bool:
@@ -512,10 +524,7 @@ def _is_header_repetition(lines: list[str], i: int, column_norms: list[str]) -> 
     """Devuelve True si las próximas len(column_norms) líneas son una repetición del encabezado."""
     if i + len(column_norms) > len(lines):
         return False
-    return all(
-        _normalize_label(lines[i + k]) == column_norms[k]
-        for k in range(len(column_norms))
-    )
+    return all(_normalize_label(lines[i + k]) == column_norms[k] for k in range(len(column_norms)))
 
 
 def _parse_vertical_table(
@@ -575,10 +584,7 @@ def _parse_vertical_table(
         # slot de descripción debería ser una abreviatura de unidad (ml, g, unit...).
         # Si no lo es (y no contiene dígitos ni $), es continuación de la descripción.
         extra_desc = 0
-        if (
-            desc_col_idx is not None
-            and ci + num_cols + 1 <= len(clean)
-        ):
+        if desc_col_idx is not None and ci + num_cols + 1 <= len(clean):
             next_after_desc = clean[ci + desc_col_idx + 1].strip()
             next_norm = _normalize_label(next_after_desc)
             if (

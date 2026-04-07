@@ -62,6 +62,7 @@
     "wholesaleTitle": "Precio mayorista",
     "wholesaleHint": "Configura reglas mayoristas por producto o mínimos por cantidad.",
     "wholesaleEnable": "Habilitar mayorista",
+    "wholesalePrice": "Precio mayorista",
     "wholesaleApply": "Aplicar reglas de mayorista",
     "stockGlobal": "Mínimo global de stock: {{value}}",
     "stockBelowMin": "El stock inicial ({{stock}}) está por debajo del mínimo ({{min}}). Mayorista deshabilitado.",

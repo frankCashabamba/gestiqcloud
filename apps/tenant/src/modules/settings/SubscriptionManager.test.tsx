@@ -21,7 +21,8 @@ vi.mock('react-i18next', () => ({
         'subscription.includedModulesLabel': 'Módulos incluidos',
         'subscription.subscribe': 'Suscribirse',
       }
-      return messages[key] ?? key
+      const shortKey = key.includes(':') ? key.split(':').slice(1).join(':') : key
+      return messages[shortKey] ?? key
     },
   }),
 }))

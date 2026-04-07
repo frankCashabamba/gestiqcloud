@@ -4,7 +4,7 @@
 
 Crear un módulo histórico de consulta que permita:
 
-- Importar ficheros  utilizando el actual importador de ficheros nada harcodeado todo tablas 
+- Importar ficheros  utilizando el actual importador de ficheros nada harcodeado todo tablas
 - Normalizar datos
 - Consultarlos desde UI
 - NO afectar contabilidad real ni stock

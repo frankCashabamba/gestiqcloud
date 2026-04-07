@@ -575,14 +575,18 @@ def learn_column_candidates(
                     saved += 1
                     logger.info(
                         "Auto-created canonical field '%s' → slot '%s' for alias '%s'",
-                        new_canonical, slot_name, alias_clean,
+                        new_canonical,
+                        slot_name,
+                        alias_clean,
                     )
                 except Exception as exc:
                     try:
                         db.execute(sa_text("ROLLBACK TO SAVEPOINT sp_auto_canonical"))
                     except Exception:
                         pass
-                    logger.debug("Could not auto-create canonical field '%s': %s", new_canonical, exc)
+                    logger.debug(
+                        "Could not auto-create canonical field '%s': %s", new_canonical, exc
+                    )
             else:
                 # Sin match de slot — guardar en imp_column_candidate para revisión manual
                 try:
@@ -622,6 +626,7 @@ def learn_column_candidates(
             db.commit()
             # Invalidar caché para que el próximo procesamiento use los nuevos campos
             from .field_alias_loader import invalidate_cache
+
             invalidate_cache()
         except Exception as exc:
             logger.debug("Could not commit column candidates: %s", exc)

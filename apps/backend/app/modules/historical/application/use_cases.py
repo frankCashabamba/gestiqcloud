@@ -17,14 +17,48 @@ logger = logging.getLogger(__name__)
 # ── Column name mapping for auto-detection ──────────────────────────────────
 
 _COLUMN_MAP: dict[str, list[str]] = {
-    "fecha": ["fecha", "date", "fecha_venta", "fecha_compra", "fecha_factura", "invoice_date", "order_date"],
-    "numero": ["numero", "number", "invoice", "factura", "nro", "num", "doc_number", "invoice_number"],
+    "fecha": [
+        "fecha",
+        "date",
+        "fecha_venta",
+        "fecha_compra",
+        "fecha_factura",
+        "invoice_date",
+        "order_date",
+    ],
+    "numero": [
+        "numero",
+        "number",
+        "invoice",
+        "factura",
+        "nro",
+        "num",
+        "doc_number",
+        "invoice_number",
+    ],
     "cliente_code": ["codigo_cliente", "client_code", "customer_code", "cod_cliente"],
     "cliente_nombre": ["cliente", "customer", "client", "cliente_nombre", "customer_name", "buyer"],
     "proveedor_code": ["codigo_proveedor", "supplier_code", "vendor_code", "cod_proveedor"],
     "proveedor_nombre": ["proveedor", "supplier", "vendor", "proveedor_nombre", "supplier_name"],
-    "producto_code": ["codigo", "code", "sku", "codigo_producto", "product_code", "cod_producto", "ref"],
-    "producto_nombre": ["producto", "product", "item", "articulo", "producto_nombre", "product_name", "descripcion", "description"],
+    "producto_code": [
+        "codigo",
+        "code",
+        "sku",
+        "codigo_producto",
+        "product_code",
+        "cod_producto",
+        "ref",
+    ],
+    "producto_nombre": [
+        "producto",
+        "product",
+        "item",
+        "articulo",
+        "producto_nombre",
+        "product_name",
+        "descripcion",
+        "description",
+    ],
     "cantidad": ["cantidad", "qty", "quantity", "cant", "units"],
     "precio_unitario": ["precio", "price", "unit_price", "precio_unitario", "pvu", "p_unit"],
     "subtotal": ["subtotal", "sub_total", "base", "base_imponible"],
@@ -41,13 +75,7 @@ _COLUMN_MAP: dict[str, list[str]] = {
 
 
 def _normalize_col(name: str) -> str:
-    return (
-        str(name or "")
-        .strip()
-        .lower()
-        .replace(" ", "_")
-        .replace("-", "_")
-    )
+    return str(name or "").strip().lower().replace(" ", "_").replace("-", "_")
 
 
 def _resolve_column(df_columns: list[str], target: str) -> str | None:
@@ -64,6 +92,7 @@ def _safe_decimal(value: Any) -> float:
         return 0.0
     try:
         import math
+
         v = float(value)
         return v if math.isfinite(v) else 0.0
     except (TypeError, ValueError):
@@ -74,6 +103,7 @@ def _safe_str(value: Any, max_len: int = 500) -> str | None:
     if value is None:
         return None
     import pandas as pd
+
     if pd.isna(value):
         return None
     s = str(value).strip()
@@ -84,6 +114,7 @@ def _safe_date(value: Any) -> date | None:
     if value is None:
         return None
     import pandas as pd
+
     if pd.isna(value):
         return None
     try:
@@ -103,16 +134,20 @@ class ListImportsUseCase:
         self.db = db
 
     def execute(self, tenant_id: UUID) -> list[dict[str, Any]]:
-        rows = self.db.execute(
-            text(
-                "SELECT id, filename, file_type, file_size_bytes, import_type, "
-                "total_rows, imported_rows, failed_rows, status, error_detail, "
-                "imported_by, created_at, updated_at "
-                "FROM hist_imports WHERE tenant_id = :tid "
-                "ORDER BY created_at DESC"
-            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
-            {"tid": tenant_id},
-        ).mappings().all()
+        rows = (
+            self.db.execute(
+                text(
+                    "SELECT id, filename, file_type, file_size_bytes, import_type, "
+                    "total_rows, imported_rows, failed_rows, status, error_detail, "
+                    "imported_by, created_at, updated_at "
+                    "FROM hist_imports WHERE tenant_id = :tid "
+                    "ORDER BY created_at DESC"
+                ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+                {"tid": tenant_id},
+            )
+            .mappings()
+            .all()
+        )
         return [dict(r) for r in rows]
 
 
@@ -121,18 +156,22 @@ class GetImportUseCase:
         self.db = db
 
     def execute(self, tenant_id: UUID, import_id: UUID) -> dict[str, Any] | None:
-        row = self.db.execute(
-            text(
-                "SELECT id, filename, file_type, file_size_bytes, import_type, "
-                "total_rows, imported_rows, failed_rows, status, error_detail, "
-                "imported_by, created_at, updated_at "
-                "FROM hist_imports WHERE tenant_id = :tid AND id = :iid"
-            ).bindparams(
-                bindparam("tid", type_=PGUUID(as_uuid=True)),
-                bindparam("iid", type_=PGUUID(as_uuid=True)),
-            ),
-            {"tid": tenant_id, "iid": import_id},
-        ).mappings().first()
+        row = (
+            self.db.execute(
+                text(
+                    "SELECT id, filename, file_type, file_size_bytes, import_type, "
+                    "total_rows, imported_rows, failed_rows, status, error_detail, "
+                    "imported_by, created_at, updated_at "
+                    "FROM hist_imports WHERE tenant_id = :tid AND id = :iid"
+                ).bindparams(
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                    bindparam("iid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"tid": tenant_id, "iid": import_id},
+            )
+            .mappings()
+            .first()
+        )
         return dict(row) if row else None
 
 
@@ -150,9 +189,7 @@ class DeleteImportUseCase:
                 {"tid": tenant_id, "iid": import_id},
             )
         result = self.db.execute(
-            text(
-                "DELETE FROM hist_imports WHERE tenant_id = :tid AND id = :iid"
-            ).bindparams(
+            text("DELETE FROM hist_imports WHERE tenant_id = :tid AND id = :iid").bindparams(
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
                 bindparam("iid", type_=PGUUID(as_uuid=True)),
             ),
@@ -190,22 +227,29 @@ class ListHistSalesUseCase:
             params["iid"] = import_id
             binds.append(bindparam("iid", type_=PGUUID(as_uuid=True)))
 
-        total = self.db.execute(
-            text(f"SELECT COUNT(*) FROM hist_sales {where}").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        total = (
+            self.db.execute(
+                text(f"SELECT COUNT(*) FROM hist_sales {where}").bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
         offset = (page - 1) * page_size
-        rows = self.db.execute(
-            text(
-                f"SELECT id, import_id, fecha, numero, cliente_code, cliente_nombre, "
-                f"producto_code, producto_nombre, cantidad, precio_unitario, "
-                f"subtotal, impuesto, total, moneda, created_at "
-                f"FROM hist_sales {where} ORDER BY fecha DESC, created_at DESC "
-                f"LIMIT :lim OFFSET :off"
-            ).bindparams(*binds),
-            {**params, "lim": page_size, "off": offset},
-        ).mappings().all()
+        rows = (
+            self.db.execute(
+                text(
+                    f"SELECT id, import_id, fecha, numero, cliente_code, cliente_nombre, "
+                    f"producto_code, producto_nombre, cantidad, precio_unitario, "
+                    f"subtotal, impuesto, total, moneda, created_at "
+                    f"FROM hist_sales {where} ORDER BY fecha DESC, created_at DESC "
+                    f"LIMIT :lim OFFSET :off"
+                ).bindparams(*binds),
+                {**params, "lim": page_size, "off": offset},
+            )
+            .mappings()
+            .all()
+        )
 
         return {
             "items": [dict(r) for r in rows],
@@ -243,22 +287,29 @@ class ListHistPurchasesUseCase:
             params["iid"] = import_id
             binds.append(bindparam("iid", type_=PGUUID(as_uuid=True)))
 
-        total = self.db.execute(
-            text(f"SELECT COUNT(*) FROM hist_purchases {where}").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        total = (
+            self.db.execute(
+                text(f"SELECT COUNT(*) FROM hist_purchases {where}").bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
         offset = (page - 1) * page_size
-        rows = self.db.execute(
-            text(
-                f"SELECT id, import_id, fecha, numero, proveedor_code, proveedor_nombre, "
-                f"producto_code, producto_nombre, cantidad, precio_unitario, "
-                f"subtotal, impuesto, total, moneda, created_at "
-                f"FROM hist_purchases {where} ORDER BY fecha DESC, created_at DESC "
-                f"LIMIT :lim OFFSET :off"
-            ).bindparams(*binds),
-            {**params, "lim": page_size, "off": offset},
-        ).mappings().all()
+        rows = (
+            self.db.execute(
+                text(
+                    f"SELECT id, import_id, fecha, numero, proveedor_code, proveedor_nombre, "
+                    f"producto_code, producto_nombre, cantidad, precio_unitario, "
+                    f"subtotal, impuesto, total, moneda, created_at "
+                    f"FROM hist_purchases {where} ORDER BY fecha DESC, created_at DESC "
+                    f"LIMIT :lim OFFSET :off"
+                ).bindparams(*binds),
+                {**params, "lim": page_size, "off": offset},
+            )
+            .mappings()
+            .all()
+        )
 
         return {
             "items": [dict(r) for r in rows],
@@ -292,21 +343,28 @@ class ListHistStockUseCase:
             params["iid"] = import_id
             binds.append(bindparam("iid", type_=PGUUID(as_uuid=True)))
 
-        total = self.db.execute(
-            text(f"SELECT COUNT(*) FROM hist_stock {where}").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        total = (
+            self.db.execute(
+                text(f"SELECT COUNT(*) FROM hist_stock {where}").bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
         offset = (page - 1) * page_size
-        rows = self.db.execute(
-            text(
-                f"SELECT id, import_id, fecha, producto_code, producto_nombre, "
-                f"cantidad, costo_unitario, valor_total, almacen, created_at "
-                f"FROM hist_stock {where} ORDER BY fecha DESC, created_at DESC "
-                f"LIMIT :lim OFFSET :off"
-            ).bindparams(*binds),
-            {**params, "lim": page_size, "off": offset},
-        ).mappings().all()
+        rows = (
+            self.db.execute(
+                text(
+                    f"SELECT id, import_id, fecha, producto_code, producto_nombre, "
+                    f"cantidad, costo_unitario, valor_total, almacen, created_at "
+                    f"FROM hist_stock {where} ORDER BY fecha DESC, created_at DESC "
+                    f"LIMIT :lim OFFSET :off"
+                ).bindparams(*binds),
+                {**params, "lim": page_size, "off": offset},
+            )
+            .mappings()
+            .all()
+        )
 
         return {
             "items": [dict(r) for r in rows],
@@ -337,14 +395,18 @@ class ListHistDailySalesUseCase:
             where += " AND fecha <= :fh"
             params["fh"] = fecha_hasta
 
-        rows = self.db.execute(
-            text(
-                f"SELECT id, import_id, fecha, total_ventas, total_items, "
-                f"ticket_promedio, created_at "
-                f"FROM hist_daily_sales {where} ORDER BY fecha DESC"
-            ).bindparams(*binds),
-            params,
-        ).mappings().all()
+        rows = (
+            self.db.execute(
+                text(
+                    f"SELECT id, import_id, fecha, total_ventas, total_items, "
+                    f"ticket_promedio, created_at "
+                    f"FROM hist_daily_sales {where} ORDER BY fecha DESC"
+                ).bindparams(*binds),
+                params,
+            )
+            .mappings()
+            .all()
+        )
 
         return [dict(r) for r in rows]
 
@@ -357,35 +419,59 @@ class GetHistDashboardUseCase:
         params = {"tid": tenant_id}
         binds = [bindparam("tid", type_=PGUUID(as_uuid=True))]
 
-        total_imports = self.db.execute(
-            text("SELECT COUNT(*) FROM hist_imports WHERE tenant_id = :tid").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        total_imports = (
+            self.db.execute(
+                text("SELECT COUNT(*) FROM hist_imports WHERE tenant_id = :tid").bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
-        total_sales = self.db.execute(
-            text("SELECT COUNT(*) FROM hist_sales WHERE tenant_id = :tid").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        total_sales = (
+            self.db.execute(
+                text("SELECT COUNT(*) FROM hist_sales WHERE tenant_id = :tid").bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
-        total_purchases = self.db.execute(
-            text("SELECT COUNT(*) FROM hist_purchases WHERE tenant_id = :tid").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        total_purchases = (
+            self.db.execute(
+                text("SELECT COUNT(*) FROM hist_purchases WHERE tenant_id = :tid").bindparams(
+                    *binds
+                ),
+                params,
+            ).scalar()
+            or 0
+        )
 
-        total_stock = self.db.execute(
-            text("SELECT COUNT(*) FROM hist_stock WHERE tenant_id = :tid").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        total_stock = (
+            self.db.execute(
+                text("SELECT COUNT(*) FROM hist_stock WHERE tenant_id = :tid").bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
-        sales_total = self.db.execute(
-            text("SELECT COALESCE(SUM(total), 0) FROM hist_sales WHERE tenant_id = :tid").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        sales_total = (
+            self.db.execute(
+                text(
+                    "SELECT COALESCE(SUM(total), 0) FROM hist_sales WHERE tenant_id = :tid"
+                ).bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
-        purchases_total = self.db.execute(
-            text("SELECT COALESCE(SUM(total), 0) FROM hist_purchases WHERE tenant_id = :tid").bindparams(*binds),
-            params,
-        ).scalar() or 0
+        purchases_total = (
+            self.db.execute(
+                text(
+                    "SELECT COALESCE(SUM(total), 0) FROM hist_purchases WHERE tenant_id = :tid"
+                ).bindparams(*binds),
+                params,
+            ).scalar()
+            or 0
+        )
 
         date_range = self.db.execute(
             text(
@@ -437,28 +523,32 @@ class UploadHistoricalFileUseCase:
                 raise ValueError(f"Unsupported file type: {ext}")
         except Exception as e:
             # Create failed import record
-            row = self.db.execute(
-                text(
-                    "INSERT INTO hist_imports (tenant_id, filename, file_type, file_size_bytes, "
-                    "import_type, status, error_detail, imported_by) "
-                    "VALUES (:tid, :fn, :ft, :fs, :it, 'failed', :err, :uid) "
-                    "RETURNING id, filename, file_type, file_size_bytes, import_type, "
-                    "total_rows, imported_rows, failed_rows, status, error_detail, "
-                    "imported_by, created_at, updated_at"
-                ).bindparams(
-                    bindparam("tid", type_=PGUUID(as_uuid=True)),
-                    bindparam("uid", type_=PGUUID(as_uuid=True)),
-                ),
-                {
-                    "tid": tenant_id,
-                    "fn": filename,
-                    "ft": file_type,
-                    "fs": len(file_bytes),
-                    "it": import_type,
-                    "err": str(e),
-                    "uid": user_id,
-                },
-            ).mappings().first()
+            row = (
+                self.db.execute(
+                    text(
+                        "INSERT INTO hist_imports (tenant_id, filename, file_type, file_size_bytes, "
+                        "import_type, status, error_detail, imported_by) "
+                        "VALUES (:tid, :fn, :ft, :fs, :it, 'failed', :err, :uid) "
+                        "RETURNING id, filename, file_type, file_size_bytes, import_type, "
+                        "total_rows, imported_rows, failed_rows, status, error_detail, "
+                        "imported_by, created_at, updated_at"
+                    ).bindparams(
+                        bindparam("tid", type_=PGUUID(as_uuid=True)),
+                        bindparam("uid", type_=PGUUID(as_uuid=True)),
+                    ),
+                    {
+                        "tid": tenant_id,
+                        "fn": filename,
+                        "ft": file_type,
+                        "fs": len(file_bytes),
+                        "it": import_type,
+                        "err": str(e),
+                        "uid": user_id,
+                    },
+                )
+                .mappings()
+                .first()
+            )
             self.db.commit()
             return dict(row) if row else {}
 
@@ -523,7 +613,9 @@ class UploadHistoricalFileUseCase:
                     "FROM hist_imports WHERE id = :iid"
                 ).bindparams(bindparam("iid", type_=PGUUID(as_uuid=True))),
                 {"iid": import_id},
-            ).mappings().first()
+            )
+            .mappings()
+            .first()
         )
 
     def _import_sales(
@@ -550,6 +642,7 @@ class UploadHistoricalFileUseCase:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
                     from datetime import date as _date
+
                     fecha = _date.today()
 
                 self.db.execute(
@@ -563,7 +656,9 @@ class UploadHistoricalFileUseCase:
                         bindparam("iid", type_=PGUUID(as_uuid=True)),
                     ),
                     {
-                        "tid": tenant_id, "iid": import_id, "f": fecha,
+                        "tid": tenant_id,
+                        "iid": import_id,
+                        "f": fecha,
                         "n": _safe_str(row.get(numero_col) if numero_col else None, 100),
                         "cc": _safe_str(row.get(cli_code_col) if cli_code_col else None, 100),
                         "cn": _safe_str(row.get(cli_name_col) if cli_name_col else None, 500),
@@ -609,6 +704,7 @@ class UploadHistoricalFileUseCase:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
                     from datetime import date as _date
+
                     fecha = _date.today()
 
                 self.db.execute(
@@ -622,7 +718,9 @@ class UploadHistoricalFileUseCase:
                         bindparam("iid", type_=PGUUID(as_uuid=True)),
                     ),
                     {
-                        "tid": tenant_id, "iid": import_id, "f": fecha,
+                        "tid": tenant_id,
+                        "iid": import_id,
+                        "f": fecha,
                         "n": _safe_str(row.get(numero_col) if numero_col else None, 100),
                         "vc": _safe_str(row.get(prov_code_col) if prov_code_col else None, 100),
                         "vn": _safe_str(row.get(prov_name_col) if prov_name_col else None, 500),
@@ -663,6 +761,7 @@ class UploadHistoricalFileUseCase:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
                     from datetime import date as _date
+
                     fecha = _date.today()
 
                 self.db.execute(
@@ -676,7 +775,9 @@ class UploadHistoricalFileUseCase:
                         bindparam("iid", type_=PGUUID(as_uuid=True)),
                     ),
                     {
-                        "tid": tenant_id, "iid": import_id, "f": fecha,
+                        "tid": tenant_id,
+                        "iid": import_id,
+                        "f": fecha,
                         "pc": _safe_str(row.get(prod_code_col) if prod_code_col else None, 100),
                         "pn": _safe_str(row.get(prod_name_col) if prod_name_col else None, 500),
                         "ca": _safe_decimal(row.get(cant_col) if cant_col else None),
@@ -708,6 +809,7 @@ class UploadHistoricalFileUseCase:
                 fecha = _safe_date(row.get(fecha_col) if fecha_col else None)
                 if not fecha:
                     from datetime import date as _date
+
                     fecha = _date.today()
 
                 self.db.execute(
@@ -725,7 +827,9 @@ class UploadHistoricalFileUseCase:
                         bindparam("iid", type_=PGUUID(as_uuid=True)),
                     ),
                     {
-                        "tid": tenant_id, "iid": import_id, "f": fecha,
+                        "tid": tenant_id,
+                        "iid": import_id,
+                        "f": fecha,
                         "tv": _safe_decimal(row.get(ventas_col) if ventas_col else None),
                         "ti": int(_safe_decimal(row.get(items_col) if items_col else None)),
                         "tp": _safe_decimal(row.get(ticket_col) if ticket_col else None),
@@ -738,9 +842,7 @@ class UploadHistoricalFileUseCase:
 
         return imported, failed
 
-    def _upsert_masters_from_sales(
-        self, tenant_id: UUID, df: Any, cols: list[str]
-    ) -> None:
+    def _upsert_masters_from_sales(self, tenant_id: UUID, df: Any, cols: list[str]) -> None:
         prod_code_col = _resolve_column(cols, "producto_code")
         prod_name_col = _resolve_column(cols, "producto_nombre")
         cli_code_col = _resolve_column(cols, "cliente_code")
@@ -772,9 +874,7 @@ class UploadHistoricalFileUseCase:
                 except Exception:
                     pass
 
-    def _upsert_masters_from_purchases(
-        self, tenant_id: UUID, df: Any, cols: list[str]
-    ) -> None:
+    def _upsert_masters_from_purchases(self, tenant_id: UUID, df: Any, cols: list[str]) -> None:
         prod_code_col = _resolve_column(cols, "producto_code")
         prod_name_col = _resolve_column(cols, "producto_nombre")
         prov_code_col = _resolve_column(cols, "proveedor_code")

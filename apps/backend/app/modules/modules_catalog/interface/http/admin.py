@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
 
-import logging
-
-from app.shared.utils import ping_ok
-
-logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -30,6 +26,9 @@ from app.modules.settings.application.modules_catalog import (
     is_standalone_module,
     resolve_module_runtime_meta,
 )
+from app.shared.utils import ping_ok
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/admin/modules",

@@ -634,6 +634,20 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         if (product) {
             addToCart(product)
             state.setSearchQuery('')
+        } else {
+            const code = normalizeCode(state.searchQuery)
+            if (code) {
+                toast.warning(`${t('pos:errors.productNotFound')}: ${code}`, {
+                    duration: 0,
+                    action: {
+                        label: t('common:create', { defaultValue: 'Create' }),
+                        onClick: () => {
+                            setCreateProductForm({ sku: code, name: '', price: 0, stock: 1, tax_rate: defaultTaxPct, category: selectedCategory !== '*' ? selectedCategory : '' })
+                            setShowCreateProductModal(true)
+                        },
+                    },
+                })
+            }
         }
     }
 

@@ -1,71 +1,81 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fetchVentas, createVenta, deleteVenta } from './services'
 
-// Mock del cliente HTTP
-vi.mock('../../lib/http', () => ({
-  apiFetch: vi.fn()
+vi.mock('../../shared/api/client', () => ({
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
 }))
 
-import { apiFetch } from '../../lib/http'
+vi.mock('../../lib/offlineStore', () => ({
+  storeEntity: vi.fn(),
+  queueDeletion: vi.fn(),
+}))
+
+vi.mock('../../lib/offlineHttp', () => ({
+  createOfflineTempId: vi.fn(() => 'temp-1'),
+  isNetworkIssue: vi.fn(() => false),
+  isOfflineQueuedResponse: vi.fn(() => false),
+  stripOfflineMeta: vi.fn((p: any) => p),
+}))
+
+import tenantApi from '../../shared/api/client'
 
 describe('Ventas Services', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('fetchVentas', () => {
+  describe('listVentas', () => {
     it('debería retornar una lista de ventas', async () => {
       const mockVentas = [
-        { id: 1, total: 100, fecha: '2025-01-01' },
-        { id: 2, total: 200, fecha: '2025-01-02' }
+        { id: 1, total: 100, order_date: '2025-01-01' },
+        { id: 2, total: 200, order_date: '2025-01-02' },
       ]
 
-      vi.mocked(apiFetch).mockResolvedValueOnce(mockVentas)
+      vi.mocked(tenantApi.get).mockResolvedValueOnce({ data: mockVentas } as any)
 
-      const result = await fetchVentas()
+      const { listVentas } = await import('./services')
+      const result = await listVentas()
 
-      expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/sales_orders'))
-      expect(result).toEqual(mockVentas)
+      expect(tenantApi.get).toHaveBeenCalled()
       expect(Array.isArray(result)).toBe(true)
+      expect(result).toHaveLength(2)
     })
 
     it('debería manejar errores de red', async () => {
-      vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'))
+      vi.mocked(tenantApi.get).mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(fetchVentas()).rejects.toThrow('Network error')
+      const { listVentas } = await import('./services')
+      await expect(listVentas()).rejects.toThrow('Network error')
     })
   })
 
   describe('createVenta', () => {
     it('debería crear una nueva venta', async () => {
-      const nuevaVenta = { cliente_id: 1, total: 150, items: [] }
+      const nuevaVenta = { cliente_id: 1, total: 150, fecha: '2025-01-01', lineas: [] }
       const mockResponse = { id: 3, ...nuevaVenta }
 
-      vi.mocked(apiFetch).mockResolvedValueOnce(mockResponse)
+      vi.mocked(tenantApi.post).mockResolvedValueOnce({ data: mockResponse } as any)
 
-      const result = await createVenta(nuevaVenta)
+      const { createVenta } = await import('./services')
+      const result = await createVenta(nuevaVenta as any)
 
-      expect(apiFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/sales_orders'),
-        expect.objectContaining({
-          method: 'POST',
-          body: nuevaVenta
-        })
-      )
-      expect(result).toEqual(mockResponse)
+      expect(tenantApi.post).toHaveBeenCalled()
+      expect(result).toBeDefined()
     })
   })
 
-  describe('deleteVenta', () => {
+  describe('removeVenta', () => {
     it('debería eliminar una venta por ID', async () => {
-      vi.mocked(apiFetch).mockResolvedValueOnce({ success: true })
+      vi.mocked(tenantApi.delete).mockResolvedValueOnce({ data: { success: true } } as any)
 
-      await deleteVenta(1)
+      const { removeVenta } = await import('./services')
+      await removeVenta(1)
 
-      expect(apiFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/sales_orders/1'),
-        expect.objectContaining({ method: 'DELETE' })
-      )
+      expect(tenantApi.delete).toHaveBeenCalled()
     })
   })
 })

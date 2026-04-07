@@ -1,149 +1,159 @@
 /**
  * Tests para AuthContext
- * Coverage: Autenticación con cookies HttpOnly
+ * Coverage: login, logout, profile, initial state
  */
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { vi } from 'vitest'
+
+// ── Mocks ────────────────────────────────────────────────────────────────────
+
+// Mock apiFetch from lib/http (paths relative to test file)
+const apiFetchMock = vi.fn()
+vi.mock('../../lib/http', () => ({
+  apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+}))
+
+// Mock offlineAuth helpers
+vi.mock('../../lib/offlineAuth', () => ({
+  saveCredentialsForOffline: vi.fn().mockResolvedValue(undefined),
+  saveOfflineSessionSnapshot: vi.fn().mockResolvedValue(undefined),
+  verifyOfflineCredentials: vi.fn().mockResolvedValue(null),
+  getOfflineProfile: vi.fn().mockResolvedValue(null),
+  getOfflineToken: vi.fn().mockResolvedValue(null),
+  clearOfflineSessionSnapshot: vi.fn().mockResolvedValue(undefined),
+  isOfflineSession: vi.fn().mockReturnValue(false),
+  markOfflineSession: vi.fn(),
+  markOnlineSession: vi.fn(),
+}))
+
+// Mock PermissionsContext so it just renders children
+vi.mock('../../contexts/PermissionsContext', () => ({
+  PermissionsProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
+// Mock constants/storage
+vi.mock('../../constants/storage', () => ({
+  TOKEN_KEY: 'access_token_tenant',
+}))
+
+import React from 'react'
 import { AuthProvider, useAuth } from '../AuthContext'
 
-// Mock fetch
-global.fetch = vi.fn() as typeof fetch
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <AuthProvider>{children}</AuthProvider>
+)
+
+/** Wait until loading finishes after initial mount. */
+async function renderAndWaitForLoad() {
+  const hook = renderHook(() => useAuth(), { wrapper })
+  await waitFor(() => {
+    expect(hook.result.current.loading).toBe(false)
+  })
+  return hook
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('AuthContext', () => {
   beforeEach(() => {
-    // Reset mocks
     vi.clearAllMocks()
-    localStorage.clear()
+    sessionStorage.clear()
+    // Init-phase calls (refresh + me) reject so loading finishes quickly.
+    apiFetchMock.mockRejectedValue(new Error('no session'))
   })
 
-  describe('Login', () => {
-    it('should login successfully with cookies', async () => {
-      // Mock successful login
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          user: {
-            id: '123',
-            email: 'test@example.com',
-            tenant_id: 'tenant-1'
-          }
+  describe('initial state', () => {
+    it('profile is null after loading completes with no session', async () => {
+      const { result } = await renderAndWaitForLoad()
+
+      expect(result.current.profile).toBeNull()
+      expect(result.current.token).toBeNull()
+      expect(result.current.loading).toBe(false)
+    })
+  })
+
+  describe('login', () => {
+    it('should login successfully and set profile', async () => {
+      const { result } = await renderAndWaitForLoad()
+
+      const fakeToken = 'jwt.token.here'
+      const fakeProfile = {
+        user_id: '123',
+        tenant_id: 'tenant-1',
+        username: 'test@example.com',
+      }
+
+      apiFetchMock
+        .mockResolvedValueOnce({
+          access_token: fakeToken,
+          token_type: 'bearer',
+          scope: 'tenant',
         })
-      })
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <AuthProvider>{children}</AuthProvider>
-      )
-
-      const { result } = renderHook(() => useAuth(), { wrapper })
+        .mockResolvedValueOnce(fakeProfile)
 
       await act(async () => {
-        await result.current.login('test@example.com', 'password123')
+        const loginResult = await result.current.login({
+          identificador: 'test@example.com',
+          password: 'password123',
+        })
+        expect(loginResult).toEqual({ scope: 'tenant', accessToken: fakeToken })
       })
 
-      // Verificar que fetch se llamó con credentials: 'include'
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          credentials: 'include'
-        })
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/api/v1/auth/login',
+        expect.objectContaining({ method: 'POST' }),
       )
 
-      // Verificar que NO se guardó token en localStorage
-      expect(localStorage.getItem('access_token')).toBeNull()
-      expect(localStorage.getItem('refresh_token')).toBeNull()
-
-      // Verificar que usuario está autenticado
       await waitFor(() => {
-        expect(result.current.user).not.toBeNull()
+        expect(result.current.profile).toEqual(fakeProfile)
       })
+      expect(result.current.token).toBe(fakeToken)
     })
 
     it('should handle login failure', async () => {
-      // Mock failed login
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        json: async () => ({ detail: 'Invalid credentials' })
-      })
+      const { result } = await renderAndWaitForLoad()
 
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <AuthProvider>{children}</AuthProvider>
+      apiFetchMock.mockRejectedValueOnce(
+        Object.assign(new Error('Invalid credentials'), { status: 401 }),
       )
 
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
       await act(async () => {
-        try {
-          await result.current.login('test@example.com', 'wrong_password')
-        } catch (error) {
-          // Expected error
-        }
+        await expect(
+          result.current.login({ identificador: 'bad@example.com', password: 'wrong' }),
+        ).rejects.toThrow('Invalid credentials')
       })
 
-      // Usuario no autenticado
-      expect(result.current.user).toBeNull()
+      expect(result.current.profile).toBeNull()
     })
   })
 
-  describe('Logout', () => {
-    it('should logout and clear cookies via backend', async () => {
-      // Mock logout
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ message: 'Logged out' })
+  describe('logout', () => {
+    it('should logout, call backend, and clear profile', async () => {
+      const { result } = await renderAndWaitForLoad()
+
+      apiFetchMock
+        .mockResolvedValueOnce({ access_token: 'tok', token_type: 'bearer', scope: 'tenant' })
+        .mockResolvedValueOnce({ user_id: 'u1', tenant_id: 't1' })
+
+      await act(async () => {
+        await result.current.login({ identificador: 'user', password: 'pass' })
       })
 
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <AuthProvider>{children}</AuthProvider>
-      )
-
-      const { result } = renderHook(() => useAuth(), { wrapper })
+      apiFetchMock.mockResolvedValueOnce(undefined)
 
       await act(async () => {
         await result.current.logout()
       })
 
-      // Verificar que fetch se llamó con credentials
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/logout'),
-        expect.objectContaining({
-          credentials: 'include'
-        })
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/api/v1/tenant/auth/logout',
+        expect.objectContaining({ method: 'POST' }),
       )
 
-      // Usuario eliminado
-      expect(result.current.user).toBeNull()
-    })
-  })
-
-  describe('Protected Fetch', () => {
-    it('should send cookies automatically', async () => {
-      // Mock protected endpoint
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: 'protected data' })
-      })
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <AuthProvider>{children}</AuthProvider>
-      )
-
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await act(async () => {
-        await result.current.fetchProtected('/api/v1/protected')
-      })
-
-      // Verificar que NO se agregó Authorization header
-      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-      const headers = fetchCall[1]?.headers || {}
-
-      expect(headers.Authorization).toBeUndefined()
-
-      // Verificar que credentials: 'include' está presente
-      expect(fetchCall[1]).toMatchObject({
-        credentials: 'include'
-      })
+      expect(result.current.profile).toBeNull()
+      expect(result.current.token).toBeNull()
     })
   })
 })
