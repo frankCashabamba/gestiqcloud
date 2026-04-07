@@ -521,6 +521,7 @@ def learn_column_candidates(
         if canonical:
             # Ya conocida — bump confirmed_count en imp_field_alias
             try:
+                db.execute(sa_text("SAVEPOINT sp_bump"))
                 db.execute(
                     sa_text(
                         "UPDATE imp_field_alias "
@@ -529,7 +530,12 @@ def learn_column_candidates(
                     ),
                     {"c": canonical, "a": alias_clean},
                 )
+                db.execute(sa_text("RELEASE SAVEPOINT sp_bump"))
             except Exception as exc:
+                try:
+                    db.execute(sa_text("ROLLBACK TO SAVEPOINT sp_bump"))
+                except Exception:
+                    pass
                 logger.debug("Could not bump alias count '%s': %s", alias_clean, exc)
         else:
             # Desconocida — intentar fuzzy match contra slots estándar
@@ -542,6 +548,7 @@ def learn_column_candidates(
                 slot_name, new_canonical = slot_match
                 # Auto-crear canonical field con su slot y alias
                 try:
+                    db.execute(sa_text("SAVEPOINT sp_auto_canonical"))
                     db.execute(
                         sa_text(
                             "INSERT INTO imp_canonical_field "
@@ -564,16 +571,22 @@ def learn_column_candidates(
                         ),
                         {"canonical": new_canonical, "alias": alias_clean},
                     )
+                    db.execute(sa_text("RELEASE SAVEPOINT sp_auto_canonical"))
                     saved += 1
                     logger.info(
                         "Auto-created canonical field '%s' → slot '%s' for alias '%s'",
                         new_canonical, slot_name, alias_clean,
                     )
                 except Exception as exc:
+                    try:
+                        db.execute(sa_text("ROLLBACK TO SAVEPOINT sp_auto_canonical"))
+                    except Exception:
+                        pass
                     logger.debug("Could not auto-create canonical field '%s': %s", new_canonical, exc)
             else:
                 # Sin match de slot — guardar en imp_column_candidate para revisión manual
                 try:
+                    db.execute(sa_text("SAVEPOINT sp_candidate"))
                     db.execute(
                         sa_text(
                             "INSERT INTO imp_column_candidate "
@@ -595,8 +608,13 @@ def learn_column_candidates(
                             "tenant_id": str(tenant_id) if tenant_id else None,
                         },
                     )
+                    db.execute(sa_text("RELEASE SAVEPOINT sp_candidate"))
                     saved += 1
                 except Exception as exc:
+                    try:
+                        db.execute(sa_text("ROLLBACK TO SAVEPOINT sp_candidate"))
+                    except Exception:
+                        pass
                     logger.debug("Could not save column candidate '%s': %s", alias_clean, exc)
 
     if saved > 0:

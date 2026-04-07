@@ -29,6 +29,7 @@ from .runtime_config import (
     load_amount_label_config,
     load_classification_threshold,
     load_doc_type_patterns,
+    load_pdf_table_parse_config,
     load_product_sheet_detection_config,
     load_prompt_config,
 )
@@ -540,8 +541,15 @@ async def _process_upload_like_document(
         # Text fallback: when AI failed and OCR text is available, extract
         # fields using DB-configured labels and aliases.
         if not datos_extraidos and text.strip() and _analysis_indicates_ai_failure(analysis):
+            # El timeout de la IA puede haber dejado la transacción en estado abortado.
+            # Hacemos rollback para limpiarla antes de continuar con queries al DB.
+            try:
+                db.rollback()
+            except Exception:
+                pass
             field_aliases = get_field_aliases(db, tenant_id=tenant_id)
             amount_labels = load_amount_label_config(db)
+            pdf_config = load_pdf_table_parse_config(db)
             # Auto-learn new aliases from OCR labels before extraction
             try:
                 learned = learn_labels_from_text(
@@ -564,6 +572,7 @@ async def _process_upload_like_document(
                 canonical_fields=canonical_fields,
                 field_aliases=field_aliases,
                 amount_labels=amount_labels,
+                pdf_config=pdf_config,
             )
             if fallback_fields:
                 datos_extraidos = fallback_fields

@@ -272,6 +272,7 @@ def extract_fields_from_text(
     canonical_fields: dict[str, dict],
     field_aliases: dict[str, list[str]],
     amount_labels: dict[str, list[str]],
+    pdf_config: dict | None = None,
 ) -> dict[str, Any]:
     """Extract fields from OCR text using DB-configured labels and types.
 
@@ -284,6 +285,7 @@ def extract_fields_from_text(
         canonical_fields: {field_name: {type, projection_column}} from imp_canonical_field.
         field_aliases:    {field_name: [alias, ...]} from imp_field_alias.
         amount_labels:    {field_name: [label, ...]} from imp_config amount_label_config.
+        pdf_config:       Config de parseo de tablas PDF desde load_pdf_table_parse_config(db).
 
     Returns:
         Dict of extracted fields compatible with datos_extraidos.
@@ -315,7 +317,7 @@ def extract_fields_from_text(
             result[field_name] = best
 
     # Extract line_items from tabular OCR text
-    line_items = _extract_line_items_from_text(lines, lines_norm, field_aliases)
+    line_items = _extract_line_items_from_text(lines, lines_norm, field_aliases, pdf_config=pdf_config)
     if line_items:
         result["line_items"] = line_items
 
@@ -441,13 +443,30 @@ def _extract_line_items_from_text(
     lines: list[str],
     lines_norm: list[str],
     field_aliases: dict[str, list[str]],
+    pdf_config: dict | None = None,
 ) -> list[dict[str, Any]]:
     """Parse a product table from OCR text using DB field aliases as column identifiers.
 
     Handles two OCR output layouts:
     - Tabular: one row per line with columns separated by whitespace/tabs
     - Vertical: one cell per line (common with PDF table OCR)
+
+    pdf_config viene de load_pdf_table_parse_config(db) y provee:
+      unit_values          — valores de celda que indican unidad (ml, g, kg, ...)
+      footer_skip_patterns — regex para saltar pies de página
     """
+    cfg = pdf_config or {}
+    raw_unit_values: list[str] = cfg.get("unit_values") or []
+    unit_values_set: set[str] = {_normalize_label(v) for v in raw_unit_values if v}
+
+    raw_footer_pats: list[str] = cfg.get("footer_skip_patterns") or []
+    footer_patterns: list[re.Pattern] = []
+    for pat in raw_footer_pats:
+        try:
+            footer_patterns.append(re.compile(pat, re.I))
+        except re.error:
+            pass
+
     header_info = _find_table_header(lines_norm, field_aliases)
     if not header_info:
         return []
@@ -461,7 +480,10 @@ def _extract_line_items_from_text(
     vertical = _is_vertical_layout(lines, data_start, num_cols)
 
     if vertical:
-        return _parse_vertical_table(lines, data_start, num_cols, matched_fields, column_names, field_aliases)
+        return _parse_vertical_table(
+            lines, data_start, num_cols, matched_fields, column_names, field_aliases,
+            unit_values=unit_values_set, footer_patterns=footer_patterns,
+        )
     return _parse_tabular_table(lines, lines_norm, header_idx + 1, num_cols, matched_fields, column_names, field_aliases)
 
 
@@ -481,6 +503,21 @@ def _is_vertical_layout(lines: list[str], data_start: int, num_cols: int) -> boo
     return single_value_count >= num_cols
 
 
+def _is_footer_line(line_norm: str, footer_patterns: list[re.Pattern]) -> bool:
+    """Detecta líneas de pie de página usando patrones configurados en BD."""
+    return any(p.search(line_norm) for p in footer_patterns)
+
+
+def _is_header_repetition(lines: list[str], i: int, column_norms: list[str]) -> bool:
+    """Devuelve True si las próximas len(column_norms) líneas son una repetición del encabezado."""
+    if i + len(column_norms) > len(lines):
+        return False
+    return all(
+        _normalize_label(lines[i + k]) == column_norms[k]
+        for k in range(len(column_norms))
+    )
+
+
 def _parse_vertical_table(
     lines: list[str],
     data_start: int,
@@ -488,17 +525,85 @@ def _parse_vertical_table(
     matched_fields: list[str],
     column_names: list[str],
     field_aliases: dict[str, list[str]],
+    *,
+    unit_values: set[str] | None = None,
+    footer_patterns: list[re.Pattern] | None = None,
 ) -> list[dict[str, Any]]:
-    """Parse table where each cell is on its own line (N lines per row)."""
-    items: list[dict[str, Any]] = []
-    i = data_start
-    max_items = 200
+    """Parse table where each cell is on its own line (N lines per row).
 
-    while i + num_cols <= len(lines) and len(items) < max_items:
+    Maneja:
+    - Encabezados repetidos entre páginas (PDFs multi-página)
+    - Líneas de pie de página (patrones configurados en BD)
+    - Celdas de descripción en múltiples líneas (ej: descripción larga dividida)
+
+    unit_values y footer_patterns provienen de load_pdf_table_parse_config(db).
+    """
+    items: list[dict[str, Any]] = []
+    max_items = 200
+    column_norms = [_normalize_label(cn) for cn in column_names]
+    _unit_values = unit_values or set()
+    _footer_patterns = footer_patterns or []
+
+    # Índice de la columna de descripción para detectar continuaciones
+    desc_col_idx: int | None = None
+    for idx, cf in enumerate(matched_fields):
+        if cf == "description":
+            desc_col_idx = idx
+            break
+
+    # Construir lista de líneas limpias: sin blancos, pies de página ni encabezados repetidos
+    clean: list[str] = []
+    i = data_start
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+        line_norm = _normalize_label(line)
+        if _is_footer_line(line_norm, _footer_patterns):
+            i += 1
+            continue
+        if _is_header_repetition(lines, i, column_norms):
+            i += len(column_norms)
+            continue
+        clean.append(line)
+        i += 1
+
+    ci = 0
+    while ci + num_cols <= len(clean) and len(items) < max_items:
+        # Detectar descripción multi-línea: la celda inmediatamente después del
+        # slot de descripción debería ser una abreviatura de unidad (ml, g, unit...).
+        # Si no lo es (y no contiene dígitos ni $), es continuación de la descripción.
+        extra_desc = 0
+        if (
+            desc_col_idx is not None
+            and ci + num_cols + 1 <= len(clean)
+        ):
+            next_after_desc = clean[ci + desc_col_idx + 1].strip()
+            next_norm = _normalize_label(next_after_desc)
+            if (
+                next_norm not in _unit_values
+                and not re.search(r"[\d$]", next_after_desc)
+                and len(next_after_desc) > 3
+            ):
+                extra_desc = 1
+
+        block_size = num_cols + extra_desc
+        if ci + block_size > len(clean):
+            break
+
         item: dict[str, Any] = {}
         valid = True
+        src_idx = ci
         for j in range(num_cols):
-            cell = lines[i + j].strip()
+            if j == desc_col_idx and extra_desc:
+                # Fusionar línea actual y siguiente como descripción
+                cell = (clean[src_idx].strip() + " " + clean[src_idx + 1].strip()).strip()
+                src_idx += 2
+            else:
+                cell = clean[src_idx].strip()
+                src_idx += 1
+
             if not cell:
                 valid = False
                 break
@@ -506,8 +611,6 @@ def _parse_vertical_table(
             col_name = column_names[j] if j < len(column_names) else f"col_{j}"
 
             if canonical:
-                # If the field already exists (e.g. two cols map to same canonical),
-                # use the column name as extra_columns
                 if canonical in item:
                     item.setdefault("extra_columns", {})[col_name] = cell
                 else:
@@ -517,7 +620,7 @@ def _parse_vertical_table(
 
         if valid and any(k in field_aliases for k in item):
             items.append(item)
-        i += num_cols
+        ci += block_size
 
     return items
 

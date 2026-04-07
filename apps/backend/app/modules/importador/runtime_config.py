@@ -371,5 +371,45 @@ def load_learning_config(db: Any) -> dict[str, float]:
     return dict(_DEFAULT_LEARNING_CONFIG)  # type: ignore[return-value]
 
 
+def load_pdf_table_parse_config(db: Any | None = None) -> dict[str, list[str]]:
+    """Configuración para parseo de tablas en OCR de PDFs.
+
+    Cargado desde imp_config(module='pdf_table_parse').  Claves:
+      unit_values           — valores que indican unidad de medida en una celda
+                              (ej: ml, g, kg). Usados para detectar descripciones
+                              multi-línea sin fusionar la abreviatura de unidad.
+      footer_skip_patterns  — patrones regex para saltar líneas de pie de página
+                              (ej: "pagina 1 de 3").
+    """
+    cached = _cache_get("pdf_table_parse")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "pdf_table_parse")
+            config = {
+                key: list(value)
+                for key, value in _seed_module_payload("pdf_table_parse").items()
+                if isinstance(value, list)
+            }
+            for row in rows:
+                key = str(row.key).strip()
+                if not key or not isinstance(row.value_list, list):
+                    continue
+                values = [str(v).strip() for v in row.value_list if str(v).strip()]
+                if values:
+                    config[key] = values
+            return _cache_set("pdf_table_parse", config)  # type: ignore[return-value]
+        except Exception as exc:
+            logger.warning("No se pudo cargar pdf_table_parse desde imp_config: %s", exc)
+
+    return {
+        key: list(value)
+        for key, value in _seed_module_payload("pdf_table_parse").items()
+        if isinstance(value, list)
+    }
+
+
 def invalidate_runtime_config_cache() -> None:
     _cache.clear()

@@ -50,5 +50,9 @@
     "total_amount": ["valor total", "importe total", "total a pagar", "grand total", "amount due", "payable amount", "monto total", "total"],
     "subtotal": ["subtotal sin impuestos", "total sin impuestos", "tax exclusive amount", "base imponible", "sub total", "subtotal"],
     "tax_amount": ["iva", "vat", "igv", "gst", "tax amount", "impuesto"]
+  },
+  "pdf_table_parse": {
+    "unit_values": ["ml", "mg", "g", "kg", "l", "lt", "lts", "unit", "unid", "unidad", "unidades", "oz", "pz", "pza", "m", "cm", "mm", "lb", "gr"],
+    "footer_skip_patterns": ["pagina\\s+\\d", "page\\s+\\d", "pag\\.?\\s+\\d", "pagina\\s+de\\s+\\d"]
   }
 }
