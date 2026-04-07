@@ -719,3 +719,11 @@ class CanonicalFieldOut(BaseModel):
     name: str
     field_type: str
     projection_column: str | None = None
+    line_item_slot: str | None = None
+    label: str | None = None
+
+
+class LineItemSlotOut(BaseModel):
+    slot: str
+    label: str
+    field_type: str

@@ -1,30 +1,36 @@
--- Agrega campos canónicos para columnas de líneas de detalle (line_items).
--- Sin estos campos, el extractor fallback de texto mapea las columnas del PDF
--- a campos de documento incorrrectos:
---   "Descripcion" → concept  (en vez de description)
---   "Importe"     → total_amount (en vez de total_price)
---   "Cantidad", "P. Unitario" → claves crudas sin canónico
--- El frontend espera: description, supplier_ref, quantity, unit_price, total_price.
+-- Añade line_item_slot y label a imp_canonical_field.
+-- line_item_slot: nombre del slot estándar que usará el frontend (null = campo de documento).
+-- label:         etiqueta legible para mostrar en UI (null = derivar del nombre).
 --
--- NOTA sobre prioridades: se usan valores superiores a los de los campos que
--- actualmente capturan esos alias a nivel de documento (concept.descripcion=8,
--- total_amount.importe=6), para que en la detección de cabecera de tabla ganen
--- los campos de línea. El efecto secundario es mínimo: "Descripcion:" como
--- etiqueta de documento pasa a guardarse como `description` en vez de `concept`,
--- lo que es igualmente válido (el UI no usa la clave concept directamente).
+-- Con estos dos campos, el auto-aprendizaje puede crear canonical fields nuevos
+-- (cuando encuentra columnas desconocidas en tablas) y asignarles un slot estándar
+-- por fuzzy-matching. El frontend lee los slots desde la BD y renderiza dinámicamente
+-- sin ningún nombre de campo hardcodeado.
 
 BEGIN;
 
--- ── Campos canónicos ──────────────────────────────────────────────────────────
-INSERT INTO imp_canonical_field (name, field_type, projection_column, sort_order)
-VALUES
-    ('description', 'text',    NULL, 0),
-    ('quantity',    'text',    NULL, 0),
-    ('unit_price',  'numeric', NULL, 0),
-    ('total_price', 'numeric', NULL, 0)
-ON CONFLICT (name) DO NOTHING;
+ALTER TABLE imp_canonical_field
+    ADD COLUMN IF NOT EXISTS line_item_slot VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS label          VARCHAR(100);
 
--- ── description ───────────────────────────────────────────────────────────────
+-- supplier_ref ya existe, solo añadirle slot y label
+UPDATE imp_canonical_field
+SET line_item_slot = 'supplier_ref',
+    label          = 'Ref. proveedor'
+WHERE name = 'supplier_ref';
+
+-- Los 4 slots estándar de líneas de detalle
+INSERT INTO imp_canonical_field (name, field_type, projection_column, line_item_slot, label, sort_order)
+VALUES
+    ('description', 'text',    NULL, 'description', 'Descripción',  0),
+    ('quantity',    'text',    NULL, 'quantity',    'Cantidad',      0),
+    ('unit_price',  'numeric', NULL, 'unit_price',  'P. Unitario',   0),
+    ('total_price', 'numeric', NULL, 'total_price', 'Total',         0)
+ON CONFLICT (name) DO UPDATE SET
+    line_item_slot = EXCLUDED.line_item_slot,
+    label          = EXCLUDED.label;
+
+-- Aliases para description
 -- Prioridad 9 supera concept.descripcion=8 y concept.description=7
 INSERT INTO imp_field_alias (canonical_field, alias, active, priority, source)
 VALUES
@@ -36,7 +42,7 @@ VALUES
     ('description', 'desc',            TRUE,  6, 'seed')
 ON CONFLICT DO NOTHING;
 
--- ── quantity ──────────────────────────────────────────────────────────────────
+-- Aliases para quantity
 INSERT INTO imp_field_alias (canonical_field, alias, active, priority, source)
 VALUES
     ('quantity', 'quantity', TRUE, 10, 'seed'),
@@ -47,7 +53,7 @@ VALUES
     ('quantity', 'unidades', TRUE,  6, 'seed')
 ON CONFLICT DO NOTHING;
 
--- ── unit_price ────────────────────────────────────────────────────────────────
+-- Aliases para unit_price
 INSERT INTO imp_field_alias (canonical_field, alias, active, priority, source)
 VALUES
     ('unit_price', 'unit_price',      TRUE, 10, 'seed'),
@@ -60,15 +66,14 @@ VALUES
     ('unit_price', 'precio unit',     TRUE,  8, 'seed')
 ON CONFLICT DO NOTHING;
 
--- ── total_price ───────────────────────────────────────────────────────────────
+-- Aliases para total_price
 -- Prioridad 10 supera total_amount.importe=6
 INSERT INTO imp_field_alias (canonical_field, alias, active, priority, source)
 VALUES
     ('total_price', 'total_price', TRUE, 10, 'seed'),
     ('total_price', 'importe',     TRUE, 10, 'seed'),
     ('total_price', 'line_total',  TRUE,  8, 'seed'),
-    ('total_price', 'total linea', TRUE,  8, 'seed'),
-    ('total_price', 'importe line',TRUE,  6, 'seed')
+    ('total_price', 'total linea', TRUE,  8, 'seed')
 ON CONFLICT DO NOTHING;
 
 COMMIT;

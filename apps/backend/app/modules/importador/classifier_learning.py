@@ -442,6 +442,46 @@ def learn_vendor_snapshot(
 # ── Column candidate discovery ──────────────────────────────────────────────────
 
 
+def _fuzzy_match_slot(
+    col_norm: str,
+    canonical_fields: dict[str, dict],
+    field_aliases: dict[str, list[str]],
+) -> tuple[str, str] | None:
+    """Intenta mapear una columna desconocida a un slot estándar por similitud de tokens.
+
+    Compara col_norm contra todos los aliases de los campos que tienen line_item_slot.
+    Retorna (slot_name, new_canonical_name) si el score >= 0.5, o None.
+    """
+    col_tokens = set(col_norm.split())
+    if not col_tokens:
+        return None
+
+    best_slot: str | None = None
+    best_score = 0.0
+
+    for name, cfg in canonical_fields.items():
+        slot = cfg.get("line_item_slot")
+        if not slot:
+            continue
+        for alias in field_aliases.get(name, []):
+            alias_norm = _normalize_alias(alias)
+            alias_tokens = set(alias_norm.split())
+            if not alias_tokens:
+                continue
+            overlap = col_tokens & alias_tokens
+            if not overlap:
+                continue
+            score = len(overlap) / max(len(col_tokens), len(alias_tokens))
+            if score > best_score:
+                best_score = score
+                best_slot = slot
+
+    if best_score >= 0.5 and best_slot:
+        new_canonical = col_norm.replace(" ", "_")[:50]
+        return best_slot, new_canonical
+    return None
+
+
 def learn_column_candidates(
     db: Session,
     *,
@@ -449,6 +489,7 @@ def learn_column_candidates(
     doc_type: str | None,
     tenant_id: UUID | None,
     field_aliases: dict[str, list[str]],
+    canonical_fields: dict[str, dict] | None = None,
 ) -> int:
     """Registra nombres de columnas desconocidos encontrados en documentos procesados.
 
@@ -491,36 +532,79 @@ def learn_column_candidates(
             except Exception as exc:
                 logger.debug("Could not bump alias count '%s': %s", alias_clean, exc)
         else:
-            # Desconocida — guardar en imp_column_candidate para revisión
-            try:
-                db.execute(
-                    sa_text(
-                        "INSERT INTO imp_column_candidate "
-                        "    (alias, alias_norm, doc_type, tenant_id) "
-                        "VALUES (:alias, :alias_norm, :doc_type, :tenant_id) "
-                        "ON CONFLICT (alias_norm, tenant_id) WHERE tenant_id IS NULL DO UPDATE "
-                        "    SET seen_count = imp_column_candidate.seen_count + 1, "
-                        "        last_seen_at = now(), "
-                        "        doc_type = COALESCE(EXCLUDED.doc_type, imp_column_candidate.doc_type) "
-                        "ON CONFLICT (alias_norm, tenant_id) WHERE tenant_id IS NOT NULL DO UPDATE "
-                        "    SET seen_count = imp_column_candidate.seen_count + 1, "
-                        "        last_seen_at = now(), "
-                        "        doc_type = COALESCE(EXCLUDED.doc_type, imp_column_candidate.doc_type)"
-                    ),
-                    {
-                        "alias": raw[:100],
-                        "alias_norm": alias_clean[:100],
-                        "doc_type": (doc_type or "")[:50] or None,
-                        "tenant_id": str(tenant_id) if tenant_id else None,
-                    },
-                )
-                saved += 1
-            except Exception as exc:
-                logger.debug("Could not save column candidate '%s': %s", alias_clean, exc)
+            # Desconocida — intentar fuzzy match contra slots estándar
+            slot_match = (
+                _fuzzy_match_slot(alias_clean, canonical_fields, field_aliases)
+                if canonical_fields
+                else None
+            )
+            if slot_match:
+                slot_name, new_canonical = slot_match
+                # Auto-crear canonical field con su slot y alias
+                try:
+                    db.execute(
+                        sa_text(
+                            "INSERT INTO imp_canonical_field "
+                            "    (name, field_type, line_item_slot, label, sort_order) "
+                            "VALUES (:name, 'text', :slot, :label, 0) "
+                            "ON CONFLICT (name) DO NOTHING"
+                        ),
+                        {
+                            "name": new_canonical,
+                            "slot": slot_name,
+                            "label": raw[:100],
+                        },
+                    )
+                    db.execute(
+                        sa_text(
+                            "INSERT INTO imp_field_alias "
+                            "    (canonical_field, alias, active, priority, source) "
+                            "VALUES (:canonical, :alias, TRUE, 5, 'auto_learned') "
+                            "ON CONFLICT DO NOTHING"
+                        ),
+                        {"canonical": new_canonical, "alias": alias_clean},
+                    )
+                    saved += 1
+                    logger.info(
+                        "Auto-created canonical field '%s' → slot '%s' for alias '%s'",
+                        new_canonical, slot_name, alias_clean,
+                    )
+                except Exception as exc:
+                    logger.debug("Could not auto-create canonical field '%s': %s", new_canonical, exc)
+            else:
+                # Sin match de slot — guardar en imp_column_candidate para revisión manual
+                try:
+                    db.execute(
+                        sa_text(
+                            "INSERT INTO imp_column_candidate "
+                            "    (alias, alias_norm, doc_type, tenant_id) "
+                            "VALUES (:alias, :alias_norm, :doc_type, :tenant_id) "
+                            "ON CONFLICT (alias_norm, tenant_id) WHERE tenant_id IS NULL DO UPDATE "
+                            "    SET seen_count = imp_column_candidate.seen_count + 1, "
+                            "        last_seen_at = now(), "
+                            "        doc_type = COALESCE(EXCLUDED.doc_type, imp_column_candidate.doc_type) "
+                            "ON CONFLICT (alias_norm, tenant_id) WHERE tenant_id IS NOT NULL DO UPDATE "
+                            "    SET seen_count = imp_column_candidate.seen_count + 1, "
+                            "        last_seen_at = now(), "
+                            "        doc_type = COALESCE(EXCLUDED.doc_type, imp_column_candidate.doc_type)"
+                        ),
+                        {
+                            "alias": raw[:100],
+                            "alias_norm": alias_clean[:100],
+                            "doc_type": (doc_type or "")[:50] or None,
+                            "tenant_id": str(tenant_id) if tenant_id else None,
+                        },
+                    )
+                    saved += 1
+                except Exception as exc:
+                    logger.debug("Could not save column candidate '%s': %s", alias_clean, exc)
 
     if saved > 0:
         try:
             db.commit()
+            # Invalidar caché para que el próximo procesamiento use los nuevos campos
+            from .field_alias_loader import invalidate_cache
+            invalidate_cache()
         except Exception as exc:
             logger.debug("Could not commit column candidates: %s", exc)
 

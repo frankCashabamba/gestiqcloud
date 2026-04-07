@@ -61,6 +61,40 @@ def _analysis_indicates_ai_failure(analysis: dict[str, Any]) -> bool:
     return any(token in combined for token in _AI_FAILURE_TOKENS)
 
 
+def _project_line_item_slots(
+    datos_extraidos: dict[str, Any],
+    canonical_fields: dict[str, dict],
+) -> None:
+    """Proyecta claves canónicas de line_items a sus slot estándar, in-place.
+
+    Cuando un campo canónico tiene line_item_slot definido y la clave canónica
+    existe en el item, la renombra al slot. Así el frontend puede leer siempre
+    el mismo nombre (el slot) independientemente del alias original del documento.
+    """
+    items = datos_extraidos.get("line_items")
+    if not isinstance(items, list):
+        return
+
+    # canonical_name → slot_name (solo los que tienen slot)
+    slot_map = {
+        name: cfg["line_item_slot"]
+        for name, cfg in canonical_fields.items()
+        if cfg.get("line_item_slot")
+    }
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        for canonical, slot in slot_map.items():
+            if canonical == slot:
+                continue
+            if canonical in item:
+                if slot not in item:
+                    item[slot] = item.pop(canonical)
+                else:
+                    item.pop(canonical)
+
+
 def _normalize_line_item_extra_columns(
     datos_extraidos: dict[str, Any],
     field_aliases: dict[str, list[str]],
@@ -178,7 +212,13 @@ async def _analyze_with_context(
     canonical_fields: dict[str, Any],
     prompt_config: dict[str, Any],
 ) -> dict[str, Any]:
-    image_bytes = bytes(vision_image_bytes) if vision_image_bytes else None
+    # Si el OCR ya extrajo texto suficiente, no usar visión.
+    # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
+    text_is_sufficient = bool(content and len(content.strip()) >= 100)
+    image_bytes = (
+        None if text_is_sufficient
+        else bytes(vision_image_bytes) if vision_image_bytes else None
+    )
     return await analyze_document_fn(
         content,
         filename,
@@ -669,6 +709,7 @@ async def _process_upload_like_document(
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     if isinstance(datos_extraidos, dict):
         unmapped_cols = _normalize_line_item_extra_columns(datos_extraidos, field_aliases)
+        _project_line_item_slots(datos_extraidos, canonical_fields)
         if unmapped_cols:
             try:
                 _learn_column_candidates(
@@ -677,6 +718,7 @@ async def _process_upload_like_document(
                     doc_type=tipo_doc,
                     tenant_id=tenant_id,
                     field_aliases=field_aliases,
+                    canonical_fields=canonical_fields,
                 )
             except Exception as exc:
                 logger.debug("Column candidate learning error (non-fatal): %s", exc)
@@ -1171,6 +1213,7 @@ async def _process_run_document(
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     if isinstance(datos_extraidos, dict):
         unmapped_cols = _normalize_line_item_extra_columns(datos_extraidos, field_aliases)
+        _project_line_item_slots(datos_extraidos, canonical_fields)
         if unmapped_cols:
             try:
                 _learn_column_candidates(
@@ -1179,6 +1222,7 @@ async def _process_run_document(
                     doc_type=tipo_doc,
                     tenant_id=tenant_id,
                     field_aliases=field_aliases,
+                    canonical_fields=canonical_fields,
                 )
             except Exception as exc:
                 logger.debug("Column candidate learning error (non-fatal): %s", exc)

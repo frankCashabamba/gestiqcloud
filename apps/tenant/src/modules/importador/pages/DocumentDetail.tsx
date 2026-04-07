@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, fetchLineItemSlots, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type LineItemSlot, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
 import { IMPORTADOR_COPY, IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS, formatFieldLabel } from '../constants'
 
 const SaveDocumentModal = lazy(() => import('../components/SaveDocumentModal'))
@@ -36,30 +36,25 @@ type ActivityItem = {
   note?: string
 }
 
-type EditableLineItem = {
-  description: string
-  supplier_ref: string
-  quantity: string
-  unit_price: string
-  total_price: string
-}
+// EditableLineItem es dinámico: slot → value
+type EditableLineItem = Record<string, string>
 
-function getEditableLineItems(data: Record<string, unknown>): EditableLineItem[] {
+function getEditableLineItems(data: Record<string, unknown>, slots: LineItemSlot[]): EditableLineItem[] {
   const raw = data.line_items as unknown
   if (!Array.isArray(raw)) return []
   return raw
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
-    .map((item) => ({
-      description: String(item.description ?? ''),
-      supplier_ref: String(item.supplier_ref ?? ''),
-      quantity: String(item.quantity ?? ''),
-      unit_price: String(item.unit_price ?? ''),
-      total_price: String(item.total_price ?? ''),
-    }))
+    .map((item) => {
+      const editable: EditableLineItem = {}
+      for (const s of slots) editable[s.slot] = String(item[s.slot] ?? '')
+      return editable
+    })
 }
 
-function createEmptyEditableLineItem(): EditableLineItem {
-  return { description: '', supplier_ref: '', quantity: '', unit_price: '', total_price: '' }
+function createEmptyEditableLineItem(slots: LineItemSlot[]): EditableLineItem {
+  const item: EditableLineItem = {}
+  for (const s of slots) item[s.slot] = ''
+  return item
 }
 
 function formatLineCellValue(value: unknown): string {
@@ -69,8 +64,19 @@ function formatLineCellValue(value: unknown): string {
   return text
 }
 
-function LineItemsPreview({ items, title, subtitle }: { items: Record<string, unknown>[]; title: string; subtitle?: string }) {
-  if (!items.length) return null
+// Slots numéricos que se alinean a la derecha
+const _NUMERIC_SLOTS = new Set(['quantity', 'unit_price', 'total_price'])
+const _MONO_SLOTS = new Set(['supplier_ref'])
+
+function LineItemsPreview({ items, slots, title, subtitle }: {
+  items: Record<string, unknown>[]
+  slots: LineItemSlot[]
+  title: string
+  subtitle?: string
+}) {
+  if (!items.length || !slots.length) return null
+  // Solo mostrar columnas que tengan al menos un valor en los datos
+  const visibleSlots = slots.filter(s => items.some(i => i[s.slot] != null && String(i[s.slot]).trim() !== ''))
   return (
     <div style={{ marginTop: '0.75rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
@@ -80,21 +86,27 @@ function LineItemsPreview({ items, title, subtitle }: { items: Record<string, un
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: '#f9fafb' }}>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Descripcion</th>
-            {items.some(i => i.supplier_ref) && <th style={{ padding: '0.3rem 0.5rem', textAlign: 'left', color: '#374151' }}>Ref.</th>}
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Cant.</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>P. Unit.</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: '#374151' }}>Total</th>
+            {visibleSlots.map(s => (
+              <th key={s.slot} style={{ padding: '0.3rem 0.5rem', textAlign: _NUMERIC_SLOTS.has(s.slot) ? 'right' : 'left', color: '#374151' }}>
+                {s.label}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {items.map((item, index) => (
-            <tr key={`${index}-${String(item.description ?? '')}`} style={{ borderTop: '1px solid #e5e7eb' }}>
-              <td style={{ padding: '0.3rem 0.5rem', color: '#111827' }}>{formatLineCellValue(item.description)}</td>
-              {items.some(i => i.supplier_ref) && <td style={{ padding: '0.3rem 0.5rem', color: '#6b7280', fontFamily: 'monospace', fontSize: 12 }}>{formatLineCellValue(item.supplier_ref)}</td>}
-              <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.quantity)}</td>
-              <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.unit_price)}</td>
-              <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{formatLineCellValue(item.total_price)}</td>
+            <tr key={`${index}-${String(item[visibleSlots[0]?.slot] ?? '')}`} style={{ borderTop: '1px solid #e5e7eb' }}>
+              {visibleSlots.map(s => (
+                <td key={s.slot} style={{
+                  padding: '0.3rem 0.5rem',
+                  textAlign: _NUMERIC_SLOTS.has(s.slot) ? 'right' : 'left',
+                  color: _MONO_SLOTS.has(s.slot) ? '#6b7280' : '#111827',
+                  fontFamily: _MONO_SLOTS.has(s.slot) ? 'monospace' : undefined,
+                  fontSize: _MONO_SLOTS.has(s.slot) ? 12 : undefined,
+                }}>
+                  {formatLineCellValue(item[s.slot])}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -176,6 +188,7 @@ export default function DocumentDetail() {
   const { t } = useTranslation('importer')
   const [doc, setDoc] = useState<Documento | null>(null)
   const [loading, setLoading] = useState(true)
+  const [lineItemSlots, setLineItemSlots] = useState<LineItemSlot[]>([])
   const [editMode, setEditMode] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
   const [editLineItems, setEditLineItems] = useState<EditableLineItem[]>([])
@@ -209,6 +222,7 @@ export default function DocumentDetail() {
     fetchSaveCapabilities().then(setCapabilities).catch(() => {
       setError(t('docDetail.errorLoading'))
     })
+    fetchLineItemSlots().then(setLineItemSlots).catch(() => {})
   }, [])
   const load = useCallback(async ({ silent = false, clearCurrent = false }: { silent?: boolean; clearCurrent?: boolean } = {}) => {
     if (!id) return
@@ -446,7 +460,7 @@ export default function DocumentDetail() {
       if (!k.startsWith('_') && k !== 'line_items' && (typeof v !== 'object' || v === null)) flat[k] = String(v ?? '')
     })
     setEditFields(flat)
-    setEditLineItems(getEditableLineItems(data))
+    setEditLineItems(getEditableLineItems(data, lineItemSlots))
     setEditMode(true)
   }
 
@@ -455,14 +469,15 @@ export default function DocumentDetail() {
     setSaving(true)
     try {
       const normalizedLineItems = editLineItems
-        .map((item) => ({
-          description: item.description.trim(),
-          supplier_ref: item.supplier_ref.trim() || undefined,
-          quantity: item.quantity.trim(),
-          unit_price: item.unit_price.trim(),
-          total_price: item.total_price.trim(),
-        }))
-        .filter((item) => item.description || item.quantity || item.unit_price || item.total_price)
+        .map((item) => {
+          const normalized: Record<string, string | undefined> = {}
+          for (const s of lineItemSlots) {
+            const val = (item[s.slot] ?? '').trim()
+            normalized[s.slot] = val || undefined
+          }
+          return normalized
+        })
+        .filter((item) => Object.values(item).some(Boolean))
       await editDocumentFields(id, {
         ...editFields,
         line_items: normalizedLineItems,
@@ -633,14 +648,14 @@ export default function DocumentDetail() {
     void load()
   }
 
-  const updateEditLineItem = (index: number, key: keyof EditableLineItem, value: string) => {
+  const updateEditLineItem = (index: number, key: string, value: string) => {
     setEditLineItems((current) => current.map((item, itemIndex) => (
       itemIndex === index ? { ...item, [key]: value } : item
     )))
   }
 
   const addEditLineItem = () => {
-    setEditLineItems((current) => [...current, createEmptyEditableLineItem()])
+    setEditLineItems((current) => [...current, createEmptyEditableLineItem(lineItemSlots)])
   }
 
   const removeEditLineItem = (index: number) => {
@@ -976,6 +991,7 @@ export default function DocumentDetail() {
           </div>
           <LineItemsPreview
             items={detectedLineItems}
+            slots={lineItemSlots}
             title="Detalle detectado"
             subtitle={assistedReview?.can_derive_total ? 'El total puede derivarse de estas lineas.' : 'Revisa cantidades, precios y total antes de guardar.'}
           />
@@ -1240,55 +1256,19 @@ export default function DocumentDetail() {
                                   Quitar
                                 </button>
                               </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,2fr) minmax(100px,1fr) repeat(3,minmax(110px,1fr))', gap: '0.5rem' }}>
-                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Descripcion</span>
-                                  <input
-                                    type="text"
-                                    value={item.description}
-                                    onChange={(e) => updateEditLineItem(index, 'description', e.target.value)}
-                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
-                                  />
-                                </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Ref. proveedor</span>
-                                  <input
-                                    type="text"
-                                    value={item.supplier_ref}
-                                    onChange={(e) => updateEditLineItem(index, 'supplier_ref', e.target.value)}
-                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'monospace' }}
-                                  />
-                                </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Cantidad</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={item.quantity}
-                                    onChange={(e) => updateEditLineItem(index, 'quantity', e.target.value)}
-                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
-                                  />
-                                </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>P. unitario</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={item.unit_price}
-                                    onChange={(e) => updateEditLineItem(index, 'unit_price', e.target.value)}
-                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
-                                  />
-                                </label>
-                                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                                  <span style={{ color: '#6b7280', fontWeight: 600 }}>Total</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={item.total_price}
-                                    onChange={(e) => updateEditLineItem(index, 'total_price', e.target.value)}
-                                    style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
-                                  />
-                                </label>
+                              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${lineItemSlots.length}, minmax(110px,1fr))`, gap: '0.5rem' }}>
+                                {lineItemSlots.map(s => (
+                                  <label key={s.slot} style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
+                                    <span style={{ color: '#6b7280', fontWeight: 600 }}>{s.label}</span>
+                                    <input
+                                      type={_NUMERIC_SLOTS.has(s.slot) ? 'number' : 'text'}
+                                      step={_NUMERIC_SLOTS.has(s.slot) ? '0.01' : undefined}
+                                      value={item[s.slot] ?? ''}
+                                      onChange={(e) => updateEditLineItem(index, s.slot, e.target.value)}
+                                      style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: _MONO_SLOTS.has(s.slot) ? 'monospace' : undefined }}
+                                    />
+                                  </label>
+                                ))}
                               </div>
                             </div>
                           ))}
@@ -1325,6 +1305,7 @@ export default function DocumentDetail() {
                       return (
                         <LineItemsPreview
                           items={items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))}
+                          slots={lineItemSlots}
                           title={`Detalle (${items.length})`}
                         />
                       )

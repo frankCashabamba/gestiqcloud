@@ -100,7 +100,7 @@ def get_canonical_fields(
         rows = db.execute(
             sa_text(
                 """
-                SELECT name, field_type, projection_column
+                SELECT name, field_type, projection_column, line_item_slot, label
                 FROM imp_canonical_field
                 WHERE active = TRUE
                 ORDER BY sort_order DESC, name
@@ -115,6 +115,8 @@ def get_canonical_fields(
                 result[name] = {
                     "type": str(row[1] or "text").strip(),
                     "projection_column": str(row[2]).strip() if row[2] else None,
+                    "line_item_slot": str(row[3]).strip() if row[3] else None,
+                    "label": str(row[4]).strip() if row[4] else None,
                 }
 
         _field_cache = result

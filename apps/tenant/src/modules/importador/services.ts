@@ -644,6 +644,21 @@ export async function editDocumentFields(id: string, campos: Record<string, unkn
   return normalizeDocument(data)
 }
 
+export type LineItemSlot = {
+  slot: string
+  label: string
+  field_type: string
+}
+
+let _lineItemSlotsCache: LineItemSlot[] | null = null
+
+export async function fetchLineItemSlots(): Promise<LineItemSlot[]> {
+  if (_lineItemSlotsCache) return _lineItemSlotsCache
+  const { data } = await api.get(TENANT_IMPORTADOR.lineItemSlots)
+  _lineItemSlotsCache = data as LineItemSlot[]
+  return _lineItemSlotsCache
+}
+
 export async function rejectDocument(id: string): Promise<Documento> {
   const { data } = await api.post(TENANT_IMPORTADOR.reject(id))
   return data

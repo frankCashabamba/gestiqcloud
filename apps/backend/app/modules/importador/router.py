@@ -75,6 +75,7 @@ from .schemas import (
     StagingLineOut,
     StagingLinePatch,
     StagingLineSummary,
+    LineItemSlotOut,
     SyncRecipeResponse,
     SyncRecipeSheetResponse,
     SyncRecipesResponse,
@@ -2755,6 +2756,43 @@ def get_doc_categories(db: Session = Depends(get_db)):
 @router.get("/file-support", dependencies=protected)
 def get_file_support(db: Session = Depends(get_db)):
     return load_file_support_config(db)
+
+
+@router.get("/line-item-slots", response_model=list[LineItemSlotOut], dependencies=protected)
+def get_line_item_slots(db: Session = Depends(get_db)):
+    """Retorna los slots estándar de líneas de detalle ordenados para renderizado dinámico en UI."""
+    from sqlalchemy import text as sa_text
+
+    rows = db.execute(
+        sa_text(
+            """
+            SELECT DISTINCT ON (line_item_slot)
+                line_item_slot, label, field_type
+            FROM imp_canonical_field
+            WHERE active = TRUE AND line_item_slot IS NOT NULL
+            ORDER BY line_item_slot, sort_order DESC
+            """
+        )
+    ).fetchall()
+
+    # Orden visual fijo: description, supplier_ref, quantity, unit_price, total_price, resto
+    _order = ["description", "supplier_ref", "quantity", "unit_price", "total_price"]
+
+    def _slot_order(row: tuple) -> int:
+        try:
+            return _order.index(row[0])
+        except ValueError:
+            return len(_order)
+
+    slots = sorted(rows, key=_slot_order)
+    return [
+        LineItemSlotOut(
+            slot=str(row[0]),
+            label=str(row[1]) if row[1] else str(row[0]).replace("_", " ").title(),
+            field_type=str(row[2] or "text"),
+        )
+        for row in slots
+    ]
 
 
 @router.get("/product-sheet-config", dependencies=protected)
