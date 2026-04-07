@@ -1311,7 +1311,11 @@ export default function DocumentDetail() {
                           </tr>
                         ))}
                         {Object.keys(datos).filter(k => !k.startsWith('_') && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
-                          <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>—</td></tr>
+                          <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>
+                            {doc.error_detalle
+                              ? 'No se pudieron extraer datos. Usa "Volver a importar" para reintentar.'
+                              : '—'}
+                          </td></tr>
                         )}
                       </tbody>
                     </table>

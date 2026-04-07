@@ -466,4 +466,9 @@ def build_api_router() -> APIRouter:
     # Telegram Bot Webhook (recepción de comandos entrantes)
     include_router_safe(r, ("app.modules.telegram_bot.interface.http.webhook", "router"))
 
+    # Historical (import & query historical data)
+    include_router_safe(
+        r, ("app.modules.historical.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
     return r

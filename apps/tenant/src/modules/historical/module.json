@@ -1,0 +1,15 @@
+{
+  "id": "historical",
+  "name": "Historical",
+  "icon": "📦",
+  "category": "operations",
+  "description": "Import and query historical data (sales, purchases, stock) without affecting real accounting",
+  "surface": "backoffice",
+  "nav_group": "backoffice",
+  "required": false,
+  "default_enabled": true,
+  "dependencies": [],
+  "countries": ["ES", "EC"],
+  "aliases": ["historico", "historical", "historicos"],
+  "implemented": true
+}

@@ -95,9 +95,7 @@ def build_canonical_document(
 
     # Iterar sobre TODOS los campos canónicos definidos en BD
     for field_name, field_config in cf.items():
-        aliases = fa.get(field_name)
-        if not aliases:
-            continue
+        aliases = [field_name, *(fa.get(field_name) or [])]
         field_type = field_config.get("type", "text")
         value = _extract_by_type(data, field_type, aliases)
         if value is not None:

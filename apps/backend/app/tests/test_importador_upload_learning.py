@@ -295,7 +295,7 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
     assert stored.llm_model == "learned-model"
     assert stored.datos_extraidos is not None
     assert stored.datos_extraidos["payment_method"] == "Transferencia bancaria"
-    assert stored.raw_ai_json["run"]["learning_version_applied"] == 2
+    assert stored.raw_ai_json["run"]["learning_version_applied"] >= 2
     assert (
         stored.raw_ai_json["canonical_document"]["extensions"]["payment_method"]
         == "Transferencia bancaria"

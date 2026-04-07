@@ -6,6 +6,7 @@ const MODULE_FOLDER_BY_KEY: Record<string, string> = {
   einvoicing: 'einvoicing',
   expenses: 'expenses',
   finance: 'finances',
+  historical: 'historical',
   hr: 'hr',
   imports: 'importador',
   inventory: 'inventory',

@@ -26,6 +26,7 @@ from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
+    load_amount_label_config,
     load_classification_threshold,
     load_doc_type_patterns,
     load_product_sheet_detection_config,
@@ -40,6 +41,7 @@ from .services.document_model_learning_service import (
 from .services.document_routing_agent import build_document_routing_decision
 from .services.iteration_service import upsert_staging_lines_from_extraction
 from .snapshot_learning import build_snapshot_review_hints
+from .text_fallback_extractor import extract_fields_from_text, learn_labels_from_text
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
@@ -47,6 +49,16 @@ logger = logging.getLogger("importador.processing")
 AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[[bytes, str], Awaitable[dict[str, Any]]]
 ProcessingMode = Literal["upload", "run", "async"]
+
+_AI_FAILURE_TOKENS = ("timeout", "timed out", "unavailable", "connection", "refused", "failed")
+
+
+def _analysis_indicates_ai_failure(analysis: dict[str, Any]) -> bool:
+    """Detect whether the AI analysis failed (timeout, connection error, etc.)."""
+    combined = " ".join(
+        str(analysis.get(k, "") or "") for k in ("raw_response", "reasoning", "error", "model_used")
+    ).lower()
+    return any(token in combined for token in _AI_FAILURE_TOKENS)
 
 
 def _normalize_line_item_extra_columns(
@@ -297,6 +309,7 @@ async def _process_upload_like_document(
     recipe_snapshot = None
     recipe_config: dict[str, Any] = {}
     cached_analysis = None
+    text_cached_analysis = None
     analysis_recipe_config: dict[str, Any] = {}
     if resolved_snapshot_id:
         recipe_snapshot = _load_snapshot(db, resolved_snapshot_id)
@@ -304,6 +317,8 @@ async def _process_upload_like_document(
             recipe_config = _snapshot_recipe_config(recipe_snapshot)
         if has_structured:
             cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
+        else:
+            text_cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=False)
 
     recipe_config = build_signal_learning_recipe_config(
         db,
@@ -379,6 +394,13 @@ async def _process_upload_like_document(
             if has_structured or _hint_type not in _TABLE_ONLY_TYPES:
                 _rc_for_ai["doc_type_hint"] = pre_class.doc_type
                 _rc_for_ai["doc_type_hint_confidence"] = pre_class.confidence
+        if not has_structured and text_cached_analysis and not _rc_for_ai.get("doc_type_hint"):
+            _cached_type = str(text_cached_analysis.get("doc_type") or "").upper()
+            _cached_conf = float(text_cached_analysis.get("confidence") or 0)
+            if _cached_type and _cached_type != "OTHER" and _cached_conf >= 0.65:
+                if _cached_type not in _TABLE_ONLY_TYPES:
+                    _rc_for_ai["doc_type_hint"] = _cached_type
+                    _rc_for_ai["doc_type_hint_confidence"] = _cached_conf
         analysis_recipe_config = dict(_rc_for_ai)
         analysis = await _analyze_with_context(
             analyze_document_fn=analyze_document_fn,
@@ -411,7 +433,7 @@ async def _process_upload_like_document(
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
 
-    if has_structured and recipe_snapshot:
+    if recipe_snapshot:
         remember_snapshot_learning(
             db,
             recipe_snapshot,
@@ -420,7 +442,7 @@ async def _process_upload_like_document(
                 "confidence": confianza,
                 "reasoning": razonamiento,
             },
-            structured_only=True,
+            structured_only=has_structured,
         )
 
     crud.add_log(
@@ -436,6 +458,7 @@ async def _process_upload_like_document(
         },
     )
 
+    _used_text_fallback = False
     if has_structured:
         sheet_used = extraction.get("sheet_used")
         sheet_metadata = extraction.get("sheet_metadata") or {}
@@ -474,6 +497,39 @@ async def _process_upload_like_document(
             )
     else:
         datos_extraidos = analysis_fields or {}
+        # Text fallback: when AI failed and OCR text is available, extract
+        # fields using DB-configured labels and aliases.
+        if not datos_extraidos and text.strip() and _analysis_indicates_ai_failure(analysis):
+            field_aliases = get_field_aliases(db, tenant_id=tenant_id)
+            amount_labels = load_amount_label_config(db)
+            # Auto-learn new aliases from OCR labels before extraction
+            try:
+                learned = learn_labels_from_text(
+                    db,
+                    text,
+                    canonical_fields,
+                    field_aliases,
+                    amount_labels,
+                )
+                if learned:
+                    from .field_alias_loader import invalidate_cache
+
+                    invalidate_cache()
+                    field_aliases = get_field_aliases(db, tenant_id=tenant_id)
+            except Exception as exc:
+                logger.debug("Auto-learn aliases error (non-fatal): %s", exc)
+
+            fallback_fields = extract_fields_from_text(
+                text,
+                canonical_fields=canonical_fields,
+                field_aliases=field_aliases,
+                amount_labels=amount_labels,
+            )
+            if fallback_fields:
+                datos_extraidos = fallback_fields
+                requiere_revision = True
+                _used_text_fallback = True
+
         if tipo_doc != "OTHER" and not explicit_recipe_context:
             auto_recipe_config, post_snapshot_id, _, auto_recipe_created, _ = (
                 resolve_auto_recipe_from_text(
@@ -489,7 +545,27 @@ async def _process_upload_like_document(
             if post_snapshot_id:
                 resolved_snapshot_id = post_snapshot_id
                 recipe_snapshot = _load_snapshot(db, post_snapshot_id)
-            if auto_recipe_config and not auto_recipe_created:
+                remember_snapshot_learning(
+                    db,
+                    recipe_snapshot,
+                    {
+                        "doc_type": tipo_doc,
+                        "confidence": confianza,
+                        "reasoning": razonamiento,
+                    },
+                    structured_only=False,
+                )
+            _snapshot_learning_version = get_snapshot_learning_version(recipe_snapshot)
+            _first_pass_had_learning = bool(
+                analysis_recipe_config.get("field_descriptions")
+                or analysis_recipe_config.get("prompt_user")
+            )
+            _learning_mature = (
+                _first_pass_had_learning
+                and _snapshot_learning_version >= 2
+                and confianza >= classification_threshold
+            )
+            if auto_recipe_config and not auto_recipe_created and not _learning_mature:
                 baseline_routing = build_document_routing_decision(
                     source_doc_type=tipo_doc,
                     ai_confidence=confianza,
@@ -615,7 +691,9 @@ async def _process_upload_like_document(
     if current_snapshot is None and resolved_snapshot_id:
         current_snapshot = _load_snapshot(db, resolved_snapshot_id)
     learning_version_applied = get_snapshot_learning_version(current_snapshot)
-    model_used = analysis.get("model_used") or "unknown"
+    model_used = (analysis.get("model_used") or "unknown") + (
+        "+text-fallback" if _used_text_fallback else ""
+    )
     raw_ai_json = _json_safe(
         {
             "run": {
@@ -660,6 +738,17 @@ async def _process_upload_like_document(
     )
     raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
 
+    # Detect AI timeout / empty extraction for unstructured docs
+    ai_raw_response = str(analysis.get("raw_response", "") or "")
+    ai_timeout_error = None
+    if (
+        not has_structured
+        and isinstance(datos_extraidos, dict)
+        and not datos_extraidos
+        and ("timeout" in ai_raw_response.lower() or "unavailable" in ai_raw_response.lower())
+    ):
+        ai_timeout_error = ai_raw_response
+
     crud.update_documento(
         db,
         doc,
@@ -670,6 +759,7 @@ async def _process_upload_like_document(
             "requiere_revision": routing_decision.needs_human_review,
             "datos_extraidos": datos_extraidos,
             "estado": "REVIEW",
+            "error_detalle": ai_timeout_error,
             **projection,
             "fingerprint_json": sheet_profiles,
             "sheet_profiles_json": sheet_profiles,
@@ -821,9 +911,13 @@ async def _process_run_document(
 
     recipe_snapshot = _load_snapshot(db, local_snapshot_id)
     cached_analysis = None
+    text_cached_analysis_run = None
     analysis_recipe_config = dict(local_recipe_config or {})
-    if recipe_snapshot and has_structured:
-        cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
+    if recipe_snapshot:
+        if has_structured:
+            cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
+        else:
+            text_cached_analysis_run = get_snapshot_learning(recipe_snapshot, structured_only=False)
 
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     prompt_config = load_prompt_config(db)
@@ -840,12 +934,19 @@ async def _process_run_document(
             "raw_response": "snapshot-cache",
         }
     else:
+        _rc_for_run = dict(local_recipe_config or {})
+        if text_cached_analysis_run and not _rc_for_run.get("doc_type_hint"):
+            _cached_type = str(text_cached_analysis_run.get("doc_type") or "").upper()
+            _cached_conf = float(text_cached_analysis_run.get("confidence") or 0)
+            if _cached_type and _cached_type != "OTHER" and _cached_conf >= 0.65:
+                _rc_for_run["doc_type_hint"] = _cached_type
+                _rc_for_run["doc_type_hint_confidence"] = _cached_conf
         analysis = await analyze_document_fn(
             llm_content,
             filename,
             extraction.get("format", tipo_archivo),
             has_structured_rows=has_structured,
-            recipe_config=local_recipe_config,
+            recipe_config=_rc_for_run,
             image_bytes=(
                 bytes(vision_image_bytes)
                 if (is_image_doc or is_scanned_pdf) and vision_image_bytes
@@ -863,7 +964,7 @@ async def _process_run_document(
     analysis_fields = normalized_analysis["fields"]
     requiere_revision = confianza < classification_threshold
 
-    if has_structured and recipe_snapshot:
+    if recipe_snapshot:
         remember_snapshot_learning(
             db,
             recipe_snapshot,
@@ -872,7 +973,7 @@ async def _process_run_document(
                 "confidence": confianza,
                 "reasoning": razonamiento,
             },
-            structured_only=True,
+            structured_only=has_structured,
         )
 
     if has_structured:
@@ -986,7 +1087,38 @@ async def _process_run_document(
         )
         if post_snap_id and not local_snapshot_id:
             local_snapshot_id = post_snap_id
-        if auto_rc2 and not auto_recipe_created and not local_recipe_config:
+            _run_snap = _load_snapshot(db, post_snap_id)
+            if _run_snap:
+                remember_snapshot_learning(
+                    db,
+                    _run_snap,
+                    {
+                        "doc_type": tipo_doc,
+                        "confidence": confianza,
+                        "reasoning": razonamiento,
+                    },
+                    structured_only=False,
+                )
+        _run_learning_version = (
+            get_snapshot_learning_version(_load_snapshot(db, local_snapshot_id))
+            if local_snapshot_id
+            else 0
+        )
+        _run_first_pass_had_learning = bool(
+            analysis_recipe_config.get("field_descriptions")
+            or analysis_recipe_config.get("prompt_user")
+        )
+        _run_learning_mature = (
+            _run_first_pass_had_learning
+            and _run_learning_version >= 2
+            and confianza >= classification_threshold
+        )
+        if (
+            auto_rc2
+            and not auto_recipe_created
+            and not local_recipe_config
+            and not _run_learning_mature
+        ):
             baseline_routing = build_document_routing_decision(
                 source_doc_type=tipo_doc,
                 ai_confidence=confianza,

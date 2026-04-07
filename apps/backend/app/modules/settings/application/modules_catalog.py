@@ -234,7 +234,7 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": [],
+        "aliases": ["rimaypilot", "rimay", "rimay_pilot"],
         "implemented": False,
     },
     {
@@ -517,6 +517,22 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "aliases": [],
         "implemented": True,
         "parent_module": "settings",
+    },
+    {
+        "id": "historical",
+        "name": "Historical",
+        "icon": "📦",
+        "category": "operations",
+        "description": "Import and query historical data (sales, purchases, stock) without affecting real accounting",
+        "required": False,
+        "default_enabled": True,
+        "dependencies": [],
+        "countries": ["ES", "EC"],
+        "aliases": ["historico", "historicos"],
+        "implemented": True,
+        "surface": "backoffice",
+        "nav_group": "backoffice",
+        "contractable": True,
     },
 ]
 

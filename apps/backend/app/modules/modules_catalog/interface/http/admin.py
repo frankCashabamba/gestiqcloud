@@ -5,7 +5,11 @@ import os
 import uuid
 from pathlib import Path
 
-from apps.backend.app.shared.utils import ping_ok
+import logging
+
+from app.shared.utils import ping_ok
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -386,6 +390,9 @@ def _find_existing_module(db: Session, canonical_name: str) -> Module | None:
     aliases = [alias.lower() for alias in get_module_aliases(canonical_name)]
     rows = db.query(Module).filter(func.lower(Module.name).in_(aliases)).all()
     if not rows:
+        # Fallback: buscar por url para detectar módulos registrados con nombre distinto
+        rows = db.query(Module).filter(func.lower(Module.url).in_(aliases)).all()
+    if not rows:
         return None
     for row in rows:
         if str(getattr(row, "name", "")).strip().lower() == canonical_name:
@@ -653,6 +660,7 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
                 mod_crud.crear_modulo_db_only(db, module)
                 registered.append(name)
             except Exception as exc:
+                db.rollback()
                 errors.append({"module": name, "error": str(exc)})
 
         return {
@@ -668,7 +676,7 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
 
     except Exception as e:
         db.rollback()
-
+        logger.error("register_modules failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error registering modules: {e}")
 
 
