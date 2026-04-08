@@ -68,10 +68,31 @@ def _infer_pack_conversion_factor(description: str, product_unit: str | None) ->
     return 1.0
 
 
+def _parse_numeric(value: object) -> float:
+    if not value:
+        return 0.0
+    s = str(value).strip()
+    # Remove trailing non-numeric chars (units like 'ml', 'kg', etc.)
+    import re
+
+    match = re.match(r"^[\s]*([\d,.\s]+)", s)
+    if not match:
+        return 0.0
+    num_str = match.group(1).strip()
+    # Remove thousands separators: if comma is used as thousands sep (e.g. '60,000')
+    # Heuristic: if comma appears but no dot, treat commas as thousands separators
+    if "," in num_str and "." not in num_str:
+        num_str = num_str.replace(",", "")
+    elif "," in num_str and "." in num_str:
+        # e.g. '1,234.56' — comma is thousands sep
+        num_str = num_str.replace(",", "")
+    return float(num_str)
+
+
 def _get_line_values(item: dict) -> tuple[str, float, float]:
     description = str(item.get("description") or "").strip()
-    qty = float(item.get("quantity") or 0)
-    unit_price = float(item.get("unit_price") or 0)
+    qty = _parse_numeric(item.get("quantity"))
+    unit_price = _parse_numeric(item.get("unit_price"))
     return description, qty, unit_price
 
 

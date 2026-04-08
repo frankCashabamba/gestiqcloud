@@ -1674,11 +1674,15 @@ def list_documents(
         limit=limit,
         offset=offset,
     )
+    synced_ids = [doc.synced_recipe_id for doc in documents if doc.synced_recipe_id]
+    valid_recipe_ids: set = (
+        {row[0] for row in db.query(Recipe.id).filter(Recipe.id.in_(synced_ids)).all()}
+        if synced_ids
+        else set()
+    )
     for document in documents:
-        if document.synced_recipe_id:
-            exists = db.query(Recipe.id).filter(Recipe.id == document.synced_recipe_id).first()
-            if not exists:
-                document.synced_recipe_id = None
+        if document.synced_recipe_id and document.synced_recipe_id not in valid_recipe_ids:
+            document.synced_recipe_id = None
         document.synced_sheets = _get_synced_sheet_map(db, document)
         _attach_document_activity_meta(document)
         _attach_document_routing(document, db)
@@ -2977,15 +2981,22 @@ def _purge_dual_column_ids(
             logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
 
 
-def _purge_importador_data(db: Session, tenant_id, *, include_learning: bool = False) -> dict[str, int]:
+def _purge_importador_data(
+    db: Session, tenant_id, *, include_learning: bool = False
+) -> dict[str, int]:
     from app.models.core.modelsimport import ImportItem
     from app.models.importador import ImpDocumento
 
     tid = str(tenant_id)
     deleted: dict[str, int] = {}
 
-    document_ids = [str(row[0]) for row in db.query(ImpDocumento.id).filter(ImpDocumento.tenant_id == tenant_id).all()]
-    item_ids = [str(row[0]) for row in db.query(ImportItem.id).filter(ImportItem.tenant_id == tid).all()]
+    document_ids = [
+        str(row[0])
+        for row in db.query(ImpDocumento.id).filter(ImpDocumento.tenant_id == tenant_id).all()
+    ]
+    item_ids = [
+        str(row[0]) for row in db.query(ImportItem.id).filter(ImportItem.tenant_id == tid).all()
+    ]
 
     _purge_dual_column_ids(
         db,

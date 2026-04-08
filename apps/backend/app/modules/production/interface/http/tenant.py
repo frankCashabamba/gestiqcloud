@@ -105,6 +105,7 @@ from app.schemas.recipes import (
 from app.services.cost_periods_service import CostPeriodsService
 from app.services.product_raw_materials import sync_product_as_raw_material_from_recipe_line
 from app.services.recipe_calculator import (
+    _build_tenant_ingredient_unit_cost_map,
     bulk_calculate_recipe_full_costs,
     calculate_production_time,
     calculate_purchase_for_production,
@@ -149,6 +150,61 @@ def _list_cost_driver_unit_options(db: Session, tenant_id: UUID) -> list[object]
         .order_by(UnitOfMeasure.code)
         .all()
     )
+
+
+def _resolve_recipe_line_package_cost(
+    db: Session,
+    tenant_id: UUID,
+    product_id: UUID,
+    qty_per_package: float | Decimal | None,
+    package_cost: float | Decimal | None,
+    catalog_unit_cost: Decimal | None = None,
+) -> Decimal:
+    resolved_cost = Decimal(str(package_cost or 0))
+    if resolved_cost > 0:
+        return resolved_cost
+
+    qty_per_package_dec = Decimal(str(qty_per_package or 0))
+    if qty_per_package_dec <= 0:
+        return Decimal("0")
+
+    product = (
+        db.execute(
+            select(Product).where(
+                Product.id == product_id,
+                Product.tenant_id == tenant_id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    product_cost = Decimal(str(getattr(product, "cost_price", 0) or 0))
+    if product_cost > 0:
+        return (product_cost * qty_per_package_dec).quantize(Decimal("0.0001"))
+    if catalog_unit_cost is not None and catalog_unit_cost > 0:
+        return (catalog_unit_cost * qty_per_package_dec).quantize(Decimal("0.0001"))
+    return Decimal("0")
+
+
+def _resolve_recipe_line_unit_cost(
+    ingredient: RecipeIngredient,
+    product: Product | None = None,
+) -> Decimal:
+    qty = Decimal(str(getattr(ingredient, "qty", 0) or 0))
+    ingredient_cost = Decimal(str(getattr(ingredient, "ingredient_cost", 0) or 0))
+    if qty > 0 and ingredient_cost > 0:
+        return ingredient_cost / qty
+
+    qty_per_package = Decimal(str(getattr(ingredient, "qty_per_package", 0) or 0))
+    package_cost = Decimal(str(getattr(ingredient, "package_cost", 0) or 0))
+    if qty_per_package > 0 and package_cost > 0:
+        return package_cost / qty_per_package
+
+    product_cost = Decimal(str(getattr(product, "cost_price", 0) or 0))
+    if product_cost > 0:
+        return product_cost
+
+    return Decimal("0")
 
 
 def _cost_driver_unit_option_code(unit_option: object) -> str:
@@ -1002,21 +1058,37 @@ async def create_production_order(
                 detail="recipe_invalid_yield_qty",
             )
         scale_factor = Decimal(str(order_in.qty_planned)) / yield_qty
+        ingredient_product_ids = [ing.product_id for ing in ingredients if ing.product_id]
+        ingredient_product_map: dict[UUID, Product] = {}
+        if ingredient_product_ids:
+            ingredient_product_map = {
+                product.id: product
+                for product in db.execute(
+                    select(Product).where(
+                        Product.tenant_id == tenant_id,
+                        Product.id.in_(ingredient_product_ids),
+                    )
+                )
+                .scalars()
+                .all()
+            }
+        ingredient_cost_map = _build_tenant_ingredient_unit_cost_map(
+            db,
+            tenant_id,
+            ingredient_product_ids,
+            exclude_recipe_id=recipe.id,
+        )
         created_lines = 0
         for ing in ingredients:
             ing_qty = Decimal(str(ing.qty or 0))
             qty_required = (ing_qty * scale_factor).quantize(Decimal("0.001"))
             if qty_required <= 0:
                 continue
-            qty_per_package = Decimal(str(ing.qty_per_package or 0))
-            package_cost = Decimal(str(ing.package_cost or 0))
-            ingredient_cost = Decimal(str(ing.ingredient_cost or 0))
-            if ing_qty > 0 and ingredient_cost > 0:
-                unit_cost = ingredient_cost / ing_qty
-            else:
-                unit_cost = (
-                    (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
-                )
+            unit_cost = _resolve_recipe_line_unit_cost(
+                ing,
+                ingredient_product_map.get(ing.product_id),
+                ingredient_cost_map.get(ing.product_id),
+            )
             line = ProductionOrderLine(
                 order_id=order.id,
                 ingredient_product_id=ing.product_id,
@@ -1535,7 +1607,23 @@ def create_recipe(
     db.add(recipe)
     db.flush()
     if recipe_data.ingredients:
+        ingredient_product_ids = [
+            ing.product_id for ing in recipe_data.ingredients if ing.product_id
+        ]
+        ingredient_cost_map = _build_tenant_ingredient_unit_cost_map(
+            db,
+            tenant_id,
+            ingredient_product_ids,
+        )
         for idx, ing_data in enumerate(recipe_data.ingredients):
+            resolved_package_cost = _resolve_recipe_line_package_cost(
+                db,
+                tenant_id,
+                ing_data.product_id,
+                ing_data.qty_per_package,
+                ing_data.package_cost,
+                ingredient_cost_map.get(ing_data.product_id),
+            )
             ingrediente = RecipeIngredient(
                 recipe_id=recipe.id,
                 product_id=ing_data.product_id,
@@ -1544,7 +1632,7 @@ def create_recipe(
                 purchase_packaging=ing_data.purchase_packaging,
                 qty_per_package=ing_data.qty_per_package,
                 package_unit=ing_data.package_unit,
-                package_cost=ing_data.package_cost,
+                package_cost=resolved_package_cost,
                 notes=ing_data.notes,
                 line_order=ing_data.line_order if ing_data.line_order is not None else idx,
             )
@@ -1637,12 +1725,29 @@ def update_recipe(
     # If ingredients are provided on update, replace current recipe ingredients
     # with the submitted list (full-sync behavior from UI form).
     if ingredients_payload is not None:
+        ingredient_product_ids = [
+            UUID(str(ing["product_id"])) for ing in ingredients_payload if ing.get("product_id")
+        ]
+        ingredient_cost_map = _build_tenant_ingredient_unit_cost_map(
+            db,
+            tenant_id,
+            ingredient_product_ids,
+            exclude_recipe_id=recipe_id,
+        )
         (
             db.query(RecipeIngredient)
             .filter(RecipeIngredient.recipe_id == recipe_id)
             .delete(synchronize_session=False)
         )
         for idx, ing_data in enumerate(ingredients_payload):
+            resolved_package_cost = _resolve_recipe_line_package_cost(
+                db,
+                tenant_id,
+                ing_data["product_id"],
+                ing_data["qty_per_package"],
+                ing_data["package_cost"],
+                ingredient_cost_map.get(ing_data["product_id"]),
+            )
             ingrediente = RecipeIngredient(
                 recipe_id=recipe.id,
                 product_id=ing_data["product_id"],
@@ -1651,7 +1756,7 @@ def update_recipe(
                 purchase_packaging=ing_data["purchase_packaging"],
                 qty_per_package=ing_data["qty_per_package"],
                 package_unit=ing_data["package_unit"],
-                package_cost=ing_data["package_cost"],
+                package_cost=resolved_package_cost,
                 notes=ing_data.get("notes"),
                 line_order=ing_data.get("line_order", idx),
             )
@@ -1733,7 +1838,22 @@ def add_recipe_ingredient(
             .filter(RecipeIngredient.recipe_id == recipe_id)
             .scalar()
         )
-        next_order = (current_max or 0) + 1
+    next_order = (current_max or 0) + 1
+
+    ingredient_cost_map = _build_tenant_ingredient_unit_cost_map(
+        db,
+        tenant_id,
+        [payload.product_id],
+        exclude_recipe_id=recipe_id,
+    )
+    resolved_package_cost = _resolve_recipe_line_package_cost(
+        db,
+        tenant_id,
+        payload.product_id,
+        payload.qty_per_package,
+        payload.package_cost,
+        ingredient_cost_map.get(payload.product_id),
+    )
 
     ingrediente = RecipeIngredient(
         recipe_id=recipe_id,
@@ -1743,7 +1863,7 @@ def add_recipe_ingredient(
         purchase_packaging=payload.purchase_packaging,
         qty_per_package=payload.qty_per_package,
         package_unit=payload.package_unit,
-        package_cost=payload.package_cost,
+        package_cost=resolved_package_cost,
         notes=payload.notes,
         line_order=next_order,
     )
@@ -1815,6 +1935,22 @@ def update_recipe_ingredient(
 
     for field, value in data.items():
         setattr(ingrediente, field, value)
+
+    if Decimal(str(getattr(ingrediente, "package_cost", 0) or 0)) <= 0:
+        ingredient_cost_map = _build_tenant_ingredient_unit_cost_map(
+            db,
+            tenant_id,
+            [ingrediente.product_id],
+            exclude_recipe_id=recipe_id,
+        )
+        ingrediente.package_cost = _resolve_recipe_line_package_cost(
+            db,
+            tenant_id,
+            ingrediente.product_id,
+            ingrediente.qty_per_package,
+            ingrediente.package_cost,
+            ingredient_cost_map.get(ingrediente.product_id),
+        )
 
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:

@@ -3,7 +3,6 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   createRecipe, updateRecipe, type Recipe, type RecipeIngredient
@@ -43,7 +42,6 @@ const getRecipeRequestErrorMessage = (err: any): string => {
 export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
   const { t } = useTranslation(['productions', 'common'])
   const { units } = useUnits()
-  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [products, setProducts] = useState<Product[]>([])
@@ -105,13 +103,6 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
       }
     }
   }, [recipe])
-
-  useEffect(() => {
-    if (!recipe) {
-      const pid = searchParams.get('productId')
-      if (pid) setProductId(pid)
-    }
-  }, [recipe, searchParams])
 
   useEffect(() => {
     if (!productId) return
@@ -398,28 +389,41 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
 
             <div>
               <label className="gc-label">{t('productions:recipeForm.finalProduct')} *</label>
-              <input
-                type="text"
-                list="receta-products-list"
+              <select
                 className="gc-input"
-                value={productInputValue}
+                value={productId ?? '__new__'}
                 onChange={(e) => {
-                  setProductInputValue(e.target.value)
-                  const matched = products.find(
-                    (p) => p.name.trim().toLowerCase() === e.target.value.trim().toLowerCase()
-                  )
-                  setProductId(matched?.id || null)
+                  const val = e.target.value
+                  if (val === '__new__') {
+                    setProductId(null)
+                    setProductInputValue('')
+                  } else {
+                    setProductId(val)
+                    setProductInputValue(products.find((p) => p.id === val)?.name ?? '')
+                  }
                 }}
-                placeholder="Selecciona o escribe un producto nuevo"
-                required
+                required={!productInputValue.trim()}
                 disabled={loading}
-              />
-              <datalist id="receta-products-list">
+              >
+                <option value="__new__">— Producto nuevo —</option>
                 {products.map((p) => (
-                  <option key={p.id} value={p.name} />
+                  <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
-              </datalist>
-              <p className="gc-field-hint">Si no existe, escríbelo y se creará al guardar.</p>
+              </select>
+              {!productId && (
+                <>
+                  <input
+                    type="text"
+                    className="gc-input mt-2"
+                    value={productInputValue}
+                    onChange={(e) => setProductInputValue(e.target.value)}
+                    placeholder="Nombre del nuevo producto"
+                    required
+                    disabled={loading}
+                  />
+                  <p className="gc-field-hint">Se creará al guardar la receta.</p>
+                </>
+              )}
             </div>
 
             <div>

@@ -20,6 +20,7 @@ import type { Product } from '../../services/api/products'
 import { convertQtyToUnit } from '../../services/unitService'
 import { normalizeUnitCode } from '../../services/unitService'
 import { formatIngredientReference } from './ingredientCatalog'
+import type { IngredientMasterRow } from './ingredientCatalog'
 
 type UnitOption = {
   code: string
@@ -40,6 +41,7 @@ type Props = {
   isEditing: boolean
   ingredientsDraft: IngredientDraft[]
   products: Product[]
+  ingredientCatalogRows?: IngredientMasterRow[] | null
   units: UnitOption[]
   totalCost: number
   tableContainerSx: object
@@ -54,6 +56,7 @@ export default function RecetaIngredientsTab({
   isEditing,
   ingredientsDraft,
   products,
+  ingredientCatalogRows,
   units,
   totalCost,
   tableContainerSx,
@@ -62,6 +65,9 @@ export default function RecetaIngredientsTab({
   onRemoveIngredient,
   onOpenIngredientInsight,
 }: Props) {
+  const getCatalogRow = (productId: string) =>
+    ingredientCatalogRows?.find((row) => row.product_id === productId) || null
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
@@ -98,6 +104,7 @@ export default function RecetaIngredientsTab({
             )}
             {ingredientsDraft.map((item, index) => {
               const product = products.find((p) => p.id === item.product_id)
+              const catalogRow = getCatalogRow(item.product_id)
               const productName = product?.name || (item as any)?.product_name || '-'
               const lockedUnit = product ? normalizeUnitCode(product.unit, units) : normalizeUnitCode(item.unit, units)
               const qty = Number(item.qty ?? 0)
@@ -107,9 +114,18 @@ export default function RecetaIngredientsTab({
                 item.unit,
                 item.package_unit || item.unit,
               )
+              const unitCostFromPackage =
+                Number(item.qty_per_package || 0) > 0 && Number(item.package_cost || 0) > 0
+                  ? Number(item.package_cost || 0) / Math.max(Number(item.qty_per_package || 1), 0.0001)
+                  : null
+              const unitCostFromCatalog =
+                catalogRow && Number(catalogRow.qty_per_package || 0) > 0 && Number(catalogRow.package_cost || 0) > 0
+                  ? Number(catalogRow.package_cost || 0) / Math.max(Number(catalogRow.qty_per_package || 1), 0.0001)
+                  : null
+              const fallbackUnitCost = Number(product?.cost_price ?? 0) || 0
+              const unitCost = unitCostFromPackage ?? unitCostFromCatalog ?? fallbackUnitCost
               const estimatedCost =
-                (qtyInPackageUnit / Math.max(Number(item.qty_per_package || 1), 0.0001)) *
-                Number(item.package_cost || 0)
+                qtyInPackageUnit * unitCost
               const pct = totalCost > 0 ? (estimatedCost / totalCost) * 100 : 0
               return (
                 <TableRow key={index}>

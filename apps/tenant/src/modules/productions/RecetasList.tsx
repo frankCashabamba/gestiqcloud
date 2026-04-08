@@ -428,7 +428,7 @@ function RecetasListContent() {
             {/* Create from product */}
             <select
               className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-48"
-              onChange={(e) => canCreate && e.target.value && navigate(`nueva?productId=${encodeURIComponent(e.target.value)}`)}
+              onChange={(e) => canCreate && e.target.value && navigate('nueva')}
               value=""
               disabled={!canCreate}
             >

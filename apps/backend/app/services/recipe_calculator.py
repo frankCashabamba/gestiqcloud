@@ -50,6 +50,49 @@ def _normalize_cost_driver_unit(unit: str | None) -> str:
     return "".join(ch for ch in str(unit or "").strip().lower() if ch.isalpha())
 
 
+def _build_tenant_ingredient_unit_cost_map(
+    db: Session,
+    tenant_id: UUID,
+    product_ids: list[UUID],
+    *,
+    exclude_recipe_id: UUID | None = None,
+) -> dict[UUID, Decimal]:
+    if not product_ids:
+        return {}
+
+    query = (
+        db.query(RecipeIngredient, Recipe)
+        .join(Recipe, Recipe.id == RecipeIngredient.recipe_id)
+        .filter(Recipe.tenant_id == tenant_id, RecipeIngredient.product_id.in_(product_ids))
+    )
+    if exclude_recipe_id is not None:
+        query = query.filter(RecipeIngredient.recipe_id != exclude_recipe_id)
+
+    rows = query.order_by(RecipeIngredient.created_at.desc(), Recipe.updated_at.desc()).all()
+
+    catalog: dict[UUID, Decimal] = {}
+    for ingredient, _recipe in rows:
+        product_id = getattr(ingredient, "product_id", None)
+        if not product_id or product_id in catalog:
+            continue
+
+        qty = Decimal(str(getattr(ingredient, "qty", 0) or 0))
+        ingredient_cost = Decimal(str(getattr(ingredient, "ingredient_cost", 0) or 0))
+        qty_per_package = Decimal(str(getattr(ingredient, "qty_per_package", 0) or 0))
+        package_cost = Decimal(str(getattr(ingredient, "package_cost", 0) or 0))
+
+        unit_cost = Decimal("0")
+        if qty > 0 and ingredient_cost > 0:
+            unit_cost = ingredient_cost / qty
+        elif qty_per_package > 0 and package_cost > 0:
+            unit_cost = package_cost / qty_per_package
+
+        if unit_cost > 0:
+            catalog[product_id] = unit_cost
+
+    return catalog
+
+
 def _is_labor_driver(driver: ProductionCostDriver | None) -> bool:
     if not driver:
         return False
@@ -86,6 +129,37 @@ def _is_diesel_driver(driver: ProductionCostDriver | None) -> bool:
     return _driver_unit_normalized(
         driver
     ) in _LITER_LIKE_DRIVER_UNITS and _driver_has_consumption_rate(driver)
+
+
+def _resolve_ingredient_unit_cost(
+    ingredient: RecipeIngredient,
+    product: Product | None = None,
+    catalog_unit_cost: Decimal | None = None,
+) -> Decimal:
+    """
+    Resolve the unit cost for a recipe ingredient.
+
+    Prefers the stored computed cost, then the package cost, and finally the
+    current product cost_price as a fallback for fresh recipes or incomplete rows.
+    """
+    qty = Decimal(str(getattr(ingredient, "qty", 0) or 0))
+    ingredient_cost = Decimal(str(getattr(ingredient, "ingredient_cost", 0) or 0))
+    if qty > 0 and ingredient_cost > 0:
+        return ingredient_cost / qty
+
+    qty_per_package = Decimal(str(getattr(ingredient, "qty_per_package", 0) or 0))
+    package_cost = Decimal(str(getattr(ingredient, "package_cost", 0) or 0))
+    if qty_per_package > 0 and package_cost > 0:
+        return package_cost / qty_per_package
+
+    product_cost = Decimal(str(getattr(product, "cost_price", 0) or 0))
+    if product_cost > 0:
+        return product_cost
+
+    if catalog_unit_cost is not None and catalog_unit_cost > 0:
+        return catalog_unit_cost
+
+    return Decimal("0")
 
 
 def _compute_full_cost_from_objects(
@@ -363,17 +437,25 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bo
     product_map: dict[UUID, Product] = {}
     if product_ids:
         product_map = {p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()}
+    catalog_unit_cost_map = _build_tenant_ingredient_unit_cost_map(
+        db,
+        recipe.tenant_id,
+        product_ids,
+        exclude_recipe_id=recipe_id,
+    )
 
     # Calcular costo total sumando todos los ingredientes
-    # Los costos individuales ya están calculados por la columna GENERATED
     desglose = []
     costo_total = Decimal("0")
 
     for ing in ingredientes:
         producto = product_map.get(ing.product_id)
-
-        # costo_ingrediente ya está calculado por la columna GENERATED
-        costo_ing = Decimal(str(ing.ingredient_cost or 0))
+        unit_cost = _resolve_ingredient_unit_cost(
+            ing,
+            producto,
+            catalog_unit_cost_map.get(ing.product_id),
+        )
+        costo_ing = (Decimal(str(ing.qty or 0)) * unit_cost).quantize(Decimal("0.0001"))
         costo_total += costo_ing
 
         desglose.append(
@@ -828,6 +910,16 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
         .order_by(RecipeIngredient.line_order.asc(), RecipeIngredient.created_at.asc())
         .all()
     )
+    product_ids = [ing.product_id for ing in ingredientes_receta if ing.product_id]
+    product_map: dict[UUID, Product] = {}
+    if product_ids:
+        product_map = {p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()}
+    catalog_unit_cost_map = _build_tenant_ingredient_unit_cost_map(
+        db,
+        recipe.tenant_id,
+        product_ids,
+        exclude_recipe_id=recipe_id,
+    )
 
     # Calcular batches
     yield_qty = Decimal(str(recipe.yield_qty or 0))
@@ -841,7 +933,6 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
     for ing in ingredientes_receta:
         qty_base = Decimal(str(ing.qty or 0))
         qty_per_package = Decimal(str(ing.qty_per_package or 0))
-        package_cost = Decimal(str(ing.package_cost or 0))
 
         if qty_base <= 0:
             continue
@@ -855,20 +946,12 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
             packages_required = math.ceil(float(required_qty / qty_per_package))
 
         # Costo proporcional (consumo real), no redondeado a paquetes enteros
-        if qty_per_package > 0 and package_cost > 0:
-            estimated_cost = (required_qty * package_cost / qty_per_package).quantize(
-                Decimal("0.0001")
-            )
-        elif qty_per_package <= 0:
-            ingredient_cost = Decimal(str(getattr(ing, "ingredient_cost", 0) or 0))
-            unit_cost = (
-                (ingredient_cost / qty_base)
-                if qty_base > 0 and ingredient_cost > 0
-                else Decimal("0")
-            )
-            estimated_cost = (required_qty * unit_cost).quantize(Decimal("0.0001"))
-        else:
-            estimated_cost = Decimal("0")
+        unit_cost = _resolve_ingredient_unit_cost(
+            ing,
+            product_map.get(ing.product_id),
+            catalog_unit_cost_map.get(ing.product_id),
+        )
+        estimated_cost = (required_qty * unit_cost).quantize(Decimal("0.0001"))
 
         product = db.query(Product).filter(Product.id == ing.product_id).first()
         package_label = ing.purchase_packaging or (

@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+
+_raw_cache: dict[str, tuple[float, str | None]] = {}
+_RAW_CACHE_TTL = 120.0  # segundos
 
 _DEFAULTS: list[dict[str, Any]] = [
     {
@@ -244,14 +248,18 @@ def ensure_system_defaults_table(db: Session) -> None:
 
 
 def _get_raw_system_default(db: Session, key: str) -> str | None:
+    now = time.monotonic()
+    cached = _raw_cache.get(key)
+    if cached and (now - cached[0]) <= _RAW_CACHE_TTL:
+        return cached[1]
     ensure_system_defaults_table(db)
     row = db.execute(
         text("SELECT value_text FROM system_defaults WHERE key = :key"),
         {"key": key},
     ).fetchone()
-    if not row or row[0] is None:
-        return None
-    return str(row[0]).strip()
+    value = str(row[0]).strip() if row and row[0] is not None else None
+    _raw_cache[key] = (now, value)
+    return value
 
 
 def get_system_default(db: Session, key: str, default: float) -> float:

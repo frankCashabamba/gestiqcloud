@@ -312,12 +312,13 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       });
       setIsEditing(false);
 
-      const [productsData, rawMaterialsData, driversData, costLinesData, fullCostData] = await Promise.all([
+      const [productsData, rawMaterialsData, driversData, costLinesData, fullCostData, ingredientCatalogData] = await Promise.all([
         listProducts({ limit: 500 }),
         listRawMaterials({ limit: 500 }).catch(() => []),
         listCostDrivers().catch(() => []),
         listRecipeCostLines(recipeId).catch(() => []),
         getRecipeFullCost(recipeId).catch(() => null),
+        fetchIngredientMasterRows().catch(() => null),
       ]);
       const productList = Array.isArray(productsData) ? productsData : [];
       const rawMaterialList = Array.isArray(rawMaterialsData) ? rawMaterialsData : [];
@@ -329,6 +330,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
           recipeIngredients.map((ing: RecipeIngredientResponse) => String(ing.product_id || '')),
         ),
       );
+      if (Array.isArray(ingredientCatalogData)) {
+        setIngredientCatalogRows(ingredientCatalogData as IngredientMasterRow[]);
+      }
       setCostDrivers(Array.isArray(driversData) ? driversData : []);
       setCostLinesDraft(
         (Array.isArray(costLinesData) ? costLinesData : []).map((cl: RecipeCostLine, idx: number) => ({
@@ -402,6 +406,21 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         if (p) {
           next[index].unit = normalizeUnitCode(p.unit, units);
           next[index].package_unit = normalizeUnitCode(p.unit, units);
+          const defaultPresentaciones: Record<string, { qty: number; desc: string }> = {
+            kg: { qty: 50, desc: 'Saco 50 kg' },
+            lb: { qty: 50, desc: 'Saco 50 lb' },
+            g: { qty: 1000, desc: 'Bolsa 1 kg' },
+            oz: { qty: 16, desc: 'Libra (16 oz)' },
+            L: { qty: 20, desc: 'Bidón 20 L' },
+            uds: { qty: 24, desc: t('productions:recipeForm.box24Units') },
+          };
+          const unit = normalizeUnitCode(p.unit, units);
+          const defaultPres = defaultPresentaciones[unit] || { qty: 1, desc: t('productions:recipeForm.unit') };
+          next[index].qty_per_package = defaultPres.qty;
+          next[index].purchase_packaging = defaultPres.desc;
+          next[index].package_cost = p.cost_price
+            ? Number(p.cost_price) * defaultPres.qty
+            : 0;
         }
       }
       return next;
@@ -585,9 +604,13 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       item.unit,
       item.package_unit || item.unit,
     );
+    const catalogRow = ingredientCatalogRows?.find((row) => row.product_id === item.product_id) ?? null;
     const estimatedCost =
-      (qtyInPackageUnit / Math.max(Number(item.qty_per_package || 1), 0.0001)) *
-      Number(item.package_cost || 0);
+      Number(item.package_cost || 0) > 0 && Number(item.qty_per_package || 0) > 0
+        ? (qtyInPackageUnit / Math.max(Number(item.qty_per_package || 1), 0.0001)) * Number(item.package_cost || 0)
+        : catalogRow && Number(catalogRow.package_cost || 0) > 0 && Number(catalogRow.qty_per_package || 0) > 0
+          ? (qtyInPackageUnit / Math.max(Number(catalogRow.qty_per_package || 1), 0.0001)) * Number(catalogRow.package_cost || 0)
+          : 0;
 
     setIngredientInsightMeta({
       productId: item.product_id,
@@ -972,6 +995,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
               isEditing={isEditing}
               ingredientsDraft={ingredientsDraft}
               products={ingredientProducts}
+              ingredientCatalogRows={ingredientCatalogRows}
               units={units}
               totalCost={totalCost}
               tableContainerSx={tableContainerSx}

@@ -159,7 +159,7 @@ export default function DocumentList() {
 
   useEffect(() => {
     void loadDocuments()
-  }, [filter])
+  }, [])
 
   const docs = useMemo(() => {
     if (!filter) return allDocs

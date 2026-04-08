@@ -5,7 +5,9 @@ from __future__ import annotations
 import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete, func, select, text
+from sqlalchemy import String, and_, case, delete, func
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -174,8 +176,20 @@ def list_documentos(
     return db.scalars(q).unique().all()
 
 
+def _truncate_to_column_length(doc, key: str, value: str) -> str:
+    try:
+        col = sa_inspect(type(doc)).columns[key]
+        if isinstance(col.type, String) and col.type.length and len(value) > col.type.length:
+            return value[: col.type.length]
+    except (KeyError, AttributeError):
+        pass
+    return value
+
+
 def update_documento(db: Session, doc: ImpDocumento, data: dict) -> ImpDocumento:
     for k, v in data.items():
+        if isinstance(v, str):
+            v = _truncate_to_column_length(doc, k, v)
         setattr(doc, k, v)
     db.flush()
     return doc

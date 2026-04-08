@@ -5,13 +5,13 @@ from sqlalchemy import text as sa_text
 
 from app.config.database import Base
 from app.models.importador import (
+    IcuRecipe,
+    IcuRecipeDraft,
+    IcuRecipeSnapshot,
     ImpBatchImport,
     ImpBatchItem,
     ImpDocumento,
     ImpVendorSnapshot,
-    IcuRecipe,
-    IcuRecipeDraft,
-    IcuRecipeSnapshot,
 )
 from app.modules.importador.router import purge_all_importador, purge_full_importador
 
@@ -202,7 +202,9 @@ def test_purge_all_importador_preserves_learning_memory(db, tenant_minimal):
         sa_text("SELECT COUNT(*) FROM imp_field_alias WHERE tenant_id = :tid"),
         {"tid": str(tenant_id)},
     ).scalar_one()
-    successor_count = db.execute(sa_text("SELECT COUNT(*) FROM imp_documento_successor")).scalar_one()
+    successor_count = db.execute(
+        sa_text("SELECT COUNT(*) FROM imp_documento_successor")
+    ).scalar_one()
     assert alias_count == 1
     assert successor_count == 0
 
@@ -304,6 +306,8 @@ def test_purge_full_importador_removes_learning_memory(db, tenant_minimal):
         sa_text("SELECT COUNT(*) FROM imp_field_alias WHERE tenant_id = :tid"),
         {"tid": str(tenant_id)},
     ).scalar_one()
-    successor_count = db.execute(sa_text("SELECT COUNT(*) FROM imp_documento_successor")).scalar_one()
+    successor_count = db.execute(
+        sa_text("SELECT COUNT(*) FROM imp_documento_successor")
+    ).scalar_one()
     assert alias_count == 0
     assert successor_count == 0
