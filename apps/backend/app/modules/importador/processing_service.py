@@ -26,9 +26,11 @@ from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
+    load_ai_params,
     load_amount_label_config,
     load_classification_threshold,
     load_doc_type_patterns,
+    load_learning_control,
     load_pdf_table_parse_config,
     load_product_sheet_detection_config,
     load_prompt_config,
@@ -212,6 +214,7 @@ async def _analyze_with_context(
     fallback_patterns: dict[str, Any],
     canonical_fields: dict[str, Any],
     prompt_config: dict[str, Any],
+    db: Any = None,
 ) -> dict[str, Any]:
     # Si el OCR ya extrajo texto suficiente, no usar visión.
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
@@ -229,6 +232,7 @@ async def _analyze_with_context(
         fallback_patterns=fallback_patterns,
         canonical_fields=canonical_fields,
         prompt_config=prompt_config,
+        db=db,
     )
 
 
@@ -373,6 +377,7 @@ async def _process_upload_like_document(
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
     classification_threshold = load_classification_threshold(db)
+    learning_ctrl = load_learning_control(db)
 
     # ── Pre-classification: attempt to resolve doc_type without AI ──────────────
     _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
@@ -388,19 +393,29 @@ async def _process_upload_like_document(
         config=_pre_cfg,
         ocr_text=text if not has_structured else None,
         tenant_id=tenant_id,
+        tipo_archivo=tipo_archivo,
     )
 
     if pre_class and pre_class.skip_ai:
-        # L1: Snapshot cache — full result, no AI call
-        analysis = {
-            **(pre_class.cached_analysis or {}),
-            "fields": {},
-            "is_table": True,
-            "columns": [],
-            "model_used": f"pre-classifier/{pre_class.layer}",
-            "prompt_sent": "",
-            "raw_response": pre_class.reasoning,
-        }
+        if pre_class.layer == "template":
+            # L5: Template extraction — campos extraídos directamente, sin AI
+            analysis = {
+                **(pre_class.cached_analysis or {}),
+                "model_used": f"pre-classifier/template",
+                "prompt_sent": "",
+                "raw_response": pre_class.reasoning,
+            }
+        else:
+            # L1: Snapshot cache — full result, no AI call
+            analysis = {
+                **(pre_class.cached_analysis or {}),
+                "fields": {},
+                "is_table": True,
+                "columns": [],
+                "model_used": f"pre-classifier/{pre_class.layer}",
+                "prompt_sent": "",
+                "raw_response": pre_class.reasoning,
+            }
     elif pre_class and has_structured and pre_class.confidence >= _structured_skip_threshold:
         # L2/L3: Structured doc with confident pre-classification — skip CLASSIFICATION AI call
         analysis = {
@@ -453,6 +468,7 @@ async def _process_upload_like_document(
             fallback_patterns=fallback_patterns,
             canonical_fields=canonical_fields,
             prompt_config=prompt_config,
+            db=db,
         )
 
     # Attach pre-classification metadata for learning at confirm time
@@ -613,7 +629,11 @@ async def _process_upload_like_document(
                 and _snapshot_learning_version >= 2
                 and confianza >= classification_threshold
             )
-            if auto_recipe_config and not auto_recipe_created and not _learning_mature:
+            _rerun_allowed = (
+                bool(learning_ctrl.get("rerun_enabled", True))
+                and float(confianza or 0.0) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
+            )
+            if auto_recipe_config and not auto_recipe_created and not _learning_mature and _rerun_allowed:
                 baseline_routing = build_document_routing_decision(
                     source_doc_type=tipo_doc,
                     ai_confidence=confianza,
@@ -650,6 +670,7 @@ async def _process_upload_like_document(
                         fallback_patterns=fallback_patterns,
                         canonical_fields=canonical_fields,
                         prompt_config=prompt_config,
+                        db=db,
                     )
                     rerun_normalized = _normalize_analysis_output(rerun_analysis)
                     rerun_fields = rerun_normalized["fields"]
@@ -973,6 +994,7 @@ async def _process_run_document(
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
     classification_threshold = load_classification_threshold(db)
+    learning_ctrl = load_learning_control(db)
     if cached_analysis:
         analysis = {
             **cached_analysis,
@@ -1163,11 +1185,16 @@ async def _process_run_document(
             and _run_learning_version >= 2
             and confianza >= classification_threshold
         )
+        _run_rerun_allowed = (
+            bool(learning_ctrl.get("rerun_enabled", True))
+            and float(confianza or 0.0) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
+        )
         if (
             auto_rc2
             and not auto_recipe_created
             and not local_recipe_config
             and not _run_learning_mature
+            and _run_rerun_allowed
         ):
             baseline_routing = build_document_routing_decision(
                 source_doc_type=tipo_doc,

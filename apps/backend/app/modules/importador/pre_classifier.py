@@ -4,11 +4,14 @@ Layers (evaluated in order):
   L1 — Snapshot cache   (structured docs only) — skip AI entirely, full result cached
   L2 — Filename pattern (all types)            — pre-set doc_type, AI still extracts fields
   L3 — Header mapping   (structured docs only) — pre-set doc_type from confirmed field sets
+  L4 — Vendor/RUC       (all types)            — vendor hint from confirmed OCR text
+  L5 — Template match   (all types)            — extract fields via regex/label_search,
+                                                  skips AI entirely if confidence >= threshold
 
 Returns PreClassResult or None (caller must invoke AI).
 
 All thresholds are loaded from imp_config (module='pre_classifier').
-All patterns are loaded from imp_filename_pattern and imp_header_doc_type.
+All patterns are loaded from imp_filename_pattern, imp_header_doc_type, imp_doc_type_template.
 Nothing is hardcoded.
 """
 
@@ -24,10 +27,22 @@ from dataclasses import field as dc_field
 from pathlib import Path
 from typing import Any
 
+import datetime as _dt
+
 logger = logging.getLogger("importador.pre_classifier")
 
-_CACHE_TTL = 300.0  # 5 min
+_CACHE_TTL = 300.0  # fallback hasta que se cargue desde DB
 _cache: dict[str, tuple[float, Any]] = {}
+
+
+def _get_cache_ttl() -> float:
+    """TTL del caché, configurable desde imp_config(module='cache_ttls')."""
+    try:
+        from app.modules.importador.runtime_config import load_cache_ttls
+
+        return float(load_cache_ttls(db=None).get("pre_classifier_ttl_seconds") or _CACHE_TTL)
+    except Exception:
+        return _CACHE_TTL
 
 
 # ── Result ─────────────────────────────────────────────────────────────────────
@@ -37,11 +52,12 @@ _cache: dict[str, tuple[float, Any]] = {}
 class PreClassResult:
     doc_type: str
     confidence: float
-    layer: str  # "snapshot_cache" | "filename_pattern" | "header_mapping"
+    layer: str  # "snapshot_cache" | "filename_pattern" | "header_mapping" | "vendor_ruc" | "template"
     reasoning: str
-    skip_ai: bool = False  # True only for snapshot_cache on structured docs
-    cached_analysis: dict | None = None  # Populated when skip_ai=True
+    skip_ai: bool = False  # True for snapshot_cache (structured) and template (high confidence)
+    cached_analysis: dict | None = None  # Populated when skip_ai=True (L1) or template result (L5)
     matched_canonicals: list[str] = dc_field(default_factory=list)
+    extracted_fields: dict | None = None  # Populated by L5 with template-extracted fields
 
 
 # ── Config loading ──────────────────────────────────────────────────────────────
@@ -50,7 +66,7 @@ class PreClassResult:
 def load_pre_classifier_config(db: Any) -> dict[str, float]:
     """Load thresholds from imp_config (module='pre_classifier'), cached 5 min."""
     entry = _cache.get("config")
-    if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
+    if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
         return entry[1]  # type: ignore[return-value]
 
     defaults: dict[str, float] = {
@@ -87,7 +103,7 @@ def load_pre_classifier_config(db: Any) -> dict[str, float]:
 def _load_filename_patterns(db: Any) -> list[dict]:
     """Load active filename patterns from imp_filename_pattern, cached 5 min."""
     entry = _cache.get("filename_patterns")
-    if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
+    if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
         return entry[1]  # type: ignore[return-value]
 
     if db is None:
@@ -126,7 +142,7 @@ def _load_filename_patterns(db: Any) -> list[dict]:
 def _load_header_doc_types(db: Any, min_confirmations: int) -> list[dict]:
     """Load confirmed header→doc_type mappings, cached 5 min."""
     entry = _cache.get("header_doc_types")
-    if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
+    if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
         return entry[1]  # type: ignore[return-value]
 
     if db is None:
@@ -175,6 +191,7 @@ def classify_before_ai(
     config: dict[str, float] | None = None,
     ocr_text: str | None = None,
     tenant_id: Any = None,
+    tipo_archivo: str | None = None,
 ) -> PreClassResult | None:
     """
     Try to classify without calling the AI.
@@ -185,6 +202,8 @@ def classify_before_ai(
     - L3: Header mapping  → skip_ai=False, doc_type hint for AI
       (for structured docs, if confidence >= structured_skip_threshold → skip AI classification)
     - L4: Vendor/RUC     → skip_ai=False, snapshot hint via proveedor conocido
+    - L5: Template match → skip_ai=True if confidence >= min_confidence_para_skip,
+      otherwise skip_ai=False but extracted_fields populated as AI hint
     """
     cfg = config or load_pre_classifier_config(db)
     filename_min_conf = cfg.get("filename_min_confidence", 0.70)
@@ -273,6 +292,58 @@ def classify_before_ai(
                         skip_ai=False,
                         cached_analysis={"vendor_snapshot_id": vs["snapshot_id"], "ruc": ruc},
                     )
+
+    # L5: Template match — extracción por regex/label_search sin llamar a AI
+    if ocr_text and tenant_id is not None:
+        templates = _load_doc_type_templates(db, tenant_id)
+        for tmpl in templates:
+            if not _template_matches_activation(tmpl, filename, ocr_text, tipo_archivo):
+                continue
+
+            extracted_fields, confidence = _run_template_extraction(tmpl, ocr_text)
+            min_skip = float(tmpl.get("min_confidence_para_skip") or 0.80)
+
+            if confidence <= 0.0:
+                # Campos requeridos faltaron → template no aplica
+                continue
+
+            skip = confidence >= min_skip
+            layer_name = "template"
+            reasoning = (
+                f"Template '{tmpl['nombre']}' ({tmpl['doc_type']}) "
+                f"extrajo {len([v for v in extracted_fields.values() if v is not None])} campos "
+                f"con confianza {confidence:.2f}"
+                + (" — skip_ai=True" if skip else " — AI usará como hint")
+            )
+            logger.debug(reasoning)
+
+            # Actualizar stats de uso (best-effort, no bloquea)
+            _increment_template_usage(db, tmpl["id"], exitoso=skip)
+
+            # Cuando skip_ai=True: cached_analysis simula resultado AI completo
+            cached = None
+            if skip:
+                cached = {
+                    "doc_type": tmpl["doc_type"],
+                    "confidence": confidence,
+                    "fields": extracted_fields,
+                    "is_table": False,
+                    "columns": [],
+                    "reasoning": reasoning,
+                    "model_used": f"template/{tmpl['id'][:8]}",
+                    "raw_response": "",
+                    "prompt_sent": "",
+                }
+
+            return PreClassResult(
+                doc_type=tmpl["doc_type"],
+                confidence=confidence,
+                layer=layer_name,
+                reasoning=reasoning,
+                skip_ai=skip,
+                cached_analysis=cached,
+                extracted_fields=extracted_fields,
+            )
 
     return None
 
@@ -370,7 +441,7 @@ def _load_vendor_snapshots(db: Any, tenant_id: Any) -> list[dict]:
     """Carga snapshots de proveedores activos para el tenant, cacheados 5 min."""
     cache_key = f"vendor_snapshots:{tenant_id}"
     entry = _cache.get(cache_key)
-    if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
+    if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
         return entry[1]  # type: ignore[return-value]
 
     if db is None:
@@ -402,6 +473,232 @@ def _load_vendor_snapshots(db: Any, tenant_id: Any) -> list[dict]:
         logger.debug("Could not load vendor snapshots: %s", exc)
         _cache[cache_key] = (time.monotonic(), [])
         return []
+
+
+def _load_doc_type_templates(db: Any, tenant_id: Any) -> list[dict]:
+    """Carga templates de extracción activos para el tenant + globales, cacheados.
+
+    Los templates se ordenan por prioridad DESC: los del tenant sobreescriben
+    los globales. Los globales (tenant_id IS NULL) siempre se incluyen.
+    """
+    cache_key = f"doc_type_templates:{tenant_id}"
+    entry = _cache.get(cache_key)
+    if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
+        return entry[1]  # type: ignore[return-value]
+
+    if db is None:
+        _cache[cache_key] = (time.monotonic(), [])
+        return []
+
+    try:
+        from sqlalchemy import text as sa_text
+
+        rows = db.execute(
+            sa_text(
+                "SELECT id, tenant_id, doc_type, nombre, prioridad, "
+                "       activacion_json, extraccion_json, "
+                "       min_confidence_para_skip, campos_requeridos "
+                "FROM imp_doc_type_template "
+                "WHERE activo = TRUE "
+                "  AND (tenant_id = :tid OR tenant_id IS NULL) "
+                "ORDER BY "
+                "  CASE WHEN tenant_id = :tid THEN 0 ELSE 1 END, "
+                "  prioridad DESC"
+            ),
+            {"tid": str(tenant_id)},
+        ).fetchall()
+        templates = [
+            {
+                "id": str(r[0]),
+                "tenant_id": str(r[1]) if r[1] else None,
+                "doc_type": str(r[2]).upper(),
+                "nombre": str(r[3]),
+                "prioridad": int(r[4]),
+                "activacion_json": r[5] if isinstance(r[5], dict) else {},
+                "extraccion_json": r[6] if isinstance(r[6], dict) else {},
+                "min_confidence_para_skip": float(r[7]),
+                "campos_requeridos": list(r[8]) if r[8] else [],
+            }
+            for r in rows
+        ]
+        _cache[cache_key] = (time.monotonic(), templates)
+        return templates
+    except Exception as exc:
+        logger.debug("Could not load doc_type_templates: %s", exc)
+        _cache[cache_key] = (time.monotonic(), [])
+        return []
+
+
+def _template_matches_activation(
+    template: dict,
+    filename: str,
+    ocr_text: str | None,
+    tipo_archivo: str | None,
+) -> bool:
+    """Evalúa si las condiciones de activación del template se cumplen (todas AND)."""
+    act = template.get("activacion_json") or {}
+
+    # filename_patterns: alguno debe hacer match (OR entre ellos)
+    fn_patterns = act.get("filename_patterns")
+    if fn_patterns:
+        stem = _normalize_filename_stem(filename)
+        if not any(
+            re.search(str(p), stem, re.IGNORECASE)
+            for p in fn_patterns
+            if p
+        ):
+            return False
+
+    # text_keywords: todas deben estar presentes en el texto OCR (AND)
+    text_kws = act.get("text_keywords")
+    if text_kws:
+        if not ocr_text:
+            return False
+        text_lower = ocr_text[:5000].lower()
+        if not all(str(kw).lower() in text_lower for kw in text_kws if kw):
+            return False
+
+    # min_text_length: longitud mínima del texto OCR
+    min_len = act.get("min_text_length")
+    if min_len is not None:
+        if not ocr_text or len(ocr_text) < int(min_len):
+            return False
+
+    # tipo_archivo: lista de tipos permitidos (PDF, XLSX, etc.)
+    allowed_tipos = act.get("tipo_archivo")
+    if allowed_tipos and tipo_archivo:
+        if str(tipo_archivo).upper() not in [str(t).upper() for t in allowed_tipos]:
+            return False
+
+    return True
+
+
+def _extract_field_value(
+    field_cfg: dict,
+    ocr_text: str,
+) -> Any | None:
+    """Extrae el valor de un campo usando regex y/o label_search desde texto OCR."""
+    text = ocr_text or ""
+
+    # 1. Intentar con regex (se prueban en orden, primer match gana)
+    for pattern in field_cfg.get("regex") or []:
+        try:
+            m = re.search(str(pattern), text, re.IGNORECASE | re.MULTILINE)
+            if m:
+                raw = m.group(1) if m.lastindex and m.lastindex >= 1 else m.group(0)
+                return _coerce_field_value(raw.strip(), field_cfg.get("tipo", "text"))
+        except re.error:
+            continue
+
+    # 2. Intentar con label_search: busca "LABEL[:]\s*VALUE" en el texto
+    for label in field_cfg.get("label_search") or []:
+        pattern = rf"(?i)\b{re.escape(str(label))}\s*[:：]\s*([^\n\r,;]{1,80})"
+        try:
+            m = re.search(pattern, text[:6000])
+            if m:
+                raw = m.group(1).strip()
+                if raw:
+                    return _coerce_field_value(raw, field_cfg.get("tipo", "text"))
+        except re.error:
+            continue
+
+    return None
+
+
+def _coerce_field_value(raw: str, tipo: str) -> Any:
+    """Convierte el string extraído al tipo de dato correcto."""
+    if not raw:
+        return None
+
+    if tipo == "decimal":
+        cleaned = re.sub(r"[^\d.,]", "", raw)
+        # Si hay coma y punto, detectar cuál es decimal
+        if "," in cleaned and "." in cleaned:
+            # Formato europeo: 1.234,56 → 1234.56
+            if cleaned.index(",") > cleaned.index("."):
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+            else:
+                cleaned = cleaned.replace(",", "")
+        elif "," in cleaned:
+            # Puede ser separador de miles o decimal
+            parts = cleaned.split(",")
+            if len(parts) == 2 and len(parts[1]) <= 2:
+                cleaned = cleaned.replace(",", ".")
+            else:
+                cleaned = cleaned.replace(",", "")
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return None
+
+    if tipo == "date":
+        # Intentar parsear a YYYY-MM-DD
+        for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%Y/%m/%d", "%d/%m/%y", "%d-%m-%y"):
+            try:
+                return _dt.datetime.strptime(raw[:10], fmt).strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                continue
+        return raw[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", raw) else None
+
+    # text: limpiar espacios extra
+    return " ".join(raw.split()) or None
+
+
+def _run_template_extraction(
+    template: dict,
+    ocr_text: str,
+) -> tuple[dict, float]:
+    """Ejecuta la extracción del template y retorna (fields, confidence).
+
+    confidence = proporción de campos requeridos extraídos exitosamente.
+    Si algún campo requerido falta → confidence = 0.0.
+    """
+    ext = template.get("extraccion_json") or {}
+    fields_cfg: dict = ext.get("fields") or {}
+    campos_requeridos: list[str] = template.get("campos_requeridos") or []
+
+    extracted: dict[str, Any] = {}
+    for field_name, field_cfg in fields_cfg.items():
+        if not isinstance(field_cfg, dict):
+            continue
+        value = _extract_field_value(field_cfg, ocr_text)
+        if value is not None:
+            extracted[field_name] = value
+
+    # Verificar campos requeridos
+    missing_required = [f for f in campos_requeridos if not extracted.get(f)]
+    if missing_required:
+        return extracted, 0.0
+
+    # Confianza = % de campos definidos que se extrajeron
+    total_fields = len(fields_cfg)
+    if total_fields == 0:
+        return extracted, 0.5
+    extracted_count = sum(1 for v in extracted.values() if v is not None)
+    confidence = round(extracted_count / total_fields, 3)
+    return extracted, confidence
+
+
+def _increment_template_usage(db: Any, template_id: str, exitoso: bool) -> None:
+    """Incrementa los contadores de uso del template en BD (best-effort)."""
+    if db is None:
+        return
+    try:
+        from sqlalchemy import text as sa_text
+
+        db.execute(
+            sa_text(
+                "UPDATE imp_doc_type_template "
+                "SET total_usos = total_usos + 1, "
+                "    total_exitosos = total_exitosos + :ex, "
+                "    last_used_at = now() "
+                "WHERE id = :tid"
+            ),
+            {"tid": template_id, "ex": 1 if exitoso else 0},
+        )
+        db.flush()
+    except Exception as exc:
+        logger.debug("No se pudo actualizar stats de template %s: %s", template_id, exc)
 
 
 def invalidate_pre_classifier_cache() -> None:

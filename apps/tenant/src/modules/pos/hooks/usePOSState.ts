@@ -192,7 +192,14 @@ export function usePOSState() {
     const [clock, setClock] = useState(() => new Date())
     const [topSettingsOpen, setTopSettingsOpen] = useState(false)
     const [topMoreOpen, setTopMoreOpen] = useState(false)
-    const [createProductForm, setCreateProductForm] = useState({
+    const [createProductForm, setCreateProductForm] = useState<{
+        sku: string
+        name: string
+        price: number | string
+        stock: number
+        tax_rate: number
+        category: string
+    }>({
         sku: '',
         name: '',
         price: 0,

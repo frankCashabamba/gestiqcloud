@@ -131,6 +131,7 @@ async def _run_processing(
             crud.refresh_batch_status(db, batch_id)
             publish_batch_update(db, batch_id)
         db.commit()
+        db.refresh(doc)
 
         try:
             await process_import_document(
@@ -159,17 +160,28 @@ async def _run_processing(
 
         except Exception as exc:
             logger.error("Error procesando documento %s: %s", doc_id, exc, exc_info=True)
-            crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": str(exc)})
-            crud.add_log(db, doc.id, "EXTRACT", user_id, {"error": str(exc)})
-            for batch_id in crud.touch_batch_items_for_document(
-                db,
-                doc.id,
-                estado="FAILED",
-                error_detalle=str(exc),
-            ):
-                crud.refresh_batch_status(db, batch_id)
-                publish_batch_update(db, batch_id)
-            db.commit()
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            try:
+                from app.models.importador import ImpDocumento as _ImpDoc
+
+                fresh_doc = db.get(_ImpDoc, doc_id)
+                if fresh_doc:
+                    crud.update_documento(db, fresh_doc, {"estado": "FAILED", "error_detalle": str(exc)})
+                    crud.add_log(db, fresh_doc.id, "EXTRACT", user_id, {"error": str(exc)})
+                    for batch_id in crud.touch_batch_items_for_document(
+                        db,
+                        fresh_doc.id,
+                        estado="FAILED",
+                        error_detalle=str(exc),
+                    ):
+                        crud.refresh_batch_status(db, batch_id)
+                        publish_batch_update(db, batch_id)
+                    db.commit()
+            except Exception as inner:
+                logger.error("No se pudo marcar FAILED doc %s: %s", doc_id, inner, exc_info=True)
 
 
 def _make_task():

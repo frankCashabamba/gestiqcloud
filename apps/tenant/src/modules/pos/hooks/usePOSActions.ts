@@ -701,54 +701,99 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     ])
 
     // Listener global de lector de barras (hardware)
+    // Corre en fase CAPTURE para interceptar antes que useKeyboardShortcuts,
+    // que registra su handler también en capture y llama e.preventDefault() en Enter.
+    //
+    // Estrategia:
+    //  - Sin input enfocado (body/botón): cualquier char viene del lector → acumular siempre.
+    //  - Buscador enfocado: chars del lector llegan < 100 ms entre sí → isBarcodeMode.
+    //  - Otro input (modales, formularios): ignorar completamente.
     useEffect(() => {
+        const BARCODE_SPEED_MS = 100   // lectores USB/BT emiten < 100 ms entre chars
+        const BARCODE_MIN_LENGTH = 3
+        let lastKeyAt = 0
+        let isBarcodeMode = false
+
         const resetBuffer = () => {
             barcodeBufferRef.current = ''
+            isBarcodeMode = false
             if (barcodeTimerRef.current) { window.clearTimeout(barcodeTimerRef.current); barcodeTimerRef.current = null }
         }
 
+        const processBarcode = (code: string) => {
+            const product = findProductByCode(code)
+            if (product) {
+                addToCart(product)
+            } else {
+                toast.warning(`${t('pos:errors.productNotFound')}: ${code}`, {
+                    duration: 0,
+                    action: {
+                        label: t('common:create', { defaultValue: 'Create' }),
+                        onClick: () => {
+                            setCreateProductForm({ sku: code, name: '', price: 0, stock: 1, tax_rate: defaultTaxPct, category: selectedCategory !== '*' ? selectedCategory : '' })
+                            setShowCreateProductModal(true)
+                        },
+                    },
+                })
+            }
+            state.setSearchQuery('')
+        }
+
         const handler = (e: KeyboardEvent) => {
-            if (e.defaultPrevented) return
-            const target = e.target as HTMLElement | null
-            const tag = target?.tagName?.toLowerCase()
-            if (tag === 'input' || tag === 'textarea' || (target as HTMLElement | null)?.isContentEditable) return
             if (e.ctrlKey || e.altKey || e.metaKey) return
 
+            const target = e.target as HTMLElement | null
+            const tag = target?.tagName?.toLowerCase()
+            // searchInputRef es un useRef estable — .current siempre refleja el DOM actual
+            const isSearchInput = target === state.searchInputRef.current
+            const isOtherInput = (tag === 'input' || tag === 'textarea' || !!target?.isContentEditable) && !isSearchInput
+            const noInputFocused = tag !== 'input' && tag !== 'textarea' && !target?.isContentEditable
+
             if (e.key === 'Enter') {
+                if (isOtherInput) {
+                    // Modal / formulario: limpiar buffer y dejar pasar el Enter normalmente
+                    resetBuffer()
+                    return
+                }
                 const code = barcodeBufferRef.current.trim()
-                if (code) {
-                    const product = findProductByCode(code)
-                    if (product) {
-                        addToCart(product)
-                    } else {
-                        toast.warning(`${t('pos:errors.productNotFound')}: ${code}`, {
-                            duration: 0,
-                            action: {
-                                label: t('common:create', { defaultValue: 'Create' }),
-                                onClick: () => {
-                                    setCreateProductForm({ sku: code, name: '', price: 0, stock: 1, tax_rate: defaultTaxPct, category: selectedCategory !== '*' ? selectedCategory : '' })
-                                    setShowCreateProductModal(true)
-                                },
-                            },
-                        })
-                    }
+                // Procesar si: sin input enfocado (siempre del lector) O buscador con modo barcode
+                if (code.length >= BARCODE_MIN_LENGTH && (noInputFocused || isBarcodeMode)) {
+                    e.stopImmediatePropagation()
+                    e.preventDefault()
+                    processBarcode(code)
                 }
                 resetBuffer()
                 return
             }
 
             if (e.key.length !== 1) return
+
+            // Ignorar chars de inputs que no son el buscador
+            if (isOtherInput) return
+
+            const now = Date.now()
+            const timeSinceLast = now - lastKeyAt
+            lastKeyAt = now
+
+            if (noInputFocused) {
+                // Sin input enfocado: siempre es el lector → acumular sin verificar velocidad
+                isBarcodeMode = true
+            } else if (barcodeBufferRef.current.length > 0 && timeSinceLast <= BARCODE_SPEED_MS) {
+                // Buscador enfocado: activar modo barcode si chars llegan rápido
+                isBarcodeMode = true
+            }
+
             barcodeBufferRef.current += e.key
             if (barcodeTimerRef.current) window.clearTimeout(barcodeTimerRef.current)
             barcodeTimerRef.current = window.setTimeout(() => {
-                barcodeBufferRef.current = ''
-                barcodeTimerRef.current = null
-            }, 300)
+                resetBuffer()
+            }, 500)
         }
 
-        window.addEventListener('keydown', handler)
+        // useCapture=true: corre antes que useKeyboardShortcuts y antes del bubble phase
+        window.addEventListener('keydown', handler, true)
         return () => {
-            window.removeEventListener('keydown', handler)
+            window.removeEventListener('keydown', handler, true)
             if (barcodeTimerRef.current) { window.clearTimeout(barcodeTimerRef.current); barcodeTimerRef.current = null }
         }
     }, [findProductByCode, addToCart])
@@ -865,7 +910,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
 
     const loadProducts = async () => {
         try {
-            setProducts(await listProducts(true))
+            setProducts(await listProducts(true, true))
         } catch (error) {
             console.error('Error loading products:', error)
         }
@@ -1479,7 +1524,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             const created = await createProduct({
                 sku: skuValue || undefined,
                 name: createProductForm.name.trim(),
-                price: Number(createProductForm.price) || 0,
+                price: parseFloat(String(createProductForm.price).replace(',', '.')) || 0,
                 stock: Number(createProductForm.stock) || 0,
                 tax_rate: Number(createProductForm.tax_rate) || 0,
                 category: createProductForm.category.trim() || (selectedCategory !== '*' ? selectedCategory : undefined),
@@ -1506,16 +1551,21 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         }
     }, [addToCart, createProductForm, resolveWarehouseForStock, selectedCategory, t, toast])
 
-    // Focus/keyboard en modal crear producto
+    // Foco al abrir el modal — efecto separado para no re-ejecutarse al cambiar el formulario
     useEffect(() => {
         if (!showCreateProductModal) return
         const focusTimer = window.setTimeout(() => {
             createProductNameInputRef.current?.focus()
             createProductNameInputRef.current?.select()
         }, 20)
+        return () => window.clearTimeout(focusTimer)
+    }, [showCreateProductModal])
+
+    // Teclado en modal crear producto (Escape / Enter)
+    useEffect(() => {
+        if (!showCreateProductModal) return
         const onKey = (e: KeyboardEvent) => {
-            if (!showCreateProductModal) return
-            if (e.key === 'Escape' && !creatingProduct) { e.preventDefault(); setShowCreateProductModal(false); return }
+            if (e.key === 'Escape') { e.preventDefault(); return } // Escape bloqueado — cerrar solo con Cancelar/Guardar
             if (e.key === 'Enter' && !creatingProduct) {
                 if ((e.target as HTMLElement | null)?.tagName?.toLowerCase() === 'textarea') return
                 e.preventDefault()
@@ -1523,7 +1573,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             }
         }
         window.addEventListener('keydown', onKey)
-        return () => { window.clearTimeout(focusTimer); window.removeEventListener('keydown', onKey) }
+        return () => window.removeEventListener('keydown', onKey)
     }, [showCreateProductModal, creatingProduct, handleCreateProductQuickSave])
 
     // ------------------------------------------------------------------

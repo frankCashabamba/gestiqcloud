@@ -10,7 +10,12 @@ import re
 import unicodedata
 from typing import Any
 
-from app.modules.importador.runtime_config import load_doc_type_patterns, load_prompt_config
+from app.modules.importador.runtime_config import (
+    load_ai_model_routing,
+    load_ai_params,
+    load_doc_type_patterns,
+    load_prompt_config,
+)
 from app.services.ai.base import AITask
 from app.services.ai.service import AIService
 
@@ -43,6 +48,19 @@ def _ocr_quality_threshold() -> float:
         return max(0.0, min(1.0, float(raw)))
     except ValueError:
         return 0.45
+
+
+def _resolve_model_for_doctype(doc_type: str | None, db: Any = None) -> str | None:
+    """Retorna el nombre del modelo a usar para este doc_type según imp_config.
+
+    Retorna None si no hay routing configurado (se usará el modelo por defecto
+    del proveedor AI). Prioridad: doc_type específico > DEFAULT.
+    """
+    routing = load_ai_model_routing(db)
+    if not routing:
+        return None
+    model = routing.get(str(doc_type or "").upper().strip()) or routing.get("DEFAULT") or ""
+    return model if model else None
 
 
 def _estimate_text_quality(text: str) -> dict[str, float]:
@@ -386,6 +404,7 @@ async def _analyze_structured_document(
     recipe_config: dict | None = None,
     fallback_patterns: dict[str, list[str]] | None = None,
     prompt_config: dict[str, Any] | None = None,
+    db: Any = None,
 ) -> dict[str, Any]:
     """Cheap classification path for already structured datasets."""
     prompt = _build_structured_classification_prompt(
@@ -396,14 +415,20 @@ async def _analyze_structured_document(
         prompt_config=prompt_config,
     )
 
+    ai_params = load_ai_params(db)
+    temperature = float(ai_params.get("temperature") or 0.1)
+    max_tokens = int(ai_params.get("max_tokens_classification") or 220)
+    model_override = _resolve_model_for_doctype(None, db)  # sin doc_type aún, usa DEFAULT
+
     try:
         response = await AIService.query(
             task=AITask.CLASSIFICATION,
             prompt=prompt,
-            temperature=0.1,
-            max_tokens=220,
+            temperature=temperature,
+            max_tokens=max_tokens,
             module="importador",
             enable_recovery=True,
+            model=model_override,
         )
         raw_content = response.content
         model_used = response.model or "unknown"
@@ -1118,6 +1143,7 @@ async def analyze_document(
     fallback_patterns: dict[str, list[str]] | None = None,
     canonical_fields: dict[str, dict] | None = None,
     prompt_config: dict[str, Any] | None = None,
+    db: Any = None,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -1153,6 +1179,7 @@ async def analyze_document(
             recipe_config,
             fallback_patterns=fallback_patterns,
             prompt_config=prompt_config,
+            db=db,
         )
 
     if not has_structured_rows and _should_use_vision_fallback(content, format_hint, image_bytes):
@@ -1164,6 +1191,7 @@ async def analyze_document(
 
     rc = recipe_config or {}
     pc = prompt_config or load_prompt_config(None)
+    ai_params = load_ai_params(db)
 
     system_prompt = (
         rc.get("prompt_system")
@@ -1200,7 +1228,10 @@ async def analyze_document(
         else ""
     )
 
-    content_limit = 4000 if has_structured_rows else 7000
+    content_limit = int(
+        ai_params.get("content_limit_structured" if has_structured_rows else "content_limit_unstructured")
+        or (4000 if has_structured_rows else 7000)
+    )
 
     current_year = datetime.datetime.now().year
     doc_type_instruction = str(
@@ -1252,14 +1283,26 @@ async def analyze_document(
 
     full_prompt = system_prompt.rstrip() + "\n\n" + user_prompt
 
+    # Resolver model y parámetros desde imp_config
+    _doc_type_for_routing = (rc.get("doc_type_hint") or "").upper().strip() or None
+    model_override = _resolve_model_for_doctype(_doc_type_for_routing, db)
+    temperature = float(ai_params.get("temperature") or 0.1)
+    _by_dt: dict = ai_params.get("max_tokens_by_doctype") or {}
+    max_tokens = int(
+        _by_dt.get(_doc_type_for_routing or "")
+        or ai_params.get("max_tokens_extraction")
+        or 1500
+    )
+
     try:
         response = await AIService.query(
             task=AITask.EXTRACTION,
             prompt=full_prompt,
-            temperature=0.1,
-            max_tokens=1500,
+            temperature=temperature,
+            max_tokens=max_tokens,
             module="importador",
             enable_recovery=True,
+            model=model_override,
         )
 
         raw_content = response.content

@@ -54,5 +54,42 @@
   "pdf_table_parse": {
     "unit_values": ["ml", "mg", "g", "kg", "l", "lt", "lts", "unit", "unid", "unidad", "unidades", "oz", "pz", "pza", "m", "cm", "mm", "lb", "gr"],
     "footer_skip_patterns": ["pagina\\s+\\d", "page\\s+\\d", "pag\\.?\\s+\\d", "pagina\\s+de\\s+\\d"]
+  },
+  "ai_params": {
+    "temperature": "0.1",
+    "max_tokens_extraction": "1500",
+    "max_tokens_classification": "220",
+    "content_limit_unstructured": "7000",
+    "content_limit_structured": "4000",
+    "max_tokens_by_doctype": {
+      "INVOICE": "1200",
+      "RECEIPT": "600",
+      "PAYROLL": "800",
+      "BANK_STATEMENT": "500",
+      "INVENTORY": "400",
+      "COSTING": "600",
+      "OTHER": "1500"
+    }
+  },
+  "ai_model_routing": {
+    "default": "",
+    "INVOICE": "",
+    "RECEIPT": "",
+    "PAYROLL": "",
+    "BANK_STATEMENT": "",
+    "INVENTORY": "",
+    "COSTING": "",
+    "EXPENSE": ""
+  },
+  "learning_control": {
+    "rerun_enabled": "true",
+    "rerun_min_confidence": "0.0",
+    "rerun_max_snapshot_age_days": "0",
+    "rerun_require_missing_fields": "false"
+  },
+  "cache_ttls": {
+    "ocr_ttl_seconds": "300",
+    "pre_classifier_ttl_seconds": "300",
+    "runtime_config_ttl_seconds": "300"
   }
 }

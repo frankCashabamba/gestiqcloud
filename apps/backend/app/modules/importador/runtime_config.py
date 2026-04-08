@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("importador.runtime_config")
 
-_CACHE_TTL = 300.0
+_CACHE_TTL: float = float(os.getenv("IMPORTADOR_RUNTIME_CONFIG_TTL", "300"))
 _cache: dict[str, tuple[float, dict]] = {}
 
 _RUNTIME_SEED_PATH = Path(__file__).with_name("runtime_seed.json")
@@ -142,19 +143,20 @@ def load_doc_type_patterns(db: Any) -> dict[str, list[str]]:
     if cached is not None:
         return cached  # type: ignore[return-value]
 
-    try:
-        rows = _ensure_module_seeded(db, "doc_type_patterns")
-        patterns: dict[str, list[str]] = {}
-        for row in rows:
-            if not isinstance(row.value_list, list):
-                continue
-            values = [str(v).strip().lower() for v in row.value_list if str(v).strip()]
-            if values:
-                patterns[str(row.key).strip().upper()] = values
-        if patterns:
-            return _cache_set("doc_type_patterns", patterns)  # type: ignore[return-value]
-    except Exception as exc:
-        logger.warning("No se pudo cargar doc_type_patterns desde imp_config: %s", exc)
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "doc_type_patterns")
+            patterns: dict[str, list[str]] = {}
+            for row in rows:
+                if not isinstance(row.value_list, list):
+                    continue
+                values = [str(v).strip().lower() for v in row.value_list if str(v).strip()]
+                if values:
+                    patterns[str(row.key).strip().upper()] = values
+            if patterns:
+                return _cache_set("doc_type_patterns", patterns)  # type: ignore[return-value]
+        except Exception as exc:
+            logger.warning("No se pudo cargar doc_type_patterns desde imp_config: %s", exc)
 
     seed = _seed_module_payload("doc_type_patterns")
     return {
@@ -409,6 +411,252 @@ def load_pdf_table_parse_config(db: Any | None = None) -> dict[str, list[str]]:
         for key, value in _seed_module_payload("pdf_table_parse").items()
         if isinstance(value, list)
     }
+
+
+def load_ai_params(db: Any | None = None) -> dict[str, Any]:
+    """Parámetros de las llamadas AI (temperatura, max_tokens, content_limit).
+
+    Cargado desde imp_config(module='ai_params'). Permite ajustar el comportamiento
+    de Ollama/Claude por tipo de documento sin tocar código.
+
+    Claves:
+      temperature                    — float, default 0.1
+      max_tokens_extraction          — int, default 1500
+      max_tokens_classification      — int, default 220
+      content_limit_unstructured     — int, default 7000
+      content_limit_structured       — int, default 4000
+      max_tokens_by_doctype          — dict {DOC_TYPE: int}, overrides max_tokens_extraction
+    """
+    cached = _cache_get("ai_params")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    seed = _seed_module_payload("ai_params")
+
+    def _int(val: Any, default: int) -> int:
+        try:
+            return int(str(val).strip())
+        except (TypeError, ValueError):
+            return default
+
+    def _float(val: Any, default: float) -> float:
+        try:
+            return max(0.0, min(1.0, float(str(val).strip())))
+        except (TypeError, ValueError):
+            return default
+
+    defaults: dict[str, Any] = {
+        "temperature": _float(seed.get("temperature"), 0.1),
+        "max_tokens_extraction": _int(seed.get("max_tokens_extraction"), 1500),
+        "max_tokens_classification": _int(seed.get("max_tokens_classification"), 220),
+        "content_limit_unstructured": _int(seed.get("content_limit_unstructured"), 7000),
+        "content_limit_structured": _int(seed.get("content_limit_structured"), 4000),
+        "max_tokens_by_doctype": {},
+    }
+    # Poblar max_tokens_by_doctype desde el seed (valores como string)
+    seed_by_dt = seed.get("max_tokens_by_doctype") or {}
+    if isinstance(seed_by_dt, dict):
+        for k, v in seed_by_dt.items():
+            tok = _int(v, 0)
+            if tok > 0:
+                defaults["max_tokens_by_doctype"][str(k).upper()] = tok
+
+    if db is None:
+        return defaults
+
+    try:
+        rows = _ensure_module_seeded(db, "ai_params")
+        config: dict[str, Any] = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip()
+            if key == "temperature" and row.value_text is not None:
+                config["temperature"] = _float(row.value_text, 0.1)
+            elif key in {
+                "max_tokens_extraction",
+                "max_tokens_classification",
+                "content_limit_unstructured",
+                "content_limit_structured",
+            } and row.value_text is not None:
+                config[key] = _int(row.value_text, defaults[key])
+            elif key == "max_tokens_by_doctype" and isinstance(row.value_list, list):
+                # value_list formato: ["INVOICE=1200", "RECEIPT=600"]
+                for item in row.value_list:
+                    raw = str(item).strip()
+                    sep = "=" if "=" in raw else ":"
+                    dt, _, tok_s = raw.partition(sep)
+                    tok = _int(tok_s, 0)
+                    if dt.strip() and tok > 0:
+                        config["max_tokens_by_doctype"][dt.strip().upper()] = tok
+        return _cache_set("ai_params", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar ai_params desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_ai_model_routing(db: Any | None = None) -> dict[str, str]:
+    """Modelo AI a usar por tipo de documento.
+
+    Cargado desde imp_config(module='ai_model_routing'). Permite usar modelos
+    más pequeños para tipos de documento simples (RECEIPT, EXPENSE) y reservar
+    el modelo mayor para documentos complejos (INVOICE, PAYROLL).
+
+    Retorna dict {DOC_TYPE: model_name_string}. Vacío o valor vacío = usa el
+    modelo por defecto configurado en el proveedor AI.
+    """
+    cached = _cache_get("ai_model_routing")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    seed = _seed_module_payload("ai_model_routing")
+    defaults: dict[str, str] = {
+        str(k).upper(): str(v).strip()
+        for k, v in (seed or {}).items()
+        if v
+    }
+
+    if db is None:
+        return defaults
+
+    try:
+        rows = _ensure_module_seeded(db, "ai_model_routing")
+        config: dict[str, str] = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").upper().strip()
+            val = str(row.value_text or "").strip()
+            if key:
+                config[key] = val  # vacío = usa default del proveedor
+        return _cache_set("ai_model_routing", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar ai_model_routing desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_learning_control(db: Any | None = None) -> dict[str, Any]:
+    """Parámetros de control del learning rerun.
+
+    Cargado desde imp_config(module='learning_control'). Permite habilitar/
+    deshabilitar el rerun y ajustar sus condiciones sin tocar código.
+
+    Claves:
+      rerun_enabled              — bool, default True
+      rerun_min_confidence       — float, umbral de confianza mínimo para disparar rerun
+                                   (0.0 = siempre, 1.0 = nunca). Default 0.0
+      rerun_max_snapshot_age_days — int, días máximos desde last_updated de la receta.
+                                    0 = sin límite. Default 0
+      rerun_require_missing_fields — bool, solo hacer rerun si hay campos faltantes.
+                                     Default False
+    """
+    cached = _cache_get("learning_control")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    seed = _seed_module_payload("learning_control")
+
+    def _bool(val: Any, default: bool) -> bool:
+        if val is None:
+            return default
+        return str(val).strip().lower() not in {"false", "0", "no", "off"}
+
+    def _float_val(val: Any, default: float) -> float:
+        try:
+            return float(str(val).strip())
+        except (TypeError, ValueError):
+            return default
+
+    def _int_val(val: Any, default: int) -> int:
+        try:
+            return int(str(val).strip())
+        except (TypeError, ValueError):
+            return default
+
+    defaults: dict[str, Any] = {
+        "rerun_enabled": _bool(seed.get("rerun_enabled"), True),
+        "rerun_min_confidence": _float_val(seed.get("rerun_min_confidence"), 0.0),
+        "rerun_max_snapshot_age_days": _int_val(seed.get("rerun_max_snapshot_age_days"), 0),
+        "rerun_require_missing_fields": _bool(seed.get("rerun_require_missing_fields"), False),
+    }
+
+    if db is None:
+        return defaults
+
+    try:
+        rows = _ensure_module_seeded(db, "learning_control")
+        config: dict[str, Any] = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip()
+            val = row.value_text
+            if key == "rerun_enabled":
+                config["rerun_enabled"] = _bool(val, True)
+            elif key == "rerun_min_confidence":
+                config["rerun_min_confidence"] = _float_val(val, 0.0)
+            elif key == "rerun_max_snapshot_age_days":
+                config["rerun_max_snapshot_age_days"] = _int_val(val, 0)
+            elif key == "rerun_require_missing_fields":
+                config["rerun_require_missing_fields"] = _bool(val, False)
+        return _cache_set("learning_control", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar learning_control desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_cache_ttls(db: Any | None = None) -> dict[str, float]:
+    """TTLs de los cachés en memoria del importador.
+
+    Cargado desde imp_config(module='cache_ttls'). Permite ajustar la duración
+    del caché sin deploy.
+
+    Claves (segundos):
+      ocr_ttl_seconds              — default 300
+      pre_classifier_ttl_seconds   — default 300
+      runtime_config_ttl_seconds   — default 300
+    """
+    # Este loader NO usa _cache_get para evitar recursión: es el que define el TTL.
+    # Se lee desde DB una vez al inicio y se guarda en memoria del módulo.
+    cached = _cache.get("cache_ttls")
+    if cached:
+        ts, value = cached
+        # Usamos _CACHE_TTL como bootstrap TTL para este loader específico
+        if (time.monotonic() - ts) < _CACHE_TTL:
+            return value  # type: ignore[return-value]
+
+    seed = _seed_module_payload("cache_ttls")
+
+    def _secs(val: Any, default: float) -> float:
+        try:
+            return max(30.0, float(str(val).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    defaults: dict[str, float] = {
+        "ocr_ttl_seconds": _secs(seed.get("ocr_ttl_seconds"), 300.0),
+        "pre_classifier_ttl_seconds": _secs(seed.get("pre_classifier_ttl_seconds"), 300.0),
+        "runtime_config_ttl_seconds": _secs(seed.get("runtime_config_ttl_seconds"), 300.0),
+    }
+
+    if db is None:
+        _cache["cache_ttls"] = (time.monotonic(), defaults)
+        return defaults
+
+    try:
+        rows = _ensure_module_seeded(db, "cache_ttls")
+        config: dict[str, float] = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip()
+            if key in config and row.value_text is not None:
+                config[key] = _secs(row.value_text, defaults[key])
+        _cache["cache_ttls"] = (time.monotonic(), config)
+        # Actualizar el TTL global del módulo para que _cache_get lo use en lo sucesivo
+        global _CACHE_TTL
+        _CACHE_TTL = config.get("runtime_config_ttl_seconds", _CACHE_TTL)
+        return config
+    except Exception as exc:
+        logger.warning("No se pudo cargar cache_ttls desde imp_config: %s", exc)
+
+    _cache["cache_ttls"] = (time.monotonic(), defaults)
+    return defaults
 
 
 def invalidate_runtime_config_cache() -> None:

@@ -733,7 +733,7 @@ export default function POSView() {
 
             {/* Quick create product */}
             {showCreateProductModal && (
-                <div className="pos-modal-overlay" onClick={() => !creatingProduct && setShowCreateProductModal(false)}>
+                <div className="pos-modal-overlay">
                     <div className="pos-modal-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a' }}>{t('pos:createProduct.title', { defaultValue: 'Create product quickly' })}</div>
@@ -746,8 +746,8 @@ export default function POSView() {
                             <input type="text" ref={createProductNameInputRef} style={{ border: '2px solid #2563eb', padding: '10px 12px', borderRadius: 10, boxShadow: '0 0 0 2px rgba(37,99,235,.12)', fontSize: 20, fontWeight: 700, color: '#0f172a', background: '#fff' }} value={createProductForm.name} placeholder={t('pos:createProduct.namePlaceholder', { defaultValue: 'Product name' })} onChange={(e) => setCreateProductForm((prev) => ({ ...prev, name: e.target.value }))} />
                             {!createProductForm.name.trim() && <div style={{ fontSize: 12, color: '#b91c1c' }}>{t('pos:createProduct.nameRequired')}</div>}
                             <label style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{t('pos:createProduct.price')} <span style={{ color: '#dc2626' }}>*</span></label>
-                            <input type="number" style={{ border: '2px solid #2563eb', padding: '10px 12px', borderRadius: 10, boxShadow: '0 0 0 2px rgba(37,99,235,.08)', fontSize: 26, fontWeight: 800, color: '#0f172a', background: '#fff' }} value={createProductForm.price} onChange={(e) => setCreateProductForm((prev) => ({ ...prev, price: Number(e.target.value) || 0 }))} min={0} step="0.01" />
-                            {Number(createProductForm.price) <= 0 && <div style={{ fontSize: 12, color: '#b91c1c' }}>{t('pos:createProduct.priceMinimum')}</div>}
+                            <input type="text" inputMode="decimal" style={{ border: '2px solid #2563eb', padding: '10px 12px', borderRadius: 10, boxShadow: '0 0 0 2px rgba(37,99,235,.08)', fontSize: 26, fontWeight: 800, color: '#0f172a', background: '#fff' }} value={createProductForm.price} onChange={(e) => { const raw = e.target.value.replace(',', '.'); if (/^(\d*\.?\d*)$/.test(raw)) setCreateProductForm((prev) => ({ ...prev, price: raw })) }} />
+                            {Number(String(createProductForm.price).replace(',', '.')) <= 0 && <div style={{ fontSize: 12, color: '#b91c1c' }}>{t('pos:createProduct.priceMinimum')}</div>}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 10 }}>
                                 <div style={{ display: 'grid', gap: 6 }}>
                                     <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{t('pos:createProduct.stock')}</label>

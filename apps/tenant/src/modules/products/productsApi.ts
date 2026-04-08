@@ -87,10 +87,13 @@ export type SimilarProductGroup = {
 // PRODUCTS
 // ============================================================================
 
-export async function listProductos(hideOutOfStock: boolean = false): Promise<Producto[]> {
+export async function listProductos(hideOutOfStock: boolean = false, excludeRawMaterial: boolean = false): Promise<Producto[]> {
   const params = new URLSearchParams()
   if (hideOutOfStock) {
     params.append('active', 'true')
+  }
+  if (excludeRawMaterial) {
+    params.append('exclude_raw_material', 'true')
   }
 
   const url = params.toString()
@@ -128,6 +131,9 @@ export async function listProductos(hideOutOfStock: boolean = false): Promise<Pr
 
     if (hideOutOfStock) {
       products = products.filter((p) => p.stock > 0 && p.active)
+    }
+    if (excludeRawMaterial) {
+      products = products.filter((p) => !p.is_raw_material)
     }
 
     writeCachedResource(productsCacheKey(hideOutOfStock), products)

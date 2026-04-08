@@ -620,3 +620,61 @@ class ImpVendorSnapshot(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ImpDocTypeTemplate(Base):
+    """Plantillas de extracción por tipo de documento (capa L5 del pre-clasificador).
+
+    Permite extraer campos canónicos mediante regexes y label_search sin llamar
+    a Ollama cuando el documento coincide con un patrón conocido.
+
+    tenant_id = NULL  → template global disponible para todos los tenants.
+    tenant_id = <id>  → template privado del tenant (sobreescribe el global).
+    """
+
+    __tablename__ = "imp_doc_type_template"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_COL, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    doc_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    nombre: Mapped[str] = mapped_column(String(300), nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    prioridad: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # JSON de condiciones de activación del template
+    activacion_json: Mapped[dict] = mapped_column(
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
+        nullable=False,
+        server_default=text("'{}'"),
+    )
+
+    # JSON de reglas de extracción de campos
+    extraccion_json: Mapped[dict] = mapped_column(
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
+        nullable=False,
+        server_default=text("'{}'"),
+    )
+
+    min_confidence_para_skip: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.80
+    )
+    campos_requeridos: Mapped[list] = mapped_column(
+        ARRAY(String), nullable=False, server_default=text("'{}'")
+    )
+
+    # Stats de uso y aprendizaje
+    total_usos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_exitosos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

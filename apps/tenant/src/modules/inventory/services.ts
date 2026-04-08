@@ -75,6 +75,7 @@ function mapStockItem(x: any): StockItem {
       sku: product.sku ?? product.codigo ?? product.code,
       name: product.name ?? product.nombre,
       price: Number(product.price ?? product.precio ?? 0),
+      is_raw_material: Boolean(product.is_raw_material ?? false),
       product_metadata: product.product_metadata ?? {
         reorder_point: product.stock_minimo ?? undefined,
         max_stock: product.stock_maximo ?? undefined,

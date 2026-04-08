@@ -97,6 +97,7 @@ class AIService:
         module: str | None = None,
         user_id: str | None = None,
         enable_recovery: bool = True,
+        model: str | None = None,
     ) -> AIResponse:
         """
         Consulta IA con proveedor automático o específico
@@ -125,6 +126,7 @@ class AIService:
             temperature=temperature,
             max_tokens=max_tokens,
             context=context,
+            model=model or None,
         )
 
         cached_response = await _load_response_from_cache(tenant_id, request)
