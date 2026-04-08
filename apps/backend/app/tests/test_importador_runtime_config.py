@@ -3,14 +3,17 @@ from __future__ import annotations
 from app.modules.importador import pre_classifier
 from app.modules.importador.runtime_config import (
     invalidate_runtime_config_cache,
+    load_ai_runtime_config,
     load_doc_categories_config,
     load_filename_normalization_config,
     load_pre_classifier_runtime_config,
+    load_processing_runtime_config,
     load_prompt_config,
     load_routing_fallback_profiles_config,
     load_routing_fallback_rules_config,
     load_routing_field_aliases,
     load_routing_field_labels,
+    load_routing_scoring_config,
     load_tax_id_patterns_config,
 )
 
@@ -78,11 +81,38 @@ def test_runtime_config_loads_extended_prompt_seed_defaults():
     assert config["structured_classification_task_preamble"]
     assert config["structured_classification_response_instruction"]
     assert config["structured_classification_preview_label"] == "Structured preview:"
+    assert "{previous_year}" in config["document_time_context_template"]
     assert config["response_json_label"] == "Respond ONLY with valid JSON:"
     assert config["critical_rules_heading"] == "CRITICAL rules:"
     assert config["additional_instructions_heading"] == "Additional instructions:"
     assert "{current_year}" in config["year_sanity_rule_template"]
     assert "line_items" in config["line_items_extra_columns_rule"]
+
+
+def test_runtime_config_loads_ai_processing_and_routing_scoring_defaults():
+    invalidate_runtime_config_cache()
+
+    ai_runtime = load_ai_runtime_config(None)
+    processing_runtime = load_processing_runtime_config(None)
+    routing_scoring = load_routing_scoring_config(None)
+
+    assert ai_runtime["ocr_min_quality"] == 0.45
+    assert ai_runtime["ocr_min_words_for_vision"] == 18
+    assert "PDF_OCR" in ai_runtime["vision_allowed_formats"]
+    assert "cliente" in ai_runtime["evidence_stop_tokens"]
+    assert "USD" in ai_runtime["currency_markers"]
+    assert ai_runtime["ocr_written_months"]["enero"] == 1
+    assert "{cleared}" in ai_runtime["low_evidence_reason_template"]
+    assert ai_runtime["vision_default_reasoning"] == "Vision model analysis"
+    assert ai_runtime["vision_resize_max_dim"] == 1024
+    assert processing_runtime["ocr_text_sufficient_min_chars"] == 100
+    assert processing_runtime["structured_preview_rows"] == 5
+    assert processing_runtime["structured_output_rows_limit"] == 200
+    assert "timeout" in processing_runtime["ai_failure_tokens"]
+    assert "PRODUCT_LIST" in processing_runtime["table_only_doc_types"]
+    assert "nombre_de_la_receta" in processing_runtime["recipe_name_field_candidates"]
+    assert routing_scoring["ai_confidence_weight"] == 0.60
+    assert routing_scoring["blocked_confidence_cap"] == 0.58
 
 
 def test_pre_classifier_loader_delegates_to_runtime_config(monkeypatch):
@@ -126,5 +156,7 @@ def test_pre_classifier_uses_runtime_filename_and_tax_id_config(monkeypatch):
         },
     )
 
-    assert pre_classifier._normalize_filename_stem("Factura_customuuid_abril.pdf") == "factura abril"
+    assert (
+        pre_classifier._normalize_filename_stem("Factura_customuuid_abril.pdf") == "factura abril"
+    )
     assert pre_classifier._extract_ruc_from_text("Customer VAT: 123456789") == "123456789"

@@ -381,7 +381,9 @@ def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
     variants.append(_copy_with_label(autocontrast, "autocontrast"))
     variants.extend(_iter_small_rotations(autocontrast, label_prefix="autocontrast"))
 
-    sharpened = autocontrast.filter(ImageFilter.MedianFilter(size=int(config["median_filter_size"])))
+    sharpened = autocontrast.filter(
+        ImageFilter.MedianFilter(size=int(config["median_filter_size"]))
+    )
     sharpened = sharpened.filter(ImageFilter.SHARPEN)
     variants.append(_copy_with_label(sharpened, "median_sharpen"))
 
@@ -478,7 +480,9 @@ def _run_easyocr(img: Image.Image) -> str:
     import numpy as np
 
     config = _ocr_runtime_config()
-    languages = tuple(str(lang).strip() for lang in config["easyocr_languages"] if str(lang).strip())
+    languages = tuple(
+        str(lang).strip() for lang in config["easyocr_languages"] if str(lang).strip()
+    )
     gpu_enabled = bool(config.get("easyocr_gpu", False))
     reader_key = (languages or ("es", "en"), gpu_enabled)
     reader = _EASYOCR_READERS.get(reader_key)

@@ -27,12 +27,12 @@ from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
-    load_ai_params,
     load_amount_label_config,
     load_classification_threshold,
     load_doc_type_patterns,
     load_learning_control,
     load_pdf_table_parse_config,
+    load_processing_runtime_config,
     load_product_sheet_detection_config,
     load_prompt_config,
 )
@@ -54,8 +54,6 @@ AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[[bytes, str], Awaitable[dict[str, Any]]]
 ProcessingMode = Literal["run", "async"]
 
-_AI_FAILURE_TOKENS = ("timeout", "timed out", "unavailable", "connection", "refused", "failed")
-
 
 def _elapsed_ms(started_at: float) -> int:
     return max(0, int(round((time.perf_counter() - started_at) * 1000)))
@@ -75,12 +73,27 @@ def _build_timing_summary(*, stage_timings: dict[str, int], started_at: float) -
     }
 
 
-def _analysis_indicates_ai_failure(analysis: dict[str, Any]) -> bool:
+def _runtime_doc_type_set(processing_cfg: dict[str, Any], key: str) -> set[str]:
+    return {
+        str(item).strip().upper() for item in (processing_cfg.get(key) or []) if str(item).strip()
+    }
+
+
+def _runtime_text_list(processing_cfg: dict[str, Any], key: str) -> list[str]:
+    return [str(item).strip() for item in (processing_cfg.get(key) or []) if str(item).strip()]
+
+
+def _analysis_indicates_ai_failure(
+    analysis: dict[str, Any],
+    *,
+    processing_cfg: dict[str, Any] | None = None,
+) -> bool:
     """Detect whether the AI analysis failed (timeout, connection error, etc.)."""
     combined = " ".join(
         str(analysis.get(k, "") or "") for k in ("raw_response", "reasoning", "error", "model_used")
     ).lower()
-    return any(token in combined for token in _AI_FAILURE_TOKENS)
+    cfg = processing_cfg or load_processing_runtime_config(None)
+    return any(token.lower() in combined for token in _runtime_text_list(cfg, "ai_failure_tokens"))
 
 
 def _project_line_item_slots(
@@ -237,7 +250,9 @@ async def _analyze_with_context(
 ) -> dict[str, Any]:
     # Si el OCR ya extrajo texto suficiente, no usar visión.
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
-    text_is_sufficient = bool(content and len(content.strip()) >= 100)
+    processing_cfg = load_processing_runtime_config(db)
+    min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 100))
+    text_is_sufficient = bool(content and len(content.strip()) >= min_chars)
     image_bytes = (
         None if text_is_sufficient else bytes(vision_image_bytes) if vision_image_bytes else None
     )
@@ -323,6 +338,7 @@ async def _process_async_document(
     text = extraction.get("text", "")
     structured = extraction.get("structured_data")
     sheet_profiles = extraction.get("sheet_profiles")
+    processing_cfg = load_processing_runtime_config(db)
 
     has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
 
@@ -359,15 +375,24 @@ async def _process_async_document(
         resolved_snapshot_id = recipe_context.resolved_snapshot_id
 
     if has_structured:
+        preview_rows = max(1, int(processing_cfg.get("structured_preview_rows") or 5))
+        preview_fields = max(1, int(processing_cfg.get("structured_preview_fields") or 8))
         sample_lines = [f"Columnas: {headers_display}"]
-        for row in structured[:5] if isinstance(structured, list) else []:
+        for row in structured[:preview_rows] if isinstance(structured, list) else []:
             if isinstance(row, dict):
                 sample_lines.append(
-                    str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")})
+                    str(
+                        {
+                            k: v
+                            for k, v in list(row.items())[:preview_fields]
+                            if not k.startswith("_")
+                        }
+                    )
                 )
         llm_content = "\n".join(sample_lines)
     else:
-        llm_content = text[:6000] if text else ""
+        llm_preview_chars = max(1, int(processing_cfg.get("llm_text_preview_chars") or 6000))
+        llm_content = text[:llm_preview_chars] if text else ""
 
     vision_image_bytes = extraction.get("vision_image_bytes")
     if not isinstance(vision_image_bytes, (bytes, bytearray)):
@@ -430,7 +455,7 @@ async def _process_async_document(
             # L5: Template extraction — campos extraídos directamente, sin AI
             analysis = {
                 **(pre_class.cached_analysis or {}),
-                "model_used": f"pre-classifier/template",
+                "model_used": "pre-classifier/template",
                 "prompt_sent": "",
                 "raw_response": pre_class.reasoning,
             }
@@ -463,26 +488,25 @@ async def _process_async_document(
         # Exception: never inject table-only type hints (INVENTORY, PRICE_LIST, etc.)
         # for non-structured docs (PDFs, images) — those types require spreadsheet rows
         # that a PDF can never provide, causing datos_extraidos to be always empty.
-        _TABLE_ONLY_TYPES = {
-            "INVENTORY",
-            "PRICE_LIST",
-            "COSTING",
-            "PAYROLL",
-            "BANK_STATEMENT",
-            "BANK_MOVEMENTS",
-            "PRODUCT_LIST",
-        }
+        table_only_doc_types = _runtime_doc_type_set(processing_cfg, "table_only_doc_types")
+        doc_type_hint_min_confidence = float(
+            processing_cfg.get("doc_type_hint_min_confidence") or 0.65
+        )
         _rc_for_ai = dict(recipe_config) if recipe_config else {}
-        if pre_class and pre_class.confidence >= 0.65:
+        if pre_class and pre_class.confidence >= doc_type_hint_min_confidence:
             _hint_type = pre_class.doc_type.upper()
-            if has_structured or _hint_type not in _TABLE_ONLY_TYPES:
+            if has_structured or _hint_type not in table_only_doc_types:
                 _rc_for_ai["doc_type_hint"] = pre_class.doc_type
                 _rc_for_ai["doc_type_hint_confidence"] = pre_class.confidence
         if not has_structured and text_cached_analysis and not _rc_for_ai.get("doc_type_hint"):
             _cached_type = str(text_cached_analysis.get("doc_type") or "").upper()
             _cached_conf = float(text_cached_analysis.get("confidence") or 0)
-            if _cached_type and _cached_type != "OTHER" and _cached_conf >= 0.65:
-                if _cached_type not in _TABLE_ONLY_TYPES:
+            if (
+                _cached_type
+                and _cached_type != "OTHER"
+                and _cached_conf >= doc_type_hint_min_confidence
+            ):
+                if _cached_type not in table_only_doc_types:
                     _rc_for_ai["doc_type_hint"] = _cached_type
                     _rc_for_ai["doc_type_hint_confidence"] = _cached_conf
         analysis_recipe_config = dict(_rc_for_ai)
@@ -549,6 +573,9 @@ async def _process_async_document(
 
     _used_text_fallback = False
     if has_structured:
+        structured_output_limit = max(
+            1, int(processing_cfg.get("structured_output_rows_limit") or 200)
+        )
         sheet_used = extraction.get("sheet_used")
         sheet_metadata = extraction.get("sheet_metadata") or {}
         filas_por_hoja: dict[str, list] = {}
@@ -558,7 +585,7 @@ async def _process_async_document(
                 if sheet_name:
                     filas_por_hoja.setdefault(sheet_name, []).append(row)
         datos_extraidos = {
-            "filas": structured[:200],
+            "filas": structured[:structured_output_limit],
             "total_filas": len(structured),
             "columnas": headers_display or headers_norm,
             "columnas_norm": headers_norm,
@@ -566,11 +593,15 @@ async def _process_async_document(
             "metadata_por_hoja": sheet_metadata,
             "sheet_usada": sheet_used,
         }
-        if looks_like_product_document(
-            datos_extraidos,
-            sheet_name=sheet_used,
-            detection_config=load_product_sheet_detection_config(db),
-        ) and tipo_doc not in {"INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS"}:
+        product_like_doc_types = _runtime_doc_type_set(processing_cfg, "product_like_doc_types")
+        if (
+            looks_like_product_document(
+                datos_extraidos,
+                sheet_name=sheet_used,
+                detection_config=load_product_sheet_detection_config(db),
+            )
+            and tipo_doc not in product_like_doc_types
+        ):
             tipo_doc = "INVENTORY"
             requiere_revision = True
             crud.add_log(
@@ -588,7 +619,14 @@ async def _process_async_document(
         datos_extraidos = analysis_fields or {}
         # Text fallback: when AI failed and OCR text is available, extract
         # fields using DB-configured labels and aliases.
-        if not datos_extraidos and text.strip() and _analysis_indicates_ai_failure(analysis):
+        if (
+            not datos_extraidos
+            and text.strip()
+            and _analysis_indicates_ai_failure(
+                analysis,
+                processing_cfg=processing_cfg,
+            )
+        ):
             text_fallback_started_at = time.perf_counter()
             # El timeout de la IA puede haber dejado la transacción en estado abortado.
             # Hacemos rollback para limpiarla antes de continuar con queries al DB.
@@ -666,11 +704,15 @@ async def _process_async_document(
                 and _snapshot_learning_version >= 2
                 and confianza >= classification_threshold
             )
-            _rerun_allowed = (
-                bool(learning_ctrl.get("rerun_enabled", True))
-                and float(confianza or 0.0) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
-            )
-            if auto_recipe_config and not auto_recipe_created and not _learning_mature and _rerun_allowed:
+            _rerun_allowed = bool(learning_ctrl.get("rerun_enabled", True)) and float(
+                confianza or 0.0
+            ) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
+            if (
+                auto_recipe_config
+                and not auto_recipe_created
+                and not _learning_mature
+                and _rerun_allowed
+            ):
                 baseline_routing = build_document_routing_decision(
                     source_doc_type=tipo_doc,
                     ai_confidence=confianza,
@@ -876,14 +918,18 @@ async def _process_async_document(
         snapshot_id=resolved_snapshot_id,
     )
     _set_stage_timing(stage_timings, "review_hints", review_hints_started_at)
-    raw_ai_json["run"].update(_build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at))
+    raw_ai_json["run"].update(
+        _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
+    )
 
     document_update_started_at = time.perf_counter()
     crud.update_documento(
         db,
         doc,
         {
-            "texto_ocr": text[:50000],
+            "texto_ocr": text[
+                : max(1, int(processing_cfg.get("persist_text_ocr_max_chars") or 50000))
+            ],
             "tipo_documento_detectado": tipo_doc,
             "confianza_clasificacion": confianza,
             "requiere_revision": routing_decision.needs_human_review,
@@ -899,7 +945,9 @@ async def _process_async_document(
         },
     )
     _set_stage_timing(stage_timings, "document_update", document_update_started_at)
-    raw_ai_json["run"].update(_build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at))
+    raw_ai_json["run"].update(
+        _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
+    )
     crud.update_documento(db, doc, {"raw_ai_json": raw_ai_json})
     logger.info(
         "importador.processing.completed doc_id=%s mode=%s metrics=%s",
@@ -952,6 +1000,7 @@ async def _process_run_document(
     sheet_profiles = extraction.get("sheet_profiles")
     sheet_metadata = extraction.get("sheet_metadata") or {}
     sheet_used = extraction.get("sheet_used")
+    processing_cfg = load_processing_runtime_config(db)
 
     has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
     structured_rows_all: list[dict[str, Any]] = structured if isinstance(structured, list) else []
@@ -960,6 +1009,9 @@ async def _process_run_document(
     headers_norm: list[str] = []
     headers_display: list[str] = []
     if has_structured:
+        structured_output_limit = max(
+            1, int(processing_cfg.get("structured_output_rows_limit") or 200)
+        )
         sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
         if sheet_used is None and sheet_names:
             sheet_used = sheet_names[0]
@@ -1018,32 +1070,39 @@ async def _process_run_document(
     _set_stage_timing(stage_timings, "recipe_resolution", recipe_resolution_started_at)
 
     recipe_name_detected: str | None = None
+    recipe_name_field_candidates = {
+        key.lower() for key in _runtime_text_list(processing_cfg, "recipe_name_field_candidates")
+    }
     if has_structured:
+        preview_rows = max(1, int(processing_cfg.get("structured_preview_rows") or 5))
+        preview_fields = max(1, int(processing_cfg.get("structured_preview_fields") or 8))
         sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
         if sheet_used is None and sheet_names:
             sheet_used = sheet_names[0]
         sample_lines = [f"Columnas: {headers_display}"]
-        for row in structured_rows[:5]:
+        for row in structured_rows[:preview_rows]:
             if isinstance(row, dict):
                 sample_lines.append(
-                    str({k: v for k, v in list(row.items())[:8] if not k.startswith("_")})
+                    str(
+                        {
+                            k: v
+                            for k, v in list(row.items())[:preview_fields]
+                            if not k.startswith("_")
+                        }
+                    )
                 )
                 if recipe_name_detected is None:
                     for key in row.keys():
                         key_norm = str(key or "").strip().lower()
-                        if key_norm in (
-                            "nombre_de_la_receta",
-                            "nombre_receta",
-                            "nombre de la receta",
-                            "nombre",
-                        ):
+                        if key_norm in recipe_name_field_candidates:
                             value = row.get(key)
                             if value:
                                 recipe_name_detected = str(value).strip()
                                 break
         llm_content = "\n".join(sample_lines)
     else:
-        llm_content = text[:6000] if text else ""
+        llm_preview_chars = max(1, int(processing_cfg.get("llm_text_preview_chars") or 6000))
+        llm_content = text[:llm_preview_chars] if text else ""
 
     is_image_doc = tipo_archivo in ("JPG", "PNG", "IMG")
     is_scanned_pdf = tipo_archivo == "PDF" and extraction.get("format") == "PDF_OCR"
@@ -1080,10 +1139,19 @@ async def _process_run_document(
         }
     else:
         _rc_for_run = dict(local_recipe_config or {})
+        doc_type_hint_min_confidence = float(
+            processing_cfg.get("doc_type_hint_min_confidence") or 0.65
+        )
+        table_only_doc_types = _runtime_doc_type_set(processing_cfg, "table_only_doc_types")
         if text_cached_analysis_run and not _rc_for_run.get("doc_type_hint"):
             _cached_type = str(text_cached_analysis_run.get("doc_type") or "").upper()
             _cached_conf = float(text_cached_analysis_run.get("confidence") or 0)
-            if _cached_type and _cached_type != "OTHER" and _cached_conf >= 0.65:
+            if (
+                _cached_type
+                and _cached_type != "OTHER"
+                and _cached_conf >= doc_type_hint_min_confidence
+                and (has_structured or _cached_type not in table_only_doc_types)
+            ):
                 _rc_for_run["doc_type_hint"] = _cached_type
                 _rc_for_run["doc_type_hint_confidence"] = _cached_conf
         ai_primary_started_at = time.perf_counter()
@@ -1131,17 +1199,12 @@ async def _process_run_document(
             sheet_used = sheet_names[0]
         columnas = headers_display or headers_norm
         if recipe_name_detected is None:
-            for row in structured_rows[:200]:
+            for row in structured_rows[:structured_output_limit]:
                 if not isinstance(row, dict):
                     continue
                 for key in row.keys():
                     key_norm = str(key or "").strip().lower()
-                    if key_norm in (
-                        "nombre_de_la_receta",
-                        "nombre_receta",
-                        "nombre de la receta",
-                        "nombre",
-                    ):
+                    if key_norm in recipe_name_field_candidates:
                         value = row.get(key)
                         if value:
                             recipe_name_detected = str(value).strip()
@@ -1156,16 +1219,7 @@ async def _process_run_document(
         if recipe_name_detected is None and meta_for_sheet:
             for key, value in meta_for_sheet.items():
                 key_norm = str(key or "").strip().lower()
-                if (
-                    key_norm
-                    in (
-                        "nombre_de_la_receta",
-                        "nombre_receta",
-                        "nombre de la receta",
-                        "nombre",
-                    )
-                    and value
-                ):
+                if key_norm in recipe_name_field_candidates and value:
                     recipe_name_detected = str(value).strip()
                     break
         if recipe_name_detected is None:
@@ -1194,7 +1248,7 @@ async def _process_run_document(
                 }
 
         datos_extraidos = {
-            "filas": structured_rows[:200],
+            "filas": structured_rows[:structured_output_limit],
             "total_filas": len(structured_rows),
             "columnas": columnas,
             "columnas_norm": headers_norm,
@@ -1207,14 +1261,18 @@ async def _process_run_document(
             datos_extraidos["metadata"] = meta_for_sheet
         if filas_por_hoja:
             datos_extraidos["filas_por_hoja"] = {
-                key: value[:200] for key, value in filas_por_hoja.items()
+                key: value[:structured_output_limit] for key, value in filas_por_hoja.items()
             }
             datos_extraidos["filas_por_hoja_count"] = filas_count
-        if looks_like_product_document(
-            datos_extraidos,
-            sheet_name=sheet_used,
-            detection_config=load_product_sheet_detection_config(db),
-        ) and tipo_doc not in {"INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS"}:
+        product_like_doc_types = _runtime_doc_type_set(processing_cfg, "product_like_doc_types")
+        if (
+            looks_like_product_document(
+                datos_extraidos,
+                sheet_name=sheet_used,
+                detection_config=load_product_sheet_detection_config(db),
+            )
+            and tipo_doc not in product_like_doc_types
+        ):
             tipo_doc = "INVENTORY"
             requiere_revision = True
     else:
@@ -1264,10 +1322,9 @@ async def _process_run_document(
             and _run_learning_version >= 2
             and confianza >= classification_threshold
         )
-        _run_rerun_allowed = (
-            bool(learning_ctrl.get("rerun_enabled", True))
-            and float(confianza or 0.0) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
-        )
+        _run_rerun_allowed = bool(learning_ctrl.get("rerun_enabled", True)) and float(
+            confianza or 0.0
+        ) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
         if (
             auto_rc2
             and not auto_recipe_created
@@ -1401,7 +1458,9 @@ async def _process_run_document(
         db,
         doc,
         {
-            "texto_ocr": text[:50000],
+            "texto_ocr": text[
+                : max(1, int(processing_cfg.get("persist_text_ocr_max_chars") or 50000))
+            ],
             "tipo_documento_detectado": tipo_doc,
             "confianza_clasificacion": confianza,
             "requiere_revision": requiere_revision,
@@ -1416,7 +1475,9 @@ async def _process_run_document(
         },
     )
     _set_stage_timing(stage_timings, "document_update", document_update_started_at)
-    raw_ai_json["run"].update(_build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at))
+    raw_ai_json["run"].update(
+        _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
+    )
     crud.update_documento(db, doc, {"raw_ai_json": raw_ai_json})
     crud.add_log(
         db,

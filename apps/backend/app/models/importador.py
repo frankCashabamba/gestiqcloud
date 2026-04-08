@@ -658,9 +658,7 @@ class ImpDocTypeTemplate(Base):
         server_default=text("'{}'"),
     )
 
-    min_confidence_para_skip: Mapped[float] = mapped_column(
-        Float, nullable=False, default=0.80
-    )
+    min_confidence_para_skip: Mapped[float] = mapped_column(Float, nullable=False, default=0.80)
     campos_requeridos: Mapped[list] = mapped_column(
         ARRAY(String), nullable=False, server_default=text("'{}'")
     )
@@ -668,13 +666,9 @@ class ImpDocTypeTemplate(Base):
     # Stats de uso y aprendizaje
     total_usos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_exitosos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    last_used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

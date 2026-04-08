@@ -10,6 +10,7 @@ from app.modules.importador.document_fields import detect_document_total, safe_f
 from app.modules.importador.runtime_config import (
     load_routing_field_aliases,
     load_routing_field_labels,
+    load_routing_scoring_config,
 )
 from app.modules.importador.schemas import DocumentRoutingDecision
 
@@ -20,6 +21,7 @@ from .document_routing_config import (
     resolve_routing_profile,
     resolve_routing_profile_match,
 )
+
 
 def _field_candidates() -> dict[str, tuple[str, ...]]:
     return load_routing_field_aliases(None)
@@ -61,7 +63,9 @@ def _field_from_sources(
         if value is not None:
             return value
     if field_name == "total_amount":
-        return detect_document_total(source, aliases=list(field_candidates.get("total_amount", ("total_amount",))))
+        return detect_document_total(
+            source, aliases=list(field_candidates.get("total_amount", ("total_amount",)))
+        )
     return None
 
 
@@ -209,20 +213,23 @@ def build_document_routing_decision(
         canonical_document=canonical_document,
     )
 
+    scoring = load_routing_scoring_config(db)
     safe_ai_confidence = max(0.0, min(1.0, float(ai_confidence or 0.0)))
-    category_bonus = 1.0 if source_category != "other" else 0.72
+    category_bonus = (
+        1.0 if source_category != "other" else float(scoring.get("other_category_bonus") or 0.72)
+    )
     confidence = (
-        (safe_ai_confidence * 0.6)
-        + (required_ratio * 0.25)
-        + (support_ratio * 0.1)
-        + (category_bonus * 0.05)
+        (safe_ai_confidence * float(scoring.get("ai_confidence_weight") or 0.6))
+        + (required_ratio * float(scoring.get("required_ratio_weight") or 0.25))
+        + (support_ratio * float(scoring.get("support_ratio_weight") or 0.1))
+        + (category_bonus * float(scoring.get("category_bonus_weight") or 0.05))
     )
     if missing_fields:
         confidence = min(confidence, max(profile.confidence_threshold - 0.01, 0.0))
 
     profile_blocked = profile.blocked and destination_override is None
     if profile_blocked:
-        confidence = min(confidence, 0.58)
+        confidence = min(confidence, float(scoring.get("blocked_confidence_cap") or 0.58))
     confidence = round(max(0.0, min(1.0, confidence)), 2)
 
     required_fields_ok = len(missing_fields) == 0

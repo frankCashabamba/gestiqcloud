@@ -7,10 +7,11 @@ from app.modules.importador.ai_classifier import _fallback_classify, analyze_doc
 
 
 def test_analyze_document_uses_runtime_prompt_config_and_canonical_fields(monkeypatch):
-    captured: dict[str, str] = {}
+    captured: dict[str, object] = {}
 
     async def fake_query(**kwargs):
         captured["prompt"] = kwargs["prompt"]
+        captured["messages"] = kwargs.get("messages")
         return SimpleNamespace(
             content=(
                 '{"doc_type":"INVOICE","confidence":0.93,"reasoning":"ok",'
@@ -53,6 +54,10 @@ def test_analyze_document_uses_runtime_prompt_config_and_canonical_fields(monkey
     assert result["prompt_parts"]["system_prompt"] == "System from DB"
     assert result["prompt_parts"]["doc_type_instruction"] == "Configured doc type from DB"
     assert result["prompt_parts"]["critical_rules"][0] == "Rule from DB"
+    assert captured["messages"] == [
+        {"role": "system", "content": "System from DB"},
+        {"role": "user", "content": result["prompt_parts"]["user_prompt"]},
+    ]
 
 
 def test_analyze_document_uses_runtime_doc_type_instruction_for_structured_inputs(monkeypatch):
@@ -84,7 +89,10 @@ def test_analyze_document_uses_runtime_doc_type_instruction_for_structured_input
     assert result["doc_type"] == "PRICE_LIST"
     assert "Use DB labels only for structured previews." in captured["prompt"]
     assert result["prompt_parts"]["mode"] == "structured_classification"
-    assert result["prompt_parts"]["doc_type_instruction"] == "Use DB labels only for structured previews."
+    assert (
+        result["prompt_parts"]["doc_type_instruction"]
+        == "Use DB labels only for structured previews."
+    )
 
 
 def test_analyze_document_uses_split_prompt_labels_from_runtime_config(monkeypatch):
@@ -123,6 +131,38 @@ def test_analyze_document_uses_split_prompt_labels_from_runtime_config(monkeypat
     assert "EXTRA:" in captured["prompt"]
     assert result["prompt_parts"]["custom_user_prompt"] == "Usa concepto contable corto."
     assert result["prompt_parts"]["full_prompt"] == result["prompt_full"]
+
+
+def test_analyze_document_uses_runtime_time_context_template(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_query(**kwargs):
+        captured["prompt"] = kwargs["prompt"]
+        return SimpleNamespace(
+            content='{"doc_type":"INVOICE","confidence":0.88,"reasoning":"ok","is_table":false,"columns":[],"fields":{}}',
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content="Documento de prueba",
+            filename="doc.pdf",
+            format_hint="PDF",
+            canonical_fields=None,
+            prompt_config={
+                "extraction_system": "System cfg",
+                "document_time_context_template": "VENTANA {previous_year}/{current_year}",
+                "critical_rules": ["Regla A"],
+            },
+        )
+    )
+
+    assert "VENTANA" in captured["prompt"]
+    assert "VENTANA" in result["prompt_parts"]["user_prompt"]
 
 
 def test_analyze_document_uses_runtime_fallback_dynamic_fields_prompt(monkeypatch):
@@ -238,6 +278,58 @@ def test_analyze_document_blanks_low_evidence_fields_for_weak_image_ocr(monkeypa
     assert result["fields"]["line_items"] == []
     assert result["confidence"] == 0.45
     assert "Low OCR evidence" in result["reasoning"]
+
+
+def test_analyze_document_uses_runtime_ai_guard_config(monkeypatch):
+    async def fake_query(**kwargs):
+        del kwargs
+        return SimpleNamespace(
+            content=(
+                '{"doc_type":"SUPPLIER_INVOICE","confidence":0.94,"reasoning":"ok",'
+                '"is_table":false,"columns":[],"fields":{"vendor":"Inventado"}}'
+            ),
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+    monkeypatch.setattr(
+        "app.modules.importador.ai_classifier.load_ai_runtime_config",
+        lambda _db=None: {
+            "ocr_min_quality": 0.9,
+            "ocr_min_words_for_vision": 999,
+            "ocr_length_target_chars": 1200,
+            "ocr_word_target": 180,
+            "ocr_alpha_ratio_target": 0.6,
+            "ocr_noise_ratio_limit": 0.2,
+            "ocr_score_weight_length": 0.35,
+            "ocr_score_weight_words": 0.35,
+            "ocr_score_weight_alpha": 0.2,
+            "ocr_score_weight_clean": 0.1,
+            "ocr_guard_confidence_cap": 0.33,
+            "ocr_evidence_formats": ["IMAGE_OCR"],
+            "vision_allowed_formats": ["IMAGE_OCR"],
+            "vision_resize_max_dim": 1024,
+            "vision_temperature": 0.1,
+            "vision_num_predict": 600,
+            "vision_probe_timeout_seconds": 5.0,
+            "vision_timeout_seconds": 45.0,
+        },
+    )
+
+    result = asyncio.run(
+        analyze_document(
+            content="OCR muy pobre sin evidencia real",
+            filename="nota.jpg",
+            format_hint="IMAGE_OCR",
+            image_bytes=None,
+            canonical_fields={"vendor": {"type": "text"}},
+        )
+    )
+
+    assert result["fields"]["vendor"] is None
+    assert result["confidence"] == 0.33
 
 
 def test_analyze_document_preserves_fields_when_image_ocr_has_evidence(monkeypatch):

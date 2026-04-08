@@ -17,6 +17,7 @@ Nothing is hardcoded.
 
 from __future__ import annotations
 
+import datetime as _dt
 import hashlib
 import logging
 import re
@@ -26,8 +27,6 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from pathlib import Path
 from typing import Any
-
-import datetime as _dt
 
 logger = logging.getLogger("importador.pre_classifier")
 
@@ -52,7 +51,9 @@ def _get_cache_ttl() -> float:
 class PreClassResult:
     doc_type: str
     confidence: float
-    layer: str  # "snapshot_cache" | "filename_pattern" | "header_mapping" | "vendor_ruc" | "template"
+    layer: (
+        str  # "snapshot_cache" | "filename_pattern" | "header_mapping" | "vendor_ruc" | "template"
+    )
     reasoning: str
     skip_ai: bool = False  # True for snapshot_cache (structured) and template (high confidence)
     cached_analysis: dict | None = None  # Populated when skip_ai=True (L1) or template result (L5)
@@ -454,7 +455,9 @@ def _extract_ruc_from_text(text: str) -> str | None:
             "max_digits": 15,
         }
 
-    patterns = [str(pattern) for pattern in (cfg.get("match_patterns") or []) if str(pattern).strip()]
+    patterns = [
+        str(pattern) for pattern in (cfg.get("match_patterns") or []) if str(pattern).strip()
+    ]
     scan_max_chars = int(cfg.get("scan_max_chars") or 3000)
     min_digits = int(cfg.get("min_digits") or 8)
     max_digits = int(cfg.get("max_digits") or 15)
@@ -572,11 +575,7 @@ def _template_matches_activation(
     fn_patterns = act.get("filename_patterns")
     if fn_patterns:
         stem = _normalize_filename_stem(filename)
-        if not any(
-            re.search(str(p), stem, re.IGNORECASE)
-            for p in fn_patterns
-            if p
-        ):
+        if not any(re.search(str(p), stem, re.IGNORECASE) for p in fn_patterns if p):
             return False
 
     # text_keywords: todas deben estar presentes en el texto OCR (AND)

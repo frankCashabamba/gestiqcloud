@@ -19,7 +19,7 @@
     "uuid_patterns": ["[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"],
     "date_patterns": ["\\b\\d{4}[-_]\\d{2}[-_]\\d{2}\\b", "\\b\\d{2}[-_]\\d{2}[-_]\\d{4}\\b"],
     "long_number_patterns": ["\\b\\d{4,}\\b"],
-    "separator_patterns": ["[_\\-\\.]+"] 
+    "separator_patterns": ["[_\\-\\.]+"]
   },
   "tax_id_patterns": {
     "match_patterns": [
@@ -148,6 +148,7 @@
     "structured_classification_preview_label": "Structured preview:",
     "structured_table_note": "NOTE: Content is already pre-processed as a structured table. If you recognize a list or table, set is_table=true and provide clean column names. Do NOT return individual rows.",
     "doc_type_instruction": "A short uppercase label describing the document type in English. Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable.",
+    "document_time_context_template": "CONTEXT: Current year is {current_year}. Most documents are from {previous_year}-{current_year}.",
     "response_json_label": "Respond ONLY with valid JSON:",
     "critical_rules_heading": "CRITICAL rules:",
     "additional_instructions_heading": "Additional instructions:",
@@ -212,6 +213,51 @@
       "OTHER": "1500"
     }
   },
+  "ai_runtime": {
+    "ocr_min_quality": "0.45",
+    "ocr_min_words_for_vision": "18",
+    "ocr_length_target_chars": "1200",
+    "ocr_word_target": "180",
+    "ocr_alpha_ratio_target": "0.60",
+    "ocr_noise_ratio_limit": "0.20",
+    "ocr_score_weight_length": "0.35",
+    "ocr_score_weight_words": "0.35",
+    "ocr_score_weight_alpha": "0.20",
+    "ocr_score_weight_clean": "0.10",
+    "ocr_guard_confidence_cap": "0.45",
+    "ocr_evidence_formats": ["IMAGE_OCR", "PDF_OCR", "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"],
+    "vision_allowed_formats": ["IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG", "PDF"],
+    "evidence_stop_tokens": ["cliente", "customer", "proveedor", "vendor", "empresa", "company", "concepto", "concept"],
+    "currency_markers": {
+      "USD": ["usd", "us$", "$", "dolar", "dolares"],
+      "EUR": ["eur", "euro", "euros", "€"],
+      "PEN": ["pen", "s/", "sol", "soles"],
+      "$": ["$", "usd", "dolar", "dolares"],
+      "S/": ["s/", "pen", "sol", "soles"]
+    },
+    "ocr_written_months": {
+      "enero": "1",
+      "febrero": "2",
+      "marzo": "3",
+      "abril": "4",
+      "mayo": "5",
+      "junio": "6",
+      "julio": "7",
+      "agosto": "8",
+      "septiembre": "9",
+      "setiembre": "9",
+      "octubre": "10",
+      "noviembre": "11",
+      "diciembre": "12"
+    },
+    "low_evidence_reason_template": "Low OCR evidence: cleared {cleared} unsupported field(s) to avoid hallucinated data.",
+    "vision_default_reasoning": "Vision model analysis",
+    "vision_resize_max_dim": "1024",
+    "vision_temperature": "0.10",
+    "vision_num_predict": "600",
+    "vision_probe_timeout_seconds": "5",
+    "vision_timeout_seconds": "45"
+  },
   "ai_model_routing": {
     "default": "",
     "INVOICE": "",
@@ -239,6 +285,27 @@
     "header_coverage_min_ratio": "0.50",
     "structured_skip_threshold": "0.75",
     "ocr_weird_ratio_max": "0.15"
+  },
+  "processing_runtime": {
+    "ocr_text_sufficient_min_chars": "100",
+    "llm_text_preview_chars": "6000",
+    "structured_preview_rows": "5",
+    "structured_preview_fields": "8",
+    "doc_type_hint_min_confidence": "0.65",
+    "structured_output_rows_limit": "200",
+    "persist_text_ocr_max_chars": "50000",
+    "ai_failure_tokens": ["timeout", "timed out", "unavailable", "connection", "refused", "failed"],
+    "table_only_doc_types": ["INVENTORY", "PRICE_LIST", "COSTING", "PAYROLL", "BANK_STATEMENT", "BANK_MOVEMENTS", "PRODUCT_LIST"],
+    "product_like_doc_types": ["INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS"],
+    "recipe_name_field_candidates": ["nombre_de_la_receta", "nombre_receta", "nombre de la receta", "nombre"]
+  },
+  "routing_scoring": {
+    "ai_confidence_weight": "0.60",
+    "required_ratio_weight": "0.25",
+    "support_ratio_weight": "0.10",
+    "category_bonus_weight": "0.05",
+    "other_category_bonus": "0.72",
+    "blocked_confidence_cap": "0.58"
   },
   "ocr_config": {
     "min_width": "1800",

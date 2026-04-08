@@ -124,6 +124,106 @@ _DEFAULT_PRE_CLASSIFIER_CONFIG: dict[str, float] = {
     "ocr_weird_ratio_max": 0.15,
 }
 
+_DEFAULT_AI_RUNTIME_CONFIG: dict[str, Any] = {
+    "ocr_min_quality": 0.45,
+    "ocr_min_words_for_vision": 18,
+    "ocr_length_target_chars": 1200,
+    "ocr_word_target": 180,
+    "ocr_alpha_ratio_target": 0.60,
+    "ocr_noise_ratio_limit": 0.20,
+    "ocr_score_weight_length": 0.35,
+    "ocr_score_weight_words": 0.35,
+    "ocr_score_weight_alpha": 0.20,
+    "ocr_score_weight_clean": 0.10,
+    "ocr_guard_confidence_cap": 0.45,
+    "ocr_evidence_formats": [
+        "IMAGE_OCR",
+        "PDF_OCR",
+        "JPG",
+        "JPEG",
+        "PNG",
+        "IMG",
+        "HEIC",
+        "WEBP",
+    ],
+    "vision_allowed_formats": ["IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG", "PDF"],
+    "evidence_stop_tokens": [
+        "cliente",
+        "customer",
+        "proveedor",
+        "vendor",
+        "empresa",
+        "company",
+        "concepto",
+        "concept",
+    ],
+    "currency_markers": {
+        "USD": ["usd", "us$", "$", "dolar", "dolares"],
+        "EUR": ["eur", "euro", "euros", "€"],
+        "PEN": ["pen", "s/", "sol", "soles"],
+        "$": ["$", "usd", "dolar", "dolares"],
+        "S/": ["s/", "pen", "sol", "soles"],
+    },
+    "ocr_written_months": {
+        "enero": 1,
+        "febrero": 2,
+        "marzo": 3,
+        "abril": 4,
+        "mayo": 5,
+        "junio": 6,
+        "julio": 7,
+        "agosto": 8,
+        "septiembre": 9,
+        "setiembre": 9,
+        "octubre": 10,
+        "noviembre": 11,
+        "diciembre": 12,
+    },
+    "low_evidence_reason_template": "Low OCR evidence: cleared {cleared} unsupported field(s) to avoid hallucinated data.",
+    "vision_default_reasoning": "Vision model analysis",
+    "vision_resize_max_dim": 1024,
+    "vision_temperature": 0.10,
+    "vision_num_predict": 600,
+    "vision_probe_timeout_seconds": 5.0,
+    "vision_timeout_seconds": 45.0,
+}
+
+_DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
+    "ocr_text_sufficient_min_chars": 100,
+    "llm_text_preview_chars": 6000,
+    "structured_preview_rows": 5,
+    "structured_preview_fields": 8,
+    "doc_type_hint_min_confidence": 0.65,
+    "structured_output_rows_limit": 200,
+    "persist_text_ocr_max_chars": 50000,
+    "ai_failure_tokens": ["timeout", "timed out", "unavailable", "connection", "refused", "failed"],
+    "table_only_doc_types": [
+        "INVENTORY",
+        "PRICE_LIST",
+        "COSTING",
+        "PAYROLL",
+        "BANK_STATEMENT",
+        "BANK_MOVEMENTS",
+        "PRODUCT_LIST",
+    ],
+    "product_like_doc_types": ["INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS"],
+    "recipe_name_field_candidates": [
+        "nombre_de_la_receta",
+        "nombre_receta",
+        "nombre de la receta",
+        "nombre",
+    ],
+}
+
+_DEFAULT_ROUTING_SCORING_CONFIG: dict[str, float] = {
+    "ai_confidence_weight": 0.60,
+    "required_ratio_weight": 0.25,
+    "support_ratio_weight": 0.10,
+    "category_bonus_weight": 0.05,
+    "other_category_bonus": 0.72,
+    "blocked_confidence_cap": 0.58,
+}
+
 
 def _cache_get(key: str) -> dict | None:
     entry = _cache.get(key)
@@ -321,7 +421,9 @@ def load_tax_id_patterns_config(db: Any | None = None) -> dict[str, Any]:
             key = str(row.key or "").strip()
             if key == "match_patterns" and isinstance(row.value_list, list):
                 config[key] = [str(item) for item in row.value_list if str(item).strip()]
-            elif key in {"scan_max_chars", "min_digits", "max_digits"} and row.value_text is not None:
+            elif (
+                key in {"scan_max_chars", "min_digits", "max_digits"} and row.value_text is not None
+            ):
                 config[key] = _int_value(row.value_text, config[key])
         return _cache_set("tax_id_patterns", config)
     except Exception as exc:
@@ -556,7 +658,9 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
         "easyocr_enabled": bool(_DEFAULT_OCR_CONFIG["easyocr_enabled"]),
         "easyocr_variant_label": str(_DEFAULT_OCR_CONFIG["easyocr_variant_label"]),
         "excel_max_header_scan_rows": int(_DEFAULT_OCR_CONFIG["excel_max_header_scan_rows"]),
-        "excel_max_preview_rows_per_sheet": int(_DEFAULT_OCR_CONFIG["excel_max_preview_rows_per_sheet"]),
+        "excel_max_preview_rows_per_sheet": int(
+            _DEFAULT_OCR_CONFIG["excel_max_preview_rows_per_sheet"]
+        ),
         "excel_scan_rows_multiplier": int(_DEFAULT_OCR_CONFIG["excel_scan_rows_multiplier"]),
         "excel_max_text_chars": int(_DEFAULT_OCR_CONFIG["excel_max_text_chars"]),
     }
@@ -646,35 +750,46 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
             rows = _ensure_module_seeded(db, "ocr_config")
             for row in rows:
                 key = str(row.key or "").strip()
-                if key in {
-                    "min_width",
-                    "pdf_render_dpi",
-                    "median_filter_size",
-                    "perspective_threshold_value",
-                    "threshold_value",
-                    "threshold_low_value",
-                    "trim_background_threshold",
-                    "trim_min_padding_px",
-                    "perspective_canny_threshold1",
-                    "perspective_canny_threshold2",
-                    "perspective_blur_kernel",
-                    "perspective_kernel_size",
-                    "excel_max_header_scan_rows",
-                    "excel_max_preview_rows_per_sheet",
-                    "excel_scan_rows_multiplier",
-                    "excel_max_text_chars",
-                } and row.value_text is not None:
+                if (
+                    key
+                    in {
+                        "min_width",
+                        "pdf_render_dpi",
+                        "median_filter_size",
+                        "perspective_threshold_value",
+                        "threshold_value",
+                        "threshold_low_value",
+                        "trim_background_threshold",
+                        "trim_min_padding_px",
+                        "perspective_canny_threshold1",
+                        "perspective_canny_threshold2",
+                        "perspective_blur_kernel",
+                        "perspective_kernel_size",
+                        "excel_max_header_scan_rows",
+                        "excel_max_preview_rows_per_sheet",
+                        "excel_scan_rows_multiplier",
+                        "excel_max_text_chars",
+                    }
+                    and row.value_text is not None
+                ):
                     config[key] = _int_value(row.value_text, config[key])
-                elif key in {"weak_text_min_words", "weak_text_min_chars"} and row.value_text is not None:
+                elif (
+                    key in {"weak_text_min_words", "weak_text_min_chars"}
+                    and row.value_text is not None
+                ):
                     config[key] = _int_value(row.value_text, config[key], minimum=0)
-                elif key in {
-                    "image_contrast",
-                    "image_sharpness",
-                    "trim_min_crop_ratio",
-                    "trim_padding_ratio",
-                    "perspective_min_area_ratio",
-                    "perspective_min_output_ratio",
-                } and row.value_text is not None:
+                elif (
+                    key
+                    in {
+                        "image_contrast",
+                        "image_sharpness",
+                        "trim_min_crop_ratio",
+                        "trim_padding_ratio",
+                        "perspective_min_area_ratio",
+                        "perspective_min_output_ratio",
+                    }
+                    and row.value_text is not None
+                ):
                     config[key] = _float_value(row.value_text, config[key], minimum=0.0)
                 elif key in {
                     "tesseract_languages",
@@ -729,6 +844,263 @@ def load_pre_classifier_runtime_config(db: Any | None = None) -> dict[str, float
     return _cache_set("pre_classifier", config)  # type: ignore[return-value]
 
 
+def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
+    cached = _cache_get("ai_runtime")
+    if cached is not None:
+        return cached
+
+    config: dict[str, Any] = dict(_DEFAULT_AI_RUNTIME_CONFIG)
+    seed = _seed_module_payload("ai_runtime")
+
+    def _float_value(value: Any, default: float, *, minimum: float = 0.0) -> float:
+        try:
+            return max(minimum, float(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    def _int_value(value: Any, default: int, *, minimum: int = 0) -> int:
+        try:
+            return max(minimum, int(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    def _list_value(value: Any, default: list[str]) -> list[str]:
+        if not isinstance(value, list):
+            return list(default)
+        parsed = [str(item).strip().upper() for item in value if str(item).strip()]
+        return parsed or list(default)
+
+    def _list_value_keep_case(value: Any, default: list[str]) -> list[str]:
+        if not isinstance(value, list):
+            return list(default)
+        parsed = [str(item).strip() for item in value if str(item).strip()]
+        return parsed or list(default)
+
+    def _int_map_value(value: Any, default: dict[str, int]) -> dict[str, int]:
+        if not isinstance(value, dict):
+            return dict(default)
+        parsed: dict[str, int] = {}
+        for raw_key, raw_value in value.items():
+            key = str(raw_key).strip().lower()
+            if not key:
+                continue
+            try:
+                parsed[key] = int(str(raw_value).strip())
+            except (TypeError, ValueError):
+                continue
+        return parsed or dict(default)
+
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key in {"ocr_evidence_formats", "vision_allowed_formats"}:
+                config[key] = _list_value(value, config[key])
+            elif key == "evidence_stop_tokens":
+                config[key] = _list_value_keep_case(value, config[key])
+            elif key == "currency_markers" and isinstance(value, dict):
+                parsed_map: dict[str, list[str]] = {}
+                for raw_code, raw_markers in value.items():
+                    markers = _list_value_keep_case(raw_markers, [])
+                    if markers:
+                        parsed_map[str(raw_code).strip().upper()] = markers
+                if parsed_map:
+                    config[key] = parsed_map
+            elif key == "ocr_written_months":
+                config[key] = _int_map_value(value, config[key])
+            elif key in {"low_evidence_reason_template", "vision_default_reasoning"}:
+                parsed = str(value).strip()
+                if parsed:
+                    config[key] = parsed
+            elif key in {
+                "ocr_min_words_for_vision",
+                "ocr_length_target_chars",
+                "ocr_word_target",
+                "vision_resize_max_dim",
+                "vision_num_predict",
+            }:
+                config[key] = _int_value(value, int(config[key]), minimum=1)
+            elif key in {
+                "ocr_min_quality",
+                "ocr_alpha_ratio_target",
+                "ocr_noise_ratio_limit",
+                "ocr_score_weight_length",
+                "ocr_score_weight_words",
+                "ocr_score_weight_alpha",
+                "ocr_score_weight_clean",
+                "ocr_guard_confidence_cap",
+                "vision_temperature",
+                "vision_probe_timeout_seconds",
+                "vision_timeout_seconds",
+            }:
+                config[key] = _float_value(value, float(config[key]))
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "ai_runtime")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key in {"ocr_evidence_formats", "vision_allowed_formats"}:
+                    config[key] = _list_value(row.value_list, config[key])
+                elif key == "evidence_stop_tokens":
+                    config[key] = _list_value_keep_case(row.value_list, config[key])
+                elif key == "currency_markers" and row.value_text is not None:
+                    try:
+                        raw = json.loads(str(row.value_text))
+                    except Exception:
+                        raw = None
+                    if isinstance(raw, dict):
+                        parsed_map = {}
+                        for raw_code, raw_markers in raw.items():
+                            markers = _list_value_keep_case(raw_markers, [])
+                            if markers:
+                                parsed_map[str(raw_code).strip().upper()] = markers
+                        if parsed_map:
+                            config[key] = parsed_map
+                elif key == "ocr_written_months" and row.value_text is not None:
+                    try:
+                        raw = json.loads(str(row.value_text))
+                    except Exception:
+                        raw = None
+                    config[key] = _int_map_value(raw, config[key])
+                elif (
+                    key in {"low_evidence_reason_template", "vision_default_reasoning"}
+                    and row.value_text is not None
+                ):
+                    parsed = str(row.value_text).strip()
+                    if parsed:
+                        config[key] = parsed
+                elif (
+                    key
+                    in {
+                        "ocr_min_words_for_vision",
+                        "ocr_length_target_chars",
+                        "ocr_word_target",
+                        "vision_resize_max_dim",
+                        "vision_num_predict",
+                    }
+                    and row.value_text is not None
+                ):
+                    config[key] = _int_value(row.value_text, int(config[key]), minimum=1)
+                elif (
+                    key
+                    in {
+                        "ocr_min_quality",
+                        "ocr_alpha_ratio_target",
+                        "ocr_noise_ratio_limit",
+                        "ocr_score_weight_length",
+                        "ocr_score_weight_words",
+                        "ocr_score_weight_alpha",
+                        "ocr_score_weight_clean",
+                        "ocr_guard_confidence_cap",
+                        "vision_temperature",
+                        "vision_probe_timeout_seconds",
+                        "vision_timeout_seconds",
+                    }
+                    and row.value_text is not None
+                ):
+                    config[key] = _float_value(row.value_text, float(config[key]))
+        except Exception as exc:
+            logger.warning("No se pudo cargar ai_runtime desde imp_config: %s", exc)
+
+    return _cache_set("ai_runtime", config)
+
+
+def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
+    cached = _cache_get("processing_runtime")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    config: dict[str, Any] = dict(_DEFAULT_PROCESSING_RUNTIME_CONFIG)
+    seed = _seed_module_payload("processing_runtime")
+
+    def _int_value(value: Any, default: int, *, minimum: int = 0) -> int:
+        try:
+            return max(minimum, int(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    def _float_value(value: Any, default: float, *, minimum: float = 0.0) -> float:
+        try:
+            return max(minimum, float(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    def _list_value(value: Any, default: list[str], *, uppercase: bool = False) -> list[str]:
+        if not isinstance(value, list):
+            return list(default)
+        parsed = []
+        for item in value:
+            text = str(item).strip()
+            if not text:
+                continue
+            parsed.append(text.upper() if uppercase else text)
+        return parsed or list(default)
+
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key == "doc_type_hint_min_confidence":
+                config[key] = _float_value(value, float(config[key]))
+            elif key == "ai_failure_tokens":
+                config[key] = _list_value(value, config[key], uppercase=False)
+            elif key in {"table_only_doc_types", "product_like_doc_types"}:
+                config[key] = _list_value(value, config[key], uppercase=True)
+            elif key == "recipe_name_field_candidates":
+                config[key] = _list_value(value, config[key], uppercase=False)
+            elif key in config:
+                config[key] = _int_value(value, int(config[key]), minimum=1)
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "processing_runtime")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key == "doc_type_hint_min_confidence" and row.value_text is not None:
+                    config[key] = _float_value(row.value_text, float(config[key]))
+                elif key == "ai_failure_tokens":
+                    config[key] = _list_value(row.value_list, config[key], uppercase=False)
+                elif key in {"table_only_doc_types", "product_like_doc_types"}:
+                    config[key] = _list_value(row.value_list, config[key], uppercase=True)
+                elif key == "recipe_name_field_candidates":
+                    config[key] = _list_value(row.value_list, config[key], uppercase=False)
+                elif key in config and row.value_text is not None:
+                    config[key] = _int_value(row.value_text, int(config[key]), minimum=1)
+        except Exception as exc:
+            logger.warning("No se pudo cargar processing_runtime desde imp_config: %s", exc)
+
+    return _cache_set("processing_runtime", config)  # type: ignore[return-value]
+
+
+def load_routing_scoring_config(db: Any | None = None) -> dict[str, float]:
+    cached = _cache_get("routing_scoring")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    config: dict[str, float] = dict(_DEFAULT_ROUTING_SCORING_CONFIG)
+    seed = _seed_module_payload("routing_scoring")
+
+    def _float_value(value: Any, default: float) -> float:
+        try:
+            return float(str(value).strip())
+        except (TypeError, ValueError):
+            return default
+
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key in config:
+                config[key] = _float_value(value, config[key])
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "routing_scoring")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key in config and row.value_text is not None:
+                    config[key] = _float_value(row.value_text, config[key])
+        except Exception as exc:
+            logger.warning("No se pudo cargar routing_scoring desde imp_config: %s", exc)
+
+    return _cache_set("routing_scoring", config)  # type: ignore[return-value]
+
+
 def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
     cached = _cache_get("prompt_config")
     if cached is not None:
@@ -765,6 +1137,10 @@ def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
                     values = [str(v).strip() for v in row.value_list if str(v).strip()]
                     if values:
                         config[key] = values
+                elif key == "document_time_context_template":
+                    value = str(row.value_text or "").strip()
+                    if value:
+                        config[key] = value
             config["amount_labels"] = load_amount_label_config(db)
             return _cache_set("prompt_config", config)
         except Exception as exc:
@@ -1002,12 +1378,16 @@ def load_ai_params(db: Any | None = None) -> dict[str, Any]:
             key = str(row.key or "").strip()
             if key == "temperature" and row.value_text is not None:
                 config["temperature"] = _float(row.value_text, 0.1)
-            elif key in {
-                "max_tokens_extraction",
-                "max_tokens_classification",
-                "content_limit_unstructured",
-                "content_limit_structured",
-            } and row.value_text is not None:
+            elif (
+                key
+                in {
+                    "max_tokens_extraction",
+                    "max_tokens_classification",
+                    "content_limit_unstructured",
+                    "content_limit_structured",
+                }
+                and row.value_text is not None
+            ):
                 config[key] = _int(row.value_text, defaults[key])
             elif key == "max_tokens_by_doctype" and isinstance(row.value_list, list):
                 # value_list formato: ["INVOICE=1200", "RECEIPT=600"]
@@ -1041,9 +1421,7 @@ def load_ai_model_routing(db: Any | None = None) -> dict[str, str]:
 
     seed = _seed_module_payload("ai_model_routing")
     defaults: dict[str, str] = {
-        str(k).upper(): str(v).strip()
-        for k, v in (seed or {}).items()
-        if v
+        str(k).upper(): str(v).strip() for k, v in (seed or {}).items() if v
     }
 
     if db is None:

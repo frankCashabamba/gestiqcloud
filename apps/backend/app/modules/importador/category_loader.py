@@ -22,6 +22,7 @@ _CACHE_TTL = 300  # seconds
 _cache: dict[str, list[str]] = {}
 _cache_ts: float = 0.0
 
+
 def get_doc_categories(db: Any) -> dict[str, list[str]]:
     """Return {category: [keyword, …]} loaded from DB, refreshed every 5 min."""
     global _cache, _cache_ts

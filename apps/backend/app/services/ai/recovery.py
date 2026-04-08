@@ -238,6 +238,7 @@ class CacheStrategy(ErrorRecoveryStrategy):
             key_payload = {
                 "task": str(request.task),
                 "prompt": request.prompt,
+                "messages": request.messages or [],
                 "model": str(request.model or ""),
                 "temperature": request.temperature,
                 "max_tokens": request.max_tokens,

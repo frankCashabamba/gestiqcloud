@@ -1,5 +1,5 @@
 """
-Base AI Provider Interface - Abstracción centralizada para múltiples proveedores de IA
+Base AI Provider Interface - Abstraccion centralizada para multiples proveedores de IA
 """
 
 from __future__ import annotations
@@ -13,17 +13,31 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def messages_to_prompt(messages: list[dict[str, Any]] | None) -> str:
+    """Flatten chat messages into a stable text form for cache/logging/recovery."""
+    if not messages:
+        return ""
+    parts: list[str] = []
+    for item in messages:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "user").strip().lower() or "user"
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        parts.append(f"[{role}]\n{content}")
+    return "\n\n".join(parts)
+
+
 class AIModel(str, Enum):
     """Modelos disponibles en cada proveedor"""
 
-    # Ollama
     LLAMA3_1_8B = "llama3.1:8b"
     LLAMA3_1_70B = "llama3.1:70b"
     MISTRAL_7B = "mistral:7b"
     NEURAL_CHAT = "neural-chat:7b"
     QWEN2_5_3B = "qwen2.5:3b"
 
-    # OVHCloud / OpenAI
     GPT_4O = "gpt-4o"
     GPT_4_TURBO = "gpt-4-turbo"
     GPT_35_TURBO = "gpt-3.5-turbo"
@@ -41,12 +55,12 @@ def model_name(model: AIModel | str | None) -> str:
 class AITask(str, Enum):
     """Tipos de tareas soportadas"""
 
-    CLASSIFICATION = "classification"  # Clasificación de documentos
-    ANALYSIS = "analysis"  # Análisis de datos/incidentes
-    GENERATION = "generation"  # Generación de contenido (facturas, órdenes)
-    SUGGESTION = "suggestion"  # Sugerencias contextuales
-    CHAT = "chat"  # Conversación general
-    EXTRACTION = "extraction"  # Extracción de datos
+    CLASSIFICATION = "classification"
+    ANALYSIS = "analysis"
+    GENERATION = "generation"
+    SUGGESTION = "suggestion"
+    CHAT = "chat"
+    EXTRACTION = "extraction"
 
 
 @dataclass
@@ -54,16 +68,33 @@ class AIRequest:
     """Estructura estandarizada para requests a IA"""
 
     task: AITask
-    prompt: str
+    prompt: str = ""
     model: AIModel | str | None = None
     temperature: float = 0.3
     max_tokens: int | None = None
     context: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
+    messages: list[dict[str, Any]] | None = None
 
     def __post_init__(self):
         if self.temperature < 0 or self.temperature > 1:
             raise ValueError("temperature debe estar entre 0 y 1")
+        self.prompt = str(self.prompt or "").strip()
+        if self.messages:
+            normalized: list[dict[str, Any]] = []
+            for item in self.messages:
+                if not isinstance(item, dict):
+                    continue
+                role = str(item.get("role") or "user").strip().lower() or "user"
+                content = str(item.get("content") or "").strip()
+                if not content:
+                    continue
+                normalized.append({"role": role, "content": content})
+            self.messages = normalized or None
+        if not self.prompt and self.messages:
+            self.prompt = messages_to_prompt(self.messages)
+        if not self.prompt:
+            raise ValueError("prompt vacio")
 
 
 @dataclass
@@ -91,64 +122,49 @@ class BaseAIProvider(ABC):
         self.name = name
         self.config = config
         self._health_check_timeout = config.get("health_check_timeout", 5.0)
-        logger.info(f"Inicializando proveedor IA: {name}")
+        logger.info("Inicializando proveedor IA: %s", name)
 
     @abstractmethod
     async def call(self, request: AIRequest) -> AIResponse:
-        """
-        Ejecuta un request a IA y retorna respuesta estandarizada
-
-        Args:
-            request: AIRequest con prompt, modelo, etc
-
-        Returns:
-            AIResponse con contenido, tokens, metadatos
-        """
         pass
 
     @abstractmethod
     async def health_check(self) -> bool:
-        """Verifica disponibilidad del proveedor"""
         pass
 
     @abstractmethod
     def get_default_model(self, task: AITask) -> AIModel | str:
-        """Retorna modelo por defecto para una tarea"""
         pass
 
     async def validate_model(self, model: AIModel | str) -> bool:
-        """Valida que el modelo sea soportado"""
         supported = self.get_supported_models()
         return model in supported
 
     @abstractmethod
     def get_supported_models(self) -> list[AIModel | str]:
-        """Lista de modelos soportados por este proveedor"""
         pass
 
     def _prepare_prompt(self, request: AIRequest) -> str:
-        """Hook para preparar/validar prompt antes de enviar"""
-        if not request.prompt:
-            raise ValueError("prompt vacío")
-        if len(request.prompt) > self.config.get("max_prompt_length", 10000):
+        prompt = request.prompt or messages_to_prompt(request.messages)
+        if not prompt:
+            raise ValueError("prompt vacio")
+        if len(prompt) > self.config.get("max_prompt_length", 10000):
             raise ValueError("prompt demasiado largo")
-        return request.prompt
+        return prompt
 
     def _estimate_tokens(self, text: str) -> int:
-        """Estimación rápida de tokens (1 token ≈ 4 caracteres)"""
         return max(1, len(text) // 4)
 
     def _get_system_prompt(self, task: AITask) -> str:
-        """System prompt por defecto según tarea"""
         prompts = {
-            AITask.CLASSIFICATION: "Eres un experto en clasificación de documentos empresariales.",
-            AITask.ANALYSIS: "Eres un experto en análisis de datos y problemas empresariales.",
-            AITask.GENERATION: "Eres un experto en generación de documentos empresariales precisos.",
+            AITask.CLASSIFICATION: "Eres un experto en clasificacion de documentos empresariales.",
+            AITask.ANALYSIS: "Eres un experto en analisis de datos y problemas empresariales.",
+            AITask.GENERATION: "Eres un experto en generacion de documentos empresariales precisos.",
             AITask.SUGGESTION: "Eres un asistente experto en sugerir acciones y mejoras.",
-            AITask.EXTRACTION: "Eres un experto en extracción y estructuración de datos.",
-            AITask.CHAT: "Eres un asistente empresarial útil, preciso y profesional.",
+            AITask.EXTRACTION: "Eres un experto en extraccion y estructuracion de datos.",
+            AITask.CHAT: "Eres un asistente empresarial util, preciso y profesional.",
         }
-        return prompts.get(task, "Eres un asistente empresarial útil.")
+        return prompts.get(task, "Eres un asistente empresarial util.")
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"

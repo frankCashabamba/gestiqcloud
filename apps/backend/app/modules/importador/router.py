@@ -22,7 +22,6 @@ from app.models.ai.incident import Incident
 from app.models.core.audit_event import AuditEvent
 
 from . import crud, recipe_crud
-from .ai_classifier import CONFIDENCE_THRESHOLD
 from .canonical_document import build_document_projection
 from .document_fields import (
     detect_document_date,
@@ -37,7 +36,11 @@ from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .processing_service import _normalize_line_item_extra_columns
 from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
-from .runtime_config import load_file_support_config, load_product_sheet_detection_config
+from .runtime_config import (
+    load_classification_threshold,
+    load_file_support_config,
+    load_product_sheet_detection_config,
+)
 from .schemas import (
     AssistedReviewOut,
     BatchDetailOut,
@@ -94,7 +97,6 @@ from .services.product_matching import (
     _score_product_candidate,
 )
 from .snapshot_learning import (
-    bootstrap_learning_from_existing_document,
     build_snapshot_review_hints,
     learn_from_confirmed_payload,
 )
@@ -418,7 +420,8 @@ def _build_assisted_review(doc) -> AssistedReviewOut | None:
     routing = getattr(doc, "routing_decision", None)
     missing_fields = routing.missing_fields if routing else []
     confidence = getattr(doc, "confianza_clasificacion", None)
-    weak_confidence = confidence is None or float(confidence) < max(CONFIDENCE_THRESHOLD, 0.7)
+    weak_confidence_threshold = max(load_classification_threshold(None), 0.7)
+    weak_confidence = confidence is None or float(confidence) < weak_confidence_threshold
     needs_review = bool(getattr(doc, "requiere_revision", False)) or bool(
         routing.needs_human_review if routing else False
     )
@@ -1644,6 +1647,7 @@ def _save_document_to_purchase(
             )
         ),
     }
+
 
 @router.get("/documents", response_model=list[DocumentoListOut], dependencies=protected)
 def list_documents(

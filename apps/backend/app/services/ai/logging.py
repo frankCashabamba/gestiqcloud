@@ -15,7 +15,7 @@ from sqlalchemy import Integer, func
 from sqlalchemy.orm import Session
 
 from app.models.ai_log import AIErrorAnalysis, AIErrorRecovery, AIRequestLog, AIResponseStatus
-from app.services.ai.base import AIRequest, AIResponse
+from app.services.ai.base import AIRequest, AIResponse, messages_to_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,8 @@ class AILogger:
             request_id = str(uuid.uuid4())
 
             # Calcular hash del prompt para dedup
-            prompt_hash = hashlib.sha256(request.prompt.encode()).hexdigest()
+            prompt_text = request.prompt or messages_to_prompt(request.messages)
+            prompt_hash = hashlib.sha256(prompt_text.encode()).hexdigest()
 
             log_entry = AIRequestLog(
                 request_id=request_id,
@@ -52,7 +53,7 @@ class AILogger:
                 module=module,
                 user_id=user_id,
                 task=request.task.value,
-                prompt_length=len(request.prompt),
+                prompt_length=len(prompt_text),
                 prompt_hash=prompt_hash,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,

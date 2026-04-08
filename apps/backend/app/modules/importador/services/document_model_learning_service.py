@@ -296,9 +296,7 @@ def recipe_config_has_rerun_worthy_hints(
         base_payload.get("field_descriptions") if isinstance(base_payload, dict) else None
     )
     candidate_field_descriptions = (
-        candidate_payload.get("field_descriptions")
-        if isinstance(candidate_payload, dict)
-        else None
+        candidate_payload.get("field_descriptions") if isinstance(candidate_payload, dict) else None
     )
     if isinstance(candidate_field_descriptions, dict):
         baseline_fields = (

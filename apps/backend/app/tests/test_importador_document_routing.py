@@ -108,6 +108,33 @@ def test_document_routing_agent_uses_runtime_field_aliases_and_labels(monkeypatc
     assert "emisor" in decision.reason.lower()
 
 
+@pytest.mark.no_db
+def test_document_routing_agent_uses_runtime_scoring(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.services.document_routing_agent.load_routing_scoring_config",
+        lambda db=None: {
+            "ai_confidence_weight": 0.2,
+            "required_ratio_weight": 0.2,
+            "support_ratio_weight": 0.2,
+            "category_bonus_weight": 0.4,
+            "other_category_bonus": 0.1,
+            "blocked_confidence_cap": 0.33,
+        },
+    )
+
+    decision = build_document_routing_decision(
+        source_doc_type="OTHER",
+        ai_confidence=0.95,
+        extracted_data={"concept": "Gasto menor", "issue_date": "2026-03-27", "total_amount": 45},
+        canonical_document={"fields": {}},
+        category_keywords={},
+        requires_review=False,
+    )
+
+    assert decision.document_type == "expense"
+    assert decision.confidence == 0.5
+
+
 def test_infer_save_destination_uses_routing_over_supplier_metadata_fallback(db):
     doc = SimpleNamespace(
         tipo_documento_detectado="RECEIPT",

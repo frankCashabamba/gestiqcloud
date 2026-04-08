@@ -25,6 +25,7 @@ def _cache_fingerprint_for_request(request: AIRequest) -> str:
     key_payload = {
         "task": str(request.task),
         "prompt": request.prompt,
+        "messages": request.messages or [],
         "model": str(request.model or ""),
         "temperature": request.temperature,
         "max_tokens": request.max_tokens,
@@ -87,7 +88,7 @@ class AIService:
     @staticmethod
     async def query(
         task: AITask,
-        prompt: str,
+        prompt: str = "",
         temperature: float = 0.3,
         max_tokens: int | None = None,
         context: dict[str, Any] | None = None,
@@ -98,6 +99,7 @@ class AIService:
         user_id: str | None = None,
         enable_recovery: bool = True,
         model: str | None = None,
+        messages: list[dict[str, Any]] | None = None,
     ) -> AIResponse:
         """
         Consulta IA con proveedor automático o específico
@@ -127,6 +129,7 @@ class AIService:
             max_tokens=max_tokens,
             context=context,
             model=model or None,
+            messages=messages,
         )
 
         cached_response = await _load_response_from_cache(tenant_id, request)

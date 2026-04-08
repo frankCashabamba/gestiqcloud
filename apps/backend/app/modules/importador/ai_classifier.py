@@ -13,6 +13,7 @@ from typing import Any
 from app.modules.importador.runtime_config import (
     load_ai_model_routing,
     load_ai_params,
+    load_ai_runtime_config,
     load_doc_type_patterns,
     load_prompt_config,
 )
@@ -20,34 +21,6 @@ from app.services.ai.base import AITask
 from app.services.ai.service import AIService
 
 logger = logging.getLogger("importador.ai")
-
-CONFIDENCE_THRESHOLD = 0.85
-_OCR_EVIDENCE_FORMATS = {"IMAGE_OCR", "PDF_OCR", "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"}
-_SPANISH_MONTHS = {
-    "enero": 1,
-    "febrero": 2,
-    "marzo": 3,
-    "abril": 4,
-    "mayo": 5,
-    "junio": 6,
-    "julio": 7,
-    "agosto": 8,
-    "septiembre": 9,
-    "setiembre": 9,
-    "octubre": 10,
-    "noviembre": 11,
-    "diciembre": 12,
-}
-
-
-def _ocr_quality_threshold() -> float:
-    raw = (os.getenv("IMPORTADOR_OCR_MIN_QUALITY") or "").strip()
-    if not raw:
-        return 0.45
-    try:
-        return max(0.0, min(1.0, float(raw)))
-    except ValueError:
-        return 0.45
 
 
 def _resolve_model_for_doctype(doc_type: str | None, db: Any = None) -> str | None:
@@ -63,8 +36,22 @@ def _resolve_model_for_doctype(doc_type: str | None, db: Any = None) -> str | No
     return model if model else None
 
 
-def _estimate_text_quality(text: str) -> dict[str, float]:
+def _build_document_time_context(prompt_config: dict[str, Any] | None, *, current_year: int) -> str:
+    pc = prompt_config or load_prompt_config(None)
+    template = str(
+        pc.get("document_time_context_template")
+        or "CONTEXT: Current year is {current_year}. Most documents are from {previous_year}-{current_year}."
+    ).strip()
+    return template.format(current_year=current_year, previous_year=current_year - 1)
+
+
+def _estimate_text_quality(
+    text: str,
+    *,
+    ai_runtime: dict[str, Any] | None = None,
+) -> dict[str, float]:
     """Estimate whether OCR text is good enough to avoid a vision pass."""
+    cfg = ai_runtime or load_ai_runtime_config(None)
     normalized = " ".join(str(text or "").split())
     if not normalized:
         return {"score": 0.0, "chars": 0.0, "words": 0.0}
@@ -82,16 +69,22 @@ def _estimate_text_quality(text: str) -> dict[str, float]:
 
     alpha_ratio = alpha_chars / max(alnum_chars, 1)
     weird_ratio = weird_chars / max(chars, 1)
-    length_score = min(chars / 1200.0, 1.0)
-    word_score = min(word_count / 180.0, 1.0)
-    alpha_score = min(alpha_ratio / 0.6, 1.0)
-    noise_penalty = min(weird_ratio / 0.2, 1.0)
+    length_score = min(chars / max(float(cfg.get("ocr_length_target_chars") or 1200.0), 1.0), 1.0)
+    word_score = min(word_count / max(float(cfg.get("ocr_word_target") or 180.0), 1.0), 1.0)
+    alpha_score = min(
+        alpha_ratio / max(float(cfg.get("ocr_alpha_ratio_target") or 0.6), 0.01),
+        1.0,
+    )
+    noise_penalty = min(
+        weird_ratio / max(float(cfg.get("ocr_noise_ratio_limit") or 0.2), 0.01),
+        1.0,
+    )
 
     score = (
-        (length_score * 0.35)
-        + (word_score * 0.35)
-        + (alpha_score * 0.2)
-        + ((1 - noise_penalty) * 0.1)
+        (length_score * float(cfg.get("ocr_score_weight_length") or 0.35))
+        + (word_score * float(cfg.get("ocr_score_weight_words") or 0.35))
+        + (alpha_score * float(cfg.get("ocr_score_weight_alpha") or 0.2))
+        + ((1 - noise_penalty) * float(cfg.get("ocr_score_weight_clean") or 0.1))
     )
     return {
         "score": round(max(0.0, min(1.0, score)), 3),
@@ -106,19 +99,28 @@ def _should_use_vision_fallback(
     content: str,
     format_hint: str,
     image_bytes: bytes | None,
+    *,
+    ai_runtime: dict[str, Any] | None = None,
 ) -> bool:
     """Use vision only when OCR text is too weak and we have an image payload."""
     if not image_bytes:
         return False
 
+    cfg = ai_runtime or load_ai_runtime_config(None)
     normalized_format = str(format_hint or "").strip().upper()
-    if normalized_format not in {"IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG", "PDF"}:
+    allowed_formats = {
+        str(item).strip().upper()
+        for item in (cfg.get("vision_allowed_formats") or [])
+        if str(item).strip()
+    }
+    if normalized_format not in allowed_formats:
         return False
 
-    quality = _estimate_text_quality(content)
+    quality = _estimate_text_quality(content, ai_runtime=cfg)
     score = quality["score"]
-    min_quality = _ocr_quality_threshold()
-    needs_vision = score < min_quality or quality["words"] < 18
+    min_quality = max(0.0, min(1.0, float(cfg.get("ocr_min_quality") or 0.45)))
+    min_words = max(1, int(cfg.get("ocr_min_words_for_vision") or 18))
+    needs_vision = score < min_quality or quality["words"] < min_words
 
     logger.info(
         "OCR quality for %s: score=%.3f words=%s chars=%s threshold=%.2f vision=%s",
@@ -140,19 +142,21 @@ def _normalize_evidence_text(value: str) -> str:
     return " ".join(normalized.split())
 
 
-def _value_token_evidence(text_normalized: str, value: Any, *, min_len: int = 4) -> bool:
+def _value_token_evidence(
+    text_normalized: str,
+    value: Any,
+    *,
+    min_len: int = 4,
+    ai_runtime: dict[str, Any] | None = None,
+) -> bool:
     sample = _normalize_evidence_text(str(value or ""))
     if not sample:
         return False
+    cfg = ai_runtime or load_ai_runtime_config(None)
     stop_tokens = {
-        "cliente",
-        "customer",
-        "proveedor",
-        "vendor",
-        "empresa",
-        "company",
-        "concepto",
-        "concept",
+        str(token).strip().lower()
+        for token in (cfg.get("evidence_stop_tokens") or [])
+        if str(token).strip()
     }
     tokens = [
         token for token in sample.split() if len(token) >= min_len and token not in stop_tokens
@@ -171,29 +175,39 @@ def _numeric_evidence(text_digits: str, value: Any, *, min_len: int = 3) -> bool
     return bool(digits and len(digits) >= min_len and digits in text_digits)
 
 
-def _currency_evidence(text_normalized: str, value: Any) -> bool:
+def _currency_evidence(
+    text_normalized: str,
+    value: Any,
+    *,
+    ai_runtime: dict[str, Any] | None = None,
+) -> bool:
     raw = str(value or "").strip().upper()
     if not raw:
         return False
-    currency_markers = {
-        "USD": ["usd", "us$", "$", "dolar", "dolares"],
-        "EUR": ["eur", "euro", "euros", "€"],
-        "PEN": ["pen", "s/", "sol", "soles"],
-        "$": ["$", "usd", "dolar", "dolares"],
-        "S/": ["s/", "pen", "sol", "soles"],
-    }
+    cfg = ai_runtime or load_ai_runtime_config(None)
+    currency_markers = cfg.get("currency_markers") or {}
     markers = currency_markers.get(raw, [raw.lower()])
     return any(marker in text_normalized for marker in markers)
 
 
-def _line_items_evidence(text_normalized: str, text_digits: str, value: Any) -> bool:
+def _line_items_evidence(
+    text_normalized: str,
+    text_digits: str,
+    value: Any,
+    *,
+    ai_runtime: dict[str, Any] | None = None,
+) -> bool:
     if not isinstance(value, list) or not value:
         return False
     for item in value:
         if not isinstance(item, dict):
             continue
         description = item.get("description")
-        if description and _value_token_evidence(text_normalized, description):
+        if description and _value_token_evidence(
+            text_normalized,
+            description,
+            ai_runtime=ai_runtime,
+        ):
             return True
         for key in ("quantity", "unit_price", "total_price"):
             if _numeric_evidence(text_digits, item.get(key)):
@@ -206,13 +220,22 @@ def _blank_low_evidence_fields(
     *,
     content: str,
     format_hint: str,
+    ai_runtime: dict[str, Any] | None = None,
 ) -> int:
+    cfg = ai_runtime or load_ai_runtime_config(None)
     normalized_format = str(format_hint or "").strip().upper()
-    if normalized_format not in {"IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG"}:
+    evidence_formats = {
+        str(item).strip().upper()
+        for item in (cfg.get("ocr_evidence_formats") or [])
+        if str(item).strip()
+    }
+    if normalized_format not in evidence_formats:
         return 0
 
-    quality = _estimate_text_quality(content)
-    if quality["score"] >= _ocr_quality_threshold() and quality["words"] >= 18:
+    quality = _estimate_text_quality(content, ai_runtime=cfg)
+    min_quality = max(0.0, min(1.0, float(cfg.get("ocr_min_quality") or 0.45)))
+    min_words = max(1, int(cfg.get("ocr_min_words_for_vision") or 18))
+    if quality["score"] >= min_quality and quality["words"] >= min_words:
         return 0
 
     text_normalized = _normalize_evidence_text(content)
@@ -220,23 +243,32 @@ def _blank_low_evidence_fields(
     cleared = 0
 
     evidence_checks: dict[str, Any] = {
-        "vendor": lambda value: _value_token_evidence(text_normalized, value),
+        "vendor": lambda value: _value_token_evidence(text_normalized, value, ai_runtime=cfg),
         "vendor_tax_id": lambda value: _numeric_evidence(text_digits, value),
-        "customer": lambda value: _value_token_evidence(text_normalized, value),
+        "customer": lambda value: _value_token_evidence(text_normalized, value, ai_runtime=cfg),
         "customer_tax_id": lambda value: _numeric_evidence(text_digits, value),
         "doc_number": lambda value: (
-            _value_token_evidence(text_normalized, value, min_len=3)
+            _value_token_evidence(text_normalized, value, min_len=3, ai_runtime=cfg)
             or _numeric_evidence(text_digits, value, min_len=5)
         ),
         "issue_date": lambda value: _numeric_evidence(text_digits, value),
-        "currency": lambda value: _currency_evidence(text_normalized, value),
-        "payment_method": lambda value: _value_token_evidence(text_normalized, value),
-        "payment_terms": lambda value: _value_token_evidence(text_normalized, value),
-        "concept": lambda value: _value_token_evidence(text_normalized, value),
+        "currency": lambda value: _currency_evidence(text_normalized, value, ai_runtime=cfg),
+        "payment_method": lambda value: _value_token_evidence(
+            text_normalized, value, ai_runtime=cfg
+        ),
+        "payment_terms": lambda value: _value_token_evidence(
+            text_normalized, value, ai_runtime=cfg
+        ),
+        "concept": lambda value: _value_token_evidence(text_normalized, value, ai_runtime=cfg),
         "subtotal": lambda value: _numeric_evidence(text_digits, value),
         "tax_amount": lambda value: _numeric_evidence(text_digits, value),
         "total_amount": lambda value: _numeric_evidence(text_digits, value),
-        "line_items": lambda value: _line_items_evidence(text_normalized, text_digits, value),
+        "line_items": lambda value: _line_items_evidence(
+            text_normalized,
+            text_digits,
+            value,
+            ai_runtime=cfg,
+        ),
     }
 
     for field_name, checker in evidence_checks.items():
@@ -258,24 +290,37 @@ def _apply_low_evidence_guard(
     *,
     content: str,
     format_hint: str,
+    ai_runtime: dict[str, Any] | None = None,
 ) -> None:
     fields = parsed.get("fields")
     if not isinstance(fields, dict):
         return
 
-    cleared = _blank_low_evidence_fields(fields, content=content, format_hint=format_hint)
+    cfg = ai_runtime or load_ai_runtime_config(None)
+    cleared = _blank_low_evidence_fields(
+        fields,
+        content=content,
+        format_hint=format_hint,
+        ai_runtime=cfg,
+    )
     if cleared <= 0:
         return
 
     try:
-        parsed["confidence"] = min(float(parsed.get("confidence") or 0.0), 0.45)
+        parsed["confidence"] = min(
+            float(parsed.get("confidence") or 0.0),
+            max(0.0, min(1.0, float(cfg.get("ocr_guard_confidence_cap") or 0.45))),
+        )
     except (TypeError, ValueError):
-        parsed["confidence"] = 0.45
+        parsed["confidence"] = max(
+            0.0, min(1.0, float(cfg.get("ocr_guard_confidence_cap") or 0.45))
+        )
 
     reason = str(parsed.get("reasoning") or "").strip()
-    guard_reason = (
-        f"Low OCR evidence: cleared {cleared} unsupported field(s) to avoid hallucinated data."
-    )
+    guard_reason = str(
+        cfg.get("low_evidence_reason_template")
+        or "Low OCR evidence: cleared {cleared} unsupported field(s) to avoid hallucinated data."
+    ).format(cleared=cleared)
     parsed["reasoning"] = f"{reason} {guard_reason}".strip() if reason else guard_reason
 
 
@@ -316,7 +361,9 @@ def _build_structured_classification_prompt_parts(
         pc.get("structured_classification_response_instruction")
         or "Return ONLY valid JSON with keys: doc_type, confidence, reasoning."
     ).strip()
-    preview_label = str(pc.get("structured_classification_preview_label") or "Structured preview:").strip()
+    preview_label = str(
+        pc.get("structured_classification_preview_label") or "Structured preview:"
+    ).strip()
     doc_type_instruction = str(
         pc.get("doc_type_instruction")
         or "Use concise uppercase labels such as INVOICE, RECEIPT, CREDIT_NOTE, "
@@ -800,7 +847,9 @@ def _extract_issue_date_from_ocr(content: str) -> str | None:
     )
     if not written_match:
         return None
-    month = _SPANISH_MONTHS.get(written_match.group(2))
+    ai_runtime = load_ai_runtime_config(None)
+    month_map = ai_runtime.get("ocr_written_months") or {}
+    month = month_map.get(written_match.group(2))
     if month is None:
         return None
     day = int(written_match.group(1))
@@ -814,22 +863,29 @@ def _apply_high_evidence_ocr_repairs(
     content: str,
     format_hint: str,
     prompt_config: dict[str, Any] | None = None,
+    ai_runtime: dict[str, Any] | None = None,
 ) -> None:
+    cfg = ai_runtime or load_ai_runtime_config(None)
     normalized_format = str(format_hint or "").strip().upper()
-    if normalized_format not in _OCR_EVIDENCE_FORMATS:
+    evidence_formats = {
+        str(item).strip().upper()
+        for item in (cfg.get("ocr_evidence_formats") or [])
+        if str(item).strip()
+    }
+    if normalized_format not in evidence_formats:
         return
 
     fields = parsed.get("fields")
     if not isinstance(fields, dict):
         return
 
-    quality = _estimate_text_quality(content)
+    quality = _estimate_text_quality(content, ai_runtime=cfg)
     labeled_total = _extract_labeled_amount(content, "total_amount", prompt_config=prompt_config)
     labeled_subtotal = _extract_labeled_amount(content, "subtotal", prompt_config=prompt_config)
     labeled_tax = _extract_labeled_amount(content, "tax_amount", prompt_config=prompt_config)
     ocr_issue_date = _extract_issue_date_from_ocr(content)
 
-    if quality["score"] < _ocr_quality_threshold() and not any(
+    if quality["score"] < max(0.0, min(1.0, float(cfg.get("ocr_min_quality") or 0.45))) and not any(
         value is not None
         for value in (labeled_total, labeled_subtotal, labeled_tax, ocr_issue_date)
     ):
@@ -913,9 +969,16 @@ def _rebuild_line_item_extra_columns_from_ocr(
     *,
     content: str,
     format_hint: str,
+    ai_runtime: dict[str, Any] | None = None,
 ) -> None:
+    cfg = ai_runtime or load_ai_runtime_config(None)
     normalized_format = str(format_hint or "").strip().upper()
-    if normalized_format not in _OCR_EVIDENCE_FORMATS:
+    evidence_formats = {
+        str(item).strip().upper()
+        for item in (cfg.get("ocr_evidence_formats") or [])
+        if str(item).strip()
+    }
+    if normalized_format not in evidence_formats:
         return
 
     fields = parsed.get("fields")
@@ -1061,6 +1124,7 @@ async def _analyze_with_vision(
     ocr_content: str = "",
     recipe_config: dict | None = None,
     prompt_config: dict[str, Any] | None = None,
+    db: Any = None,
 ) -> dict[str, Any] | None:
     """Try to analyze a document image using a vision-capable model via Ollama.
 
@@ -1068,9 +1132,10 @@ async def _analyze_with_vision(
     to the text-based OCR path.
     """
     import base64
-    import os
 
     import httpx
+
+    ai_runtime = load_ai_runtime_config(db)
 
     ollama_url = (
         os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "http://127.0.0.1:11434"
@@ -1078,7 +1143,8 @@ async def _analyze_with_vision(
     vision_model = os.getenv("OLLAMA_VISION_MODEL", "minicpm-v")
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        probe_timeout = max(1.0, float(ai_runtime.get("vision_probe_timeout_seconds") or 5.0))
+        async with httpx.AsyncClient(timeout=probe_timeout) as client:
             tags_resp = await client.get(f"{ollama_url}/api/tags")
             if tags_resp.status_code != 200:
                 return None
@@ -1147,7 +1213,7 @@ async def _analyze_with_vision(
 
     user_prompt = (
         f"File: {filename} | Format: {format_hint}\n"
-        f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n\n"
+        f"{_build_document_time_context(pc, current_year=current_year)}\n\n"
         f"{vision_preamble}\n"
         f"{response_label}\n"
         f"{response_contract}\n"
@@ -1176,7 +1242,10 @@ async def _analyze_with_vision(
         ],
     )
 
-    img_b64 = base64.b64encode(_resize_image_for_vision(image_bytes)).decode("utf-8")
+    resize_max_dim = max(64, int(ai_runtime.get("vision_resize_max_dim") or 1024))
+    img_b64 = base64.b64encode(
+        _resize_image_for_vision(image_bytes, max_dim=resize_max_dim)
+    ).decode("utf-8")
 
     payload = {
         "model": vision_model,
@@ -1189,12 +1258,17 @@ async def _analyze_with_vision(
             },
         ],
         "stream": False,
-        "options": {"temperature": 0.1, "num_predict": 600},
+        "options": {
+            "temperature": float(ai_runtime.get("vision_temperature") or 0.1),
+            "num_predict": max(1, int(ai_runtime.get("vision_num_predict") or 600)),
+        },
     }
 
     try:
         timeout_secs = float(
-            os.getenv("OLLAMA_VISION_TIMEOUT") or os.getenv("OLLAMA_TIMEOUT", "45")
+            os.getenv("OLLAMA_VISION_TIMEOUT")
+            or ai_runtime.get("vision_timeout_seconds")
+            or os.getenv("OLLAMA_TIMEOUT", "45")
         )
         timeout = httpx.Timeout(timeout_secs, read=timeout_secs)
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -1213,13 +1287,22 @@ async def _analyze_with_vision(
             parsed["columns"] = []
             parsed.setdefault("fields", {})
             parsed.setdefault("confidence", 0.8)
-            parsed.setdefault("reasoning", "Vision model analysis")
+            parsed.setdefault(
+                "reasoning",
+                str(ai_runtime.get("vision_default_reasoning") or "Vision model analysis"),
+            )
             _clean_vision_fields(parsed.get("fields") or {})
-            _apply_low_evidence_guard(parsed, content=ocr_content, format_hint=format_hint)
+            _apply_low_evidence_guard(
+                parsed,
+                content=ocr_content,
+                format_hint=format_hint,
+                ai_runtime=ai_runtime,
+            )
             _rebuild_line_item_extra_columns_from_ocr(
                 parsed,
                 content=ocr_content,
                 format_hint=format_hint,
+                ai_runtime=ai_runtime,
             )
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
@@ -1294,9 +1377,22 @@ async def analyze_document(
             db=db,
         )
 
-    if not has_structured_rows and _should_use_vision_fallback(content, format_hint, image_bytes):
+    ai_runtime = load_ai_runtime_config(db)
+
+    if not has_structured_rows and _should_use_vision_fallback(
+        content,
+        format_hint,
+        image_bytes,
+        ai_runtime=ai_runtime,
+    ):
         vision_result = await _analyze_with_vision(
-            image_bytes, filename, format_hint, content, recipe_config, prompt_config
+            image_bytes,
+            filename,
+            format_hint,
+            content,
+            recipe_config,
+            prompt_config,
+            db=db,
         )
         if vision_result:
             return vision_result
@@ -1341,7 +1437,9 @@ async def analyze_document(
     )
 
     content_limit = int(
-        ai_params.get("content_limit_structured" if has_structured_rows else "content_limit_unstructured")
+        ai_params.get(
+            "content_limit_structured" if has_structured_rows else "content_limit_unstructured"
+        )
         or (4000 if has_structured_rows else 7000)
     )
 
@@ -1381,7 +1479,7 @@ async def analyze_document(
     user_prompt = (
         f"{tabular_note}"
         f"File: {filename} | Format: {format_hint}\n"
-        f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n"
+        f"{_build_document_time_context(pc, current_year=current_year)}\n"
         f"{_hint_line}\n"
         f"Content:\n{content[:content_limit]}\n\n"
         f"{response_label}\n"
@@ -1397,6 +1495,10 @@ async def analyze_document(
         user_prompt += f"\n\n{learned_hints}"
 
     full_prompt = system_prompt.rstrip() + "\n\n" + user_prompt
+    transport_messages = [
+        {"role": "system", "content": str(system_prompt)},
+        {"role": "user", "content": user_prompt},
+    ]
     prompt_trace = _build_prompt_trace(
         mode="text",
         system_prompt=str(system_prompt),
@@ -1406,6 +1508,7 @@ async def analyze_document(
         doc_type_instruction=doc_type_instruction,
         learned_hints=learned_hints or None,
         custom_user_prompt=str(custom_user_prompt or "").strip() or None,
+        prompt_messages=transport_messages,
     )
 
     # Resolver model y parámetros desde imp_config
@@ -1414,15 +1517,14 @@ async def analyze_document(
     temperature = float(ai_params.get("temperature") or 0.1)
     _by_dt: dict = ai_params.get("max_tokens_by_doctype") or {}
     max_tokens = int(
-        _by_dt.get(_doc_type_for_routing or "")
-        or ai_params.get("max_tokens_extraction")
-        or 1500
+        _by_dt.get(_doc_type_for_routing or "") or ai_params.get("max_tokens_extraction") or 1500
     )
 
     try:
         response = await AIService.query(
             task=AITask.EXTRACTION,
             prompt=full_prompt,
+            messages=transport_messages,
             temperature=temperature,
             max_tokens=max_tokens,
             module="importador",
@@ -1451,17 +1553,24 @@ async def analyze_document(
             parsed.setdefault("fields", {})
             parsed.setdefault("confidence", 0.7)
             parsed.setdefault("reasoning", "")
-            _apply_low_evidence_guard(parsed, content=content, format_hint=format_hint)
+            _apply_low_evidence_guard(
+                parsed,
+                content=content,
+                format_hint=format_hint,
+                ai_runtime=ai_runtime,
+            )
             _apply_high_evidence_ocr_repairs(
                 parsed,
                 content=content,
                 format_hint=format_hint,
                 prompt_config=pc,
+                ai_runtime=ai_runtime,
             )
             _rebuild_line_item_extra_columns_from_ocr(
                 parsed,
                 content=content,
                 format_hint=format_hint,
+                ai_runtime=ai_runtime,
             )
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used

@@ -39,7 +39,9 @@ def _ensure_snapshot_fingerprint_metadata(
         return None
 
     content = snapshot.content_json if isinstance(snapshot.content_json, dict) else {}
-    stored_fingerprint = fingerprint if isinstance(fingerprint, dict) else content.get("fingerprint")
+    stored_fingerprint = (
+        fingerprint if isinstance(fingerprint, dict) else content.get("fingerprint")
+    )
     normalized_fingerprint = _normalize_fingerprint_payload(stored_fingerprint)
     changed = False
 
@@ -54,7 +56,10 @@ def _ensure_snapshot_fingerprint_metadata(
         if isinstance(normalized_fingerprint, dict)
         else ""
     )
-    if fingerprint_kind and str(content.get("fingerprint_kind") or "").strip().lower() != fingerprint_kind:
+    if (
+        fingerprint_kind
+        and str(content.get("fingerprint_kind") or "").strip().lower() != fingerprint_kind
+    ):
         if not changed:
             content = dict(content)
         content["fingerprint_kind"] = fingerprint_kind
@@ -128,7 +133,10 @@ def _excel_header_overlap(target_sheets: dict, stored_sheets: dict) -> float:
 
 
 def _excel_headers_flat_from_fingerprint(fingerprint: dict | None) -> list[str]:
-    if not isinstance(fingerprint, dict) or str(fingerprint.get("kind") or "").strip().lower() != "excel":
+    if (
+        not isinstance(fingerprint, dict)
+        or str(fingerprint.get("kind") or "").strip().lower() != "excel"
+    ):
         return []
     sheets = fingerprint.get("sheets") or {}
     headers: set[str] = set()

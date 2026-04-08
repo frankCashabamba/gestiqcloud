@@ -1024,4 +1024,3 @@ export default function ImportIntake({
     </>
   )
 }
-

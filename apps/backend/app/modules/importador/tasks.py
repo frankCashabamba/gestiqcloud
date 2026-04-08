@@ -154,7 +154,9 @@ async def _run_processing(
                     explicit_recipe_context=bool(recipe_snapshot_id),
                 ),
             )
-            processing_elapsed_ms = max(0, int(round((time.perf_counter() - task_started_at) * 1000)))
+            processing_elapsed_ms = max(
+                0, int(round((time.perf_counter() - task_started_at) * 1000))
+            )
             commit_started_at = time.perf_counter()
             for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="REVIEW"):
                 crud.refresh_batch_status(db, batch_id)
@@ -196,7 +198,9 @@ async def _run_processing(
 
                 fresh_doc = db.get(_ImpDoc, doc_id)
                 if fresh_doc:
-                    crud.update_documento(db, fresh_doc, {"estado": "FAILED", "error_detalle": str(exc)})
+                    crud.update_documento(
+                        db, fresh_doc, {"estado": "FAILED", "error_detalle": str(exc)}
+                    )
                     crud.add_log(db, fresh_doc.id, "EXTRACT", user_id, {"error": str(exc)})
                     for batch_id in crud.touch_batch_items_for_document(
                         db,

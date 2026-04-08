@@ -25,6 +25,14 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
   aliases/labels de routing, categorias, normalizacion de filename, patrones fiscales y fallbacks base de routing ya salen de runtime seed/config
 - Hecho parcial: prompts partidos logicamente y trazables
   el importador ya persiste `prompt_full` y `prompt_parts`, y varios fragmentos fallback del prompt ahora salen de `prompt_config`
+- Hecho parcial: defaults operativos movidos a runtime config
+  `ai_runtime`, `processing_runtime` y `routing_scoring` ya gobiernan thresholds OCR/vision, limites de preview/persistencia y pesos/caps del routing
+- Hecho parcial: reglas de dominio recurrentes movidas a runtime config
+  tokens de fallo AI, tipos `table-only`, tipos `product-like`, claves de nombre de receta, `evidence_stop_tokens` y `currency_markers` ya salen de seed/config
+- Hecho parcial: parsing OCR y contexto temporal movidos a config
+  el mapa de meses escritos OCR y el template del contexto temporal del prompt ya salen de seed/config
+- Hecho: stack AI texto soporta `messages`
+  el transporte AI ya acepta `messages` en `AIRequest` / `AIService.query`; importador texto los usa para separar `system` y `user` sin perder `prompt` para cache/logging
 - Hecho: optimizacion inicial de Ollama
   concurrencia configurable por `base_url` + `OLLAMA_MAX_CONCURRENCY`
 - Hecho: corte de reruns AI redundantes
@@ -86,7 +94,10 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
   `prompt_config` ya gobierna fragmentos clave de armado: fallback vision system, structured classification preamble/preview, labels de respuesta/reglas/instrucciones y reglas extras de year sanity / line items
 - [x] Guardar el prompt completo enviado a AI, no truncado
   ahora se persisten `prompt_full` y `prompt_parts`; `prompt_sent` queda truncado solo por compatibilidad
+- [x] Soportar prompts partidos a nivel transporte AI
+  `AIService.query` y proveedores ya aceptan `messages`; el path texto del importador ya envia `system` + `user` separados
 - [ ] Auditar defaults que hoy nacen en codigo y decidir si quedan en seed o en DB
+  Hecho parcial: pesos de routing, thresholds OCR/vision, limites de preview/persistencia, weak confidence UI y varias listas de dominio ya salen de runtime config; siguen pendientes reglas de parsing y algunos textos fallback
 
 ## Bloque 4: Recipes y snapshots
 
@@ -119,7 +130,7 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
 - Si `fingerprint_kind = "excel"`:
   `{"kind":"excel","sheets":{"<sheet>":{"headers":[...],"column_types":{"<col>":"<type>"}}}}`
 - Si `fingerprint_kind = "text"`:
-  `{"kind":"text","campos":[...],"formato":"PDF|IMAGE_OCR|XML|TXT|..."}`  
+  `{"kind":"text","campos":[...],"formato":"PDF|IMAGE_OCR|XML|TXT|..."}`
   `tipo_doc` no forma parte del fingerprint de texto actual
 
 ### Claves opcionales de recipes auto-generadas
@@ -215,8 +226,16 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
 - OCR ahora prioriza un subconjunto configurable de variantes para Tesseract, deja el resto como rescate con menos PSMs y reutiliza `easyocr.Reader(...)`.
 - `ocr_config` ya gobierna DPI PDF, contraste, nitidez, idiomas OCR, `easyocr_gpu`, angulos de deskew, thresholds binarios, parametros de trim/perspective y limites del parser Excel.
 - Routing ya consume `routing_field_aliases`, `routing_field_labels`, `doc_categories`, `routing_fallback_profiles` y `routing_fallback_rules` desde config/seed en lugar de constantes de modulo.
+- Routing scoring ya consume `routing_scoring` desde config/seed para pesos, bonus de categoria `other` y cap de perfiles bloqueados.
 - `pre_classifier` ya consume `filename_normalization` y `tax_id_patterns` desde config/seed; la extraccion fiscal dejo de depender de regex inline.
+- `ai_classifier` ya consume `ai_runtime` para thresholds de calidad OCR, formatos elegibles de evidence/vision y payload de vision (`max_dim`, timeout, temperature, `num_predict`).
+- `ai_classifier` ya consume `ai_runtime` tambien para `evidence_stop_tokens` y `currency_markers`.
+- `ai_classifier` ya consume `ai_runtime` tambien para `ocr_written_months`, `low_evidence_reason_template` y `vision_default_reasoning`.
+- `prompt_config` ya gobierna `document_time_context_template`, usado en prompts texto y vision.
+- `processing_service` ya consume `processing_runtime` para decidir suficiencia de OCR, preview LLM, confidence minima de hints, limite de filas estructuradas y truncado persistido de `texto_ocr`.
+- `processing_service` ya consume `processing_runtime` tambien para `ai_failure_tokens`, `table_only_doc_types`, `product_like_doc_types` y `recipe_name_field_candidates`.
 - Partir prompts si merece la pena, pero por gobernanza y debugging, no por latencia: el path de texto sigue enviando un solo `full_prompt` a `AIService.query`; para una separacion real a nivel transporte habria que extender el stack AI para soportar `messages` tambien fuera del vision path.
+- El stack AI ya soporta `messages` tambien fuera del vision path. Se mantiene `prompt` plano como forma canonica para cache, recovery y auditoria, pero el transporte de texto del importador ya sale como chat real (`system` + `user`).
 - Los thresholds de `pre_classifier` ya no nacen en el modulo como defaults operativos: se cargan desde runtime config / seed del modulo `pre_classifier`; el fallback en codigo queda solo como red de seguridad si la carga falla.
 - La concurrencia de Ollama ya no queda fijada al importar el modulo; se resuelve por `base_url` y `OLLAMA_MAX_CONCURRENCY`.
 - El rerun AI ya no se ejecuta si la recipe candidata solo cambia `prompt_system`; ahora exige hints utiles (`field_descriptions`, `prompt_user`, `model` o senales aprendidas).

@@ -66,12 +66,13 @@ class OVHCloudProvider(BaseAIProvider):
 
             # Construir request según OVHCloud API spec
             headers = self._build_headers()
+            messages = request.messages or [
+                {"role": "system", "content": self._get_system_prompt(request.task)},
+                {"role": "user", "content": prompt},
+            ]
             payload = {
                 "model": model,
-                "messages": [
-                    {"role": "system", "content": self._get_system_prompt(request.task)},
-                    {"role": "user", "content": prompt},
-                ],
+                "messages": messages,
                 "temperature": request.temperature,
                 "max_tokens": request.max_tokens or 2000,
             }

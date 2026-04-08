@@ -134,10 +134,11 @@ class OllamaProvider(BaseAIProvider):
                 options: dict[str, Any] = {"temperature": request.temperature}
                 if request.max_tokens:
                     options["num_predict"] = request.max_tokens
+                messages = request.messages or [{"role": "user", "content": prompt}]
 
                 payload = {
                     "model": selected_model,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": messages,
                     "stream": False,
                     "options": options,
                 }
