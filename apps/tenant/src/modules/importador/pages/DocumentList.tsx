@@ -8,6 +8,7 @@ import {
   hasConfirmedDocumentData,
   isDocumentSaved,
   purgeAllImportador,
+  purgeFullImportador,
   suggestSaveDestination,
   type Documento,
   type SaveDocumentResult,
@@ -132,7 +133,7 @@ export default function DocumentList() {
   const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null)
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [purging, setPurging] = useState(false)
-  const [purgePending, setPurgePending] = useState(false)
+  const [purgeMode, setPurgeMode] = useState<'history' | 'full' | null>(null)
   const homePath = empresa ? `/${empresa}` : '/dashboard'
 
   const loadDocuments = async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -202,16 +203,28 @@ export default function DocumentList() {
     void loadDocuments()
   }
 
-  const handlePurgeAll = async () => {
-    setPurgePending(false)
+  const handlePurge = async (mode: 'history' | 'full') => {
+    setPurgeMode(null)
     setPurging(true)
     setFeedback(null)
     try {
-      const res = await purgeAllImportador()
-      setFeedback({ message: `Historial borrado: ${res.deleted_total} registros eliminados.`, type: 'success' })
+      const res = mode === 'history' ? await purgeAllImportador() : await purgeFullImportador()
+      setFeedback({
+        message:
+          mode === 'history'
+            ? `Historial operativo borrado: ${res.deleted_total} registros eliminados.`
+            : `Reset completo ejecutado: ${res.deleted_total} registros eliminados.`,
+        type: 'success',
+      })
       void loadDocuments()
     } catch {
-      setFeedback({ message: 'No se pudo borrar el historial.', type: 'error' })
+      setFeedback({
+        message:
+          mode === 'history'
+            ? 'No se pudo borrar el historial operativo.'
+            : 'No se pudo ejecutar el reset completo.',
+        type: 'error',
+      })
     } finally {
       setPurging(false)
     }
@@ -612,25 +625,43 @@ export default function DocumentList() {
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#991b1b' }}>Zona de mantenimiento</div>
             <div style={{ marginTop: 4, fontSize: 13, color: '#7f1d1d', maxWidth: 700 }}>
-              Usa esta accion solo si necesitas limpiar por completo el historial del importador para una nueva puesta en marcha.
+              Borra el historial operativo sin tocar el aprendizaje reutilizable, o haz un reset completo si necesitas empezar desde cero.
             </div>
           </div>
-          <button
-            onClick={() => setPurgePending(true)}
-            disabled={purging}
-            style={{
-              padding: '0.65rem 0.95rem',
-              borderRadius: 12,
-              border: '1px solid #fca5a5',
-              background: '#dc2626',
-              color: '#fff',
-              cursor: purging ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-              fontWeight: 800,
-            }}
-          >
-            {purging ? 'Borrando historial...' : 'Borrar historial del importador'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setPurgeMode('history')}
+              disabled={purging}
+              style={{
+                padding: '0.65rem 0.95rem',
+                borderRadius: 12,
+                border: '1px solid #fca5a5',
+                background: '#dc2626',
+                color: '#fff',
+                cursor: purging ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              {purging ? 'Procesando...' : 'Borrar historial operativo'}
+            </button>
+            <button
+              onClick={() => setPurgeMode('full')}
+              disabled={purging}
+              style={{
+                padding: '0.65rem 0.95rem',
+                borderRadius: 12,
+                border: '1px solid #fecaca',
+                background: '#fff',
+                color: '#991b1b',
+                cursor: purging ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              Reset completo
+            </button>
+          </div>
         </div>
       </section>
 
@@ -641,14 +672,25 @@ export default function DocumentList() {
         onSaved={handleSaved}
       />
 
-      {purgePending && (
+      {purgeMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h3 className="font-semibold text-lg mb-2">Borrar historial</h3>
-            <p className="text-sm text-slate-600 mb-4">Se borrara todo el historial del importador. Esta accion no se puede deshacer.</p>
+            <h3 className="font-semibold text-lg mb-2">
+              {purgeMode === 'history' ? 'Borrar historial operativo' : 'Reset completo'}
+            </h3>
+            <p className="text-sm text-slate-600 mb-4">
+              {purgeMode === 'history'
+                ? 'Se borraran documentos, lotes y trazas operativas del importador, pero se conservaran aliases, recetas y memoria de aprendizaje.'
+                : 'Se borrara el historial operativo y tambien la memoria de aprendizaje del importador para este tenant. Esta accion no se puede deshacer.'}
+            </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setPurgePending(false)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
-              <button onClick={handlePurgeAll} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">Borrar historial</button>
+              <button onClick={() => setPurgeMode(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+              <button
+                onClick={() => handlePurge(purgeMode)}
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+              >
+                {purgeMode === 'history' ? 'Borrar historial operativo' : 'Reset completo'}
+              </button>
             </div>
           </div>
         </div>

@@ -2867,69 +2867,197 @@ async def run_async(
     )
 
 
+PURGE_OPERATIONS_HISTORY: list[tuple[str, str]] = [
+    (
+        "imp_log_cambios",
+        "CAST(documento_id AS TEXT) IN (SELECT CAST(id AS TEXT) FROM imp_documento WHERE tenant_id = :tid)",
+    ),
+    ("imp_batch_item", "tenant_id = :tid"),
+    ("imp_review_session", "tenant_id = :tid"),
+    ("imp_staging_line", "tenant_id = :tid"),
+    ("imp_iteration", "tenant_id = :tid"),
+    ("imp_batch_import", "tenant_id = :tid"),
+    ("imp_documento", "tenant_id = :tid"),
+    ("import_items", "tenant_id = :tid"),
+    ("import_resolutions", "tenant_id = :tid"),
+    ("posting_registry", "tenant_id = :tid"),
+    ("import_ocr_jobs", "tenant_id = :tid"),
+    ("import_batches", "tenant_id = :tid"),
+    ("import_mappings", "tenant_id = :tid"),
+    ("import_column_mappings", "tenant_id = :tid"),
+]
+
+PURGE_OPERATIONS_FULL_RESET: list[tuple[str, str]] = [
+    ("imp_routing_signal", "tenant_id = :tid"),
+    ("imp_vendor_snapshot", "tenant_id = :tid"),
+    ("imp_doc_type_template", "tenant_id = :tid"),
+    ("imp_column_candidate", "tenant_id = :tid"),
+    ("imp_field_alias", "tenant_id = :tid"),
+    ("icu_recipe_snapshot", "tenant_id = :tid"),
+    ("icu_recipe_draft", "tenant_id = :tid"),
+    ("icu_recipe", "tenant_id = :tid"),
+]
+
+
+def _purge_table_rows(
+    db: Session,
+    *,
+    table_name: str,
+    where_clause: str,
+    params: dict[str, object],
+    deleted: dict[str, int],
+) -> None:
+    from sqlalchemy import text as sql_text
+
+    try:
+        result = db.execute(sql_text(f"DELETE FROM {table_name} WHERE {where_clause}"), params)
+        if result.rowcount:
+            deleted[table_name] = deleted.get(table_name, 0) + int(result.rowcount)
+    except Exception:
+        logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
+
+
+def _purge_rows_by_ids(
+    db: Session,
+    *,
+    table_name: str,
+    column_name: str,
+    ids: list[str],
+    deleted: dict[str, int],
+) -> None:
+    from sqlalchemy import text as sql_text
+
+    if not ids:
+        return
+    chunk_size = 200
+    for start in range(0, len(ids), chunk_size):
+        chunk = ids[start : start + chunk_size]
+        params = {f"id_{idx}": value for idx, value in enumerate(chunk)}
+        placeholders = ", ".join(f":id_{idx}" for idx in range(len(chunk)))
+        try:
+            result = db.execute(
+                sql_text(f"DELETE FROM {table_name} WHERE {column_name} IN ({placeholders})"),
+                params,
+            )
+            if result.rowcount:
+                deleted[table_name] = deleted.get(table_name, 0) + int(result.rowcount)
+        except Exception:
+            logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
+
+
+def _purge_dual_column_ids(
+    db: Session,
+    *,
+    table_name: str,
+    column_a: str,
+    column_b: str,
+    ids: list[str],
+    deleted: dict[str, int],
+) -> None:
+    from sqlalchemy import text as sql_text
+
+    if not ids:
+        return
+    chunk_size = 200
+    for start in range(0, len(ids), chunk_size):
+        chunk = ids[start : start + chunk_size]
+        params = {f"id_{idx}": value for idx, value in enumerate(chunk)}
+        placeholders = ", ".join(f":id_{idx}" for idx in range(len(chunk)))
+        try:
+            result = db.execute(
+                sql_text(
+                    f"DELETE FROM {table_name} WHERE {column_a} IN ({placeholders}) "
+                    f"OR {column_b} IN ({placeholders})"
+                ),
+                params,
+            )
+            if result.rowcount:
+                deleted[table_name] = deleted.get(table_name, 0) + int(result.rowcount)
+        except Exception:
+            logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
+
+
+def _purge_importador_data(db: Session, tenant_id, *, include_learning: bool = False) -> dict[str, int]:
+    from app.models.core.modelsimport import ImportItem
+    from app.models.importador import ImpDocumento
+
+    tid = str(tenant_id)
+    deleted: dict[str, int] = {}
+
+    document_ids = [str(row[0]) for row in db.query(ImpDocumento.id).filter(ImpDocumento.tenant_id == tenant_id).all()]
+    item_ids = [str(row[0]) for row in db.query(ImportItem.id).filter(ImportItem.tenant_id == tid).all()]
+
+    _purge_dual_column_ids(
+        db,
+        table_name="imp_documento_successor",
+        column_a="predecessor_id",
+        column_b="successor_id",
+        ids=document_ids,
+        deleted=deleted,
+    )
+    _purge_rows_by_ids(
+        db,
+        table_name="import_attachments",
+        column_name="item_id",
+        ids=item_ids,
+        deleted=deleted,
+    )
+    _purge_rows_by_ids(
+        db,
+        table_name="import_item_corrections",
+        column_name="item_id",
+        ids=item_ids,
+        deleted=deleted,
+    )
+    _purge_rows_by_ids(
+        db,
+        table_name="import_lineage",
+        column_name="item_id",
+        ids=item_ids,
+        deleted=deleted,
+    )
+
+    for table_name, where_clause in PURGE_OPERATIONS_HISTORY:
+        _purge_table_rows(
+            db,
+            table_name=table_name,
+            where_clause=where_clause,
+            params={"tid": tid},
+            deleted=deleted,
+        )
+
+    if include_learning:
+        for table_name, where_clause in PURGE_OPERATIONS_FULL_RESET:
+            _purge_table_rows(
+                db,
+                table_name=table_name,
+                where_clause=where_clause,
+                params={"tid": tid},
+                deleted=deleted,
+            )
+
+    db.commit()
+    return deleted
+
+
 # ---------------------------------------------------------------------------
-# Purge all importador history (tenant-scoped)
+# Purge importador history (tenant-scoped, preserves learning memory)
 # ---------------------------------------------------------------------------
 @router.delete("/purge-all", dependencies=protected)
 def purge_all_importador(request: Request, db: Session = Depends(get_db)):
-    from sqlalchemy import text as sql_text
-
     tenant_id = _tenant_id(request)
-    tid = str(tenant_id)
-
-    tenant_tables = [
-        "imp_batch_item",
-        "imp_batch_import",
-        "icu_recipe_snapshot",
-        "icu_recipe_draft",
-        "imp_documento",
-        "icu_recipe",
-        "import_items",
-        "import_resolutions",
-        "posting_registry",
-        "import_ocr_jobs",
-        "import_batches",
-        "import_mappings",
-        "import_column_mappings",
-    ]
-    fk_tables = [
-        ("imp_log_cambios", "documento_id", "SELECT id FROM imp_documento WHERE tenant_id = :tid"),
-        ("import_attachments", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
-        (
-            "import_item_corrections",
-            "item_id",
-            "SELECT id FROM import_items WHERE tenant_id = :tid",
-        ),
-        ("import_lineage", "item_id", "SELECT id FROM import_items WHERE tenant_id = :tid"),
-    ]
-
-    deleted: dict[str, int] = {}
-
-    for table_name, fk_column, subquery in fk_tables:
-        try:
-            result = db.execute(
-                sql_text(f"DELETE FROM {table_name} WHERE {fk_column} IN ({subquery})"),
-                {"tid": tid},
-            )
-            if result.rowcount:
-                deleted[table_name] = result.rowcount
-        except Exception:
-            logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
-
-    for table_name in tenant_tables:
-        try:
-            result = db.execute(
-                sql_text(f"DELETE FROM {table_name} WHERE tenant_id = :tid"),
-                {"tid": tid},
-            )
-            if result.rowcount:
-                deleted[table_name] = result.rowcount
-        except Exception:
-            logger.debug("purge skip %s (may not exist)", table_name, exc_info=True)
-
-    db.commit()
+    deleted = _purge_importador_data(db, tenant_id, include_learning=False)
     total = sum(deleted.values())
     logger.info("purge_all_importador tenant=%s deleted=%s", tenant_id, deleted)
+    return {"deleted_total": total, "tables": deleted}
+
+
+@router.delete("/purge-full", dependencies=protected)
+def purge_full_importador(request: Request, db: Session = Depends(get_db)):
+    tenant_id = _tenant_id(request)
+    deleted = _purge_importador_data(db, tenant_id, include_learning=True)
+    total = sum(deleted.values())
+    logger.info("purge_full_importador tenant=%s deleted=%s", tenant_id, deleted)
     return {"deleted_total": total, "tables": deleted}
 
 

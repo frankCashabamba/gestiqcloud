@@ -1095,6 +1095,12 @@ export async function purgeAllImportador(): Promise<{ deleted_total: number; tab
   return data as { deleted_total: number; tables: Record<string, number> }
 }
 
+export async function purgeFullImportador(): Promise<{ deleted_total: number; tables: Record<string, number> }> {
+  const { data } = await api.delete(TENANT_IMPORTADOR.purgeFull)
+  sessionStorage.removeItem(IMPORTADOR_IMPORT_SESSION_KEY)
+  return data as { deleted_total: number; tables: Record<string, number> }
+}
+
 export async function fetchSaveCapabilities(): Promise<Record<string, boolean>> {
   const { data } = await api.get(TENANT_IMPORTADOR.saveCapabilities)
   return data

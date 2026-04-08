@@ -28,5 +28,6 @@ export const TENANT_IMPORTADOR = {
   lineMatchCandidates: (id: string) => `/api/v1/importador/documents/${id}/line-match-candidates`,
   saveCapabilities: '/api/v1/importador/save-capabilities',
   purgeAll: '/api/v1/importador/purge-all',
+  purgeFull: '/api/v1/importador/purge-full',
   lineItemSlots: '/api/v1/importador/line-item-slots',
 }
