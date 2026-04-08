@@ -1059,7 +1059,10 @@ def _rebuild_line_item_extra_columns_from_ocr(
             item["extra_columns"] = extra_columns
 
 
-def _build_additional_field_hints(recipe_config: dict | None) -> str:
+def _build_additional_field_hints(
+    recipe_config: dict | None,
+    prompt_config: dict | None = None,
+) -> str:
     rc = recipe_config or {}
     field_descriptions = rc.get("field_descriptions") or {}
     if not isinstance(field_descriptions, dict):
@@ -1075,7 +1078,12 @@ def _build_additional_field_hints(recipe_config: dict | None) -> str:
 
     if not lines:
         return ""
-    return "Learned hints from previously confirmed similar documents:\n" + "\n".join(lines)
+    pc = prompt_config or {}
+    preamble = str(
+        pc.get("learned_hints_preamble")
+        or "Learned hints from previously confirmed similar documents:"
+    ).strip()
+    return preamble + "\n" + "\n".join(lines)
 
 
 def _resize_image_for_vision(image_bytes: bytes, max_dim: int = 1024) -> bytes:
@@ -1161,16 +1169,12 @@ async def _analyze_with_vision(
         rc.get("prompt_system")
         or pc.get("extraction_system")
         or pc.get("vision_system_fallback")
-        or (
-            "You are a universal accounting document analyzer with vision capabilities. "
-            "You can read documents in ANY language. Extract all visible information accurately."
-        )
     )
 
     _fd = rc.get("field_descriptions") or {}
     _f_subtotal = _fd.get("subtotal") or "taxable base before tax. Number or null"
     _f_tax = _fd.get("tax_amount") or "total tax (VAT/IVA/IGV/GST). Number or null if absent"
-    learned_hints = _build_additional_field_hints(recipe_config)
+    learned_hints = _build_additional_field_hints(recipe_config, prompt_config=pc)
     dynamic_fields_prompt = _build_dynamic_fields_prompt(
         None,
         {
@@ -1182,16 +1186,8 @@ async def _analyze_with_vision(
     )
 
     current_year = datetime.datetime.now().year
-    vision_preamble = str(
-        pc.get("vision_extraction_preamble")
-        or "Read this document image very carefully, character by character."
-    ).strip()
-    doc_type_instruction = str(
-        pc.get("doc_type_instruction")
-        or "INVOICE, RECEIPT, TICKET, CREDIT_NOTE, PURCHASE_ORDER, QUOTE, "
-        "DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, BANK_STATEMENT, "
-        "BANK_MOVEMENTS, or any descriptive label"
-    ).strip()
+    vision_preamble = str(pc.get("vision_extraction_preamble") or "").strip()
+    doc_type_instruction = str(pc.get("doc_type_instruction") or "").strip()
     critical_rules = _build_configured_rules(
         prompt_config=pc,
         current_year=current_year,
@@ -1401,14 +1397,7 @@ async def analyze_document(
     pc = prompt_config or load_prompt_config(None)
     ai_params = load_ai_params(db)
 
-    system_prompt = (
-        rc.get("prompt_system")
-        or pc.get("extraction_system")
-        or (
-            "You are a universal accounting document analyzer. "
-            "Always respond with valid JSON using the configured canonical fields."
-        )
-    )
+    system_prompt = rc.get("prompt_system") or pc.get("extraction_system")
 
     # Field descriptions can be customized per tenant via recipe_config["field_descriptions"].
     # Defaults are intentionally generic — locale-specific hints belong in the DB config.
@@ -1419,7 +1408,7 @@ async def analyze_document(
     _f_tax = _fd.get("tax_amount") or (
         "total tax amount (VAT/IVA/IGV/GST/TVA or equivalent). Use 0 if present but zero. Number or null if absent"
     )
-    learned_hints = _build_additional_field_hints(recipe_config)
+    learned_hints = _build_additional_field_hints(recipe_config, prompt_config=pc)
     dynamic_fields_prompt = _build_dynamic_fields_prompt(
         canonical_fields,
         {

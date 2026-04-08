@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -15,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.models.importador import IcuRecipeSnapshot
 
 from . import recipe_crud
+from .runtime_config import load_fuzzy_reuse_config, load_learning_control
 
 
 def _fingerprint_hash(obj: dict) -> str:
@@ -155,13 +155,15 @@ def find_similar_excel_snapshot(
     tenant_id: UUID,
     fingerprint: dict,
     *,
-    min_overlap: float = 0.80,
+    min_overlap: float | None = None,
 ) -> IcuRecipeSnapshot | None:
     """Busca el snapshot Excel más similar por overlap de headers (Jaccard >= min_overlap).
 
     Solo aplica a fingerprints de tipo 'excel'. Retorna el mejor candidato o None.
     Limita la búsqueda a los 100 snapshots más recientes del tenant para rendimiento.
     """
+    if min_overlap is None:
+        min_overlap = load_fuzzy_reuse_config(db).get("excel_min_overlap", 0.80)
     if not isinstance(fingerprint, dict) or fingerprint.get("kind") != "excel":
         return None
     target_sheets = fingerprint.get("sheets") or {}
@@ -393,13 +395,7 @@ def _flatten_headers(sheet_profiles: dict) -> list[str]:
 
 
 def _learning_min_confidence() -> float:
-    raw = (os.getenv("IMPORTADOR_CACHE_MIN_CONFIDENCE") or "").strip()
-    if not raw:
-        return 0.6
-    try:
-        return max(0.0, min(1.0, float(raw)))
-    except ValueError:
-        return 0.6
+    return load_fuzzy_reuse_config().get("learning_min_confidence", 0.6)
 
 
 def _coerce_learning_version(value: object) -> int:
@@ -458,6 +454,32 @@ def get_document_applied_learning_version(raw_ai_json: dict | None) -> int:
 
 
 def should_reprocess_existing_document(db: Session, doc) -> bool:
+    """Política de reuso vs reproceso por learning_version.
+
+    Los cuatro casos posibles cuando se re-sube un documento ya existente:
+
+    1. RECREACIÓN (fingerprint cambió):
+       El doc entrante tendrá un hash_sha256 distinto → crud.find_existing_documento
+       no lo empareja → se crea un documento nuevo y se procesa desde cero.
+       Esta función nunca es invocada en ese caso.
+
+    2. REUSO EXACTO (mismo fingerprint, mismo learning_version):
+       El snapshot existe pero su learning_version == la versión ya aplicada al
+       documento (applied_version == current_version). Retorna False → skip.
+
+    3. SKIP (mismo fingerprint, snapshot sin aprendizaje):
+       El snapshot existe pero nunca acumuló aprendizaje (learning_version == 0,
+       es decir, ningún análisis confirmado fue almacenado todavía).
+       Retorna False → no tiene sentido re-ejecutar con hints vacíos.
+
+    4. REPROCESO POR LEARNING (mismo fingerprint, snapshot aprendió algo nuevo):
+       El snapshot tiene learning_version > 0 Y applied_version < current_version,
+       lo que significa que el doc fue procesado antes de que el snapshot acumulara
+       nuevos hints aprendidos. Retorna True → re-ejecutar AI con los hints actuales.
+       Condicionado además a que rerun_enabled=true en learning_control (runtime_seed).
+    """
+    # El doc debe tener un snapshot asociado (sólo documentos que pasaron por el
+    # pipeline de recetas tendrán recipe_snapshot_id).
     snapshot_id = getattr(doc, "recipe_snapshot_id", None)
     if not snapshot_id:
         return False
@@ -466,12 +488,32 @@ def should_reprocess_existing_document(db: Session, doc) -> bool:
     if snapshot is None:
         return False
 
+    # Caso 3 — SKIP: snapshot sin aprendizaje acumulado.
     current_version = get_snapshot_learning_version(snapshot)
     if current_version <= 0:
         return False
 
+    # Caso 2 — REUSO EXACTO: ya se procesó con la versión de aprendizaje actual.
     applied_version = get_document_applied_learning_version(getattr(doc, "raw_ai_json", None))
-    return applied_version < current_version
+    if applied_version >= current_version:
+        return False
+
+    # Caso 4 — REPROCESO POR LEARNING: nueva versión disponible.
+    # Verificar las puertas de control del operador en learning_control.
+    learning_ctrl = load_learning_control(db)
+
+    # Puerta global: rerun_enabled=false bloquea todo reproceso por aprendizaje.
+    if not learning_ctrl.get("rerun_enabled", True):
+        return False
+
+    # skip_reprocess_confirmed=true protege documentos ya aprobados (CONFIRMED)
+    # de ser re-encolados automáticamente; solo los REVIEW quedan elegibles.
+    if learning_ctrl.get("skip_reprocess_confirmed", False):
+        estado = str(getattr(doc, "estado", "") or "").upper()
+        if estado == "CONFIRMED":
+            return False
+
+    return True
 
 
 def get_snapshot_learning(

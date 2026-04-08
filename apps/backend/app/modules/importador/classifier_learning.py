@@ -23,14 +23,13 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.modules.importador.runtime_config import load_learning_config
+from app.modules.importador.runtime_config import load_learning_config, load_snapshot_learning_config
 
 logger = logging.getLogger("importador.classifier_learning")
 
-_MIN_STEM_LEN = 3
-_MAX_STEM_LEN = 35
-_MIN_ALIAS_LEN = 2
-_MAX_ALIAS_LEN = 50
+
+def _classifier_limits() -> dict[str, int]:
+    return load_snapshot_learning_config()
 
 # Palabras reservadas SQL/DDL que nunca deben tratarse como nombres de columna
 _SQL_BLOCKLIST: frozenset[str] = frozenset(
@@ -91,7 +90,8 @@ def _is_safe_column_name(raw: str) -> bool:
     if not raw or not isinstance(raw, str):
         return False
     stripped = raw.strip()
-    if len(stripped) < _MIN_ALIAS_LEN or len(stripped) > _MAX_ALIAS_LEN:
+    _limits = _classifier_limits()
+    if len(stripped) < _limits["min_alias_len"] or len(stripped) > _limits["max_alias_len"]:
         return False
     # Caracteres de inyección SQL
     if any(c in stripped for c in (";", "--", "/*", "*/", "=", "'", '"', "\\")):
@@ -205,7 +205,8 @@ def _learn_filename(
     # Use the first meaningful word as the pattern anchor
     words = stem.split()
     anchor = words[0] if words else ""
-    if len(anchor) < _MIN_STEM_LEN or len(anchor) > _MAX_STEM_LEN:
+    _limits = _classifier_limits()
+    if len(anchor) < _limits["min_stem_len"] or len(anchor) > _limits["max_stem_len"]:
         return updated
 
     escaped = re.escape(anchor)
@@ -317,7 +318,8 @@ def _learn_column_aliases(
                 pass
             continue
 
-        if len(alias_clean) < _MIN_ALIAS_LEN or len(alias_clean) > _MAX_ALIAS_LEN:
+        _limits = _classifier_limits()
+        if len(alias_clean) < _limits["min_alias_len"] or len(alias_clean) > _limits["max_alias_len"]:
             continue
         # Skip if looks like a data value (long digit sequences, email-like, etc.)
         if re.search(r"\d{4,}", alias_clean) or "@" in alias_clean:

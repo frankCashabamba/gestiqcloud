@@ -39,6 +39,7 @@ from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 from .runtime_config import (
     load_classification_threshold,
     load_file_support_config,
+    load_ocr_runtime_config,
     load_product_sheet_detection_config,
 )
 from .schemas import (
@@ -106,7 +107,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
-IMAGE_SOURCE_FORMATS = {"JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"}
+def _image_source_formats() -> set[str]:
+    return set(load_ocr_runtime_config().get("image_source_formats", ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"]))
 
 
 def _tenant_id(request: Request) -> UUID:
@@ -402,7 +404,7 @@ def _build_assisted_review(doc) -> AssistedReviewOut | None:
         return None
 
     source_format = str(getattr(doc, "tipo_archivo", "") or "").upper()
-    if source_format not in IMAGE_SOURCE_FORMATS:
+    if source_format not in _image_source_formats():
         return None
 
     data = _get_doc_import_data(doc)

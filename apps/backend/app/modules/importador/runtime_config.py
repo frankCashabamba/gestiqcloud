@@ -114,6 +114,8 @@ _DEFAULT_OCR_CONFIG: dict[str, Any] = {
     "excel_max_preview_rows_per_sheet": 120,
     "excel_scan_rows_multiplier": 4,
     "excel_max_text_chars": 4000,
+    "vision_jpeg_quality": 75,
+    "image_source_formats": ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"],
 }
 
 _DEFAULT_PRE_CLASSIFIER_CONFIG: dict[str, float] = {
@@ -213,6 +215,19 @@ _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
         "nombre de la receta",
         "nombre",
     ],
+}
+
+_DEFAULT_FUZZY_REUSE_CONFIG: dict[str, float] = {
+    "excel_min_overlap": 0.80,
+    "learning_min_confidence": 0.6,
+}
+
+_DEFAULT_SNAPSHOT_LEARNING_CONFIG: dict[str, int] = {
+    "max_examples": 5,
+    "min_stem_len": 3,
+    "max_stem_len": 35,
+    "min_alias_len": 2,
+    "max_alias_len": 50,
 }
 
 _DEFAULT_ROUTING_SCORING_CONFIG: dict[str, float] = {
@@ -663,6 +678,8 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
         ),
         "excel_scan_rows_multiplier": int(_DEFAULT_OCR_CONFIG["excel_scan_rows_multiplier"]),
         "excel_max_text_chars": int(_DEFAULT_OCR_CONFIG["excel_max_text_chars"]),
+        "vision_jpeg_quality": int(_DEFAULT_OCR_CONFIG["vision_jpeg_quality"]),
+        "image_source_formats": list(_DEFAULT_OCR_CONFIG["image_source_formats"]),
     }
 
     def _int_value(value: Any, default: int, *, minimum: int = 1) -> int:
@@ -744,6 +761,10 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 parsed = str(value or "").strip()
                 if parsed:
                     config[key] = parsed
+            elif key == "vision_jpeg_quality":
+                config[key] = _int_value(value, config[key], minimum=1)
+            elif key == "image_source_formats":
+                config[key] = _list_value(value, config[key])
 
     if db is not None:
         try:
@@ -806,6 +827,10 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                     parsed = str(row.value_text).strip()
                     if parsed:
                         config[key] = parsed
+                elif key == "vision_jpeg_quality" and row.value_text is not None:
+                    config[key] = _int_value(row.value_text, config[key], minimum=1)
+                elif key == "image_source_formats":
+                    config[key] = _list_value(row.value_list, config[key])
         except Exception as exc:
             logger.warning("No se pudo cargar ocr_config desde imp_config: %s", exc)
 
@@ -1127,6 +1152,7 @@ def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
                     "fallback_dynamic_fields_prompt",
                     "year_sanity_rule_template",
                     "line_items_extra_columns_rule",
+                    "learned_hints_preamble",
                 }:
                     value = str(row.value_text or "").strip()
                     if value:
@@ -1448,14 +1474,36 @@ def load_learning_control(db: Any | None = None) -> dict[str, Any]:
     Cargado desde imp_config(module='learning_control'). Permite habilitar/
     deshabilitar el rerun y ajustar sus condiciones sin tocar código.
 
+    Política de reuso vs recreación vs reproceso (4 casos):
+
+      1. RECREACIÓN — fingerprint cambió (hash_sha256 distinto): el sistema crea
+         un documento nuevo y lo procesa desde cero. Esta función no interviene.
+
+      2. REUSO EXACTO — mismo fingerprint, same learning_version aplicada:
+         should_reprocess_existing_document retorna False → skip sin reejecutar AI.
+
+      3. SKIP POR APRENDIZAJE VACÍO — snapshot.learning_version == 0:
+         No hay hints acumulados; reejecutar no aportaría nada → skip.
+
+      4. REPROCESO POR LEARNING — mismo fingerprint, snapshot.learning_version >
+         versión aplicada al doc: se re-ejecuta el pipeline AI con los nuevos hints.
+         Controlado por las claves siguientes.
+
     Claves:
-      rerun_enabled              — bool, default True
-      rerun_min_confidence       — float, umbral de confianza mínimo para disparar rerun
-                                   (0.0 = siempre, 1.0 = nunca). Default 0.0
+      rerun_enabled              — bool, default True. Puerta global: si False,
+                                   should_reprocess_existing_document siempre retorna
+                                   False y ningún doc se re-encola por aprendizaje.
+      rerun_min_confidence       — float, umbral de confianza mínimo para disparar
+                                   rerun dentro del pipeline (0.0 = siempre,
+                                   1.0 = nunca). Default 0.0
       rerun_max_snapshot_age_days — int, días máximos desde last_updated de la receta.
                                     0 = sin límite. Default 0
       rerun_require_missing_fields — bool, solo hacer rerun si hay campos faltantes.
                                      Default False
+      skip_reprocess_confirmed   — bool, default False. Si True, los documentos en
+                                   estado CONFIRMED nunca se re-encolan por learning,
+                                   solo los que están en REVIEW. Útil para congelar
+                                   documentos ya aprobados por el usuario.
     """
     cached = _cache_get("learning_control")
     if cached is not None:
@@ -1485,6 +1533,7 @@ def load_learning_control(db: Any | None = None) -> dict[str, Any]:
         "rerun_min_confidence": _float_val(seed.get("rerun_min_confidence"), 0.0),
         "rerun_max_snapshot_age_days": _int_val(seed.get("rerun_max_snapshot_age_days"), 0),
         "rerun_require_missing_fields": _bool(seed.get("rerun_require_missing_fields"), False),
+        "skip_reprocess_confirmed": _bool(seed.get("skip_reprocess_confirmed"), False),
     }
 
     if db is None:
@@ -1504,6 +1553,8 @@ def load_learning_control(db: Any | None = None) -> dict[str, Any]:
                 config["rerun_max_snapshot_age_days"] = _int_val(val, 0)
             elif key == "rerun_require_missing_fields":
                 config["rerun_require_missing_fields"] = _bool(val, False)
+            elif key == "skip_reprocess_confirmed":
+                config["skip_reprocess_confirmed"] = _bool(val, False)
         return _cache_set("learning_control", config)  # type: ignore[return-value]
     except Exception as exc:
         logger.warning("No se pudo cargar learning_control desde imp_config: %s", exc)
@@ -1565,6 +1616,85 @@ def load_cache_ttls(db: Any | None = None) -> dict[str, float]:
 
     _cache["cache_ttls"] = (time.monotonic(), defaults)
     return defaults
+
+
+def load_fuzzy_reuse_config(db: Any | None = None) -> dict[str, float]:
+    """Parámetros de reutilización fuzzy de snapshots.
+
+    Claves:
+      excel_min_overlap        — Jaccard mínimo para reusar snapshot Excel (default 0.80)
+      learning_min_confidence  — Confianza mínima para persistir/recuperar learned_analysis (default 0.6)
+    """
+    cached = _cache_get("fuzzy_reuse")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    config: dict[str, float] = dict(_DEFAULT_FUZZY_REUSE_CONFIG)
+    seed = _seed_module_payload("fuzzy_reuse")
+
+    def _float_value(value: Any, default: float) -> float:
+        try:
+            return max(0.0, min(1.0, float(str(value).strip())))
+        except (TypeError, ValueError):
+            return default
+
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key in config:
+                config[key] = _float_value(value, config[key])
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "fuzzy_reuse")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key in config and row.value_text is not None:
+                    config[key] = _float_value(row.value_text, config[key])
+        except Exception as exc:
+            logger.warning("No se pudo cargar fuzzy_reuse desde imp_config: %s", exc)
+
+    return _cache_set("fuzzy_reuse", config)  # type: ignore[return-value]
+
+
+def load_snapshot_learning_config(db: Any | None = None) -> dict[str, int]:
+    """Límites operativos del learning de snapshots y classifier.
+
+    Claves:
+      max_examples    — máximo de ejemplos en field_learning_memory (default 5)
+      min_stem_len    — longitud mínima del stem para patrones de filename (default 3)
+      max_stem_len    — longitud máxima del stem (default 35)
+      min_alias_len   — longitud mínima de un alias de campo aprendido (default 2)
+      max_alias_len   — longitud máxima de un alias de campo aprendido (default 50)
+    """
+    cached = _cache_get("snapshot_learning")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    config: dict[str, int] = dict(_DEFAULT_SNAPSHOT_LEARNING_CONFIG)
+    seed = _seed_module_payload("snapshot_learning")
+
+    def _int_value(value: Any, default: int) -> int:
+        try:
+            return max(1, int(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key in config:
+                config[key] = _int_value(value, config[key])
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "snapshot_learning")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key in config and row.value_text is not None:
+                    config[key] = _int_value(row.value_text, config[key])
+        except Exception as exc:
+            logger.warning("No se pudo cargar snapshot_learning desde imp_config: %s", exc)
+
+    return _cache_set("snapshot_learning", config)  # type: ignore[return-value]
 
 
 def invalidate_runtime_config_cache() -> None:

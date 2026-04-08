@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 
 from . import crud, recipe_crud
 from .constants import INTERNAL_STRUCTURAL_KEYS
+from .runtime_config import load_snapshot_learning_config
 
-_MAX_LEARNING_EXAMPLES = 5
+
+def _max_learning_examples() -> int:
+    return load_snapshot_learning_config().get("max_examples", 5)
 
 
 def _normalize_scalar(value: Any) -> str | None:
@@ -26,14 +29,14 @@ def _normalize_examples(values: Any) -> list[str]:
         text = _normalize_scalar(value)
         if text and text not in normalized:
             normalized.append(text)
-    return normalized[:_MAX_LEARNING_EXAMPLES]
+    return normalized[:_max_learning_examples()]
 
 
 def _push_example(values: list[str], sample: str | None) -> list[str]:
     if not sample:
         return list(values)
     merged = [sample, *[value for value in values if value != sample]]
-    return merged[:_MAX_LEARNING_EXAMPLES]
+    return merged[:_max_learning_examples()]
 
 
 def _coerce_counter(value: Any) -> int:

@@ -172,7 +172,8 @@
       "Do not invent data absent from the document. Use null for missing fields."
     ],
     "year_sanity_rule_template": "YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '{expected_year_suffix}' (20{expected_year_suffix}).",
-    "line_items_extra_columns_rule": "line_items: only list actual PRODUCTS. For every visible line-item column that does not clearly map to the configured base fields, preserve it verbatim in extra_columns using the original header label and cell value. Do not drop visible line-item columns just because their meaning is uncertain."
+    "line_items_extra_columns_rule": "line_items: only list actual PRODUCTS. For every visible line-item column that does not clearly map to the configured base fields, preserve it verbatim in extra_columns using the original header label and cell value. Do not drop visible line-item columns just because their meaning is uncertain.",
+    "learned_hints_preamble": "Learned hints from previously confirmed similar documents:"
   },
   "product_sheet_detection": {
     "summary_names": ["total", "subtotal", "resumen", "sum", "totales"],
@@ -272,7 +273,8 @@
     "rerun_enabled": "true",
     "rerun_min_confidence": "0.0",
     "rerun_max_snapshot_age_days": "0",
-    "rerun_require_missing_fields": "false"
+    "rerun_require_missing_fields": "false",
+    "skip_reprocess_confirmed": "false"
   },
   "cache_ttls": {
     "ocr_ttl_seconds": "300",
@@ -353,6 +355,19 @@
     "excel_max_header_scan_rows": "25",
     "excel_max_preview_rows_per_sheet": "120",
     "excel_scan_rows_multiplier": "4",
-    "excel_max_text_chars": "4000"
+    "excel_max_text_chars": "4000",
+    "vision_jpeg_quality": "75",
+    "image_source_formats": ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"]
+  },
+  "fuzzy_reuse": {
+    "excel_min_overlap": "0.80",
+    "learning_min_confidence": "0.6"
+  },
+  "snapshot_learning": {
+    "max_examples": "5",
+    "min_stem_len": "3",
+    "max_stem_len": "35",
+    "min_alias_len": "2",
+    "max_alias_len": "50"
   }
 }

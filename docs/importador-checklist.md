@@ -106,7 +106,15 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
   Hecho parcial: snapshots nuevos guardan `fingerprint_signature`, `fingerprint_kind` y `fingerprint_headers_flat`; migraciones DB aplicadas en dev, falta medir efecto real
 - [ ] Reducir comparaciones Python-side en snapshots recientes
   Hecho parcial: fallback acotado, mejor reutilizacion exacta y prefiltro SQL para Excel; el fuzzy reuse sigue comparando overlap en Python
-- [ ] Definir politica clara de reuso vs recreacion vs reproceso por learning version
+- [x] Definir politica clara de reuso vs recreacion vs reproceso por learning version
+  Politica implementada en `should_reprocess_existing_document` (auto_recipe.py) con 4 casos documentados:
+  (1) RECREACION: fingerprint/hash cambio -> doc nuevo, procesa desde cero (esta funcion no interviene).
+  (2) REUSO EXACTO: mismo fingerprint, applied_version >= snapshot.learning_version -> skip, sin reejecutar AI.
+  (3) SKIP POR APRENDIZAJE VACIO: snapshot.learning_version == 0 -> skip, no hay hints que aportar.
+  (4) REPROCESO POR LEARNING: mismo fingerprint, snapshot.learning_version > applied_version -> re-ejecutar AI.
+  Controlado por `learning_control.rerun_enabled` (puerta global) y el nuevo flag `skip_reprocess_confirmed`
+  (congela documentos CONFIRMED de ser re-encolados automaticamente, solo REVIEW quedan elegibles).
+  Ambos parametros ya estan en `runtime_seed.json` y se parsean en `load_learning_control`.
 
 ## Contrato `content_json`
 
