@@ -75,6 +75,19 @@ export type AssistedReview = {
 
 let _categoryKeywords: Record<string, string[]> = {}
 
+export type CanonicalField = {
+  name: string
+  field_type: string
+  projection_column?: string | null
+  line_item_slot?: string | null
+  label?: string | null
+}
+
+let canonicalFieldsRequest: Promise<CanonicalField[]> | null = null
+let _canonicalFieldsCache: CanonicalField[] | null = null
+let _canonicalFieldLabelCache: Record<string, string> = {}
+let _canonicalLineItemFieldNamesCache = new Set<string>()
+
 export type LogCambio = {
   id: string
   accion: string
@@ -112,6 +125,53 @@ let productSheetConfigRequest: Promise<void> | null = null
 let docCategoryKeywordsLoaded = false
 let productSheetConfigLoaded = false
 const importBatchListRequests = new Map<string, Promise<ImportBatch[]>>()
+
+function primeCanonicalFieldCaches(fields: CanonicalField[]): CanonicalField[] {
+  _canonicalFieldsCache = fields
+  _canonicalFieldLabelCache = {}
+  _canonicalLineItemFieldNamesCache = new Set<string>()
+  for (const field of fields) {
+    const name = String(field.name || '').trim()
+    if (!name) continue
+    const label = String(field.label || '').trim()
+    if (label) {
+      _canonicalFieldLabelCache[name.toLowerCase()] = label
+    }
+    if (String(field.line_item_slot || '').trim()) {
+      _canonicalLineItemFieldNamesCache.add(name.toLowerCase())
+    }
+  }
+  return fields
+}
+
+export async function fetchCanonicalFields(): Promise<CanonicalField[]> {
+  if (_canonicalFieldsCache) return _canonicalFieldsCache
+  if (!canonicalFieldsRequest) {
+    canonicalFieldsRequest = api.get(TENANT_IMPORTADOR.canonicalFields)
+      .then(({ data }) => {
+        const fields = Array.isArray(data) ? data as CanonicalField[] : []
+        return primeCanonicalFieldCaches(fields)
+      })
+      .finally(() => {
+        canonicalFieldsRequest = null
+      })
+  }
+  return canonicalFieldsRequest
+}
+
+export function formatFieldLabel(key: string): string {
+  const normalized = String(key || '').trim().toLowerCase()
+  if (!normalized) return ''
+  const backendLabel = _canonicalFieldLabelCache[normalized]
+  if (backendLabel) return backendLabel
+  return String(key)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+export function isLineItemFieldName(key: string): boolean {
+  return _canonicalLineItemFieldNamesCache.has(String(key || '').trim().toLowerCase())
+}
 
 export type Recipe = {
   id: string

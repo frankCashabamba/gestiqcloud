@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useImportReprocess } from '../hooks/useImportReprocess'
-import { STATUS_LABELS, formatFieldLabel } from '../constants'
+import { STATUS_LABELS } from '../constants'
+import { fetchCanonicalFields, formatFieldLabel } from '../services'
 import type { StagingLine } from '../services'
 
 const REPROCESSABLE_STATES = ['INVALID', 'PENDING', 'REVIEW', 'REPROCESS', 'VALID'] as const
@@ -56,6 +57,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
   useEffect(() => {
     if (!documentId) return
     void reprocess.loadIterations()
+    void fetchCanonicalFields().catch(() => {})
     setSelectedFields([])
     setSelectedErrorCodes([])
     setSelectedLineNumbers([])

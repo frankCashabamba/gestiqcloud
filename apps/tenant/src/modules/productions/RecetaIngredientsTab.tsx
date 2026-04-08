@@ -18,6 +18,7 @@ import {
 import { Add, Delete } from '@mui/icons-material'
 import type { Product } from '../../services/api/products'
 import { convertQtyToUnit } from '../../services/unitService'
+import { normalizeUnitCode } from '../../services/unitService'
 import { formatIngredientReference } from './ingredientCatalog'
 
 type UnitOption = {
@@ -98,6 +99,7 @@ export default function RecetaIngredientsTab({
             {ingredientsDraft.map((item, index) => {
               const product = products.find((p) => p.id === item.product_id)
               const productName = product?.name || (item as any)?.product_name || '-'
+              const lockedUnit = product ? normalizeUnitCode(product.unit, units) : normalizeUnitCode(item.unit, units)
               const qty = Number(item.qty ?? 0)
               const qtyReference = formatIngredientReference(qty, item.unit, units)
               const qtyInPackageUnit = convertQtyToUnit(
@@ -177,10 +179,11 @@ export default function RecetaIngredientsTab({
                       <TextField
                         select
                         SelectProps={{ native: true }}
-                        value={item.unit}
+                        value={lockedUnit}
                         onChange={(e) => onSetIngredientField(index, 'unit', e.target.value)}
                         size="small"
                         sx={{ width: 90 }}
+                        disabled={Boolean(product)}
                       >
                         {units.map((unit) => (
                           <option key={unit.code} value={unit.code}>{unit.label}</option>

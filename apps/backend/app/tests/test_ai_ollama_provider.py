@@ -98,3 +98,50 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
         {"role": "system", "content": "System"},
         {"role": "user", "content": "User"},
     ]
+
+
+def test_ollama_provider_prefers_stronger_extraction_models(monkeypatch):
+    provider = OllamaProvider(
+        {
+            "url": "http://127.0.0.1:11434",
+            "endpoint": "/api/chat",
+            "model": "qwen2.5-coder:3b",
+            "max_concurrency": "1",
+        }
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_get_available_models",
+        lambda timeout=3.0: [
+            "qwen2.5-coder:3b",
+            "qwen2.5-coder:14b",
+            "qwen3-coder:latest",
+        ],
+    )
+
+    assert provider.get_default_model(AITask.EXTRACTION) == "qwen3-coder:latest"
+
+
+def test_ollama_provider_respects_explicit_extraction_model_override(monkeypatch):
+    provider = OllamaProvider(
+        {
+            "url": "http://127.0.0.1:11434",
+            "endpoint": "/api/chat",
+            "model": "qwen2.5-coder:3b",
+            "max_concurrency": "1",
+        }
+    )
+
+    monkeypatch.setenv("OLLAMA_EXTRACTION_MODEL", "qwen2.5-coder:14b")
+    monkeypatch.setattr(
+        provider,
+        "_get_available_models",
+        lambda timeout=3.0: [
+            "qwen2.5-coder:3b",
+            "qwen2.5-coder:14b",
+            "qwen3-coder:latest",
+        ],
+    )
+
+    assert provider.get_default_model(AITask.EXTRACTION) == "qwen2.5-coder:14b"

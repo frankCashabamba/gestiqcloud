@@ -23,13 +23,17 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.modules.importador.runtime_config import load_learning_config, load_snapshot_learning_config
+from app.modules.importador.runtime_config import (
+    load_learning_config,
+    load_snapshot_learning_config,
+)
 
 logger = logging.getLogger("importador.classifier_learning")
 
 
 def _classifier_limits() -> dict[str, int]:
     return load_snapshot_learning_config()
+
 
 # Palabras reservadas SQL/DDL que nunca deben tratarse como nombres de columna
 _SQL_BLOCKLIST: frozenset[str] = frozenset(
@@ -319,7 +323,10 @@ def _learn_column_aliases(
             continue
 
         _limits = _classifier_limits()
-        if len(alias_clean) < _limits["min_alias_len"] or len(alias_clean) > _limits["max_alias_len"]:
+        if (
+            len(alias_clean) < _limits["min_alias_len"]
+            or len(alias_clean) > _limits["max_alias_len"]
+        ):
             continue
         # Skip if looks like a data value (long digit sequences, email-like, etc.)
         if re.search(r"\d{4,}", alias_clean) or "@" in alias_clean:

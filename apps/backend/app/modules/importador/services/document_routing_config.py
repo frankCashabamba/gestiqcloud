@@ -358,7 +358,7 @@ def resolve_routing_profile_match(
                     resolved_sector=config.sector,
                 )
 
-    fallback_profile = config.profiles.get("OTHER") or _FALLBACK_PROFILES["OTHER"]
+    fallback_profile = config.profiles.get("OTHER") or _fallback_profiles()["OTHER"]
     return RoutingResolution(
         profile=fallback_profile,
         matched_by="fallback:other",

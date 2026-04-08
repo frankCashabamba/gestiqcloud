@@ -21,7 +21,11 @@ import {
   type RecipeOptimizationResponse,
   type RecipeIngredientResponse,
 } from '../../services/api/recetas';
-import { listProducts, type Product } from '../../services/api/products';
+import {
+  listProducts,
+  listRawMaterials,
+  type Product,
+} from '../../services/api/products';
 import {
   listCostDrivers,
   listRecipeCostLines,
@@ -44,6 +48,7 @@ import {
   formatIngredientReference,
   type IngredientMasterRow,
 } from './ingredientCatalog';
+import { mergeIngredientProducts } from './ingredientProducts';
 import type { IngredientInsightMeta } from './RecetaIngredientInsightDialog';
 
 const RecetaIngredientsTab = React.lazy(() => import('./RecetaIngredientsTab'));
@@ -187,6 +192,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const [activeTab, setActiveTab] = useState(0);
   const [yieldQtyDraft, setYieldQtyDraft] = useState<number | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [ingredientProducts, setIngredientProducts] = useState<Product[]>([]);
   const [costDrivers, setCostDrivers] = useState<CostDriver[]>([]);
   const [costLinesDraft, setCostLinesDraft] = useState<Array<{
     id?: string;
@@ -306,14 +312,23 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       });
       setIsEditing(false);
 
-      const [productsData, driversData, costLinesData, fullCostData] = await Promise.all([
+      const [productsData, rawMaterialsData, driversData, costLinesData, fullCostData] = await Promise.all([
         listProducts({ limit: 500 }),
+        listRawMaterials({ limit: 500 }).catch(() => []),
         listCostDrivers().catch(() => []),
         listRecipeCostLines(recipeId).catch(() => []),
         getRecipeFullCost(recipeId).catch(() => null),
       ]);
-      setProducts(Array.isArray(productsData) ? productsData : []);
       const productList = Array.isArray(productsData) ? productsData : [];
+      const rawMaterialList = Array.isArray(rawMaterialsData) ? rawMaterialsData : [];
+      setProducts(productList);
+      setIngredientProducts(
+        mergeIngredientProducts(
+          rawMaterialList,
+          productList,
+          recipeIngredients.map((ing: RecipeIngredientResponse) => String(ing.product_id || '')),
+        ),
+      );
       setCostDrivers(Array.isArray(driversData) ? driversData : []);
       setCostLinesDraft(
         (Array.isArray(costLinesData) ? costLinesData : []).map((cl: RecipeCostLine, idx: number) => ({
@@ -347,6 +362,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
     }
   };
 
+  const getIngredientProduct = (productId: string) =>
+    ingredientProducts.find((x) => x.id === productId) || products.find((x) => x.id === productId);
+
   const handleUpdateProductPrice = async (multiplier: number = 2.5) => {
     if (!canWrite || !recipe || !breakdown) return;
 
@@ -371,13 +389,16 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
   const setIngredientField = (index: number, field: string, value: any) => {
     setIngredientsDraft((prev) => {
       const next = [...prev];
+      const selectedProduct = getIngredientProduct(next[index]?.product_id || '');
       const normalizedValue =
-        field === 'unit' || field === 'package_unit'
+        field === 'unit' && selectedProduct
+          ? normalizeUnitCode(selectedProduct.unit, units)
+          : field === 'unit' || field === 'package_unit'
           ? normalizeUnitCode(value, units)
           : value;
       (next[index] as any)[field] = normalizedValue;
       if (field === 'product_id') {
-        const p = products.find((x) => x.id === value);
+        const p = getIngredientProduct(String(value));
         if (p) {
           next[index].unit = normalizeUnitCode(p.unit, units);
           next[index].package_unit = normalizeUnitCode(p.unit, units);
@@ -386,6 +407,30 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       return next;
     });
   };
+
+  useEffect(() => {
+    setIngredientsDraft((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        const product = getIngredientProduct(item.product_id);
+        if (!product) return item;
+        const lockedUnit = normalizeUnitCode(product.unit, units);
+        if (
+          normalizeUnitCode(item.unit, units) === lockedUnit &&
+          normalizeUnitCode(item.package_unit, units) === lockedUnit
+        ) {
+          return item;
+        }
+        changed = true;
+        return {
+          ...item,
+          unit: lockedUnit,
+          package_unit: lockedUnit,
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, [ingredientProducts, products, units]);
 
   const addNewIngredientRow = () => {
     if (!isEditing) setIsEditing(true);
@@ -423,17 +468,21 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
       const normalizedIngredients = ingredientsDraft
         .filter((row) => row.product_id && Number(row.qty || 0) > 0)
-        .map((row, index) => ({
-          product_id: row.product_id,
-          qty: Number(row.qty || 0),
-          unit: normalizeUnitCode(row.unit, units),
-          purchase_packaging: String(row.purchase_packaging || '-'),
-          qty_per_package: Math.max(Number(row.qty_per_package || 1), 0.0001),
-          package_unit: normalizeUnitCode(row.package_unit || row.unit, units),
-          package_cost: Number(row.package_cost || 0),
-          notes: row.notes || undefined,
-          line_order: index,
-        }));
+        .map((row, index) => {
+          const product = getIngredientProduct(row.product_id);
+          const lockedUnit = product ? normalizeUnitCode(product.unit, units) : normalizeUnitCode(row.unit, units);
+          return {
+            product_id: row.product_id,
+            qty: Number(row.qty || 0),
+            unit: lockedUnit,
+            purchase_packaging: String(row.purchase_packaging || '-'),
+            qty_per_package: Math.max(Number(row.qty_per_package || 1), 0.0001),
+            package_unit: product ? lockedUnit : normalizeUnitCode(row.package_unit || row.unit, units),
+            package_cost: Number(row.package_cost || 0),
+            notes: row.notes || undefined,
+            line_order: index,
+          };
+        });
 
       const seenProducts = new Set<string>();
       for (const ingredient of normalizedIngredients) {
@@ -922,7 +971,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
               t={t}
               isEditing={isEditing}
               ingredientsDraft={ingredientsDraft}
-              products={products}
+              products={ingredientProducts}
               units={units}
               totalCost={totalCost}
               tableContainerSx={tableContainerSx}

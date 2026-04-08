@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from app.services.ai.base import AIRequest, AITask
+from app.services.ai.base import AIRequest, AIResponse, AITask
 from app.services.ai.service import AIService
 
 
@@ -88,3 +88,311 @@ def test_ai_service_query_passes_messages_into_request(monkeypatch):
         {"role": "system", "content": "System"},
         {"role": "user", "content": "User"},
     ]
+
+
+def test_ai_service_routes_complex_requests_to_openai(monkeypatch):
+    captured: dict[str, int] = {"ollama_calls": 0, "openai_calls": 0}
+
+    async def _fake_cache_get(_key: str):
+        return None
+
+    async def _fake_cache_set(*args, **kwargs):
+        del args, kwargs
+        return None
+
+    class _OllamaProvider:
+        name = "ollama"
+        default_model = "qwen2.5:3b"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["ollama_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content='{"provider":"ollama"}',
+                model="qwen2.5:3b",
+                processing_time_ms=22000,
+            )
+
+    class _OpenAIProvider:
+        name = "openai"
+        default_model = "gpt-4o"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["openai_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content='{"provider":"openai"}',
+                model="gpt-4o",
+                processing_time_ms=1800,
+            )
+
+    async def _fake_provider_lookup(_task):
+        return _OllamaProvider()
+
+    monkeypatch.setattr("app.services.ai.service.cache_get", _fake_cache_get)
+    monkeypatch.setattr("app.services.ai.service.cache_set", _fake_cache_set)
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_available_provider",
+        _fake_provider_lookup,
+    )
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_provider",
+        lambda name=None: _OpenAIProvider() if name == "openai" else _OllamaProvider(),
+    )
+
+    response = asyncio.run(
+        AIService.query(
+            task=AITask.EXTRACTION,
+            prompt="X" * 9000,
+            context={
+                "ai_fallback_policy": {
+                    "allow_on_error": True,
+                    "allow_on_slow": True,
+                    "allow_on_complex": True,
+                    "slow_threshold_ms": 15000,
+                    "complexity_score": 0.91,
+                    "complexity_threshold": 0.72,
+                }
+            },
+            enable_recovery=False,
+        )
+    )
+
+    assert response.is_error is False
+    assert response.content == '{"provider":"openai"}'
+    assert response.model == "gpt-4o"
+    assert captured["ollama_calls"] == 0
+    assert captured["openai_calls"] == 1
+
+
+def test_ai_service_keeps_ollama_when_no_fallback_policy_is_provided(monkeypatch):
+    captured: dict[str, int] = {"ollama_calls": 0, "openai_calls": 0}
+
+    async def _fake_cache_get(_key: str):
+        return None
+
+    async def _fake_cache_set(*args, **kwargs):
+        del args, kwargs
+        return None
+
+    class _OllamaProvider:
+        name = "ollama"
+        default_model = "qwen2.5:3b"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["ollama_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content='{"provider":"ollama"}',
+                model="qwen2.5:3b",
+                processing_time_ms=22000,
+            )
+
+    class _OpenAIProvider:
+        name = "openai"
+        default_model = "gpt-4o"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["openai_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content='{"provider":"openai"}',
+                model="gpt-4o",
+                processing_time_ms=1800,
+            )
+
+    async def _fake_provider_lookup(_task):
+        return _OllamaProvider()
+
+    monkeypatch.setattr("app.services.ai.service.cache_get", _fake_cache_get)
+    monkeypatch.setattr("app.services.ai.service.cache_set", _fake_cache_set)
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_available_provider",
+        _fake_provider_lookup,
+    )
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_provider",
+        lambda name=None: _OpenAIProvider() if name == "openai" else _OllamaProvider(),
+    )
+
+    response = asyncio.run(
+        AIService.query(
+            task=AITask.EXTRACTION,
+            prompt="X" * 9000,
+            enable_recovery=False,
+        )
+    )
+
+    assert response.is_error is False
+    assert response.content == '{"provider":"ollama"}'
+    assert response.model == "qwen2.5:3b"
+    assert captured["ollama_calls"] == 1
+    assert captured["openai_calls"] == 0
+
+
+def test_ai_service_does_not_fallback_to_openai_on_ollama_error_by_default(monkeypatch):
+    captured: dict[str, int] = {"ollama_calls": 0, "openai_calls": 0}
+
+    async def _fake_cache_get(_key: str):
+        return None
+
+    async def _fake_cache_set(*args, **kwargs):
+        del args, kwargs
+        return None
+
+    class _OllamaProvider:
+        name = "ollama"
+        default_model = "qwen2.5:3b"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["ollama_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content="",
+                model="qwen2.5:3b",
+                error="Ollama timeout",
+            )
+
+    class _OpenAIProvider:
+        name = "openai"
+        default_model = "gpt-4o"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["openai_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content='{"provider":"openai"}',
+                model="gpt-4o",
+            )
+
+    async def _fake_provider_lookup(_task):
+        return _OllamaProvider()
+
+    monkeypatch.setattr("app.services.ai.service.cache_get", _fake_cache_get)
+    monkeypatch.setattr("app.services.ai.service.cache_set", _fake_cache_set)
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_available_provider",
+        _fake_provider_lookup,
+    )
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_provider",
+        lambda name=None: _OpenAIProvider() if name == "openai" else _OllamaProvider(),
+    )
+
+    response = asyncio.run(
+        AIService.query(
+            task=AITask.EXTRACTION,
+            prompt="texto simple",
+            enable_recovery=False,
+        )
+    )
+
+    assert response.is_error is True
+    assert captured["ollama_calls"] == 1
+    assert captured["openai_calls"] == 0
+
+
+def test_ai_service_skips_openai_when_rate_limited(monkeypatch):
+    captured: dict[str, int] = {"ollama_calls": 0, "openai_calls": 0}
+
+    async def _fake_cache_get(key: str):
+        if "openai_rate_limit" in key:
+            return {"until": 9999999999, "reason": "429"}
+        return None
+
+    async def _fake_cache_set(*args, **kwargs):
+        del args, kwargs
+        return None
+
+    class _OllamaProvider:
+        name = "ollama"
+        default_model = "qwen2.5:3b"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["ollama_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content="",
+                model="qwen2.5:3b",
+                error="Ollama timeout",
+            )
+
+    class _OpenAIProvider:
+        name = "openai"
+        default_model = "gpt-4o"
+
+        async def health_check(self):
+            return True
+
+        async def call(self, request):
+            del request
+            captured["openai_calls"] += 1
+            return AIResponse(
+                task=AITask.EXTRACTION,
+                content='{"provider":"openai"}',
+                model="gpt-4o",
+            )
+
+    async def _fake_provider_lookup(_task):
+        return _OllamaProvider()
+
+    monkeypatch.setattr("app.services.ai.service.cache_get", _fake_cache_get)
+    monkeypatch.setattr("app.services.ai.service.cache_set", _fake_cache_set)
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_available_provider",
+        _fake_provider_lookup,
+    )
+    monkeypatch.setattr(
+        "app.services.ai.service.AIProviderFactory.get_provider",
+        lambda name=None: _OpenAIProvider() if name == "openai" else _OllamaProvider(),
+    )
+
+    response = asyncio.run(
+        AIService.query(
+            task=AITask.EXTRACTION,
+            prompt="X" * 9000,
+            context={
+                "ai_fallback_policy": {
+                    "allow_on_error": True,
+                    "allow_on_slow": True,
+                    "allow_on_complex": True,
+                    "slow_threshold_ms": 15000,
+                    "complexity_score": 0.91,
+                    "complexity_threshold": 0.72,
+                }
+            },
+            enable_recovery=False,
+        )
+    )
+
+    assert response.is_error is True
+    assert captured["ollama_calls"] == 1
+    assert captured["openai_calls"] == 0

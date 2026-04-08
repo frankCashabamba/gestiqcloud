@@ -7,6 +7,10 @@ import pytest
 from app.modules.importador.processing_service import (
     _analysis_indicates_ai_failure,
     _analyze_with_context,
+    _build_table_prompt_preview,
+)
+from app.modules.importador.text_fallback_extractor import (
+    extract_line_items_table_preview_from_text,
 )
 
 
@@ -75,3 +79,49 @@ def test_analysis_indicates_ai_failure_uses_runtime_tokens(monkeypatch):
     assert _analysis_indicates_ai_failure(
         {"raw_response": "Gateway exploded while contacting provider"}
     )
+
+
+@pytest.mark.no_db
+def test_table_preview_preserves_header_order():
+    text = """
+Item
+Codigo
+Descripcion
+Unidad
+Cantidad
+P. Unitario
+Importe
+1
+PRO-0050
+Aceite
+ml
+60,000 ml
+$ 0.0034
+$ 204.00
+""".strip()
+
+    field_aliases = {
+        "description": ["item"],
+        "supplier_ref": ["codigo"],
+        "concept": ["descripcion"],
+        "quantity": ["cantidad"],
+        "unit_price": ["p. unitario"],
+        "total_price": ["importe"],
+    }
+
+    preview = extract_line_items_table_preview_from_text(text, field_aliases)
+    prompt = _build_table_prompt_preview(preview, max_rows=3)
+
+    assert preview["headers"] == [
+        "item",
+        "codigo",
+        "descripcion",
+        "unidad",
+        "cantidad",
+        "p. unitario",
+        "importe",
+    ]
+    assert (
+        "Headers: item | codigo | descripcion | unidad | cantidad | p. unitario | importe" in prompt
+    )
+    assert "1 | PRO-0050 | Aceite | ml | 60,000 ml | $ 0.0034 | $ 204.00" in prompt

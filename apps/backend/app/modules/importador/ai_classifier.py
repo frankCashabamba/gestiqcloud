@@ -526,6 +526,108 @@ def _build_prompt_trace(
     return trace
 
 
+def _build_ai_fallback_policy_context(
+    *,
+    content: str,
+    prompt_text: str,
+    has_structured_rows: bool,
+    image_bytes: bytes | None,
+    ai_runtime: dict[str, Any],
+    ai_params: dict[str, Any],
+) -> dict[str, Any]:
+    def _context_bool(key: str, default: bool) -> bool:
+        value = ai_runtime.get(key, default)
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    quality = _estimate_text_quality(content, ai_runtime=ai_runtime)
+    prompt_chars = len(prompt_text or "")
+    content_chars = len(content or "")
+    content_words = len(re.findall(r"\b\w+\b", str(content or ""), flags=re.UNICODE))
+    content_lines = sum(1 for line in str(content or "").splitlines() if line.strip())
+
+    prompt_threshold = max(1, int(ai_runtime.get("openai_fallback_prompt_chars_threshold") or 7000))
+    content_threshold = max(
+        1,
+        int(
+            ai_runtime.get("openai_fallback_content_chars_threshold")
+            or ai_params.get("content_limit_unstructured")
+            or (4000 if has_structured_rows else 7000)
+        ),
+    )
+    word_threshold = max(
+        1,
+        int(
+            ai_runtime.get("openai_fallback_word_count_threshold")
+            or (220 if has_structured_rows else 120)
+        ),
+    )
+    line_threshold = max(1, int(ai_runtime.get("openai_fallback_line_count_threshold") or 30))
+    quality_threshold = float(ai_runtime.get("openai_fallback_ocr_quality_threshold") or 0.45)
+    complexity_threshold = float(ai_runtime.get("openai_fallback_complexity_threshold") or 0.72)
+    slow_threshold_ms = int(ai_runtime.get("openai_fallback_slow_threshold_ms") or 15000)
+
+    prompt_ratio = min(prompt_chars / prompt_threshold, 1.5)
+    content_ratio = min(content_chars / content_threshold, 1.5)
+    word_ratio = min(content_words / word_threshold, 1.5)
+    row_ratio = min(content_lines / line_threshold, 1.5) if has_structured_rows else 0.0
+    quality_gap = max(0.0, 1.0 - float(quality["score"]))
+    image_bonus = 0.05 if image_bytes else 0.0
+
+    complexity_score = min(
+        1.0,
+        round(
+            (0.30 * prompt_ratio)
+            + (0.25 * content_ratio)
+            + (0.15 * word_ratio)
+            + (0.20 * quality_gap)
+            + (0.10 * row_ratio)
+            + image_bonus,
+            3,
+        ),
+    )
+
+    reasons: list[str] = []
+    if prompt_chars >= prompt_threshold:
+        reasons.append(f"prompt_chars>={prompt_threshold}")
+    if content_chars >= content_threshold:
+        reasons.append(f"content_chars>={content_threshold}")
+    if content_words >= word_threshold:
+        reasons.append(f"content_words>={word_threshold}")
+    if has_structured_rows and content_lines >= line_threshold:
+        reasons.append(f"structured_rows>={line_threshold}")
+    if quality["score"] <= quality_threshold:
+        reasons.append(f"ocr_quality<={quality_threshold:.2f}")
+    if image_bytes:
+        reasons.append("image_payload")
+
+    return {
+        "ai_fallback_policy": {
+            "enabled": _context_bool("openai_fallback_enabled", True),
+            "allow_on_error": _context_bool("openai_fallback_on_error", False),
+            "allow_on_slow": _context_bool("openai_fallback_on_slow", True),
+            "allow_on_complex": _context_bool("openai_fallback_on_complex", True),
+            "complexity_score": complexity_score,
+            "complexity_threshold": complexity_threshold,
+            "slow_threshold_ms": slow_threshold_ms,
+            "prompt_chars": prompt_chars,
+            "prompt_chars_threshold": prompt_threshold,
+            "content_chars": content_chars,
+            "content_chars_threshold": content_threshold,
+            "content_words": content_words,
+            "content_words_threshold": word_threshold,
+            "ocr_quality": round(float(quality["score"]), 3),
+            "ocr_quality_threshold": quality_threshold,
+            "structured_rows": content_lines if has_structured_rows else None,
+            "structured_rows_threshold": line_threshold if has_structured_rows else None,
+            "reasons": reasons,
+        }
+    }
+
+
 async def _analyze_structured_document(
     content: str,
     filename: str,
@@ -549,6 +651,15 @@ async def _analyze_structured_document(
     temperature = float(ai_params.get("temperature") or 0.1)
     max_tokens = int(ai_params.get("max_tokens_classification") or 220)
     model_override = _resolve_model_for_doctype(None, db)  # sin doc_type aún, usa DEFAULT
+    ai_runtime = load_ai_runtime_config(db)
+    fallback_context = _build_ai_fallback_policy_context(
+        content=content,
+        prompt_text=prompt,
+        has_structured_rows=True,
+        image_bytes=None,
+        ai_runtime=ai_runtime,
+        ai_params=ai_params,
+    )
 
     try:
         response = await AIService.query(
@@ -556,6 +667,7 @@ async def _analyze_structured_document(
             prompt=prompt,
             temperature=temperature,
             max_tokens=max_tokens,
+            context=fallback_context,
             module="importador",
             enable_recovery=True,
             model=model_override,
@@ -1166,9 +1278,7 @@ async def _analyze_with_vision(
     rc = recipe_config or {}
     pc = prompt_config or load_prompt_config(None)
     system_prompt = (
-        rc.get("prompt_system")
-        or pc.get("extraction_system")
-        or pc.get("vision_system_fallback")
+        rc.get("prompt_system") or pc.get("extraction_system") or pc.get("vision_system_fallback")
     )
 
     _fd = rc.get("field_descriptions") or {}
@@ -1499,6 +1609,14 @@ async def analyze_document(
         custom_user_prompt=str(custom_user_prompt or "").strip() or None,
         prompt_messages=transport_messages,
     )
+    fallback_context = _build_ai_fallback_policy_context(
+        content=content,
+        prompt_text=full_prompt,
+        has_structured_rows=has_structured_rows,
+        image_bytes=image_bytes,
+        ai_runtime=ai_runtime,
+        ai_params=ai_params,
+    )
 
     # Resolver model y parámetros desde imp_config
     _doc_type_for_routing = (rc.get("doc_type_hint") or "").upper().strip() or None
@@ -1516,6 +1634,7 @@ async def analyze_document(
             messages=transport_messages,
             temperature=temperature,
             max_tokens=max_tokens,
+            context=fallback_context,
             module="importador",
             enable_recovery=True,
             model=model_override,

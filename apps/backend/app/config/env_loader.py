@@ -1,7 +1,7 @@
 # File: app/config/env_loader.py
 """
 Unified Environment Loader
-- Loads one .env file based on environment (dev/prod/staging)
+- Loads the primary .env file based on environment and layers fallback files
 - Supports ENV_FILE override for explicit file selection
 - Deterministic and explicit logs
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 
 def get_env_file_path() -> Path:
     """
-    Return the path to the single .env file to use.
+    Return the primary .env file to use.
 
     Strategy:
     1. If ENVIRONMENT=production -> return None (use only system env vars)
@@ -61,6 +61,9 @@ def get_env_file_path() -> Path:
 def load_env_file(env_path: Path | None = None) -> dict[str, str]:
     """
     Read a .env file and return variables.
+    In development/staging, fall back to `.env` when a more specific file
+    such as `.env.local` or `.env.staging` is used so missing keys can be
+    inherited without overriding explicit local values.
     In production, skips file loading and uses only system environment variables.
     """
     if env_path is None:
@@ -70,34 +73,50 @@ def load_env_file(env_path: Path | None = None) -> dict[str, str]:
     if env_path is None:
         return {}
 
-    if not env_path.exists():
+    paths = [env_path]
+    if env_path.name in {".env.local", ".env.staging"}:
+        fallback = env_path.with_name(".env")
+        if fallback not in paths:
+            paths.append(fallback)
+
+    variables: dict[str, str] = {}
+    loaded_paths: list[Path] = []
+    for candidate in paths:
+        if not candidate.exists():
+            continue
+
+        try:
+            parsed: dict[str, str] = {}
+            for raw in candidate.read_text(encoding="utf-8").splitlines():
+                line = raw.strip()
+                # Skip comments and empty lines
+                if not line or line.startswith("#"):
+                    continue
+                # Skip "export" statements (supports .env scripts)
+                if line.startswith("export "):
+                    line = line[7:].strip()
+                # Parse KEY=VALUE
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip("'").strip('"')
+                if key:
+                    parsed[key] = value
+
+            for key, value in parsed.items():
+                variables.setdefault(key, value)
+            loaded_paths.append(candidate)
+            print(f"[env_loader] Loaded {len(parsed)} variables from {candidate.resolve()}")
+        except Exception as e:
+            print(f"[env_loader] ERROR reading {candidate}: {e}")
+
+    if not loaded_paths:
         print(
             f"[env_loader] WARNING: {env_path.resolve()} not found. "
             "Using only system environment variables and defaults."
         )
         return {}
-
-    variables = {}
-    try:
-        for raw in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            # Skip comments and empty lines
-            if not line or line.startswith("#"):
-                continue
-            # Skip "export" statements (supports .env scripts)
-            if line.startswith("export "):
-                line = line[7:].strip()
-            # Parse KEY=VALUE
-            if "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip("'").strip('"')
-            if key:
-                variables[key] = value
-        print(f"[env_loader] Loaded {len(variables)} variables from {env_path.resolve()}")
-    except Exception as e:
-        print(f"[env_loader] ERROR reading {env_path}: {e}")
 
     return variables
 

@@ -98,6 +98,27 @@ class OllamaProvider(BaseAIProvider):
             )
             _logged_concurrency_configs.add(config_key)
 
+    def _resolve_explicit_extraction_model(self) -> str | None:
+        """Allow forcing a specific extraction model through config or env."""
+        override = model_name(os.getenv("OLLAMA_EXTRACTION_MODEL"))
+        if override:
+            try:
+                available = set(self._get_available_models(timeout=3.0))
+            except Exception:
+                available = set()
+            if not available or override in available:
+                return override
+
+        configured = model_name(self.default_model)
+        if configured and configured not in {AIModel.QWEN2_5_3B.value, "qwen2.5-coder:3b"}:
+            try:
+                available = set(self._get_available_models(timeout=3.0))
+            except Exception:
+                available = set()
+            if not available or configured in available:
+                return configured
+        return None
+
     def _get_available_models(self, timeout: float = 3.0) -> list[str]:
         """Cache /api/tags to avoid repeated round-trips on every request."""
         ttl = _cache_ttl("OLLAMA_TAGS_CACHE_TTL", 30.0)
@@ -266,6 +287,9 @@ class OllamaProvider(BaseAIProvider):
         """
         configured = model_name(self.default_model)
         if task == AITask.EXTRACTION:
+            explicit = self._resolve_explicit_extraction_model()
+            if explicit:
+                return explicit
             extraction_model = self._best_extraction_model()
             if extraction_model:
                 return extraction_model
@@ -276,6 +300,9 @@ class OllamaProvider(BaseAIProvider):
     def _best_extraction_model(self) -> str | None:
         """Find the best locally available model for document extraction."""
         preferred = [
+            "qwen3-coder:latest",
+            "qwen2.5-coder:14b",
+            "qwen2.5-coder:7b",
             "qwen2.5-coder:3b",
             "qwen2.5-coder:1.5b",
             "qwen2.5-coder:0.5b",

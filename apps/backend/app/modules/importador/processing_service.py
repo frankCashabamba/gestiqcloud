@@ -45,7 +45,11 @@ from .services.document_model_learning_service import (
 from .services.document_routing_agent import build_document_routing_decision
 from .services.iteration_service import upsert_staging_lines_from_extraction
 from .snapshot_learning import build_snapshot_review_hints
-from .text_fallback_extractor import extract_fields_from_text, learn_labels_from_text
+from .text_fallback_extractor import (
+    extract_fields_from_text,
+    extract_line_items_table_preview_from_text,
+    learn_labels_from_text,
+)
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
@@ -71,6 +75,47 @@ def _build_timing_summary(*, stage_timings: dict[str, int], started_at: float) -
         "timings_ms": ordered,
         "total_processing_ms": _elapsed_ms(started_at),
     }
+
+
+def _build_table_prompt_preview(
+    table_preview: dict[str, Any],
+    *,
+    max_rows: int,
+) -> str:
+    headers = [
+        str(header).strip()
+        for header in (table_preview.get("headers") or [])
+        if str(header).strip()
+    ]
+    headers_norm = [str(header).strip() for header in (table_preview.get("headers_norm") or [])]
+    line_items = table_preview.get("line_items")
+    if not headers or not isinstance(line_items, list) or not line_items:
+        return ""
+
+    rows: list[str] = ["Tabla detectada con headers preservados del OCR:"]
+    rows.append("Headers: " + " | ".join(headers))
+
+    preview_rows = 0
+    for item in line_items:
+        if not isinstance(item, dict):
+            continue
+        values: list[str] = []
+        extra_columns = (
+            item.get("extra_columns") if isinstance(item.get("extra_columns"), dict) else {}
+        )
+        for raw_header, canonical_header in zip(headers, headers_norm):
+            value = item.get(canonical_header)
+            if value is None and isinstance(extra_columns, dict):
+                value = extra_columns.get(raw_header)
+            if value is None and raw_header in item:
+                value = item.get(raw_header)
+            values.append(str(value or ""))
+        rows.append(" | ".join(values))
+        preview_rows += 1
+        if preview_rows >= max_rows:
+            break
+
+    return "\n".join(rows)
 
 
 def _runtime_doc_type_set(processing_cfg: dict[str, Any], key: str) -> set[str]:
@@ -339,6 +384,7 @@ async def _process_async_document(
     structured = extraction.get("structured_data")
     sheet_profiles = extraction.get("sheet_profiles")
     processing_cfg = load_processing_runtime_config(db)
+    _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
 
     has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
 
@@ -431,9 +477,28 @@ async def _process_async_document(
     learning_ctrl = load_learning_control(db)
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
+    if not has_structured and text.strip():
+        file_format = str(extraction.get("format", tipo_archivo) or tipo_archivo).upper()
+        if file_format in {"PDF", "PDF_OCR", "IMAGE_OCR"}:
+            try:
+                table_preview = extract_line_items_table_preview_from_text(
+                    text,
+                    _field_aliases_for_pre,
+                    pdf_config=load_pdf_table_parse_config(db),
+                )
+                if table_preview:
+                    preview_rows = max(1, int(processing_cfg.get("structured_preview_rows") or 5))
+                    preview_content = _build_table_prompt_preview(
+                        table_preview,
+                        max_rows=preview_rows,
+                    )
+                    if preview_content:
+                        llm_content = preview_content
+            except Exception:
+                logger.debug("No se pudo construir preview tabular OCR", exc_info=True)
+
     # ── Pre-classification: attempt to resolve doc_type without AI ──────────────
     pre_classify_started_at = time.perf_counter()
-    _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
     _pre_cfg = load_pre_classifier_config(db)
     _structured_skip_threshold = float(_pre_cfg.get("structured_skip_threshold", 0.75))
 

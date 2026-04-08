@@ -257,7 +257,18 @@
     "vision_temperature": "0.10",
     "vision_num_predict": "600",
     "vision_probe_timeout_seconds": "5",
-    "vision_timeout_seconds": "45"
+    "vision_timeout_seconds": "45",
+    "openai_fallback_enabled": "true",
+    "openai_fallback_on_error": "false",
+    "openai_fallback_on_slow": "true",
+    "openai_fallback_on_complex": "true",
+    "openai_fallback_complexity_threshold": "0.72",
+    "openai_fallback_slow_threshold_ms": "15000",
+    "openai_fallback_prompt_chars_threshold": "7000",
+    "openai_fallback_content_chars_threshold": "7000",
+    "openai_fallback_word_count_threshold": "120",
+    "openai_fallback_line_count_threshold": "30",
+    "openai_fallback_ocr_quality_threshold": "0.45"
   },
   "ai_model_routing": {
     "default": "",

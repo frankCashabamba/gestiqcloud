@@ -2,7 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackButton } from '@ui'
 import { listRecipes, addIngredient, updateIngredient, deleteIngredient } from '../../services/api/recetas'
-import { listProducts, createProduct, updateProduct, type Product } from '../../services/api/products'
+import {
+  listProducts,
+  listRawMaterials,
+  createProduct,
+  updateProduct,
+  type Product,
+} from '../../services/api/products'
 import { getCompanySettings, getCurrencySymbol, type CompanySettings } from '../../services/companySettings'
 import { useUnits } from '../../hooks/useUnits'
 import { normalizeUnitCode } from '../../services/unitService'
@@ -36,7 +42,7 @@ function IngredientesMaestrosContent() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [rows, setRows] = useState<IngredientMasterRow[]>([])
-  const [allProducts, setAllProducts] = useState<Product[]>([])
+  const [rawMaterials, setRawMaterials] = useState<Product[]>([])
   const [recipesList, setRecipesList] = useState<Array<{ id: string; name: string }>>([])
   const [settings, setSettings] = useState<CompanySettings | null>(null)
   const [q, setQ] = useState('')
@@ -57,17 +63,19 @@ function IngredientesMaestrosContent() {
       try {
         setLoading(true)
         setErr(null)
-        const [recipeList, productArr, cfg] = await Promise.all([
+        const [recipeList, productArr, rawMaterialsArr, cfg] = await Promise.all([
           listRecipes({ limit: 500, include_ingredients: true }),
           listProducts({ limit: 500 }),
+          listRawMaterials({ limit: 500 }).catch(() => []),
           getCompanySettings(),
         ])
         if (cancelled) return
 
         const recipes = Array.isArray(recipeList) ? recipeList : []
         const products = Array.isArray(productArr) ? productArr : []
+        const rawMaterialsData = Array.isArray(rawMaterialsArr) ? rawMaterialsArr : []
         setProgress({ done: recipes.length, total: recipes.length })
-        setAllProducts(products)
+        setRawMaterials(rawMaterialsData)
         setRecipesList(recipes.map(r => ({ id: r.id, name: r.name })))
 
         if (cancelled) return
@@ -346,8 +354,8 @@ function IngredientesMaestrosContent() {
                             type="number"
                             className="border border-blue-300 rounded-md px-2 py-1.5 w-20 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
                             value={draft.qty_per_package}
-                            min={0.0001}
-                            step={0.01}
+                            min={0}
+                            step="any"
                             onChange={e => setField(row.product_id, 'qty_per_package', Number(e.target.value))}
                           />
                           <select
@@ -470,7 +478,7 @@ function IngredientesMaestrosContent() {
       {/* New ingredient modal */}
       {newIngOpen && (
         <NewIngredientModal
-          products={allProducts}
+          products={rawMaterials}
           recipes={recipesList}
           units={units}
           currency={currency}
@@ -561,6 +569,14 @@ function NewIngredientModal({
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === form.product_id) || null,
+    [products, form.product_id],
+  )
+  const ingredientUnit = useMemo(
+    () => normalizeUnitCode(selectedProduct?.unit || form.unit, units),
+    [form.unit, selectedProduct?.unit, units],
+  )
 
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase()
@@ -575,7 +591,8 @@ function NewIngredientModal({
   }, [products, productSearch])
 
   const selectProduct = (p: Product) => {
-    setForm(f => ({ ...f, product_id: p.id, unit: p.unit || f.unit, package_unit: p.unit || f.package_unit }))
+    const lockedUnit = normalizeUnitCode(p.unit, units)
+    setForm(f => ({ ...f, product_id: p.id, unit: lockedUnit, package_unit: lockedUnit }))
     setProductSearch(p.name)
     setShowDropdown(false)
   }
@@ -586,7 +603,8 @@ function NewIngredientModal({
     setErr(null)
     try {
       const created = await createProduct({ name, price: 0, stock: 0, unit: form.unit || 'kg', is_raw_material: true } as any)
-      setForm(f => ({ ...f, product_id: created.id }))
+      const lockedUnit = normalizeUnitCode(created.unit || form.unit, units)
+      setForm(f => ({ ...f, product_id: created.id, unit: lockedUnit, package_unit: lockedUnit }))
       setProductSearch(created.name)
       setShowDropdown(false)
     } catch (e: any) {
@@ -619,7 +637,7 @@ function NewIngredientModal({
     try {
       let productId = form.product_id
       if (!productId && productSearch.trim()) {
-        const created = await createProduct({ name: productSearch.trim(), price: 0, stock: 0, unit: form.unit || 'kg', is_raw_material: true } as any)
+        const created = await createProduct({ name: productSearch.trim(), price: 0, stock: 0, unit: ingredientUnit || 'kg', is_raw_material: true } as any)
         productId = created.id
       }
       await Promise.all(
@@ -627,7 +645,7 @@ function NewIngredientModal({
           addIngredient(recipeId, {
             product_id: productId,
             qty: form.qty,
-            unit: form.unit,
+            unit: ingredientUnit,
             purchase_packaging: form.purchase_packaging || '-',
             qty_per_package: Math.max(form.qty_per_package, 0.0001),
             package_unit: form.package_unit,
@@ -724,8 +742,8 @@ function NewIngredientModal({
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">Cantidad en receta *</label>
             <input
               type="number"
-              min={0.001}
-              step={0.001}
+              min={0}
+              step="any"
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.qty}
               onChange={e => setForm(f => ({ ...f, qty: Number(e.target.value) }))}
@@ -733,13 +751,19 @@ function NewIngredientModal({
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">Unidad</label>
-            <select
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              value={form.unit}
-              onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
-            >
-              {units.map(u => <option key={u.code} value={u.code}>{u.label}</option>)}
-            </select>
+            {selectedProduct ? (
+              <div className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
+                {units.find((u) => u.code === ingredientUnit)?.label || ingredientUnit}
+              </div>
+            ) : (
+              <select
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                value={form.unit}
+                onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+              >
+                {units.map(u => <option key={u.code} value={u.code}>{u.label}</option>)}
+              </select>
+            )}
           </div>
         </div>
 
@@ -761,8 +785,8 @@ function NewIngredientModal({
               <label className="block text-xs font-medium text-gray-600 mb-1">Contenido</label>
               <input
                 type="number"
-                min={0.0001}
-                step={0.01}
+                min={0}
+                step="any"
                 className="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 value={form.qty_per_package}
                 onChange={e => setForm(f => ({ ...f, qty_per_package: Number(e.target.value) }))}
@@ -770,13 +794,19 @@ function NewIngredientModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Unidad</label>
-              <select
-                className="w-full border rounded-lg px-1 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                value={form.package_unit}
-                onChange={e => setForm(f => ({ ...f, package_unit: e.target.value }))}
-              >
-                {units.map(u => <option key={u.code} value={u.code}>{u.label}</option>)}
-              </select>
+              {selectedProduct ? (
+                <div className="w-full border rounded-lg px-2 py-2 text-sm bg-gray-50 text-gray-700">
+                  {units.find((u) => u.code === ingredientUnit)?.label || ingredientUnit}
+                </div>
+              ) : (
+                <select
+                  className="w-full border rounded-lg px-1 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  value={form.package_unit}
+                  onChange={e => setForm(f => ({ ...f, package_unit: e.target.value }))}
+                >
+                  {units.map(u => <option key={u.code} value={u.code}>{u.label}</option>)}
+                </select>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Costo pack ({currency})</label>

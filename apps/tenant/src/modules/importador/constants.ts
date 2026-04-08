@@ -53,32 +53,6 @@ export function getImportadorSavedAsLabel(savedAs?: 'expense' | 'supplier_invoic
   }
 }
 
-export const FIELD_LABELS: Record<string, string> = {
-  vendor: 'Proveedor',
-  vendor_tax_id: 'RUC proveedor',
-  customer: 'Cliente',
-  customer_tax_id: 'Documento cliente',
-  category: 'Categoria',
-  concept: 'Concepto',
-  currency: 'Moneda',
-  subtotal: 'Subtotal',
-  tax_amount: 'Impuesto',
-  total_amount: 'Total',
-  payment_terms: 'Importe reportado',
-  payment_method: 'Forma de pago',
-  issue_date: 'Fecha de emision',
-  due_date: 'Fecha de vencimiento',
-  doc_number: 'Numero de documento',
-  invoice_number: 'Numero de factura',
-  reference: 'Referencia',
-  description: 'Descripcion',
-  product: 'Producto',
-  quantity: 'Cantidad',
-  qty: 'Cantidad',
-  unit_price: 'Precio unitario',
-  line_total: 'Total de linea',
-}
-
 export const STATUS_LABELS: Record<string, string> = {
   REVIEW: 'Por revisar',
   CONFIRMED: 'Confirmado',
@@ -89,12 +63,4 @@ export const STATUS_LABELS: Record<string, string> = {
   REPROCESS: 'Pendiente de nueva revision',
   VALID: 'Valido',
   IMPORTED: 'Guardado',
-}
-
-export function formatFieldLabel(key: string): string {
-  if (!key) return ''
-  if (FIELD_LABELS[key]) return FIELD_LABELS[key]
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }

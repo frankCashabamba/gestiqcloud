@@ -14,6 +14,7 @@ describe('importador routing decision helpers', () => {
     vi.doMock('@shared/endpoints', () => ({
       TENANT_IMPORTADOR: {
         documents: '/api/v1/importador/documents',
+        canonicalFields: '/api/v1/importador/canonical-fields',
       },
     }))
   })
@@ -76,5 +77,23 @@ describe('importador routing decision helpers', () => {
     expect(getDocCategory(doc, [])).toBe('other')
     expect(suggestSaveDestination(doc)).toBe('expense')
     expect(canSaveDocument(doc)).toBe(false)
+  })
+
+  it('prefers backend canonical labels when available', async () => {
+    const apiModule = await import('../../shared/api/client')
+    const api = apiModule.default as { get: ReturnType<typeof vi.fn> }
+    api.get.mockResolvedValueOnce({
+      data: [
+        { name: 'vendor', field_type: 'text', label: 'Proveedor DB', line_item_slot: null },
+        { name: 'unit_price', field_type: 'numeric', label: 'Precio unitario DB', line_item_slot: 'unit_price' },
+      ],
+    })
+
+    const { fetchCanonicalFields, formatFieldLabel, isLineItemFieldName } = await import('./services')
+    await fetchCanonicalFields()
+
+    expect(formatFieldLabel('vendor')).toBe('Proveedor DB')
+    expect(formatFieldLabel('unit_price')).toBe('Precio unitario DB')
+    expect(isLineItemFieldName('unit_price')).toBe(true)
   })
 })

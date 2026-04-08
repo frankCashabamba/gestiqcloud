@@ -8,9 +8,15 @@ import { useTranslation } from 'react-i18next'
 import {
   createRecipe, updateRecipe, type Recipe, type RecipeIngredient
 } from '../../services/api/recetas'
-import { createProduct, listProducts, type Product } from '../../services/api/products'
+import {
+  createProduct,
+  listProducts,
+  listRawMaterials,
+  type Product,
+} from '../../services/api/products'
 import { normalizeUnitCode } from '../../services/unitService'
 import { useUnits } from '../../hooks/useUnits'
+import { mergeIngredientProducts } from './ingredientProducts'
 
 interface RecetaFormProps {
   open: boolean
@@ -41,6 +47,7 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [products, setProducts] = useState<Product[]>([])
+  const [ingredientProducts, setIngredientProducts] = useState<Product[]>([])
   const [productsLoaded, setProductsLoaded] = useState(false)
 
   // Datos de receta
@@ -65,7 +72,7 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
 
   useEffect(() => {
     loadProducts()
-  }, [])
+  }, [recipe?.id])
 
   useEffect(() => {
     if (recipe) {
@@ -116,14 +123,49 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
 
   const loadProducts = async () => {
     try {
-      const data = await listProducts({ limit: 500 })
-      setProducts(data)
+      const [allProducts, rawMaterials] = await Promise.all([
+        listProducts({ limit: 500 }),
+        listRawMaterials({ limit: 500 }).catch(() => []),
+      ])
+      const normalizedProducts = Array.isArray(allProducts) ? allProducts : []
+      const normalizedRawMaterials = Array.isArray(rawMaterials) ? rawMaterials : []
+      setProducts(normalizedProducts)
+      setIngredientProducts(
+        mergeIngredientProducts(
+          normalizedRawMaterials,
+          normalizedProducts,
+          (recipe?.ingredients || []).map((ing) => ing.product_id),
+        ),
+      )
     } catch (err: any) {
       console.error('Error cargando productos:', err)
     } finally {
       setProductsLoaded(true)
     }
   }
+
+  const getIngredientProduct = (productId: string) =>
+    ingredientProducts.find((p) => p.id === productId) || products.find((p) => p.id === productId)
+
+  useEffect(() => {
+    setIngredientes((prev) => {
+      let changed = false
+      const next = prev.map((ing) => {
+        const producto = getIngredientProduct(ing.product_id)
+        if (!producto) return ing
+        const lockedUnit = normalizeUnitCode(producto.unit, units)
+        if (
+          normalizeUnitCode(ing.unit, units) === lockedUnit &&
+          normalizeUnitCode(ing.package_unit, units) === lockedUnit
+        ) {
+          return ing
+        }
+        changed = true
+        return { ...ing, unit: lockedUnit, package_unit: lockedUnit }
+      })
+      return changed ? next : prev
+    })
+  }, [ingredientProducts, products, units])
 
   const handleAddIngredient = () => {
     setIngredientes(prev => [
@@ -148,14 +190,17 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
   const handleIngredientChange = (index: number, field: string, value: any) => {
     setIngredientes(prev => {
       const updated = [...prev]
+      const selectedProduct = getIngredientProduct(updated[index]?.product_id || '')
       const normalizedValue =
-        field === 'unit' || field === 'package_unit'
+        field === 'unit' && selectedProduct
+          ? normalizeUnitCode(selectedProduct.unit, units)
+          : field === 'unit' || field === 'package_unit'
           ? normalizeUnitCode(value, units)
           : value
       ;(updated[index] as any)[field] = normalizedValue
 
       if (field === 'product_id' && value) {
-        const producto = products.find(p => p.id === value)
+        const producto = getIngredientProduct(String(value))
         if (producto) {
           updated[index].unit = normalizeUnitCode(producto.unit, units)
           updated[index].package_unit = normalizeUnitCode(producto.unit, units)
@@ -245,17 +290,21 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
 
       const normalizedIngredients = ingredientes
         .filter((ing) => ing.product_id && Number(ing.qty || 0) > 0)
-        .map((ing, index) => ({
-          product_id: ing.product_id,
-          qty: Number(ing.qty || 0),
-          unit: normalizeUnitCode(ing.unit, units),
-          purchase_packaging: String(ing.purchase_packaging || '-'),
-          qty_per_package: Math.max(Number(ing.qty_per_package || 1), 0.0001),
-          package_unit: normalizeUnitCode(ing.package_unit || ing.unit, units),
-          package_cost: Number(ing.package_cost || 0),
-          notes: ing.notes || undefined,
-          line_order: index,
-        }))
+        .map((ing, index) => {
+          const product = getIngredientProduct(ing.product_id)
+          const lockedUnit = product ? normalizeUnitCode(product.unit, units) : normalizeUnitCode(ing.unit, units)
+          return {
+            product_id: ing.product_id,
+            qty: Number(ing.qty || 0),
+            unit: lockedUnit,
+            purchase_packaging: String(ing.purchase_packaging || '-'),
+            qty_per_package: Math.max(Number(ing.qty_per_package || 1), 0.0001),
+            package_unit: product ? lockedUnit : normalizeUnitCode(ing.package_unit || ing.unit, units),
+            package_cost: Number(ing.package_cost || 0),
+            notes: ing.notes || undefined,
+            line_order: index,
+          }
+        })
 
       const seenProducts = new Set<string>()
       for (const ingredient of normalizedIngredients) {
@@ -541,9 +590,9 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
               </p>
             )}
             {ingredientes.map((ing, index) => (
-              <div
-                key={index}
-                className="p-3 rounded-lg space-y-2"
+                <div
+                  key={index}
+                  className="p-3 rounded-lg space-y-2"
                 style={{
                   background: 'color-mix(in srgb, var(--gc-muted) 30%, transparent)',
                   border: '1px solid var(--gc-border)',
@@ -559,7 +608,7 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
                     disabled={loading}
                   >
                     <option value="">— Seleccionar —</option>
-                    {products.map((p) => (
+                    {ingredientProducts.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
@@ -567,29 +616,35 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
 
                 <div>
                   <label className="gc-label">Cantidad</label>
-                  <input
+                    <input
                     type="number"
                     className="gc-input"
                     value={ing.qty}
                     onChange={(e) => handleIngredientChange(index, 'qty', Number(e.target.value))}
-                    min={0.0001}
-                    step={0.01}
+                    min={0}
+                    step="any"
                     disabled={loading}
                   />
                 </div>
 
                 <div>
                   <label className="gc-label">{t('productions:recipeForm.unit', 'Unidad')}</label>
+                  {(() => {
+                    const producto = getIngredientProduct(ing.product_id)
+                    const lockedUnit = producto ? normalizeUnitCode(producto.unit, units) : normalizeUnitCode(ing.unit, units)
+                    return (
                   <select
                     className="gc-input"
-                    value={normalizeUnitCode(ing.unit, units)}
+                    value={lockedUnit}
+                    disabled={Boolean(producto) || loading}
                     onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
-                    disabled={loading}
                   >
                     {units.map((u) => (
                       <option key={u.code} value={u.code}>{u.label}</option>
                     ))}
                   </select>
+                    )
+                  })()}
                 </div>
                 </div>
 

@@ -188,6 +188,17 @@ _DEFAULT_AI_RUNTIME_CONFIG: dict[str, Any] = {
     "vision_num_predict": 600,
     "vision_probe_timeout_seconds": 5.0,
     "vision_timeout_seconds": 45.0,
+    "openai_fallback_enabled": True,
+    "openai_fallback_on_error": False,
+    "openai_fallback_on_slow": True,
+    "openai_fallback_on_complex": True,
+    "openai_fallback_complexity_threshold": 0.72,
+    "openai_fallback_slow_threshold_ms": 15000,
+    "openai_fallback_prompt_chars_threshold": 7000,
+    "openai_fallback_content_chars_threshold": 7000,
+    "openai_fallback_word_count_threshold": 120,
+    "openai_fallback_line_count_threshold": 30,
+    "openai_fallback_ocr_quality_threshold": 0.45,
 }
 
 _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
@@ -889,6 +900,13 @@ def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
         except (TypeError, ValueError):
             return default
 
+    def _bool_value(value: Any, default: bool) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
     def _list_value(value: Any, default: list[str]) -> list[str]:
         if not isinstance(value, list):
             return list(default)
@@ -941,6 +959,11 @@ def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 "ocr_word_target",
                 "vision_resize_max_dim",
                 "vision_num_predict",
+                "openai_fallback_slow_threshold_ms",
+                "openai_fallback_prompt_chars_threshold",
+                "openai_fallback_content_chars_threshold",
+                "openai_fallback_word_count_threshold",
+                "openai_fallback_line_count_threshold",
             }:
                 config[key] = _int_value(value, int(config[key]), minimum=1)
             elif key in {
@@ -955,8 +978,17 @@ def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 "vision_temperature",
                 "vision_probe_timeout_seconds",
                 "vision_timeout_seconds",
+                "openai_fallback_complexity_threshold",
+                "openai_fallback_ocr_quality_threshold",
             }:
                 config[key] = _float_value(value, float(config[key]))
+            elif key in {
+                "openai_fallback_enabled",
+                "openai_fallback_on_error",
+                "openai_fallback_on_slow",
+                "openai_fallback_on_complex",
+            }:
+                config[key] = _bool_value(value, bool(config[key]))
 
     if db is not None:
         try:
@@ -1001,6 +1033,11 @@ def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
                         "ocr_word_target",
                         "vision_resize_max_dim",
                         "vision_num_predict",
+                        "openai_fallback_slow_threshold_ms",
+                        "openai_fallback_prompt_chars_threshold",
+                        "openai_fallback_content_chars_threshold",
+                        "openai_fallback_word_count_threshold",
+                        "openai_fallback_line_count_threshold",
                     }
                     and row.value_text is not None
                 ):
@@ -1019,10 +1056,23 @@ def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
                         "vision_temperature",
                         "vision_probe_timeout_seconds",
                         "vision_timeout_seconds",
+                        "openai_fallback_complexity_threshold",
+                        "openai_fallback_ocr_quality_threshold",
                     }
                     and row.value_text is not None
                 ):
                     config[key] = _float_value(row.value_text, float(config[key]))
+                elif (
+                    key
+                    in {
+                        "openai_fallback_enabled",
+                        "openai_fallback_on_error",
+                        "openai_fallback_on_slow",
+                        "openai_fallback_on_complex",
+                    }
+                    and row.value_text is not None
+                ):
+                    config[key] = _bool_value(row.value_text, bool(config[key]))
         except Exception as exc:
             logger.warning("No se pudo cargar ai_runtime desde imp_config: %s", exc)
 

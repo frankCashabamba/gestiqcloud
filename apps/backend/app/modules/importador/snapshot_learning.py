@@ -29,14 +29,14 @@ def _normalize_examples(values: Any) -> list[str]:
         text = _normalize_scalar(value)
         if text and text not in normalized:
             normalized.append(text)
-    return normalized[:_max_learning_examples()]
+    return normalized[: _max_learning_examples()]
 
 
 def _push_example(values: list[str], sample: str | None) -> list[str]:
     if not sample:
         return list(values)
     merged = [sample, *[value for value in values if value != sample]]
-    return merged[:_max_learning_examples()]
+    return merged[: _max_learning_examples()]
 
 
 def _coerce_counter(value: Any) -> int:

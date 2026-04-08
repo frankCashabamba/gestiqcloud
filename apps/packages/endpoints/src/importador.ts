@@ -13,6 +13,7 @@ export const TENANT_IMPORTADOR = {
   batches: '/api/v1/importador/batches',
   batchById: (id: string) => `/api/v1/importador/batches/${id}`,
   batchStream: (id: string) => `/api/v1/importador/batches/${id}/stream`,
+  canonicalFields: '/api/v1/importador/canonical-fields',
   docCategories: '/api/v1/importador/doc-categories',
   fileSupport: '/api/v1/importador/file-support',
   productSheetConfig: '/api/v1/importador/product-sheet-config',

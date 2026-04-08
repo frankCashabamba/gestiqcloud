@@ -47,6 +47,7 @@ from .schemas import (
     BatchDetailOut,
     BatchSummaryOut,
     BulkStagingPatch,
+    CanonicalFieldOut,
     ConfirmRequest,
     DashboardStats,
     DocumentLineMatchesResponse,
@@ -97,18 +98,21 @@ from .services.product_matching import (
     _norm_import_text,
     _score_product_candidate,
 )
-from .snapshot_learning import (
-    build_snapshot_review_hints,
-    learn_from_confirmed_payload,
-)
+from .snapshot_learning import build_snapshot_review_hints, learn_from_confirmed_payload
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/importador", tags=["Importador"])
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
+
+
 def _image_source_formats() -> set[str]:
-    return set(load_ocr_runtime_config().get("image_source_formats", ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"]))
+    return set(
+        load_ocr_runtime_config().get(
+            "image_source_formats", ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"]
+        )
+    )
 
 
 def _tenant_id(request: Request) -> UUID:
@@ -2482,6 +2486,33 @@ def get_doc_categories(db: Session = Depends(get_db)):
 @router.get("/file-support", dependencies=protected)
 def get_file_support(db: Session = Depends(get_db)):
     return load_file_support_config(db)
+
+
+@router.get("/canonical-fields", response_model=list[CanonicalFieldOut], dependencies=protected)
+def get_canonical_fields_for_ui(db: Session = Depends(get_db)):
+    from sqlalchemy import text as sa_text
+
+    rows = db.execute(
+        sa_text(
+            """
+            SELECT name, field_type, projection_column, line_item_slot, label
+            FROM imp_canonical_field
+            WHERE active = TRUE
+            ORDER BY sort_order DESC, name
+            """
+        )
+    ).fetchall()
+    return [
+        CanonicalFieldOut(
+            name=str(row[0] or ""),
+            field_type=str(row[1] or "text"),
+            projection_column=str(row[2]).strip() if row[2] else None,
+            line_item_slot=str(row[3]).strip() if row[3] else None,
+            label=str(row[4]).strip() if row[4] else None,
+        )
+        for row in rows
+        if str(row[0] or "").strip()
+    ]
 
 
 @router.get("/line-item-slots", response_model=list[LineItemSlotOut], dependencies=protected)

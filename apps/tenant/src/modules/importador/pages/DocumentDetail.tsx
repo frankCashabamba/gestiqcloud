@@ -2,7 +2,8 @@ import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, fetchLineItemSlots, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type LineItemSlot, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
-import { IMPORTADOR_COPY, IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS, formatFieldLabel } from '../constants'
+import { IMPORTADOR_COPY, IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS } from '../constants'
+import { fetchCanonicalFields, formatFieldLabel, type CanonicalField } from '../services'
 
 const SaveDocumentModal = lazy(() => import('../components/SaveDocumentModal'))
 const SaveProductsModal = lazy(() => import('../components/SaveProductsModal'))
@@ -189,6 +190,7 @@ export default function DocumentDetail() {
   const [doc, setDoc] = useState<Documento | null>(null)
   const [loading, setLoading] = useState(true)
   const [lineItemSlots, setLineItemSlots] = useState<LineItemSlot[]>([])
+  const [canonicalFields, setCanonicalFields] = useState<CanonicalField[]>([])
   const [editMode, setEditMode] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
   const [editLineItems, setEditLineItems] = useState<EditableLineItem[]>([])
@@ -223,6 +225,7 @@ export default function DocumentDetail() {
       setError(t('docDetail.errorLoading'))
     })
     fetchLineItemSlots().then(setLineItemSlots).catch(() => {})
+    fetchCanonicalFields().then(setCanonicalFields).catch(() => {})
   }, [])
   const load = useCallback(async ({ silent = false, clearCurrent = false }: { silent?: boolean; clearCurrent?: boolean } = {}) => {
     if (!id) return
@@ -608,6 +611,12 @@ export default function DocumentDetail() {
     }
     return Array.isArray(datos.filas) ? (datos.filas as Record<string, unknown>[]) : []
   })()
+  const lineItemFieldNames = new Set<string>([
+    ...lineItemSlots.map(slot => slot.slot),
+    ...canonicalFields
+      .filter(field => Boolean(field.line_item_slot))
+      .map(field => field.name),
+  ])
   const activeNormKeys: string[] = (() => {
     if (
       activeSheet &&
@@ -1284,13 +1293,13 @@ export default function DocumentDetail() {
                   <>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <tbody>
-                        {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && (typeof v !== 'object' || v === null)).map(([key, val]) => (
+                        {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof v !== 'object' || v === null)).map(([key, val]) => (
                           <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
                             <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{formatFieldLabel(key)}</td>
                             <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '—')}</td>
                           </tr>
                         ))}
-                        {Object.keys(datos).filter(k => !k.startsWith('_') && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
+                        {Object.keys(datos).filter(k => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
                           <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>
                             {doc.error_detalle
                               ? 'No se pudieron extraer datos. Usa "Volver a importar" para reintentar.'

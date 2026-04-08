@@ -203,6 +203,39 @@ def test_analyze_document_uses_runtime_fallback_dynamic_fields_prompt(monkeypatc
     assert "System from seed" in captured["prompt"]
 
 
+def test_analyze_document_passes_openai_fallback_policy_context(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def fake_query(**kwargs):
+        captured["context"] = kwargs.get("context")
+        return SimpleNamespace(
+            content='{"doc_type":"INVOICE","confidence":0.88,"reasoning":"ok","is_table":false,"columns":[],"fields":{}}',
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content="Factura proveedor ACME con total 123.45",
+            filename="factura.pdf",
+            format_hint="PDF",
+            canonical_fields={"vendor": {"type": "text"}},
+        )
+    )
+
+    policy_context = captured["context"]["ai_fallback_policy"]
+    assert policy_context["enabled"] is True
+    assert policy_context["allow_on_error"] is False
+    assert policy_context["allow_on_slow"] is True
+    assert policy_context["allow_on_complex"] is True
+    assert policy_context["prompt_chars"] == len(result["prompt_full"])
+    assert policy_context["complexity_score"] >= 0.0
+    assert "reasons" in policy_context
+
+
 def test_fallback_classify_uses_runtime_doc_type_patterns(monkeypatch):
     monkeypatch.setattr(
         "app.modules.importador.ai_classifier.load_doc_type_patterns",

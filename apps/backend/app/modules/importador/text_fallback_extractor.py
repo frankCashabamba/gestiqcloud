@@ -332,6 +332,46 @@ def extract_fields_from_text(
     return result
 
 
+def extract_line_items_table_preview_from_text(
+    ocr_text: str,
+    field_aliases: dict[str, list[str]],
+    pdf_config: dict | None = None,
+) -> dict[str, Any]:
+    """Return detected line-item table metadata from OCR text.
+
+    This preserves the raw header labels and the canonical field mapping so
+    callers can render or prompt the table in the original column order.
+    """
+    if not ocr_text or not ocr_text.strip():
+        return {}
+
+    lines = _prepare_lines(ocr_text)
+    if not lines:
+        return {}
+
+    lines_norm = [_normalize_label(line) for line in lines]
+    header_info = _find_table_header(lines_norm, field_aliases)
+    if not header_info:
+        return {}
+
+    header_idx, matched_fields, column_names = header_info
+    line_items = _extract_line_items_from_text(
+        lines,
+        lines_norm,
+        field_aliases,
+        pdf_config=pdf_config,
+    )
+    if not line_items:
+        return {}
+
+    return {
+        "header_index": header_idx,
+        "headers": column_names,
+        "headers_norm": matched_fields,
+        "line_items": line_items,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Line items table extraction
 # ---------------------------------------------------------------------------
