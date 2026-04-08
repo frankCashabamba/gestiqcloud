@@ -8,7 +8,8 @@ import os
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import String, cast, select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import array as pg_array
 from sqlalchemy.orm import Session
 
 from app.models.importador import IcuRecipeSnapshot
@@ -19,6 +20,64 @@ from . import recipe_crud
 def _fingerprint_hash(obj: dict) -> str:
     payload = json.dumps(obj, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _fingerprint_signature(obj: dict | None) -> str | None:
+    if not isinstance(obj, dict):
+        return None
+    return json.dumps(obj, sort_keys=True, default=str, separators=(",", ":"))
+
+
+def _ensure_snapshot_fingerprint_metadata(
+    db: Session,
+    snapshot: IcuRecipeSnapshot | None,
+    *,
+    fingerprint: dict | None = None,
+    fp_hash: str | None = None,
+) -> IcuRecipeSnapshot | None:
+    if snapshot is None:
+        return None
+
+    content = snapshot.content_json if isinstance(snapshot.content_json, dict) else {}
+    stored_fingerprint = fingerprint if isinstance(fingerprint, dict) else content.get("fingerprint")
+    normalized_fingerprint = _normalize_fingerprint_payload(stored_fingerprint)
+    changed = False
+
+    signature = _fingerprint_signature(normalized_fingerprint)
+    if signature and str(content.get("fingerprint_signature") or "").strip() != signature:
+        content = dict(content)
+        content["fingerprint_signature"] = signature
+        changed = True
+
+    fingerprint_kind = (
+        str((normalized_fingerprint or {}).get("kind") or "").strip().lower()
+        if isinstance(normalized_fingerprint, dict)
+        else ""
+    )
+    if fingerprint_kind and str(content.get("fingerprint_kind") or "").strip().lower() != fingerprint_kind:
+        if not changed:
+            content = dict(content)
+        content["fingerprint_kind"] = fingerprint_kind
+        changed = True
+
+    headers_flat = _excel_headers_flat_from_fingerprint(normalized_fingerprint)
+    if headers_flat and content.get("fingerprint_headers_flat") != headers_flat:
+        if not changed:
+            content = dict(content)
+        content["fingerprint_headers_flat"] = headers_flat
+        changed = True
+
+    stored_hash = str(content.get("fingerprint_hash") or "").strip()
+    if fp_hash and not stored_hash:
+        if not changed:
+            content = dict(content)
+        content["fingerprint_hash"] = fp_hash
+        changed = True
+
+    if changed:
+        snapshot.content_json = content
+        db.flush()
+    return snapshot
 
 
 def build_fingerprint(sheet_profiles: dict) -> tuple[dict, str]:
@@ -68,6 +127,21 @@ def _excel_header_overlap(target_sheets: dict, stored_sheets: dict) -> float:
     return intersection / union if union else 0.0
 
 
+def _excel_headers_flat_from_fingerprint(fingerprint: dict | None) -> list[str]:
+    if not isinstance(fingerprint, dict) or str(fingerprint.get("kind") or "").strip().lower() != "excel":
+        return []
+    sheets = fingerprint.get("sheets") or {}
+    headers: set[str] = set()
+    for prof in sheets.values():
+        if not isinstance(prof, dict):
+            continue
+        for header in prof.get("headers") or []:
+            normalized = str(header or "").strip().lower()
+            if normalized:
+                headers.add(normalized)
+    return sorted(headers)
+
+
 def find_similar_excel_snapshot(
     db: Session,
     tenant_id: UUID,
@@ -85,16 +159,33 @@ def find_similar_excel_snapshot(
     target_sheets = fingerprint.get("sheets") or {}
     if not target_sheets:
         return None
+    target_headers_flat = _excel_headers_flat_from_fingerprint(fingerprint)
 
-    stmt = (
-        select(IcuRecipeSnapshot)
-        .where(IcuRecipeSnapshot.tenant_id == tenant_id)
-        .order_by(IcuRecipeSnapshot.created_at.desc())
-        .limit(100)
+    stmt = select(IcuRecipeSnapshot).where(
+        IcuRecipeSnapshot.tenant_id == tenant_id,
+        IcuRecipeSnapshot.content_json.op("?")("fingerprint_kind"),
+        func.jsonb_extract_path_text(IcuRecipeSnapshot.content_json, "fingerprint_kind") == "excel",
     )
+    if target_headers_flat:
+        stmt = stmt.where(
+            IcuRecipeSnapshot.content_json.op("?")("fingerprint_headers_flat"),
+            IcuRecipeSnapshot.content_json["fingerprint_headers_flat"].op("?|")(
+                pg_array(target_headers_flat)
+            ),
+        )
+    stmt = stmt.order_by(IcuRecipeSnapshot.created_at.desc()).limit(100)
     best_snap: IcuRecipeSnapshot | None = None
     best_overlap = 0.0
-    for snap in db.scalars(stmt):
+    candidates = list(db.scalars(stmt))
+    if not candidates:
+        fallback_stmt = (
+            select(IcuRecipeSnapshot)
+            .where(IcuRecipeSnapshot.tenant_id == tenant_id)
+            .order_by(IcuRecipeSnapshot.created_at.desc())
+            .limit(100)
+        )
+        candidates = list(db.scalars(fallback_stmt))
+    for snap in candidates:
         content = snap.content_json if isinstance(snap.content_json, dict) else {}
         stored_fp = content.get("fingerprint")
         if not isinstance(stored_fp, dict) or stored_fp.get("kind") != "excel":
@@ -103,7 +194,7 @@ def find_similar_excel_snapshot(
         if overlap >= min_overlap and overlap > best_overlap:
             best_overlap = overlap
             best_snap = snap
-    return best_snap
+    return _ensure_snapshot_fingerprint_metadata(db, best_snap, fingerprint=fingerprint)
 
 
 def _normalize_fingerprint_payload(fingerprint: dict | None) -> dict | None:
@@ -139,25 +230,65 @@ def find_snapshot_by_hash(
         select(Snap)
         .where(
             Snap.tenant_id == tenant_id,
-            cast(Snap.content_json["fingerprint_hash"], String) == fp_hash,
+            Snap.content_json.op("?")("fingerprint_hash"),
+            func.jsonb_extract_path_text(Snap.content_json, "fingerprint_hash") == fp_hash,
         )
         .order_by(Snap.created_at.desc())
         .limit(1)
     )
     found = db.scalars(stmt).first()
     if found:
-        return found
+        return _ensure_snapshot_fingerprint_metadata(
+            db,
+            found,
+            fingerprint=fingerprint,
+            fp_hash=fp_hash,
+        )
 
     normalized_target = _normalize_fingerprint_payload(fingerprint)
-    fallback_stmt = select(Snap).where(Snap.tenant_id == tenant_id).order_by(Snap.created_at.desc())
+    signature = _fingerprint_signature(normalized_target)
+    if signature:
+        signature_stmt = (
+            select(Snap)
+            .where(
+                Snap.tenant_id == tenant_id,
+                Snap.content_json.op("?")("fingerprint_signature"),
+                func.jsonb_extract_path_text(Snap.content_json, "fingerprint_signature")
+                == signature,
+            )
+            .order_by(Snap.created_at.desc())
+            .limit(1)
+        )
+        by_signature = db.scalars(signature_stmt).first()
+        if by_signature:
+            return _ensure_snapshot_fingerprint_metadata(
+                db,
+                by_signature,
+                fingerprint=normalized_target,
+                fp_hash=fp_hash,
+            )
+
+    fallback_stmt = (
+        select(Snap).where(Snap.tenant_id == tenant_id).order_by(Snap.created_at.desc()).limit(200)
+    )
     for snap in db.scalars(fallback_stmt):
         content = snap.content_json if isinstance(snap.content_json, dict) else {}
         if str(content.get("fingerprint_hash") or "").strip() == fp_hash:
-            return snap
+            return _ensure_snapshot_fingerprint_metadata(
+                db,
+                snap,
+                fingerprint=fingerprint,
+                fp_hash=fp_hash,
+            )
         if normalized_target is not None:
             stored_fingerprint = _normalize_fingerprint_payload(content.get("fingerprint"))
             if stored_fingerprint == normalized_target:
-                return snap
+                return _ensure_snapshot_fingerprint_metadata(
+                    db,
+                    snap,
+                    fingerprint=normalized_target,
+                    fp_hash=fp_hash,
+                )
     return None
 
 
@@ -194,6 +325,7 @@ def _create_recipe_and_snapshot(
     extra_content: dict,
     created_by: str | None,
 ) -> tuple[str, IcuRecipeSnapshot]:
+    headers_flat = _excel_headers_flat_from_fingerprint(fp)
     recipe = recipe_crud.create_recipe(
         db,
         {
@@ -225,6 +357,9 @@ def _create_recipe_and_snapshot(
             "content_json": {
                 "fingerprint_hash": fp_hash,
                 "fingerprint": fp,
+                "fingerprint_signature": _fingerprint_signature(fp),
+                "fingerprint_kind": str(fp.get("kind") or "").strip().lower() or None,
+                **({"fingerprint_headers_flat": headers_flat} if headers_flat else {}),
                 "prompt_system": prompts["prompt_system"],
                 "prompt_user": prompts["prompt_user"],
                 "model": prompts["model"],

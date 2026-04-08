@@ -10,7 +10,7 @@ from starlette.datastructures import UploadFile
 
 from app.models.importador import IcuRecipeSnapshot, ImpDocumento
 from app.modules.importador import crud
-from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
+from app.modules.importador.auto_recipe import resolve_auto_recipe, resolve_auto_recipe_from_text
 from app.modules.importador.batch_service import enqueue_async_batch
 from app.modules.importador.processing_service import RecipeContext, process_import_document
 from app.modules.importador.router import _learn_from_confirmation
@@ -164,6 +164,108 @@ def test_resolve_auto_recipe_from_text_reuses_snapshot_by_structural_fingerprint
     assert str(first_snapshot_id) == str(second_snapshot_id)
 
 
+def test_resolve_auto_recipe_from_text_reuses_snapshot_by_signature_when_hash_is_stale(
+    db: Session, tenant_minimal
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    fields = {
+        "currency": "PEN",
+        "total_amount": 2145.0,
+        "payment_method": "Transferencia",
+    }
+
+    _, snapshot_id, _, created, _ = resolve_auto_recipe_from_text(
+        db,
+        tenant_id,
+        "INVOICE",
+        fields,
+        "PDF",
+        "tester",
+    )
+    assert snapshot_id is not None
+    assert created is True
+
+    snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
+    assert snapshot is not None
+    content = dict(snapshot.content_json or {})
+    assert content.get("fingerprint_signature")
+    content["fingerprint_hash"] = "stale-hash"
+    snapshot.content_json = content
+    db.commit()
+
+    _, reused_snapshot_id, _, reused_created, _ = resolve_auto_recipe_from_text(
+        db,
+        tenant_id,
+        "SUPPLIER_INVOICE",
+        fields,
+        "PDF",
+        "tester",
+    )
+
+    assert reused_snapshot_id is not None
+    assert reused_created is False
+    assert str(reused_snapshot_id) == str(snapshot_id)
+
+
+def test_resolve_auto_recipe_excel_persists_header_flat_and_reuses_fuzzy_source(
+    db: Session, tenant_minimal
+):
+    tenant_id = tenant_minimal["tenant_id"]
+    first_profiles = {
+        "Sheet1": {
+            "headers": ["Fecha", "Proveedor", "Total", "Moneda"],
+            "headers_norm": ["fecha", "proveedor", "total", "moneda"],
+            "column_profiles": {},
+        }
+    }
+    second_profiles = {
+        "Sheet1": {
+            "headers": ["Fecha", "Proveedor", "Total", "Moneda", "Metodo Pago"],
+            "headers_norm": ["fecha", "proveedor", "total", "moneda", "metodo pago"],
+            "column_profiles": {},
+        }
+    }
+
+    _, first_snapshot_id, _, first_created, _ = resolve_auto_recipe(
+        db,
+        tenant_id,
+        first_profiles,
+        "tester",
+    )
+    assert first_snapshot_id is not None
+    assert first_created is True
+
+    first_snapshot = db.get(IcuRecipeSnapshot, first_snapshot_id)
+    assert first_snapshot is not None
+    assert first_snapshot.content_json["fingerprint_kind"] == "excel"
+    assert first_snapshot.content_json["fingerprint_headers_flat"] == [
+        "fecha",
+        "moneda",
+        "proveedor",
+        "total",
+    ]
+
+    _, second_snapshot_id, _, second_created, _ = resolve_auto_recipe(
+        db,
+        tenant_id,
+        second_profiles,
+        "tester",
+    )
+    assert second_snapshot_id is not None
+    assert second_created is True
+
+    second_snapshot = db.get(IcuRecipeSnapshot, second_snapshot_id)
+    assert second_snapshot is not None
+    assert second_snapshot.content_json["fuzzy_source_snapshot_id"] == str(first_snapshot_id)
+    assert second_snapshot.content_json["fingerprint_headers_flat"] == [
+        "fecha",
+        "metodo pago",
+        "moneda",
+        "proveedor",
+        "total",
+    ]
+
+
 def test_process_async_document_reuses_text_snapshot_learning_and_persists_canonical_document(
     db: Session, tenant_minimal, monkeypatch
 ):
@@ -291,11 +393,17 @@ def test_process_async_document_reuses_text_snapshot_learning_and_persists_canon
     assert stored.datos_extraidos is not None
     assert stored.datos_extraidos["payment_method"] == "Transferencia bancaria"
     assert stored.raw_ai_json["run"]["learning_version_applied"] >= 2
+    assert stored.raw_ai_json["run"]["total_processing_ms"] >= 0
+    assert stored.raw_ai_json["run"]["timings_ms"]["ocr_extract"] >= 0
+    assert stored.raw_ai_json["run"]["timings_ms"]["recipe_resolution"] >= 0
+    assert stored.raw_ai_json["run"]["timings_ms"]["pre_classify"] >= 0
     assert (
         stored.raw_ai_json["canonical_document"]["extensions"]["payment_method"]
         == "Transferencia bancaria"
     )
     assert result.recipe_snapshot_id is not None
+    assert result.raw_ai_json is not None
+    assert result.raw_ai_json["run"]["timings_ms"]["document_update"] >= 0
     assert len(analyze_calls) == 2
     assert analyze_calls[0] == {}
     assert "field_descriptions" in analyze_calls[1]
@@ -401,6 +509,11 @@ def test_process_run_document_uses_explicit_snapshot_config_on_first_pass(
     )
 
     assert result.recipe_snapshot_id is not None
+    assert result.raw_ai_json is not None
+    assert result.raw_ai_json["run"]["total_processing_ms"] >= 0
+    assert result.raw_ai_json["run"]["timings_ms"]["ocr_extract"] >= 0
+    assert result.raw_ai_json["run"]["timings_ms"]["recipe_resolution"] >= 0
+    assert result.raw_ai_json["run"]["timings_ms"]["document_update"] >= 0
     assert len(analyze_calls) == 1
     assert analyze_calls[0] is not None
     assert "field_descriptions" in analyze_calls[0]

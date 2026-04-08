@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -133,6 +134,7 @@ async def _run_processing(
         db.commit()
         db.refresh(doc)
 
+        task_started_at = time.perf_counter()
         try:
             await process_import_document(
                 mode="async",
@@ -152,11 +154,36 @@ async def _run_processing(
                     explicit_recipe_context=bool(recipe_snapshot_id),
                 ),
             )
+            processing_elapsed_ms = max(0, int(round((time.perf_counter() - task_started_at) * 1000)))
+            commit_started_at = time.perf_counter()
             for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="REVIEW"):
                 crud.refresh_batch_status(db, batch_id)
                 publish_batch_update(db, batch_id)
             db.commit()
-            logger.info("Documento %s procesado correctamente -> REVIEW", doc_id)
+            db.refresh(doc)
+            commit_elapsed_ms = max(0, int(round((time.perf_counter() - commit_started_at) * 1000)))
+            total_elapsed_ms = max(0, int(round((time.perf_counter() - task_started_at) * 1000)))
+            run_metrics = {}
+            if isinstance(getattr(doc, "raw_ai_json", None), dict):
+                run_metrics = (
+                    (doc.raw_ai_json or {}).get("run", {})
+                    if isinstance((doc.raw_ai_json or {}).get("run", {}), dict)
+                    else {}
+                )
+            logger.info(
+                "importador.task.completed doc_id=%s metrics=%s",
+                doc_id,
+                _json_safe(
+                    {
+                        "tenant_id": str(tenant_id),
+                        "batch_processing_ms": processing_elapsed_ms,
+                        "batch_commit_ms": commit_elapsed_ms,
+                        "batch_total_ms": total_elapsed_ms,
+                        "estado": getattr(doc, "estado", None),
+                        "run": run_metrics,
+                    }
+                ),
+            )
 
         except Exception as exc:
             logger.error("Error procesando documento %s: %s", doc_id, exc, exc_info=True)

@@ -35,6 +35,30 @@ def test_ocr_image_falls_back_to_easyocr_when_tesseract_is_weak(monkeypatch):
     assert "5.30" in result
 
 
+def test_run_easyocr_reuses_reader_instance(monkeypatch):
+    constructor_calls = {"count": 0}
+
+    class FakeReader:
+        def __init__(self, langs, gpu=False):
+            constructor_calls["count"] += 1
+            self.langs = langs
+            self.gpu = gpu
+
+        def readtext(self, _image):
+            return [(None, "NOTA", 0.99)]
+
+    ocr_service._EASYOCR_READERS.clear()
+    monkeypatch.setitem(
+        __import__("sys").modules, "easyocr", type("E", (), {"Reader": FakeReader})()
+    )
+
+    img = Image.new("L", (120, 80), color=255)
+
+    assert ocr_service._run_easyocr(img) == "NOTA"
+    assert ocr_service._run_easyocr(img) == "NOTA"
+    assert constructor_calls["count"] == 1
+
+
 def test_ocr_image_uses_best_tesseract_variant_when_available(monkeypatch):
     def fake_tesseract(img, lang=None, config=None):
         variant = img.info.get("ocr_variant")

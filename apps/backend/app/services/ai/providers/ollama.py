@@ -17,19 +17,36 @@ from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIP
 logger = logging.getLogger(__name__)
 
 
-# Ollama processes one request at a time; serialize calls so queued
-# requests wait in Python instead of hitting httpx timeouts.
-def _ollama_max_concurrency() -> int:
+# Ollama often degrades under bursty parallel loads. Keep concurrency
+# explicit and bounded per base_url instead of freezing one semaphore at import time.
+def _ollama_max_concurrency(default: int = 1) -> int:
     raw = (os.getenv("OLLAMA_MAX_CONCURRENCY") or "").strip()
     try:
-        return max(1, int(raw)) if raw else 1
+        return max(1, int(raw)) if raw else default
     except ValueError:
-        return 1
+        return default
 
 
-_ollama_semaphore = asyncio.Semaphore(_ollama_max_concurrency())
+_ollama_semaphores: dict[tuple[str, int], asyncio.Semaphore] = {}
+_logged_concurrency_configs: set[tuple[str, int]] = set()
 _tags_cache: dict[str, tuple[float, list[str]]] = {}
 _health_cache: dict[str, tuple[float, bool]] = {}
+
+
+def _coerce_positive_int(value: Any, default: int) -> int:
+    try:
+        return max(1, int(str(value).strip()))
+    except (TypeError, ValueError, AttributeError):
+        return default
+
+
+def _get_ollama_semaphore(base_url: str, max_concurrency: int) -> asyncio.Semaphore:
+    key = (base_url, max_concurrency)
+    semaphore = _ollama_semaphores.get(key)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(max_concurrency)
+        _ollama_semaphores[key] = semaphore
+    return semaphore
 
 
 def _cache_ttl(name: str, default: float) -> float:
@@ -65,6 +82,21 @@ class OllamaProvider(BaseAIProvider):
         self.default_model = config.get("model", "qwen2.5:3b")
         # Algunos modelos locales tardan bastante en la primera inferencia (carga a GPU/CPU)
         self.request_timeout = config.get("timeout", 300.0)
+        self.max_concurrency = _coerce_positive_int(
+            config.get("max_concurrency"),
+            _ollama_max_concurrency(),
+        )
+        self._semaphore = _get_ollama_semaphore(self.base_url, self.max_concurrency)
+        config_key = (self.base_url, self.max_concurrency)
+        if config_key not in _logged_concurrency_configs:
+            logger.info(
+                "Ollama concurrency configured base_url=%s max_concurrency=%s endpoint=%s timeout=%.1fs",
+                self.base_url,
+                self.max_concurrency,
+                self.endpoint,
+                self.request_timeout,
+            )
+            _logged_concurrency_configs.add(config_key)
 
     def _get_available_models(self, timeout: float = 3.0) -> list[str]:
         """Cache /api/tags to avoid repeated round-trips on every request."""
@@ -119,7 +151,7 @@ class OllamaProvider(BaseAIProvider):
                 if request.max_tokens:
                     payload["num_predict"] = request.max_tokens
 
-            async with _ollama_semaphore:
+            async with self._semaphore:
                 async with httpx.AsyncClient(timeout=self.request_timeout) as client:
                     response = await client.post(self._endpoint_url, json=payload)
                     response.raise_for_status()
@@ -146,6 +178,7 @@ class OllamaProvider(BaseAIProvider):
                     "provider": "ollama",
                     "temperature": request.temperature,
                     "endpoint": self.endpoint,
+                    "max_concurrency": self.max_concurrency,
                     "eval_duration_ns": eval_duration,
                 },
             )

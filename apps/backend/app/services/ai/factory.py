@@ -83,6 +83,7 @@ class AIProviderFactory:
                 "model": os.getenv("OLLAMA_MODEL", "qwen2.5:3b"),
                 "timeout": float(os.getenv("OLLAMA_TIMEOUT", "120")),
                 "health_check_timeout": float(os.getenv("OLLAMA_HEALTH_TIMEOUT", "5")),
+                "max_concurrency": os.getenv("OLLAMA_MAX_CONCURRENCY", "1"),
                 "max_prompt_length": int(os.getenv("AI_MAX_PROMPT_LENGTH", "10000")),
             }
 

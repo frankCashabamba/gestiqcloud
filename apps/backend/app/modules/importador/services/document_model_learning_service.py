@@ -282,6 +282,56 @@ def recipe_config_has_material_hints(
     )
 
 
+def recipe_config_has_rerun_worthy_hints(
+    base_recipe_config: dict[str, Any] | None,
+    candidate_recipe_config: dict[str, Any] | None,
+) -> bool:
+    if not recipe_config_has_material_hints(base_recipe_config, candidate_recipe_config):
+        return False
+
+    base_payload = _material_recipe_payload(base_recipe_config)
+    candidate_payload = _material_recipe_payload(candidate_recipe_config)
+
+    base_field_descriptions = (
+        base_payload.get("field_descriptions") if isinstance(base_payload, dict) else None
+    )
+    candidate_field_descriptions = (
+        candidate_payload.get("field_descriptions")
+        if isinstance(candidate_payload, dict)
+        else None
+    )
+    if isinstance(candidate_field_descriptions, dict):
+        baseline_fields = (
+            base_field_descriptions if isinstance(base_field_descriptions, dict) else {}
+        )
+        for field_name, description in candidate_field_descriptions.items():
+            if baseline_fields.get(field_name) != description:
+                return True
+
+    base_prompt_user = str(base_payload.get("prompt_user") or "").strip()
+    candidate_prompt_user = str(candidate_payload.get("prompt_user") or "").strip()
+    if candidate_prompt_user and candidate_prompt_user != base_prompt_user:
+        return True
+
+    base_model = str(base_payload.get("model") or "").strip()
+    candidate_model = str(candidate_payload.get("model") or "").strip()
+    if candidate_model and candidate_model != base_model:
+        return True
+
+    signal_meta = (
+        candidate_recipe_config.get("_signal_learning")
+        if isinstance(candidate_recipe_config, dict)
+        else None
+    )
+    if isinstance(signal_meta, dict):
+        if signal_meta.get("top_document_type"):
+            return True
+        if list(signal_meta.get("top_corrected_fields") or []):
+            return True
+
+    return False
+
+
 def _field_needs_help(value: Any) -> bool:
     if value is None:
         return True
@@ -301,7 +351,7 @@ def should_run_learning_rerun(
     base_recipe_config: dict[str, Any] | None,
     candidate_recipe_config: dict[str, Any] | None,
 ) -> bool:
-    if not recipe_config_has_material_hints(base_recipe_config, candidate_recipe_config):
+    if not recipe_config_has_rerun_worthy_hints(base_recipe_config, candidate_recipe_config):
         return False
 
     routing = baseline_routing

@@ -14,12 +14,13 @@ import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 import openpyxl
 from PIL import Image, ImageFilter, ImageOps
 
-from .runtime_config import load_file_support_config
+from .runtime_config import load_file_support_config, load_ocr_runtime_config
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.ocr")
@@ -34,7 +35,9 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-03-30-2"
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-08-1"
+_EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
+_EASYOCR_READER_LOCK = Lock()
 
 # UBL 2.1 namespaces
 _UBL_NS = {
@@ -170,7 +173,19 @@ def _ocr_text_score(text: str) -> tuple[int, int]:
     return (len(words), len(raw))
 
 
-def _is_weak_ocr_text(text: str, *, min_words: int = 4, min_chars: int = 24) -> bool:
+def _ocr_runtime_config() -> dict[str, Any]:
+    return load_ocr_runtime_config(None)
+
+
+def _is_weak_ocr_text(
+    text: str,
+    *,
+    min_words: int | None = None,
+    min_chars: int | None = None,
+) -> bool:
+    config = _ocr_runtime_config()
+    min_words = config["weak_text_min_words"] if min_words is None else min_words
+    min_chars = config["weak_text_min_chars"] if min_chars is None else min_chars
     words, chars = _ocr_text_score(text)
     return words < min_words or chars < min_chars
 
@@ -359,11 +374,62 @@ def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
     return variants
 
 
-def _run_tesseract(img: Image.Image) -> str:
+def _variant_label(img: Image.Image) -> str:
+    return str(img.info.get("ocr_variant") or "").strip()
+
+
+def _partition_ocr_variants(
+    variants: list[Image.Image],
+    primary_variant_labels: list[str],
+) -> tuple[list[Image.Image], list[Image.Image]]:
+    variants_by_label = {_variant_label(variant): variant for variant in variants}
+    primary: list[Image.Image] = []
+    selected_labels: set[str] = set()
+
+    for label in primary_variant_labels:
+        variant = variants_by_label.get(label)
+        if variant is None or label in selected_labels:
+            continue
+        primary.append(variant)
+        selected_labels.add(label)
+
+    rescue = [variant for variant in variants if _variant_label(variant) not in selected_labels]
+    return primary, rescue
+
+
+def _pick_easyocr_variant(
+    variants: list[Image.Image],
+    preferred_label: str,
+) -> Image.Image | None:
+    preferred = preferred_label.strip()
+    if preferred:
+        for variant in variants:
+            if _variant_label(variant) == preferred:
+                return variant
+    return variants[0] if variants else None
+
+
+def _tesseract_configs(psm_modes: list[str] | tuple[str, ...] | None = None) -> tuple[str, ...]:
+    config = _ocr_runtime_config()
+    raw_modes = psm_modes if psm_modes is not None else config["primary_psm_modes"]
+    parsed: list[str] = []
+    for value in raw_modes:
+        token = str(value or "").strip()
+        if not token:
+            continue
+        parsed.append(token if token.startswith("--") else f"--psm {token}")
+    return tuple(parsed or ("--psm 6",))
+
+
+def _run_tesseract(
+    img: Image.Image,
+    *,
+    psm_modes: list[str] | tuple[str, ...] | None = None,
+) -> str:
     import pytesseract
 
     candidates: list[str] = []
-    for config in ("--psm 6", "--psm 11", "--psm 12"):
+    for config in _tesseract_configs(psm_modes):
         text = str(pytesseract.image_to_string(img, lang="spa+eng", config=config) or "").strip()
         if not text:
             continue
@@ -379,7 +445,16 @@ def _run_easyocr(img: Image.Image) -> str:
     import easyocr
     import numpy as np
 
-    reader = easyocr.Reader(["es", "en"], gpu=False)
+    config = _ocr_runtime_config()
+    languages = tuple(str(lang).strip() for lang in config["easyocr_languages"] if str(lang).strip())
+    reader_key = (languages or ("es", "en"), False)
+    reader = _EASYOCR_READERS.get(reader_key)
+    if reader is None:
+        with _EASYOCR_READER_LOCK:
+            reader = _EASYOCR_READERS.get(reader_key)
+            if reader is None:
+                reader = easyocr.Reader(list(reader_key[0]), gpu=reader_key[1])
+                _EASYOCR_READERS[reader_key] = reader
     results = reader.readtext(np.array(img))
     return "\n".join([r[1] for r in results]).strip()
 
@@ -573,7 +648,7 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
     img = Image.open(io.BytesIO(file_bytes))
 
     # Resize if too small — Tesseract works best at ~300 DPI equivalent
-    min_width = 1800
+    min_width = int(_ocr_runtime_config()["min_width"])
     if img.width < min_width:
         scale = min_width / img.width
         img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
@@ -601,15 +676,26 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
 def _ocr_image(img: Image.Image) -> str:
     """Run Tesseract OCR on a PIL Image."""
     candidates: list[str] = []
+    config = _ocr_runtime_config()
+    variants = _iter_ocr_variants(img)
+    primary_variants, rescue_variants = _partition_ocr_variants(
+        variants,
+        list(config["primary_variant_labels"]),
+    )
     try:
-        for variant in _iter_ocr_variants(img):
-            cleaned = _run_tesseract(variant)
+        for variant in itertools.chain(primary_variants, rescue_variants):
+            psm_modes = (
+                config["primary_psm_modes"]
+                if variant in primary_variants
+                else config["rescue_psm_modes"]
+            )
+            cleaned = _run_tesseract(variant, psm_modes=psm_modes)
             if cleaned:
                 candidates.append(cleaned)
             if cleaned and not _is_weak_ocr_text(cleaned):
                 logger.info(
                     "Tesseract OCR accepted variant=%s words=%s chars=%s",
-                    variant.info.get("ocr_variant", "unknown"),
+                    _variant_label(variant) or "unknown",
                     *_ocr_text_score(cleaned),
                 )
                 return cleaned
@@ -617,12 +703,15 @@ def _ocr_image(img: Image.Image) -> str:
     except Exception as exc:
         logger.warning("Tesseract OCR failed: %s", exc)
 
-    try:
-        easyocr_text = _run_easyocr(_iter_ocr_variants(img)[1])
-        if easyocr_text:
-            candidates.append(easyocr_text)
-    except Exception as exc2:
-        logger.error("All OCR engines failed: %s", exc2)
+    if config["easyocr_enabled"]:
+        try:
+            easyocr_variant = _pick_easyocr_variant(variants, config["easyocr_variant_label"])
+            if easyocr_variant is not None:
+                easyocr_text = _run_easyocr(easyocr_variant)
+                if easyocr_text:
+                    candidates.append(easyocr_text)
+        except Exception as exc2:
+            logger.error("All OCR engines failed: %s", exc2)
 
     if not candidates:
         return ""

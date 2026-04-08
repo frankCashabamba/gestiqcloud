@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -54,6 +55,24 @@ ExtractTextFn = Callable[[bytes, str], Awaitable[dict[str, Any]]]
 ProcessingMode = Literal["run", "async"]
 
 _AI_FAILURE_TOKENS = ("timeout", "timed out", "unavailable", "connection", "refused", "failed")
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, int(round((time.perf_counter() - started_at) * 1000)))
+
+
+def _set_stage_timing(stage_timings: dict[str, int], stage_name: str, started_at: float) -> int:
+    elapsed = _elapsed_ms(started_at)
+    stage_timings[stage_name] = elapsed
+    return elapsed
+
+
+def _build_timing_summary(*, stage_timings: dict[str, int], started_at: float) -> dict[str, Any]:
+    ordered = {key: stage_timings[key] for key in sorted(stage_timings)}
+    return {
+        "timings_ms": ordered,
+        "total_processing_ms": _elapsed_ms(started_at),
+    }
 
 
 def _analysis_indicates_ai_failure(analysis: dict[str, Any]) -> bool:
@@ -296,7 +315,11 @@ async def _process_async_document(
     analyze_document_fn: AnalyzeDocumentFn,
     recipe_context: RecipeContext,
 ) -> DocumentProcessingResult:
+    processing_started_at = time.perf_counter()
+    stage_timings: dict[str, int] = {}
+    extraction_started_at = time.perf_counter()
     extraction = await extract_text_fn(file_bytes, filename)
+    _set_stage_timing(stage_timings, "ocr_extract", extraction_started_at)
     text = extraction.get("text", "")
     structured = extraction.get("structured_data")
     sheet_profiles = extraction.get("sheet_profiles")
@@ -355,6 +378,7 @@ async def _process_async_document(
     cached_analysis = None
     text_cached_analysis = None
     analysis_recipe_config: dict[str, Any] = {}
+    recipe_resolution_started_at = time.perf_counter()
     if resolved_snapshot_id:
         recipe_snapshot = _load_snapshot(db, resolved_snapshot_id)
         if recipe_snapshot and isinstance(recipe_snapshot.content_json, dict):
@@ -372,14 +396,18 @@ async def _process_async_document(
     )
     signal_learning_meta = recipe_config.get("_signal_learning") if recipe_config else None
     learning_rerun_summary = None
+    _set_stage_timing(stage_timings, "recipe_resolution", recipe_resolution_started_at)
 
+    runtime_config_started_at = time.perf_counter()
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
     classification_threshold = load_classification_threshold(db)
     learning_ctrl = load_learning_control(db)
+    _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
     # ── Pre-classification: attempt to resolve doc_type without AI ──────────────
+    pre_classify_started_at = time.perf_counter()
     _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
     _pre_cfg = load_pre_classifier_config(db)
     _structured_skip_threshold = float(_pre_cfg.get("structured_skip_threshold", 0.75))
@@ -395,6 +423,7 @@ async def _process_async_document(
         tenant_id=tenant_id,
         tipo_archivo=tipo_archivo,
     )
+    _set_stage_timing(stage_timings, "pre_classify", pre_classify_started_at)
 
     if pre_class and pre_class.skip_ai:
         if pre_class.layer == "template":
@@ -457,6 +486,7 @@ async def _process_async_document(
                     _rc_for_ai["doc_type_hint"] = _cached_type
                     _rc_for_ai["doc_type_hint_confidence"] = _cached_conf
         analysis_recipe_config = dict(_rc_for_ai)
+        ai_primary_started_at = time.perf_counter()
         analysis = await _analyze_with_context(
             analyze_document_fn=analyze_document_fn,
             content=llm_content,
@@ -470,6 +500,7 @@ async def _process_async_document(
             prompt_config=prompt_config,
             db=db,
         )
+        _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
 
     # Attach pre-classification metadata for learning at confirm time
     if pre_class:
@@ -482,7 +513,9 @@ async def _process_async_document(
             },
         )
 
+    normalize_analysis_started_at = time.perf_counter()
     normalized_analysis = _normalize_analysis_output(analysis)
+    _set_stage_timing(stage_timings, "analysis_normalize", normalize_analysis_started_at)
     tipo_doc = str(normalized_analysis["doc_type"])
     confianza = float(normalized_analysis["confidence"])
     requiere_revision = confianza < classification_threshold
@@ -556,6 +589,7 @@ async def _process_async_document(
         # Text fallback: when AI failed and OCR text is available, extract
         # fields using DB-configured labels and aliases.
         if not datos_extraidos and text.strip() and _analysis_indicates_ai_failure(analysis):
+            text_fallback_started_at = time.perf_counter()
             # El timeout de la IA puede haber dejado la transacción en estado abortado.
             # Hacemos rollback para limpiarla antes de continuar con queries al DB.
             try:
@@ -593,8 +627,10 @@ async def _process_async_document(
                 datos_extraidos = fallback_fields
                 requiere_revision = True
                 _used_text_fallback = True
+            _set_stage_timing(stage_timings, "text_fallback", text_fallback_started_at)
 
         if tipo_doc != "OTHER" and not explicit_recipe_context:
+            auto_recipe_started_at = time.perf_counter()
             auto_recipe_config, post_snapshot_id, _, auto_recipe_created, _ = (
                 resolve_auto_recipe_from_text(
                     db,
@@ -606,6 +642,7 @@ async def _process_async_document(
                     force_new=force,
                 )
             )
+            _set_stage_timing(stage_timings, "auto_recipe_resolution", auto_recipe_started_at)
             if post_snapshot_id:
                 resolved_snapshot_id = post_snapshot_id
                 recipe_snapshot = _load_snapshot(db, post_snapshot_id)
@@ -659,6 +696,7 @@ async def _process_async_document(
                     base_recipe_config=analysis_recipe_config,
                     candidate_recipe_config=rerun_recipe_config,
                 ):
+                    ai_rerun_started_at = time.perf_counter()
                     rerun_analysis = await _analyze_with_context(
                         analyze_document_fn=analyze_document_fn,
                         content=llm_content,
@@ -672,6 +710,7 @@ async def _process_async_document(
                         prompt_config=prompt_config,
                         db=db,
                     )
+                    _set_stage_timing(stage_timings, "ai_rerun", ai_rerun_started_at)
                     rerun_normalized = _normalize_analysis_output(rerun_analysis)
                     rerun_fields = rerun_normalized["fields"]
                     if isinstance(rerun_fields, dict) and rerun_fields:
@@ -734,6 +773,7 @@ async def _process_async_document(
     sheet_profiles = (
         _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
     )
+    postprocess_started_at = time.perf_counter()
     field_aliases = get_field_aliases(db, tenant_id=tenant_id)
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     if isinstance(datos_extraidos, dict):
@@ -758,6 +798,7 @@ async def _process_async_document(
         field_aliases=field_aliases,
         canonical_fields=canonical_fields,
     )
+    _set_stage_timing(stage_timings, "postprocess_projection", postprocess_started_at)
     current_snapshot = recipe_snapshot
     if current_snapshot is None and resolved_snapshot_id:
         current_snapshot = _load_snapshot(db, resolved_snapshot_id)
@@ -797,6 +838,7 @@ async def _process_async_document(
             "canonical_document": canonical_document,
         }
     )
+    routing_started_at = time.perf_counter()
     routing_decision = build_document_routing_decision(
         source_doc_type=tipo_doc,
         ai_confidence=confianza,
@@ -807,6 +849,7 @@ async def _process_async_document(
         db=db,
         tenant_id=tenant_id,
     )
+    _set_stage_timing(stage_timings, "routing", routing_started_at)
     raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
 
     # Detect AI timeout / empty extraction for unstructured docs
@@ -820,6 +863,22 @@ async def _process_async_document(
     ):
         ai_timeout_error = ai_raw_response
 
+    staging_started_at = time.perf_counter()
+    if isinstance(datos_extraidos, dict):
+        upsert_staging_lines_from_extraction(db, doc.id, tenant_id, datos_extraidos)
+    _set_stage_timing(stage_timings, "staging_sync", staging_started_at)
+
+    review_hints_started_at = time.perf_counter()
+    review_hints = _build_review_hints(
+        db,
+        doc=doc,
+        routing_decision=routing_decision,
+        snapshot_id=resolved_snapshot_id,
+    )
+    _set_stage_timing(stage_timings, "review_hints", review_hints_started_at)
+    raw_ai_json["run"].update(_build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at))
+
+    document_update_started_at = time.perf_counter()
     crud.update_documento(
         db,
         doc,
@@ -839,15 +898,21 @@ async def _process_async_document(
             "recipe_snapshot_id": resolved_snapshot_id,
         },
     )
-
-    if isinstance(datos_extraidos, dict):
-        upsert_staging_lines_from_extraction(db, doc.id, tenant_id, datos_extraidos)
-
-    review_hints = _build_review_hints(
-        db,
-        doc=doc,
-        routing_decision=routing_decision,
-        snapshot_id=resolved_snapshot_id,
+    _set_stage_timing(stage_timings, "document_update", document_update_started_at)
+    raw_ai_json["run"].update(_build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at))
+    crud.update_documento(db, doc, {"raw_ai_json": raw_ai_json})
+    logger.info(
+        "importador.processing.completed doc_id=%s mode=%s metrics=%s",
+        doc.id,
+        mode,
+        _json_safe(
+            {
+                "tenant_id": str(tenant_id),
+                "doc_type": tipo_doc,
+                "model": model_used,
+                **raw_ai_json["run"],
+            }
+        ),
     )
     return DocumentProcessingResult(
         tipo_documento_detectado=tipo_doc,
@@ -877,7 +942,11 @@ async def _process_run_document(
     analyze_document_fn: AnalyzeDocumentFn,
     recipe_context: RecipeContext,
 ) -> DocumentProcessingResult:
+    processing_started_at = time.perf_counter()
+    stage_timings: dict[str, int] = {}
+    extraction_started_at = time.perf_counter()
     extraction = await extract_text_fn(file_bytes, filename)
+    _set_stage_timing(stage_timings, "ocr_extract", extraction_started_at)
     text = extraction.get("text", "")
     structured = extraction.get("structured_data")
     sheet_profiles = extraction.get("sheet_profiles")
@@ -910,6 +979,7 @@ async def _process_run_document(
                 headers_norm = profile.get("headers_norm") or []
                 headers_display = profile.get("headers") or headers_norm
 
+    recipe_resolution_started_at = time.perf_counter()
     local_recipe_config = dict(recipe_context.recipe_config or {})
     local_resolution = (
         "force_clean"
@@ -945,6 +1015,7 @@ async def _process_run_document(
                 local_resolution = auto_mode
             if auto_snap_id:
                 local_snapshot_id = auto_snap_id
+    _set_stage_timing(stage_timings, "recipe_resolution", recipe_resolution_started_at)
 
     recipe_name_detected: str | None = None
     if has_structured:
@@ -990,11 +1061,13 @@ async def _process_run_document(
         else:
             text_cached_analysis_run = get_snapshot_learning(recipe_snapshot, structured_only=False)
 
+    runtime_config_started_at = time.perf_counter()
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
     classification_threshold = load_classification_threshold(db)
     learning_ctrl = load_learning_control(db)
+    _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
     if cached_analysis:
         analysis = {
             **cached_analysis,
@@ -1013,6 +1086,7 @@ async def _process_run_document(
             if _cached_type and _cached_type != "OTHER" and _cached_conf >= 0.65:
                 _rc_for_run["doc_type_hint"] = _cached_type
                 _rc_for_run["doc_type_hint_confidence"] = _cached_conf
+        ai_primary_started_at = time.perf_counter()
         analysis = await analyze_document_fn(
             llm_content,
             filename,
@@ -1028,7 +1102,10 @@ async def _process_run_document(
             canonical_fields=canonical_fields,
             prompt_config=prompt_config,
         )
+        _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
+    normalize_analysis_started_at = time.perf_counter()
     normalized_analysis = _normalize_analysis_output(analysis)
+    _set_stage_timing(stage_timings, "analysis_normalize", normalize_analysis_started_at)
 
     tipo_doc = str(normalized_analysis["doc_type"])
     confianza = float(normalized_analysis["confidence"])
@@ -1146,6 +1223,7 @@ async def _process_run_document(
     auto_recipe_created = local_auto_created
     auto_recipe_name: str | None = local_auto_name
     if not sheet_profiles and tipo_doc != "OTHER" and not recipe_context.explicit_recipe_context:
+        auto_recipe_started_at = time.perf_counter()
         auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = (
             resolve_auto_recipe_from_text(
                 db,
@@ -1157,6 +1235,7 @@ async def _process_run_document(
                 force_new=force,
             )
         )
+        _set_stage_timing(stage_timings, "auto_recipe_resolution", auto_recipe_started_at)
         if post_snap_id and not local_snapshot_id:
             local_snapshot_id = post_snap_id
             _run_snap = _load_snapshot(db, post_snap_id)
@@ -1214,6 +1293,7 @@ async def _process_run_document(
                 base_recipe_config=analysis_recipe_config,
                 candidate_recipe_config=auto_rc2,
             ):
+                ai_rerun_started_at = time.perf_counter()
                 rerun_analysis = await analyze_document_fn(
                     llm_content,
                     filename,
@@ -1229,6 +1309,7 @@ async def _process_run_document(
                     canonical_fields=canonical_fields,
                     prompt_config=prompt_config,
                 )
+                _set_stage_timing(stage_timings, "ai_rerun", ai_rerun_started_at)
                 rerun_normalized = _normalize_analysis_output(rerun_analysis)
                 rerun_fields = rerun_normalized["fields"]
                 if isinstance(rerun_fields, dict) and rerun_fields:
@@ -1244,6 +1325,7 @@ async def _process_run_document(
 
     current_snapshot = _load_snapshot(db, local_snapshot_id)
     learning_version_applied = get_snapshot_learning_version(current_snapshot)
+    postprocess_started_at = time.perf_counter()
     field_aliases = get_field_aliases(db, tenant_id=tenant_id)
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
     if isinstance(datos_extraidos, dict):
@@ -1268,6 +1350,7 @@ async def _process_run_document(
         field_aliases=field_aliases,
         canonical_fields=canonical_fields,
     )
+    _set_stage_timing(stage_timings, "postprocess_projection", postprocess_started_at)
     model_used = analysis.get("model_used") or "unknown"
     raw_ai_json = {
         "run": {
@@ -1313,6 +1396,7 @@ async def _process_run_document(
     )
     raw_ai_json = _json_safe(raw_ai_json)
 
+    document_update_started_at = time.perf_counter()
     crud.update_documento(
         db,
         doc,
@@ -1331,6 +1415,9 @@ async def _process_run_document(
             "recipe_snapshot_id": local_snapshot_id,
         },
     )
+    _set_stage_timing(stage_timings, "document_update", document_update_started_at)
+    raw_ai_json["run"].update(_build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at))
+    crud.update_documento(db, doc, {"raw_ai_json": raw_ai_json})
     crud.add_log(
         db,
         doc.id,
@@ -1348,6 +1435,19 @@ async def _process_run_document(
                 str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None
             ),
         },
+    )
+    logger.info(
+        "importador.processing.completed doc_id=%s mode=%s metrics=%s",
+        doc.id,
+        "run",
+        _json_safe(
+            {
+                "tenant_id": str(tenant_id),
+                "doc_type": tipo_doc,
+                "model": model_used,
+                **raw_ai_json["run"],
+            }
+        ),
     )
 
     return DocumentProcessingResult(

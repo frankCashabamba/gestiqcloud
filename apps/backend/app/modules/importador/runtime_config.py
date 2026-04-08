@@ -67,6 +67,31 @@ _DEFAULT_LEARNING_CONFIG: dict[str, float] = {
     "filename_pattern_base_confidence": 0.65,
 }
 
+_DEFAULT_OCR_CONFIG: dict[str, Any] = {
+    "min_width": 1800,
+    "weak_text_min_words": 4,
+    "weak_text_min_chars": 24,
+    "primary_psm_modes": ["6", "11"],
+    "rescue_psm_modes": ["6"],
+    "primary_variant_labels": [
+        "base",
+        "base_rot-2",
+        "base_rot+2",
+        "perspective",
+        "perspective_rot-2",
+        "perspective_rot+2",
+        "autocontrast",
+        "autocontrast_rot-2",
+        "autocontrast_rot+2",
+        "threshold",
+        "trimmed",
+        "trimmed_rot90",
+    ],
+    "easyocr_languages": ["es", "en"],
+    "easyocr_enabled": True,
+    "easyocr_variant_label": "autocontrast",
+}
+
 
 def _cache_get(key: str) -> dict | None:
     entry = _cache.get(key)
@@ -205,6 +230,94 @@ def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
             logger.warning("No se pudo cargar file_support desde imp_config: %s", exc)
 
     return _DEFAULT_FILE_SUPPORT
+
+
+def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
+    cached = _cache_get("ocr_config")
+    if cached is not None:
+        return cached
+
+    config: dict[str, Any] = {
+        "min_width": int(_DEFAULT_OCR_CONFIG["min_width"]),
+        "weak_text_min_words": int(_DEFAULT_OCR_CONFIG["weak_text_min_words"]),
+        "weak_text_min_chars": int(_DEFAULT_OCR_CONFIG["weak_text_min_chars"]),
+        "primary_psm_modes": list(_DEFAULT_OCR_CONFIG["primary_psm_modes"]),
+        "rescue_psm_modes": list(_DEFAULT_OCR_CONFIG["rescue_psm_modes"]),
+        "primary_variant_labels": list(_DEFAULT_OCR_CONFIG["primary_variant_labels"]),
+        "easyocr_languages": list(_DEFAULT_OCR_CONFIG["easyocr_languages"]),
+        "easyocr_enabled": bool(_DEFAULT_OCR_CONFIG["easyocr_enabled"]),
+        "easyocr_variant_label": str(_DEFAULT_OCR_CONFIG["easyocr_variant_label"]),
+    }
+
+    def _int_value(value: Any, default: int, *, minimum: int = 1) -> int:
+        try:
+            return max(minimum, int(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    def _bool_value(value: Any, default: bool) -> bool:
+        if isinstance(value, bool):
+            return value
+        raw = str(value or "").strip().lower()
+        if raw in {"1", "true", "yes", "on"}:
+            return True
+        if raw in {"0", "false", "no", "off"}:
+            return False
+        return default
+
+    def _list_value(values: Any, defaults: list[str]) -> list[str]:
+        if not isinstance(values, list):
+            return list(defaults)
+        parsed = [str(value).strip() for value in values if str(value).strip()]
+        return parsed or list(defaults)
+
+    seed = _seed_module_payload("ocr_config")
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key == "min_width":
+                config[key] = _int_value(value, config[key])
+            elif key in {"weak_text_min_words", "weak_text_min_chars"}:
+                config[key] = _int_value(value, config[key], minimum=0)
+            elif key in {
+                "primary_psm_modes",
+                "rescue_psm_modes",
+                "primary_variant_labels",
+                "easyocr_languages",
+            }:
+                config[key] = _list_value(value, config[key])
+            elif key == "easyocr_enabled":
+                config[key] = _bool_value(value, config[key])
+            elif key == "easyocr_variant_label":
+                parsed = str(value or "").strip()
+                if parsed:
+                    config[key] = parsed
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "ocr_config")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key == "min_width" and row.value_text is not None:
+                    config[key] = _int_value(row.value_text, config[key])
+                elif key in {"weak_text_min_words", "weak_text_min_chars"} and row.value_text is not None:
+                    config[key] = _int_value(row.value_text, config[key], minimum=0)
+                elif key in {
+                    "primary_psm_modes",
+                    "rescue_psm_modes",
+                    "primary_variant_labels",
+                    "easyocr_languages",
+                }:
+                    config[key] = _list_value(row.value_list, config[key])
+                elif key == "easyocr_enabled" and row.value_text is not None:
+                    config[key] = _bool_value(row.value_text, config[key])
+                elif key == "easyocr_variant_label" and row.value_text is not None:
+                    parsed = str(row.value_text).strip()
+                    if parsed:
+                        config[key] = parsed
+        except Exception as exc:
+            logger.warning("No se pudo cargar ocr_config desde imp_config: %s", exc)
+
+    return _cache_set("ocr_config", config)
 
 
 def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
@@ -649,8 +762,7 @@ def load_cache_ttls(db: Any | None = None) -> dict[str, float]:
                 config[key] = _secs(row.value_text, defaults[key])
         _cache["cache_ttls"] = (time.monotonic(), config)
         # Actualizar el TTL global del módulo para que _cache_get lo use en lo sucesivo
-        global _CACHE_TTL
-        _CACHE_TTL = config.get("runtime_config_ttl_seconds", _CACHE_TTL)
+        globals()["_CACHE_TTL"] = config.get("runtime_config_ttl_seconds", _CACHE_TTL)
         return config
     except Exception as exc:
         logger.warning("No se pudo cargar cache_ttls desde imp_config: %s", exc)

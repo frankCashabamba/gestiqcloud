@@ -91,5 +91,29 @@
     "ocr_ttl_seconds": "300",
     "pre_classifier_ttl_seconds": "300",
     "runtime_config_ttl_seconds": "300"
+  },
+  "ocr_config": {
+    "min_width": "1800",
+    "weak_text_min_words": "4",
+    "weak_text_min_chars": "24",
+    "primary_psm_modes": ["6", "11"],
+    "rescue_psm_modes": ["6"],
+    "primary_variant_labels": [
+      "base",
+      "base_rot-2",
+      "base_rot+2",
+      "perspective",
+      "perspective_rot-2",
+      "perspective_rot+2",
+      "autocontrast",
+      "autocontrast_rot-2",
+      "autocontrast_rot+2",
+      "threshold",
+      "trimmed",
+      "trimmed_rot90"
+    ],
+    "easyocr_languages": ["es", "en"],
+    "easyocr_enabled": "true",
+    "easyocr_variant_label": "autocontrast"
   }
 }

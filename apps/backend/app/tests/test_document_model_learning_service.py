@@ -187,3 +187,22 @@ def test_should_not_run_learning_rerun_when_document_is_already_good():
     )
 
     assert should_rerun is False
+
+
+def test_should_not_run_learning_rerun_for_prompt_system_only_delta():
+    should_rerun = should_run_learning_rerun(
+        baseline_confidence=0.62,
+        classification_threshold=0.8,
+        baseline_fields={"vendor": "Proveedor Demo"},
+        baseline_routing=SimpleNamespace(
+            missing_fields=["total_amount"],
+            needs_human_review=True,
+            required_fields_ok=False,
+        ),
+        base_recipe_config={},
+        candidate_recipe_config={
+            "prompt_system": "Eres un extractor contable especializado en documentos de tipo INVOICE."
+        },
+    )
+
+    assert should_rerun is False
