@@ -3,9 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from io import BytesIO
-from types import SimpleNamespace
 
-from fastapi import Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
@@ -15,21 +13,8 @@ from app.modules.importador import crud
 from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
 from app.modules.importador.batch_service import enqueue_async_batch
 from app.modules.importador.processing_service import RecipeContext, process_import_document
-from app.modules.importador.router import _learn_from_confirmation, upload_files
+from app.modules.importador.router import _learn_from_confirmation
 from app.modules.importador.snapshot_learning import build_snapshot_review_hints
-
-
-def _fake_request(tenant_id) -> SimpleNamespace:
-    return SimpleNamespace(
-        state=SimpleNamespace(
-            tenant_id=tenant_id,
-            access_claims={
-                "tenant_id": str(tenant_id),
-                "user_id": "tester",
-                "is_company_admin": True,
-            },
-        )
-    )
 
 
 def test_learn_from_confirmation_bumps_learning_version(db: Session, tenant_minimal):
@@ -179,7 +164,7 @@ def test_resolve_auto_recipe_from_text_reuses_snapshot_by_structural_fingerprint
     assert str(first_snapshot_id) == str(second_snapshot_id)
 
 
-def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_document(
+def test_process_async_document_reuses_text_snapshot_learning_and_persists_canonical_document(
     db: Session, tenant_minimal, monkeypatch
 ):
     tenant_id = tenant_minimal["tenant_id"]
@@ -266,30 +251,40 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
             "raw_response": "{}",
         }
 
-    monkeypatch.setattr(
-        "app.modules.importador.router.extract_text_from_file",
-        fake_extract_text_from_file,
+    document = ImpDocumento(
+        tenant_id=tenant_id,
+        nombre_archivo="factura-aprendizaje-import.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=128,
+        estado="PENDING",
+        recipe_snapshot_id=snapshot_id,
     )
-    monkeypatch.setattr(
-        "app.modules.importador.router.analyze_document",
-        fake_analyze_document,
-    )
-
-    upload = UploadFile(BytesIO(b"%PDF-1.4 fake"), filename="factura-aprendizaje-upload.pdf")
-    request = _fake_request(tenant_id)
+    db.add(document)
+    db.commit()
 
     result = asyncio.run(
-        upload_files(
-            request=request,
-            response=Response(),
-            files=[upload],
-            force=False,
+        process_import_document(
+            mode="async",
             db=db,
+            doc=document,
+            tenant_id=tenant_id,
+            user_id="tester",
+            file_bytes=b"%PDF-1.4 fake",
+            filename="factura-aprendizaje-import.pdf",
+            tipo_archivo="PDF",
+            force=False,
+            extract_text_fn=fake_extract_text_from_file,
+            analyze_document_fn=fake_analyze_document,
+            recipe_context=RecipeContext(
+                resolution_mode="snapshot",
+                resolved_snapshot_id=snapshot_id,
+                explicit_recipe_context=True,
+            ),
         )
     )
+    db.commit()
 
-    assert len(result) == 1
-    stored = db.get(ImpDocumento, result[0].id)
+    stored = db.get(ImpDocumento, document.id)
     assert stored is not None
     assert stored.recipe_snapshot_id is not None
     assert stored.llm_model == "learned-model"
@@ -300,6 +295,7 @@ def test_upload_files_reuses_text_snapshot_learning_and_persists_canonical_docum
         stored.raw_ai_json["canonical_document"]["extensions"]["payment_method"]
         == "Transferencia bancaria"
     )
+    assert result.recipe_snapshot_id is not None
     assert len(analyze_calls) == 2
     assert analyze_calls[0] == {}
     assert "field_descriptions" in analyze_calls[1]
@@ -464,11 +460,11 @@ def test_enqueue_async_batch_bootstraps_learning_and_reprocesses_same_hash_docum
         lambda _db: True,
     )
 
-    upload = UploadFile(BytesIO(file_bytes), filename=filename)
+    queued_file = UploadFile(BytesIO(file_bytes), filename=filename)
 
     result = asyncio.run(
         enqueue_async_batch(
-            files=[upload],
+            files=[queued_file],
             tenant_id=tenant_id,
             user_id="tester",
             force=False,
@@ -540,11 +536,11 @@ def test_enqueue_async_batch_does_not_learn_from_review_only_document(
         lambda _db: True,
     )
 
-    upload = UploadFile(BytesIO(file_bytes), filename=filename)
+    queued_file = UploadFile(BytesIO(file_bytes), filename=filename)
 
     result = asyncio.run(
         enqueue_async_batch(
-            files=[upload],
+            files=[queued_file],
             tenant_id=tenant_id,
             user_id="tester",
             force=False,
@@ -615,11 +611,11 @@ def test_enqueue_async_batch_reprocesses_same_hash_when_learning_version_is_newe
         lambda _db: True,
     )
 
-    upload = UploadFile(BytesIO(file_bytes), filename=filename)
+    queued_file = UploadFile(BytesIO(file_bytes), filename=filename)
 
     result = asyncio.run(
         enqueue_async_batch(
-            files=[upload],
+            files=[queued_file],
             tenant_id=tenant_id,
             user_id="tester",
             force=False,
@@ -635,131 +631,7 @@ def test_enqueue_async_batch_reprocesses_same_hash_when_learning_version_is_newe
     assert str(existing.recipe_snapshot_id) == str(snapshot_id)
 
 
-def test_upload_files_learning_reprocess_preserves_snapshot_context(
-    db: Session, tenant_minimal, monkeypatch
-):
-    tenant_id = tenant_minimal["tenant_id"]
-    file_bytes = b"%PDF-1.4 duplicate-learning-sync"
-    filename = "factura-learning-sync.pdf"
-    file_hash = hashlib.sha256(file_bytes).hexdigest()
-
-    _, snapshot_id, _, _, _ = resolve_auto_recipe_from_text(
-        db,
-        tenant_id,
-        "INVOICE",
-        {"currency": "PEN", "total_amount": 2145.0},
-        "PDF",
-        "tester",
-    )
-    assert snapshot_id is not None
-
-    snapshot = db.get(IcuRecipeSnapshot, snapshot_id)
-    assert snapshot is not None
-    snapshot.content_json = {
-        **dict(snapshot.content_json or {}),
-        "learning_version": 2,
-        "field_descriptions": {
-            "payment_method": "Recent confirmed example: Transferencia bancaria.",
-        },
-        "learning_prompt_user": (
-            "Learning from confirmed similar documents:\n"
-            "- 'payment_method' was confirmed repeatedly in similar documents."
-        ),
-    }
-    db.commit()
-
-    existing = ImpDocumento(
-        tenant_id=tenant_id,
-        nombre_archivo=filename,
-        tipo_archivo="PDF",
-        tamanio_bytes=len(file_bytes),
-        hash_sha256=file_hash,
-        estado="REVIEW",
-        usuario_id="tester",
-        recipe_snapshot_id=snapshot_id,
-        datos_extraidos={"currency": "PEN", "total_amount": 2145.0},
-        datos_confirmados={"currency": "PEN", "total_amount": 2145.0},
-        raw_ai_json={"run": {"learning_version_applied": 0}},
-    )
-    db.add(existing)
-    db.commit()
-
-    async def fake_extract_text_from_file(_file_bytes: bytes, _filename: str):
-        return {
-            "text": "Factura de proveedor con forma de pago transferencia bancaria",
-            "structured_data": None,
-            "format": "PDF",
-        }
-
-    analyze_calls: list[dict] = []
-
-    async def fake_analyze_document(
-        content: str,
-        filename: str = "",
-        format_hint: str = "",
-        has_structured_rows: bool = False,
-        recipe_config: dict | None = None,
-        image_bytes: bytes | None = None,
-        fallback_patterns: dict | None = None,
-        canonical_fields: dict | None = None,
-        prompt_config: dict | None = None,
-    ):
-        del (
-            content,
-            filename,
-            format_hint,
-            has_structured_rows,
-            image_bytes,
-            fallback_patterns,
-            canonical_fields,
-            prompt_config,
-        )
-        recipe_config = recipe_config or {}
-        analyze_calls.append(recipe_config)
-        return {
-            "doc_type": "INVOICE",
-            "confidence": 0.97,
-            "reasoning": "reused learned snapshot",
-            "fields": {
-                "currency": "PEN",
-                "payment_method": "Transferencia bancaria",
-                "total_amount": 2145.0,
-            },
-            "model_used": "learned-model",
-            "prompt_sent": "rerun",
-            "raw_response": "{}",
-        }
-
-    monkeypatch.setattr(
-        "app.modules.importador.router.extract_text_from_file",
-        fake_extract_text_from_file,
-    )
-    monkeypatch.setattr(
-        "app.modules.importador.router.analyze_document",
-        fake_analyze_document,
-    )
-
-    upload = UploadFile(BytesIO(file_bytes), filename=filename)
-    result = asyncio.run(
-        upload_files(
-            request=_fake_request(tenant_id),
-            response=Response(),
-            files=[upload],
-            force=False,
-            db=db,
-        )
-    )
-
-    assert len(result) == 1
-    assert result[0].action == "REPROCESS"
-    assert analyze_calls
-    assert "field_descriptions" in analyze_calls[0]
-    assert "Learning from confirmed similar documents:" in str(analyze_calls[0].get("prompt_user"))
-    db.refresh(existing)
-    assert str(existing.recipe_snapshot_id) == str(snapshot_id)
-
-
-def test_upload_files_links_same_name_new_hash_as_successor(
+def test_enqueue_async_batch_links_same_name_new_hash_as_successor(
     db: Session, tenant_minimal, monkeypatch
 ):
     tenant_id = tenant_minimal["tenant_id"]
@@ -790,46 +662,31 @@ def test_upload_files_links_same_name_new_hash_as_successor(
     db.add(existing)
     db.commit()
 
-    async def fake_extract_text_from_file(_file_bytes: bytes, _filename: str):
-        return {
-            "text": "Factura nueva",
-            "structured_data": None,
-            "format": "PDF",
-        }
+    class _DummyTask:
+        def delay(self, **kwargs):
+            return kwargs
 
-    async def fake_analyze_document(*_args, **_kwargs):
-        return {
-            "doc_type": "INVOICE",
-            "confidence": 0.95,
-            "reasoning": "test",
-            "fields": {"currency": "PEN", "total_amount": 150.0},
-            "model_used": "test-model",
-            "prompt_sent": "test",
-            "raw_response": "{}",
-        }
-
+    monkeypatch.setattr("app.modules.importador.tasks.store_payload", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.modules.importador.tasks.process_document_task", _DummyTask())
     monkeypatch.setattr(
-        "app.modules.importador.router.extract_text_from_file",
-        fake_extract_text_from_file,
-    )
-    monkeypatch.setattr(
-        "app.modules.importador.router.analyze_document",
-        fake_analyze_document,
+        "app.modules.importador.batch_service._ensure_batch_tracking_storage",
+        lambda _db: True,
     )
 
-    upload = UploadFile(BytesIO(b"%PDF-1.4 new"), filename="factura-versionada.pdf")
+    queued_file = UploadFile(BytesIO(b"%PDF-1.4 new"), filename="factura-versionada.pdf")
     result = asyncio.run(
-        upload_files(
-            request=_fake_request(tenant_id),
-            response=Response(),
-            files=[upload],
+        enqueue_async_batch(
+            files=[queued_file],
+            tenant_id=tenant_id,
+            user_id="tester",
             force=False,
             db=db,
+            recipe_snapshot_id=None,
         )
     )
 
     assert len(result) == 1
-    assert str(result[0].id) != str(existing.id)
+    assert str(result[0]["id"]) != str(existing.id)
     link = db.execute(
         text(
             """
@@ -841,9 +698,9 @@ def test_upload_files_links_same_name_new_hash_as_successor(
         {"predecessor_id": str(existing.id)},
     ).first()
     assert link is not None
-    assert str(link.successor_id) == str(result[0].id)
+    assert str(link.successor_id) == str(result[0]["id"])
     assert link.reason == "same_name_new_hash"
-    lineage = crud.list_documento_versions(db, result[0].id)
+    lineage = crud.list_documento_versions(db, result[0]["id"])
     assert len(lineage) == 1
     assert str(lineage[0]["id"]) == str(existing.id)
     assert lineage[0]["relation_direction"] == "predecessor"
@@ -883,11 +740,11 @@ def test_enqueue_async_batch_force_reprocesses_same_hash_without_creating_duplic
         lambda _db: True,
     )
 
-    upload = UploadFile(BytesIO(file_bytes), filename=filename)
+    queued_file = UploadFile(BytesIO(file_bytes), filename=filename)
 
     result = asyncio.run(
         enqueue_async_batch(
-            files=[upload],
+            files=[queued_file],
             tenant_id=tenant_id,
             user_id="tester",
             force=True,
@@ -904,3 +761,4 @@ def test_enqueue_async_batch_force_reprocesses_same_hash_without_creating_duplic
     assert existing.estado == "PENDING"
     assert existing.datos_confirmados is None
     assert db.query(ImpDocumento).filter(ImpDocumento.nombre_archivo == filename).count() == 1
+

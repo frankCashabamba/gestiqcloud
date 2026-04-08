@@ -51,7 +51,7 @@ logger = logging.getLogger("importador.processing")
 
 AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[[bytes, str], Awaitable[dict[str, Any]]]
-ProcessingMode = Literal["upload", "run", "async"]
+ProcessingMode = Literal["run", "async"]
 
 _AI_FAILURE_TOKENS = ("timeout", "timed out", "unavailable", "connection", "refused", "failed")
 
@@ -265,7 +265,7 @@ async def process_import_document(
             analyze_document_fn=analyze_document_fn,
             recipe_context=recipe_context or RecipeContext(),
         )
-    return await _process_upload_like_document(
+    return await _process_async_document(
         mode=mode,
         db=db,
         doc=doc,
@@ -281,9 +281,9 @@ async def process_import_document(
     )
 
 
-async def _process_upload_like_document(
+async def _process_async_document(
     *,
-    mode: Literal["upload", "async"],
+    mode: Literal["async"],
     db: Session,
     doc,
     tenant_id: UUID,

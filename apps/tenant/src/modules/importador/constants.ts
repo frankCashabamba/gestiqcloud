@@ -1,17 +1,17 @@
-export const IMPORTADOR_UPLOADER_SESSION_KEY = 'importador.uploader.session.v1'
+export const IMPORTADOR_IMPORT_SESSION_KEY = 'importador.import.session.v1'
 
 export const IMPORTADOR_COPY = {
   reimportButton: 'Reprocesar',
   rerunButton: 'Reprocesar',
   rerunHelpText: 'Si el resultado no te sirve, reprocesa y vuelve a revisarlo.',
-  uploadSingleEyebrow: 'Carga directa',
-  uploadFolderEyebrow: 'Carga masiva',
-  uploadSingleTitle: 'Arrastra tus archivos aqui',
-  uploadReimportTitle: 'Sube otra vez el archivo',
-  uploadSingleSubtitle: 'o haz clic para elegirlos manualmente',
-  uploadReimportSubtitle: 'Haz clic para elegir el archivo original.',
-  uploadFolderTitle: 'Sube una carpeta completa',
-  uploadFolderSubtitle: 'Procesa de una vez todos los archivos compatibles dentro de una misma carpeta',
+  importSingleEyebrow: 'Carga directa',
+  importFolderEyebrow: 'Carga masiva',
+  importSingleTitle: 'Arrastra tus archivos aqui',
+  reimportTitle: 'Sube otra vez el archivo',
+  importSingleSubtitle: 'o haz clic para elegirlos manualmente',
+  reimportSubtitle: 'Haz clic para elegir el archivo original.',
+  importFolderTitle: 'Sube una carpeta completa',
+  importFolderSubtitle: 'Procesa de una vez todos los archivos compatibles dentro de una misma carpeta',
   reimportCheckboxLabel: 'Reprocesar este archivo',
   reimportCheckboxHint: '(solo si quieres rehacer el analisis del mismo archivo)',
 } as const

@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import datetime
-import hashlib
 import logging
 import os
 import re
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -23,9 +22,7 @@ from app.models.ai.incident import Incident
 from app.models.core.audit_event import AuditEvent
 
 from . import crud, recipe_crud
-from .ai_classifier import CONFIDENCE_THRESHOLD, analyze_document
-from .api_lifecycle import mark_legacy_processing_endpoint
-from .auto_recipe import should_reprocess_existing_document
+from .ai_classifier import CONFIDENCE_THRESHOLD
 from .canonical_document import build_document_projection
 from .document_fields import (
     detect_document_date,
@@ -37,12 +34,7 @@ from .document_fields import (
     safe_floatish,
 )
 from .field_alias_loader import get_canonical_fields, get_field_aliases
-from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
-from .processing_service import (
-    RecipeContext,
-    _normalize_line_item_extra_columns,
-    process_import_document,
-)
+from .processing_service import _normalize_line_item_extra_columns
 from .product_import_service import build_product_candidates, save_product_candidates
 from .recipe_sync import get_available_recipe_sheets, upsert_recipe_from_import
 from .runtime_config import load_file_support_config, load_product_sheet_detection_config
@@ -79,7 +71,6 @@ from .schemas import (
     SyncRecipeResponse,
     SyncRecipeSheetResponse,
     SyncRecipesResponse,
-    UploadResponse,
 )
 from .services.document_routing_agent import build_document_routing_decision
 from .services.document_routing_feedback_service import record_routing_signal
@@ -1653,277 +1644,6 @@ def _save_document_to_purchase(
             )
         ),
     }
-
-
-@router.post("/upload", dependencies=protected, deprecated=True, include_in_schema=False)
-async def upload_files_legacy_disabled():
-    raise HTTPException(
-        status_code=410,
-        detail=(
-            "Endpoint legacy deshabilitado. Usa /api/v1/importador/run-async como unica "
-            "entrada de importacion."
-        ),
-    )
-
-
-async def upload_files(
-    request: Request,
-    response: Response,
-    files: list[UploadFile] = File(...),
-    force: bool = Query(
-        default=False, description="Si true, fuerza reprocesar aunque exista duplicado"
-    ),
-    db: Session = Depends(get_db),
-):
-    """Legacy sync upload path. Prefer /importador/run-async for the production flow."""
-    tenant_id = _tenant_id(request)
-    user_id = _user_id(request)
-    mark_legacy_processing_endpoint(response)
-    logger.info("Legacy importador endpoint used: /upload tenant=%s", tenant_id)
-    results = []
-
-    async def _process_single(file_bytes: bytes, filename: str, tipo_archivo: str | None = None):
-        nonlocal db, tenant_id, user_id, results
-        tipo_archivo = tipo_archivo or detect_file_type(filename, db)
-        file_hash = hashlib.sha256(file_bytes).hexdigest()
-        response_action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
-        response_message = "Se creo un nuevo documento para esta importacion."
-
-        existing = crud.find_existing_documento(
-            db,
-            tenant_id,
-            filename,
-            len(file_bytes),
-            file_hash,
-            usuario_id=None if _can_view_all_importador(request) else user_id,
-        )
-        exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
-        learning_reprocess_needed = False
-        if (
-            existing
-            and isinstance(getattr(existing, "datos_confirmados", None), dict)
-            and existing.datos_confirmados
-        ):
-            bootstrap_learning_from_existing_document(db, existing, user_id)
-        if existing:
-            learning_reprocess_needed = bool(
-                exact_hash_match
-                and existing.estado in ("CONFIRMED", "REVIEW")
-                and should_reprocess_existing_document(db, existing)
-            )
-        reuse_existing = bool(
-            existing
-            and (
-                existing.estado in ("PENDING", "PROCESSING")
-                or (
-                    existing.estado in ("CONFIRMED", "REVIEW")
-                    and not force
-                    and not learning_reprocess_needed
-                )
-            )
-        )
-        if reuse_existing:
-            crud.add_log(
-                db, existing.id, "SKIP_DUPLICATE", user_id, {"reason": "same hash_or_name"}
-            )
-            db.commit()
-            routing_decision = _attach_document_routing(existing, db)
-            review_hints = _attach_document_review_hints(existing, db)
-            results.append(
-                UploadResponse(
-                    id=existing.id,
-                    estado=existing.estado,
-                    tipo_documento_detectado=existing.tipo_documento_detectado,
-                    confianza_clasificacion=existing.confianza_clasificacion,
-                    requiere_revision=existing.requiere_revision,
-                    datos_extraidos=existing.datos_extraidos,
-                    routing_decision=routing_decision,
-                    review_hints=review_hints,
-                    action="REUSED",
-                    message=(
-                        "Documento ya existente; se reutilizo el resultado actual porque no habia aprendizaje nuevo pendiente. "
-                        "Usa reimportacion limpia si quieres forzar otro analisis."
-                    ),
-                )
-            )
-            return
-
-        predecessor = None
-        if (
-            exact_hash_match
-            and existing
-            and (
-                existing.estado == "FAILED"
-                or (existing.estado in ("CONFIRMED", "REVIEW") and force)
-                or (existing.estado == "REVIEW" and not reuse_existing)
-            )
-        ):
-            doc = existing
-            response_action = "REPROCESS"
-            rerun_reason = (
-                "learning_update" if learning_reprocess_needed and not force else "manual"
-            )
-            response_message = (
-                "Se reanalizo el mismo documento para aplicar aprendizaje confirmado reciente."
-                if rerun_reason == "learning_update"
-                else "Se reproceso el mismo documento sobre el registro existente."
-            )
-            preserve_learning_snapshot = rerun_reason == "learning_update" and getattr(
-                doc, "recipe_snapshot_id", None
-            )
-            crud.reset_documento_for_reprocess(
-                db,
-                doc,
-                estado="PROCESSING",
-                recipe_snapshot_id=doc.recipe_snapshot_id if preserve_learning_snapshot else None,
-                clear_recipe_snapshot=not bool(preserve_learning_snapshot),
-            )
-            crud.add_log(
-                db,
-                doc.id,
-                "REPROCESS",
-                user_id,
-                {
-                    "filename": filename,
-                    "size": len(file_bytes),
-                    "mode": "in_place",
-                    "reason": rerun_reason,
-                },
-            )
-        else:
-            predecessor = crud.find_latest_documento_by_name(
-                db,
-                tenant_id,
-                filename,
-                exclude_hash_sha256=file_hash,
-                usuario_id=None if _can_view_all_importador(request) else user_id,
-            )
-            doc = crud.create_documento(
-                db,
-                {
-                    "tenant_id": tenant_id,
-                    "nombre_archivo": filename,
-                    "tipo_archivo": tipo_archivo,
-                    "tamanio_bytes": len(file_bytes),
-                    "hash_sha256": file_hash,
-                    "estado": "PROCESSING",
-                    "usuario_id": user_id,
-                },
-            )
-            if predecessor and predecessor.id != doc.id:
-                crud.link_documento_successor(db, predecessor.id, doc.id)
-            crud.add_log(
-                db,
-                doc.id,
-                "UPLOAD",
-                user_id,
-                {"filename": filename, "size": len(file_bytes)},
-            )
-        db.commit()
-
-        try:
-            result = await process_import_document(
-                mode="upload",
-                db=db,
-                doc=doc,
-                tenant_id=tenant_id,
-                user_id=user_id,
-                file_bytes=file_bytes,
-                filename=filename,
-                tipo_archivo=tipo_archivo,
-                force=force,
-                extract_text_fn=extract_text_from_file,
-                analyze_document_fn=analyze_document,
-                recipe_context=RecipeContext(
-                    resolution_mode=(
-                        "snapshot"
-                        if getattr(doc, "recipe_snapshot_id", None) and not force
-                        else "zero_shot"
-                    ),
-                    resolved_snapshot_id=(
-                        getattr(doc, "recipe_snapshot_id", None) if not force else None
-                    ),
-                    explicit_recipe_context=bool(
-                        getattr(doc, "recipe_snapshot_id", None) and not force
-                    ),
-                    force_clean_reimport=force,
-                ),
-            )
-            db.commit()
-            results.append(
-                UploadResponse(
-                    id=doc.id,
-                    estado=doc.estado,
-                    tipo_documento_detectado=result.tipo_documento_detectado,
-                    confianza_clasificacion=result.confianza_clasificacion,
-                    requiere_revision=result.requiere_revision,
-                    datos_extraidos=result.datos_extraidos,
-                    routing_decision=result.routing_decision,
-                    review_hints=result.review_hints,
-                    action=response_action,
-                    message=response_message,
-                )
-            )
-        except Exception as exc:
-            logger.error("Error processing %s: %s", filename, exc)
-            crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": str(exc)})
-            crud.add_log(db, doc.id, "EXTRACT", user_id, {"error": str(exc)})
-            db.commit()
-            results.append(
-                UploadResponse(
-                    id=doc.id,
-                    estado="FAILED",
-                    action=response_action,
-                    message=response_message,
-                )
-            )
-
-    for file in files:
-        file_bytes = await file.read()
-        filename = file.filename or "sin_nombre"
-        tipo_archivo = detect_file_type(filename, db)
-
-        if tipo_archivo == "ZIP":
-            entries = list(iter_zip_entries(file_bytes, db=db))
-            if not entries:
-                doc = crud.create_documento(
-                    db,
-                    {
-                        "tenant_id": tenant_id,
-                        "nombre_archivo": filename,
-                        "tipo_archivo": tipo_archivo,
-                        "tamanio_bytes": len(file_bytes),
-                        "estado": "FAILED",
-                        "usuario_id": user_id,
-                        "error_detalle": "ZIP vacío o sin ficheros soportados",
-                    },
-                )
-                crud.add_log(
-                    db, doc.id, "UPLOAD", user_id, {"filename": filename, "size": len(file_bytes)}
-                )
-                crud.add_log(
-                    db, doc.id, "ERROR", user_id, {"error": "ZIP vacío o sin ficheros soportados"}
-                )
-                db.commit()
-                results.append(
-                    UploadResponse(
-                        id=doc.id,
-                        estado="FAILED",
-                        datos_extraidos={"error": "ZIP vacío o sin ficheros soportados"},
-                        action="CREATED",
-                        message="No se pudo procesar el archivo comprimido.",
-                    )
-                )
-                continue
-            for inner_name, inner_bytes in entries:
-                await _process_single(
-                    inner_bytes, f"{filename}::{inner_name}", detect_file_type(inner_name, db)
-                )
-        else:
-            await _process_single(file_bytes, filename, tipo_archivo)
-
-    return results
-
 
 @router.get("/documents", response_model=list[DocumentoListOut], dependencies=protected)
 def list_documents(

@@ -209,20 +209,6 @@ class BatchDetailOut(BatchSummaryOut):
     items: list[BatchItemOut] = Field(default_factory=list)
 
 
-class UploadResponse(BaseModel):
-    id: UUID
-    estado: str
-    tipo_documento_detectado: str | None = None
-    confianza_clasificacion: float | None = None
-    requiere_revision: bool = False
-    datos_extraidos: dict | None = None
-    routing_decision: DocumentRoutingDecision | None = None
-    review_hints: list[DocumentReviewHintOut] = Field(default_factory=list)
-    assisted_review: AssistedReviewOut | None = None
-    action: Literal["CREATED", "REUSED", "REPROCESS"] = "CREATED"
-    message: str | None = None
-
-
 class SaveDocumentLineMatch(BaseModel):
     line_index: int = Field(ge=0)
     product_id: UUID | None = None

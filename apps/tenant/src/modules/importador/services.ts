@@ -1,6 +1,6 @@
 import api from '../../shared/api/client'
 import { TENANT_IMPORTADOR } from '@shared/endpoints'
-import { IMPORTADOR_UPLOADER_SESSION_KEY } from './constants'
+import { IMPORTADOR_IMPORT_SESSION_KEY } from './constants'
 
 export type Documento = {
   id: string
@@ -1031,7 +1031,7 @@ export async function saveProductsFromDocument(
 
 export async function purgeAllImportador(): Promise<{ deleted_total: number; tables: Record<string, number> }> {
   const { data } = await api.delete(TENANT_IMPORTADOR.purgeAll)
-  sessionStorage.removeItem(IMPORTADOR_UPLOADER_SESSION_KEY)
+  sessionStorage.removeItem(IMPORTADOR_IMPORT_SESSION_KEY)
   return data as { deleted_total: number; tables: Record<string, number> }
 }
 

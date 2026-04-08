@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import ImportUploader from '../components/ImportUploader'
+import ImportIntake from '../components/ImportIntake'
 
 const VIDEO_URL = 'https://www.youtube.com/embed/REEMPLAZA_ESTE_ID?autoplay=1&rel=0&modestbranding=1'
 const STORAGE_KEY = 'importador_intro_dismissed'
 
-export default function UploadPage() {
+export default function ImportPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const reimportMode = searchParams.get('reimport')
@@ -149,7 +149,7 @@ export default function UploadPage() {
         </div>
       )}
 
-      <ImportUploader
+      <ImportIntake
         initialForceReprocess={forceRequested}
         initialRecipeSnapshotId={sourceRecipeSnapshotId}
         restoreSession={!forceRequested}

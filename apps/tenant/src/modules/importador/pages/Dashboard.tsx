@@ -134,7 +134,7 @@ export default function Dashboard() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.8rem' }}>
             <button
-              onClick={() => navigate('upload')}
+              onClick={() => navigate('importar')}
               style={{
                 ...primaryBtn,
                 width: '100%',

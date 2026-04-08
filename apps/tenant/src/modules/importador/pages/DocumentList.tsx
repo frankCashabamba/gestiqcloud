@@ -276,7 +276,7 @@ export default function DocumentList() {
               Volver al inicio
             </button>
             <button
-              onClick={() => navigate('../upload')}
+              onClick={() => navigate('../importar')}
               style={{
                 border: 'none',
                 borderRadius: 14,
@@ -458,7 +458,7 @@ export default function DocumentList() {
               {filter ? 'Prueba con otro filtro o sube nuevos archivos para comenzar.' : 'Sube tu primer archivo para empezar a revisar documentos.'}
             </div>
             <button
-              onClick={() => navigate('../upload')}
+              onClick={() => navigate('../importar')}
               style={{
                 marginTop: '1rem',
                 border: 'none',

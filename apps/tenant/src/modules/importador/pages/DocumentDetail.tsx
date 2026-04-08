@@ -430,7 +430,7 @@ export default function DocumentDetail() {
     const recipeSnapshotParam = doc.recipe_snapshot_id
       ? `&recipeSnapshotId=${encodeURIComponent(doc.recipe_snapshot_id)}`
       : ''
-    navigate(`../upload?reimport=force${recipeSnapshotParam}`)
+    navigate(`../importar?reimport=force${recipeSnapshotParam}`)
   }
 
   const handleSaveDailyLog = async () => {

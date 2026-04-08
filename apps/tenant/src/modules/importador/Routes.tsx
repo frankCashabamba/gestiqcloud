@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 
-const UploadPage = lazy(() => import('./pages/UploadPage'))
+const ImportPage = lazy(() => import('./pages/ImportPage'))
 const DocumentDetail = lazy(() => import('./pages/DocumentDetail'))
 const DocumentList = lazy(() => import('./pages/DocumentList'))
 
@@ -22,7 +22,7 @@ export default function ImportadorRoutes() {
   return (
     <Routes>
       <Route index element={<Navigate to="documents" replace />} />
-      <Route path="upload" element={<LazyElement><UploadPage /></LazyElement>} />
+      <Route path="importar" element={<LazyElement><ImportPage /></LazyElement>} />
       <Route path="documents" element={<LazyElement><DocumentList /></LazyElement>} />
       <Route path="documents/:id" element={<LazyElement><DocumentDetail /></LazyElement>} />
       <Route path="*" element={<Navigate to="documents" replace />} />
