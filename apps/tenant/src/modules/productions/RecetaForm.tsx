@@ -572,8 +572,8 @@ export default function RecetaForm({ recipe, onClose }: RecetaFormProps) {
                     className="gc-input"
                     value={ing.qty}
                     onChange={(e) => handleIngredientChange(index, 'qty', Number(e.target.value))}
-                    min={0.0001}
-                    step={0.01}
+                    min={0}
+                    step="any"
                     disabled={loading}
                   />
                 </div>
