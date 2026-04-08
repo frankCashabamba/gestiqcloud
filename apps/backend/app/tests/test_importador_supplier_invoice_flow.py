@@ -245,9 +245,9 @@ def test_save_document_to_purchase_creates_new_product_from_line_match_without_r
     assert product.sku is not None
     assert product.sku.startswith("PRO-")
     assert product.category_id is None
-    assert product.price == pytest.approx(4.8)
+    assert float(product.price) == pytest.approx(4.8)
     assert product.stock == pytest.approx(5.0)
-    assert product.cost_price == pytest.approx(4.8)
+    assert float(product.cost_price) == pytest.approx(4.8)
     assert product.product_metadata is not None
     assert product.product_metadata["import_source"] == "supplier_invoice_line_create_new"
     assert product.product_metadata["source_supplier_ref"] == "REF-HG-2210"

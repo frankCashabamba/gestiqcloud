@@ -345,4 +345,5 @@ def update_system_default(db: Session, key: str, value: str) -> dict[str, Any] |
         .first()
     )
     db.commit()
+    _raw_cache.pop(key, None)
     return dict(result) if result else None

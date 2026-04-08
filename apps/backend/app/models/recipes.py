@@ -2,6 +2,8 @@
 SQLAlchemy Models - Recipe System
 """
 
+from uuid import uuid4
+
 from sqlalchemy import (
     Boolean,
     Column,
@@ -27,7 +29,12 @@ class Recipe(BaseModel):
 
     __tablename__ = "recipes"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     tenant_id = Column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
@@ -114,7 +121,12 @@ class RecipeIngredient(BaseModel):
 
     __tablename__ = "recipe_ingredients"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     recipe_id = Column(
         UUID(as_uuid=True), ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False
     )
