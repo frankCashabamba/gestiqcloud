@@ -71,8 +71,13 @@ _DEFAULT_OCR_CONFIG: dict[str, Any] = {
     "min_width": 1800,
     "weak_text_min_words": 4,
     "weak_text_min_chars": 24,
+    "pdf_render_dpi": 300,
+    "image_contrast": 1.8,
+    "image_sharpness": 2.0,
+    "tesseract_languages": ["spa", "eng"],
     "primary_psm_modes": ["6", "11"],
     "rescue_psm_modes": ["6"],
+    "small_rotation_angles": ["-4", "-2", "2", "4"],
     "primary_variant_labels": [
         "base",
         "base_rot-2",
@@ -87,9 +92,36 @@ _DEFAULT_OCR_CONFIG: dict[str, Any] = {
         "trimmed",
         "trimmed_rot90",
     ],
+    "median_filter_size": 3,
+    "perspective_threshold_value": 165,
+    "threshold_value": 170,
+    "threshold_low_value": 140,
+    "trim_background_threshold": 245,
+    "trim_min_crop_ratio": 0.35,
+    "trim_padding_ratio": 0.03,
+    "trim_min_padding_px": 8,
+    "perspective_canny_threshold1": 60,
+    "perspective_canny_threshold2": 180,
+    "perspective_blur_kernel": 5,
+    "perspective_kernel_size": 5,
+    "perspective_min_area_ratio": 0.18,
+    "perspective_min_output_ratio": 0.35,
     "easyocr_languages": ["es", "en"],
+    "easyocr_gpu": False,
     "easyocr_enabled": True,
     "easyocr_variant_label": "autocontrast",
+    "excel_max_header_scan_rows": 25,
+    "excel_max_preview_rows_per_sheet": 120,
+    "excel_scan_rows_multiplier": 4,
+    "excel_max_text_chars": 4000,
+}
+
+_DEFAULT_PRE_CLASSIFIER_CONFIG: dict[str, float] = {
+    "min_header_confirmations": 2.0,
+    "filename_min_confidence": 0.70,
+    "header_coverage_min_ratio": 0.50,
+    "structured_skip_threshold": 0.75,
+    "ocr_weird_ratio_max": 0.15,
 }
 
 
@@ -191,6 +223,262 @@ def load_doc_type_patterns(db: Any) -> dict[str, list[str]]:
     }
 
 
+def load_doc_categories_config(db: Any | None = None) -> dict[str, list[str]]:
+    cached = _cache_get("doc_categories")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    defaults = {
+        str(key).strip().lower(): [str(item).upper() for item in value if str(item).strip()]
+        for key, value in _seed_module_payload("doc_categories").items()
+        if isinstance(value, list)
+    }
+
+    if db is None:
+        return _cache_set("doc_categories", defaults)  # type: ignore[return-value]
+
+    try:
+        rows = _ensure_module_seeded(db, "doc_categories")
+        config: dict[str, list[str]] = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip().lower()
+            if not key or not isinstance(row.value_list, list):
+                continue
+            values = [str(item).upper() for item in row.value_list if str(item).strip()]
+            if values:
+                config[key] = values
+        return _cache_set("doc_categories", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar doc_categories desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_filename_normalization_config(db: Any | None = None) -> dict[str, list[str]]:
+    cached = _cache_get("filename_normalization")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    defaults = {
+        "uuid_patterns": [],
+        "date_patterns": [],
+        "long_number_patterns": [],
+        "separator_patterns": [],
+    }
+    seed = _seed_module_payload("filename_normalization")
+    if isinstance(seed, dict):
+        for key in defaults:
+            values = seed.get(key)
+            if isinstance(values, list):
+                defaults[key] = [str(item) for item in values if str(item).strip()]
+
+    if db is None:
+        return _cache_set("filename_normalization", defaults)  # type: ignore[return-value]
+
+    try:
+        rows = _ensure_module_seeded(db, "filename_normalization")
+        config = {key: list(value) for key, value in defaults.items()}
+        for row in rows:
+            key = str(row.key or "").strip()
+            if key in config and isinstance(row.value_list, list):
+                config[key] = [str(item) for item in row.value_list if str(item).strip()]
+        return _cache_set("filename_normalization", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar filename_normalization desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_tax_id_patterns_config(db: Any | None = None) -> dict[str, Any]:
+    cached = _cache_get("tax_id_patterns")
+    if cached is not None:
+        return cached
+
+    seed = _seed_module_payload("tax_id_patterns")
+
+    def _int_value(value: Any, default: int, *, minimum: int = 1) -> int:
+        try:
+            return max(minimum, int(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    defaults: dict[str, Any] = {
+        "match_patterns": [
+            str(item) for item in (seed.get("match_patterns") or []) if str(item).strip()
+        ],
+        "scan_max_chars": _int_value(seed.get("scan_max_chars"), 3000),
+        "min_digits": _int_value(seed.get("min_digits"), 8),
+        "max_digits": _int_value(seed.get("max_digits"), 15),
+    }
+
+    if db is None:
+        return _cache_set("tax_id_patterns", defaults)
+
+    try:
+        rows = _ensure_module_seeded(db, "tax_id_patterns")
+        config = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip()
+            if key == "match_patterns" and isinstance(row.value_list, list):
+                config[key] = [str(item) for item in row.value_list if str(item).strip()]
+            elif key in {"scan_max_chars", "min_digits", "max_digits"} and row.value_text is not None:
+                config[key] = _int_value(row.value_text, config[key])
+        return _cache_set("tax_id_patterns", config)
+    except Exception as exc:
+        logger.warning("No se pudo cargar tax_id_patterns desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_routing_field_aliases(db: Any | None = None) -> dict[str, tuple[str, ...]]:
+    cached = _cache_get("routing_field_aliases")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    defaults = {
+        str(key).strip(): tuple(str(item).strip() for item in value if str(item).strip())
+        for key, value in _seed_module_payload("routing_field_aliases").items()
+        if isinstance(value, list)
+    }
+
+    if db is None:
+        return _cache_set("routing_field_aliases", defaults)  # type: ignore[return-value]
+
+    try:
+        rows = _ensure_module_seeded(db, "routing_field_aliases")
+        config = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip()
+            if key and isinstance(row.value_list, list):
+                values = tuple(str(item).strip() for item in row.value_list if str(item).strip())
+                if values:
+                    config[key] = values
+        return _cache_set("routing_field_aliases", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar routing_field_aliases desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_routing_field_labels(db: Any | None = None) -> dict[str, str]:
+    cached = _cache_get("routing_field_labels")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    defaults = {
+        str(key).strip(): str(value).strip()
+        for key, value in _seed_module_payload("routing_field_labels").items()
+        if str(key).strip() and str(value).strip()
+    }
+
+    if db is None:
+        return _cache_set("routing_field_labels", defaults)  # type: ignore[return-value]
+
+    try:
+        rows = _ensure_module_seeded(db, "routing_field_labels")
+        config = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip()
+            value = str(row.value_text or "").strip()
+            if key and value:
+                config[key] = value
+        return _cache_set("routing_field_labels", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar routing_field_labels desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_routing_fallback_profiles_config(db: Any | None = None) -> dict[str, dict[str, Any]]:
+    cached = _cache_get("routing_fallback_profiles")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    defaults = {
+        str(key).strip().upper(): value
+        for key, value in _seed_module_payload("routing_fallback_profiles").items()
+        if isinstance(value, dict)
+    }
+
+    if db is None:
+        return _cache_set("routing_fallback_profiles", defaults)  # type: ignore[return-value]
+
+    try:
+        rows = _load_module_rows(db, "routing_fallback_profiles")
+        config = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip().upper()
+            raw = str(row.value_text or "").strip()
+            if not key or not raw:
+                continue
+            try:
+                payload = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                config[key] = payload
+        return _cache_set("routing_fallback_profiles", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar routing_fallback_profiles desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_routing_fallback_rules_config(db: Any | None = None) -> list[dict[str, Any]]:
+    cached = _cache_get("routing_fallback_rules")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    defaults: list[dict[str, Any]] = []
+    seed = _seed_module_payload("routing_fallback_rules")
+    if isinstance(seed, dict):
+        for values in seed.values():
+            if not isinstance(values, list):
+                continue
+            payload: dict[str, Any] = {}
+            for item in values:
+                raw = str(item).strip()
+                if not raw:
+                    continue
+                key, _, value = raw.partition("=")
+                if not key.strip():
+                    continue
+                payload[key.strip()] = value.strip()
+            if payload:
+                defaults.append(payload)
+
+    if db is None:
+        return _cache_set("routing_fallback_rules", defaults)  # type: ignore[return-value]
+
+    try:
+        rows = _load_module_rows(db, "routing_fallback_rules")
+        config = list(defaults)
+        for row in rows:
+            if isinstance(row.value_list, list):
+                payload: dict[str, Any] = {}
+                for item in row.value_list:
+                    raw = str(item).strip()
+                    if not raw:
+                        continue
+                    key, _, value = raw.partition("=")
+                    if key.strip():
+                        payload[key.strip()] = value.strip()
+                if payload:
+                    config.append(payload)
+            elif row.value_text:
+                try:
+                    payload = json.loads(str(row.value_text).strip())
+                except Exception:
+                    continue
+                if isinstance(payload, dict):
+                    config.append(payload)
+        return _cache_set("routing_fallback_rules", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar routing_fallback_rules desde imp_config: %s", exc)
+
+    return defaults
+
+
 def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
     cached = _cache_get("file_support")
     if cached is not None:
@@ -241,12 +529,36 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
         "min_width": int(_DEFAULT_OCR_CONFIG["min_width"]),
         "weak_text_min_words": int(_DEFAULT_OCR_CONFIG["weak_text_min_words"]),
         "weak_text_min_chars": int(_DEFAULT_OCR_CONFIG["weak_text_min_chars"]),
+        "pdf_render_dpi": int(_DEFAULT_OCR_CONFIG["pdf_render_dpi"]),
+        "image_contrast": float(_DEFAULT_OCR_CONFIG["image_contrast"]),
+        "image_sharpness": float(_DEFAULT_OCR_CONFIG["image_sharpness"]),
+        "tesseract_languages": list(_DEFAULT_OCR_CONFIG["tesseract_languages"]),
         "primary_psm_modes": list(_DEFAULT_OCR_CONFIG["primary_psm_modes"]),
         "rescue_psm_modes": list(_DEFAULT_OCR_CONFIG["rescue_psm_modes"]),
+        "small_rotation_angles": list(_DEFAULT_OCR_CONFIG["small_rotation_angles"]),
         "primary_variant_labels": list(_DEFAULT_OCR_CONFIG["primary_variant_labels"]),
+        "median_filter_size": int(_DEFAULT_OCR_CONFIG["median_filter_size"]),
+        "perspective_threshold_value": int(_DEFAULT_OCR_CONFIG["perspective_threshold_value"]),
+        "threshold_value": int(_DEFAULT_OCR_CONFIG["threshold_value"]),
+        "threshold_low_value": int(_DEFAULT_OCR_CONFIG["threshold_low_value"]),
+        "trim_background_threshold": int(_DEFAULT_OCR_CONFIG["trim_background_threshold"]),
+        "trim_min_crop_ratio": float(_DEFAULT_OCR_CONFIG["trim_min_crop_ratio"]),
+        "trim_padding_ratio": float(_DEFAULT_OCR_CONFIG["trim_padding_ratio"]),
+        "trim_min_padding_px": int(_DEFAULT_OCR_CONFIG["trim_min_padding_px"]),
+        "perspective_canny_threshold1": int(_DEFAULT_OCR_CONFIG["perspective_canny_threshold1"]),
+        "perspective_canny_threshold2": int(_DEFAULT_OCR_CONFIG["perspective_canny_threshold2"]),
+        "perspective_blur_kernel": int(_DEFAULT_OCR_CONFIG["perspective_blur_kernel"]),
+        "perspective_kernel_size": int(_DEFAULT_OCR_CONFIG["perspective_kernel_size"]),
+        "perspective_min_area_ratio": float(_DEFAULT_OCR_CONFIG["perspective_min_area_ratio"]),
+        "perspective_min_output_ratio": float(_DEFAULT_OCR_CONFIG["perspective_min_output_ratio"]),
         "easyocr_languages": list(_DEFAULT_OCR_CONFIG["easyocr_languages"]),
+        "easyocr_gpu": bool(_DEFAULT_OCR_CONFIG["easyocr_gpu"]),
         "easyocr_enabled": bool(_DEFAULT_OCR_CONFIG["easyocr_enabled"]),
         "easyocr_variant_label": str(_DEFAULT_OCR_CONFIG["easyocr_variant_label"]),
+        "excel_max_header_scan_rows": int(_DEFAULT_OCR_CONFIG["excel_max_header_scan_rows"]),
+        "excel_max_preview_rows_per_sheet": int(_DEFAULT_OCR_CONFIG["excel_max_preview_rows_per_sheet"]),
+        "excel_scan_rows_multiplier": int(_DEFAULT_OCR_CONFIG["excel_scan_rows_multiplier"]),
+        "excel_max_text_chars": int(_DEFAULT_OCR_CONFIG["excel_max_text_chars"]),
     }
 
     def _int_value(value: Any, default: int, *, minimum: int = 1) -> int:
@@ -265,6 +577,15 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
             return False
         return default
 
+    def _float_value(value: Any, default: float, *, minimum: float | None = None) -> float:
+        try:
+            parsed = float(str(value).strip())
+        except (TypeError, ValueError):
+            return default
+        if minimum is not None:
+            return max(minimum, parsed)
+        return parsed
+
     def _list_value(values: Any, defaults: list[str]) -> list[str]:
         if not isinstance(values, list):
             return list(defaults)
@@ -274,18 +595,46 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
     seed = _seed_module_payload("ocr_config")
     if isinstance(seed, dict):
         for key, value in seed.items():
-            if key == "min_width":
+            if key in {
+                "min_width",
+                "pdf_render_dpi",
+                "median_filter_size",
+                "perspective_threshold_value",
+                "threshold_value",
+                "threshold_low_value",
+                "trim_background_threshold",
+                "trim_min_padding_px",
+                "perspective_canny_threshold1",
+                "perspective_canny_threshold2",
+                "perspective_blur_kernel",
+                "perspective_kernel_size",
+                "excel_max_header_scan_rows",
+                "excel_max_preview_rows_per_sheet",
+                "excel_scan_rows_multiplier",
+                "excel_max_text_chars",
+            }:
                 config[key] = _int_value(value, config[key])
             elif key in {"weak_text_min_words", "weak_text_min_chars"}:
                 config[key] = _int_value(value, config[key], minimum=0)
             elif key in {
+                "image_contrast",
+                "image_sharpness",
+                "trim_min_crop_ratio",
+                "trim_padding_ratio",
+                "perspective_min_area_ratio",
+                "perspective_min_output_ratio",
+            }:
+                config[key] = _float_value(value, config[key], minimum=0.0)
+            elif key in {
+                "tesseract_languages",
                 "primary_psm_modes",
                 "rescue_psm_modes",
+                "small_rotation_angles",
                 "primary_variant_labels",
                 "easyocr_languages",
             }:
                 config[key] = _list_value(value, config[key])
-            elif key == "easyocr_enabled":
+            elif key in {"easyocr_enabled", "easyocr_gpu"}:
                 config[key] = _bool_value(value, config[key])
             elif key == "easyocr_variant_label":
                 parsed = str(value or "").strip()
@@ -297,18 +646,46 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
             rows = _ensure_module_seeded(db, "ocr_config")
             for row in rows:
                 key = str(row.key or "").strip()
-                if key == "min_width" and row.value_text is not None:
+                if key in {
+                    "min_width",
+                    "pdf_render_dpi",
+                    "median_filter_size",
+                    "perspective_threshold_value",
+                    "threshold_value",
+                    "threshold_low_value",
+                    "trim_background_threshold",
+                    "trim_min_padding_px",
+                    "perspective_canny_threshold1",
+                    "perspective_canny_threshold2",
+                    "perspective_blur_kernel",
+                    "perspective_kernel_size",
+                    "excel_max_header_scan_rows",
+                    "excel_max_preview_rows_per_sheet",
+                    "excel_scan_rows_multiplier",
+                    "excel_max_text_chars",
+                } and row.value_text is not None:
                     config[key] = _int_value(row.value_text, config[key])
                 elif key in {"weak_text_min_words", "weak_text_min_chars"} and row.value_text is not None:
                     config[key] = _int_value(row.value_text, config[key], minimum=0)
                 elif key in {
+                    "image_contrast",
+                    "image_sharpness",
+                    "trim_min_crop_ratio",
+                    "trim_padding_ratio",
+                    "perspective_min_area_ratio",
+                    "perspective_min_output_ratio",
+                } and row.value_text is not None:
+                    config[key] = _float_value(row.value_text, config[key], minimum=0.0)
+                elif key in {
+                    "tesseract_languages",
                     "primary_psm_modes",
                     "rescue_psm_modes",
+                    "small_rotation_angles",
                     "primary_variant_labels",
                     "easyocr_languages",
                 }:
                     config[key] = _list_value(row.value_list, config[key])
-                elif key == "easyocr_enabled" and row.value_text is not None:
+                elif key in {"easyocr_enabled", "easyocr_gpu"} and row.value_text is not None:
                     config[key] = _bool_value(row.value_text, config[key])
                 elif key == "easyocr_variant_label" and row.value_text is not None:
                     parsed = str(row.value_text).strip()
@@ -318,6 +695,38 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
             logger.warning("No se pudo cargar ocr_config desde imp_config: %s", exc)
 
     return _cache_set("ocr_config", config)
+
+
+def load_pre_classifier_runtime_config(db: Any | None = None) -> dict[str, float]:
+    cached = _cache_get("pre_classifier")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    config: dict[str, float] = dict(_DEFAULT_PRE_CLASSIFIER_CONFIG)
+
+    def _float_value(value: Any, default: float) -> float:
+        try:
+            return float(str(value).strip())
+        except (TypeError, ValueError):
+            return default
+
+    seed = _seed_module_payload("pre_classifier")
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key in config:
+                config[key] = _float_value(value, config[key])
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "pre_classifier")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key in config and row.value_text is not None:
+                    config[key] = _float_value(row.value_text, config[key])
+        except Exception as exc:
+            logger.warning("No se pudo cargar pre_classifier desde imp_config: %s", exc)
+
+    return _cache_set("pre_classifier", config)  # type: ignore[return-value]
 
 
 def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
@@ -333,10 +742,19 @@ def load_prompt_config(db: Any | None = None) -> dict[str, Any]:
                 key = str(row.key).strip()
                 if key in {
                     "extraction_system",
+                    "vision_system_fallback",
                     "vision_extraction_preamble",
+                    "structured_classification_task_preamble",
+                    "structured_classification_response_instruction",
+                    "structured_classification_preview_label",
                     "structured_table_note",
                     "doc_type_instruction",
+                    "response_json_label",
+                    "critical_rules_heading",
+                    "additional_instructions_heading",
                     "fallback_dynamic_fields_prompt",
+                    "year_sanity_rule_template",
+                    "line_items_extra_columns_rule",
                 }:
                     value = str(row.value_text or "").strip()
                     if value:

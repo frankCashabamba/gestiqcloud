@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.models.importador import ImpRoutingProfile, ImpRoutingRule
 from app.models.tenant import Tenant
+from app.modules.importador.runtime_config import (
+    load_routing_fallback_profiles_config,
+    load_routing_fallback_rules_config,
+)
 from app.services.field_config import resolve_sector_code
 
 logger = logging.getLogger("importador.document_routing_config")
@@ -106,85 +110,33 @@ class RoutingResolution:
     resolved_sector: str
 
 
-_FALLBACK_PROFILES: dict[str, RoutingProfileConfig] = {
-    "SUPPLIER_INVOICE": RoutingProfileConfig(
-        code="supplier_invoice",
-        document_type="supplier_invoice",
-        suggested_destination="supplier_invoice",
-        required_groups=(("issue_date",), ("total_amount",)),
-        support_fields=(
-            "vendor",
-            "vendor_tax_id",
-            "subtotal",
-            "tax_amount",
-            "doc_number",
-            "currency",
-            "line_items",
-        ),
-        explanation_fields=("vendor", "issue_date", "subtotal", "tax_amount", "total_amount"),
-    ),
-    "EXPENSE": RoutingProfileConfig(
-        code="expense",
-        document_type="expense",
-        suggested_destination="expense",
-        required_groups=(("issue_date",), ("total_amount",), ("concept", "vendor", "doc_number")),
-        support_fields=("tax_amount", "currency", "payment_method"),
-        explanation_fields=("concept", "vendor", "issue_date", "tax_amount", "total_amount"),
-    ),
-    "RECIPE": RoutingProfileConfig(
-        code="recipe",
-        document_type="recipe",
-        suggested_destination="recipe",
-        required_groups=(("rows", "line_items"),),
-        support_fields=("doc_number",),
-        explanation_fields=("rows", "line_items"),
-    ),
-    "INVENTORY": RoutingProfileConfig(
-        code="inventory",
-        document_type="inventory",
-        required_groups=(("rows", "line_items"),),
-        support_fields=("doc_number",),
-        explanation_fields=("rows", "line_items"),
-        blocked=True,
-    ),
-    "BANK_STATEMENT": RoutingProfileConfig(
-        code="bank_statement",
-        document_type="bank_statement",
-        required_groups=(("issue_date",), ("rows", "line_items")),
-        support_fields=("currency",),
-        explanation_fields=("issue_date", "rows"),
-        blocked=True,
-    ),
-    "PAYROLL": RoutingProfileConfig(
-        code="payroll",
-        document_type="payroll",
-        required_groups=(("issue_date",), ("rows", "line_items")),
-        support_fields=("total_amount",),
-        explanation_fields=("issue_date", "rows", "total_amount"),
-        blocked=True,
-    ),
-    "OTHER": RoutingProfileConfig(
-        code="other",
-        document_type="expense",
-        suggested_destination="expense",
-        required_groups=(("issue_date",), ("total_amount",)),
-        support_fields=("concept", "vendor", "tax_amount"),
-        explanation_fields=("concept", "vendor", "issue_date", "total_amount"),
-    ),
-}
+def _fallback_profiles() -> dict[str, RoutingProfileConfig]:
+    payload = load_routing_fallback_profiles_config(None)
+    return {
+        str(code).strip().upper(): RoutingProfileConfig.model_validate(config)
+        for code, config in payload.items()
+        if isinstance(config, dict)
+    }
 
-_FALLBACK_RULES: list[RoutingRuleConfig] = [
-    RoutingRuleConfig(
-        source_kind="category", source_key="invoice", profile_code="supplier_invoice"
-    ),
-    RoutingRuleConfig(source_kind="category", source_key="receipt", profile_code="expense"),
-    RoutingRuleConfig(source_kind="category", source_key="recipe", profile_code="recipe"),
-    RoutingRuleConfig(source_kind="category", source_key="inventory", profile_code="inventory"),
-    RoutingRuleConfig(source_kind="category", source_key="bank", profile_code="bank_statement"),
-    RoutingRuleConfig(source_kind="category", source_key="payroll", profile_code="payroll"),
-    RoutingRuleConfig(source_kind="category", source_key="other", profile_code="other"),
-    RoutingRuleConfig(source_kind="doc_type", source_key="OTHER", profile_code="other"),
-]
+
+def _fallback_rules() -> list[RoutingRuleConfig]:
+    result: list[RoutingRuleConfig] = []
+    for raw in load_routing_fallback_rules_config(None):
+        if not isinstance(raw, dict):
+            continue
+        try:
+            result.append(
+                RoutingRuleConfig(
+                    source_kind=str(raw.get("source_kind") or ""),
+                    source_key=str(raw.get("source_key") or ""),
+                    profile_code=str(raw.get("profile_code") or ""),
+                    priority=int(raw.get("priority") or 100),
+                    specificity=0,
+                )
+            )
+        except Exception:
+            continue
+    return result
 
 
 def invalidate_document_routing_cache() -> None:
@@ -223,7 +175,7 @@ def _load_profiles_from_db(db: Session | None) -> dict[str, RoutingProfileConfig
     if _profiles_cache is not None and _cache_valid(_profiles_cache[0]):
         return dict(_profiles_cache[1])
 
-    profiles = dict(_FALLBACK_PROFILES)
+    profiles = _fallback_profiles()
     if db is not None:
         try:
             rows = (
@@ -288,7 +240,7 @@ def _load_rules_from_db(
             priority=rule.priority,
             specificity=0,
         )
-        for rule in _FALLBACK_RULES
+        for rule in _fallback_rules()
     ]
 
     if db is not None:

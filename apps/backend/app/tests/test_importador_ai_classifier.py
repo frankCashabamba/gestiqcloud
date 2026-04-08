@@ -48,6 +48,11 @@ def test_analyze_document_uses_runtime_prompt_config_and_canonical_fields(monkey
     assert "Rule from DB" in captured["prompt"]
     assert '"issue_date": "YYYY-MM-DD or null"' in captured["prompt"]
     assert '"total_amount": NUMBER or null' in captured["prompt"]
+    assert result["prompt_full"].startswith("System from DB")
+    assert result["prompt_parts"]["mode"] == "text"
+    assert result["prompt_parts"]["system_prompt"] == "System from DB"
+    assert result["prompt_parts"]["doc_type_instruction"] == "Configured doc type from DB"
+    assert result["prompt_parts"]["critical_rules"][0] == "Rule from DB"
 
 
 def test_analyze_document_uses_runtime_doc_type_instruction_for_structured_inputs(monkeypatch):
@@ -78,6 +83,46 @@ def test_analyze_document_uses_runtime_doc_type_instruction_for_structured_input
 
     assert result["doc_type"] == "PRICE_LIST"
     assert "Use DB labels only for structured previews." in captured["prompt"]
+    assert result["prompt_parts"]["mode"] == "structured_classification"
+    assert result["prompt_parts"]["doc_type_instruction"] == "Use DB labels only for structured previews."
+
+
+def test_analyze_document_uses_split_prompt_labels_from_runtime_config(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_query(**kwargs):
+        captured["prompt"] = kwargs["prompt"]
+        return SimpleNamespace(
+            content='{"doc_type":"INVOICE","confidence":0.88,"reasoning":"ok","is_table":false,"columns":[],"fields":{}}',
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content="Documento de prueba",
+            filename="doc.pdf",
+            format_hint="PDF",
+            canonical_fields=None,
+            prompt_config={
+                "extraction_system": "System cfg",
+                "response_json_label": "JSON SOLO:",
+                "critical_rules_heading": "REGLAS DURAS:",
+                "additional_instructions_heading": "EXTRA:",
+                "critical_rules": ["Regla A"],
+            },
+            recipe_config={"prompt_user": "Usa concepto contable corto."},
+        )
+    )
+
+    assert "JSON SOLO:" in captured["prompt"]
+    assert "REGLAS DURAS:" in captured["prompt"]
+    assert "EXTRA:" in captured["prompt"]
+    assert result["prompt_parts"]["custom_user_prompt"] == "Usa concepto contable corto."
+    assert result["prompt_parts"]["full_prompt"] == result["prompt_full"]
 
 
 def test_analyze_document_uses_runtime_fallback_dynamic_fields_prompt(monkeypatch):

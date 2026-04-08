@@ -64,40 +64,28 @@ class PreClassResult:
 
 
 def load_pre_classifier_config(db: Any) -> dict[str, float]:
-    """Load thresholds from imp_config (module='pre_classifier'), cached 5 min."""
+    """Load thresholds from runtime config / imp_config (module='pre_classifier')."""
     entry = _cache.get("config")
     if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
         return entry[1]  # type: ignore[return-value]
 
-    defaults: dict[str, float] = {
-        "min_header_confirmations": 2.0,
-        "filename_min_confidence": 0.70,
-        "header_coverage_min_ratio": 0.50,
-        "structured_skip_threshold": 0.75,
-        "ocr_weird_ratio_max": 0.15,
-    }
-    if db is None:
-        return defaults
-
     try:
-        from app.models.importador import ImpConfig
+        from app.modules.importador.runtime_config import load_pre_classifier_runtime_config
 
-        rows = db.query(ImpConfig).filter(ImpConfig.module == "pre_classifier").all()
-        cfg = dict(defaults)
-        for row in rows:
-            key = str(row.key or "").strip()
-            val = row.value_text
-            if key in cfg and val is not None:
-                try:
-                    cfg[key] = float(val)
-                except (ValueError, TypeError):
-                    pass
+        cfg = load_pre_classifier_runtime_config(db)
         _cache["config"] = (time.monotonic(), cfg)
         return cfg
     except Exception as exc:
-        logger.debug("Could not load pre_classifier config from DB: %s", exc)
-        _cache["config"] = (time.monotonic(), defaults)
-        return defaults
+        logger.debug("Could not load pre_classifier config from runtime config: %s", exc)
+        fallback = {
+            "min_header_confirmations": 2.0,
+            "filename_min_confidence": 0.70,
+            "header_coverage_min_ratio": 0.50,
+            "structured_skip_threshold": 0.75,
+            "ocr_weird_ratio_max": 0.15,
+        }
+        _cache["config"] = (time.monotonic(), fallback)
+        return fallback
 
 
 def _load_filename_patterns(db: Any) -> list[dict]:
@@ -372,15 +360,25 @@ def _normalize_filename_stem(filename: str) -> str:
     nfd = unicodedata.normalize("NFD", stem)
     stem = "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
     stem = stem.lower()
-    # Remove UUID patterns
-    stem = re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", " ", stem)
-    # Remove date patterns
-    stem = re.sub(r"\b\d{4}[-_]\d{2}[-_]\d{2}\b", " ", stem)
-    stem = re.sub(r"\b\d{2}[-_]\d{2}[-_]\d{4}\b", " ", stem)
-    # Remove pure-number tokens (4+ digits)
-    stem = re.sub(r"\b\d{4,}\b", " ", stem)
-    # Normalize separators
-    stem = re.sub(r"[_\-\.]+", " ", stem)
+    try:
+        from app.modules.importador.runtime_config import load_filename_normalization_config
+
+        cfg = load_filename_normalization_config(None)
+    except Exception:
+        cfg = {
+            "uuid_patterns": [r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"],
+            "date_patterns": [r"\b\d{4}[-_]\d{2}[-_]\d{2}\b", r"\b\d{2}[-_]\d{2}[-_]\d{4}\b"],
+            "long_number_patterns": [r"\b\d{4,}\b"],
+            "separator_patterns": [r"[_\-\.]+"],
+        }
+    for pattern in cfg.get("uuid_patterns") or []:
+        stem = re.sub(str(pattern), " ", stem)
+    for pattern in cfg.get("date_patterns") or []:
+        stem = re.sub(str(pattern), " ", stem)
+    for pattern in cfg.get("long_number_patterns") or []:
+        stem = re.sub(str(pattern), " ", stem)
+    for pattern in cfg.get("separator_patterns") or []:
+        stem = re.sub(str(pattern), " ", stem)
     return " ".join(stem.split()).strip()
 
 
@@ -433,6 +431,38 @@ def _extract_ruc_from_text(text: str) -> str | None:
         if match:
             digits = re.sub(r"\D", "", match.group(1))
             if 8 <= len(digits) <= 15:
+                return digits
+    return None
+
+
+def _extract_ruc_from_text(text: str) -> str | None:
+    """Extrae el primer identificador fiscal configurado encontrado en el OCR."""
+    if not text:
+        return None
+    try:
+        from app.modules.importador.runtime_config import load_tax_id_patterns_config
+
+        cfg = load_tax_id_patterns_config(None)
+    except Exception:
+        cfg = {
+            "match_patterns": [
+                r"(?:R\.?U\.?C\.?|RUC|NIF|CIF|CUIT|CUIL|RFC)\s*[:\-#]?\s*([0-9][\d\-]{6,19})",
+                r"\b(20\d{9}|10\d{9})\b",
+            ],
+            "scan_max_chars": 3000,
+            "min_digits": 8,
+            "max_digits": 15,
+        }
+
+    patterns = [str(pattern) for pattern in (cfg.get("match_patterns") or []) if str(pattern).strip()]
+    scan_max_chars = int(cfg.get("scan_max_chars") or 3000)
+    min_digits = int(cfg.get("min_digits") or 8)
+    max_digits = int(cfg.get("max_digits") or 15)
+    for pattern in patterns:
+        match = re.search(pattern, text[:scan_max_chars], re.IGNORECASE)
+        if match:
+            digits = re.sub(r"\D", "", match.group(1))
+            if min_digits <= len(digits) <= max_digits:
                 return digits
     return None
 

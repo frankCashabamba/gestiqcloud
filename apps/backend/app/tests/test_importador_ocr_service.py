@@ -128,14 +128,25 @@ def test_ocr_image_can_use_small_deskew_variant(monkeypatch):
 
 def test_run_tesseract_tries_multiple_psm_configs(monkeypatch):
     calls: list[str | None] = []
+    langs: list[str | None] = []
 
     def fake_tesseract(_img, lang=None, config=None):
-        del lang
+        langs.append(lang)
         calls.append(config)
         if config == "--psm 11":
             return "FECHA CLIENTE NOTA DE VENTA DESCRIPCION VTOTAL 5.30"
         return ""
 
+    monkeypatch.setattr(
+        ocr_service,
+        "_ocr_runtime_config",
+        lambda: {
+            "primary_psm_modes": ["6", "11"],
+            "tesseract_languages": ["spa", "eng"],
+            "weak_text_min_words": 4,
+            "weak_text_min_chars": 24,
+        },
+    )
     monkeypatch.setitem(
         __import__("sys").modules,
         "pytesseract",
@@ -148,6 +159,129 @@ def test_run_tesseract_tries_multiple_psm_configs(monkeypatch):
 
     assert result == "FECHA CLIENTE NOTA DE VENTA DESCRIPCION VTOTAL 5.30"
     assert calls == ["--psm 6", "--psm 11"]
+    assert langs == ["spa+eng", "spa+eng"]
+
+
+def test_run_easyocr_uses_runtime_gpu_flag(monkeypatch):
+    seen_gpu: list[bool] = []
+
+    class FakeReader:
+        def __init__(self, langs, gpu=False):
+            del langs
+            seen_gpu.append(gpu)
+
+        def readtext(self, _image):
+            return [(None, "NOTA", 0.99)]
+
+    ocr_service._EASYOCR_READERS.clear()
+    monkeypatch.setattr(
+        ocr_service,
+        "_ocr_runtime_config",
+        lambda: {
+            "easyocr_languages": ["es", "en"],
+            "easyocr_gpu": True,
+        },
+    )
+    monkeypatch.setitem(
+        __import__("sys").modules, "easyocr", type("E", (), {"Reader": FakeReader})()
+    )
+
+    img = Image.new("L", (120, 80), color=255)
+
+    assert ocr_service._run_easyocr(img) == "NOTA"
+    assert seen_gpu == [True]
+
+
+def test_iter_small_rotations_uses_runtime_angles(monkeypatch):
+    monkeypatch.setattr(
+        ocr_service,
+        "_ocr_runtime_config",
+        lambda: {
+            "small_rotation_angles": ["-1.5", "3"],
+        },
+    )
+
+    img = Image.new("L", (120, 80), color=255)
+
+    variants = ocr_service._iter_small_rotations(img, label_prefix="base")
+
+    labels = [variant.info.get("ocr_variant") for variant in variants]
+    assert labels == ["base_rot-2", "base_rot+3"]
+
+
+def test_extract_pdf_uses_configured_dpi(monkeypatch):
+    dpi_calls: list[int] = []
+
+    class FakePixmap:
+        width = 2
+        height = 2
+        samples = bytes([255, 255, 255] * 4)
+
+    class FakePage:
+        def get_text(self):
+            return ""
+
+        def get_pixmap(self, dpi=300):
+            dpi_calls.append(dpi)
+            return FakePixmap()
+
+    class FakeDoc:
+        def __iter__(self):
+            yield FakePage()
+
+        def __len__(self):
+            return 1
+
+        def close(self):
+            return None
+
+    class FakeFitz:
+        @staticmethod
+        def open(stream=None, filetype=None):
+            del stream, filetype
+            return FakeDoc()
+
+    monkeypatch.setitem(__import__("sys").modules, "fitz", FakeFitz())
+    monkeypatch.setattr(ocr_service, "_ocr_runtime_config", lambda: {"pdf_render_dpi": 240})
+    monkeypatch.setattr(ocr_service, "_ocr_image", lambda img: "OCR OK")
+
+    result = asyncio.run(ocr_service._extract_pdf(b"%PDF-1.4 fake"))
+
+    assert result["format"] == "PDF_OCR"
+    assert dpi_calls == [240]
+
+
+def test_extract_excel_uses_runtime_limits(monkeypatch):
+    monkeypatch.setattr(
+        ocr_service,
+        "_ocr_runtime_config",
+        lambda: {
+            "excel_max_header_scan_rows": 2,
+            "excel_max_preview_rows_per_sheet": 1,
+            "excel_scan_rows_multiplier": 2,
+            "excel_max_text_chars": 20,
+        },
+    )
+
+    def fake_iter_xlsx_rows(_file_bytes):
+        rows = iter(
+            [
+                ("titulo", None),
+                ("SKU", "Descripcion"),
+                ("A1", "Producto 1"),
+                ("A2", "Producto 2"),
+                ("A3", "Producto 3"),
+            ]
+        )
+        yield "Hoja1", (5, 2), rows
+
+    monkeypatch.setattr(ocr_service, "_iter_xlsx_rows", fake_iter_xlsx_rows)
+
+    result = ocr_service._extract_excel(b"fake-xlsx")
+
+    assert len(result["structured_data"]) == 1
+    assert result["sheet_profiles"]["Hoja1"]["rows_counted"] == 2
+    assert len(result["text"]) == 20
 
 
 def test_extract_text_from_file_reuses_cached_extraction_by_hash(monkeypatch, tmp_path):

@@ -19,6 +19,12 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
 - Hecho: instrumentacion de tiempos por etapa en procesamiento y worker async
 - Hecho: optimizacion OCR inicial
   OCR con variantes priorizadas, rescate mas barato y reutilizacion de `easyocr.Reader(...)`
+- Hecho parcial: heuristicas OCR movidas a runtime config
+  `ocr_config` ya controla DPI PDF, contrast/sharpness, idiomas OCR, `easyocr_gpu`, angulos, thresholds, trim/perspective y limites Excel; quedan detalles menores de integracion aun fijos en codigo
+- Hecho parcial: routing y regex movidos a config
+  aliases/labels de routing, categorias, normalizacion de filename, patrones fiscales y fallbacks base de routing ya salen de runtime seed/config
+- Hecho parcial: prompts partidos logicamente y trazables
+  el importador ya persiste `prompt_full` y `prompt_parts`, y varios fragmentos fallback del prompt ahora salen de `prompt_config`
 - Hecho: optimizacion inicial de Ollama
   concurrencia configurable por `base_url` + `OLLAMA_MAX_CONCURRENCY`
 - Hecho: corte de reruns AI redundantes
@@ -30,6 +36,8 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
 - Hecho parcial: prefiltro SQL para fuzzy reuse Excel
   migracion SQL aplicada en DB dev local para `fingerprint_headers_flat` + indice GIN; el overlap final sigue en Python
 - Pendiente principal: medir percentiles reales, reducir mas scans Python-side, y mover hardcoding restante a DB/config
+- Hecho parcial: thresholds de `pre_classifier`
+  ahora salen de runtime config / seed (`imp_config` modulo `pre_classifier`), con fallback defensivo en codigo solo si falla la carga
 
 ## Checklist de limpieza
 
@@ -66,12 +74,18 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
 
 ## Bloque 3: Cero hardcoding
 
-- [ ] Pasar thresholds de `pre_classifier` a DB/config
-- [ ] Pasar heuristicas OCR a DB/config
-- [ ] Pasar listas y patrones fijos de routing a DB/config
-- [ ] Pasar regex fiscales y reglas de doc_type a DB/config
-- [ ] Pasar prompts fallback restantes a DB/config
-- [ ] Guardar el prompt completo enviado a AI, no truncado
+- [x] Pasar thresholds de `pre_classifier` a DB/config
+  Se resolvieron via runtime config + `runtime_seed.json`; queda un fallback defensivo en codigo si falla la carga de config
+- [x] Pasar heuristicas OCR a DB/config
+  Hecho para knobs operativos de OCR imagen/PDF/Excel via `ocr_config`; el hardcoding remanente ya no esta en thresholds/idioma sino en detalles menores de integracion
+- [x] Pasar listas y patrones fijos de routing a DB/config
+  `routing_field_aliases`, `routing_field_labels`, `doc_categories` y fallbacks base de routing ahora viven en runtime seed/config
+- [x] Pasar regex fiscales y reglas de doc_type a DB/config
+  normalizacion de filename y `tax_id_patterns` ya salen de config; `doc_type_patterns` ya estaban fuera de codigo
+- [x] Pasar prompts fallback restantes a DB/config
+  `prompt_config` ya gobierna fragmentos clave de armado: fallback vision system, structured classification preamble/preview, labels de respuesta/reglas/instrucciones y reglas extras de year sanity / line items
+- [x] Guardar el prompt completo enviado a AI, no truncado
+  ahora se persisten `prompt_full` y `prompt_parts`; `prompt_sent` queda truncado solo por compatibilidad
 - [ ] Auditar defaults que hoy nacen en codigo y decidir si quedan en seed o en DB
 
 ## Bloque 4: Recipes y snapshots
@@ -173,12 +187,22 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
 - [ ] Batch con multiples archivos
 - [ ] Batch con ZIP soportado en el flujo vigente
 
+## Smoke real con `C:\\gestiqcloud\\importacion`
+
+- [x] OCR real sobre PDF con texto embebido
+  `factura_proveedor_stock_alto_insumos.pdf` -> `format=PDF`, `pages=3`, `elapsed_ms~881`, `text_len=4521`
+- [x] OCR real sobre imagen
+  `WhatsApp Image 2026-03-24 at 16.29.16.jpeg` -> `format=IMAGE_OCR`, `pages=1`, `elapsed_ms~7655`, `text_len=169`
+- [ ] Repetir smoke real sobre PDF escaneado puro
+- [ ] Repetir smoke real sobre Excel grande y CSV
+
 ## Riesgos abiertos
 
 - [ ] Confirmar que ninguna integracion externa siga llamando al endpoint viejo
 - [ ] Confirmar que el cambio de ruta frontend `upload` -> `importar` no rompe bookmarks internos
 - [ ] Ejecutar tests en entorno con `fastapi` y demas dependencias; en este entorno no fue posible
 - [ ] Ejecutar pruebas con dependencias completas (`fastapi`, `sqlalchemy`, `httpx`, `numpy`) para validar OCR, provider AI y tests de importador
+  En `.venv` ya se pudieron correr tests focalizados; el bloqueo actual es la politica global de coverage del repo, no el codigo tocado
 - [x] Verificar plan de consulta real tras aplicar `2026-04-08_001_icu_snapshot_fingerprint_indexes`
   En DB dev actual (`icu_recipe_snapshot` con 1 fila) Postgres sigue prefiriendo `Seq Scan`; se confirmo que la query correcta debe incluir el predicado parcial `content_json ? '<clave>'` y que asi queda index-eligible
 - [x] Aplicar migracion `2026-04-08_002_icu_snapshot_excel_header_index` en DB dev local
@@ -189,6 +213,11 @@ Dejar el modulo importador con una sola entrada publica de subida, sin rastro de
 - Si aparece otro residuo de `upload`, se borra o se renombra en esta misma lista antes de seguir con mejoras.
 - No meter optimizaciones de velocidad sin instrumentacion minima; si no, se vuelve opinion y no evidencia.
 - OCR ahora prioriza un subconjunto configurable de variantes para Tesseract, deja el resto como rescate con menos PSMs y reutiliza `easyocr.Reader(...)`.
+- `ocr_config` ya gobierna DPI PDF, contraste, nitidez, idiomas OCR, `easyocr_gpu`, angulos de deskew, thresholds binarios, parametros de trim/perspective y limites del parser Excel.
+- Routing ya consume `routing_field_aliases`, `routing_field_labels`, `doc_categories`, `routing_fallback_profiles` y `routing_fallback_rules` desde config/seed en lugar de constantes de modulo.
+- `pre_classifier` ya consume `filename_normalization` y `tax_id_patterns` desde config/seed; la extraccion fiscal dejo de depender de regex inline.
+- Partir prompts si merece la pena, pero por gobernanza y debugging, no por latencia: el path de texto sigue enviando un solo `full_prompt` a `AIService.query`; para una separacion real a nivel transporte habria que extender el stack AI para soportar `messages` tambien fuera del vision path.
+- Los thresholds de `pre_classifier` ya no nacen en el modulo como defaults operativos: se cargan desde runtime config / seed del modulo `pre_classifier`; el fallback en codigo queda solo como red de seguridad si la carga falla.
 - La concurrencia de Ollama ya no queda fijada al importar el modulo; se resuelve por `base_url` y `OLLAMA_MAX_CONCURRENCY`.
 - El rerun AI ya no se ejecuta si la recipe candidata solo cambia `prompt_system`; ahora exige hints utiles (`field_descriptions`, `prompt_user`, `model` o senales aprendidas).
 - Los snapshots nuevos guardan `fingerprint_signature` y `fingerprint_kind` para acelerar reuso exacto y reducir scans de fallback; los snapshots viejos siguen con fallback acotado.

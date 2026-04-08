@@ -198,8 +198,9 @@ def _copy_with_label(img: Image.Image, label: str) -> Image.Image:
 
 def _trim_document_edges(img: Image.Image) -> Image.Image:
     """Crop obvious outer margins/background without document-specific assumptions."""
+    config = _ocr_runtime_config()
     gray = img.convert("L") if img.mode != "L" else img
-    mask = gray.point(lambda px: 255 if px < 245 else 0)
+    mask = gray.point(lambda px: 255 if px < int(config["trim_background_threshold"]) else 0)
     bbox = mask.getbbox()
     if not bbox:
         return img.copy()
@@ -210,11 +211,14 @@ def _trim_document_edges(img: Image.Image) -> Image.Image:
     crop_w = max(1, right - left)
     crop_h = max(1, bottom - top)
 
-    if crop_w / width < 0.35 or crop_h / height < 0.35:
+    min_crop_ratio = float(config["trim_min_crop_ratio"])
+    if crop_w / width < min_crop_ratio or crop_h / height < min_crop_ratio:
         return img.copy()
 
-    pad_x = max(8, int(crop_w * 0.03))
-    pad_y = max(8, int(crop_h * 0.03))
+    pad_ratio = float(config["trim_padding_ratio"])
+    min_padding_px = int(config["trim_min_padding_px"])
+    pad_x = max(min_padding_px, int(crop_w * pad_ratio))
+    pad_y = max(min_padding_px, int(crop_h * pad_ratio))
     cropped = img.crop(
         (
             max(0, left - pad_x),
@@ -248,12 +252,21 @@ def _rectify_document_perspective(img: Image.Image) -> tuple[Image.Image, bool]:
     except Exception:
         return img.copy(), False
 
+    config = _ocr_runtime_config()
     rgb = img.convert("RGB")
     rgb_np = np.array(rgb)
     gray = cv2.cvtColor(rgb_np, cv2.COLOR_RGB2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 60, 180)
-    kernel = np.ones((5, 5), dtype="uint8")
+    blur_kernel_size = max(3, int(config["perspective_blur_kernel"]))
+    if blur_kernel_size % 2 == 0:
+        blur_kernel_size += 1
+    blurred = cv2.GaussianBlur(gray, (blur_kernel_size, blur_kernel_size), 0)
+    edges = cv2.Canny(
+        blurred,
+        int(config["perspective_canny_threshold1"]),
+        int(config["perspective_canny_threshold2"]),
+    )
+    kernel_size = max(1, int(config["perspective_kernel_size"]))
+    kernel = np.ones((kernel_size, kernel_size), dtype="uint8")
     edges = cv2.dilate(edges, kernel, iterations=1)
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
 
@@ -264,9 +277,11 @@ def _rectify_document_perspective(img: Image.Image) -> tuple[Image.Image, bool]:
     height, width = gray.shape[:2]
     image_area = max(1, width * height)
 
+    min_area_ratio = float(config["perspective_min_area_ratio"])
+    min_output_ratio = float(config["perspective_min_output_ratio"])
     for contour in sorted(contours, key=cv2.contourArea, reverse=True):
         area = cv2.contourArea(contour)
-        if area / image_area < 0.18:
+        if area / image_area < min_area_ratio:
             continue
 
         perimeter = cv2.arcLength(contour, True)
@@ -277,7 +292,7 @@ def _rectify_document_perspective(img: Image.Image) -> tuple[Image.Image, bool]:
         else:
             rect = cv2.minAreaRect(contour)
             box = cv2.boxPoints(rect)
-            if cv2.contourArea(box) / image_area < 0.18:
+            if cv2.contourArea(box) / image_area < min_area_ratio:
                 continue
             quad = box
 
@@ -291,7 +306,7 @@ def _rectify_document_perspective(img: Image.Image) -> tuple[Image.Image, bool]:
 
         max_width = int(max(width_a, width_b))
         max_height = int(max(height_a, height_b))
-        if max_width < width * 0.35 or max_height < height * 0.35:
+        if max_width < width * min_output_ratio or max_height < height * min_output_ratio:
             continue
 
         destination = np.array(
@@ -325,9 +340,18 @@ def _iter_small_rotations(
     img: Image.Image,
     *,
     label_prefix: str,
-    angles: tuple[float, ...] = (-4.0, -2.0, 2.0, 4.0),
+    angles: tuple[float, ...] | None = None,
 ) -> list[Image.Image]:
     """Generate mild deskew candidates without assuming a specific document layout."""
+    if angles is None:
+        config = _ocr_runtime_config()
+        parsed_angles: list[float] = []
+        for raw in config.get("small_rotation_angles") or []:
+            try:
+                parsed_angles.append(float(str(raw).strip()))
+            except (TypeError, ValueError):
+                continue
+        angles = tuple(parsed_angles or (-4.0, -2.0, 2.0, 4.0))
     variants: list[Image.Image] = []
     for angle in angles:
         rotated = img.rotate(angle, expand=True, resample=Image.BICUBIC, fillcolor=255)
@@ -337,6 +361,7 @@ def _iter_small_rotations(
 
 def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
     """Generate generic OCR-friendly variants without document-specific rules."""
+    config = _ocr_runtime_config()
     base = img.convert("L") if img.mode != "L" else img.copy()
     variants = [_copy_with_label(base, "base")]
     variants.extend(_iter_small_rotations(base, label_prefix="base"))
@@ -347,21 +372,25 @@ def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
         perspective_autocontrast = ImageOps.autocontrast(perspective_gray)
         variants.append(_copy_with_label(perspective_autocontrast, "perspective"))
         variants.extend(_iter_small_rotations(perspective_autocontrast, label_prefix="perspective"))
-        perspective_threshold = perspective_autocontrast.point(lambda px: 255 if px > 165 else 0)
+        perspective_threshold = perspective_autocontrast.point(
+            lambda px: 255 if px > int(config["perspective_threshold_value"]) else 0
+        )
         variants.append(_copy_with_label(perspective_threshold, "perspective_threshold"))
 
     autocontrast = ImageOps.autocontrast(base)
     variants.append(_copy_with_label(autocontrast, "autocontrast"))
     variants.extend(_iter_small_rotations(autocontrast, label_prefix="autocontrast"))
 
-    sharpened = autocontrast.filter(ImageFilter.MedianFilter(size=3))
+    sharpened = autocontrast.filter(ImageFilter.MedianFilter(size=int(config["median_filter_size"])))
     sharpened = sharpened.filter(ImageFilter.SHARPEN)
     variants.append(_copy_with_label(sharpened, "median_sharpen"))
 
-    threshold = autocontrast.point(lambda px: 255 if px > 170 else 0)
+    threshold = autocontrast.point(lambda px: 255 if px > int(config["threshold_value"]) else 0)
     variants.append(_copy_with_label(threshold, "threshold"))
 
-    strong_threshold = autocontrast.point(lambda px: 255 if px > 140 else 0)
+    strong_threshold = autocontrast.point(
+        lambda px: 255 if px > int(config["threshold_low_value"]) else 0
+    )
     variants.append(_copy_with_label(strong_threshold, "threshold_low"))
 
     trimmed = _trim_document_edges(autocontrast)
@@ -428,9 +457,12 @@ def _run_tesseract(
 ) -> str:
     import pytesseract
 
+    runtime_config = _ocr_runtime_config()
+    languages = [str(lang).strip() for lang in runtime_config.get("tesseract_languages") or []]
+    lang = "+".join(lang for lang in languages if lang) or "spa+eng"
     candidates: list[str] = []
     for config in _tesseract_configs(psm_modes):
-        text = str(pytesseract.image_to_string(img, lang="spa+eng", config=config) or "").strip()
+        text = str(pytesseract.image_to_string(img, lang=lang, config=config) or "").strip()
         if not text:
             continue
         candidates.append(text)
@@ -447,7 +479,8 @@ def _run_easyocr(img: Image.Image) -> str:
 
     config = _ocr_runtime_config()
     languages = tuple(str(lang).strip() for lang in config["easyocr_languages"] if str(lang).strip())
-    reader_key = (languages or ("es", "en"), False)
+    gpu_enabled = bool(config.get("easyocr_gpu", False))
+    reader_key = (languages or ("es", "en"), gpu_enabled)
     reader = _EASYOCR_READERS.get(reader_key)
     if reader is None:
         with _EASYOCR_READER_LOCK:
@@ -560,6 +593,8 @@ def _extract_zip_summary(file_bytes: bytes, zip_name: str) -> dict[str, Any]:
 
 async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     """PDF: intenta texto embebido con PyMuPDF, si no hay, usa OCR."""
+    config = _ocr_runtime_config()
+    pdf_render_dpi = int(config["pdf_render_dpi"])
     try:
         import fitz
     except ImportError:
@@ -596,7 +631,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     try:
         ocr_texts = []
         for page in doc2:
-            pix = page.get_pixmap(dpi=300)
+            pix = page.get_pixmap(dpi=pdf_render_dpi)
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             if vision_image_bytes is None:
                 vision_image_bytes = _image_to_jpeg_bytes(img)
@@ -619,7 +654,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     try:
         from pdf2image import convert_from_bytes
 
-        images = convert_from_bytes(file_bytes, dpi=300)
+        images = convert_from_bytes(file_bytes, dpi=pdf_render_dpi)
         ocr_texts = []
         vision_image_bytes = _image_to_jpeg_bytes(images[0]) if images else None
         for img in images:
@@ -645,10 +680,11 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
     """Image: OCR with Tesseract with preprocessing for better results."""
     from PIL import ImageEnhance
 
+    config = _ocr_runtime_config()
     img = Image.open(io.BytesIO(file_bytes))
 
     # Resize if too small — Tesseract works best at ~300 DPI equivalent
-    min_width = int(_ocr_runtime_config()["min_width"])
+    min_width = int(config["min_width"])
     if img.width < min_width:
         scale = min_width / img.width
         img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
@@ -658,8 +694,8 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
         img = img.convert("L")
 
     # Enhance contrast and sharpness before OCR (helps with WhatsApp compressed photos)
-    img = ImageEnhance.Contrast(img).enhance(1.8)
-    img = ImageEnhance.Sharpness(img).enhance(2.0)
+    img = ImageEnhance.Contrast(img).enhance(float(config["image_contrast"]))
+    img = ImageEnhance.Sharpness(img).enhance(float(config["image_sharpness"]))
     img = img.filter(ImageFilter.SHARPEN)
 
     text = _ocr_image(img)
@@ -862,10 +898,11 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
     de filas (MAX_SCAN_ROWS_PER_SHEET) que acotan el uso de memoria
     independientemente del peso del fichero.
     """
-    MAX_HEADER_SCAN = 25  # rows scanned to find the real header row
-    MAX_PREVIEW_ROWS_PER_SHEET = 120
-    MAX_SCAN_ROWS_PER_SHEET = MAX_PREVIEW_ROWS_PER_SHEET * 4
-    MAX_TEXT_CHARS = 4000
+    config = _ocr_runtime_config()
+    max_header_scan = int(config["excel_max_header_scan_rows"])
+    max_preview_rows_per_sheet = int(config["excel_max_preview_rows_per_sheet"])
+    max_scan_rows_per_sheet = max_preview_rows_per_sheet * int(config["excel_scan_rows_multiplier"])
+    max_text_chars = int(config["excel_max_text_chars"])
 
     row_iters = _iter_xls_rows(file_bytes) if ext == ".xls" else _iter_xlsx_rows(file_bytes)
 
@@ -881,7 +918,7 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
 
         # Scan first N rows to find the most likely header row
         initial_rows: list[tuple | list] = []
-        for _ in range(MAX_HEADER_SCAN):
+        for _ in range(max_header_scan):
             try:
                 initial_rows.append(next(rows_iter))
             except StopIteration:
@@ -936,12 +973,12 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
                             pass
             row_dict["_sheet"] = sheet_name
 
-            if len(preview_rows_sheet) < MAX_PREVIEW_ROWS_PER_SHEET:
+            if len(preview_rows_sheet) < max_preview_rows_per_sheet:
                 preview_rows_sheet.append(row_dict)
                 for h in headers:
                     sample_values_by_col[h].append(row_dict.get(h))
 
-            if total_rows_counted >= MAX_SCAN_ROWS_PER_SHEET:
+            if total_rows_counted >= max_scan_rows_per_sheet:
                 break
 
         text_lines.append(f"[{sheet_name}] " + "\t".join(header_display))
@@ -978,8 +1015,8 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
         sheet_metadata[sheet_name] = kv_pairs
 
     text = "\n".join(text_lines)
-    if len(text) > MAX_TEXT_CHARS:
-        text = text[:MAX_TEXT_CHARS]
+    if len(text) > max_text_chars:
+        text = text[:max_text_chars]
 
     return {
         "text": text,

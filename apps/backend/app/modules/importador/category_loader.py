@@ -13,24 +13,14 @@ import logging
 import time
 from typing import Any
 
+from .runtime_config import load_doc_categories_config
+
 logger = logging.getLogger("importador.category_loader")
 
 _CACHE_TTL = 300  # seconds
 
 _cache: dict[str, list[str]] = {}
 _cache_ts: float = 0.0
-
-# Minimal emergency defaults — used only when DB is unreachable.
-# Add new categories via DB migration, not here.
-_BUILTIN_FALLBACK: dict[str, list[str]] = {
-    "invoice": ["INVOICE", "FACTURA", "CREDIT_NOTE", "PURCHASE_ORDER", "QUOTE", "PROFORMA"],
-    "receipt": ["RECEIPT", "TICKET", "RECIBO", "BOLETA", "VOUCHER"],
-    "recipe": ["COSTING", "COSTEO", "RECIPE", "RECETA"],
-    "inventory": ["INVENTORY", "INVENTARIO", "PRICE_LIST", "LISTA_PRECIOS", "STOCK"],
-    "bank": ["BANK_STATEMENT", "EXTRACTO_BANCARIO", "BANK_MOVEMENTS", "MOVIMIENTOS_BANCARIOS"],
-    "payroll": ["PAYROLL", "NOMINA", "PLANILLA"],
-}
-
 
 def get_doc_categories(db: Any) -> dict[str, list[str]]:
     """Return {category: [keyword, …]} loaded from DB, refreshed every 5 min."""
@@ -41,23 +31,15 @@ def get_doc_categories(db: Any) -> dict[str, list[str]]:
         return _cache
 
     try:
-        from app.models.importador import ImpConfig
-
-        rows = db.query(ImpConfig).filter(ImpConfig.module == "doc_categories").all()
-        if rows:
-            result: dict[str, list[str]] = {}
-            for row in rows:
-                kws = row.value_list
-                if isinstance(kws, list) and kws:
-                    result[row.key] = [str(k).upper() for k in kws]
-            if result:
-                _cache = result
-                _cache_ts = now
-                return result
+        result = load_doc_categories_config(db)
+        if result:
+            _cache = result
+            _cache_ts = now
+            return result
     except Exception as exc:
         logger.warning("Could not load doc categories from imp_config: %s", exc)
 
-    return _BUILTIN_FALLBACK
+    return load_doc_categories_config(None)
 
 
 def classify_doc_type(tipo: str, categories: dict[str, list[str]]) -> str:

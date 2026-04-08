@@ -62,6 +62,52 @@ def test_document_routing_agent_requests_review_when_invoice_fields_are_missing(
     assert decision.confidence < 0.8
 
 
+@pytest.mark.no_db
+def test_document_routing_agent_uses_runtime_field_aliases_and_labels(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.services.document_routing_agent.load_routing_field_aliases",
+        lambda db=None: {
+            "vendor": ("issuer_name",),
+            "issue_date": ("emission_date",),
+            "total_amount": ("grand_total_alias",),
+            "subtotal": ("net_alias",),
+            "tax_amount": ("tax_alias",),
+            "doc_number": ("doc_ref",),
+            "currency": ("ccy",),
+            "line_items": ("items_alias",),
+            "concept": ("concept_alias",),
+            "payment_method": ("payment_alias",),
+            "vendor_tax_id": ("issuer_tax_id",),
+            "rows": ("rows_alias",),
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.services.document_routing_agent.load_routing_field_labels",
+        lambda db=None: {
+            "vendor": "emisor",
+            "issue_date": "emision",
+            "total_amount": "gran total",
+        },
+    )
+
+    decision = build_document_routing_decision(
+        source_doc_type="INVOICE",
+        ai_confidence=0.93,
+        extracted_data={
+            "issuer_name": "Molino Central",
+            "emission_date": "2026-03-27",
+            "grand_total_alias": 112,
+        },
+        canonical_document={"fields": {}},
+        category_keywords={"invoice": ["INVOICE"]},
+        requires_review=False,
+    )
+
+    assert decision.required_fields_ok is True
+    assert decision.needs_human_review is False
+    assert "emisor" in decision.reason.lower()
+
+
 def test_infer_save_destination_uses_routing_over_supplier_metadata_fallback(db):
     doc = SimpleNamespace(
         tipo_documento_detectado="RECEIPT",

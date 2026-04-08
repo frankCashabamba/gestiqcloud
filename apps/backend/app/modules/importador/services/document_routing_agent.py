@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.modules.importador.category_loader import classify_doc_type
 from app.modules.importador.document_fields import detect_document_total, safe_floatish
+from app.modules.importador.runtime_config import (
+    load_routing_field_aliases,
+    load_routing_field_labels,
+)
 from app.modules.importador.schemas import DocumentRoutingDecision
 
 from .document_routing_config import (
@@ -17,37 +21,12 @@ from .document_routing_config import (
     resolve_routing_profile_match,
 )
 
-FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
-    "vendor": ("vendor", "supplier", "proveedor", "emisor", "supplier_name"),
-    "vendor_tax_id": ("vendor_tax_id", "supplier_tax_id", "ruc", "tax_id", "nif", "vat"),
-    "issue_date": ("issue_date", "invoice_date", "fecha", "date", "expense_date"),
-    "due_date": ("due_date", "fecha_vencimiento", "payment_due_date"),
-    "doc_number": ("doc_number", "invoice_number", "numero_factura", "reference", "folio"),
-    "subtotal": ("subtotal", "base_amount", "amount_untaxed", "net_amount"),
-    "tax_amount": ("tax_amount", "tax", "iva", "vat_amount", "impuesto"),
-    "total_amount": ("total_amount", "monto_total", "total", "grand_total", "importe"),
-    "currency": ("currency", "moneda", "divisa"),
-    "payment_method": ("payment_method", "forma_pago", "metodo_pago", "payment_type"),
-    "concept": ("concept", "description", "concepto", "detalle", "glosa"),
-    "line_items": ("line_items", "lineas", "items"),
-    "rows": ("filas", "filas_por_hoja"),
-}
+def _field_candidates() -> dict[str, tuple[str, ...]]:
+    return load_routing_field_aliases(None)
 
-FIELD_LABELS: dict[str, str] = {
-    "vendor": "proveedor",
-    "vendor_tax_id": "identificacion fiscal",
-    "issue_date": "fecha",
-    "due_date": "vencimiento",
-    "doc_number": "numero",
-    "subtotal": "subtotal",
-    "tax_amount": "impuesto",
-    "total_amount": "total",
-    "currency": "moneda",
-    "payment_method": "forma de pago",
-    "concept": "concepto",
-    "line_items": "lineas",
-    "rows": "filas",
-}
+
+def _field_labels() -> dict[str, str]:
+    return load_routing_field_labels(None)
 
 
 def _normalized_text(value: Any) -> str | None:
@@ -76,12 +55,13 @@ def _field_from_sources(
 
     source = extracted_data if isinstance(extracted_data, dict) else {}
     normalized_source = {str(key).strip().lower(): value for key, value in source.items()}
-    for candidate in FIELD_CANDIDATES.get(field_name, (field_name,)):
+    field_candidates = _field_candidates()
+    for candidate in field_candidates.get(field_name, (field_name,)):
         value = normalized_source.get(candidate.strip().lower())
         if value is not None:
             return value
     if field_name == "total_amount":
-        return detect_document_total(source, aliases=list(FIELD_CANDIDATES["total_amount"]))
+        return detect_document_total(source, aliases=list(field_candidates.get("total_amount", ("total_amount",))))
     return None
 
 
@@ -121,13 +101,15 @@ def _build_reason(
     canonical_document: dict[str, Any] | None,
 ) -> str:
     if missing_fields:
-        readable = ", ".join(FIELD_LABELS.get(field, field) for field in missing_fields[:4])
+        field_labels = _field_labels()
+        readable = ", ".join(field_labels.get(field, field) for field in missing_fields[:4])
         if profile.suggested_destination:
             return f"Faltan {readable} para guardar como {profile.document_type}."
         return f"Faltan {readable}; requiere revision manual."
 
+    field_labels = _field_labels()
     found_fields = [
-        FIELD_LABELS.get(field, field)
+        field_labels.get(field, field)
         for field in profile.explanation_fields
         if _has_value(
             field,

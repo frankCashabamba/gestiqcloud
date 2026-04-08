@@ -286,9 +286,37 @@ def _build_structured_classification_prompt(
     recipe_config: dict | None,
     prompt_config: dict[str, Any] | None = None,
 ) -> str:
+    return _build_structured_classification_prompt_parts(
+        content,
+        filename,
+        format_hint,
+        recipe_config,
+        prompt_config=prompt_config,
+    )["full_prompt"]
+
+
+def _build_structured_classification_prompt_parts(
+    content: str,
+    filename: str,
+    format_hint: str,
+    recipe_config: dict | None,
+    prompt_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     rc = recipe_config or {}
     pc = prompt_config or load_prompt_config(None)
     system_prefix = str(rc.get("prompt_system") or "").strip()
+    task_preamble = str(
+        pc.get("structured_classification_task_preamble")
+        or (
+            "Classify this structured accounting dataset.\n"
+            "The content contains column headers and a few sample rows, not the full file."
+        )
+    ).strip()
+    response_instruction = str(
+        pc.get("structured_classification_response_instruction")
+        or "Return ONLY valid JSON with keys: doc_type, confidence, reasoning."
+    ).strip()
+    preview_label = str(pc.get("structured_classification_preview_label") or "Structured preview:").strip()
     doc_type_instruction = str(
         pc.get("doc_type_instruction")
         or "Use concise uppercase labels such as INVOICE, RECEIPT, CREDIT_NOTE, "
@@ -296,19 +324,27 @@ def _build_structured_classification_prompt(
     ).strip()
     current_year = datetime.datetime.now().year
 
-    prompt = (
-        "Classify this structured accounting dataset.\n"
-        "The content contains column headers and a few sample rows, not the full file.\n"
-        "Return ONLY valid JSON with keys: doc_type, confidence, reasoning.\n"
+    body = (
+        f"{task_preamble}\n"
+        f"{response_instruction}\n"
         f"File: {filename} | Format: {format_hint}\n"
         f"Current year: {current_year}\n\n"
-        f"Structured preview:\n{content[:2500]}\n\n"
+        f"{preview_label}\n{content[:2500]}\n\n"
         f"{doc_type_instruction}"
     )
 
-    if system_prefix:
-        prompt = system_prefix + "\n\n" + prompt
-    return prompt
+    full_prompt = system_prefix + "\n\n" + body if system_prefix else body
+    return {
+        "mode": "structured_classification",
+        "full_prompt": full_prompt,
+        "system_prompt": system_prefix,
+        "user_prompt": body,
+        "task_preamble": task_preamble,
+        "response_instruction": response_instruction,
+        "preview_label": preview_label,
+        "doc_type_instruction": doc_type_instruction,
+        "current_year": current_year,
+    }
 
 
 def _build_dynamic_fields_prompt(
@@ -385,16 +421,62 @@ def _build_configured_rules(
             "Dates must use YYYY-MM-DD. Amounts must use dot decimal notation. Missing fields must be null.",
             "Do not invent data absent from the document.",
         ]
+    year_rule_template = str(
+        pc.get("year_sanity_rule_template")
+        or "YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '{expected_year_suffix}' (20{expected_year_suffix})."
+    ).strip()
     configured_rules.append(
-        f"YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '26' (20{current_year % 100})."
+        year_rule_template.format(
+            current_year=current_year,
+            expected_year_suffix=f"{current_year % 100:02d}",
+        )
     )
     configured_rules.append(
-        "line_items: only list actual PRODUCTS. "
-        "For every visible line-item column that does not clearly map to the configured base fields, "
-        "preserve it verbatim in extra_columns using the original header label and cell value. "
-        "Do not drop visible line-item columns just because their meaning is uncertain."
+        str(
+            pc.get("line_items_extra_columns_rule")
+            or (
+                "line_items: only list actual PRODUCTS. "
+                "For every visible line-item column that does not clearly map to the configured base fields, "
+                "preserve it verbatim in extra_columns using the original header label and cell value. "
+                "Do not drop visible line-item columns just because their meaning is uncertain."
+            )
+        ).strip()
     )
     return configured_rules
+
+
+def _build_prompt_trace(
+    *,
+    mode: str,
+    system_prompt: str,
+    user_prompt: str,
+    response_contract: str | None = None,
+    critical_rules: list[str] | None = None,
+    doc_type_instruction: str | None = None,
+    learned_hints: str | None = None,
+    custom_user_prompt: str | None = None,
+    prompt_messages: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    full_prompt = system_prompt.rstrip() + "\n\n" + user_prompt if system_prompt else user_prompt
+    trace: dict[str, Any] = {
+        "mode": mode,
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "full_prompt": full_prompt,
+    }
+    if response_contract:
+        trace["response_contract"] = response_contract
+    if critical_rules is not None:
+        trace["critical_rules"] = list(critical_rules)
+    if doc_type_instruction:
+        trace["doc_type_instruction"] = doc_type_instruction
+    if learned_hints:
+        trace["learned_hints"] = learned_hints
+    if custom_user_prompt:
+        trace["custom_user_prompt"] = custom_user_prompt
+    if prompt_messages is not None:
+        trace["messages"] = prompt_messages
+    return trace
 
 
 async def _analyze_structured_document(
@@ -407,13 +489,14 @@ async def _analyze_structured_document(
     db: Any = None,
 ) -> dict[str, Any]:
     """Cheap classification path for already structured datasets."""
-    prompt = _build_structured_classification_prompt(
+    prompt_parts = _build_structured_classification_prompt_parts(
         content,
         filename,
         format_hint,
         recipe_config,
         prompt_config=prompt_config,
     )
+    prompt = str(prompt_parts["full_prompt"])
 
     ai_params = load_ai_params(db)
     temperature = float(ai_params.get("temperature") or 0.1)
@@ -439,6 +522,8 @@ async def _analyze_structured_document(
             fallback["raw_response"] = response.error
             fallback["model_used"] = model_used
             fallback["prompt_sent"] = prompt[:500]
+            fallback["prompt_full"] = prompt
+            fallback["prompt_parts"] = prompt_parts
             return fallback
 
         parsed = _parse_json_response(raw_content)
@@ -451,6 +536,8 @@ async def _analyze_structured_document(
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
             parsed["prompt_sent"] = prompt[:500]
+            parsed["prompt_full"] = prompt
+            parsed["prompt_parts"] = prompt_parts
             return parsed
 
         fallback = _fallback_classify(content, filename, fallback_patterns)
@@ -458,6 +545,8 @@ async def _analyze_structured_document(
         fallback["raw_response"] = raw_content
         fallback["model_used"] = model_used
         fallback["prompt_sent"] = prompt[:500]
+        fallback["prompt_full"] = prompt
+        fallback["prompt_parts"] = prompt_parts
         return fallback
     except Exception as exc:
         logger.error("Structured AI analysis error: %s", exc)
@@ -466,6 +555,8 @@ async def _analyze_structured_document(
         fallback["raw_response"] = str(exc)
         fallback["model_used"] = "fallback"
         fallback["prompt_sent"] = prompt[:500]
+        fallback["prompt_full"] = prompt
+        fallback["prompt_parts"] = prompt_parts
         return fallback
 
 
@@ -1003,6 +1094,7 @@ async def _analyze_with_vision(
     system_prompt = (
         rc.get("prompt_system")
         or pc.get("extraction_system")
+        or pc.get("vision_system_fallback")
         or (
             "You are a universal accounting document analyzer with vision capabilities. "
             "You can read documents in ANY language. Extract all visible information accurately."
@@ -1034,14 +1126,12 @@ async def _analyze_with_vision(
         "DELIVERY_NOTE, INVENTORY, PRICE_LIST, COSTING, PAYROLL, BANK_STATEMENT, "
         "BANK_MOVEMENTS, or any descriptive label"
     ).strip()
-    critical_rules_text = "\n".join(
-        f"- {rule}"
-        for rule in _build_configured_rules(
-            prompt_config=pc,
-            current_year=current_year,
-            vision_mode=True,
-        )
+    critical_rules = _build_configured_rules(
+        prompt_config=pc,
+        current_year=current_year,
+        vision_mode=True,
     )
+    critical_rules_text = "\n".join(f"- {rule}" for rule in critical_rules)
     response_contract = _build_json_response_contract(
         dynamic_fields_prompt=dynamic_fields_prompt,
         doc_type_instruction=doc_type_instruction,
@@ -1049,22 +1139,42 @@ async def _analyze_with_vision(
         columns_literal="[]",
         reasoning_hint="brief explanation",
     )
+    response_label = str(pc.get("response_json_label") or "Respond ONLY with valid JSON:").strip()
+    critical_rules_heading = str(pc.get("critical_rules_heading") or "CRITICAL rules:").strip()
+    additional_instructions_heading = str(
+        pc.get("additional_instructions_heading") or "Additional instructions:"
+    ).strip()
 
     user_prompt = (
         f"File: {filename} | Format: {format_hint}\n"
         f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n\n"
         f"{vision_preamble}\n"
-        "Respond ONLY with valid JSON:\n"
+        f"{response_label}\n"
         f"{response_contract}\n"
-        "CRITICAL RULES:\n"
+        f"{critical_rules_heading}\n"
         f"{critical_rules_text}"
     )
 
     custom_user = rc.get("prompt_user")
     if custom_user:
-        user_prompt += f"\n\nAdditional instructions:\n{custom_user}"
+        user_prompt += f"\n\n{additional_instructions_heading}\n{custom_user}"
     if learned_hints:
         user_prompt += f"\n\n{learned_hints}"
+
+    prompt_trace = _build_prompt_trace(
+        mode="vision",
+        system_prompt=str(system_prompt),
+        user_prompt=user_prompt,
+        response_contract=response_contract,
+        critical_rules=critical_rules,
+        doc_type_instruction=doc_type_instruction,
+        learned_hints=learned_hints or None,
+        custom_user_prompt=str(custom_user or "").strip() or None,
+        prompt_messages=[
+            {"role": "system", "content": str(system_prompt)},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
 
     img_b64 = base64.b64encode(_resize_image_for_vision(image_bytes)).decode("utf-8")
 
@@ -1113,7 +1223,9 @@ async def _analyze_with_vision(
             )
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
-            parsed["prompt_sent"] = (system_prompt + "\n\n" + user_prompt)[:500]
+            parsed["prompt_sent"] = str(prompt_trace["full_prompt"])[:500]
+            parsed["prompt_full"] = prompt_trace["full_prompt"]
+            parsed["prompt_parts"] = prompt_trace
             logger.info("Vision analysis succeeded with %s for %s", model_used, filename)
             return parsed
 
@@ -1239,14 +1351,12 @@ async def analyze_document(
         or "A short uppercase label describing the document type in English. "
         "Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable."
     ).strip()
-    critical_rules_text = "\n".join(
-        f"- {rule}"
-        for rule in _build_configured_rules(
-            prompt_config=pc,
-            current_year=current_year,
-            vision_mode=False,
-        )
+    critical_rules = _build_configured_rules(
+        prompt_config=pc,
+        current_year=current_year,
+        vision_mode=False,
     )
+    critical_rules_text = "\n".join(f"- {rule}" for rule in critical_rules)
     response_contract = _build_json_response_contract(
         dynamic_fields_prompt=dynamic_fields_prompt,
         doc_type_instruction=doc_type_instruction,
@@ -1254,6 +1364,11 @@ async def analyze_document(
         columns_literal='["col1", "col2"]',
         reasoning_hint="brief explanation of classification",
     )
+    response_label = str(pc.get("response_json_label") or "Respond ONLY with valid JSON:").strip()
+    critical_rules_heading = str(pc.get("critical_rules_heading") or "CRITICAL rules:").strip()
+    additional_instructions_heading = str(
+        pc.get("additional_instructions_heading") or "Additional instructions:"
+    ).strip()
 
     _doc_type_hint = rc.get("doc_type_hint")
     _hint_line = (
@@ -1269,19 +1384,29 @@ async def analyze_document(
         f"CONTEXT: Current year is {current_year}. Most documents are from {current_year - 1}-{current_year}.\n"
         f"{_hint_line}\n"
         f"Content:\n{content[:content_limit]}\n\n"
-        "Analyze the document and respond ONLY with valid JSON:\n"
+        f"{response_label}\n"
         f"{response_contract}\n"
-        "CRITICAL rules:\n"
+        f"{critical_rules_heading}\n"
         f"{critical_rules_text}"
     )
 
     custom_user_prompt = rc.get("prompt_user")
     if custom_user_prompt:
-        user_prompt += f"\n\nAdditional extraction instructions:\n{custom_user_prompt}"
+        user_prompt += f"\n\n{additional_instructions_heading}\n{custom_user_prompt}"
     if learned_hints:
         user_prompt += f"\n\n{learned_hints}"
 
     full_prompt = system_prompt.rstrip() + "\n\n" + user_prompt
+    prompt_trace = _build_prompt_trace(
+        mode="text",
+        system_prompt=str(system_prompt),
+        user_prompt=user_prompt,
+        response_contract=response_contract,
+        critical_rules=critical_rules,
+        doc_type_instruction=doc_type_instruction,
+        learned_hints=learned_hints or None,
+        custom_user_prompt=str(custom_user_prompt or "").strip() or None,
+    )
 
     # Resolver model y parámetros desde imp_config
     _doc_type_for_routing = (rc.get("doc_type_hint") or "").upper().strip() or None
@@ -1315,6 +1440,8 @@ async def analyze_document(
             fallback["raw_response"] = response.error
             fallback["model_used"] = model_used
             fallback["prompt_sent"] = full_prompt[:500]
+            fallback["prompt_full"] = full_prompt
+            fallback["prompt_parts"] = prompt_trace
             return fallback
 
         parsed = _parse_json_response(raw_content)
@@ -1339,6 +1466,8 @@ async def analyze_document(
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
             parsed["prompt_sent"] = full_prompt[:500]
+            parsed["prompt_full"] = full_prompt
+            parsed["prompt_parts"] = prompt_trace
             return parsed
 
         fallback = _fallback_classify(content, filename, fallback_patterns)
@@ -1346,6 +1475,8 @@ async def analyze_document(
         fallback["raw_response"] = raw_content
         fallback["model_used"] = model_used
         fallback["prompt_sent"] = full_prompt[:500]
+        fallback["prompt_full"] = full_prompt
+        fallback["prompt_parts"] = prompt_trace
         return fallback
 
     except Exception as exc:
@@ -1355,6 +1486,8 @@ async def analyze_document(
         fallback["raw_response"] = str(exc)
         fallback["model_used"] = "fallback"
         fallback["prompt_sent"] = full_prompt[:500]
+        fallback["prompt_full"] = full_prompt
+        fallback["prompt_parts"] = prompt_trace
         return fallback
 
 

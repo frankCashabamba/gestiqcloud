@@ -7,11 +7,150 @@
     "INVENTORY": ["inventory", "inventario", "stock", "price list", "lista precios"],
     "COSTING": ["costing", "costeo", "recipe", "receta", "food cost"]
   },
+  "doc_categories": {
+    "invoice": ["INVOICE", "FACTURA", "CREDIT_NOTE", "PURCHASE_ORDER", "QUOTE", "PROFORMA"],
+    "receipt": ["RECEIPT", "TICKET", "RECIBO", "BOLETA", "VOUCHER"],
+    "recipe": ["COSTING", "COSTEO", "RECIPE", "RECETA"],
+    "inventory": ["INVENTORY", "INVENTARIO", "PRICE_LIST", "LISTA_PRECIOS", "STOCK"],
+    "bank": ["BANK_STATEMENT", "EXTRACTO_BANCARIO", "BANK_MOVEMENTS", "MOVIMIENTOS_BANCARIOS"],
+    "payroll": ["PAYROLL", "NOMINA", "PLANILLA"]
+  },
+  "filename_normalization": {
+    "uuid_patterns": ["[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"],
+    "date_patterns": ["\\b\\d{4}[-_]\\d{2}[-_]\\d{2}\\b", "\\b\\d{2}[-_]\\d{2}[-_]\\d{4}\\b"],
+    "long_number_patterns": ["\\b\\d{4,}\\b"],
+    "separator_patterns": ["[_\\-\\.]+"] 
+  },
+  "tax_id_patterns": {
+    "match_patterns": [
+      "(?:R\\.?U\\.?C\\.?|RUC|NIF|CIF|CUIT|CUIL|RFC)\\s*[:\\-#]?\\s*([0-9][\\d\\-]{6,19})",
+      "\\b(20\\d{9}|10\\d{9})\\b"
+    ],
+    "scan_max_chars": "3000",
+    "min_digits": "8",
+    "max_digits": "15"
+  },
+  "routing_field_aliases": {
+    "vendor": ["vendor", "supplier", "proveedor", "emisor", "supplier_name"],
+    "vendor_tax_id": ["vendor_tax_id", "supplier_tax_id", "ruc", "tax_id", "nif", "vat"],
+    "issue_date": ["issue_date", "invoice_date", "fecha", "date", "expense_date"],
+    "due_date": ["due_date", "fecha_vencimiento", "payment_due_date"],
+    "doc_number": ["doc_number", "invoice_number", "numero_factura", "reference", "folio"],
+    "subtotal": ["subtotal", "base_amount", "amount_untaxed", "net_amount"],
+    "tax_amount": ["tax_amount", "tax", "iva", "vat_amount", "impuesto"],
+    "total_amount": ["total_amount", "monto_total", "total", "grand_total", "importe"],
+    "currency": ["currency", "moneda", "divisa"],
+    "payment_method": ["payment_method", "forma_pago", "metodo_pago", "payment_type"],
+    "concept": ["concept", "description", "concepto", "detalle", "glosa"],
+    "line_items": ["line_items", "lineas", "items"],
+    "rows": ["filas", "filas_por_hoja"]
+  },
+  "routing_field_labels": {
+    "vendor": "proveedor",
+    "vendor_tax_id": "identificacion fiscal",
+    "issue_date": "fecha",
+    "due_date": "vencimiento",
+    "doc_number": "numero",
+    "subtotal": "subtotal",
+    "tax_amount": "impuesto",
+    "total_amount": "total",
+    "currency": "moneda",
+    "payment_method": "forma de pago",
+    "concept": "concepto",
+    "line_items": "lineas",
+    "rows": "filas"
+  },
+  "routing_fallback_profiles": {
+    "supplier_invoice": {
+      "code": "supplier_invoice",
+      "document_type": "supplier_invoice",
+      "suggested_destination": "supplier_invoice",
+      "required_groups": [["issue_date"], ["total_amount"]],
+      "support_fields": ["vendor", "vendor_tax_id", "subtotal", "tax_amount", "doc_number", "currency", "line_items"],
+      "explanation_fields": ["vendor", "issue_date", "subtotal", "tax_amount", "total_amount"],
+      "blocked": false,
+      "confidence_threshold": 0.8
+    },
+    "expense": {
+      "code": "expense",
+      "document_type": "expense",
+      "suggested_destination": "expense",
+      "required_groups": [["issue_date"], ["total_amount"], ["concept", "vendor", "doc_number"]],
+      "support_fields": ["tax_amount", "currency", "payment_method"],
+      "explanation_fields": ["concept", "vendor", "issue_date", "tax_amount", "total_amount"],
+      "blocked": false,
+      "confidence_threshold": 0.8
+    },
+    "recipe": {
+      "code": "recipe",
+      "document_type": "recipe",
+      "suggested_destination": "recipe",
+      "required_groups": [["rows", "line_items"]],
+      "support_fields": ["doc_number"],
+      "explanation_fields": ["rows", "line_items"],
+      "blocked": false,
+      "confidence_threshold": 0.8
+    },
+    "inventory": {
+      "code": "inventory",
+      "document_type": "inventory",
+      "required_groups": [["rows", "line_items"]],
+      "support_fields": ["doc_number"],
+      "explanation_fields": ["rows", "line_items"],
+      "blocked": true,
+      "confidence_threshold": 0.8
+    },
+    "bank_statement": {
+      "code": "bank_statement",
+      "document_type": "bank_statement",
+      "required_groups": [["issue_date"], ["rows", "line_items"]],
+      "support_fields": ["currency"],
+      "explanation_fields": ["issue_date", "rows"],
+      "blocked": true,
+      "confidence_threshold": 0.8
+    },
+    "payroll": {
+      "code": "payroll",
+      "document_type": "payroll",
+      "required_groups": [["issue_date"], ["rows", "line_items"]],
+      "support_fields": ["total_amount"],
+      "explanation_fields": ["issue_date", "rows", "total_amount"],
+      "blocked": true,
+      "confidence_threshold": 0.8
+    },
+    "other": {
+      "code": "other",
+      "document_type": "expense",
+      "suggested_destination": "expense",
+      "required_groups": [["issue_date"], ["total_amount"]],
+      "support_fields": ["concept", "vendor", "tax_amount"],
+      "explanation_fields": ["concept", "vendor", "issue_date", "total_amount"],
+      "blocked": false,
+      "confidence_threshold": 0.8
+    }
+  },
+  "routing_fallback_rules": {
+    "category.invoice": ["source_kind=category", "source_key=invoice", "profile_code=supplier_invoice", "priority=100"],
+    "category.receipt": ["source_kind=category", "source_key=receipt", "profile_code=expense", "priority=100"],
+    "category.recipe": ["source_kind=category", "source_key=recipe", "profile_code=recipe", "priority=100"],
+    "category.inventory": ["source_kind=category", "source_key=inventory", "profile_code=inventory", "priority=100"],
+    "category.bank": ["source_kind=category", "source_key=bank", "profile_code=bank_statement", "priority=100"],
+    "category.payroll": ["source_kind=category", "source_key=payroll", "profile_code=payroll", "priority=100"],
+    "category.other": ["source_kind=category", "source_key=other", "profile_code=other", "priority=100"],
+    "doc_type.other": ["source_kind=doc_type", "source_key=OTHER", "profile_code=other", "priority=100"]
+  },
   "prompt_config": {
     "extraction_system": "You are a universal accounting document analyzer. Always respond with valid JSON using the configured canonical fields.",
+    "vision_system_fallback": "You are a universal accounting document analyzer with vision capabilities. You can read documents in ANY language. Extract all visible information accurately.",
     "vision_extraction_preamble": "Read this document image very carefully, character by character.",
+    "structured_classification_task_preamble": "Classify this structured accounting dataset.\nThe content contains column headers and a few sample rows, not the full file.",
+    "structured_classification_response_instruction": "Return ONLY valid JSON with keys: doc_type, confidence, reasoning.",
+    "structured_classification_preview_label": "Structured preview:",
     "structured_table_note": "NOTE: Content is already pre-processed as a structured table. If you recognize a list or table, set is_table=true and provide clean column names. Do NOT return individual rows.",
     "doc_type_instruction": "A short uppercase label describing the document type in English. Use standard business labels when they clearly apply. Use OTHER only if truly unclassifiable.",
+    "response_json_label": "Respond ONLY with valid JSON:",
+    "critical_rules_heading": "CRITICAL rules:",
+    "additional_instructions_heading": "Additional instructions:",
     "fallback_dynamic_fields_prompt": "    \"vendor\": \"issuing/selling party name or null\",\n    \"vendor_tax_id\": \"tax ID of the issuer or null\",\n    \"customer\": \"receiving/buying party name or null\",\n    \"customer_tax_id\": \"tax ID of the buyer or null\",\n    \"doc_number\": \"document reference number or null\",\n    \"issue_date\": \"YYYY-MM-DD or null\",\n    \"total_amount\": NUMBER or null,\n    \"subtotal\": NUMBER or null,\n    \"tax_amount\": NUMBER or null,\n    \"currency\": \"ISO 4217 code or null\",\n    \"payment_method\": \"payment method exactly as printed or null\",\n    \"payment_terms\": \"payment terms exactly as printed or null\",\n    \"line_items\": [{\"description\":\"...\",\"quantity\":number,\"unit_price\":number,\"total_price\":number,\"extra_columns\":{\"ColNameAsInDoc\":\"value\"}}] or []",
     "critical_rules": [
       "The document may be in any language. Read it as-is and map to the configured canonical fields.",
@@ -30,7 +169,9 @@
       "Extract payment_method and payment_terms when visible.",
       "Tax IDs must contain digits only, with no slashes or punctuation.",
       "Do not invent data absent from the document. Use null for missing fields."
-    ]
+    ],
+    "year_sanity_rule_template": "YEAR sanity check: we are in {current_year}. If you read '16' as year, it is almost certainly '{expected_year_suffix}' (20{expected_year_suffix}).",
+    "line_items_extra_columns_rule": "line_items: only list actual PRODUCTS. For every visible line-item column that does not clearly map to the configured base fields, preserve it verbatim in extra_columns using the original header label and cell value. Do not drop visible line-item columns just because their meaning is uncertain."
   },
   "product_sheet_detection": {
     "summary_names": ["total", "subtotal", "resumen", "sum", "totales"],
@@ -92,12 +233,24 @@
     "pre_classifier_ttl_seconds": "300",
     "runtime_config_ttl_seconds": "300"
   },
+  "pre_classifier": {
+    "min_header_confirmations": "2",
+    "filename_min_confidence": "0.70",
+    "header_coverage_min_ratio": "0.50",
+    "structured_skip_threshold": "0.75",
+    "ocr_weird_ratio_max": "0.15"
+  },
   "ocr_config": {
     "min_width": "1800",
     "weak_text_min_words": "4",
     "weak_text_min_chars": "24",
+    "pdf_render_dpi": "300",
+    "image_contrast": "1.8",
+    "image_sharpness": "2.0",
+    "tesseract_languages": ["spa", "eng"],
     "primary_psm_modes": ["6", "11"],
     "rescue_psm_modes": ["6"],
+    "small_rotation_angles": ["-4", "-2", "2", "4"],
     "primary_variant_labels": [
       "base",
       "base_rot-2",
@@ -112,8 +265,27 @@
       "trimmed",
       "trimmed_rot90"
     ],
+    "median_filter_size": "3",
+    "perspective_threshold_value": "165",
+    "threshold_value": "170",
+    "threshold_low_value": "140",
+    "trim_background_threshold": "245",
+    "trim_min_crop_ratio": "0.35",
+    "trim_padding_ratio": "0.03",
+    "trim_min_padding_px": "8",
+    "perspective_canny_threshold1": "60",
+    "perspective_canny_threshold2": "180",
+    "perspective_blur_kernel": "5",
+    "perspective_kernel_size": "5",
+    "perspective_min_area_ratio": "0.18",
+    "perspective_min_output_ratio": "0.35",
     "easyocr_languages": ["es", "en"],
+    "easyocr_gpu": "false",
     "easyocr_enabled": "true",
-    "easyocr_variant_label": "autocontrast"
+    "easyocr_variant_label": "autocontrast",
+    "excel_max_header_scan_rows": "25",
+    "excel_max_preview_rows_per_sheet": "120",
+    "excel_scan_rows_multiplier": "4",
+    "excel_max_text_chars": "4000"
   }
 }
