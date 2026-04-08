@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 from io import BytesIO
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
@@ -15,6 +16,8 @@ from app.modules.importador.batch_service import enqueue_async_batch
 from app.modules.importador.processing_service import RecipeContext, process_import_document
 from app.modules.importador.router import _learn_from_confirmation
 from app.modules.importador.snapshot_learning import build_snapshot_review_hints
+
+pytestmark = pytest.mark.usefixtures("requires_postgres")
 
 
 def test_learn_from_confirmation_bumps_learning_version(db: Session, tenant_minimal):

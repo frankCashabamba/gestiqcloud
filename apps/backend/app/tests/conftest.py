@@ -280,6 +280,15 @@ def client() -> TestClient:
 
 
 @pytest.fixture
+def requires_postgres(db):
+    """Skip the test if the active test database is not PostgreSQL."""
+    from app.config.database import engine
+
+    if engine.dialect.name != "postgresql":
+        pytest.skip("Requires PostgreSQL (uses JSONB operators not supported by SQLite)")
+
+
+@pytest.fixture
 def db():
     from app.config.database import Base, SessionLocal, engine
 

@@ -28,4 +28,3 @@ describe('mergeIngredientProducts', () => {
     expect(merged.map((item) => item.id)).toEqual(['raw-1'])
   })
 })
-

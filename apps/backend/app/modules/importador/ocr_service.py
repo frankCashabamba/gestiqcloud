@@ -35,7 +35,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-08-1"
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-08-2"
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -66,6 +66,7 @@ def _serialize_cached_extraction(extraction: dict[str, Any]) -> dict[str, Any]:
         "pages": int(extraction.get("pages") or 1),
         "structured_data": _json_safe(extraction.get("structured_data")),
         "format": str(extraction.get("format") or ""),
+        "page_texts": _json_safe(extraction.get("page_texts")),
         "sheet_profiles": _json_safe(extraction.get("sheet_profiles")),
         "sheet_metadata": _json_safe(extraction.get("sheet_metadata")),
         "sheet_used": extraction.get("sheet_used"),
@@ -83,6 +84,8 @@ def _deserialize_cached_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         "structured_data": payload.get("structured_data"),
         "format": str(payload.get("format") or ""),
     }
+    if payload.get("page_texts") is not None:
+        extraction["page_texts"] = payload.get("page_texts")
     if payload.get("sheet_profiles") is not None:
         extraction["sheet_profiles"] = payload.get("sheet_profiles")
     if payload.get("sheet_metadata") is not None:
@@ -101,11 +104,13 @@ def _deserialize_cached_extraction(payload: dict[str, Any]) -> dict[str, Any]:
 def _can_cache_extraction(extraction: dict[str, Any]) -> bool:
     text = str(extraction.get("text") or "").strip()
     structured_data = extraction.get("structured_data")
+    page_texts = extraction.get("page_texts")
     sheet_profiles = extraction.get("sheet_profiles")
     vision_image_bytes = extraction.get("vision_image_bytes")
     return bool(
         text
         or structured_data
+        or page_texts
         or sheet_profiles
         or isinstance(vision_image_bytes, (bytes, bytearray))
     )
@@ -606,11 +611,13 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
 
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text_parts = []
+    page_texts: list[str] = []
     total_chars = 0
 
     try:
         for page in doc:
-            page_text = page.get_text()
+            page_text = page.get_text("text")
+            page_texts.append(page_text)
             if page_text.strip():
                 total_chars += len(page_text.strip())
                 text_parts.append(page_text)
@@ -622,10 +629,11 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     # If embedded text is sufficient, use it
     if total_chars > 50:
         return {
-            "text": "\n".join(text_parts),
+            "text": "\n".join(page_texts) if page_texts else "\n".join(text_parts),
             "pages": pages,
             "structured_data": None,
             "format": "PDF",
+            "page_texts": page_texts,
         }
 
     # Otherwise, convert pages to images and OCR
@@ -648,6 +656,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
                 "structured_data": None,
                 "format": "PDF_OCR",
                 "vision_image_bytes": vision_image_bytes,
+                "page_texts": ocr_texts,
             }
     except Exception as exc:
         logger.warning("PyMuPDF OCR fallback failed: %s", exc)
@@ -669,6 +678,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             "structured_data": None,
             "format": "PDF_OCR",
             "vision_image_bytes": vision_image_bytes,
+            "page_texts": ocr_texts,
         }
     except Exception as exc:
         logger.warning("pdf2image OCR fallback failed: %s", exc)

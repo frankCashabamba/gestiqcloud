@@ -18,5 +18,8 @@ INTERNAL_STRUCTURAL_KEYS: frozenset[str] = frozenset(
         "filas_por_hoja",
         "filas_por_hoja_count",
         "perfiles_hojas",
+        "line_item_page_groups",
+        "line_items_by_page",
+        "page_texts",
     }
 )

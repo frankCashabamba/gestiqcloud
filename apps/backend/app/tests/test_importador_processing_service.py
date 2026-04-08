@@ -125,3 +125,70 @@ $ 204.00
         "Headers: item | codigo | descripcion | unidad | cantidad | p. unitario | importe" in prompt
     )
     assert "1 | PRO-0050 | Aceite | ml | 60,000 ml | $ 0.0034 | $ 204.00" in prompt
+
+
+@pytest.mark.no_db
+def test_table_preview_groups_line_items_by_page():
+    page_1 = """
+Item
+Codigo
+Descripcion
+Unidad
+Cantidad
+P. Unitario
+Importe
+14
+PRO-0040
+Cocoa Amarga
+g
+45,000 g
+$ 0.0059
+$ 265.50
+""".strip()
+    page_2 = """
+Item
+Codigo
+Descripcion
+Unidad
+Cantidad
+P. Unitario
+Importe
+15
+PRO-0060
+Crema Chantilly
+g
+35,000 g
+$ 0.0042
+$ 147.00
+""".strip()
+
+    field_aliases = {
+        "supplier_ref": ["codigo"],
+        "description": ["descripcion"],
+        "unit": ["unidad"],
+        "quantity": ["cantidad"],
+        "unit_price": ["p. unitario"],
+        "total_price": ["importe"],
+    }
+
+    preview = extract_line_items_table_preview_from_text(
+        f"{page_1}\n\n{page_2}",
+        field_aliases,
+        page_texts=[page_1, page_2],
+    )
+
+    assert preview["headers"] == [
+        "item",
+        "codigo",
+        "descripcion",
+        "unidad",
+        "cantidad",
+        "p. unitario",
+        "importe",
+    ]
+    assert len(preview["line_item_page_groups"]) == 2
+    assert preview["line_item_page_groups"][0]["source_page"] == 1
+    assert preview["line_item_page_groups"][1]["source_page"] == 2
+    assert preview["line_item_page_groups"][0]["line_items"][0]["supplier_ref"] == "PRO-0040"
+    assert preview["line_item_page_groups"][1]["line_items"][0]["supplier_ref"] == "PRO-0060"
+    assert len(preview["line_items"]) == 2

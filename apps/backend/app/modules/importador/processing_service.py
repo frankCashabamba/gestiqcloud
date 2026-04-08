@@ -89,10 +89,51 @@ def _build_table_prompt_preview(
     ]
     headers_norm = [str(header).strip() for header in (table_preview.get("headers_norm") or [])]
     line_items = table_preview.get("line_items")
+    line_item_page_groups = table_preview.get("line_item_page_groups")
     if not headers or not isinstance(line_items, list) or not line_items:
         return ""
 
     rows: list[str] = ["Tabla detectada con headers preservados del OCR:"]
+    if isinstance(line_item_page_groups, list) and line_item_page_groups:
+        total_rows = 0
+        for group in line_item_page_groups:
+            if not isinstance(group, dict):
+                continue
+            group_headers = [
+                str(header).strip()
+                for header in (group.get("headers") or [])
+                if str(header).strip()
+            ]
+            group_headers_norm = [
+                str(header).strip() for header in (group.get("headers_norm") or [])
+            ]
+            page_label = str(group.get("source_page") or "").strip()
+            rows.append(f"Pagina {page_label or '?'}:")
+            if group_headers:
+                rows.append("Headers: " + " | ".join(group_headers))
+            group_items = group.get("line_items")
+            if not isinstance(group_items, list):
+                continue
+            for item in group_items:
+                if not isinstance(item, dict):
+                    continue
+                values: list[str] = []
+                extra_columns = (
+                    item.get("extra_columns") if isinstance(item.get("extra_columns"), dict) else {}
+                )
+                for raw_header, canonical_header in zip(group_headers, group_headers_norm):
+                    value = item.get(canonical_header)
+                    if value is None and isinstance(extra_columns, dict):
+                        value = extra_columns.get(raw_header)
+                    if value is None and raw_header in item:
+                        value = item.get(raw_header)
+                    values.append(str(value or ""))
+                rows.append(" | ".join(values))
+                total_rows += 1
+                if total_rows >= max_rows:
+                    return "\n".join(rows)
+        return "\n".join(rows)
+
     rows.append("Headers: " + " | ".join(headers))
 
     preview_rows = 0
@@ -485,6 +526,7 @@ async def _process_async_document(
                     text,
                     _field_aliases_for_pre,
                     pdf_config=load_pdf_table_parse_config(db),
+                    page_texts=extraction.get("page_texts"),
                 )
                 if table_preview:
                     preview_rows = max(1, int(processing_cfg.get("structured_preview_rows") or 5))
@@ -725,6 +767,7 @@ async def _process_async_document(
                 field_aliases=field_aliases,
                 amount_labels=amount_labels,
                 pdf_config=pdf_config,
+                page_texts=extraction.get("page_texts"),
             )
             if fallback_fields:
                 datos_extraidos = fallback_fields

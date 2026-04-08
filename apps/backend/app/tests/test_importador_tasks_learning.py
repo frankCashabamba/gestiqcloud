@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.importador import IcuRecipeSnapshot, ImpDocumento
 from app.modules.importador.auto_recipe import resolve_auto_recipe_from_text
 from app.modules.importador.tasks import _run_processing
+
+pytestmark = pytest.mark.usefixtures("requires_postgres")
 
 
 class _SessionFactory:

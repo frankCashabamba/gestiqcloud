@@ -37,6 +37,14 @@ type ActivityItem = {
   note?: string
 }
 
+type LineItemPageGroup = {
+  source_page: number
+  header_index?: number
+  headers: string[]
+  headers_norm: string[]
+  line_items: Record<string, unknown>[]
+}
+
 // EditableLineItem es dinámico: slot → value
 type EditableLineItem = Record<string, string>
 
@@ -114,6 +122,58 @@ function LineItemsPreview({ items, slots, title, subtitle }: {
       </table>
     </div>
   )
+}
+
+function normalizeLineItemPageGroups(data: Record<string, unknown>): LineItemPageGroup[] {
+  const rawGroups = data.line_item_page_groups
+  if (Array.isArray(rawGroups)) {
+    const groups = rawGroups
+      .map((group, index): LineItemPageGroup | null => {
+        if (!group || typeof group !== 'object' || Array.isArray(group)) return null
+        const payload = group as Record<string, unknown>
+        const items = Array.isArray(payload.line_items)
+          ? payload.line_items.filter((item): item is Record<string, unknown> => (
+              Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+            ))
+          : []
+        if (items.length === 0) return null
+        const rawPage = Number(payload.source_page ?? index + 1)
+        const sourcePage = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : index + 1
+        return {
+          source_page: sourcePage,
+          header_index: Number.isFinite(Number(payload.header_index))
+            ? Math.max(0, Math.floor(Number(payload.header_index)))
+            : undefined,
+          headers: Array.isArray(payload.headers)
+            ? payload.headers.map(String).filter(Boolean)
+            : [],
+          headers_norm: Array.isArray(payload.headers_norm)
+            ? payload.headers_norm.map(String).filter(Boolean)
+            : [],
+          line_items: items,
+        }
+      })
+      .filter((group): group is LineItemPageGroup => Boolean(group))
+
+    if (groups.length > 0) {
+      return groups.sort((left, right) => left.source_page - right.source_page)
+    }
+  }
+
+  const fallbackItems = Array.isArray(data.line_items)
+    ? data.line_items.filter((item): item is Record<string, unknown> => (
+        Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+      ))
+    : []
+  if (fallbackItems.length === 0) return []
+  return [
+    {
+      source_page: 1,
+      headers: [],
+      headers_norm: [],
+      line_items: fallbackItems,
+    },
+  ]
 }
 
 function summarizeLogDetail(action: string, detail: Record<string, unknown> | null | undefined): string | undefined {
@@ -1309,14 +1369,34 @@ export default function DocumentDetail() {
                       </tbody>
                     </table>
                     {(() => {
-                      const items = datos['line_items'] as unknown[] | undefined
-                      if (!Array.isArray(items) || items.length === 0 || isAssistedLines) return null
+                      if (isAssistedLines) return null
+                      const pageGroups = normalizeLineItemPageGroups(datos as Record<string, unknown>)
+                      if (pageGroups.length === 0) return null
+                      const hasExplicitGroups = Array.isArray((datos as Record<string, unknown>).line_item_page_groups)
+                      if (!hasExplicitGroups && pageGroups.length === 1) {
+                        const items = pageGroups[0].line_items
+                        return (
+                          <LineItemsPreview
+                            items={items}
+                            slots={lineItemSlots}
+                            title={`Detalle (${items.length})`}
+                          />
+                        )
+                      }
                       return (
-                        <LineItemsPreview
-                          items={items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))}
-                          slots={lineItemSlots}
-                          title={`Detalle (${items.length})`}
-                        />
+                        <div style={{ display: 'grid', gap: '0.75rem' }}>
+                          {pageGroups.map((group) => (
+                            <LineItemsPreview
+                              key={`page-${group.source_page}`}
+                              items={group.line_items}
+                              slots={lineItemSlots}
+                              title={`Página ${group.source_page} · Detalle (${group.line_items.length})`}
+                              subtitle={group.headers.length > 0
+                                ? `Encabezados: ${group.headers.join(' · ')}`
+                                : undefined}
+                            />
+                          ))}
+                        </div>
                       )
                     })()}
                   </>

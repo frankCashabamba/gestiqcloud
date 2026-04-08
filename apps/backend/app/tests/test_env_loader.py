@@ -8,13 +8,11 @@ def test_load_env_file_layers_env_local_and_env(tmp_path):
     root_path = tmp_path / ".env"
 
     local_path.write_text(
-        "LOCAL_ONLY=from-local\n"
-        "SHARED=value-from-local\n",
+        "LOCAL_ONLY=from-local\n" "SHARED=value-from-local\n",
         encoding="utf-8",
     )
     root_path.write_text(
-        "ROOT_ONLY=from-root\n"
-        "SHARED=value-from-root\n",
+        "ROOT_ONLY=from-root\n" "SHARED=value-from-root\n",
         encoding="utf-8",
     )
 

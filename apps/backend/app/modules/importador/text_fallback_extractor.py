@@ -33,6 +33,15 @@ def _prepare_lines(ocr_text: str) -> list[str]:
     return [line for line in ocr_text.splitlines() if line.strip()]
 
 
+def _effective_page_texts(ocr_text: str, page_texts: list[str] | None) -> list[str]:
+    """Return a per-page text list when available, otherwise a single-document fallback."""
+    if isinstance(page_texts, list) and page_texts:
+        normalized = [str(text or "") for text in page_texts]
+        if any(text.strip() for text in normalized):
+            return normalized
+    return [ocr_text]
+
+
 def _parse_date(raw: str) -> str | None:
     """Parse common date formats into YYYY-MM-DD.  Returns None on failure."""
     raw = raw.strip()[:30]
@@ -273,6 +282,7 @@ def extract_fields_from_text(
     field_aliases: dict[str, list[str]],
     amount_labels: dict[str, list[str]],
     pdf_config: dict | None = None,
+    page_texts: list[str] | None = None,
 ) -> dict[str, Any]:
     """Extract fields from OCR text using DB-configured labels and types.
 
@@ -286,6 +296,7 @@ def extract_fields_from_text(
         field_aliases:    {field_name: [alias, ...]} from imp_field_alias.
         amount_labels:    {field_name: [label, ...]} from imp_config amount_label_config.
         pdf_config:       Config de parseo de tablas PDF desde load_pdf_table_parse_config(db).
+        page_texts:       OCR text split by page when the extractor can preserve it.
 
     Returns:
         Dict of extracted fields compatible with datos_extraidos.
@@ -315,18 +326,24 @@ def extract_fields_from_text(
             result[field_name] = best
 
     # Extract line_items from tabular OCR text
-    line_items = _extract_line_items_from_text(
-        lines, lines_norm, field_aliases, pdf_config=pdf_config
+    effective_pages = _effective_page_texts(ocr_text, page_texts)
+    line_items, line_item_page_groups = _extract_line_items_by_page_from_text(
+        effective_pages,
+        field_aliases,
+        pdf_config=pdf_config,
     )
     if line_items:
         result["line_items"] = line_items
+    if line_item_page_groups:
+        result["line_item_page_groups"] = line_item_page_groups
 
     if result:
+        logged_keys = [key for key in result if key not in {"line_items", "line_item_page_groups"}]
         logger.info(
             "Text fallback extracted %d fields (line_items=%d): %s",
-            len(result),
+            len(logged_keys),
             len(line_items) if line_items else 0,
-            [k for k in result if k != "line_items"],
+            logged_keys,
         )
 
     return result
@@ -336,6 +353,7 @@ def extract_line_items_table_preview_from_text(
     ocr_text: str,
     field_aliases: dict[str, list[str]],
     pdf_config: dict | None = None,
+    page_texts: list[str] | None = None,
 ) -> dict[str, Any]:
     """Return detected line-item table metadata from OCR text.
 
@@ -345,31 +363,75 @@ def extract_line_items_table_preview_from_text(
     if not ocr_text or not ocr_text.strip():
         return {}
 
-    lines = _prepare_lines(ocr_text)
-    if not lines:
-        return {}
-
-    lines_norm = [_normalize_label(line) for line in lines]
-    header_info = _find_table_header(lines_norm, field_aliases)
-    if not header_info:
-        return {}
-
-    header_idx, matched_fields, column_names = header_info
-    line_items = _extract_line_items_from_text(
-        lines,
-        lines_norm,
+    effective_pages = _effective_page_texts(ocr_text, page_texts)
+    line_items, line_item_page_groups = _extract_line_items_by_page_from_text(
+        effective_pages,
         field_aliases,
         pdf_config=pdf_config,
     )
     if not line_items:
         return {}
 
+    first_group = next((group for group in line_item_page_groups if group.get("line_items")), None)
+    if first_group is None:
+        return {}
+    header_idx = int(first_group.get("header_index") or 0)
+    matched_fields = first_group.get("headers_norm") or []
+    column_names = first_group.get("headers") or []
+
     return {
         "header_index": header_idx,
         "headers": column_names,
         "headers_norm": matched_fields,
         "line_items": line_items,
+        "line_item_page_groups": line_item_page_groups,
     }
+
+
+def _extract_line_items_by_page_from_text(
+    page_texts: list[str],
+    field_aliases: dict[str, list[str]],
+    pdf_config: dict | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Extract line items page by page so the caller can preserve source-page evidence."""
+    flat_items: list[dict[str, Any]] = []
+    page_groups: list[dict[str, Any]] = []
+
+    for page_number, page_text in enumerate(page_texts, start=1):
+        if not page_text or not str(page_text).strip():
+            continue
+
+        lines = _prepare_lines(str(page_text))
+        if not lines:
+            continue
+
+        lines_norm = [_normalize_label(line) for line in lines]
+        header_info = _find_table_header(lines_norm, field_aliases)
+        if not header_info:
+            continue
+
+        header_idx, matched_fields, column_names = header_info
+        page_line_items = _extract_line_items_from_text(
+            lines,
+            lines_norm,
+            field_aliases,
+            pdf_config=pdf_config,
+        )
+        if not page_line_items:
+            continue
+
+        page_groups.append(
+            {
+                "source_page": page_number,
+                "header_index": header_idx,
+                "headers": column_names,
+                "headers_norm": matched_fields,
+                "line_items": page_line_items,
+            }
+        )
+        flat_items.extend(page_line_items)
+
+    return flat_items, page_groups
 
 
 # ---------------------------------------------------------------------------
@@ -431,10 +493,20 @@ def _find_table_header(
         canonical = reverse.get(token)
         if not canonical:
             continue
+        start_idx = i
+        for j in range(i - 1, max(-1, i - 4), -1):
+            prev_token = lines_norm[j].strip()
+            if not prev_token:
+                break
+            if reverse.get(prev_token):
+                break
+            if len(prev_token.split()) > 2 or re.search(r"\d", prev_token):
+                break
+            start_idx = j
         # Look ahead for more consecutive header-like lines
-        header_fields: list[str] = [canonical]
-        header_names: list[str] = [token]
-        for j in range(i + 1, min(i + 15, len(lines_norm))):
+        header_fields: list[str] = []
+        header_names: list[str] = []
+        for j in range(start_idx, min(start_idx + 15, len(lines_norm))):
             next_token = lines_norm[j].strip()
             next_canonical = reverse.get(next_token)
             if next_canonical:
@@ -451,7 +523,7 @@ def _find_table_header(
                 header_names,
                 reverse_prio,
             )
-            return i, header_fields, header_names
+            return start_idx, header_fields, header_names
 
     return None
 
@@ -545,14 +617,17 @@ def _is_vertical_layout(lines: list[str], data_start: int, num_cols: int) -> boo
         return False
     # In vertical layout, most data lines are short single values
     single_value_count = 0
+    inspected_count = 0
     for i in range(data_start, min(data_start + num_cols * 2, len(lines))):
         line = lines[i].strip()
         if not line:
             continue
+        inspected_count += 1
         tokens = re.split(r"\s{2,}|\t+", line)
         if len(tokens) <= 1:
             single_value_count += 1
-    return single_value_count >= num_cols
+    required_single_value_count = max(2, int(round(num_cols * 0.7)))
+    return inspected_count > 0 and single_value_count >= required_single_value_count
 
 
 def _is_footer_line(line_norm: str, footer_patterns: list[re.Pattern]) -> bool:
