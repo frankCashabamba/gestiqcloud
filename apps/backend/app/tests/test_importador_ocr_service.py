@@ -218,7 +218,7 @@ def test_extract_pdf_uses_configured_dpi(monkeypatch):
         samples = bytes([255, 255, 255] * 4)
 
     class FakePage:
-        def get_text(self):
+        def get_text(self, *args, **kwargs):
             return ""
 
         def get_pixmap(self, dpi=300):

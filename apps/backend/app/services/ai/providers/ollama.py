@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 from typing import Any
 
@@ -38,6 +39,31 @@ def _coerce_positive_int(value: Any, default: int) -> int:
         return max(1, int(str(value).strip()))
     except (TypeError, ValueError, AttributeError):
         return default
+
+
+def _coerce_positive_float(value: Any, default: float) -> float:
+    try:
+        return max(0.0, float(str(value).strip()))
+    except (TypeError, ValueError, AttributeError):
+        return default
+
+
+def _model_parameter_size_b(model: str) -> float | None:
+    """Best-effort parse of Ollama model size from the tag name."""
+    normalized = model_name(model).lower()
+    match = re.search(r":(\d+(?:\.\d+)?)([bm])(?:$|[^a-z0-9])", normalized)
+    if not match:
+        return None
+    size = float(match.group(1))
+    unit = match.group(2)
+    if unit == "m":
+        return size / 1000.0
+    return size
+
+
+def _is_non_extraction_model(model: str) -> bool:
+    normalized = model_name(model).lower()
+    return ":cloud" in normalized or "embed" in normalized
 
 
 def _get_ollama_semaphore(base_url: str, max_concurrency: int) -> asyncio.Semaphore:
@@ -98,25 +124,11 @@ class OllamaProvider(BaseAIProvider):
             )
             _logged_concurrency_configs.add(config_key)
 
-    def _resolve_explicit_extraction_model(self) -> str | None:
+    def _resolve_explicit_extraction_model(self, available: set[str]) -> str | None:
         """Allow forcing a specific extraction model through config or env."""
         override = model_name(os.getenv("OLLAMA_EXTRACTION_MODEL"))
-        if override:
-            try:
-                available = set(self._get_available_models(timeout=3.0))
-            except Exception:
-                available = set()
-            if not available or override in available:
-                return override
-
-        configured = model_name(self.default_model)
-        if configured and configured not in {AIModel.QWEN2_5_3B.value, "qwen2.5-coder:3b"}:
-            try:
-                available = set(self._get_available_models(timeout=3.0))
-            except Exception:
-                available = set()
-            if not available or configured in available:
-                return configured
+        if override and (not available or override in available):
+            return override
         return None
 
     def _get_available_models(self, timeout: float = 3.0) -> list[str]:
@@ -279,43 +291,95 @@ class OllamaProvider(BaseAIProvider):
             _health_cache[self.base_url] = (now, False)
             return False
 
+    def _extract_model_candidates(self, available_models: list[str]) -> list[tuple[float, str]]:
+        candidates: list[tuple[float, str]] = []
+        for model in available_models:
+            if _is_non_extraction_model(model):
+                continue
+            size_b = _model_parameter_size_b(model)
+            if size_b is None:
+                continue
+            candidates.append((size_b, model))
+        return candidates
+
+    def _best_extraction_model(self, available_models: list[str] | None = None) -> str | None:
+        """Find the safest locally available model for document extraction.
+
+        Preference order:
+        1. Highest-capacity model that is still within the configured safety limit.
+        2. If nothing fits under the safety limit, the smallest available candidate.
+        """
+        try:
+            available = available_models or self._get_available_models(timeout=3.0)
+            candidates = self._extract_model_candidates(available)
+            if not candidates:
+                return None
+
+            safe_limit_b = _coerce_positive_float(
+                os.getenv("OLLAMA_EXTRACTION_MAX_PARAMETER_SIZE_B"),
+                3.0,
+            )
+            safe_candidates = [item for item in candidates if item[0] <= safe_limit_b]
+            if safe_candidates:
+                best_size_b, best_model = max(safe_candidates, key=lambda item: (item[0], item[1]))
+                logger.info(
+                    "Using %s for extraction (size=%.1fB within safe limit %.1fB)",
+                    best_model,
+                    best_size_b,
+                    safe_limit_b,
+                )
+                return best_model
+
+            smallest_size_b, best_model = min(candidates, key=lambda item: (item[0], item[1]))
+            logger.info(
+                "Using %s for extraction (smallest available; size=%.1fB exceeds safe limit %.1fB)",
+                best_model,
+                smallest_size_b,
+                safe_limit_b,
+            )
+            return best_model
+        except Exception:
+            return None
+
     def get_default_model(self, task: AITask) -> str:
         """Modelo por defecto para Ollama.
 
-        Para tareas de extracción, intenta usar un modelo más capaz si está disponible.
+        Para tareas de extracción, usa primero un override explícito y luego
+        el mejor modelo local que siga dentro del límite seguro configurado.
         Para otras tareas, usa el modelo configurado por entorno.
         """
         configured = model_name(self.default_model)
         if task == AITask.EXTRACTION:
-            explicit = self._resolve_explicit_extraction_model()
+            try:
+                available_models = self._get_available_models(timeout=3.0)
+            except Exception:
+                available_models = []
+            available_set = set(available_models)
+
+            explicit = self._resolve_explicit_extraction_model(available_set)
             if explicit:
                 return explicit
-            extraction_model = self._best_extraction_model()
+
+            if configured and configured in available_set:
+                configured_size_b = _model_parameter_size_b(configured)
+                safe_limit_b = _coerce_positive_float(
+                    os.getenv("OLLAMA_EXTRACTION_MAX_PARAMETER_SIZE_B"),
+                    3.0,
+                )
+                if configured_size_b is None or configured_size_b <= safe_limit_b:
+                    logger.info(
+                        "Using configured Ollama model %s for extraction (size=%s)",
+                        configured,
+                        f"{configured_size_b:.1f}B" if configured_size_b is not None else "unknown",
+                    )
+                    return configured
+
+            extraction_model = self._best_extraction_model(available_models)
             if extraction_model:
                 return extraction_model
         if configured:
             return configured
         return AIModel.QWEN2_5_3B.value
-
-    def _best_extraction_model(self) -> str | None:
-        """Find the best locally available model for document extraction."""
-        preferred = [
-            "qwen3-coder:latest",
-            "qwen2.5-coder:14b",
-            "qwen2.5-coder:7b",
-            "qwen2.5-coder:3b",
-            "qwen2.5-coder:1.5b",
-            "qwen2.5-coder:0.5b",
-        ]
-        try:
-            available = set(self._get_available_models(timeout=3.0))
-            for pref in preferred:
-                if pref in available:
-                    logger.info("Using %s for extraction (better than default)", pref)
-                    return pref
-        except Exception:
-            pass
-        return None
 
     def get_supported_models(self) -> list[AIModel]:
         """Modelos soportados historicamente por esta app para Ollama."""

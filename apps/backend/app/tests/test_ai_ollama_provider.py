@@ -100,27 +100,31 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
     ]
 
 
-def test_ollama_provider_prefers_stronger_extraction_models(monkeypatch):
+def test_ollama_provider_prefers_safest_available_extraction_model(monkeypatch):
     provider = OllamaProvider(
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "qwen2.5-coder:3b",
+            "model": "qwen2.5-coder:14b",
             "max_concurrency": "1",
         }
     )
 
+    monkeypatch.setenv("OLLAMA_EXTRACTION_MAX_PARAMETER_SIZE_B", "3")
     monkeypatch.setattr(
         provider,
         "_get_available_models",
         lambda timeout=3.0: [
-            "qwen2.5-coder:3b",
+            "minicpm-v:latest",
             "qwen2.5-coder:14b",
-            "qwen3-coder:latest",
+            "qwen3:8b",
+            "qwen2.5-coder:1.5b",
+            "qwen2.5-coder:0.5b",
+            "glm-4.7:cloud",
         ],
     )
 
-    assert provider.get_default_model(AITask.EXTRACTION) == "qwen3-coder:latest"
+    assert provider.get_default_model(AITask.EXTRACTION) == "qwen2.5-coder:1.5b"
 
 
 def test_ollama_provider_respects_explicit_extraction_model_override(monkeypatch):

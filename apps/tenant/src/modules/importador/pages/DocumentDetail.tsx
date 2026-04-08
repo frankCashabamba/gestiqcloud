@@ -124,7 +124,100 @@ function LineItemsPreview({ items, slots, title, subtitle }: {
   )
 }
 
-function normalizeLineItemPageGroups(data: Record<string, unknown>): LineItemPageGroup[] {
+function resolveGroupCellValue(
+  item: Record<string, unknown>,
+  rawHeader: string,
+  canonicalHeader: string,
+): unknown {
+  const extraColumns = (
+    item.extra_columns && typeof item.extra_columns === 'object' && !Array.isArray(item.extra_columns)
+      ? item.extra_columns as Record<string, unknown>
+      : null
+  )
+
+  const canonicalKey = String(canonicalHeader || '').trim()
+  if (canonicalKey) {
+    const canonicalValue = item[canonicalKey]
+    if (canonicalValue != null && String(canonicalValue).trim() !== '') return canonicalValue
+  }
+
+  const rawKey = String(rawHeader || '').trim()
+  if (rawKey && rawKey in item) {
+    const rawValue = item[rawKey]
+    if (rawValue != null && String(rawValue).trim() !== '') return rawValue
+  }
+
+  if (extraColumns && rawKey && rawKey in extraColumns) {
+    const extraValue = extraColumns[rawKey]
+    if (extraValue != null && String(extraValue).trim() !== '') return extraValue
+  }
+
+  return canonicalKey ? item[canonicalKey] : undefined
+}
+
+function isGroupedNumericColumn(rawHeader: string, canonicalHeader: string): boolean {
+  const normalized = String(canonicalHeader || rawHeader || '').trim().toLowerCase()
+  return ['quantity', 'unit_price', 'total_price'].includes(normalized)
+    || /(?:cantidad|precio|importe|total|unitario)/i.test(String(rawHeader || ''))
+}
+
+function GroupedLineItemsPreview({ group }: { group: LineItemPageGroup }) {
+  const columns = group.headers.map((header, index) => ({
+    label: header,
+    canonical: group.headers_norm[index] || '',
+  }))
+
+  if (group.line_items.length === 0 || columns.length === 0) return null
+
+  return (
+    <div style={{ marginTop: '0.75rem' }}>
+      <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 6 }}>
+        Página {group.source_page} · Detalle ({group.line_items.length})
+      </div>
+      <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
+        Encabezados: {group.headers.join(' · ')}
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: '#f9fafb' }}>
+            {columns.map((column) => (
+              <th
+                key={`${column.label}-${column.canonical}`}
+                style={{
+                  padding: '0.3rem 0.5rem',
+                  textAlign: isGroupedNumericColumn(column.label, column.canonical) ? 'right' : 'left',
+                  color: '#374151',
+                }}
+              >
+                {column.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {group.line_items.map((item, index) => (
+            <tr key={`group-${group.source_page}-${index}`} style={{ borderTop: '1px solid #e5e7eb' }}>
+              {columns.map((column) => (
+                <td
+                  key={`${column.label}-${column.canonical}`}
+                  style={{
+                    padding: '0.3rem 0.5rem',
+                    textAlign: isGroupedNumericColumn(column.label, column.canonical) ? 'right' : 'left',
+                    color: '#111827',
+                  }}
+                >
+                  {formatLineCellValue(resolveGroupCellValue(item, column.label, column.canonical))}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function normalizeLineItemPageGroups(data: Record<string, unknown>): LineItemPageGroup[] {
   const rawGroups = data.line_item_page_groups
   if (Array.isArray(rawGroups)) {
     const groups = rawGroups
@@ -145,10 +238,10 @@ function normalizeLineItemPageGroups(data: Record<string, unknown>): LineItemPag
             ? Math.max(0, Math.floor(Number(payload.header_index)))
             : undefined,
           headers: Array.isArray(payload.headers)
-            ? payload.headers.map(String).filter(Boolean)
+            ? payload.headers.map((value) => String(value ?? '').trim())
             : [],
           headers_norm: Array.isArray(payload.headers_norm)
-            ? payload.headers_norm.map(String).filter(Boolean)
+            ? payload.headers_norm.map((value) => String(value ?? '').trim())
             : [],
           line_items: items,
         }
@@ -1386,14 +1479,9 @@ export default function DocumentDetail() {
                       return (
                         <div style={{ display: 'grid', gap: '0.75rem' }}>
                           {pageGroups.map((group) => (
-                            <LineItemsPreview
+                            <GroupedLineItemsPreview
                               key={`page-${group.source_page}`}
-                              items={group.line_items}
-                              slots={lineItemSlots}
-                              title={`Página ${group.source_page} · Detalle (${group.line_items.length})`}
-                              subtitle={group.headers.length > 0
-                                ? `Encabezados: ${group.headers.join(' · ')}`
-                                : undefined}
+                              group={group}
                             />
                           ))}
                         </div>
