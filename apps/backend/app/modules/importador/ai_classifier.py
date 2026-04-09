@@ -11,14 +11,17 @@ import unicodedata
 from typing import Any
 
 from app.modules.importador.runtime_config import (
+    _DEFAULT_OCR_CONFIG,
     load_ai_model_routing,
     load_ai_params,
     load_ai_runtime_config,
     load_doc_type_patterns,
     load_prompt_config,
+    load_ocr_runtime_config,
     load_reprocess_control,
     load_tax_id_patterns_config,
 )
+from app.modules.importador.document_fields import safe_floatish
 from app.services.ai.base import AITask, model_name
 from app.services.ai.service import AIService
 
@@ -848,6 +851,20 @@ def _extract_amount_candidates_from_line(line: str) -> list[float]:
     return candidates
 
 
+def _looks_like_date_context(line: str) -> bool:
+    normalized = str(line or "").lower()
+    if not normalized:
+        return False
+    if re.search(r"\b20\d{2}[-/]\d{2}[-/]\d{2}", normalized):
+        return True
+    if re.search(r"\b\d{1,2}[:/]\d{2}(:\d{2})?", normalized):
+        return True
+    if "fecha" in normalized or "emision" in normalized or "autorizacion" in normalized:
+        if re.search(r"\b20\d{2}\b", normalized):
+            return True
+    return False
+
+
 def _extract_money_like_amounts_from_line(line: str) -> list[float]:
     candidates: list[float] = []
     combined_matches = list(re.finditer(r"(?<![\d,.])(\d{1,6})\s+(\d{2})(?![\d,.])", line))
@@ -943,10 +960,18 @@ def _extract_labeled_amount(
                 lookahead = " ".join(str(lookahead).split()).strip()
                 if not lookahead:
                     continue
+                if _looks_like_date_context(lookahead):
+                    continue
                 amount_candidates = _extract_amount_candidates_from_line(lookahead)
                 if amount_candidates:
                     break
         for amount in reversed(amount_candidates):
+            if (
+                field_name == "tax_amount"
+                and float(amount).is_integer()
+                and 1900 <= float(amount) <= 2100
+            ):
+                continue
             candidates.append(amount)
             break
 
@@ -1066,6 +1091,482 @@ def _extract_tax_id_from_ocr(content: str) -> str | None:
     return None
 
 
+def _normalize_invoice_ocr_line(
+    line: str,
+    *,
+    ocr_runtime: dict[str, Any] | None = None,
+) -> str:
+    text = str(line or "").replace("\xa0", " ")
+    cfg = ocr_runtime or load_ocr_runtime_config(None)
+    cleanup_patterns = [
+        str(pattern).strip()
+        for pattern in (cfg.get("line_cleanup_patterns") or [])
+        if str(pattern).strip()
+    ]
+    for pattern in cleanup_patterns:
+        text = re.sub(pattern, " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def _runtime_normalized_text_set(
+    cfg: dict[str, Any],
+    key: str,
+    defaults: list[str],
+) -> set[str]:
+    values = cfg.get(key) or defaults
+    return {
+        _normalize_evidence_text(value)
+        for value in values
+        if str(value).strip()
+    }
+
+
+def _runtime_regex_patterns(
+    cfg: dict[str, Any],
+    key: str,
+    defaults: list[str],
+    *,
+    flags: int = 0,
+) -> list[re.Pattern[str]]:
+    patterns = cfg.get(key) or defaults
+    compiled: list[re.Pattern[str]] = []
+    for pattern in patterns:
+        raw = str(pattern or "").strip()
+        if not raw:
+            continue
+        try:
+            compiled.append(re.compile(raw, flags))
+        except re.error as exc:
+            logger.warning("Ignoring invalid OCR regex for %s: %s (%s)", key, raw, exc)
+    return compiled
+
+
+def _normalize_invoice_description(description: str, *, text_normalized: str) -> str | None:
+    cleaned = " ".join(str(description or "").split()).strip(" -–—|/.,;:()[]{}")
+    if not cleaned:
+        return None
+
+    candidate = cleaned
+    tokens = candidate.split()
+    if not tokens:
+        return None
+
+    first = tokens[0].strip(" -–—|/.,;:()[]{}")
+    variants = [first]
+    if len(first) > 4:
+        variants.extend(
+            [
+                first[1:],
+                first.lstrip("Ii"),
+                first[1:].lstrip("Ii"),
+            ]
+        )
+
+    for variant in variants:
+        variant = variant.strip(" -–—|/.,;:()[]{}")
+        if len(variant) < 3:
+            continue
+        rebuilt = " ".join([variant, *tokens[1:]]).strip()
+        rebuilt_normalized = _normalize_evidence_text(rebuilt)
+        if rebuilt_normalized and rebuilt_normalized in text_normalized:
+            return rebuilt
+
+    if len(tokens) > 1:
+        rebuilt = " ".join(tokens[1:]).strip()
+        rebuilt_normalized = _normalize_evidence_text(rebuilt)
+        if rebuilt_normalized and rebuilt_normalized in text_normalized:
+            return rebuilt
+
+    first_token = tokens[0].strip(" -–—|/.,;:()[]{}")
+    if (
+        len(first_token) > 4
+        and first_token[:1].lower() == "i"
+        and first_token[1:].isalpha()
+    ):
+        rebuilt = " ".join([first_token[1:], *tokens[1:]]).strip()
+        return rebuilt
+
+    candidate_normalized = _normalize_evidence_text(candidate)
+    if candidate_normalized and candidate_normalized in text_normalized:
+        return candidate
+
+    return candidate
+
+
+def _normalize_invoice_description_strict(description: str) -> str | None:
+    cleaned = " ".join(str(description or "").split()).strip(" -_/.,;:()[]{}")
+    if not cleaned:
+        return None
+    tokens = cleaned.split()
+    if not tokens:
+        return None
+    first = tokens[0].strip(" -_/.,;:()[]{}")
+    if len(first) > 4 and first[:1].lower() == "i" and first[1:].isalpha():
+        return " ".join([first[1:], *tokens[1:]]).strip()
+    return cleaned
+
+
+def _extract_invoice_doc_number_from_ocr(
+    content: str,
+    *,
+    ocr_runtime: dict[str, Any] | None = None,
+) -> str | None:
+    text = str(content or "")
+    if not text:
+        return None
+
+    lines = [str(line).strip() for line in text.splitlines() if str(line).strip()]
+    keyword_patterns = [
+        re.compile(
+            r"\b(?:factura|invoice|boleta|nota de venta|comprobante|documento|n[úu]m(?:ero|ero)|numero|nro\.?|no\.?)\b"
+            r"[^\w]{0,20}"
+            r"((?:\d{3}\s*[-/ ]\s*){2}\d{3,15}|[A-Z]{1,8}[-/]?\d{3,}[-/]?\d*)",
+            re.IGNORECASE,
+        ),
+        re.compile(r"\b(\d{3}\s*[-/ ]\s*\d{3}\s*[-/ ]\s*\d{6,})\b"),
+    ]
+
+    cfg = ocr_runtime or load_ocr_runtime_config(None)
+    keyword_patterns = _runtime_regex_patterns(
+        cfg,
+        "invoice_doc_number_keyword_patterns",
+        list(_DEFAULT_OCR_CONFIG["invoice_doc_number_keyword_patterns"]),
+        flags=re.IGNORECASE,
+    )
+    context_tokens = _runtime_normalized_text_set(
+        cfg,
+        "invoice_doc_number_context_tokens",
+        list(_DEFAULT_OCR_CONFIG["invoice_doc_number_context_tokens"]),
+    )
+
+    for line in lines[:20]:
+        normalized_line = _normalize_invoice_ocr_line(line, ocr_runtime=ocr_runtime)
+        if not normalized_line:
+            continue
+        normalized_line_norm = _normalize_evidence_text(normalized_line)
+        if not any(token in normalized_line_norm for token in context_tokens):
+            continue
+        for pattern in keyword_patterns:
+            match = pattern.search(normalized_line)
+            if not match:
+                continue
+            candidate = str(match.group(1) or "").strip()
+            if not candidate:
+                continue
+            candidate = re.sub(r"\s*[-/ ]\s*", "-", candidate)
+            candidate = re.sub(r"-{2,}", "-", candidate).strip("-")
+            if len(candidate) >= 6:
+                return candidate
+
+    fallback_patterns = [
+        re.compile(r"\b(\d{3}[-/]\d{3}[-/]\d{6,})\b"),
+        re.compile(r"\b(\d{3}\s*[-/ ]?\s*\d{3}\s*[-/ ]?\s*\d{6,})\b"),
+        re.compile(r"\b([A-Z]{1,8}[-/]\d{3,}[-/]\d{3,})\b"),
+    ]
+    fallback_patterns = _runtime_regex_patterns(
+        cfg,
+        "invoice_doc_number_fallback_patterns",
+        list(_DEFAULT_OCR_CONFIG["invoice_doc_number_fallback_patterns"]),
+    )
+    for pattern in fallback_patterns:
+        match = pattern.search(text)
+        if match:
+            candidate = str(match.group(1) or "").strip()
+            candidate = re.sub(r"\s*[-/ ]\s*", "-", candidate)
+            candidate = re.sub(r"-{2,}", "-", candidate).strip("-")
+            digits = _digits_only(candidate)
+            if len(digits) >= 12 and digits.startswith("001001"):
+                candidate = f"001-001-{digits[6:]}"
+            if len(candidate) >= 6:
+                return candidate
+    return None
+
+
+def _extract_vendor_name_from_ocr(
+    content: str,
+    *,
+    ocr_runtime: dict[str, Any] | None = None,
+) -> str | None:
+    text = str(content or "")
+    if not text:
+        return None
+
+    lines = [str(line).strip() for line in text.splitlines() if str(line).strip()]
+    if not lines:
+        return None
+
+    stop_norms = {
+        "datos del cliente",
+        "razon social",
+        "razon social / nombres y apellidos",
+        "nombres y apellidos",
+        "cliente",
+        "vendedor",
+        "ruc",
+        "c.i",
+        "direccion",
+        "telefono",
+        "email",
+        "correo",
+        "forma de pago",
+        "fecha de emision",
+        "fecha vencimiento",
+        "subtotal",
+        "total",
+        "iva",
+        "descuentos",
+        "ambiente",
+        "emision",
+        "autorizacion",
+        "producto",
+    }
+    cfg = ocr_runtime or load_ocr_runtime_config(None)
+    stop_norms = _runtime_normalized_text_set(
+        cfg,
+        "invoice_vendor_stop_tokens",
+        list(_DEFAULT_OCR_CONFIG["invoice_vendor_stop_tokens"]),
+    )
+    suffix_patterns = _runtime_regex_patterns(
+        cfg,
+        "invoice_vendor_suffix_patterns",
+        list(_DEFAULT_OCR_CONFIG["invoice_vendor_suffix_patterns"]),
+        flags=re.IGNORECASE,
+    )
+    ruc_index = next(
+        (
+            idx
+            for idx, line in enumerate(lines[:20])
+            if re.search(r"\b(?:ruc|nit|cif|rfc)\b", _normalize_evidence_text(line))
+        ),
+        None,
+    )
+
+    search_limit = min(len(lines), (ruc_index if ruc_index is not None else 10) + 2)
+    candidates: list[tuple[float, str]] = []
+    for idx, line in enumerate(lines[:search_limit]):
+        clean = _normalize_invoice_ocr_line(line, ocr_runtime=cfg)
+        if not clean:
+            continue
+        prefix = re.split(r"\d", clean, 1)[0].strip(" ,;:-")
+        working = prefix if prefix and any(pattern.search(prefix) for pattern in suffix_patterns) else clean
+        normalized = _normalize_evidence_text(working)
+        if any(stop in normalized for stop in stop_norms):
+            continue
+
+        alpha_words = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}", working)
+        if len(alpha_words) < 2:
+            continue
+        if sum(1 for ch in working if ch.isdigit()) > 3 and not any(
+            pattern.search(working) for pattern in suffix_patterns
+        ):
+            continue
+
+        score = float(len(alpha_words))
+        if any(pattern.search(working) for pattern in suffix_patterns):
+            score += 6.0
+        if working.upper() == working:
+            score += 1.5
+        if ruc_index is not None and idx == max(0, ruc_index - 1):
+            score += 3.0
+        if idx <= 3:
+            score += 1.0
+        if "cliente" in normalized:
+            score -= 4.0
+        candidates.append((score, working))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def _extract_invoice_line_items_from_ocr(
+    content: str,
+    *,
+    ocr_runtime: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    text = str(content or "")
+    if not text:
+        return []
+
+    text_normalized = _normalize_evidence_text(text)
+    lines = [str(line).strip() for line in text.splitlines() if str(line).strip()]
+    if not lines:
+        return []
+
+    skip_markers = {
+        "subtotal",
+        "subtotal sin impuestos",
+        "sub total",
+        "iva",
+        "descuento",
+        "total",
+        "fecha",
+        "ruc",
+        "cliente",
+        "vendedor",
+        "direccion",
+        "telefono",
+        "email",
+        "forma de pago",
+        "entregar",
+        "ambiente",
+        "emision",
+    }
+    cfg = ocr_runtime or load_ocr_runtime_config(None)
+    skip_markers = _runtime_normalized_text_set(
+        cfg,
+        "invoice_line_skip_markers",
+        list(_DEFAULT_OCR_CONFIG["invoice_line_skip_markers"]),
+    )
+
+    candidates: list[tuple[float, dict[str, Any]]] = []
+    for raw_line in lines:
+        line = _normalize_invoice_ocr_line(raw_line, ocr_runtime=cfg)
+        if not line:
+            continue
+        normalized = _normalize_evidence_text(line)
+        if any(marker in normalized for marker in skip_markers):
+            continue
+
+        tokens = line.split()
+        numeric_tokens: list[tuple[int, float, str]] = []
+        for idx, token in enumerate(tokens):
+            digits = _digits_only(token)
+            if not digits or len(digits) > 8:
+                continue
+            parsed = safe_floatish(token)
+            if parsed is None:
+                continue
+            numeric_tokens.append((idx, parsed, token))
+        if len(numeric_tokens) < 3:
+            continue
+
+        qty_idx, quantity, _ = numeric_tokens[0]
+        unit_idx, unit_price, _ = numeric_tokens[-2]
+        total_idx, total_price, _ = numeric_tokens[-1]
+        if qty_idx >= unit_idx or unit_idx >= total_idx:
+            continue
+
+        description = " ".join(tokens[qty_idx + 1 : unit_idx]).strip()
+        description = description.replace("F/", " ").replace("F /", " ")
+        description = " ".join(description.split()).strip(" -–—|/.,;:()[]{}")
+        description = _normalize_invoice_description_strict(description)
+        if not description:
+            continue
+
+        candidate_score = 0.0
+        if quantity > 0:
+            candidate_score += 2.0
+        if unit_price > 0:
+            candidate_score += 2.0
+        if total_price > 0:
+            candidate_score += 4.0
+        if len(description.split()) >= 2:
+            candidate_score += 1.0
+        if _value_token_evidence(text_normalized, description):
+            candidate_score += 1.0
+        if total_price > 0 and total_price >= unit_price:
+            candidate_score += 1.0
+
+        row: dict[str, Any] = {
+            "description": description,
+            "quantity": quantity,
+            "unit_price": unit_price,
+            "total_price": total_price,
+        }
+        candidates.append((candidate_score, row))
+
+    if not candidates:
+        return []
+
+    deduped: dict[str, tuple[float, dict[str, Any]]] = {}
+    for score, row in candidates:
+        key = _normalize_evidence_text(str(row.get("description") or ""))
+        if not key:
+            continue
+        current = deduped.get(key)
+        if current is None or score > current[0]:
+            deduped[key] = (score, row)
+
+    return [row for _score, row in sorted(deduped.values(), key=lambda item: item[0], reverse=True)]
+
+
+def _apply_invoice_ocr_rescue(
+    parsed: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+    ai_runtime: dict[str, Any] | None = None,
+    ocr_runtime: dict[str, Any] | None = None,
+) -> list[str]:
+    fields = parsed.get("fields")
+    if not isinstance(fields, dict):
+        return []
+
+    normalized_format = str(format_hint or "").strip().upper()
+    cfg = ai_runtime or load_ai_runtime_config(None)
+    evidence_formats = {
+        str(item).strip().upper()
+        for item in (cfg.get("ocr_evidence_formats") or [])
+        if str(item).strip()
+    }
+    if normalized_format not in evidence_formats:
+        return []
+
+    doc_type = str(parsed.get("doc_type") or "").strip().upper()
+    text_normalized = _normalize_evidence_text(content)
+    invoice_like = doc_type in {
+        "INVOICE",
+        "SUPPLIER_INVOICE",
+        "PURCHASE_INVOICE",
+        "COMMERCIAL_INVOICE",
+    } or any(
+        token in text_normalized
+        for token in ("factura", "invoice", "nota de venta", "comprobante", "boleta")
+    )
+    if not invoice_like:
+        return []
+
+    repaired_fields: list[str] = []
+
+    ocr_vendor = _extract_vendor_name_from_ocr(content, ocr_runtime=ocr_runtime)
+    current_vendor = fields.get("vendor")
+    if ocr_vendor and (
+        current_vendor in (None, "") or not _value_token_evidence(text_normalized, current_vendor)
+    ):
+        fields["vendor"] = ocr_vendor
+        repaired_fields.append("vendor")
+
+    ocr_doc_number = _extract_invoice_doc_number_from_ocr(content, ocr_runtime=ocr_runtime)
+    current_doc_number = fields.get("doc_number")
+    if ocr_doc_number and (
+        current_doc_number in (None, "")
+        or _digits_only(current_doc_number) != _digits_only(ocr_doc_number)
+        or not _value_token_evidence(text_normalized, current_doc_number, min_len=3, ai_runtime=cfg)
+    ):
+        fields["doc_number"] = ocr_doc_number
+        repaired_fields.append("doc_number")
+
+    ocr_line_items = _extract_invoice_line_items_from_ocr(content, ocr_runtime=ocr_runtime)
+    current_line_items = fields.get("line_items")
+    current_line_items_list = current_line_items if isinstance(current_line_items, list) else []
+    if ocr_line_items and (
+        not current_line_items_list
+        or not _line_items_evidence(
+            text_normalized,
+            _digits_only(content),
+            current_line_items_list,
+            ai_runtime=cfg,
+        )
+    ):
+        fields["line_items"] = ocr_line_items
+        repaired_fields.append("line_items")
+
+    return repaired_fields
+
+
 def _apply_high_evidence_ocr_repairs(
     parsed: dict[str, Any],
     *,
@@ -1073,6 +1574,7 @@ def _apply_high_evidence_ocr_repairs(
     format_hint: str,
     prompt_config: dict[str, Any] | None = None,
     ai_runtime: dict[str, Any] | None = None,
+    ocr_runtime: dict[str, Any] | None = None,
 ) -> None:
     cfg = ai_runtime or load_ai_runtime_config(None)
     normalized_format = str(format_hint or "").strip().upper()
@@ -1093,6 +1595,15 @@ def _apply_high_evidence_ocr_repairs(
     labeled_subtotal = _extract_labeled_amount(content, "subtotal", prompt_config=prompt_config)
     labeled_tax = _extract_labeled_amount(content, "tax_amount", prompt_config=prompt_config)
     ocr_issue_date = _extract_issue_date_from_ocr(content)
+
+    if labeled_tax is not None and ocr_issue_date:
+        try:
+            issue_year, issue_month, issue_day = (int(part) for part in ocr_issue_date.split("-"))
+            tax_value = float(labeled_tax)
+            if tax_value.is_integer() and int(tax_value) in {issue_year, issue_month, issue_day}:
+                labeled_tax = None
+        except (TypeError, ValueError):
+            pass
 
     if quality["score"] < max(0.0, min(1.0, float(cfg.get("ocr_min_quality") or 0.45))) and not any(
         value is not None
@@ -1164,6 +1675,20 @@ def _apply_high_evidence_ocr_repairs(
         text_digits, current_vendor_tax_id
     ):
         fields["vendor_tax_id"] = None
+
+    invoice_repaired_fields = _apply_invoice_ocr_rescue(
+        parsed,
+        content=content,
+        format_hint=format_hint,
+        ai_runtime=cfg,
+        ocr_runtime=ocr_runtime,
+    )
+    if invoice_repaired_fields:
+        logger.info(
+            "OCR invoice rescue applied (%s): %s",
+            normalized_format or "UNKNOWN",
+            ", ".join(invoice_repaired_fields),
+        )
 
 
 def _find_sequential_anchor_indexes(lines: list[str], anchors: list[str]) -> list[int]:
@@ -1788,6 +2313,7 @@ async def analyze_document(
         )
 
     ai_runtime = load_ai_runtime_config(db)
+    ocr_runtime = load_ocr_runtime_config(db)
 
     if not has_structured_rows and _should_use_vision_fallback(
         content,
@@ -1955,6 +2481,14 @@ async def analyze_document(
             logger.warning("AI analysis failed: %s", response.error)
             fallback = _fallback_classify(content, filename, fallback_patterns)
             fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
+            _apply_high_evidence_ocr_repairs(
+                fallback,
+                content=content,
+                format_hint=format_hint,
+                prompt_config=pc,
+                ai_runtime=ai_runtime,
+                ocr_runtime=ocr_runtime,
+            )
             fallback["raw_response"] = response.error
             fallback["model_used"] = model_used
             fallback["prompt_sent"] = full_prompt[:500]
@@ -1981,6 +2515,7 @@ async def analyze_document(
                 format_hint=format_hint,
                 prompt_config=pc,
                 ai_runtime=ai_runtime,
+                ocr_runtime=ocr_runtime,
             )
             _rebuild_line_item_extra_columns_from_ocr(
                 parsed,
@@ -2000,6 +2535,14 @@ async def analyze_document(
 
         fallback = _fallback_classify(content, filename, fallback_patterns)
         fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
+        _apply_high_evidence_ocr_repairs(
+            fallback,
+            content=content,
+            format_hint=format_hint,
+            prompt_config=pc,
+            ai_runtime=ai_runtime,
+            ocr_runtime=ocr_runtime,
+        )
         fallback["raw_response"] = raw_content
         fallback["model_used"] = model_used
         fallback["prompt_sent"] = full_prompt[:500]
@@ -2014,6 +2557,14 @@ async def analyze_document(
         logger.error("AI analysis error: %s", exc)
         fallback = _fallback_classify(content, filename, fallback_patterns)
         fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
+        _apply_high_evidence_ocr_repairs(
+            fallback,
+            content=content,
+            format_hint=format_hint,
+            prompt_config=pc,
+            ai_runtime=ai_runtime,
+            ocr_runtime=ocr_runtime,
+        )
         fallback["raw_response"] = str(exc)
         fallback["model_used"] = "fallback"
         fallback["prompt_sent"] = full_prompt[:500]

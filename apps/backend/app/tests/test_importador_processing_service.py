@@ -37,6 +37,21 @@ def test_analyze_with_context_uses_processing_runtime_threshold(monkeypatch):
             "persist_text_ocr_max_chars": 50000,
         },
     )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_ai_runtime_config",
+        lambda _db=None: {
+            "ocr_min_quality": 0.1,
+            "openai_fallback_ocr_quality_threshold": 0.1,
+            "ocr_length_target_chars": 1200,
+            "ocr_word_target": 180,
+            "ocr_alpha_ratio_target": 0.6,
+            "ocr_noise_ratio_limit": 0.2,
+            "ocr_score_weight_length": 0.35,
+            "ocr_score_weight_words": 0.35,
+            "ocr_score_weight_alpha": 0.2,
+            "ocr_score_weight_clean": 0.1,
+        },
+    )
 
     asyncio.run(
         _analyze_with_context(
@@ -55,6 +70,63 @@ def test_analyze_with_context_uses_processing_runtime_threshold(monkeypatch):
     )
 
     assert captured["image_bytes"] is None
+
+
+@pytest.mark.no_db
+def test_analyze_with_context_rejects_low_quality_image_ocr(monkeypatch):
+    called = {"count": 0}
+
+    async def fake_analyze_document_fn(*args, **kwargs):
+        del args, kwargs
+        called["count"] += 1
+        return {"doc_type": "OTHER", "confidence": 0.0, "reasoning": "ok", "fields": {}}
+
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_processing_runtime_config",
+        lambda _db=None: {
+            "ocr_text_sufficient_min_chars": 20,
+            "llm_text_preview_chars": 6000,
+            "structured_preview_rows": 5,
+            "structured_preview_fields": 8,
+            "doc_type_hint_min_confidence": 0.65,
+            "structured_output_rows_limit": 200,
+            "persist_text_ocr_max_chars": 50000,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_ai_runtime_config",
+        lambda _db=None: {
+            "ocr_min_quality": 0.9,
+            "openai_fallback_ocr_quality_threshold": 0.9,
+            "ocr_length_target_chars": 1200,
+            "ocr_word_target": 180,
+            "ocr_alpha_ratio_target": 0.6,
+            "ocr_noise_ratio_limit": 0.2,
+            "ocr_score_weight_length": 0.35,
+            "ocr_score_weight_words": 0.35,
+            "ocr_score_weight_alpha": 0.2,
+            "ocr_score_weight_clean": 0.1,
+        },
+    )
+
+    with pytest.raises(ValueError, match="Imagen de mala calidad"):
+        asyncio.run(
+            _analyze_with_context(
+                analyze_document_fn=fake_analyze_document_fn,
+                content="A B C D E 12345 !!! A B C D E 12345 !!!",
+                filename="foto.jpg",
+                format_hint="IMAGE_OCR",
+                has_structured_rows=False,
+                recipe_config=None,
+                vision_image_bytes=b"fake-image",
+                fallback_patterns={},
+                canonical_fields={},
+                prompt_config={},
+                db=None,
+            )
+        )
+
+    assert called["count"] == 0
 
 
 @pytest.mark.no_db

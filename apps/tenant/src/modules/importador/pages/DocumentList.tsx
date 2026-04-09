@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import QuickUploadPanel from '../components/QuickUploadPanel'
 import SaveDocumentModal from '../components/SaveDocumentModal'
 import {
   canSaveDocument,
@@ -17,19 +19,19 @@ import {
 const STALE_THRESHOLD_MS = 30 * 60 * 1000
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  CONFIRMED: { label: 'Confirmado', color: '#166534', bg: '#dcfce7' },
-  REVIEW: { label: 'Por revisar', color: '#1d4ed8', bg: '#dbeafe' },
-  PROCESSING: { label: 'Procesando', color: '#7c3aed', bg: '#ede9fe' },
-  PENDING: { label: 'En cola', color: '#92400e', bg: '#fef3c7' },
-  FAILED: { label: 'Con error', color: '#991b1b', bg: '#fee2e2' },
-  IMPORTED: { label: 'Guardado', color: '#0f766e', bg: '#ccfbf1' },
+  CONFIRMED: { label: 'Confirmed', color: '#166534', bg: '#dcfce7' },
+  REVIEW: { label: 'Needs review', color: '#1d4ed8', bg: '#dbeafe' },
+  PROCESSING: { label: 'Processing', color: '#7c3aed', bg: '#ede9fe' },
+  PENDING: { label: 'Queued', color: '#92400e', bg: '#fef3c7' },
+  FAILED: { label: 'Failed', color: '#991b1b', bg: '#fee2e2' },
+  IMPORTED: { label: 'Saved', color: '#0f766e', bg: '#ccfbf1' },
 }
 
 const FILTERS = [
-  { value: '', label: 'Todos' },
-  { value: 'REVIEW', label: 'Por revisar' },
-  { value: 'CONFIRMED', label: 'Confirmados' },
-  { value: 'FAILED', label: 'Con error' },
+  { value: '', label: 'All' },
+  { value: 'REVIEW', label: 'Needs review' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
+  { value: 'FAILED', label: 'Failed' },
 ]
 
 function statusBadge(estado: string) {
@@ -83,9 +85,9 @@ function formatCurrency(doc: Documento) {
 
 function saveLabel(doc: Documento) {
   const destination = suggestSaveDestination(doc)
-  if (destination === 'recipe') return 'Guardar como receta'
-  if (destination === 'supplier_invoice') return 'Guardar en compras'
-  return 'Guardar como gasto'
+  if (destination === 'recipe') return 'Save as recipe'
+  if (destination === 'supplier_invoice') return 'Save to purchases'
+  return 'Save as expense'
 }
 
 function activityBadges(doc: Documento): Array<{ label: string; title: string; color: string; bg: string }> {
@@ -95,25 +97,25 @@ function activityBadges(doc: Documento): Array<{ label: string; title: string; c
       ? new Date(doc.last_learning_reprocess_at).toLocaleString()
       : null
     badges.push({
-      label: 'Reanalizado con aprendizaje',
+      label: 'Reprocessed with learning',
       title: when
-        ? `Se reanalizo para aplicar aprendizaje confirmado reciente el ${when}.`
-        : 'Se reanalizo para aplicar aprendizaje confirmado reciente.',
+        ? `Reprocessed to apply recent confirmed learning on ${when}.`
+        : 'Reprocessed to apply recent confirmed learning.',
       color: '#4338ca',
       bg: '#e0e7ff',
     })
   }
   if (doc.last_confirmation_mode === 'corrected_by_user') {
     badges.push({
-      label: 'Confirmado con correccion',
-      title: 'La confirmacion mas reciente incluyo cambios del usuario.',
+      label: 'Confirmed with changes',
+      title: 'The latest confirmation included user changes.',
       color: '#0f766e',
       bg: '#ccfbf1',
     })
   } else if (doc.last_confirmation_mode === 'accepted_as_detected') {
     badges.push({
-      label: 'Confirmado tal cual',
-      title: 'La confirmacion mas reciente acepto la deteccion sin cambios.',
+      label: 'Confirmed as detected',
+      title: 'The latest confirmation accepted the detected data without changes.',
       color: '#166534',
       bg: '#dcfce7',
     })
@@ -125,15 +127,18 @@ export default function DocumentList() {
   const navigate = useNavigate()
   const { empresa } = useParams<{ empresa: string }>()
   const [searchParams] = useSearchParams()
+  const { t } = useTranslation('importer')
   const [allDocs, setAllDocs] = useState<Documento[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [filter, setFilter] = useState(searchParams.get('estado') || '')
   const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null)
+  const [showUploader, setShowUploader] = useState(false)
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [purging, setPurging] = useState(false)
   const [purgeMode, setPurgeMode] = useState<'history' | 'full' | null>(null)
+  const uploadPanelRef = useRef<HTMLDivElement>(null)
   const homePath = empresa ? `/${empresa}` : '/dashboard'
 
   const loadDocuments = async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -147,7 +152,7 @@ export default function DocumentList() {
       setAllDocs(items)
       setLastUpdatedAt(new Date())
     } catch {
-      setFeedback({ message: 'No se pudieron cargar los documentos.', type: 'error' })
+      setFeedback({ message: 'Could not load documents.', type: 'error' })
     } finally {
       if (silent) {
         setRefreshing(false)
@@ -187,6 +192,19 @@ export default function DocumentList() {
   const backgroundActive = processingCount > 0 || pendingCount > 0
 
   useEffect(() => {
+    if (!loading && allDocs.length === 0) {
+      setShowUploader(true)
+    }
+  }, [loading, allDocs.length])
+
+  const openUploader = () => {
+    setShowUploader(true)
+    window.setTimeout(() => {
+      uploadPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }
+
+  useEffect(() => {
     if (!backgroundActive) return
 
     const intervalId = window.setInterval(() => {
@@ -198,8 +216,8 @@ export default function DocumentList() {
 
   const handleSaved = (result: SaveDocumentResult) => {
     const targetLabel =
-      result.target === 'recipes' ? 'recetas' : result.target === 'purchases' ? 'compras' : 'gastos'
-    setFeedback({ message: result.message || `Documento guardado en ${targetLabel}.`, type: 'success' })
+      result.target === 'recipes' ? 'recipes' : result.target === 'purchases' ? 'purchases' : 'expenses'
+    setFeedback({ message: `Document saved in ${targetLabel}.`, type: 'success' })
     void loadDocuments()
   }
 
@@ -210,19 +228,19 @@ export default function DocumentList() {
     try {
       const res = mode === 'history' ? await purgeAllImportador() : await purgeFullImportador()
       setFeedback({
-        message:
-          mode === 'history'
-            ? `Historial operativo borrado: ${res.deleted_total} registros eliminados.`
-            : `Reset completo ejecutado: ${res.deleted_total} registros eliminados.`,
+          message:
+            mode === 'history'
+              ? `Operational history cleared: ${res.deleted_total} records removed.`
+              : `Full reset completed: ${res.deleted_total} records removed.`,
         type: 'success',
       })
       void loadDocuments()
     } catch {
       setFeedback({
-        message:
-          mode === 'history'
-            ? 'No se pudo borrar el historial operativo.'
-            : 'No se pudo ejecutar el reset completo.',
+          message:
+            mode === 'history'
+              ? 'Could not clear the operational history.'
+              : 'Could not run the full reset.',
         type: 'error',
       })
     } finally {
@@ -263,14 +281,14 @@ export default function DocumentList() {
           boxShadow: '0 22px 40px rgba(15, 23, 42, 0.06)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ maxWidth: 720 }}>
             <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0f766e', marginBottom: 6 }}>
-              Centro de revision
+              {t('workspace.eyebrow')}
             </div>
-            <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>Documentos importados</h1>
+            <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>{t('workspace.title')}</h1>
             <p style={{ margin: '0.55rem 0 0', fontSize: 15, color: '#475569', maxWidth: 680 }}>
-              Revisa lo detectado, confirma los datos importantes y guarda cada documento en compras, gastos o recetas sin salir del modulo.
+              {t('workspace.subtitle')}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -286,10 +304,10 @@ export default function DocumentList() {
                 cursor: 'pointer',
               }}
             >
-              Volver al inicio
+              Back to dashboard
             </button>
             <button
-              onClick={() => navigate('../importar')}
+              onClick={openUploader}
               style={{
                 border: 'none',
                 borderRadius: 14,
@@ -301,8 +319,54 @@ export default function DocumentList() {
                 boxShadow: '0 14px 28px rgba(13, 148, 136, 0.22)',
               }}
             >
-              Subir nuevos archivos
+              {t('workspace.openUpload')}
             </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: '1rem',
+            borderRadius: 20,
+            border: '1px solid rgba(13, 148, 136, 0.14)',
+            background: 'linear-gradient(180deg, rgba(236,253,245,0.92) 0%, rgba(255,255,255,0.98) 100%)',
+            padding: '0.95rem 1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ maxWidth: 660 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#0f766e', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              {t('workspace.routineTitle')}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 14, color: '#134e4a' }}>
+              {t('workspace.routineBody')}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              t('workspace.routineUpload'),
+              t('workspace.routineReview'),
+              t('workspace.routineSave'),
+            ].map((label) => (
+              <span
+                key={label}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: 999,
+                  background: '#fff',
+                  border: '1px solid rgba(15, 118, 110, 0.14)',
+                  color: '#0f766e',
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}
+              >
+                {label}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -316,20 +380,24 @@ export default function DocumentList() {
           }}
         >
           {[
-            { label: 'Por revisar', value: reviewCount, note: 'Pendientes de validacion manual', tone: '#1d4ed8', bg: '#dbeafe' },
-            { label: 'Confirmados', value: confirmedCount, note: 'Listos para guardarse en destino', tone: '#166534', bg: '#dcfce7' },
-            { label: 'En curso', value: processingCount + pendingCount, note: 'Procesandose en segundo plano', tone: '#7c3aed', bg: '#ede9fe' },
-            { label: 'Con error', value: failedCount, note: 'Requieren una nueva revision', tone: '#991b1b', bg: '#fee2e2' },
+            { label: 'Needs review', value: reviewCount, note: 'Waiting for manual validation', tone: '#1d4ed8', bg: '#dbeafe' },
+            { label: 'Confirmed', value: confirmedCount, note: 'Ready to save to a destination', tone: '#166534', bg: '#dcfce7' },
+            { label: 'In progress', value: processingCount + pendingCount, note: 'Processing in the background', tone: '#7c3aed', bg: '#ede9fe' },
+            { label: 'Failed', value: failedCount, note: 'Need a new review', tone: '#991b1b', bg: '#fee2e2' },
           ].map((item) => (
             <div
               key={item.label}
               style={{
-                padding: '0.95rem 1rem',
-                borderRadius: 18,
-                background: '#fff',
+                padding: '0.95rem 1rem 1rem',
+                borderRadius: 20,
+                background: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)',
                 border: '1px solid rgba(148, 163, 184, 0.16)',
+                boxShadow: '0 10px 22px rgba(15, 23, 42, 0.04)',
+                position: 'relative',
+                overflow: 'hidden',
               }}
             >
+              <div style={{ position: 'absolute', inset: '0 auto auto 0', width: '100%', height: 3, background: item.bg }} />
               <div style={{ display: 'inline-flex', padding: '0.22rem 0.55rem', borderRadius: 999, background: item.bg, color: item.tone, fontSize: 11, fontWeight: 800 }}>
                 {item.label}
               </div>
@@ -339,6 +407,32 @@ export default function DocumentList() {
           ))}
         </div>
       </section>
+
+      {showUploader && docs.length > 0 && (
+        <div ref={uploadPanelRef} style={{ display: 'grid', gap: '0.75rem' }}>
+          <QuickUploadPanel
+            onUploaded={() => {
+              void loadDocuments({ silent: true })
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setShowUploader(false)}
+              style={{
+                border: '1px solid #d1d5db',
+                borderRadius: 12,
+                padding: '0.55rem 0.8rem',
+                background: '#fff',
+                color: '#475569',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {t('workspace.closeUploader')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {feedback && (
         <div
@@ -359,7 +453,7 @@ export default function DocumentList() {
           <button
             onClick={() => setFeedback(null)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, lineHeight: 1, padding: 0 }}
-            aria-label="Cerrar"
+            aria-label="Close"
           >
             ×
           </button>
@@ -378,17 +472,17 @@ export default function DocumentList() {
         >
           <div className="importador-list__table-meta" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 800 }}>El importador sigue trabajando</div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>{t('workspace.backgroundTitle')}</div>
               <div style={{ fontSize: 13, color: '#4f46e5', marginTop: 4 }}>
-                {processingCount > 0 ? `${processingCount} procesando` : 'Sin archivos procesandose'}
+                {processingCount > 0 ? `${processingCount} processing` : t('workspace.backgroundIdle')}
                 {' · '}
-                {pendingCount > 0 ? `${pendingCount} en cola` : 'Sin cola pendiente'}
+                {pendingCount > 0 ? `${pendingCount} queued` : 'No queue pending'}
               </div>
             </div>
             <div style={{ fontSize: 12, color: '#6366f1', textAlign: 'right' }}>
-              {refreshing ? 'Actualizando estado...' : 'Actualizacion automatica cada 5 segundos'}
+              {refreshing ? t('workspace.refreshing') : t('workspace.autoRefresh')}
               <div style={{ marginTop: 4, color: '#64748b' }}>
-                Ultima actualizacion: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '-'}
+                {t('workspace.lastUpdated', { time: lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '-' })}
               </div>
             </div>
           </div>
@@ -417,12 +511,15 @@ export default function DocumentList() {
           }}
         >
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Bandeja de documentos</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{t('workspace.listTitle')}</div>
             <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-              Haz clic sobre un documento para revisar su contenido, corregirlo o guardarlo.
+              {t('workspace.listSubtitle')}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ padding: '0.42rem 0.7rem', borderRadius: 999, background: '#ecfeff', color: '#0f766e', border: '1px solid #a7f3d0', fontSize: 12, fontWeight: 800 }}>
+              {docs.length} documents
+            </span>
             {FILTERS.map((item) => (
               <button
                 key={item.value || 'all'}
@@ -444,7 +541,7 @@ export default function DocumentList() {
             <button
               onClick={() => void loadDocuments({ silent: true })}
               disabled={refreshing}
-              title={lastUpdatedAt ? `Ultima actualizacion: ${lastUpdatedAt.toLocaleTimeString()}` : 'Actualizar lista'}
+              title={lastUpdatedAt ? t('workspace.lastUpdated', { time: lastUpdatedAt.toLocaleTimeString() }) : t('workspace.refresh')}
               style={{
                 padding: '0.45rem 0.7rem',
                 borderRadius: 999,
@@ -463,42 +560,55 @@ export default function DocumentList() {
         </div>
 
         {loading ? (
-          <div style={{ padding: '2rem 1.2rem', color: '#64748b' }}>Cargando documentos...</div>
+          <div style={{ padding: '2rem 1.2rem', color: '#64748b' }}>Loading documents...</div>
         ) : docs.length === 0 ? (
-          <div style={{ padding: '2.4rem 1.2rem', textAlign: 'center' }}>
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#0f172a' }}>Todavia no hay documentos en esta vista</div>
-            <div style={{ marginTop: 6, fontSize: 13, color: '#64748b' }}>
-              {filter ? 'Prueba con otro filtro o sube nuevos archivos para comenzar.' : 'Sube tu primer archivo para empezar a revisar documentos.'}
+          <div style={{ padding: '2.4rem 1.2rem', display: 'grid', gap: '1rem' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+                {filter ? t('workspace.filteredEmptyTitle') : t('workspace.emptyTitle')}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 13, color: '#64748b' }}>
+                {filter ? t('workspace.filteredEmptyBody') : t('workspace.emptyBody')}
+              </div>
+              <button
+                onClick={openUploader}
+                style={{
+                  marginTop: '1rem',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '0.75rem 1rem',
+                  background: '#0f766e',
+                  color: '#fff',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('workspace.emptyAction')}
+              </button>
             </div>
-            <button
-              onClick={() => navigate('../importar')}
-              style={{
-                marginTop: '1rem',
-                border: 'none',
-                borderRadius: 12,
-                padding: '0.75rem 1rem',
-                background: '#0f766e',
-                color: '#fff',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              Ir a subida de archivos
-            </button>
+            {showUploader && (
+              <div ref={uploadPanelRef}>
+                <QuickUploadPanel
+                  onUploaded={() => {
+                    void loadDocuments({ silent: true })
+                  }}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #e5e7eb', textAlign: 'left', background: '#f8fafc' }}>
-                  <th style={th}>Archivo</th>
-                  <th style={th}>Tipo</th>
-                  <th style={th}>Confianza</th>
-                  <th style={th}>Proveedor</th>
-                  <th style={th}>Monto</th>
-                  <th style={th}>Estado</th>
-                  <th style={th}>Fecha</th>
-                  <th style={th}>Siguiente paso</th>
+                  <th style={th}>File</th>
+                  <th style={th}>Type</th>
+                  <th style={th}>Confidence</th>
+                  <th style={th}>Vendor</th>
+                  <th style={th}>Amount</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Date</th>
+                  <th style={th}>Next step</th>
                 </tr>
               </thead>
               <tbody>
@@ -512,23 +622,23 @@ export default function DocumentList() {
                     destination === 'recipe' || hasConfirmedDocumentData(doc)
                   )
                   const nextStepLabel = isInProgress
-                    ? 'Procesando...'
+                    ? 'Processing...'
                     : doc.estado === 'FAILED'
-                    ? 'Ver error'
+                    ? 'View error'
                     : isImported
-                    ? 'Guardado'
+                    ? 'Saved'
                     : saveEnabled
                     ? saveLabel(doc)
-                    : 'Revisar documento'
+                    : 'Review document'
                   const nextStepTitle = isInProgress
-                    ? 'El documento aun se esta procesando en segundo plano.'
+                    ? 'The document is still processing in the background.'
                     : doc.estado === 'FAILED'
-                    ? 'El documento tuvo un error. Haz clic para ver el detalle.'
+                    ? 'The document failed. Click to view the details.'
                     : isImported
-                    ? 'El documento ya fue confirmado y guardado. Haz clic para ver el detalle.'
+                    ? 'The document was already confirmed and saved. Click to view it.'
                     : saveEnabled
                     ? saveLabel(doc)
-                    : 'Abre el documento para confirmar sus datos antes de guardarlo.'
+                    : 'Open the document to confirm its data before saving.'
                   return (
                     <tr
                       key={doc.id}
@@ -623,9 +733,9 @@ export default function DocumentList() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#991b1b' }}>Zona de mantenimiento</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#991b1b' }}>{t('workspace.maintenanceTitle')}</div>
             <div style={{ marginTop: 4, fontSize: 13, color: '#7f1d1d', maxWidth: 700 }}>
-              Borra el historial operativo sin tocar el aprendizaje reutilizable, o haz un reset completo si necesitas empezar desde cero.
+              {t('workspace.maintenanceBody')}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -643,7 +753,7 @@ export default function DocumentList() {
                 fontWeight: 800,
               }}
             >
-              {purging ? 'Procesando...' : 'Borrar historial operativo'}
+              {purging ? 'Processing...' : t('workspace.maintenanceHistory')}
             </button>
             <button
               onClick={() => setPurgeMode('full')}
@@ -659,7 +769,7 @@ export default function DocumentList() {
                 fontWeight: 800,
               }}
             >
-              Reset completo
+              {t('workspace.maintenanceFull')}
             </button>
           </div>
         </div>
@@ -676,20 +786,20 @@ export default function DocumentList() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <h3 className="font-semibold text-lg mb-2">
-              {purgeMode === 'history' ? 'Borrar historial operativo' : 'Reset completo'}
+              {purgeMode === 'history' ? t('workspace.maintenanceHistory') : t('workspace.maintenanceFull')}
             </h3>
             <p className="text-sm text-slate-600 mb-4">
               {purgeMode === 'history'
-                ? 'Se borraran documentos, lotes y trazas operativas del importador, pero se conservaran aliases, recetas y memoria de aprendizaje.'
-                : 'Se borrara el historial operativo y tambien la memoria de aprendizaje del importador para este tenant. Esta accion no se puede deshacer.'}
+                ? t('workspace.maintenanceHistoryCopy')
+                : t('workspace.maintenanceFullCopy')}
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setPurgeMode(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancelar</button>
+              <button onClick={() => setPurgeMode(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">Cancel</button>
               <button
                 onClick={() => handlePurge(purgeMode)}
                 className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
               >
-                {purgeMode === 'history' ? 'Borrar historial operativo' : 'Reset completo'}
+                {purgeMode === 'history' ? t('workspace.maintenanceHistory') : t('workspace.maintenanceFull')}
               </button>
             </div>
           </div>

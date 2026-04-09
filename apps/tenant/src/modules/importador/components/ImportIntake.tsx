@@ -223,7 +223,7 @@ export default function ImportIntake({
     fetchFileSupportConfig()
       .then(setFileSupport)
       .catch(() => {
-        setError('No se pudo cargar la configuracion de formatos desde el servidor.')
+        setError('Could not load the supported format configuration from the server.')
       })
   }, [])
 
@@ -395,7 +395,7 @@ export default function ImportIntake({
 
   const addFiles = useCallback((fileList: FileList | File[]) => {
     if (!fileSupportReady) {
-      setError('Esperando configuracion de formatos permitidos desde el servidor.')
+      setError('Waiting for the server to provide the allowed file formats.')
       return
     }
     const incoming = Array.from(fileList || []).filter((file) => {
@@ -404,7 +404,7 @@ export default function ImportIntake({
       return acceptedExtensions.has(ext)
     })
     if (!incoming.length) {
-      setError('Ninguno de los archivos seleccionados coincide con los formatos permitidos por el servidor.')
+      setError('None of the selected files match the formats allowed by the server.')
       return
     }
     if (!incoming.length) return
@@ -490,7 +490,7 @@ export default function ImportIntake({
 
   const handleRun = useCallback(async () => {
     if (!fileSupportReady) {
-      setError('Esperando configuracion de formatos permitidos desde el servidor.')
+      setError('Waiting for the server to provide the allowed file formats.')
       return
     }
     const pending = entries.filter((entry): entry is FileEntry & { file: File } =>
@@ -555,7 +555,7 @@ export default function ImportIntake({
       }))
       onImported?.()
     } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Error al encolar archivos')
+      setError(err?.response?.data?.detail || 'Could not queue the files.')
       setEntries((prev) => prev.map((entry) =>
         entry.status === 'processing' ? { ...entry, status: 'pending' } : entry
       ))
@@ -577,17 +577,17 @@ export default function ImportIntake({
     return { pendingCount, totalCount, activeCount, errorCount, completedCount, progressPct, reviewEntries, queueEntries, errorEntries }
   }, [entries])
   const headerTitle = processing
-    ? 'Paso 2. Espera'
+    ? 'Step 2. Wait'
     : activeCount > 0
-      ? 'Paso 2. Espera'
-      : 'Paso 1. Sube'
+      ? 'Step 2. Wait'
+      : 'Step 1. Upload'
   const headerMeta = activeBatch
-    ? `${activeBatch.review_items + activeBatch.confirmed_items} listos para revisar · ${activeBatch.pending_items} en espera · ${activeBatch.failed_items} con error`
-    : 'Sube los archivos y deja que el sistema los prepare.'
+    ? `${activeBatch.review_items + activeBatch.confirmed_items} ready to review · ${activeBatch.pending_items} waiting · ${activeBatch.failed_items} with errors`
+    : 'Upload the files and let the system prepare them.'
   const displayHeaderMeta = compactMode
     ? (activeBatch
-      ? `${activeBatch.pending_items} pendiente${activeBatch.pending_items === 1 ? '' : 's'} · ${activeBatch.failed_items} con error`
-      : 'Espera el resultado y confirma o reprocesa.')
+      ? `${activeBatch.pending_items} pending · ${activeBatch.failed_items} with errors`
+      : 'Wait for the result and confirm or reprocess.')
     : headerMeta
 
   return (
@@ -686,12 +686,12 @@ export default function ImportIntake({
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
               {compactMode
-                ? (entries.length > 0 ? 'Vuelve a subir el archivo para rehacer este documento' : 'Rehace este documento')
-                : (entries.length > 0 ? 'Sigue agregando archivos a esta bandeja' : 'Sube documentos sueltos o una carpeta completa')}
+                ? (entries.length > 0 ? 'Upload the file again to rebuild this document' : 'Rebuild this document')
+                : (entries.length > 0 ? 'Keep adding files to this tray' : 'Upload individual documents or a full folder')}
             </div>
             {!compactMode && (
               <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-                {entries.length > 0 ? 'Puedes seguir agregando archivos mientras el sistema trabaja en segundo plano.' : 'Arrastra archivos, haz clic para seleccionarlos y empieza cuando tengas todo listo.'}
+                {entries.length > 0 ? 'You can keep adding files while the system works in the background.' : 'Drag files here, click to select them, and start when you are ready.'}
               </div>
             )}
           </div>
@@ -714,7 +714,7 @@ export default function ImportIntake({
                   boxShadow: mode === itemMode ? '0 10px 20px rgba(79, 70, 229, 0.22)' : '0 1px 2px rgba(15, 23, 42, 0.05)',
                 }}
               >
-                {itemMode === 'files' ? 'Archivos' : 'Carpeta'}
+                {itemMode === 'files' ? 'Files' : 'Folder'}
               </button>
             ))}
             </div>
@@ -724,7 +724,7 @@ export default function ImportIntake({
               onClick={clearAll}
               style={{ fontSize: 12, color: '#6b7280', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', padding: '0.45rem 0.8rem', borderRadius: 10, fontWeight: 700 }}
             >
-              Vaciar bandeja
+              Clear tray
             </button>
           )}
         </div>
@@ -835,7 +835,7 @@ export default function ImportIntake({
                 {(processing || activeCount > 0 || completedCount > 0 || errorCount > 0 || activeBatch) && (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12, color: '#6366f1', fontWeight: 700 }}>
-                      <span>{activeBatch?.estado === 'COMPLETED' ? 'Lote completado' : 'Progreso visible'}</span>
+                      <span>{activeBatch?.estado === 'COMPLETED' ? 'Batch complete' : 'Visible progress'}</span>
                       <span>{activeBatch?.progress_pct ?? progressPct}%</span>
                     </div>
                     <div style={{ height: 8, background: 'rgba(79, 70, 229, 0.12)', borderRadius: 999, overflow: 'hidden' }}>
@@ -847,7 +847,7 @@ export default function ImportIntake({
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {!compactMode && !processing && completedCount > 0 && (
                   <button onClick={clearDone} style={{ fontSize: 12, color: '#6b7280', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', padding: '0.42rem 0.75rem', borderRadius: 10, fontWeight: 700 }}>
-                    Ocultar listos
+                    Hide ready items
                   </button>
                 )}
               </div>
@@ -855,9 +855,9 @@ export default function ImportIntake({
 
             <div style={{ display: 'grid', gap: '0.9rem' }}>
               {[
-                { key: 'review', title: 'Paso 3. Confirma o reprocesa', subtitle: 'Documentos ya preparados para abrir, validar o volver a procesar', entries: reviewEntries },
-                { key: 'queue', title: 'Paso 2. Espera', subtitle: 'Archivos procesandose o esperando turno', entries: queueEntries },
-                { key: 'errors', title: 'Vuelve a subir', subtitle: 'Archivos que requieren una nueva subida o una revision', entries: errorEntries },
+                { key: 'review', title: 'Step 3. Confirm or reprocess', subtitle: 'Documents are ready to open, validate, or process again', entries: reviewEntries },
+                { key: 'queue', title: 'Step 2. Wait', subtitle: 'Files processing or waiting for their turn', entries: queueEntries },
+                { key: 'errors', title: 'Upload again', subtitle: 'Files that need a new upload or a review', entries: errorEntries },
               ].filter((section) => section.entries.length > 0).map((section) => (
                 <div className="import-intake__section" key={section.key} style={{ border: '1px solid #E5E7EB', borderRadius: 18, background: '#fff', padding: '0.9rem', boxShadow: '0 10px 22px rgba(15, 23, 42, 0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
@@ -903,7 +903,7 @@ export default function ImportIntake({
                                 {entry.name}
                               </span>
                               <span style={{ padding: '0.15rem 0.45rem', borderRadius: 999, background: tone.badge, color: tone.color, fontSize: 10, fontWeight: 700 }}>
-                                {entry.status === 'done' ? 'Listo para revisar' : entry.status === 'error' ? 'Necesita atencion' : entry.status === 'pending' ? 'Listo para enviar' : 'Procesando'}
+                                {entry.status === 'done' ? 'Ready to review' : entry.status === 'error' ? 'Needs attention' : entry.status === 'pending' ? 'Ready to send' : 'Processing'}
                               </span>
                               {entry.result?.tipo_documento_detectado && (
                                 <span style={{ padding: '0.15rem 0.45rem', borderRadius: 999, background: '#fff', color: '#475569', border: '1px solid rgba(148, 163, 184, 0.35)', fontSize: 10, fontWeight: 700 }}>
@@ -927,10 +927,10 @@ export default function ImportIntake({
                             </div>
                             <div style={{ marginTop: 4, display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: 11, color: '#64748b' }}>
                               <span>{fmtSize(entry.size)}</span>
-                              {entry.status === 'processing' && <span style={{ color: tone.color }}>El sistema lo esta preparando</span>}
-                              {entry.status === 'pending' && <span style={{ color: tone.color }}>Aun no se ha enviado</span>}
+                              {entry.status === 'processing' && <span style={{ color: tone.color }}>The system is preparing it</span>}
+                              {entry.status === 'pending' && <span style={{ color: tone.color }}>Not sent yet</span>}
                               {entry.status === 'error' && entry.errorMessage && <span style={{ color: tone.color, fontWeight: 600 }}>{entry.errorMessage}</span>}
-                              {entry.status === 'done' && <span style={{ color: tone.color }}>Se retirara de la bandeja cuando lo abras</span>}
+                              {entry.status === 'done' && <span style={{ color: tone.color }}>It will leave the tray when you open it</span>}
                             </div>
                             {!compactMode && entry.result?.message && (
                               <div style={{ marginTop: 6, fontSize: 11, color: '#475569' }}>
@@ -947,7 +947,7 @@ export default function ImportIntake({
                                 }}
                                 style={{ padding: '0.42rem 0.8rem', border: '1px solid #4F46E5', borderRadius: 10, background: '#4F46E5', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
                               >
-                                Abrir y revisar
+                                Open and review
                               </button>
                             )}
                             {entry.status === 'pending' && !processing && (
@@ -955,7 +955,7 @@ export default function ImportIntake({
                                 onClick={() => setEntries((prev) => prev.filter((current) => trackedEntryKey(current) !== trackedEntryKey(entry)))}
                                 style={{ padding: '0.42rem 0.7rem', border: '1px solid #D6D3D1', borderRadius: 10, background: '#fff', color: '#78716C', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
                               >
-                                Quitar
+                                Remove
                               </button>
                             )}
                           </div>
@@ -1038,13 +1038,13 @@ export default function ImportIntake({
             <div style={{ flex: '1 1 260px', minWidth: 240, fontSize: 12, color: '#64748b', alignSelf: 'center' }}>
               {reprocessMode === 'deep'
                 ? IMPORTADOR_COPY.reimportModeDeepFootnote
-                : 'Este modo mantiene el flujo actual y prioriza velocidad sobre cambios en el resultado.'}
+                : 'This mode keeps the current flow and prioritizes speed over result changes.'}
             </div>
           </div>
         ) : (
           <div className="import-intake__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
             <div style={{ minWidth: 240, flex: '1 1 260px' }}>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Opciones de envio</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Send options</div>
               <div
                 style={{
                   padding: '0.7rem 0.85rem',
@@ -1089,17 +1089,17 @@ export default function ImportIntake({
           {processing ? (
             <>
               <Spinner />
-              Espera...
+              Please wait...
             </>
           ) : activeCount > 0
-            ? 'Espera'
+            ? 'Wait'
             : pendingCount > 0
               ? compactMode
-                ? `${reprocessMode === 'deep' ? 'Revisión profunda' : 'Reprocesar rápido'} ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
-                : `Subir ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
+                ? `${reprocessMode === 'deep' ? 'Deep review' : 'Fast reprocess'} ${pendingCount} document${pendingCount > 1 ? 's' : ''}`
+                : `Upload ${pendingCount} document${pendingCount > 1 ? 's' : ''}`
               : entries.length > 0
-                ? 'Subida completada'
-                : 'Selecciona archivos para subir'}
+                ? 'Upload complete'
+                : 'Select files to upload'}
         </button>
 
         {error && (

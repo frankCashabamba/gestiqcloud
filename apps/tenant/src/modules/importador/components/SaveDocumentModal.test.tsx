@@ -71,14 +71,14 @@ describe('SaveDocumentModal', () => {
       />,
     )
 
-    expect(screen.getByText('Revision final')).toBeInTheDocument()
-    expect(screen.getByText('Listo para guardar')).toBeInTheDocument()
-    expect(screen.queryByText('Estado de pago')).not.toBeInTheDocument()
+    expect(screen.getByText('Final review')).toBeInTheDocument()
+    expect(screen.getByText('Ready to save')).toBeInTheDocument()
+    expect(screen.queryByText('Payment status')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Cambiar destino u opciones' }))
+    await user.click(screen.getByRole('button', { name: 'Change destination or options' }))
 
-    expect(screen.getByText('Estado de pago')).toBeInTheDocument()
-    expect(screen.getByText('Guardar como')).toBeInTheDocument()
+    expect(screen.getByText('Payment status')).toBeInTheDocument()
+    expect(screen.getByText('Save as')).toBeInTheDocument()
   })
 
   it('shows resume copy and primary action when reopening a saved supplier invoice', async () => {
@@ -108,7 +108,7 @@ describe('SaveDocumentModal', () => {
       />,
     )
 
-    expect(screen.getAllByText('Completar stock pendiente')).toHaveLength(2)
-    expect(await screen.findByRole('button', { name: 'Completar stock' })).toBeInTheDocument()
+    expect(screen.getAllByText('Complete pending stock')).toHaveLength(2)
+    expect(await screen.findByRole('button', { name: 'Complete stock' })).toBeInTheDocument()
   })
 })

@@ -27,6 +27,7 @@ from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
+    load_ai_runtime_config,
     load_amount_label_config,
     load_classification_threshold,
     load_doc_type_patterns,
@@ -50,6 +51,7 @@ from .text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
     learn_labels_from_text,
 )
+from .ai_classifier import _estimate_text_quality
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
@@ -436,6 +438,19 @@ async def _analyze_with_context(
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
     processing_cfg = load_processing_runtime_config(db)
     min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 100))
+    if vision_image_bytes:
+        ai_runtime = load_ai_runtime_config(db)
+        quality = _estimate_text_quality(content, ai_runtime=ai_runtime)
+        quality_threshold = float(
+            ai_runtime.get("openai_fallback_ocr_quality_threshold")
+            or ai_runtime.get("ocr_min_quality")
+            or 0.45
+        )
+        if quality["score"] <= quality_threshold and quality["chars"] >= min_chars:
+            raise ValueError(
+                "Imagen de mala calidad: no se pudo extraer texto con suficiente confianza. "
+                "Sube una nueva imagen más nítida, con mejor luz y sin cortes."
+            )
     text_is_sufficient = bool(content and len(content.strip()) >= min_chars)
     image_bytes = (
         None if text_is_sufficient else bytes(vision_image_bytes) if vision_image_bytes else None

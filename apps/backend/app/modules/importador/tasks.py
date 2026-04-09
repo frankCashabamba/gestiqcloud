@@ -29,10 +29,10 @@ LEGACY_REDIS_KEY_PREFIX = "imp:payload:"
 def _payload_dir() -> Path:
     from app.config.settings import settings
 
-    raw_dir = os.getenv("IMPORTADOR_PAYLOAD_DIR") or str(
-        Path(settings.UPLOADS_DIR) / "_importador_payloads"
-    )
-    payload_dir = Path(raw_dir)
+    raw_dir = os.getenv("IMPORTADOR_PAYLOAD_DIR")
+    payload_dir = Path(raw_dir).expanduser() if raw_dir else settings.uploads_path / "_importador_payloads"
+    if not payload_dir.is_absolute():
+        payload_dir = settings.uploads_path.parent / payload_dir
     payload_dir.mkdir(parents=True, exist_ok=True)
     return payload_dir
 
@@ -253,8 +253,13 @@ def _make_task():
 
         file_bytes = load_payload(doc_id)
         if not file_bytes:
-            msg = f"Payload no encontrado para doc {doc_id}; puede haber expirado"
-            logger.error(msg)
+            storage_path = _payload_path(doc_id)
+            technical_msg = f"Payload no encontrado para doc {doc_id}; puede haber expirado"
+            user_msg = (
+                "No se pudo recuperar el archivo para procesarlo. "
+                "Vuelve a subirlo o inténtalo de nuevo."
+            )
+            logger.error("%s (storage=%s)", technical_msg, storage_path)
             try:
                 from app.config.database import SessionLocal
                 from app.models.importador import ImpDocumento
@@ -268,19 +273,19 @@ def _make_task():
                     db.execute(_text("SELECT 1"))
                     doc = db.query(ImpDocumento).filter(ImpDocumento.id == UUID(doc_id)).first()
                     if doc:
-                        crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": msg})
+                        crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": user_msg})
                         for batch_id in crud.touch_batch_items_for_document(
                             db,
                             doc.id,
                             estado="FAILED",
-                            error_detalle=msg,
+                            error_detalle=user_msg,
                         ):
                             crud.refresh_batch_status(db, batch_id)
                             publish_batch_update(db, batch_id)
                         db.commit()
             except Exception as exc:
                 logger.error("No se pudo marcar FAILED doc %s: %s", doc_id, exc)
-            return {"ok": False, "error": msg}
+            return {"ok": False, "error": user_msg}
 
         try:
             asyncio.run(

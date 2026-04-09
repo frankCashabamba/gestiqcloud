@@ -1,0 +1,50 @@
+BEGIN;
+
+DELETE FROM imp_config
+WHERE module = 'ocr_config'
+  AND key IN (
+    'min_width',
+    'weak_text_min_words',
+    'weak_text_min_chars',
+    'pdf_render_dpi',
+    'image_contrast',
+    'image_sharpness',
+    'tesseract_languages',
+    'primary_psm_modes',
+    'rescue_psm_modes',
+    'small_rotation_angles',
+    'primary_variant_labels',
+    'median_filter_size',
+    'perspective_threshold_value',
+    'threshold_value',
+    'threshold_low_value',
+    'trim_background_threshold',
+    'trim_min_crop_ratio',
+    'trim_padding_ratio',
+    'trim_min_padding_px',
+    'perspective_canny_threshold1',
+    'perspective_canny_threshold2',
+    'perspective_blur_kernel',
+    'perspective_kernel_size',
+    'perspective_min_area_ratio',
+    'perspective_min_output_ratio',
+    'easyocr_languages',
+    'easyocr_gpu',
+    'easyocr_enabled',
+    'easyocr_variant_label',
+    'line_cleanup_patterns',
+    'invoice_doc_number_context_tokens',
+    'invoice_doc_number_keyword_patterns',
+    'invoice_doc_number_fallback_patterns',
+    'invoice_vendor_stop_tokens',
+    'invoice_vendor_suffix_patterns',
+    'invoice_line_skip_markers',
+    'excel_max_header_scan_rows',
+    'excel_max_preview_rows_per_sheet',
+    'excel_scan_rows_multiplier',
+    'excel_max_text_chars',
+    'vision_jpeg_quality',
+    'image_source_formats'
+  );
+
+COMMIT;

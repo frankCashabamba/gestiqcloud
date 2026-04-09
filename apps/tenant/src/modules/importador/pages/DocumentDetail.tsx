@@ -2,7 +2,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, fetchLineItemSlots, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type LineItemSlot, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
-import { IMPORTADOR_COPY, IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS } from '../constants'
+import { IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS } from '../constants'
 import { fetchCanonicalFields, formatFieldLabel, type CanonicalField } from '../services'
 
 const SaveDocumentModal = lazy(() => import('../components/SaveDocumentModal'))
@@ -16,26 +16,32 @@ type ReprocessMode = 'fast' | 'deep'
 function ReprocessActions({
   onFast,
   onDeep,
+  fastLabel,
+  deepLabel,
+  title,
+  copy,
 }: {
   onFast: () => void
   onDeep: () => void
+  fastLabel: string
+  deepLabel: string
+  title: string
+  copy: string
 }) {
   return (
     <div style={reprocessCard}>
       <div style={reprocessHeaderLayout}>
         <div style={{ minWidth: 0 }}>
           <div style={reprocessEyebrow}>Reprocesado</div>
-          <div style={reprocessTitle}>Elige el nivel de reproceso</div>
-          <div style={reprocessCopy}>
-            RÃ¡pido mantiene el flujo actual. Profundo vuelve a leer el documento desde cero y tarda mÃ¡s.
-          </div>
+          <div style={reprocessTitle}>{title}</div>
+          <div style={reprocessCopy}>{copy}</div>
         </div>
         <div style={reprocessButtonRow}>
           <button onClick={onFast} style={reprocessFastButton}>
-            {IMPORTADOR_COPY.reprocessFastButton}
+            {fastLabel}
           </button>
           <button onClick={onDeep} style={reprocessDeepButton}>
-            {IMPORTADOR_COPY.reprocessDeepButton}
+            {deepLabel}
           </button>
         </div>
       </div>
@@ -293,17 +299,17 @@ function summarizeLogDetail(action: string, detail: Record<string, unknown> | nu
   if (!detail || typeof detail !== 'object') return undefined
   if (action === 'UPLOAD') {
     const filename = typeof detail.filename === 'string' ? detail.filename : null
-    return filename ? `Archivo: ${filename}` : undefined
+    return filename ? `File: ${filename}` : undefined
   }
   if (action === 'CONFIRM') {
     const mode = typeof detail.confirmation_mode === 'string' ? detail.confirmation_mode : null
-    if (mode === 'corrected_by_user') return 'Se confirmo con cambios del usuario.'
-    if (mode === 'accepted_as_detected') return 'Se confirmo tal como fue detectado.'
-    return 'Se confirmaron los datos del documento.'
+    if (mode === 'corrected_by_user') return 'Confirmed with user changes.'
+    if (mode === 'accepted_as_detected') return 'Confirmed as detected.'
+    return 'The document data was confirmed.'
   }
   if (action === 'REPROCESS') {
     const reason = typeof detail.reason === 'string' ? detail.reason : null
-    if (reason === 'learning_update') return 'Se reanalizo para aplicar aprendizaje confirmado reciente.'
+    if (reason === 'learning_update') return 'Reanalyzed to apply recent confirmed learning.'
     const mode = typeof detail.mode === 'string' ? detail.mode : null
     return mode === 'async' || mode === 'in_place' ? 'Se volviÃ³ a procesar el documento.' : undefined
   }
@@ -333,15 +339,15 @@ function buildUserActivity(logs: LogCambio[] | undefined): ActivityItem[] {
             ? log.detalle as Record<string, unknown>
             : null
           const mode = typeof detail?.confirmation_mode === 'string' ? detail.confirmation_mode : null
-          if (mode === 'corrected_by_user') return 'Documento confirmado con correcciones'
-          if (mode === 'accepted_as_detected') return 'Documento confirmado tal cual'
+          if (mode === 'corrected_by_user') return 'Document confirmed with corrections'
+          if (mode === 'accepted_as_detected') return 'Document confirmed as detected'
         }
-        if (log.accion === 'UPLOAD') return 'Documento subido'
+        if (log.accion === 'UPLOAD') return 'Document uploaded'
         if (log.accion === 'EDIT') return 'Datos editados'
-        if (log.accion === 'CONFIRM') return 'Documento confirmado'
-        if (log.accion === 'REJECT') return 'Documento rechazado'
+        if (log.accion === 'CONFIRM') return 'Document confirmed'
+        if (log.accion === 'REJECT') return 'Document rejected'
         if (log.accion === 'REPROCESS') return 'Reprocesado solicitado'
-        return 'Documento guardado'
+        return 'Document saved'
       })(),
       when: new Date(log.created_at).toLocaleString(),
       note: summarizeLogDetail(log.accion, log.detalle as Record<string, unknown> | null | undefined),
@@ -628,7 +634,7 @@ export default function DocumentDetail() {
     const data = (doc?.datos_extraidos || {}) as Record<string, unknown>
     // No editar tablas (tipo inventario/nomina) â€” solo campos escalares
     if (data.filas && Array.isArray(data.filas)) {
-      setError('Este tipo de documento no se puede editar manualmente. Usa "Volver a importar" para rehacer el anÃ¡lisis.')
+      setError('This type of document cannot be edited manually. Use "Re-import" to redo the analysis.')
       return
     }
     const flat: Record<string, string> = {}
@@ -723,57 +729,57 @@ export default function DocumentDetail() {
         ? 4
         : 3
   const flowTitle = isSaved
-    ? 'Paso 4. Guardado'
+    ? 'Step 4. Saved'
     : isProcessingDocument
-      ? 'Paso 2. Espera'
+      ? 'Step 2. Wait'
       : saveEnabled || canResumeSavedInvoice
-        ? 'Paso 4. Guarda'
-        : 'Paso 3. Confirma o reprocesa'
+        ? 'Step 4. Save'
+        : 'Step 3. Confirm or reprocess'
   const flowDescription = isSaved
     ? (canResumeSavedInvoice
-        ? 'El documento ya estÃ¡ guardado. Si falta completar stock o productos, puedes guardarlo de nuevo.'
-        : 'El documento ya estÃ¡ guardado.')
+        ? 'The document is already saved. If stock or products still need completion, you can save it again.'
+        : 'The document is already saved.')
     : isProcessingDocument
-      ? 'No necesitas hacer nada ahora. Espera a que termine el anÃ¡lisis automÃ¡tico.'
+      ? 'You do not need to do anything now. Wait for the automatic analysis to finish.'
       : isAssistedLines && doc.estado === 'REVIEW'
-        ? (assistedReview?.message || 'Corrige solo lo necesario, confirma si estÃ¡ bien o reprocesa si no te sirve.')
+        ? (assistedReview?.message || 'Fix only what is needed, confirm if it is correct, or reprocess if it is not useful.')
       : saveEnabled || canResumeSavedInvoice
-        ? 'Si estÃ¡ bien, guarda. Si no, reprocesa.'
+        ? 'If it is correct, save it. If not, reprocess it.'
         : !routingReadyForSave
-          ? 'Corrige los datos obligatorios antes de guardar o reprocesa si el resultado no te sirve.'
-          : 'Confirma si el resultado es correcto. Si no, reprocesa.'
+          ? 'Fix the required data before saving or reprocess if the result is not useful.'
+          : 'Confirm if the result is correct. If not, reprocess it.'
   const flowBlockingSummary = missingFieldLabels.length === 1
-    ? `Falta 1 dato obligatorio: ${missingFieldLabels[0]}.`
+    ? `1 required field is missing: ${missingFieldLabels[0]}.`
     : missingFieldLabels.length > 1
-      ? `Faltan ${missingFieldLabels.length} datos obligatorios: ${missingFieldLabels.join(', ')}.`
+      ? `${missingFieldLabels.length} required fields are missing: ${missingFieldLabels.join(', ')}.`
       : isAssistedLines
-        ? 'Prioriza las lineas detectadas y deja vacios los datos que no aparecen en el documento.'
-      : 'Corrige los datos obligatorios antes del guardado final.'
+        ? 'Prioritize the detected lines and leave empty the data that does not appear in the document.'
+      : 'Fix the required data before the final save.'
   const flowSupportLabel = confPct != null
-    ? `Confianza ${confPct}%`
-    : 'Resultado provisional'
+    ? `Confidence ${confPct}%`
+    : 'Provisional result'
   const flowPrimaryAction = canResumeSavedInvoice
     ? {
-        label: 'Guardar',
+        label: 'Save',
         onClick: () => setSaveModalOpen(true),
         style: { ...actionBtn, background: '#0f766e' },
       }
     : !isSaved && saveEnabled
       ? {
-          label: 'Guardar',
+        label: 'Save',
           onClick: () => setSaveModalOpen(true),
           style: { ...actionBtn, background: '#0f766e' },
         }
       : !isSaved && doc.estado === 'REVIEW' && !saveEnabled && routingReadyForSave
         ? {
-            label: saving ? t('docDetail.buttons.confirming') : 'Confirmar',
+            label: saving ? t('docDetail.buttons.confirming') : 'Confirm',
             onClick: handleConfirm,
             style: { ...actionBtn, background: '#10B981' },
             disabled: saving,
           }
         : !isSaved && canEditScalars && (isAssistedLines || !routingReadyForSave)
           ? {
-              label: 'Corregir',
+              label: 'Fix',
               onClick: startEdit,
               style: { ...actionBtn, background: '#F59E0B' },
             }
@@ -933,15 +939,15 @@ export default function DocumentDetail() {
       {saveProductsResult && (
         <div style={{ padding: '0.75rem', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <strong style={{ color: '#047857' }}>Productos guardados</strong>
+            <strong style={{ color: '#047857' }}>Saved products</strong>
             <span style={{ marginLeft: 12, color: '#374151' }}>
               {saveProductsResult.created} creados Â· {saveProductsResult.updated ?? 0} actualizados Â· {saveProductsResult.skipped_invalid} omitidos por invÃ¡lidos
             </span>
             {(saveProductsResult.sheet_name || saveProductsResult.category_name) && (
               <div style={{ marginTop: 4, fontSize: 12, color: '#065f46' }}>
-                {saveProductsResult.sheet_name ? `Hoja: ${saveProductsResult.sheet_name}` : ''}
+                {saveProductsResult.sheet_name ? `Sheet: ${saveProductsResult.sheet_name}` : ''}
                 {saveProductsResult.sheet_name && saveProductsResult.category_name ? ' Â· ' : ''}
-                {saveProductsResult.category_name ? `Categoria: ${saveProductsResult.category_name}` : ''}
+                {saveProductsResult.category_name ? `Category: ${saveProductsResult.category_name}` : ''}
               </div>
             )}
             {saveProductsResult.skipped_names.length > 0 && (
@@ -982,7 +988,7 @@ export default function DocumentDetail() {
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {canSaveProducts && (
             <button onClick={() => setSaveProductsOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
-              Guardar productos
+              Save products
             </button>
           )}
 
@@ -1065,7 +1071,7 @@ export default function DocumentDetail() {
                     <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
                   )}
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
-                    {saving ? t('docDetail.buttons.confirming') : 'Usar este resultado'}
+                    {saving ? t('docDetail.buttons.confirming') : 'Use this result'}
                   </button>
                 </>
               )}
@@ -1079,7 +1085,7 @@ export default function DocumentDetail() {
         <div style={flowCard}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div style={{ minWidth: 260, flex: '1 1 320px' }}>
-              <div style={flowEyebrow}>Flujo simple</div>
+              <div style={flowEyebrow}>Simple flow</div>
               <h3 style={{ margin: '0.35rem 0 0', fontSize: 22, lineHeight: 1.15 }}>{flowTitle}</h3>
               <p style={{ margin: '0.5rem 0 0', fontSize: 14, color: '#334155' }}>
                 {!routingReadyForSave
@@ -1094,14 +1100,14 @@ export default function DocumentDetail() {
               {!isAssistedLines && !routingReadyForSave && reviewHints.length > 0 && (
                 <div style={{ marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid #FDE68A', background: '#FFFBEB' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
-                    Corrige solo esto para poder guardar
+                    Fix only this to be able to save
                   </div>
                   <div style={{ display: 'grid', gap: 6 }}>
                     {reviewHints.slice(0, 3).map((hint) => (
                       <div key={hint.field} style={{ fontSize: 13, color: '#78350f' }}>
                         <strong>{hint.priority}. {formatFieldLabel(hint.field)}</strong>
                         {hint.confirmed_examples.length > 0 && (
-                          <span> Â· Ejemplos: {hint.confirmed_examples.join(', ')}</span>
+                          <span> · Examples: {hint.confirmed_examples.join(', ')}</span>
                         )}
                       </div>
                     ))}
@@ -1152,18 +1158,18 @@ export default function DocumentDetail() {
             <div>
               <h3 style={{ margin: 0 }}>Lineas detectadas</h3>
               <div style={{ marginTop: 4, fontSize: 13, color: '#64748B' }}>
-                Este documento se revisa mejor por lineas que por campos generales.
+                This document is better reviewed by lines than by general fields.
               </div>
             </div>
             <div style={{ fontSize: 12, color: '#0F766E', fontWeight: 700 }}>
-              {assistedReview?.line_items_count ?? detectedLineItems.length} lineas sugeridas
+              {assistedReview?.line_items_count ?? detectedLineItems.length} suggested lines
             </div>
           </div>
           <LineItemsPreview
             items={detectedLineItems}
             slots={lineItemSlots}
             title="Detalle detectado"
-            subtitle={assistedReview?.can_derive_total ? 'El total puede derivarse de estas lineas.' : 'Revisa cantidades, precios y total antes de guardar.'}
+            subtitle={assistedReview?.can_derive_total ? 'The total can be derived from these lines.' : 'Review quantities, prices, and the total before saving.'}
           />
         </div>
       )}
@@ -1171,7 +1177,7 @@ export default function DocumentDetail() {
       {/* Confidence warning */}
       {!simpleFlowEnabled && needsHumanReview && confPct != null && confPct < 85 && (
         <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, marginBottom: '1rem', fontSize: 14 }}>
-          âš ï¸ <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
+          Warning: <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
           {routingDecision?.reason && <span style={{ display: 'block', marginTop: 6, fontWeight: 400 }}>{routingDecision.reason}</span>}
         </div>
       )}
@@ -1181,7 +1187,7 @@ export default function DocumentDetail() {
         <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>{STATUS_LABELS[displayStatus] || displayStatus}</span>
         {isSaved && (
           <span style={{ marginLeft: 8, background: '#dcfce7', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#166534', fontWeight: 700 }}>
-            Guardado
+            Saved
           </span>
         )}
         {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }}>{doc.tipo_documento_detectado}</span>}
@@ -1189,7 +1195,14 @@ export default function DocumentDetail() {
       </div>
 
       {!isProcessingDocument && (
-        <ReprocessActions onFast={() => openReimport('fast')} onDeep={() => openReimport('deep')} />
+        <ReprocessActions
+          onFast={() => openReimport('fast')}
+          onDeep={() => openReimport('deep')}
+          fastLabel={t('reprocessPage.fastTitle')}
+          deepLabel={t('reprocessPage.deepTitle')}
+          title="Choose the reprocess level"
+          copy="Fast keeps the current flow. Deep ignores OCR and AI caches and starts over to improve extraction."
+        />
       )}
 
       {/* Split view */}
@@ -1197,7 +1210,7 @@ export default function DocumentDetail() {
         {/* Left: Document info */}
         <div style={{ flex: 1, minWidth: 300 }}>
           <div style={section}>
-            <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Revision asistida' : 'Resumen del documento'}</h3>
+            <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Assisted review' : 'Document summary'}</h3>
             {routingDecision && (
               <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: `1px solid ${routingDecision.required_fields_ok ? '#BBF7D0' : '#FDE68A'}`, background: routingDecision.required_fields_ok ? '#F0FDF4' : '#FFFBEB' }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
@@ -1215,7 +1228,7 @@ export default function DocumentDetail() {
                 )}
                 {isAssistedLines && (
                   <div style={{ marginTop: 6, fontSize: 13, color: '#334155' }}>
-                    Prioriza productos, cantidades y total. Los demas datos pueden quedarse vacios si no aparecen.
+                    Prioritize products, quantities, and the total. The other fields can stay empty if they do not appear.
                   </div>
                 )}
               </div>
@@ -1223,16 +1236,16 @@ export default function DocumentDetail() {
             {!isAssistedLines && reviewHints.length > 0 && (
               <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>
-                  Revision prioritaria sugerida
+                  Suggested priority review
                 </div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   {reviewHints.slice(0, 3).map((hint) => (
                     <div key={hint.field} style={{ fontSize: 13, color: '#334155' }}>
                       <strong>{hint.priority}. {formatFieldLabel(hint.field)}</strong>
-                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Falta</span>}
+                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Missing</span>}
                       {hint.confirmed_examples.length > 0 && (
                         <div style={{ marginTop: 2, color: '#475569' }}>
-                          Ejemplos confirmados: {hint.confirmed_examples.join(', ')}
+                          Confirmed examples: {hint.confirmed_examples.join(', ')}
                         </div>
                       )}
                     </div>
@@ -1255,11 +1268,11 @@ export default function DocumentDetail() {
                 })()}
               </p>
             )}
-            {doc.fecha_documento && <p><strong>Fecha:</strong> {doc.fecha_documento}</p>}
+            {doc.fecha_documento && <p><strong>Date:</strong> {doc.fecha_documento}</p>}
           </div>
           {doc.error_detalle && (
             <div style={{ ...section, background: '#FEF2F2', border: '1px solid #FECACA' }}>
-              <h3 style={{ marginTop: 0, color: '#991B1B' }}>Incidencia detectada</h3>
+              <h3 style={{ marginTop: 0, color: '#991B1B' }}>Detected issue</h3>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{doc.error_detalle}</pre>
             </div>
           )}
@@ -1352,7 +1365,7 @@ export default function DocumentDetail() {
                     )}
                     {datos.metadata && typeof datos.metadata === 'object' && (!activeSheet || activeSheet === (datos.sheet_usada as string)) && (
                       <div style={{ marginTop: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.75rem', fontSize: 13 }}>
-                        <strong style={{ color: '#0f172a' }}>Informacion adicional</strong>
+                        <strong style={{ color: '#0f172a' }}>Additional information</strong>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px 12px', marginTop: 8 }}>
                           {Object.entries(datos.metadata as Record<string, unknown>).map(([k, v]) => (
                             <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? 'â€”')}</div>
@@ -1366,7 +1379,7 @@ export default function DocumentDetail() {
             ) : (
               // Vista de campos para FACTURA, RECIBO, etc.
               <>
-                <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Datos opcionales del documento' : 'Datos del documento'}</h3>
+                <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Optional document data' : 'Document data'}</h3>
                 {editMode ? (
                   <div>
                     {!isAssistedLines && reviewHints.length > 0 && (
@@ -1376,7 +1389,7 @@ export default function DocumentDetail() {
                     )}
                     {isAssistedLines && (
                       <div style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF', fontSize: 13, color: '#334155' }}>
-                        Corrige primero las lineas y el total. Los datos superiores son opcionales si no aparecen en la imagen.
+                        Fix the lines and the total first. The upper fields are optional if they do not appear in the image.
                       </div>
                     )}
                     {orderedEditEntries.map(([key, val]) => {
@@ -1400,7 +1413,7 @@ export default function DocumentDetail() {
                         )}
                         {hint?.confirmed_examples?.length ? (
                           <span style={{ marginTop: 2, color: '#64748b', fontSize: 12 }}>
-                            Ejemplos: {hint.confirmed_examples.join(', ')}
+                            Examples: {hint.confirmed_examples.join(', ')}
                           </span>
                         ) : null}
                       </label>
@@ -1409,16 +1422,16 @@ export default function DocumentDetail() {
                     <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e5e7eb' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                         <div>
-                          <div style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>Detalle de lineas</div>
-                          <div style={{ color: '#6b7280', fontSize: 12 }}>Agrega o corrige los productos detectados.</div>
+                          <div style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>Line details</div>
+                          <div style={{ color: '#6b7280', fontSize: 12 }}>Add or fix the detected products.</div>
                         </div>
                         <button onClick={addEditLineItem} type="button" style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>
-                          Agregar linea
+                          Add line
                         </button>
                       </div>
                       {editLineItems.length === 0 ? (
                         <div style={{ padding: '0.75rem', border: '1px dashed #d1d5db', borderRadius: 8, color: '#6b7280', fontSize: 13 }}>
-                          No hay lineas cargadas. Puedes agregarlas manualmente.
+                          There are no loaded lines. You can add them manually.
                         </div>
                       ) : (
                         <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -1427,7 +1440,7 @@ export default function DocumentDetail() {
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                                 <strong style={{ fontSize: 13, color: '#111827' }}>Linea {index + 1}</strong>
                                 <button onClick={() => removeEditLineItem(index)} type="button" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                                  Quitar
+                                  Remove
                                 </button>
                               </div>
                               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${lineItemSlots.length}, minmax(110px,1fr))`, gap: '0.5rem' }}>
@@ -1467,7 +1480,7 @@ export default function DocumentDetail() {
                         {Object.keys(datos).filter(k => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
                           <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>
                             {doc.error_detalle
-                              ? 'No se pudieron extraer datos. Usa "Volver a importar" para reintentar.'
+                              ? 'Could not extract data. Use "Re-import" to try again.'
                               : 'â€”'}
                           </td></tr>
                         )}
@@ -1509,7 +1522,7 @@ export default function DocumentDetail() {
 
       {activityItems.length > 0 && (
         <div style={{ ...section, marginTop: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Actividad reciente</h3>
+          <h3 style={{ marginTop: 0 }}>Recent activity</h3>
           <div style={{ display: 'grid', gap: 10 }}>
             {activityItems.map((item) => (
               <div
@@ -1537,7 +1550,7 @@ export default function DocumentDetail() {
 
       {doc.version_links && doc.version_links.length > 0 && (
         <div style={{ ...section, marginTop: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Versiones relacionadas</h3>
+          <h3 style={{ marginTop: 0 }}>Related versions</h3>
           <div style={{ display: 'grid', gap: 8 }}>
             {doc.version_links.map(link => (
               <button
@@ -1558,7 +1571,7 @@ export default function DocumentDetail() {
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                    <strong>{link.relation_direction === 'predecessor' ? 'Anterior' : 'Posterior'}</strong>
+                    <strong>{link.relation_direction === 'predecessor' ? 'Previous' : 'Next'}</strong>
                     <span style={{ color: '#6B7280' }}>{link.estado}</span>
                     {link.relation_reason && <span style={{ color: '#6B7280' }}>{link.relation_reason}</span>}
                   </div>
@@ -1568,7 +1581,7 @@ export default function DocumentDetail() {
                     {link.hash_sha256 ? ` Â· ${link.hash_sha256.slice(0, 12)}...` : ''}
                   </div>
                 </div>
-                <span style={{ color: '#2563EB', fontWeight: 600 }}>Abrir</span>
+                <span style={{ color: '#2563EB', fontWeight: 600 }}>Open</span>
               </button>
             ))}
           </div>

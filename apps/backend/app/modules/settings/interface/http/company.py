@@ -7,7 +7,6 @@ URLs:
 
 import json
 import logging
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -568,7 +567,7 @@ async def upload_settings_branding_logo(
     }
     ext = ext_by_type.get(content_type, ".png")
 
-    upload_root = Path(settings.UPLOADS_DIR)
+    upload_root = settings.uploads_path
     logos_dir = upload_root / "logos"
     logos_dir.mkdir(parents=True, exist_ok=True)
 

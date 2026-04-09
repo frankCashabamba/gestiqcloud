@@ -28,7 +28,7 @@ export default function RecipeManager() {
     try {
       setRecipes(await fetchRecipes())
     } catch {
-      setError('No se pudieron cargar las plantillas.')
+      setError('Could not load the templates.')
     } finally {
       setLoading(false)
     }
@@ -46,7 +46,7 @@ export default function RecipeManager() {
       setDrafts(draftItems)
       setSnapshots(snapshotItems)
     } catch {
-      setError('No se pudieron cargar los detalles de la plantilla.')
+      setError('Could not load the template details.')
     }
   }
 
@@ -61,7 +61,7 @@ export default function RecipeManager() {
       await loadRecipes()
       await loadRecipeDetail(created)
     } catch {
-      setError('No se pudo crear la plantilla.')
+      setError('Could not create the template.')
     } finally {
       setSaving(false)
     }
@@ -78,7 +78,7 @@ export default function RecipeManager() {
         setEditDraft(null)
       }
     } catch {
-      setError('No se pudo archivar la plantilla.')
+      setError('Could not archive the template.')
     }
   }
 
@@ -92,7 +92,7 @@ export default function RecipeManager() {
       setDraftSystem(draft.prompt_system || '')
       setDraftUser(draft.prompt_user || '')
     } catch {
-      setError('No se pudo crear un borrador.')
+      setError('Could not create a draft.')
     } finally {
       setSaving(false)
     }
@@ -106,7 +106,7 @@ export default function RecipeManager() {
       setEditDraft(updated)
       setDrafts(prev => prev.map(draft => draft.id === updated.id ? updated : draft))
     } catch {
-      setError('No se pudo guardar el borrador.')
+      setError('Could not save the draft.')
     } finally {
       setSaving(false)
     }
@@ -119,7 +119,7 @@ export default function RecipeManager() {
       const snapshot = await createSnapshot(draftId, tag)
       setSnapshots(prev => [snapshot, ...prev])
     } catch {
-      setError('No se pudo guardar la version.')
+      setError('Could not save the version.')
     } finally {
       setSaving(false)
     }
@@ -164,7 +164,7 @@ export default function RecipeManager() {
             boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
           }}
         >
-          {'<-'} Volver
+          {'<-'} Back
         </button>
 
         <section
@@ -180,15 +180,15 @@ export default function RecipeManager() {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div style={{ maxWidth: 760 }}>
               <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0f766e', marginBottom: 6 }}>
-                Configuracion avanzada
+                Advanced configuration
               </div>
-              <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>Plantillas de lectura</h1>
+              <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>Reading templates</h1>
               <p style={{ margin: '0.55rem 0 0', fontSize: 15, color: '#475569', maxWidth: 700 }}>
-                Las plantillas ayudan a orientar la lectura de determinados formatos. Puedes crear borradores, probar ajustes y conservar versiones estables para reutilizarlas en futuras importaciones.
+                Templates help guide the reading of specific formats. You can create drafts, test adjustments, and keep stable versions to reuse in future imports.
               </p>
             </div>
             <div className="recipe-manager__top-actions" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <button onClick={() => setShowCreate(true)} style={primaryBtn}>Nueva plantilla</button>
+              <button onClick={() => setShowCreate(true)} style={primaryBtn}>New template</button>
             </div>
           </div>
         </section>
@@ -197,30 +197,30 @@ export default function RecipeManager() {
           <div style={{ color: '#991B1B', background: '#FEF2F2', padding: '0.8rem 0.9rem', borderRadius: 14, border: '1px solid #fecaca', fontSize: 13 }}>
             {error}
             <button onClick={() => setError('')} style={{ marginLeft: 12, border: 'none', background: 'none', cursor: 'pointer', color: '#991B1B', fontWeight: 800 }}>
-              Cerrar
+              Close
             </button>
           </div>
         )}
 
         {showCreate && (
           <section style={{ padding: '1rem', border: '1px solid #dbe4f0', borderRadius: 20, background: '#fff', boxShadow: '0 14px 26px rgba(15, 23, 42, 0.04)' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem' }}>Crear plantilla</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem' }}>Create template</div>
             <div style={{ display: 'grid', gap: '0.65rem' }}>
               <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                placeholder="Nombre de la plantilla"
+                placeholder="Template name"
                 style={inputStyle}
               />
               <input
                 value={newDesc}
                 onChange={e => setNewDesc(e.target.value)}
-                placeholder="Descripcion breve"
+                placeholder="Short description"
                 style={inputStyle}
               />
             </div>
             <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
-              <button onClick={handleCreate} disabled={saving} style={primaryBtn}>{saving ? 'Creando...' : 'Crear plantilla'}</button>
+              <button onClick={handleCreate} disabled={saving} style={primaryBtn}>{saving ? 'Creating...' : 'Create template'}</button>
               <button onClick={() => setShowCreate(false)} style={secondaryBtn}>Cancelar</button>
             </div>
           </section>
@@ -236,17 +236,17 @@ export default function RecipeManager() {
               padding: '1rem',
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Plantillas disponibles</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Available templates</div>
             <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-              Selecciona una plantilla para ver sus borradores y sus versiones guardadas.
+              Select a template to see its drafts and saved versions.
             </div>
 
             <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.65rem' }}>
               {loading ? (
-                <div style={{ color: '#64748b', fontSize: 13 }}>Cargando plantillas...</div>
+                <div style={{ color: '#64748b', fontSize: 13 }}>Loading templates...</div>
               ) : recipes.length === 0 ? (
                 <div style={{ padding: '1rem', borderRadius: 14, background: '#f8fafc', color: '#64748b', fontSize: 13 }}>
-                  Aun no hay plantillas creadas.
+                  No templates have been created yet.
                 </div>
               ) : (
                 recipes.map(recipe => (
@@ -280,7 +280,7 @@ export default function RecipeManager() {
                         }}
                         style={{ fontSize: 12, color: '#991b1b', fontWeight: 700 }}
                       >
-                        Archivar
+                        Archive
                       </span>
                     </div>
                   </button>
@@ -300,7 +300,7 @@ export default function RecipeManager() {
           >
             {!selected ? (
               <div style={{ padding: '1.4rem', borderRadius: 18, background: '#f8fafc', color: '#64748b' }}>
-                Selecciona una plantilla para ver su configuracion.
+                Select a template to view its configuration.
               </div>
             ) : (
               <div style={{ display: 'grid', gap: '1rem' }}>
@@ -308,22 +308,22 @@ export default function RecipeManager() {
                   <div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>{selected.name}</div>
                     <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-                      {selected.description || 'Sin descripcion'}
+                      {selected.description || 'No description'}
                     </div>
                   </div>
                   <button onClick={handleCreateDraft} disabled={saving} style={secondaryBtn}>
-                    {saving ? 'Creando...' : 'Nuevo borrador'}
+                    {saving ? 'Creating...' : 'New draft'}
                   </button>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.8rem' }}>
                   <div style={summaryCard}>
-                    <div style={summaryLabel}>Borradores</div>
+                    <div style={summaryLabel}>Drafts</div>
                     <div style={summaryValue}>{drafts.length}</div>
-                    <div style={summaryNote}>Versiones editables en trabajo</div>
+                    <div style={summaryNote}>Editable work versions</div>
                   </div>
                   <div style={summaryCard}>
-                    <div style={summaryLabel}>Versiones guardadas</div>
+                    <div style={summaryLabel}>Saved versions</div>
                     <div style={summaryValue}>{snapshots.length}</div>
                     <div style={summaryNote}>Snapshots listos para reutilizar</div>
                   </div>
@@ -333,16 +333,16 @@ export default function RecipeManager() {
                   <section style={innerSection}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.75rem' }}>
                       <div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Borradores</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Drafts</div>
                         <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-                          Ajusta aqui el texto de apoyo para esta plantilla antes de publicar una version.
+                          Adjust the support text for this template here before publishing a version.
                         </div>
                       </div>
                     </div>
 
                     {drafts.length === 0 ? (
                       <div style={{ padding: '0.9rem', borderRadius: 14, background: '#f8fafc', color: '#64748b', fontSize: 13 }}>
-                        Esta plantilla todavia no tiene borradores.
+                        This template does not have any drafts yet.
                       </div>
                     ) : (
                       <div style={{ display: 'grid', gap: '0.7rem' }}>
@@ -351,7 +351,7 @@ export default function RecipeManager() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                               <div>
                                 <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
-                                  Borrador del {new Date(draft.created_at).toLocaleDateString()}
+                                  Draft from {new Date(draft.created_at).toLocaleDateString()}
                                 </div>
                                 <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
                                   Ultima actualizacion: {new Date(draft.updated_at).toLocaleString()}
@@ -366,10 +366,10 @@ export default function RecipeManager() {
                                   }}
                                   style={secondaryBtn}
                                 >
-                                  Editar
+                                  Edit
                                 </button>
                                 <button onClick={() => { void handleSnapshot(draft.id) }} disabled={saving} style={successBtn}>
-                                  Guardar version
+                                  Save version
                                 </button>
                               </div>
                             </div>
@@ -380,7 +380,7 @@ export default function RecipeManager() {
 
                     {editDraft && (
                       <div style={{ marginTop: '1rem', border: '1px solid #c7d2fe', borderRadius: 18, padding: '1rem', background: '#fafbff' }}>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem' }}>Editar borrador</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem' }}>Edit draft</div>
                         <div style={{ display: 'grid', gap: '0.75rem' }}>
                           <div>
                             <label style={fieldLabel}>Instrucciones generales</label>
@@ -405,7 +405,7 @@ export default function RecipeManager() {
                         </div>
                         <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
                           <button onClick={handleSaveDraft} disabled={saving} style={primaryBtn}>
-                            {saving ? 'Guardando...' : 'Guardar cambios'}
+                            {saving ? 'Saving...' : 'Save changes'}
                           </button>
                           <button onClick={() => setEditDraft(null)} style={secondaryBtn}>Cancelar</button>
                         </div>
@@ -414,10 +414,10 @@ export default function RecipeManager() {
                   </section>
 
                   <section style={innerSection}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem' }}>Versiones guardadas</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem' }}>Saved versions</div>
                     {snapshots.length === 0 ? (
                       <div style={{ padding: '0.9rem', borderRadius: 14, background: '#f8fafc', color: '#64748b', fontSize: 13 }}>
-                        Todavia no hay versiones guardadas para esta plantilla.
+                        There are no saved versions for this template yet.
                       </div>
                     ) : (
                       <div style={{ display: 'grid', gap: '0.7rem' }}>
@@ -425,7 +425,7 @@ export default function RecipeManager() {
                           <div key={snapshot.id} style={{ border: '1px solid #d1fae5', borderRadius: 16, padding: '0.8rem 0.9rem', background: '#f0fdf4' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                               <div>
-                                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{snapshot.version_tag || 'Sin nombre'}</div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{snapshot.version_tag || 'Untitled'}</div>
                                 <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
                                   Guardada el {new Date(snapshot.created_at).toLocaleString()}
                                 </div>

@@ -228,6 +228,14 @@ class Settings(BaseSettings):
     MAX_REQUEST_BYTES: int = 5 * 1024 * 1024
     GZIP_ENABLED: bool = True
 
+    @property
+    def uploads_path(self) -> Path:
+        """Absolute path for shared uploads storage, independent of cwd."""
+        path = Path(self.UPLOADS_DIR).expanduser()
+        if path.is_absolute():
+            return path
+        return Path(__file__).resolve().parents[2] / path
+
     # Telegram Bot Webhook
     # Telegram Bot: toda la config va en Settings > Notificaciones > Telegram (DB).
     # Sin variables de entorno necesarias.

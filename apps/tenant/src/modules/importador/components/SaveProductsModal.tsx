@@ -78,7 +78,7 @@ export default function SaveProductsModal({
   const submit = async () => {
     if (!doc.id) return
     if (selectedIndexes.length === 0) {
-      setError('Selecciona al menos una fila para crear productos.')
+      setError('Select at least one row to create products.')
       return
     }
 
@@ -93,7 +93,7 @@ export default function SaveProductsModal({
       onSaved?.(result)
       onClose()
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'No se pudieron guardar los productos.')
+      setError(err?.response?.data?.detail || err?.message || 'Could not save the products.')
     } finally {
       setSaving(false)
     }
@@ -104,10 +104,10 @@ export default function SaveProductsModal({
       <div style={modal}>
         <div style={header}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Guardar productos</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Save products</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
               {doc.nombre_archivo}
-              {sheetName ? ` | Hoja ${sheetName}` : ''}
+              {sheetName ? ` | Sheet ${sheetName}` : ''}
             </div>
           </div>
           <button onClick={onClose} style={closeBtn} disabled={saving}>X</button>
@@ -115,17 +115,17 @@ export default function SaveProductsModal({
 
         <div style={body}>
           <div style={hintBox}>
-            Si el producto ya existe se actualizará su precio y stock. Si no existe, se creará con código SKU automático.
+            If the product already exists, its price and stock will be updated. If it does not exist, it will be created with an automatic SKU code.
           </div>
 
           <label style={field}>
-            <span style={label}>Categoria para esta importacion</span>
+            <span style={label}>Category for this import</span>
             <input
               value={categoryName}
               onChange={(e) => setCategoryName(e.target.value)}
               style={input}
               disabled={saving}
-              placeholder="Ej: Panaderia, Lacteos, Bebidas"
+              placeholder="E.g. Bakery, Dairy, Beverages"
             />
           </label>
 
@@ -140,7 +140,7 @@ export default function SaveProductsModal({
                 style={secondaryBtn}
                 disabled={saving || rows.length === 0}
               >
-                {allSelected ? 'Limpiar' : 'Seleccionar todo'}
+                {allSelected ? 'Clear' : 'Select all'}
               </button>
             </div>
           </div>
@@ -192,9 +192,9 @@ export default function SaveProductsModal({
         </div>
 
         <div style={footer}>
-          <button onClick={onClose} style={secondaryBtn} disabled={saving}>Cancelar</button>
+          <button onClick={onClose} style={secondaryBtn} disabled={saving}>Cancel</button>
           <button onClick={submit} style={primaryBtn} disabled={saving || rows.length === 0}>
-            {saving ? 'Guardando...' : `Guardar productos (${selectedIndexes.length})`}
+            {saving ? 'Saving...' : `Save products (${selectedIndexes.length})`}
           </button>
         </div>
       </div>

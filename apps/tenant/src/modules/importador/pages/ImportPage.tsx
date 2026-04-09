@@ -1,25 +1,20 @@
-import React, { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import React, { useMemo } from 'react'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import ImportIntake from '../components/ImportIntake'
-
-const VIDEO_URL = 'https://www.youtube.com/embed/REEMPLAZA_ESTE_ID?autoplay=1&rel=0&modestbranding=1'
-const STORAGE_KEY = 'importador_intro_dismissed'
 
 export default function ImportPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation('importer')
   const [searchParams] = useSearchParams()
   const reimportMode = searchParams.get('reimport')
   const sourceRecipeSnapshotId = searchParams.get('recipeSnapshotId') || ''
-  const initialReprocessMode = reimportMode === 'deep' ? 'deep' : 'fast'
+
   const forceRequested = reimportMode === 'force' || reimportMode === 'fast' || reimportMode === 'deep'
+  const initialReprocessMode = useMemo(() => (reimportMode === 'deep' ? 'deep' : 'fast'), [reimportMode])
 
-  const [showVideo, setShowVideo] = useState(
-    () => localStorage.getItem(STORAGE_KEY) !== 'true'
-  )
-
-  function dismissVideo() {
-    localStorage.setItem(STORAGE_KEY, 'true')
-    setShowVideo(false)
+  if (!forceRequested) {
+    return <Navigate to="../documents" replace />
   }
 
   return (
@@ -49,7 +44,7 @@ export default function ImportPage() {
             boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
           }}
         >
-          Ir a documentos
+          Back to documents
         </button>
       </div>
 
@@ -63,106 +58,33 @@ export default function ImportPage() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>
-          {forceRequested
-            ? (initialReprocessMode === 'deep' ? 'Revisión profunda' : 'Reprocesar rápido')
-            : 'Subir archivos al importador'}
+          {initialReprocessMode === 'deep' ? t('reprocessPage.deepTitle') : t('reprocessPage.fastTitle')}
         </h1>
         <p style={{ margin: '0.55rem 0 0', fontSize: 15, color: '#475569', maxWidth: 780 }}>
-          {forceRequested
-            ? (initialReprocessMode === 'deep'
-              ? 'Vuelve a subir el archivo original para ignorar cachés, forzar una nueva lectura y tratar de completar los campos faltantes.'
-              : 'Vuelve a subir el archivo original para repetir el flujo actual de forma rápida.')
-            : 'Carga facturas, imagenes, hojas de calculo y otros documentos compatibles. El sistema los prepara para revision y luego podras guardarlos en su destino.'}
+          {initialReprocessMode === 'deep' ? t('reprocessPage.deepDescription') : t('reprocessPage.fastDescription')}
         </p>
-        {!forceRequested && (
-          <div style={{ marginTop: '0.85rem', fontSize: 13, color: '#64748b' }}>
-            Cuando termine la subida, entra en <strong style={{ color: '#0f172a' }}>Documentos</strong> para revisar los ya procesados.
-          </div>
-        )}
       </section>
 
-      {!forceRequested && showVideo && (
-        <section
-          style={{
-            borderRadius: 20,
-            overflow: 'hidden',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.07)',
-            background: '#000',
-            position: 'relative',
-          }}
-        >
-          <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-            <iframe
-              src={VIDEO_URL}
-              title="Cómo usar el importador"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{
-                position: 'absolute',
-                top: 0, left: 0,
-                width: '100%', height: '100%',
-                border: 'none',
-              }}
-            />
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              padding: '0.6rem 1rem',
-              background: '#f8fafc',
-              borderTop: '1px solid #e2e8f0',
-              gap: '0.5rem',
-            }}
-          >
-            <span style={{ fontSize: 13, color: '#64748b' }}>
-              ¿Ya entendiste cómo funciona?
-            </span>
-            <button
-              onClick={dismissVideo}
-              style={{
-                cursor: 'pointer',
-                border: '1px solid #cbd5e1',
-                background: '#fff',
-                fontSize: 13,
-                color: '#0f172a',
-                padding: '0.35rem 0.75rem',
-                borderRadius: 8,
-                fontWeight: 600,
-              }}
-            >
-              No volver a mostrar
-            </button>
-          </div>
-        </section>
-      )}
-
-      {forceRequested && (
-        <div
-          style={{
-            padding: '0.9rem 1rem',
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: 18,
-            color: '#1d4ed8',
-            fontSize: 14,
-          }}
-        >
-          {initialReprocessMode === 'deep'
-            ? 'La revision profunda tarda mas y vuelve a leer el documento sin reutilizar cachés.'
-            : 'El reprocesado rápido mantiene el flujo actual y puede devolver un resultado casi igual.'}
-        </div>
-      )}
+      <div
+        style={{
+          padding: '0.9rem 1rem',
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderRadius: 18,
+          color: '#1d4ed8',
+          fontSize: 14,
+        }}
+      >
+        {initialReprocessMode === 'deep' ? t('reprocessPage.deepNotice') : t('reprocessPage.fastNotice')}
+      </div>
 
       <ImportIntake
         initialForceReprocess={forceRequested}
-        initialReprocessMode={forceRequested ? initialReprocessMode : undefined}
+        initialReprocessMode={initialReprocessMode}
         initialRecipeSnapshotId={sourceRecipeSnapshotId}
-        restoreSession={!forceRequested}
+        restoreSession={false}
         documentPathBuilder={(docId) => `../documents/${docId}`}
-        compact={forceRequested}
+        compact
       />
     </div>
   )

@@ -1,5 +1,5 @@
 /**
- * Componente de impresión de etiquetas con códigos de barras
+ * Barcode label printing component
  *
  * Layout: config a la izquierda (scrollable) · preview a la derecha (sticky)
  * Modo: Navegador (window.print) o Agente (ESC/POS via API)
@@ -9,7 +9,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCurrency } from '../../../hooks/useCurrency'
 
-// ─── Tipos públicos ────────────────────────────────────────────────────────────
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 export type ProductLabel = {
   id: string
@@ -63,7 +63,7 @@ export type PrintModalExtras = {
   onSaveConfig?: () => void
 }
 
-// ─── Constantes ────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: PrintConfig = {
   widthMm: 50,
@@ -89,7 +89,7 @@ const SIZE_PRESETS: Array<{ label: string; widthMm: number; heightMm: number }> 
   { label: '60×50', widthMm: 60, heightMm: 50 },
 ]
 
-// ─── Utilidades ────────────────────────────────────────────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const mmToPx = (value: number) => (value / 25.4) * 96
@@ -101,7 +101,7 @@ function detectBarcodeFormat(barcode: string): string {
   return 'CODE128'
 }
 
-// ─── Props ─────────────────────────────────────────────────────────────────────
+// ─── Props ───────────────────────────────────────────────────────────────────
 
 type PrintBarcodeLabelsProps = {
   products: ProductLabel[]
@@ -118,7 +118,7 @@ type PrintBarcodeLabelsProps = {
   currencySymbol?: string
 }
 
-// ─── Componente principal ──────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function PrintBarcodeLabels({
   products,
@@ -156,7 +156,7 @@ export default function PrintBarcodeLabels({
 
   const effectiveMode = printMode ?? internalMode
 
-  // Etiquetas expandidas respetando copias por producto
+  // Expanded labels respecting copies per product
   const labels = useMemo(() => {
     const result: ProductLabel[] = []
     products.forEach((p) => {
@@ -168,7 +168,7 @@ export default function PrintBarcodeLabels({
 
   const totalLabels = labels.length
 
-  // Dimensiones de la cuadrícula
+  // Grid dimensions
   const labelDimensions = {
     width: `${localConfig.widthMm}mm`,
     height: `${localConfig.heightMm}mm`,
@@ -183,7 +183,7 @@ export default function PrintBarcodeLabels({
     rowGap: `${mmToPx(Math.max(0, localConfig.gapMm))}px`,
   }
 
-  // Regenerar barcodes cuando cambia algo visual
+  // Regenerate barcodes when any visual setting changes
   React.useEffect(() => {
     let cancelled = false
     setGenerating(true)
@@ -219,7 +219,7 @@ export default function PrintBarcodeLabels({
                 margin: 5,
               })
             } catch {
-              // barcode invalido; el canvas queda vacio
+              // Invalid barcode; the canvas stays empty
             }
           }
         })
@@ -235,7 +235,7 @@ export default function PrintBarcodeLabels({
     }
   }, [products, localConfig.copies, localConfig.heightMm, localConfig.barcodeWidth, perProductCopies])
 
-  // Helpers de config
+  // Config helpers
   const update = (partial: Partial<PrintConfig>) => {
     modalExtras?.onSelectSavedConfig?.(null)
     setLocalConfig((prev) => ({ ...prev, ...partial }))
@@ -298,17 +298,17 @@ export default function PrintBarcodeLabels({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
 
-      {/* ── Header sticky ─────────────────────────────────────────────────────── */}
+      {/* ── Sticky header ───────────────────────────────────────────────────── */}
       <div className="print:hidden shrink-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">
-            Imprimir etiquetas
+            Print labels
             <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
               {totalLabels} total
             </span>
           </h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            {products.length} producto{products.length !== 1 ? 's' : ''} · {localConfig.widthMm}×{localConfig.heightMm} mm
+            {products.length} product{products.length !== 1 ? 's' : ''} · {localConfig.widthMm}×{localConfig.heightMm} mm
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -323,18 +323,18 @@ export default function PrintBarcodeLabels({
             disabled={generating || (effectiveMode === 'agent' && !selectedPrinter?.port)}
             className="px-4 py-1.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
-            {generating ? 'Generando…' : effectiveMode === 'browser' ? 'Imprimir' : 'Enviar a impresora'}
+            {generating ? 'Generating…' : effectiveMode === 'browser' ? 'Print' : 'Send to printer'}
           </button>
         </div>
       </div>
 
-      {/* ── Body: config izq. · preview der. ──────────────────────────────────── */}
+      {/* ── Body: config left · preview right ───────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex print:block">
 
-        {/* ── Panel de configuración (izquierda) ──────────────────────────────── */}
+        {/* ── Configuration panel (left) ─────────────────────────────────────── */}
         <div className="print:hidden w-full lg:w-[400px] shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4 space-y-3">
 
-          {/* Modo de impresión */}
+          {/* Print mode */}
           <section className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Modo</h3>
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
@@ -349,7 +349,7 @@ export default function PrintBarcodeLabels({
                       : 'bg-white text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {mode === 'browser' ? 'Navegador' : 'Agente / Puerto'}
+                  {mode === 'browser' ? 'Browser' : 'Agent / Port'}
                 </button>
               ))}
             </div>
@@ -361,7 +361,7 @@ export default function PrintBarcodeLabels({
                   onChange={(e) => onSelectPrinter?.(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                 >
-                  <option value="">Selecciona una impresora…</option>
+          <option value="">Select a printer…</option>
                   {(printers ?? []).map((p) => (
                     <option key={p.port} value={p.port}>
                       {p.name || p.description || p.port}
@@ -375,7 +375,7 @@ export default function PrintBarcodeLabels({
                     disabled={configsLoading}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   >
-                    <option value="">Perfil guardado…</option>
+                    <option value="">Saved profile…</option>
                     {savedConfigs.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
@@ -386,7 +386,7 @@ export default function PrintBarcodeLabels({
 
             {effectiveMode === 'browser' && (
               <p className="text-xs text-gray-400">
-                Usa las impresoras instaladas vía Wi-Fi/Bluetooth/USB. Ajusta márgenes a 0 en el diálogo del navegador.
+                Use printers installed via Wi-Fi/Bluetooth/USB. Set margins to 0 in the browser dialog.
               </p>
             )}
 
@@ -397,21 +397,21 @@ export default function PrintBarcodeLabels({
                 disabled={printerSaving}
                 className="w-full py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
               >
-                {printerSaving ? 'Guardando…' : 'Guardar configuración actual'}
+                {printerSaving ? 'Saving…' : 'Save current configuration'}
               </button>
             )}
           </section>
 
-          {/* Cantidades por producto */}
+          {/* Quantities per product */}
           <section className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cantidades</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quantities</h3>
               <span className="text-xs font-bold text-blue-600">{totalLabels} etiquetas</span>
             </div>
 
-            {/* Botones rápidos */}
+            {/* Quick buttons */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs text-gray-400">Todos:</span>
+              <span className="text-xs text-gray-400">All:</span>
               {[1, 2, 3, 5].map((n) => (
                 <button
                   key={n}
@@ -428,13 +428,13 @@ export default function PrintBarcodeLabels({
               ))}
             </div>
 
-            {/* Tabla por producto */}
+            {/* Product table */}
             <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-100">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="text-left px-3 py-1.5 text-xs font-medium text-gray-400">Producto</th>
-                    <th className="text-center px-2 py-1.5 text-xs font-medium text-gray-400 w-16">Copias</th>
+                    <th className="text-left px-3 py-1.5 text-xs font-medium text-gray-400">Product</th>
+                    <th className="text-center px-2 py-1.5 text-xs font-medium text-gray-400 w-16">Copies</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -463,9 +463,9 @@ export default function PrintBarcodeLabels({
             </div>
           </section>
 
-          {/* Tamaño de etiqueta */}
+          {/* Label size */}
           <section className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tamaño</h3>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</h3>
 
             {/* Presets */}
             <div className="grid grid-cols-4 gap-1.5">
@@ -491,7 +491,7 @@ export default function PrintBarcodeLabels({
               onClick={() => setCustomSize(!customSize)}
               className="text-xs text-blue-600 hover:underline"
             >
-              {customSize ? '▲ Ocultar medidas' : '▼ Tamaño personalizado'}
+              {customSize ? '▲ Hide measurements' : '▼ Custom size'}
             </button>
 
             {customSize && (
@@ -515,10 +515,10 @@ export default function PrintBarcodeLabels({
               </div>
             )}
 
-            {/* Columnas */}
+            {/* Columns */}
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs text-gray-500">
-                Columnas por fila
+                Columns per row
                 <input
                   type="number" min={1} max={6} step={1} value={localConfig.columns}
                   onChange={(e) => update({ columns: Math.max(1, Number(e.target.value)) })}
@@ -526,7 +526,7 @@ export default function PrintBarcodeLabels({
                 />
               </label>
               <label className="text-xs text-gray-500">
-                Separación (mm)
+                Gap (mm)
                 <input
                   type="number" min={0} step={0.5} value={localConfig.gapMm}
                   onChange={(e) => update({ gapMm: Number(e.target.value) })}
@@ -535,7 +535,7 @@ export default function PrintBarcodeLabels({
               </label>
             </div>
 
-            {/* Qué mostrar */}
+            {/* What to show */}
             <div className="flex gap-4 text-sm text-gray-700">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -551,19 +551,19 @@ export default function PrintBarcodeLabels({
                   onChange={(e) => update({ showCategory: e.target.checked })}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                Categoría
+                Category
               </label>
             </div>
           </section>
 
-          {/* Opciones avanzadas */}
+          {/* Advanced options */}
           <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-50"
             >
-              <span>Opciones avanzadas</span>
+              <span>Advanced options</span>
               <span>{showAdvanced ? '▲' : '▼'}</span>
             </button>
 
@@ -597,7 +597,7 @@ export default function PrintBarcodeLabels({
                     />
                   </label>
                   <label className="text-xs text-gray-500">
-                    Separación entre cols.
+                    Column gap
                     <input
                       type="number" min={0} step={0.5} value={localConfig.columnGapMm}
                       onChange={(e) => update({ columnGapMm: Number(e.target.value) })}
@@ -606,7 +606,7 @@ export default function PrintBarcodeLabels({
                   </label>
                 </div>
                 <label className="text-xs text-gray-500 block">
-                  Alineación del precio
+                  Price alignment
                   <select
                     value={localConfig.priceAlignment}
                     onChange={(e) => update({ priceAlignment: e.target.value as PrintConfig['priceAlignment'] })}
@@ -622,7 +622,7 @@ export default function PrintBarcodeLabels({
                   <input
                     type="text" value={localConfig.headerText}
                     onChange={(e) => update({ headerText: e.target.value })}
-                    placeholder="Texto arriba del artículo"
+                    placeholder="Text above the item"
                     className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </label>
@@ -641,7 +641,7 @@ export default function PrintBarcodeLabels({
 
         </div>
 
-        {/* ── Preview (derecha) ───────────────────────────────────────────────── */}
+        {/* ── Preview (right) ───────────────────────────────────────────────── */}
         <div className="flex-1 overflow-auto bg-gray-100 p-6 print:p-0 print:bg-white">
           {generating && (
             <div className="print:hidden flex items-center gap-2 text-xs text-gray-400 mb-3">
@@ -649,7 +649,7 @@ export default function PrintBarcodeLabels({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Generando barcodes…
+              Generating barcodes…
             </div>
           )}
 
@@ -712,7 +712,7 @@ export default function PrintBarcodeLabels({
   )
 }
 
-// ─── Hook ──────────────────────────────────────────────────────────────────────
+// ─── Hook ────────────────────────────────────────────────────────────────────
 
 type PrintOptions = {
   defaultConfig?: PrintConfig

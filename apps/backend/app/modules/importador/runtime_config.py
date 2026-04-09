@@ -110,6 +110,76 @@ _DEFAULT_OCR_CONFIG: dict[str, Any] = {
     "easyocr_gpu": False,
     "easyocr_enabled": True,
     "easyocr_variant_label": "autocontrast",
+    "line_cleanup_patterns": [
+        r"(?<=\d)(?=[^\W\d_])",
+        r"(?<=[^\W\d_])(?=\d)",
+    ],
+    "invoice_doc_number_context_tokens": [
+        "factura",
+        "invoice",
+        "boleta",
+        "nota de venta",
+        "comprobante",
+        "documento",
+        "numero",
+        "nro",
+    ],
+    "invoice_doc_number_keyword_patterns": [
+        r"\b(?:factura|invoice|boleta|nota de venta|comprobante|documento|n[úu]m(?:ero|ero)|numero|nro\.?|no\.?)\b[^\w]{0,20}((?:\d{3}\s*[-/ ]\s*){2}\d{3,15}|[A-Z]{1,8}[-/]?\d{3,}[-/]?\d*)",
+        r"\b(\d{3}\s*[-/ ]\s*\d{3}\s*[-/ ]\s*\d{6,})\b",
+    ],
+    "invoice_doc_number_fallback_patterns": [
+        r"\b(\d{3}[-/]\d{3}[-/]\d{6,})\b",
+        r"\b(\d{3}\s*[-/ ]?\s*\d{3}\s*[-/ ]?\s*\d{6,})\b",
+        r"\b([A-Z]{1,8}[-/]\d{3,}[-/]\d{3,})\b",
+    ],
+    "invoice_vendor_stop_tokens": [
+        "datos del cliente",
+        "razon social",
+        "razon social / nombres y apellidos",
+        "nombres y apellidos",
+        "cliente",
+        "vendedor",
+        "ruc",
+        "c.i",
+        "direccion",
+        "telefono",
+        "email",
+        "correo",
+        "forma de pago",
+        "fecha de emision",
+        "fecha vencimiento",
+        "subtotal",
+        "total",
+        "iva",
+        "descuentos",
+        "ambiente",
+        "emision",
+        "autorizacion",
+        "producto",
+    ],
+    "invoice_vendor_suffix_patterns": [
+        r"\b(?:s\.?\s*a\.?\s*|s\.?\s*a\.?\s*s\.?|ltda\.?|cia\.?|compania|company|corp\.?|inc\.?|s\.?\s*r\.?\s*l\.?|sas)\b",
+    ],
+    "invoice_line_skip_markers": [
+        "subtotal",
+        "subtotal sin impuestos",
+        "sub total",
+        "iva",
+        "descuento",
+        "total",
+        "fecha",
+        "ruc",
+        "cliente",
+        "vendedor",
+        "direccion",
+        "telefono",
+        "email",
+        "forma de pago",
+        "entregar",
+        "ambiente",
+        "emision",
+    ],
     "excel_max_header_scan_rows": 25,
     "excel_max_preview_rows_per_sheet": 120,
     "excel_scan_rows_multiplier": 4,
@@ -704,6 +774,21 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
         "easyocr_gpu": bool(_DEFAULT_OCR_CONFIG["easyocr_gpu"]),
         "easyocr_enabled": bool(_DEFAULT_OCR_CONFIG["easyocr_enabled"]),
         "easyocr_variant_label": str(_DEFAULT_OCR_CONFIG["easyocr_variant_label"]),
+        "line_cleanup_patterns": list(_DEFAULT_OCR_CONFIG["line_cleanup_patterns"]),
+        "invoice_doc_number_context_tokens": list(
+            _DEFAULT_OCR_CONFIG["invoice_doc_number_context_tokens"]
+        ),
+        "invoice_doc_number_keyword_patterns": list(
+            _DEFAULT_OCR_CONFIG["invoice_doc_number_keyword_patterns"]
+        ),
+        "invoice_doc_number_fallback_patterns": list(
+            _DEFAULT_OCR_CONFIG["invoice_doc_number_fallback_patterns"]
+        ),
+        "invoice_vendor_stop_tokens": list(_DEFAULT_OCR_CONFIG["invoice_vendor_stop_tokens"]),
+        "invoice_vendor_suffix_patterns": list(
+            _DEFAULT_OCR_CONFIG["invoice_vendor_suffix_patterns"]
+        ),
+        "invoice_line_skip_markers": list(_DEFAULT_OCR_CONFIG["invoice_line_skip_markers"]),
         "excel_max_header_scan_rows": int(_DEFAULT_OCR_CONFIG["excel_max_header_scan_rows"]),
         "excel_max_preview_rows_per_sheet": int(
             _DEFAULT_OCR_CONFIG["excel_max_preview_rows_per_sheet"]
@@ -785,6 +870,13 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 "small_rotation_angles",
                 "primary_variant_labels",
                 "easyocr_languages",
+                "line_cleanup_patterns",
+                "invoice_doc_number_context_tokens",
+                "invoice_doc_number_keyword_patterns",
+                "invoice_doc_number_fallback_patterns",
+                "invoice_vendor_stop_tokens",
+                "invoice_vendor_suffix_patterns",
+                "invoice_line_skip_markers",
             }:
                 config[key] = _list_value(value, config[key])
             elif key in {"easyocr_enabled", "easyocr_gpu"}:

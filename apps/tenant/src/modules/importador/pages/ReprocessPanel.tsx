@@ -109,9 +109,9 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
     ...(isDocumentScopedReprocess ? selectedColumns : []),
   ])).sort((a, b) => a.localeCompare(b))
   const reviewSessionLabel = [
-    `Datos: ${formatSelection(effectiveSelectedFields, 'todos')}`,
-    `Columnas: ${formatSelection(selectedColumns, 'todas')}`,
-    `Problemas: ${formatSelection(selectedErrorCodes, 'todos')}`,
+    `Data: ${formatSelection(effectiveSelectedFields, 'todos')}`,
+    `Columns: ${formatSelection(selectedColumns, 'todas')}`,
+    `Problems: ${formatSelection(selectedErrorCodes, 'todos')}`,
     `Elementos: ${formatSelection(selectedLineNumbers, 'todos')}`,
   ].join(' · ')
 
@@ -126,13 +126,13 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
         <div>
           <h3 style={{ margin: 0 }}>Mejorar datos detectados</h3>
           <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-            Usa esta seccion para volver a revisar solo las partes dudosas del documento.
+            Use this section to review only the doubtful parts of the document again.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {reprocess.summary.pending > 0 && (
             <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#E5E7EB', color: '#374151' }}>
-              Pendientes: {reprocess.summary.pending}
+              Pending: {reprocess.summary.pending}
             </span>
           )}
           {reprocess.summary.invalid > 0 && (
@@ -142,12 +142,12 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
           )}
           {reprocess.summary.review > 0 && (
             <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FEF3C7', color: '#92400E' }}>
-              En revision: {reprocess.summary.review}
+              Under review: {reprocess.summary.review}
             </span>
           )}
           {reprocess.summary.reprocess > 0 && (
             <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 12, background: '#FFEDD5', color: '#9A3412' }}>
-              Pendientes de nueva revision: {reprocess.summary.reprocess}
+              Pending re-review: {reprocess.summary.reprocess}
             </span>
           )}
           {reprocess.summary.valid > 0 && (
@@ -185,7 +185,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
               fontWeight: 600,
             }}
           >
-            {reprocess.isLoading ? 'Revisando...' : 'Ver sugerencias de mejora'}
+            {reprocess.isLoading ? 'Reviewing...' : 'View improvement suggestions'}
           </button>
         </div>
       )}
@@ -194,7 +194,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
         <div style={{ marginBottom: '0.75rem' }}>
           {reprocess.fieldAnalysis.error_summary && Object.keys(reprocess.fieldAnalysis.error_summary).length > 0 && (
             <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
-              Problemas detectados: {Object.entries(reprocess.fieldAnalysis.error_summary).map(([k, v]) => `${k} (${v})`).join(', ')}
+              Detected problems: {Object.entries(reprocess.fieldAnalysis.error_summary).map(([k, v]) => `${k} (${v})`).join(', ')}
             </div>
           )}
           {availableErrorCodes.length > 0 && (
@@ -231,7 +231,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
           )}
           {availableColumns.length > 0 && (
             <div style={{ marginBottom: '0.75rem' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Columnas disponibles</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Available columns</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {availableColumns.map(column => {
                   const checked = selectedColumns.includes(column)
@@ -267,7 +267,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
                   <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Sin valor</th>
                   <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: 600 }}>Con problema</th>
                   <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Ejemplo</th>
-                  <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center', color: '#374151', fontWeight: 600 }}>Revisar</th>
+                  <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center', color: '#374151', fontWeight: 600 }}>Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -352,7 +352,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
                           </span>
                         </div>
                         <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {preview || 'Sin vista previa'}
+                          {preview || 'No preview available'}
                         </div>
                       </div>
                     </label>
@@ -385,7 +385,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
                 fontWeight: 600,
               }}
             >
-              Crear revision enfocada
+              Create focused review
             </button>
             <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
               {reviewSessionLabel}
@@ -394,17 +394,17 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
         </div>
       )}
 
-      {/* Sesión activa */}
+      {/* Active session */}
       {reprocess.activeSession && (
         <div style={{ padding: '0.75rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14 }}>
           <div style={{ color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
-            Revision creada · {reprocess.activeSession.preview_count} elemento(s) se veran afectados
+            Review created · {reprocess.activeSession.preview_count} item(s) will be affected
           </div>
           <div style={{ fontSize: 12, color: '#1E3A8A', marginBottom: 8 }}>
-            Datos: {formatSelection(reprocess.activeSession.filter_campos ?? [], 'todos')}
-            {' · '}Columnas: {formatSelection(reprocess.activeSession.filter_columns ?? [], 'todas')}
-            {' · '}Problemas: {formatSelection(reprocess.activeSession.filter_error_codes ?? [], 'todos')}
-            {' · '}Elementos: {formatSelection(reprocess.activeSession.filter_lines ?? [], 'todos')}
+            Data: {formatSelection(reprocess.activeSession.filter_campos ?? [], 'todos')}
+            {' · '}Columns: {formatSelection(reprocess.activeSession.filter_columns ?? [], 'todas')}
+            {' · '}Problems: {formatSelection(reprocess.activeSession.filter_error_codes ?? [], 'todos')}
+            {' · '}Items: {formatSelection(reprocess.activeSession.filter_lines ?? [], 'todos')}
           </div>
           <button
             disabled={reprocess.isRunning}
@@ -420,12 +420,12 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
               fontWeight: 600,
             }}
           >
-            {reprocess.isRunning ? 'Aplicando revision...' : 'Aplicar esta revision'}
+            {reprocess.isRunning ? 'Applying review...' : 'Apply this review'}
           </button>
         </div>
       )}
 
-      {/* Resultado de la última iteración */}
+      {/* Latest iteration result */}
       {reprocess.lastResult && (
         <div style={{ marginBottom: '0.75rem' }}>
           <div style={{
@@ -436,13 +436,13 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
             fontSize: 14,
           }}>
             <div style={{ fontWeight: 600, color: reprocess.lastResult.improvement ? '#166534' : '#9A3412', marginBottom: 4 }}>
-              {reprocess.lastResult.improvement ? 'Mejora detectada' : 'No hubo cambio util; revisa los datos manualmente'}
+              {reprocess.lastResult.improvement ? 'Improvement detected' : 'No useful change; review the data manually'}
             </div>
             <div style={{ color: '#374151', fontSize: 13, marginBottom: 4 }}>
-              Revisados: {reprocess.lastResult.lines_attempted} · Correctos: {reprocess.lastResult.lines_imported} · Con problema: {reprocess.lastResult.lines_errored}
+              Reviewed: {reprocess.lastResult.lines_attempted} · Correct: {reprocess.lastResult.lines_imported} · With issues: {reprocess.lastResult.lines_errored}
             </div>
             {reprocess.lastResult.estado === 'DONE' && (
-              <div style={{ color: '#166534', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Todos los elementos seleccionados fueron revisados</div>
+              <div style={{ color: '#166534', fontWeight: 600, fontSize: 13, marginBottom: 4 }}>All selected items were reviewed</div>
             )}
             {reprocess.lastResult.message && (
               <div style={{ color: '#6B7280', fontSize: 12 }}>{reprocess.lastResult.message}</div>
@@ -465,18 +465,18 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
                   fontWeight: 600,
                 }}
               >
-                Volver a inspeccionar
+                Inspect again
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Botón rápido — reprocesar todo pendiente */}
+      {/* Quick button - reprocess all pending */}
       {reprocess.iterations.length > 0 && (
         <div style={{ marginBottom: '0.75rem' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-            Revisiones anteriores
+            Previous reviews
           </div>
           <div style={{ display: 'grid', gap: 6 }}>
             {reprocess.iterations.slice(0, 6).map(iteration => (
@@ -491,11 +491,11 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                  <strong>Revision {iteration.iteration_num}</strong>
+                  <strong>Review {iteration.iteration_num}</strong>
                   <span style={{ color: '#6B7280' }}>{STATUS_LABELS[iteration.estado] || iteration.estado}</span>
                 </div>
                 <div style={{ color: '#374151', marginTop: 4 }}>
-                  Revisados: {iteration.lines_attempted} · Correctos: {iteration.lines_imported} · Con problema: {iteration.lines_errored}
+                  Reviewed: {iteration.lines_attempted} · Correct: {iteration.lines_imported} · With issues: {iteration.lines_errored}
                 </div>
                 <div style={{ color: '#6B7280', marginTop: 4 }}>
                   {new Date(iteration.started_at).toLocaleString()}
@@ -523,7 +523,7 @@ export default function ReprocessPanel({ documentId, activeSheet, lastRefresh }:
               opacity: 0.85,
             }}
           >
-            Revisar todo lo pendiente ({reprocess.totalResolvable} elementos)
+            Review all pending ({reprocess.totalResolvable} items)
           </button>
         </div>
       )}

@@ -3,7 +3,12 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from app.modules.importador.ai_classifier import _fallback_classify, analyze_document
+from app.modules.importador.ai_classifier import (
+    _fallback_classify,
+    _extract_invoice_doc_number_from_ocr,
+    _normalize_invoice_ocr_line,
+    analyze_document,
+)
 
 
 def test_analyze_document_uses_runtime_prompt_config_and_canonical_fields(monkeypatch):
@@ -246,6 +251,27 @@ def test_fallback_classify_uses_runtime_doc_type_patterns(monkeypatch):
 
     assert result["doc_type"] == "DELIVERY_NOTE"
     assert result["confidence"] > 0.2
+
+
+def test_normalize_invoice_ocr_line_uses_runtime_patterns(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.ai_classifier.load_ocr_runtime_config",
+        lambda _db=None: {
+            "line_cleanup_patterns": [r"(?<=\d)(?=[A-Za-z])", r"(?<=[A-Za-z])(?=\d)"],
+        },
+    )
+
+    assert _normalize_invoice_ocr_line("123ABC45") == "123 ABC 45"
+
+
+def test_extract_invoice_doc_number_uses_runtime_patterns():
+    cfg = {
+        "invoice_doc_number_context_tokens": ["factura"],
+        "invoice_doc_number_keyword_patterns": [r"\bfactura\b\s+(REF-\d+)"],
+        "invoice_doc_number_fallback_patterns": [r"\b(REF-\d+)\b"],
+    }
+
+    assert _extract_invoice_doc_number_from_ocr("Factura REF-123", ocr_runtime=cfg) == "REF-123"
 
 
 def test_analyze_document_blanks_low_evidence_fields_for_weak_image_ocr(monkeypatch):
@@ -513,6 +539,78 @@ def test_analyze_document_repairs_pdf_invoice_fields_from_ocr_context(monkeypatc
     assert result["fields"]["issue_date"] == "2026-04-03"
     assert result["fields"]["total_amount"] == 16567.49
     assert result["fields"]["currency"] == "USD"
+
+
+def test_analyze_document_recovers_supplier_invoice_fields_from_real_image_ocr(monkeypatch):
+    async def fake_query(**kwargs):
+        del kwargs
+        return SimpleNamespace(
+            content=(
+                '{"doc_type":"SUPPLIER_INVOICE","confidence":0.54,"reasoning":"weak OCR",'
+                '"is_table":false,"columns":[],"fields":{'
+                '"vendor":null,'
+                '"customer":null,'
+                '"doc_number":null,'
+                '"vendor_tax_id":null,'
+                '"issue_date":null,'
+                '"subtotal":null,'
+                '"tax_amount":null,'
+                '"total_amount":null,'
+                '"line_items":[]'
+                "}}"
+            ),
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content=(
+                "MOLINOS MIRAFLORES S.A.\n"
+                "RUC :1890004195001\n"
+                "FACTURA : 001-001-000120085\n"
+                "2026-01-16T08:56:16-05:00\n"
+                "Fecha de Emision : viernes, 16 de enero de 2026\n"
+                "MARIA AURORA CASABAMBA CASABAMBA\n"
+                "KUSI PANADERIA\n"
+                "Vendedor: CRISTINA RAMOS\n"
+                "50.00IHARINA TRADICION PREMIUM 50 KG F/ 42.90 2,145.00\n"
+                "5.00 HARINA TRADICION PREMIUM 50 KG F/ 0,00 0.00\n"
+                "SUB TOTAL 15 % 0.00\n"
+                "SUB TOTAL 0% 2,145.00\n"
+                "IVA 15% 0.00\n"
+                "VALOR TOTAL 2,145.00\n"
+            ),
+            filename="factura-proveedor.jpg",
+            format_hint="IMAGE_OCR",
+            image_bytes=None,
+            canonical_fields={
+                "vendor": {"type": "text"},
+                "customer": {"type": "text"},
+                "doc_number": {"type": "text"},
+                "vendor_tax_id": {"type": "text"},
+                "issue_date": {"type": "date"},
+                "subtotal": {"type": "numeric"},
+                "tax_amount": {"type": "numeric"},
+                "total_amount": {"type": "numeric"},
+                "line_items": {"type": "list"},
+            },
+        )
+    )
+
+    assert result["fields"]["vendor"] == "MOLINOS MIRAFLORES S.A."
+    assert result["fields"]["vendor_tax_id"] == "1890004195001"
+    assert result["fields"]["doc_number"] == "001-001-000120085"
+    assert result["fields"]["issue_date"] == "2026-01-16"
+    assert result["fields"]["total_amount"] == 2145.0
+    assert result["fields"]["line_items"]
+    assert result["fields"]["line_items"][0]["description"] == "HARINA TRADICION PREMIUM 50 KG"
+    assert result["fields"]["line_items"][0]["quantity"] == 50.0
+    assert result["fields"]["line_items"][0]["unit_price"] == 42.9
+    assert result["fields"]["line_items"][0]["total_price"] == 2145.0
 
 
 def test_analyze_document_rebuilds_line_item_extra_columns_from_ocr(monkeypatch):

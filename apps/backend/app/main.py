@@ -702,7 +702,7 @@ def root_head():
 
 
 # Static uploads
-_uploads_dir = Path(settings.UPLOADS_DIR)
+_uploads_dir = settings.uploads_path
 if settings.UPLOADS_MOUNT_ENABLED:
     _uploads_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")

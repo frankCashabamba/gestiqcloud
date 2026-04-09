@@ -54,7 +54,7 @@ _UBL_NS = {
 def _ocr_cache_dir() -> Path:
     from app.config.settings import settings
 
-    raw_dir = (Path(settings.UPLOADS_DIR) / "_importador_ocr_cache").resolve()
+    raw_dir = settings.uploads_path / "_importador_ocr_cache"
     raw_dir.mkdir(parents=True, exist_ok=True)
     return raw_dir
 

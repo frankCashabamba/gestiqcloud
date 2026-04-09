@@ -88,7 +88,7 @@ export default function Dashboard() {
           >
             {[
               { label: 'Total', value: stats.total, note: 'Documentos registrados', tone: '#334155', bg: '#e2e8f0' },
-              { label: 'Pendientes', value: stats.pendientes, note: 'Aun no procesados', tone: '#92400e', bg: '#fef3c7' },
+              { label: 'Pending', value: stats.pendientes, note: 'Not processed yet', tone: '#92400e', bg: '#fef3c7' },
               { label: 'Por revisar', value: stats.en_revision, note: 'Requieren validacion', tone: '#1d4ed8', bg: '#dbeafe' },
               { label: 'Confirmados', value: stats.confirmados, note: 'Listos para guardarse', tone: '#166534', bg: '#dcfce7' },
               { label: 'Con error', value: stats.fallidos, note: 'Necesitan correccion', tone: '#991b1b', bg: '#fee2e2' },
@@ -128,7 +128,7 @@ export default function Dashboard() {
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Siguiente paso</div>
             <div style={{ marginTop: 4, fontSize: 13, color: '#64748b', maxWidth: 720 }}>
-              Usa esta portada para ver el estado general. La carga de archivos y la revision viven en pantallas separadas para evitar duplicaciones y mezclar pasos.
+              Use this dashboard to see the overall status. File upload and review live on separate screens to avoid duplication and mixed steps.
             </div>
           </div>
 
