@@ -26,6 +26,7 @@ def test_ocr_image_falls_back_to_easyocr_when_tesseract_is_weak(monkeypatch):
     monkeypatch.setitem(
         __import__("sys").modules, "easyocr", type("E", (), {"Reader": FakeReader})()
     )
+    ocr_service._EASYOCR_READERS.clear()
 
     img = Image.new("L", (120, 80), color=255)
 
