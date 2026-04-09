@@ -829,13 +829,14 @@ function getImportadorStreamToken(): string {
 // --- /run-async: encola via Celery, retorna PENDING inmediatamente ---
 export async function runImportAsync(
   files: File[],
-  opts?: { force?: boolean; recipeSnapshotId?: string }
+  opts?: { force?: boolean; recipeSnapshotId?: string; reprocessMode?: 'fast' | 'deep' }
 ): Promise<AsyncRunResult[]> {
   const form = new FormData()
   files.forEach(f => form.append('files', f))
   const params: Record<string, string> = {}
   if (opts?.force) params.force = 'true'
   if (opts?.recipeSnapshotId) params.recipe_snapshot_id = opts.recipeSnapshotId
+  if (opts?.reprocessMode) params.reprocess_mode = opts.reprocessMode
   const { data } = await api.post(TENANT_IMPORTADOR.runAsync, form, {
     params,
   })

@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import logging
 import os
+from typing import Literal
 from uuid import UUID
 
 from fastapi import (
@@ -147,6 +148,7 @@ async def run_import(
     recipe_snapshot_id: UUID | None = Form(default=None),
     recipe_draft: str | None = Form(default=None),
     force: bool = Form(default=False),
+    reprocess_mode: Literal["fast", "deep"] = Form(default="fast"),
     db: Session = Depends(get_db),
 ):
     """Legacy sync recipe path. Prefer /importador/run-async for the production flow.
@@ -170,7 +172,7 @@ async def run_import(
     explicit_recipe_context = _has_explicit_recipe_context(
         recipe_id, recipe_snapshot_id, recipe_draft
     )
-    force_clean_reimport = force and not explicit_recipe_context
+    force_clean_reimport = force or reprocess_mode == "deep"
 
     results: list[RunResponse] = []
 
@@ -298,6 +300,7 @@ async def run_import(
                 "recipe_resolution": resolution_mode,
                 "recipe_snapshot_id": str(resolved_snapshot_id) if resolved_snapshot_id else None,
                 "reason": rerun_reason,
+                "reprocess_mode": reprocess_mode,
             },
         )
         db.commit()
@@ -322,6 +325,7 @@ async def run_import(
                     explicit_recipe_context=explicit_recipe_context,
                     force_clean_reimport=force_clean_reimport,
                     recipe_id=recipe_id,
+                    reprocess_mode=reprocess_mode,
                 ),
             )
             db.commit()

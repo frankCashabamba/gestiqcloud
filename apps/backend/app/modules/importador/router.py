@@ -2856,6 +2856,7 @@ async def run_async(
     files: list[UploadFile] = File(...),
     force: bool = Query(default=False),
     recipe_snapshot_id: str | None = Query(default=None),
+    reprocess_mode: Literal["fast", "deep"] = Query(default="fast"),
     db: Session = Depends(get_db),
 ):
     """Encola los archivos para procesamiento asincrono via Celery y batch tracking."""
@@ -2867,6 +2868,7 @@ async def run_async(
         user_id=_user_id(request),
         force=force,
         recipe_snapshot_id=recipe_snapshot_id,
+        reprocess_mode=reprocess_mode,
         db=db,
     )
 

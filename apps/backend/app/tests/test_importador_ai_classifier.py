@@ -577,6 +577,7 @@ def test_analyze_document_bypasses_ai_for_structured_payload(monkeypatch):
             content="sku,qty\nA1,2",
             filename="inventario.csv",
             format_hint="CSV",
+            has_structured_rows=True,
             structured_data=[
                 {"sku": "A1", "qty": 2},
                 {"sku": "B2", "qty": 4},
@@ -600,3 +601,55 @@ def test_analyze_document_bypasses_ai_for_structured_payload(monkeypatch):
     assert result["is_table"] is True
     assert result["fields"]["line_items"][0]["sku"] == "A1"
     assert result["fields"]["warehouse"] == "Central"
+
+
+def test_analyze_document_deep_mode_uses_ai_for_structured_payload(monkeypatch):
+    captured: dict[str, object] = {"count": 0}
+
+    async def fake_query(**kwargs):
+        captured["count"] += 1
+        captured["bypass_cache"] = kwargs.get("bypass_cache")
+        captured["prompt"] = kwargs.get("prompt")
+        return SimpleNamespace(
+            content='{"doc_type":"INVENTORY","confidence":0.86,"reasoning":"deep","is_table":true,"columns":[],"fields":{"line_items":[{"sku":"A1","qty":2}]}}',
+            model="test-model",
+            is_error=False,
+            error=None,
+            metadata={"source": "provider"},
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content="sku,qty\nA1,2",
+            filename="inventario.csv",
+            format_hint="CSV",
+            structured_data=[
+                {"sku": "A1", "qty": 2},
+                {"sku": "B2", "qty": 4},
+            ],
+            structured_metadata={
+                "sheet_1": {
+                    "warehouse": "Central",
+                }
+            },
+            recipe_config={
+                "doc_type_hint": "INVENTORY",
+                "doc_type_hint_confidence": 0.91,
+            },
+            fallback_patterns={},
+            reprocess_mode="deep",
+            deep_reprocess_context={
+                "previous_doc_type": "INVENTORY",
+                "previous_confidence": 0.54,
+            },
+            deep_focus_fields=["total_amount", "vendor"],
+        )
+    )
+
+    assert captured["count"] == 1
+    assert captured["bypass_cache"] is True
+    assert result["doc_type"] == "INVENTORY"
+    assert result["cache_bypassed"] is True
+    assert result["fields"]["line_items"][0]["sku"] == "A1"

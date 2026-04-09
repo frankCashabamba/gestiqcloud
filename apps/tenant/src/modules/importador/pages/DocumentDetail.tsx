@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+﻿import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, fetchLineItemSlots, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type LineItemSlot, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
@@ -11,15 +11,35 @@ const ReprocessPanel = lazy(() => import('./ReprocessPanel'))
 
 const DETAIL_POLL_INTERVAL_MS = 5000
 
-function renderReimportButton(
-  onClick: () => void,
-  style: React.CSSProperties,
-  label: string = IMPORTADOR_COPY.reimportButton,
-) {
+type ReprocessMode = 'fast' | 'deep'
+
+function ReprocessActions({
+  onFast,
+  onDeep,
+}: {
+  onFast: () => void
+  onDeep: () => void
+}) {
   return (
-    <button onClick={onClick} style={style}>
-      {label}
-    </button>
+    <div style={reprocessCard}>
+      <div style={reprocessHeaderLayout}>
+        <div style={{ minWidth: 0 }}>
+          <div style={reprocessEyebrow}>Reprocesado</div>
+          <div style={reprocessTitle}>Elige el nivel de reproceso</div>
+          <div style={reprocessCopy}>
+            RÃ¡pido mantiene el flujo actual. Profundo vuelve a leer el documento desde cero y tarda mÃ¡s.
+          </div>
+        </div>
+        <div style={reprocessButtonRow}>
+          <button onClick={onFast} style={reprocessFastButton}>
+            {IMPORTADOR_COPY.reprocessFastButton}
+          </button>
+          <button onClick={onDeep} style={reprocessDeepButton}>
+            {IMPORTADOR_COPY.reprocessDeepButton}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -45,7 +65,7 @@ type LineItemPageGroup = {
   line_items: Record<string, unknown>[]
 }
 
-// EditableLineItem es dinámico: slot → value
+// EditableLineItem es dinÃ¡mico: slot â†’ value
 type EditableLineItem = Record<string, string>
 
 function getEditableLineItems(data: Record<string, unknown>, slots: LineItemSlot[]): EditableLineItem[] {
@@ -67,13 +87,13 @@ function createEmptyEditableLineItem(slots: LineItemSlot[]): EditableLineItem {
 }
 
 function formatLineCellValue(value: unknown): string {
-  if (value == null) return '—'
+  if (value == null) return 'â€”'
   const text = String(value).trim()
-  if (!text || text.toLowerCase() === 'nan') return '—'
+  if (!text || text.toLowerCase() === 'nan') return 'â€”'
   return text
 }
 
-// Slots numéricos que se alinean a la derecha
+// Slots numÃ©ricos que se alinean a la derecha
 const _NUMERIC_SLOTS = new Set(['quantity', 'unit_price', 'total_price'])
 const _MONO_SLOTS = new Set(['supplier_ref'])
 
@@ -172,10 +192,10 @@ function GroupedLineItemsPreview({ group }: { group: LineItemPageGroup }) {
   return (
     <div style={{ marginTop: '0.75rem' }}>
       <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 6 }}>
-        Página {group.source_page} · Detalle ({group.line_items.length})
+        PÃ¡gina {group.source_page} Â· Detalle ({group.line_items.length})
       </div>
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
-        Encabezados: {group.headers.join(' · ')}
+        Encabezados: {group.headers.join(' Â· ')}
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
@@ -285,7 +305,7 @@ function summarizeLogDetail(action: string, detail: Record<string, unknown> | nu
     const reason = typeof detail.reason === 'string' ? detail.reason : null
     if (reason === 'learning_update') return 'Se reanalizo para aplicar aprendizaje confirmado reciente.'
     const mode = typeof detail.mode === 'string' ? detail.mode : null
-    return mode === 'async' || mode === 'in_place' ? 'Se volvió a procesar el documento.' : undefined
+    return mode === 'async' || mode === 'in_place' ? 'Se volviÃ³ a procesar el documento.' : undefined
   }
   if (action === 'EDIT') {
     const fields = Array.isArray(detail.changed_fields) ? detail.changed_fields.map(String).filter(Boolean) : []
@@ -294,7 +314,7 @@ function summarizeLogDetail(action: string, detail: Record<string, unknown> | nu
   if (action === 'SAVE_DESTINATION') {
     const target = typeof detail.target === 'string' ? detail.target : null
     const status = typeof detail.status === 'string' ? detail.status : null
-    if (target && status === 'created') return `Se guardó en ${target}.`
+    if (target && status === 'created') return `Se guardÃ³ en ${target}.`
     if (target) return `Destino: ${target}.`
   }
   return undefined
@@ -444,7 +464,7 @@ export default function DocumentDetail() {
     }
   }, [doc?.estado, load])
 
-  // Selección automática de hoja cuando llega un documento nuevo
+  // SelecciÃ³n automÃ¡tica de hoja cuando llega un documento nuevo
   useEffect(() => {
     const datos = getDocumentData(doc)
     const sheetMap = datos?.filas_por_hoja && typeof datos.filas_por_hoja === 'object'
@@ -581,12 +601,12 @@ export default function DocumentDetail() {
     try { await rejectDocument(id); load() } catch { setError(t('docDetail.errorRejecting')) }
   }
 
-  const openReimport = () => {
+  const openReimport = (mode: ReprocessMode = 'fast') => {
     if (!doc?.id) return
-    const recipeSnapshotParam = doc.recipe_snapshot_id
+    const recipeSnapshotParam = mode === 'fast' && doc.recipe_snapshot_id
       ? `&recipeSnapshotId=${encodeURIComponent(doc.recipe_snapshot_id)}`
       : ''
-    navigate(`../importar?reimport=force${recipeSnapshotParam}`)
+    navigate(`../importar?reimport=${mode}${recipeSnapshotParam}`)
   }
 
   const handleSaveDailyLog = async () => {
@@ -606,9 +626,9 @@ export default function DocumentDetail() {
 
   const startEdit = () => {
     const data = (doc?.datos_extraidos || {}) as Record<string, unknown>
-    // No editar tablas (tipo inventario/nomina) — solo campos escalares
+    // No editar tablas (tipo inventario/nomina) â€” solo campos escalares
     if (data.filas && Array.isArray(data.filas)) {
-      setError('Este tipo de documento no se puede editar manualmente. Usa "Volver a importar" para rehacer el análisis.')
+      setError('Este tipo de documento no se puede editar manualmente. Usa "Volver a importar" para rehacer el anÃ¡lisis.')
       return
     }
     const flat: Record<string, string> = {}
@@ -711,14 +731,14 @@ export default function DocumentDetail() {
         : 'Paso 3. Confirma o reprocesa'
   const flowDescription = isSaved
     ? (canResumeSavedInvoice
-        ? 'El documento ya está guardado. Si falta completar stock o productos, puedes guardarlo de nuevo.'
-        : 'El documento ya está guardado.')
+        ? 'El documento ya estÃ¡ guardado. Si falta completar stock o productos, puedes guardarlo de nuevo.'
+        : 'El documento ya estÃ¡ guardado.')
     : isProcessingDocument
-      ? 'No necesitas hacer nada ahora. Espera a que termine el análisis automático.'
+      ? 'No necesitas hacer nada ahora. Espera a que termine el anÃ¡lisis automÃ¡tico.'
       : isAssistedLines && doc.estado === 'REVIEW'
-        ? (assistedReview?.message || 'Corrige solo lo necesario, confirma si está bien o reprocesa si no te sirve.')
+        ? (assistedReview?.message || 'Corrige solo lo necesario, confirma si estÃ¡ bien o reprocesa si no te sirve.')
       : saveEnabled || canResumeSavedInvoice
-        ? 'Si está bien, guarda. Si no, reprocesa.'
+        ? 'Si estÃ¡ bien, guarda. Si no, reprocesa.'
         : !routingReadyForSave
           ? 'Corrige los datos obligatorios antes de guardar o reprocesa si el resultado no te sirve.'
           : 'Confirma si el resultado es correcto. Si no, reprocesa.'
@@ -855,17 +875,17 @@ export default function DocumentDetail() {
           background: '#fef2f2', color: '#991b1b', fontSize: 13, marginBottom: '0.75rem',
         }}>
           <span>{error}</span>
-          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, lineHeight: 1, padding: 0 }} aria-label="Cerrar">×</button>
+          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, lineHeight: 1, padding: 0 }} aria-label="Cerrar">Ã—</button>
         </div>
       )}
 
       {syncResult && (
         <div style={{ padding: '0.75rem', background: syncResult.was_new ? '#F0FDF4' : '#EFF6FF', border: '1px solid ' + (syncResult.was_new ? '#BBF7D0' : '#BFDBFE'), borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>
-            {syncResult.was_new ? '✅' : '🔄'} <strong>{syncResult.recipe_name}</strong>
-            {' · '}{t('docDetail.recipeSynced', { name: '', count: syncResult.ingredients_count, cost: syncResult.total_cost.toFixed(4) })}
+            {syncResult.was_new ? 'âœ…' : 'ðŸ”„'} <strong>{syncResult.recipe_name}</strong>
+            {' Â· '}{t('docDetail.recipeSynced', { name: '', count: syncResult.ingredients_count, cost: syncResult.total_cost.toFixed(4) })}
           </span>
-          <button onClick={() => setSyncResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>×</button>
+          <button onClick={() => setSyncResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>Ã—</button>
         </div>
       )}
 
@@ -896,7 +916,7 @@ export default function DocumentDetail() {
       {dailyLogResult && (
         <div style={{ padding: '0.75rem', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <strong style={{ color: '#5b21b6' }}>✅ {t('docDetail.dailyLogSaved', { date: dailyLogResult.log_date })}</strong>
+            <strong style={{ color: '#5b21b6' }}>âœ… {t('docDetail.dailyLogSaved', { date: dailyLogResult.log_date })}</strong>
             <span style={{ marginLeft: 12, color: '#374151' }}>
               {t('docDetail.dailyLogStats', { inserted: dailyLogResult.inserted, matched: dailyLogResult.matched_recipes })}
             </span>
@@ -906,7 +926,7 @@ export default function DocumentDetail() {
               </div>
             )}
           </div>
-          <button onClick={() => setDailyLogResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>×</button>
+          <button onClick={() => setDailyLogResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>Ã—</button>
         </div>
       )}
 
@@ -915,12 +935,12 @@ export default function DocumentDetail() {
           <div>
             <strong style={{ color: '#047857' }}>Productos guardados</strong>
             <span style={{ marginLeft: 12, color: '#374151' }}>
-              {saveProductsResult.created} creados · {saveProductsResult.updated ?? 0} actualizados · {saveProductsResult.skipped_invalid} omitidos por inválidos
+              {saveProductsResult.created} creados Â· {saveProductsResult.updated ?? 0} actualizados Â· {saveProductsResult.skipped_invalid} omitidos por invÃ¡lidos
             </span>
             {(saveProductsResult.sheet_name || saveProductsResult.category_name) && (
               <div style={{ marginTop: 4, fontSize: 12, color: '#065f46' }}>
                 {saveProductsResult.sheet_name ? `Hoja: ${saveProductsResult.sheet_name}` : ''}
-                {saveProductsResult.sheet_name && saveProductsResult.category_name ? ' · ' : ''}
+                {saveProductsResult.sheet_name && saveProductsResult.category_name ? ' Â· ' : ''}
                 {saveProductsResult.category_name ? `Categoria: ${saveProductsResult.category_name}` : ''}
               </div>
             )}
@@ -943,10 +963,9 @@ export default function DocumentDetail() {
       {isSaved && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.9rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#166534' }}>
           <span>
-            ✅ {getImportadorSavedAsLabel(inferredSavedAs)}
-            {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>· {new Date(doc.saved_at).toLocaleString()}</span>}
+            âœ… {getImportadorSavedAsLabel(inferredSavedAs)}
+            {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>Â· {new Date(doc.saved_at).toLocaleString()}</span>}
           </span>
-          {renderReimportButton(openReimport, { background: 'none', border: '1px solid #86efac', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#166534', padding: '2px 8px' })}
         </div>
       )}
 
@@ -974,7 +993,6 @@ export default function DocumentDetail() {
                 {savingDailyLog ? t('docDetail.buttons.savingDailyLog') : dailyLogResult ? t('docDetail.buttons.resaveDailyLog') : t('docDetail.buttons.saveDailyLog')}
               </button>
               <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              {renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280' })}
             </>
           )}
 
@@ -998,7 +1016,6 @@ export default function DocumentDetail() {
                 {syncing ? t('docDetail.buttons.saving') : activeSheetIsSynced ? t('docDetail.buttons.synced') : t('docDetail.buttons.saveSheet')}
               </button>
               <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
-              {renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 })}
             </>
           )}
 
@@ -1015,7 +1032,6 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              {advancedActionsVisible && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 })}
             </>
           )}
 
@@ -1032,11 +1048,10 @@ export default function DocumentDetail() {
                   <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>
                 </>
               )}
-              {advancedActionsVisible && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 })}
             </>
           )}
 
-          {/* BANK / INVENTORY / PAYROLL / OTHER — confirm + reject */}
+          {/* BANK / INVENTORY / PAYROLL / OTHER â€” confirm + reject */}
           {(docCategory === 'bank' || docCategory === 'inventory' || docCategory === 'payroll' || docCategory === 'other') && (
             <>
               {advancedActionsVisible && docCategory === 'other' && saveEnabled && (
@@ -1055,7 +1070,6 @@ export default function DocumentDetail() {
                 </>
               )}
               {advancedActionsVisible && <button onClick={() => setRejectPending(true)} style={{ ...actionBtn, background: '#EF4444' }}>{t('docDetail.buttons.reject')}</button>}
-              {advancedActionsVisible && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.85 }, IMPORTADOR_COPY.rerunButton)}
             </>
           )}
         </div>
@@ -1087,7 +1101,7 @@ export default function DocumentDetail() {
                       <div key={hint.field} style={{ fontSize: 13, color: '#78350f' }}>
                         <strong>{hint.priority}. {formatFieldLabel(hint.field)}</strong>
                         {hint.confirmed_examples.length > 0 && (
-                          <span> · Ejemplos: {hint.confirmed_examples.join(', ')}</span>
+                          <span> Â· Ejemplos: {hint.confirmed_examples.join(', ')}</span>
                         )}
                       </div>
                     ))}
@@ -1096,7 +1110,7 @@ export default function DocumentDetail() {
               )}
             </div>
             <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {flowPrimaryAction && (
                   <button
                     onClick={flowPrimaryAction.onClick}
@@ -1106,14 +1120,8 @@ export default function DocumentDetail() {
                     {flowPrimaryAction.label}
                   </button>
                 )}
-                {!isSaved && !isProcessingDocument && renderReimportButton(openReimport, { ...actionBtn, background: '#6b7280', opacity: 0.9 }, IMPORTADOR_COPY.rerunButton)}
-                </div>
-                {!isSaved && !isProcessingDocument && (
-                  <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
-                    {IMPORTADOR_COPY.rerunHelpText}
-                  </div>
-                )}
               </div>
+            </div>
           </div>
           <div style={flowStepsWrap}>
             {IMPORTADOR_FLOW_STEPS.map((item) => {
@@ -1163,7 +1171,7 @@ export default function DocumentDetail() {
       {/* Confidence warning */}
       {!simpleFlowEnabled && needsHumanReview && confPct != null && confPct < 85 && (
         <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, marginBottom: '1rem', fontSize: 14 }}>
-          ⚠️ <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
+          âš ï¸ <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
           {routingDecision?.reason && <span style={{ display: 'block', marginTop: 6, fontWeight: 400 }}>{routingDecision.reason}</span>}
         </div>
       )}
@@ -1179,6 +1187,10 @@ export default function DocumentDetail() {
         {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }}>{doc.tipo_documento_detectado}</span>}
         {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Confianza: {confPct}%</span>}
       </div>
+
+      {!isProcessingDocument && (
+        <ReprocessActions onFast={() => openReimport('fast')} onDeep={() => openReimport('deep')} />
+      )}
 
       {/* Split view */}
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -1262,7 +1274,7 @@ export default function DocumentDetail() {
                 const allRows = activeSheetRows
                 const normKeys = activeNormKeys
                 const displayNames = activeDisplayNames
-                // Filtrar columnas que no tienen ningún dato real en las primeras 30 filas
+                // Filtrar columnas que no tienen ningÃºn dato real en las primeras 30 filas
                 const visibleIdxs = normKeys.reduce<number[]>((acc, key, i) => {
                   const vals = allRows.slice(0, 30).map(r => r[key])
                   if (vals.some(v => v !== null && v !== undefined && v !== '' && v !== 0)) acc.push(i)
@@ -1300,7 +1312,7 @@ export default function DocumentDetail() {
                           </div>
                         )}
                       </div>
-                      <span style={{ fontSize: 12, color: '#6b7280' }}>{totalFilasSheet} filas · {visibleIdxs.length} columnas visibles</span>
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>{totalFilasSheet} filas Â· {visibleIdxs.length} columnas visibles</span>
                     </div>
                     <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 10 }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -1343,7 +1355,7 @@ export default function DocumentDetail() {
                         <strong style={{ color: '#0f172a' }}>Informacion adicional</strong>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px 12px', marginTop: 8 }}>
                           {Object.entries(datos.metadata as Record<string, unknown>).map(([k, v]) => (
-                            <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? '—')}</div>
+                            <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? 'â€”')}</div>
                           ))}
                         </div>
                       </div>
@@ -1449,14 +1461,14 @@ export default function DocumentDetail() {
                         {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof v !== 'object' || v === null)).map(([key, val]) => (
                           <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
                             <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{formatFieldLabel(key)}</td>
-                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '—')}</td>
+                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? 'â€”')}</td>
                           </tr>
                         ))}
                         {Object.keys(datos).filter(k => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
                           <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>
                             {doc.error_detalle
                               ? 'No se pudieron extraer datos. Usa "Volver a importar" para reintentar.'
-                              : '—'}
+                              : 'â€”'}
                           </td></tr>
                         )}
                       </tbody>
@@ -1553,7 +1565,7 @@ export default function DocumentDetail() {
                   <div style={{ color: '#111827' }}>{link.nombre_archivo}</div>
                   <div style={{ fontSize: 12, color: '#6B7280' }}>
                     {new Date(link.created_at).toLocaleString()}
-                    {link.hash_sha256 ? ` · ${link.hash_sha256.slice(0, 12)}...` : ''}
+                    {link.hash_sha256 ? ` Â· ${link.hash_sha256.slice(0, 12)}...` : ''}
                   </div>
                 </div>
                 <span style={{ color: '#2563EB', fontWeight: 600 }}>Abrir</span>
@@ -1618,3 +1630,42 @@ const flowStepChip: React.CSSProperties = { display: 'inline-flex', alignItems: 
 const flowStepIndex: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 999, background: '#fff', fontSize: 12, color: '#0f172a' }
 const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 13, fontWeight: 600 }
 const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444', INVALID: '#EF4444', REPROCESS: '#8B5CF6', VALID: '#10B981', IMPORTED: '#0EA5E9' }
+const reprocessCard: React.CSSProperties = {
+  marginBottom: '1rem',
+  border: '1px solid #bfdbfe',
+  borderRadius: 14,
+  padding: '0.95rem 1rem',
+  background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+}
+const reprocessHeaderLayout: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 12,
+  alignItems: 'flex-start',
+  flexWrap: 'wrap',
+}
+const reprocessEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }
+const reprocessTitle: React.CSSProperties = { marginTop: 4, fontSize: 16, lineHeight: 1.2, fontWeight: 800, color: '#0f172a' }
+const reprocessCopy: React.CSSProperties = { marginTop: 6, fontSize: 13, color: '#475569', maxWidth: 620 }
+const reprocessButtonRow: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }
+const reprocessFastButton: React.CSSProperties = {
+  padding: '0.5rem 0.95rem',
+  borderRadius: 10,
+  border: '1px solid #0f766e',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 700,
+  background: '#0f766e',
+  color: '#fff',
+  boxShadow: '0 1px 0 rgba(15, 118, 110, 0.08)',
+}
+const reprocessDeepButton: React.CSSProperties = {
+  padding: '0.5rem 0.95rem',
+  borderRadius: 10,
+  border: '1px solid #bfdbfe',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 700,
+  background: '#fff',
+  color: '#1d4ed8',
+}

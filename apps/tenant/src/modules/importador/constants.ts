@@ -1,19 +1,26 @@
 export const IMPORTADOR_IMPORT_SESSION_KEY = 'importador.import.session.v1'
 
 export const IMPORTADOR_COPY = {
-  reimportButton: 'Reprocesar',
-  rerunButton: 'Reprocesar',
-  rerunHelpText: 'Si el resultado no te sirve, reprocesa y vuelve a revisarlo.',
+  reprocessFastButton: 'Reprocesar rápido',
+  reprocessDeepButton: 'Revisión profunda',
+  reprocessFastHelpText: 'Reutiliza caché y rutas rápidas. No promete mejorar la calidad.',
+  reprocessDeepHelpText: 'Ignora cachés y reintenta extraer más campos. Tarda más.',
   importSingleEyebrow: 'Carga directa',
   importFolderEyebrow: 'Carga masiva',
   importSingleTitle: 'Arrastra tus archivos aqui',
-  reimportTitle: 'Sube otra vez el archivo',
+  reimportTitle: 'Reprocesa este documento',
   importSingleSubtitle: 'o haz clic para elegirlos manualmente',
-  reimportSubtitle: 'Haz clic para elegir el archivo original.',
+  reimportSubtitle: 'Elige el modo de reprocesado antes de volver a subir el archivo original.',
+  reimportFastSubtitle: 'Modo rapido: mantiene el comportamiento actual y puede reutilizar cache.',
+  reimportDeepSubtitle: 'Modo profundo: intenta mejorar la extraccion desde cero.',
   importFolderTitle: 'Sube una carpeta completa',
   importFolderSubtitle: 'Procesa de una vez todos los archivos compatibles dentro de una misma carpeta',
-  reimportCheckboxLabel: 'Reprocesar este archivo',
-  reimportCheckboxHint: '(solo si quieres rehacer el analisis del mismo archivo)',
+  reimportModeLabel: 'Modo de reprocesado',
+  reimportModeFastLabel: 'Rapido',
+  reimportModeDeepLabel: 'Profundo',
+  reimportModeFastHint: 'Mismo carril que hoy: cache, reglas y rutas rapidas.',
+  reimportModeDeepHint: 'Borra cache de OCR/IA y reintenta detectar campos faltantes.',
+  reimportModeDeepFootnote: 'Este modo es el unico preparado para usar proveedor premium en el futuro.',
 } as const
 
 export const IMPORTADOR_FLOW_STEPS = [

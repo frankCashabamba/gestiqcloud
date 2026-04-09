@@ -229,6 +229,15 @@ _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
     ],
 }
 
+_DEFAULT_REPROCESS_CONTROL_CONFIG: dict[str, Any] = {
+    "enable_premium_deep_reprocess": False,
+    "deep_premium_provider": "openai",
+    "deep_reprocess_prompt_suffix": (
+        "Deep reprocess: re-read the document from scratch, ignore prior OCR/AI results, "
+        "and prioritize any required fields that were previously missing."
+    ),
+}
+
 _DEFAULT_FUZZY_REUSE_CONFIG: dict[str, float] = {
     "excel_min_overlap": 0.80,
     "learning_min_confidence": 0.6,
@@ -1496,6 +1505,57 @@ def load_ai_params(db: Any | None = None) -> dict[str, Any]:
         return _cache_set("ai_params", config)  # type: ignore[return-value]
     except Exception as exc:
         logger.warning("No se pudo cargar ai_params desde imp_config: %s", exc)
+
+    return defaults
+
+
+def load_reprocess_control(db: Any | None = None) -> dict[str, Any]:
+    """Control flags for fast vs deep reprocess behaviour."""
+    cached = _cache_get("reprocess_control")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    seed = _seed_module_payload("reprocess_control")
+
+    def _bool(val: Any, default: bool) -> bool:
+        if val is None:
+            return default
+        return str(val).strip().lower() not in {"false", "0", "no", "off"}
+
+    defaults: dict[str, Any] = {
+        "enable_premium_deep_reprocess": _bool(
+            seed.get("enable_premium_deep_reprocess"),
+            bool(_DEFAULT_REPROCESS_CONTROL_CONFIG["enable_premium_deep_reprocess"]),
+        ),
+        "deep_premium_provider": str(
+            seed.get("deep_premium_provider")
+            or _DEFAULT_REPROCESS_CONTROL_CONFIG["deep_premium_provider"]
+        ).strip()
+        or "openai",
+        "deep_reprocess_prompt_suffix": str(
+            seed.get("deep_reprocess_prompt_suffix")
+            or _DEFAULT_REPROCESS_CONTROL_CONFIG["deep_reprocess_prompt_suffix"]
+        ).strip(),
+    }
+
+    if db is None:
+        return defaults
+
+    try:
+        rows = _ensure_module_seeded(db, "reprocess_control")
+        config: dict[str, Any] = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip()
+            val = row.value_text
+            if key == "enable_premium_deep_reprocess":
+                config["enable_premium_deep_reprocess"] = _bool(val, False)
+            elif key == "deep_premium_provider":
+                config["deep_premium_provider"] = str(val or "").strip() or "openai"
+            elif key == "deep_reprocess_prompt_suffix":
+                config["deep_reprocess_prompt_suffix"] = str(val or "").strip()
+        return _cache_set("reprocess_control", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar reprocess_control desde imp_config: %s", exc)
 
     return defaults
 

@@ -140,6 +140,7 @@ class AIService:
         enable_recovery: bool = True,
         model: str | None = None,
         messages: list[dict[str, Any]] | None = None,
+        bypass_cache: bool = False,
     ) -> AIResponse:
         request = AIRequest(
             task=task,
@@ -151,24 +152,27 @@ class AIService:
             messages=messages,
         )
 
-        cached_response = await _load_response_from_cache(tenant_id, request)
-        if cached_response:
-            logger.info("AI cache hit task=%s tenant=%s", task.value, tenant_id or "global")
-            if db:
-                try:
-                    request_id = AILogger.log_request(
-                        db,
-                        request,
-                        provider_name="cache",
-                        provider_model=str(cached_response.model),
-                        tenant_id=tenant_id,
-                        module=module,
-                        user_id=user_id,
-                    )
-                    AILogger.log_response(db, request_id, cached_response)
-                except Exception as exc:
-                    logger.debug("Error logging cached AI response: %s", exc)
-            return cached_response
+        if bypass_cache:
+            logger.info("AI cache bypassed task=%s tenant=%s", task.value, tenant_id or "global")
+        else:
+            cached_response = await _load_response_from_cache(tenant_id, request)
+            if cached_response:
+                logger.info("AI cache hit task=%s tenant=%s", task.value, tenant_id or "global")
+                if db:
+                    try:
+                        request_id = AILogger.log_request(
+                            db,
+                            request,
+                            provider_name="cache",
+                            provider_model=str(cached_response.model),
+                            tenant_id=tenant_id,
+                            module=module,
+                            user_id=user_id,
+                        )
+                        AILogger.log_response(db, request_id, cached_response)
+                    except Exception as exc:
+                        logger.debug("Error logging cached AI response: %s", exc)
+                return cached_response
 
         requested_provider = provider.strip().lower() if provider else None
         ai_provider = (
@@ -315,7 +319,8 @@ class AIService:
             )
 
         if not response.is_error and response.content.strip():
-            await _store_response_in_cache(tenant_id, request, response)
+            if not bypass_cache:
+                await _store_response_in_cache(tenant_id, request, response)
 
         logger.info(
             "AI query done task=%s provider=%s resolved_model=%s status=%s elapsed_ms=%s",

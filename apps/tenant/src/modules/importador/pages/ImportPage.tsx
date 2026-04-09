@@ -10,7 +10,8 @@ export default function ImportPage() {
   const [searchParams] = useSearchParams()
   const reimportMode = searchParams.get('reimport')
   const sourceRecipeSnapshotId = searchParams.get('recipeSnapshotId') || ''
-  const forceRequested = reimportMode === 'force'
+  const initialReprocessMode = reimportMode === 'deep' ? 'deep' : 'fast'
+  const forceRequested = reimportMode === 'force' || reimportMode === 'fast' || reimportMode === 'deep'
 
   const [showVideo, setShowVideo] = useState(
     () => localStorage.getItem(STORAGE_KEY) !== 'true'
@@ -62,11 +63,15 @@ export default function ImportPage() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.05, color: '#0f172a' }}>
-          {forceRequested ? 'Rehacer documento' : 'Subir archivos al importador'}
+          {forceRequested
+            ? (initialReprocessMode === 'deep' ? 'Revisión profunda' : 'Reprocesar rápido')
+            : 'Subir archivos al importador'}
         </h1>
         <p style={{ margin: '0.55rem 0 0', fontSize: 15, color: '#475569', maxWidth: 780 }}>
           {forceRequested
-            ? 'Vuelve a subir el archivo original para procesarlo desde cero.'
+            ? (initialReprocessMode === 'deep'
+              ? 'Vuelve a subir el archivo original para ignorar cachés, forzar una nueva lectura y tratar de completar los campos faltantes.'
+              : 'Vuelve a subir el archivo original para repetir el flujo actual de forma rápida.')
             : 'Carga facturas, imagenes, hojas de calculo y otros documentos compatibles. El sistema los prepara para revision y luego podras guardarlos en su destino.'}
         </p>
         {!forceRequested && (
@@ -145,12 +150,15 @@ export default function ImportPage() {
             fontSize: 14,
           }}
         >
-          Reprocesa este documento desde cero.
+          {initialReprocessMode === 'deep'
+            ? 'La revision profunda tarda mas y vuelve a leer el documento sin reutilizar cachés.'
+            : 'El reprocesado rápido mantiene el flujo actual y puede devolver un resultado casi igual.'}
         </div>
       )}
 
       <ImportIntake
         initialForceReprocess={forceRequested}
+        initialReprocessMode={forceRequested ? initialReprocessMode : undefined}
         initialRecipeSnapshotId={sourceRecipeSnapshotId}
         restoreSession={!forceRequested}
         documentPathBuilder={(docId) => `../documents/${docId}`}

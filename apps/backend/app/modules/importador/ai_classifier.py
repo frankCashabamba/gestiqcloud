@@ -16,6 +16,7 @@ from app.modules.importador.runtime_config import (
     load_ai_runtime_config,
     load_doc_type_patterns,
     load_prompt_config,
+    load_reprocess_control,
     load_tax_id_patterns_config,
 )
 from app.services.ai.base import AITask, model_name
@@ -648,6 +649,9 @@ async def _analyze_structured_document(
     fallback_patterns: dict[str, list[str]] | None = None,
     prompt_config: dict[str, Any] | None = None,
     db: Any = None,
+    *,
+    bypass_cache: bool = False,
+    provider_override: str | None = None,
 ) -> dict[str, Any]:
     """Cheap classification path for already structured datasets."""
     prompt_parts = _build_structured_classification_prompt_parts(
@@ -683,9 +687,12 @@ async def _analyze_structured_document(
             module="importador",
             enable_recovery=True,
             model=model_override,
+            provider=provider_override,
+            bypass_cache=bypass_cache,
         )
         raw_content = response.content
         model_used = response.model or "unknown"
+        response_metadata = getattr(response, "metadata", None) or {}
 
         if response.is_error:
             fallback = _fallback_classify(content, filename, fallback_patterns)
@@ -709,6 +716,9 @@ async def _analyze_structured_document(
             parsed["prompt_sent"] = prompt[:500]
             parsed["prompt_full"] = prompt
             parsed["prompt_parts"] = prompt_parts
+            parsed["analysis_path"] = "ai_structured"
+            parsed["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+            parsed["cache_bypassed"] = bool(bypass_cache)
             return parsed
 
         fallback = _fallback_classify(content, filename, fallback_patterns)
@@ -718,6 +728,9 @@ async def _analyze_structured_document(
         fallback["prompt_sent"] = prompt[:500]
         fallback["prompt_full"] = prompt
         fallback["prompt_parts"] = prompt_parts
+        fallback["analysis_path"] = "fallback"
+        fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+        fallback["cache_bypassed"] = bool(bypass_cache)
         return fallback
     except Exception as exc:
         logger.error("Structured AI analysis error: %s", exc)
@@ -728,6 +741,9 @@ async def _analyze_structured_document(
         fallback["prompt_sent"] = prompt[:500]
         fallback["prompt_full"] = prompt
         fallback["prompt_parts"] = prompt_parts
+        fallback["analysis_path"] = "fallback_error"
+        fallback["cache_hit"] = False
+        fallback["cache_bypassed"] = bool(bypass_cache)
         return fallback
 
 
@@ -1625,7 +1641,67 @@ def _structured_direct_analysis(
         "prompt_sent": "",
         "prompt_full": "",
         "prompt_parts": prompt_parts,
+        "analysis_path": "structured_direct",
+        "cache_hit": False,
+        "cache_bypassed": False,
     }
+
+
+def _build_reprocess_recipe_config(
+    recipe_config: dict | None,
+    *,
+    db: Any,
+    reprocess_mode: str,
+    deep_reprocess_context: dict[str, Any] | None,
+    deep_focus_fields: list[str] | None,
+) -> tuple[dict[str, Any], str | None]:
+    deep_active = str(reprocess_mode or "").strip().lower() == "deep"
+    reprocess_control = load_reprocess_control(db)
+    provider_override: str | None = None
+    if deep_active and bool(reprocess_control.get("enable_premium_deep_reprocess")):
+        provider_override = (
+            str(reprocess_control.get("deep_premium_provider") or "").strip() or None
+        )
+
+    effective_recipe_config = dict(recipe_config or {})
+    if not deep_active:
+        return effective_recipe_config, provider_override
+
+    deep_focus = [str(field).strip() for field in (deep_focus_fields or []) if str(field).strip()]
+    deep_context = deep_reprocess_context or {}
+    deep_suffix = str(reprocess_control.get("deep_reprocess_prompt_suffix") or "").strip()
+    deep_lines: list[str] = []
+    if deep_suffix:
+        deep_lines.append(deep_suffix)
+    if deep_focus:
+        deep_lines.append(
+            "Prioritize these missing required fields if visible: " + ", ".join(deep_focus)
+        )
+    previous_doc_type = str(deep_context.get("previous_doc_type") or "").strip()
+    previous_confidence = deep_context.get("previous_confidence")
+    if previous_doc_type or previous_confidence is not None:
+        previous_bits: list[str] = []
+        if previous_doc_type:
+            previous_bits.append(previous_doc_type)
+        if previous_confidence is not None:
+            try:
+                previous_bits.append(f"{float(previous_confidence):.2f}")
+            except (TypeError, ValueError):
+                pass
+        if previous_bits:
+            deep_lines.append("Previous pass summary: " + " / ".join(previous_bits))
+    if deep_lines:
+        prompt_system = str(effective_recipe_config.get("prompt_system") or "").strip()
+        prompt_suffix = "\n".join(f"- {line}" for line in deep_lines)
+        effective_recipe_config["prompt_system"] = "\n\n".join(
+            part for part in [prompt_system, prompt_suffix] if part
+        )
+    prompt_user = str(effective_recipe_config.get("prompt_user") or "").strip()
+    deep_prompt_user = "Deep reprocess: validate missing required fields first and re-read the document from scratch."
+    effective_recipe_config["prompt_user"] = "\n\n".join(
+        part for part in [prompt_user, deep_prompt_user] if part
+    )
+    return effective_recipe_config, provider_override
 
 
 async def analyze_document(
@@ -1641,6 +1717,10 @@ async def analyze_document(
     canonical_fields: dict[str, dict] | None = None,
     prompt_config: dict[str, Any] | None = None,
     db: Any = None,
+    reprocess_mode: str = "fast",
+    bypass_cache: bool = False,
+    deep_reprocess_context: dict[str, Any] | None = None,
+    deep_focus_fields: list[str] | None = None,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -1668,8 +1748,21 @@ async def analyze_document(
         "prompt_sent": str,
     }
     """
-    if structured_data is not None and (
-        has_structured_rows or str(format_hint or "").strip().upper() in {"CSV", "EXCEL", "JSON"}
+    deep_active = str(reprocess_mode or "").strip().lower() == "deep"
+    recipe_config, provider_override = _build_reprocess_recipe_config(
+        recipe_config,
+        db=db,
+        reprocess_mode=reprocess_mode,
+        deep_reprocess_context=deep_reprocess_context,
+        deep_focus_fields=deep_focus_fields,
+    )
+    if (
+        structured_data is not None
+        and not deep_active
+        and (
+            has_structured_rows
+            or str(format_hint or "").strip().upper() in {"CSV", "EXCEL", "JSON"}
+        )
     ):
         return _structured_direct_analysis(
             content=content,
@@ -1690,6 +1783,8 @@ async def analyze_document(
             fallback_patterns=fallback_patterns,
             prompt_config=prompt_config,
             db=db,
+            bypass_cache=bypass_cache or deep_active,
+            provider_override=provider_override,
         )
 
     ai_runtime = load_ai_runtime_config(db)
@@ -1712,10 +1807,9 @@ async def analyze_document(
         if vision_result:
             return vision_result
 
-    rc = recipe_config or {}
+    rc = dict(recipe_config or {})
     pc = prompt_config or load_prompt_config(None)
     ai_params = load_ai_params(db)
-
     system_prompt = rc.get("prompt_system") or pc.get("extraction_system")
 
     # Field descriptions can be customized per tenant via recipe_config["field_descriptions"].
@@ -1849,10 +1943,13 @@ async def analyze_document(
             module="importador",
             enable_recovery=True,
             model=model_override,
+            provider=provider_override,
+            bypass_cache=bypass_cache or deep_active,
         )
 
         raw_content = response.content
         model_used = response.model or "unknown"
+        response_metadata = getattr(response, "metadata", None) or {}
 
         if response.is_error:
             logger.warning("AI analysis failed: %s", response.error)
@@ -1896,6 +1993,9 @@ async def analyze_document(
             parsed["prompt_sent"] = full_prompt[:500]
             parsed["prompt_full"] = full_prompt
             parsed["prompt_parts"] = prompt_trace
+            parsed["analysis_path"] = "ai_text"
+            parsed["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+            parsed["cache_bypassed"] = bool(bypass_cache or deep_active)
             return parsed
 
         fallback = _fallback_classify(content, filename, fallback_patterns)
@@ -1905,6 +2005,9 @@ async def analyze_document(
         fallback["prompt_sent"] = full_prompt[:500]
         fallback["prompt_full"] = full_prompt
         fallback["prompt_parts"] = prompt_trace
+        fallback["analysis_path"] = "fallback"
+        fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+        fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
         return fallback
 
     except Exception as exc:
@@ -1916,6 +2019,9 @@ async def analyze_document(
         fallback["prompt_sent"] = full_prompt[:500]
         fallback["prompt_full"] = full_prompt
         fallback["prompt_parts"] = prompt_trace
+        fallback["analysis_path"] = "fallback_error"
+        fallback["cache_hit"] = False
+        fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
         return fallback
 
 

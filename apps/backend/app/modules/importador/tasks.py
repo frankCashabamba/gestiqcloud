@@ -105,6 +105,8 @@ async def _run_processing(
     tipo_archivo: str,
     recipe_snapshot_id: str | None = None,
     force: bool = False,
+    reprocess_mode: str = "fast",
+    reprocess_context: dict | None = None,
 ) -> None:
     """Run OCR + AI classification + field extraction and update ImpDocumento."""
     from app.config.database import SessionLocal
@@ -152,6 +154,8 @@ async def _run_processing(
                     resolution_mode="snapshot" if recipe_snapshot_id else "zero_shot",
                     resolved_snapshot_id=recipe_snapshot_id,
                     explicit_recipe_context=bool(recipe_snapshot_id),
+                    reprocess_mode=reprocess_mode,
+                    reprocess_context=reprocess_context or {},
                 ),
             )
             processing_elapsed_ms = max(
@@ -242,6 +246,8 @@ def _make_task():
         tipo_archivo: str,
         recipe_snapshot_id: str | None = None,
         force: bool = False,
+        reprocess_mode: str = "fast",
+        reprocess_context: dict | None = None,
     ) -> dict:
         logger.info("Iniciando procesamiento async de documento %s (%s)", doc_id, filename)
 
@@ -287,6 +293,8 @@ def _make_task():
                     tipo_archivo=tipo_archivo,
                     recipe_snapshot_id=recipe_snapshot_id,
                     force=force,
+                    reprocess_mode=reprocess_mode,
+                    reprocess_context=reprocess_context,
                 )
             )
         except Exception as exc:

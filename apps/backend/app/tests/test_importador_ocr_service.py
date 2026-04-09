@@ -336,6 +336,37 @@ def test_extract_text_from_file_does_not_cache_empty_extraction(monkeypatch, tmp
     assert calls["count"] == 2
 
 
+def test_extract_text_from_file_bypasses_cache_when_requested(monkeypatch, tmp_path):
+    calls = {"count": 0}
+
+    async def fake_extract_image(_file_bytes: bytes):
+        calls["count"] += 1
+        return {
+            "text": "OCR from bypass",
+            "pages": 1,
+            "structured_data": None,
+            "format": "IMAGE_OCR",
+        }
+
+    monkeypatch.setattr(ocr_service, "_ocr_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(ocr_service, "_extract_image", fake_extract_image)
+
+    file_bytes = b"fake-image-binary"
+
+    first = asyncio.run(
+        ocr_service.extract_text_from_file(file_bytes, "nota.jpeg", bypass_cache=True)
+    )
+    second = asyncio.run(
+        ocr_service.extract_text_from_file(file_bytes, "nota.jpeg", bypass_cache=True)
+    )
+
+    assert calls["count"] == 2
+    assert first["text"] == "OCR from bypass"
+    assert second["text"] == "OCR from bypass"
+    assert first["_cache_bypassed"] is True
+    assert second["_cache_bypassed"] is True
+
+
 def test_rectify_document_perspective_detects_skewed_document():
     img = Image.new("RGB", (400, 300), color=(25, 25, 25))
     draw = ImageDraw.Draw(img)

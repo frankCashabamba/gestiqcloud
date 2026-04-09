@@ -45,6 +45,7 @@ RUNTIME_MODULE_TITLES: dict[str, str] = {
     "pre_classifier": "Pre Classifier",
     "ai_runtime": "AI Runtime",
     "processing_runtime": "Processing Runtime",
+    "reprocess_control": "Reprocess Control",
     "routing_scoring": "Routing Scoring",
     "prompt_config": "Prompt Config",
     "classification": "Classification",
@@ -66,6 +67,7 @@ RUNTIME_MODULE_DESCRIPTIONS: dict[str, str] = {
     "routing_fallback_rules": "Reglas base de fallback por doc_type o categoria.",
     "prompt_config": "Prompts y reglas textuales del motor AI.",
     "learning_control": "Puertas de control para reprocess y aprendizaje.",
+    "reprocess_control": "Control de reprocesado rapido vs profundo.",
     "cache_ttls": "TTLs de cache en memoria del importador.",
 }
 

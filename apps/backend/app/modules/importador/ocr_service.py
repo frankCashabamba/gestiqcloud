@@ -506,15 +506,26 @@ def _run_easyocr(img: Image.Image) -> str:
     return "\n".join([r[1] for r in results]).strip()
 
 
-async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, Any]:
+async def extract_text_from_file(
+    file_bytes: bytes,
+    filename: str,
+    *,
+    bypass_cache: bool = False,
+) -> dict[str, Any]:
     """Extrae texto de cualquier archivo soportado.
     Returns: {"text": str, "pages": int, "structured_data": list[dict] | None, "format": str}
     """
     ext = Path(filename).suffix.lower()
-    cached = _load_cached_extraction(file_bytes)
-    if cached is not None:
-        logger.info("OCR cache hit for %s", Path(filename).name)
-        return cached
+    if bypass_cache:
+        logger.info("OCR cache bypassed for %s", Path(filename).name)
+    else:
+        cached = _load_cached_extraction(file_bytes)
+        if cached is not None:
+            logger.info("OCR cache hit for %s", Path(filename).name)
+            result = dict(cached)
+            result["_cache_hit"] = True
+            result["_cache_bypassed"] = False
+            return result
 
     if ext == ".pdf":
         extraction = await _extract_pdf(file_bytes)
@@ -555,7 +566,10 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
         extraction = _extract_zip_summary(file_bytes, filename)
     else:
         raise ValueError(f"Formato no soportado: {ext}")
-    _store_cached_extraction(file_bytes, extraction)
+    extraction["_cache_hit"] = False
+    extraction["_cache_bypassed"] = bool(bypass_cache)
+    if not bypass_cache:
+        _store_cached_extraction(file_bytes, extraction)
     return extraction
 
 

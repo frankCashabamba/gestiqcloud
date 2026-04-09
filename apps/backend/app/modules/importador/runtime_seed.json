@@ -312,6 +312,11 @@
     "product_like_doc_types": ["INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS"],
     "recipe_name_field_candidates": ["nombre_de_la_receta", "nombre_receta", "nombre de la receta", "nombre"]
   },
+  "reprocess_control": {
+    "enable_premium_deep_reprocess": "false",
+    "deep_premium_provider": "openai",
+    "deep_reprocess_prompt_suffix": "Deep reprocess: re-read the document from scratch, ignore prior OCR/AI results, and prioritize any required fields that were previously missing."
+  },
   "routing_scoring": {
     "ai_confidence_weight": "0.60",
     "required_ratio_weight": "0.25",

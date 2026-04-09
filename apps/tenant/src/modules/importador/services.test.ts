@@ -96,4 +96,29 @@ describe('importador routing decision helpers', () => {
     expect(formatFieldLabel('unit_price')).toBe('Precio unitario DB')
     expect(isLineItemFieldName('unit_price')).toBe(true)
   })
+
+  it('sends explicit reprocess mode to the async import endpoint', async () => {
+    const apiModule = await import('../../shared/api/client')
+    const api = apiModule.default as { post: ReturnType<typeof vi.fn> }
+    api.post.mockResolvedValueOnce({ data: [] })
+
+    const { runImportAsync } = await import('./services')
+    const files = [new File(['demo'], 'factura.pdf', { type: 'application/pdf' })]
+
+    await runImportAsync(files, {
+      force: true,
+      recipeSnapshotId: 'snapshot-1',
+      reprocessMode: 'deep',
+    })
+
+    expect(api.post).toHaveBeenCalledTimes(1)
+    expect(api.post.mock.calls[0][1]).toBeInstanceOf(FormData)
+    expect(api.post.mock.calls[0][2]).toEqual({
+      params: {
+        force: 'true',
+        recipe_snapshot_id: 'snapshot-1',
+        reprocess_mode: 'deep',
+      },
+    })
+  })
 })

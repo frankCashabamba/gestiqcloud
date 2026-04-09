@@ -55,7 +55,7 @@ from .utils import json_safe as _json_safe
 logger = logging.getLogger("importador.processing")
 
 AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
-ExtractTextFn = Callable[[bytes, str], Awaitable[dict[str, Any]]]
+ExtractTextFn = Callable[..., Awaitable[dict[str, Any]]]
 ProcessingMode = Literal["run", "async"]
 
 
@@ -275,6 +275,8 @@ class RecipeContext:
     explicit_recipe_context: bool = False
     force_clean_reimport: bool = False
     recipe_id: UUID | None = None
+    reprocess_mode: str = "fast"
+    reprocess_context: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -291,6 +293,96 @@ class DocumentProcessingResult:
     auto_recipe_created: bool | None = None
     auto_recipe_name: str | None = None
     raw_ai_json: dict[str, Any] | None = None
+
+
+def _normalize_reprocess_mode(value: str | None) -> str:
+    return "deep" if str(value or "").strip().lower() == "deep" else "fast"
+
+
+def _reprocess_context_summary(context: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(context, dict):
+        return {}
+    previous = context.get("previous_result")
+    if not isinstance(previous, dict):
+        previous = {}
+    return {
+        "mode": _normalize_reprocess_mode(
+            context.get("mode") if isinstance(context.get("mode"), str) else None
+        ),
+        "previous_doc_type": str(previous.get("tipo_documento_detectado") or "").strip() or None,
+        "previous_confidence": previous.get("confianza_clasificacion"),
+        "previous_requires_review": previous.get("requiere_revision"),
+        "previous_recipe_snapshot_id": (
+            str(previous.get("recipe_snapshot_id") or "").strip() or None
+        ),
+        "previous_llm_model": str(previous.get("llm_model") or "").strip() or None,
+        "previous_field_count": previous.get("field_count"),
+        "missing_fields": [
+            str(field).strip()
+            for field in (context.get("missing_fields") or [])
+            if str(field).strip()
+        ],
+    }
+
+
+def _count_detected_scalar_fields(data: dict[str, Any]) -> int:
+    ignored_keys = {
+        "line_items",
+        "filas",
+        "filas_por_hoja",
+        "metadata_por_hoja",
+        "sheet_usada",
+        "columnas",
+        "columnas_norm",
+    }
+    count = 0
+    for key, value in data.items():
+        if key in ignored_keys or str(key).startswith("_"):
+            continue
+        if isinstance(value, str) and value.strip():
+            count += 1
+            continue
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            count += 1
+    return count
+
+
+def _reprocess_result_changed(
+    previous: dict[str, Any] | None,
+    *,
+    doc_type: str,
+    confidence: float,
+    requires_review: bool,
+    field_count: int,
+    field_keys: list[str] | None = None,
+) -> bool:
+    if not isinstance(previous, dict) or not previous:
+        return False
+    prev_type = str(previous.get("tipo_documento_detectado") or "").strip()
+    prev_conf = previous.get("confianza_clasificacion")
+    prev_review = bool(previous.get("requiere_revision"))
+    prev_field_count = previous.get("field_count")
+    prev_field_keys = [str(key) for key in (previous.get("field_keys") or []) if str(key).strip()]
+    if prev_type != str(doc_type or "").strip():
+        return True
+    try:
+        if prev_conf is None or abs(float(prev_conf) - float(confidence)) > 0.001:
+            return True
+    except (TypeError, ValueError):
+        return True
+    if prev_review != bool(requires_review):
+        return True
+    try:
+        if prev_field_count is None:
+            return True
+        if int(prev_field_count) != int(field_count):
+            return True
+    except (TypeError, ValueError):
+        return True
+    normalized_field_keys = [str(key) for key in (field_keys or []) if str(key).strip()]
+    if prev_field_keys and normalized_field_keys and prev_field_keys != normalized_field_keys:
+        return True
+    return False
 
 
 def _load_snapshot(db: Session, snapshot_id: UUID | str | None):
@@ -335,6 +427,10 @@ async def _analyze_with_context(
     canonical_fields: dict[str, Any],
     prompt_config: dict[str, Any],
     db: Any = None,
+    reprocess_mode: str = "fast",
+    bypass_cache: bool = False,
+    deep_reprocess_context: dict[str, Any] | None = None,
+    deep_focus_fields: list[str] | None = None,
 ) -> dict[str, Any]:
     # Si el OCR ya extrajo texto suficiente, no usar visión.
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
@@ -357,6 +453,10 @@ async def _analyze_with_context(
         canonical_fields=canonical_fields,
         prompt_config=prompt_config,
         db=db,
+        reprocess_mode=reprocess_mode,
+        bypass_cache=bypass_cache,
+        deep_reprocess_context=deep_reprocess_context,
+        deep_focus_fields=deep_focus_fields,
     )
 
 
@@ -422,8 +522,11 @@ async def _process_async_document(
 ) -> DocumentProcessingResult:
     processing_started_at = time.perf_counter()
     stage_timings: dict[str, int] = {}
+    reprocess_mode = _normalize_reprocess_mode(recipe_context.reprocess_mode)
+    deep_reprocess = reprocess_mode == "deep"
+    force_clean_reimport = bool(recipe_context.force_clean_reimport or deep_reprocess)
     extraction_started_at = time.perf_counter()
-    extraction = await extract_text_fn(file_bytes, filename)
+    extraction = await extract_text_fn(file_bytes, filename, bypass_cache=deep_reprocess)
     _set_stage_timing(stage_timings, "ocr_extract", extraction_started_at)
     text = extraction.get("text", "")
     structured = extraction.get("structured_data")
@@ -449,15 +552,17 @@ async def _process_async_document(
 
     resolved_snapshot_id = recipe_context.resolved_snapshot_id
     resolution_mode = recipe_context.resolution_mode or "zero_shot"
-    explicit_recipe_context = recipe_context.explicit_recipe_context
-    if not resolved_snapshot_id and not recipe_context.force_clean_reimport:
+    explicit_recipe_context = recipe_context.explicit_recipe_context and not force_clean_reimport
+    if force_clean_reimport:
+        resolved_snapshot_id = None
+    if not resolved_snapshot_id and not force_clean_reimport:
         existing_snapshot_id = getattr(doc, "recipe_snapshot_id", None)
         if existing_snapshot_id:
             resolved_snapshot_id = existing_snapshot_id
             explicit_recipe_context = True
             if resolution_mode == "zero_shot":
                 resolution_mode = "snapshot"
-    if sheet_profiles:
+    if sheet_profiles and not force_clean_reimport:
         _, auto_snapshot_id, auto_resolution_mode, _, _ = resolve_auto_recipe(
             db,
             tenant_id,
@@ -642,6 +747,14 @@ async def _process_async_document(
             canonical_fields=canonical_fields,
             prompt_config=prompt_config,
             db=db,
+            reprocess_mode=reprocess_mode,
+            bypass_cache=deep_reprocess,
+            deep_reprocess_context=recipe_context.reprocess_context,
+            deep_focus_fields=(
+                _reprocess_context_summary(recipe_context.reprocess_context).get("missing_fields")
+                if deep_reprocess
+                else None
+            ),
         )
         _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
 
@@ -664,6 +777,28 @@ async def _process_async_document(
     requiere_revision = confianza < classification_threshold
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
+    current_field_keys = (
+        sorted(
+            str(key)
+            for key, value in analysis_fields.items()
+            if not str(key).startswith("_") and value not in (None, "", [], {})
+        )
+        if isinstance(analysis_fields, dict)
+        else []
+    )
+    reprocess_context_summary = _reprocess_context_summary(recipe_context.reprocess_context)
+    previous_result = recipe_context.reprocess_context.get("previous_result")
+    current_field_count = (
+        _count_detected_scalar_fields(analysis_fields) if isinstance(analysis_fields, dict) else 0
+    )
+    reprocess_result_changed = _reprocess_result_changed(
+        previous_result if isinstance(previous_result, dict) else None,
+        doc_type=tipo_doc,
+        confidence=confianza,
+        requires_review=requiere_revision,
+        field_count=current_field_count,
+        field_keys=current_field_keys,
+    )
 
     if recipe_snapshot:
         remember_snapshot_learning(
@@ -873,6 +1008,16 @@ async def _process_async_document(
                         canonical_fields=canonical_fields,
                         prompt_config=prompt_config,
                         db=db,
+                        reprocess_mode=reprocess_mode,
+                        bypass_cache=deep_reprocess,
+                        deep_reprocess_context=recipe_context.reprocess_context,
+                        deep_focus_fields=(
+                            _reprocess_context_summary(recipe_context.reprocess_context).get(
+                                "missing_fields"
+                            )
+                            if deep_reprocess
+                            else None
+                        ),
                     )
                     _set_stage_timing(stage_timings, "ai_rerun", ai_rerun_started_at)
                     rerun_normalized = _normalize_analysis_output(rerun_analysis)
@@ -925,7 +1070,12 @@ async def _process_async_document(
         {
             "campos_extraidos": (
                 list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
-            )
+            ),
+            "reprocess_mode": reprocess_mode,
+            "reprocess_cache_hit": bool(analysis.get("cache_hit")),
+            "reprocess_cache_bypassed": bool(analysis.get("cache_bypassed")),
+            "reprocess_result_changed": reprocess_result_changed,
+            "reprocess_missing_fields": reprocess_context_summary.get("missing_fields", []),
         },
     )
 
@@ -986,6 +1136,16 @@ async def _process_async_document(
                 "learning_rerun": learning_rerun_summary,
                 "pre_classification": analysis.get("_pre_class"),
                 "headers_norm": headers_norm,
+                "reprocess": {
+                    "mode": reprocess_mode,
+                    "deep": deep_reprocess,
+                    "ocr_cache_hit": bool(extraction.get("_cache_hit")),
+                    "ocr_cache_bypassed": bool(extraction.get("_cache_bypassed")),
+                    "ai_cache_hit": bool(analysis.get("cache_hit")),
+                    "ai_cache_bypassed": bool(analysis.get("cache_bypassed")),
+                    "result_changed": reprocess_result_changed,
+                    "context": reprocess_context_summary,
+                },
             },
             "analysis": {
                 "prompt": analysis.get("prompt_sent", ""),
@@ -1114,8 +1274,11 @@ async def _process_run_document(
 ) -> DocumentProcessingResult:
     processing_started_at = time.perf_counter()
     stage_timings: dict[str, int] = {}
+    reprocess_mode = _normalize_reprocess_mode(recipe_context.reprocess_mode)
+    deep_reprocess = reprocess_mode == "deep"
+    force_clean_reimport = bool(recipe_context.force_clean_reimport or deep_reprocess)
     extraction_started_at = time.perf_counter()
-    extraction = await extract_text_fn(file_bytes, filename)
+    extraction = await extract_text_fn(file_bytes, filename, bypass_cache=deep_reprocess)
     _set_stage_timing(stage_timings, "ocr_extract", extraction_started_at)
     text = extraction.get("text", "")
     structured = extraction.get("structured_data")
@@ -1157,12 +1320,12 @@ async def _process_run_document(
     local_recipe_config = dict(recipe_context.recipe_config or {})
     local_resolution = (
         "force_clean"
-        if recipe_context.force_clean_reimport and not local_recipe_config
+        if force_clean_reimport and not local_recipe_config
         else recipe_context.resolution_mode
     )
     local_snapshot_id = (
         None
-        if recipe_context.force_clean_reimport and not local_recipe_config
+        if force_clean_reimport and not local_recipe_config
         else recipe_context.resolved_snapshot_id
     )
     if local_snapshot_id and not local_recipe_config:
@@ -1173,22 +1336,17 @@ async def _process_run_document(
     local_auto_name: str | None = None
     generated_auto_snapshot_id: UUID | None = None
     generated_auto_mode: str | None = None
-    if sheet_profiles and not local_recipe_config:
+    if sheet_profiles and not force_clean_reimport and not local_recipe_config:
         auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = resolve_auto_recipe(
             db, tenant_id, sheet_profiles, user_id, force_new=force
         )
         generated_auto_snapshot_id = auto_snap_id
         generated_auto_mode = auto_mode
-        if recipe_context.force_clean_reimport:
-            local_recipe_config = {}
-            local_resolution = "force_clean"
-            local_snapshot_id = None
-        else:
-            if auto_rc:
-                local_recipe_config = auto_rc
-                local_resolution = auto_mode
-            if auto_snap_id:
-                local_snapshot_id = auto_snap_id
+        if auto_rc:
+            local_recipe_config = auto_rc
+            local_resolution = auto_mode
+        if auto_snap_id:
+            local_snapshot_id = auto_snap_id
     _set_stage_timing(stage_timings, "recipe_resolution", recipe_resolution_started_at)
 
     recipe_name_detected: str | None = None
@@ -1293,6 +1451,14 @@ async def _process_run_document(
             fallback_patterns=fallback_patterns,
             canonical_fields=canonical_fields,
             prompt_config=prompt_config,
+            reprocess_mode=reprocess_mode,
+            bypass_cache=deep_reprocess,
+            deep_reprocess_context=recipe_context.reprocess_context,
+            deep_focus_fields=(
+                _reprocess_context_summary(recipe_context.reprocess_context).get("missing_fields")
+                if deep_reprocess
+                else None
+            ),
         )
         _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
     normalize_analysis_started_at = time.perf_counter()
@@ -1304,6 +1470,28 @@ async def _process_run_document(
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
     requiere_revision = confianza < classification_threshold
+    current_field_keys = (
+        sorted(
+            str(key)
+            for key, value in analysis_fields.items()
+            if not str(key).startswith("_") and value not in (None, "", [], {})
+        )
+        if isinstance(analysis_fields, dict)
+        else []
+    )
+    reprocess_context_summary = _reprocess_context_summary(recipe_context.reprocess_context)
+    previous_result = recipe_context.reprocess_context.get("previous_result")
+    current_field_count = (
+        _count_detected_scalar_fields(analysis_fields) if isinstance(analysis_fields, dict) else 0
+    )
+    reprocess_result_changed = _reprocess_result_changed(
+        previous_result if isinstance(previous_result, dict) else None,
+        doc_type=tipo_doc,
+        confidence=confianza,
+        requires_review=requiere_revision,
+        field_count=current_field_count,
+        field_keys=current_field_keys,
+    )
 
     if recipe_snapshot:
         remember_snapshot_learning(
@@ -1491,6 +1679,16 @@ async def _process_run_document(
                     fallback_patterns=fallback_patterns,
                     canonical_fields=canonical_fields,
                     prompt_config=prompt_config,
+                    reprocess_mode=reprocess_mode,
+                    bypass_cache=deep_reprocess,
+                    deep_reprocess_context=recipe_context.reprocess_context,
+                    deep_focus_fields=(
+                        _reprocess_context_summary(recipe_context.reprocess_context).get(
+                            "missing_fields"
+                        )
+                        if deep_reprocess
+                        else None
+                    ),
                 )
                 _set_stage_timing(stage_timings, "ai_rerun", ai_rerun_started_at)
                 rerun_normalized = _normalize_analysis_output(rerun_analysis)
@@ -1542,7 +1740,7 @@ async def _process_run_document(
                 "recipe_snapshot_id": str(local_snapshot_id) if local_snapshot_id else None,
                 "used": local_resolution,
                 "force": force,
-                "force_clean_reimport": recipe_context.force_clean_reimport,
+                "force_clean_reimport": force_clean_reimport,
                 "explicit_recipe_context": recipe_context.explicit_recipe_context,
                 "learning_version_applied": learning_version_applied,
                 "generated_auto_snapshot_id": (
@@ -1552,6 +1750,16 @@ async def _process_run_document(
             },
             "learning_version_applied": learning_version_applied,
             "model": model_used,
+            "reprocess": {
+                "mode": reprocess_mode,
+                "deep": deep_reprocess,
+                "ocr_cache_hit": bool(extraction.get("_cache_hit")),
+                "ocr_cache_bypassed": bool(extraction.get("_cache_bypassed")),
+                "ai_cache_hit": bool(analysis.get("cache_hit")),
+                "ai_cache_bypassed": bool(analysis.get("cache_bypassed")),
+                "result_changed": reprocess_result_changed,
+                "context": reprocess_context_summary,
+            },
         },
         "analysis": {
             "prompt": analysis.get("prompt_sent", ""),
@@ -1617,7 +1825,12 @@ async def _process_run_document(
             "model": model_used,
             "recipe_mode": local_resolution,
             "auto_recipe_created": auto_recipe_created,
-            "force_clean_reimport": recipe_context.force_clean_reimport,
+            "force_clean_reimport": force_clean_reimport,
+            "reprocess_mode": reprocess_mode,
+            "reprocess_cache_hit": bool(analysis.get("cache_hit")),
+            "reprocess_cache_bypassed": bool(analysis.get("cache_bypassed")),
+            "reprocess_result_changed": reprocess_result_changed,
+            "reprocess_missing_fields": reprocess_context_summary.get("missing_fields", []),
             "generated_auto_snapshot_id": (
                 str(generated_auto_snapshot_id) if generated_auto_snapshot_id else None
             ),

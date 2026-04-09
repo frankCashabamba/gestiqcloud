@@ -38,6 +38,45 @@ def _should_skip_import_file(filename: str) -> bool:
     )
 
 
+def _build_reprocess_context(
+    existing, *, reprocess_mode: str, rerun_reason: str
+) -> dict[str, object]:
+    raw_data = getattr(existing, "datos_extraidos", None)
+    field_count = 0
+    if isinstance(raw_data, dict):
+        field_count = len(
+            [
+                key
+                for key, value in raw_data.items()
+                if not str(key).startswith("_") and value not in (None, "", [], {})
+            ]
+        )
+    field_keys = []
+    if isinstance(raw_data, dict):
+        field_keys = sorted(
+            str(key)
+            for key, value in raw_data.items()
+            if not str(key).startswith("_") and value not in (None, "", [], {})
+        )
+    routing = getattr(existing, "routing_decision", None)
+    missing_fields = getattr(routing, "missing_fields", None) or []
+    previous_result = {
+        "tipo_documento_detectado": getattr(existing, "tipo_documento_detectado", None),
+        "confianza_clasificacion": getattr(existing, "confianza_clasificacion", None),
+        "requiere_revision": getattr(existing, "requiere_revision", None),
+        "recipe_snapshot_id": getattr(existing, "recipe_snapshot_id", None),
+        "llm_model": getattr(existing, "llm_model", None),
+        "field_count": field_count,
+        "field_keys": field_keys,
+        "rerun_reason": rerun_reason,
+    }
+    return {
+        "mode": reprocess_mode,
+        "previous_result": previous_result,
+        "missing_fields": [str(field).strip() for field in missing_fields if str(field).strip()],
+    }
+
+
 def _env_int(name: str, default: int) -> int:
     import os
 
@@ -129,6 +168,7 @@ async def enqueue_async_batch(
     user_id: str,
     force: bool,
     recipe_snapshot_id: str | None,
+    reprocess_mode: str = "fast",
     db: Session,
 ) -> list[dict]:
     from .tasks import process_document_task, store_payload
@@ -270,13 +310,20 @@ async def enqueue_async_batch(
     if not _ensure_batch_tracking_storage(db):
         raise _batch_tracking_schema_error()
 
+    normalized_reprocess_mode = (
+        "deep" if str(reprocess_mode or "").strip().lower() == "deep" else "fast"
+    )
+    effective_recipe_snapshot_id = (
+        None if normalized_reprocess_mode == "deep" else _coerce_uuid(recipe_snapshot_id)
+    )
+
     batch_payload = {
         "tenant_id": tenant_id,
         "usuario_id": user_id,
         "estado": "PENDING",
         "total_items": len(existing_matches) + len(staged_uploads) + len(rerun_existing),
         "force_reprocess": force,
-        "recipe_snapshot_id": _coerce_uuid(recipe_snapshot_id),
+        "recipe_snapshot_id": effective_recipe_snapshot_id,
     }
     try:
         batch = crud.create_batch(db, batch_payload)
@@ -347,8 +394,15 @@ async def enqueue_async_batch(
         rerun_existing,
         start=rerun_start,
     ):
-        preserve_learning_snapshot = rerun_reason == "learning_update" and getattr(
-            existing, "recipe_snapshot_id", None
+        reprocess_context = _build_reprocess_context(
+            existing,
+            reprocess_mode=normalized_reprocess_mode,
+            rerun_reason=rerun_reason,
+        )
+        preserve_learning_snapshot = (
+            rerun_reason == "learning_update"
+            and getattr(existing, "recipe_snapshot_id", None)
+            and normalized_reprocess_mode != "deep"
         )
         crud.reset_documento_for_reprocess(
             db,
@@ -381,6 +435,8 @@ async def enqueue_async_batch(
                 "mode": "async",
                 "batch_id": str(batch.id),
                 "reason": rerun_reason,
+                "reprocess_mode": normalized_reprocess_mode,
+                "deep_reprocess": normalized_reprocess_mode == "deep",
             },
         )
         db.commit()
@@ -393,8 +449,14 @@ async def enqueue_async_batch(
                 user_id=user_id,
                 filename=filename,
                 tipo_archivo=tipo_archivo,
-                recipe_snapshot_id=str(recipe_snapshot_id) if recipe_snapshot_id else None,
+                recipe_snapshot_id=(
+                    str(recipe_snapshot_id)
+                    if recipe_snapshot_id and normalized_reprocess_mode != "deep"
+                    else None
+                ),
                 force=force,
+                reprocess_mode=normalized_reprocess_mode,
+                reprocess_context=reprocess_context,
             )
         else:
             logger.warning("Celery no disponible; dejando documento %s en PENDING", existing.id)
@@ -410,7 +472,11 @@ async def enqueue_async_batch(
                 "message": (
                     "Se reanalizo el mismo documento para aplicar aprendizaje confirmado reciente."
                     if rerun_reason == "learning_update"
-                    else "Se reproceso el mismo documento sobre el registro existente."
+                    else (
+                        "Reprocesado profundo desde cero."
+                        if normalized_reprocess_mode == "deep"
+                        else "Se reproceso el mismo documento sobre el registro existente."
+                    )
                 ),
             }
         )
@@ -470,8 +536,12 @@ async def enqueue_async_batch(
                 user_id=user_id,
                 filename=filename,
                 tipo_archivo=tipo_archivo,
-                recipe_snapshot_id=recipe_snapshot_id,
+                recipe_snapshot_id=(
+                    str(effective_recipe_snapshot_id) if effective_recipe_snapshot_id else None
+                ),
                 force=force,
+                reprocess_mode=normalized_reprocess_mode,
+                reprocess_context={},
             )
         else:
             logger.warning("Celery no disponible, procesando %s sincronicamente", filename)

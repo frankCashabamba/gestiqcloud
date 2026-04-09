@@ -13,6 +13,7 @@ import {
 import { IMPORTADOR_COPY, IMPORTADOR_IMPORT_SESSION_KEY } from '../constants'
 
 type ImportMode = 'files' | 'folder'
+type ReprocessMode = 'fast' | 'deep'
 type FileStatus = 'pending' | 'processing' | 'done' | 'error'
 type FileEntry = {
   name: string
@@ -142,6 +143,7 @@ function Spinner() {
 type ImportIntakeProps = {
   onImported?: () => void
   initialForceReprocess?: boolean
+  initialReprocessMode?: ReprocessMode
   initialRecipeSnapshotId?: string
   documentPathBuilder?: (docId: string) => string
   restoreSession?: boolean
@@ -151,12 +153,13 @@ type ImportIntakeProps = {
 export default function ImportIntake({
   onImported,
   initialForceReprocess = false,
+  initialReprocessMode,
   initialRecipeSnapshotId = '',
   documentPathBuilder = (docId) => `documents/${docId}`,
   restoreSession = true,
   compact = false,
 }: ImportIntakeProps) {
-  const compactMode = compact || initialForceReprocess
+  const compactMode = compact || initialForceReprocess || initialReprocessMode !== undefined
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
@@ -167,7 +170,7 @@ export default function ImportIntake({
   const [error, setError] = useState('')
   const [activeBatchId, setActiveBatchId] = useState('')
   const [activeBatch, setActiveBatch] = useState<ImportBatch | null>(null)
-  const [forceReprocess, setForceReprocess] = useState(initialForceReprocess)
+  const [reprocessMode, setReprocessMode] = useState<ReprocessMode>(initialReprocessMode ?? 'fast')
   const [fileSupport, setFileSupport] = useState<FileSupportConfig | null>(null)
   const [sessionHydrated, setSessionHydrated] = useState(false)
   const directoryInputProps: DirectoryInputProps = { webkitdirectory: 'true' }
@@ -177,8 +180,8 @@ export default function ImportIntake({
   const sessionHadDataRef = useRef(false)
 
   useEffect(() => {
-    setForceReprocess(initialForceReprocess)
-  }, [initialForceReprocess])
+    setReprocessMode(initialReprocessMode ?? 'fast')
+  }, [initialReprocessMode])
 
   useEffect(() => {
     if (compactMode) setMode('files')
@@ -505,9 +508,14 @@ export default function ImportIntake({
     ))
 
     try {
+      const useSnapshot = compactMode && reprocessMode === 'fast' && Boolean(initialRecipeSnapshotId)
       const asyncResults = await runImportAsync(
         pending.map((entry) => entry.file),
-        { force: forceReprocess, recipeSnapshotId: initialRecipeSnapshotId || undefined },
+        {
+          force: compactMode || initialForceReprocess,
+          recipeSnapshotId: useSnapshot ? initialRecipeSnapshotId || undefined : undefined,
+          reprocessMode: compactMode ? reprocessMode : undefined,
+        },
       )
 
       const batchId = asyncResults[0]?.batch_id
@@ -554,7 +562,7 @@ export default function ImportIntake({
     } finally {
       setProcessing(false)
     }
-  }, [entries, fileSupportReady, forceReprocess, initialRecipeSnapshotId, onImported])
+  }, [entries, fileSupportReady, compactMode, reprocessMode, initialRecipeSnapshotId, initialForceReprocess, onImported])
 
   const { pendingCount, totalCount, activeCount, errorCount, completedCount, progressPct, reviewEntries, queueEntries, errorEntries } = useMemo(() => {
     const reviewEntries = entries.filter((entry) => entry.status === 'done')
@@ -749,8 +757,26 @@ export default function ImportIntake({
               {compactMode ? IMPORTADOR_COPY.reimportTitle : IMPORTADOR_COPY.importSingleTitle}
             </p>
             <p className="import-intake__dropzone-subtitle" style={{ fontSize: 15, color: '#475569', margin: compactMode ? 0 : '0 0 1rem' }}>
-              {compactMode ? IMPORTADOR_COPY.reimportSubtitle : IMPORTADOR_COPY.importSingleSubtitle}
+              {compactMode
+                ? (reprocessMode === 'deep'
+                  ? IMPORTADOR_COPY.reimportDeepSubtitle
+                  : IMPORTADOR_COPY.reimportFastSubtitle)
+                : IMPORTADOR_COPY.importSingleSubtitle}
             </p>
+            {compactMode && (
+              <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <span style={{ padding: '0.22rem 0.6rem', borderRadius: 999, background: reprocessMode === 'deep' ? '#dbeafe' : '#ecfeff', color: reprocessMode === 'deep' ? '#1d4ed8' : '#0f766e', fontSize: 11, fontWeight: 800 }}>
+                  {reprocessMode === 'deep'
+                    ? IMPORTADOR_COPY.reimportModeDeepLabel
+                    : IMPORTADOR_COPY.reimportModeFastLabel}
+                </span>
+                <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                  {reprocessMode === 'deep'
+                    ? IMPORTADOR_COPY.reimportModeDeepHint
+                    : IMPORTADOR_COPY.reimportModeFastHint}
+                </span>
+              </div>
+            )}
             {!compactMode && (
               <>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
@@ -943,35 +969,96 @@ export default function ImportIntake({
           </div>
         )}
 
-        {!compactMode && (
-          <div className="import-intake__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
-          <div style={{ minWidth: 240, flex: '1 1 260px' }}>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Opciones de envio</div>
-            <div
-              style={{
-                padding: '0.7rem 0.85rem',
-                border: '1px solid #d1d5db',
-                borderRadius: 12,
-                fontSize: 13,
-                background: '#fff',
-                color: '#475569',
-                lineHeight: 1.45,
-              }}
-            >
-              Sube los archivos, espera el procesamiento y revisa cada documento antes de confirmarlo o guardarlo.
+        {compactMode ? (
+          <div className="import-intake__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'stretch', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
+            <div style={{ minWidth: 240, flex: '1 1 260px' }}>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>
+                {IMPORTADOR_COPY.reimportModeLabel}
+              </div>
+              <div
+                style={{
+                  padding: '0.7rem 0.85rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 12,
+                  fontSize: 13,
+                  background: '#fff',
+                  color: '#475569',
+                  lineHeight: 1.45,
+                }}
+              >
+                {reprocessMode === 'deep'
+                  ? IMPORTADOR_COPY.reimportDeepSubtitle
+                  : IMPORTADOR_COPY.reimportFastSubtitle}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gap: 8, flex: '0 1 320px', minWidth: 280 }}>
+              <button
+                type="button"
+                onClick={() => setReprocessMode('fast')}
+                disabled={processing}
+                style={{
+                  padding: '0.72rem 0.9rem',
+                  borderRadius: 14,
+                  border: reprocessMode === 'fast' ? '1px solid #0f766e' : '1px solid #d1d5db',
+                  background: reprocessMode === 'fast' ? '#ecfeff' : '#fff',
+                  color: '#0f172a',
+                  textAlign: 'left',
+                  cursor: processing ? 'default' : 'pointer',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                  {IMPORTADOR_COPY.reimportModeFastLabel}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
+                  {IMPORTADOR_COPY.reimportModeFastHint}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReprocessMode('deep')}
+                disabled={processing}
+                style={{
+                  padding: '0.72rem 0.9rem',
+                  borderRadius: 14,
+                  border: reprocessMode === 'deep' ? '1px solid #2563eb' : '1px solid #d1d5db',
+                  background: reprocessMode === 'deep' ? '#eff6ff' : '#fff',
+                  color: '#0f172a',
+                  textAlign: 'left',
+                  cursor: processing ? 'default' : 'pointer',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                  {IMPORTADOR_COPY.reimportModeDeepLabel}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
+                  {IMPORTADOR_COPY.reimportModeDeepHint}
+                </div>
+              </button>
+            </div>
+            <div style={{ flex: '1 1 260px', minWidth: 240, fontSize: 12, color: '#64748b', alignSelf: 'center' }}>
+              {reprocessMode === 'deep'
+                ? IMPORTADOR_COPY.reimportModeDeepFootnote
+                : 'Este modo mantiene el flujo actual y prioriza velocidad sobre cambios en el resultado.'}
             </div>
           </div>
-          <label className="import-intake__checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: 12, color: '#6b7280', cursor: processing ? 'default' : 'pointer', userSelect: 'none', padding: '0.72rem 0.85rem', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', minHeight: 46 }}>
-            <input
-              type="checkbox"
-              checked={forceReprocess}
-              disabled={processing}
-              onChange={(e) => setForceReprocess(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            {IMPORTADOR_COPY.reimportCheckboxLabel}
-            <span style={{ color: '#9ca3af' }}>{IMPORTADOR_COPY.reimportCheckboxHint}</span>
-          </label>
+        ) : (
+          <div className="import-intake__controls" style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.85rem', border: '1px solid #e5e7eb', borderRadius: 18, background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%)' }}>
+            <div style={{ minWidth: 240, flex: '1 1 260px' }}>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 5, fontWeight: 700 }}>Opciones de envio</div>
+              <div
+                style={{
+                  padding: '0.7rem 0.85rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 12,
+                  fontSize: 13,
+                  background: '#fff',
+                  color: '#475569',
+                  lineHeight: 1.45,
+                }}
+              >
+                Sube los archivos, espera el procesamiento y revisa cada documento antes de confirmarlo o guardarlo.
+              </div>
+            </div>
           </div>
         )}
 
@@ -1008,7 +1095,7 @@ export default function ImportIntake({
             ? 'Espera'
             : pendingCount > 0
               ? compactMode
-                ? `Reprocesar ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
+                ? `${reprocessMode === 'deep' ? 'Revisión profunda' : 'Reprocesar rápido'} ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
                 : `Subir ${pendingCount} documento${pendingCount > 1 ? 's' : ''}`
               : entries.length > 0
                 ? 'Subida completada'
