@@ -461,6 +461,60 @@ def test_analyze_document_repairs_total_and_date_from_explicit_ocr_labels(monkey
     assert result["fields"]["total_amount"] == 2145.0
 
 
+def test_analyze_document_repairs_pdf_invoice_fields_from_ocr_context(monkeypatch):
+    async def fake_query(**kwargs):
+        del kwargs
+        return SimpleNamespace(
+            content=(
+                '{"doc_type":"INVOICE","confidence":0.91,"reasoning":"ok",'
+                '"is_table":false,"columns":[],"fields":{'
+                '"vendor":"Distribuidora Integral Andina S.A.",'
+                '"issue_date":"2026-01-01",'
+                '"total_amount":1284.0,'
+                '"currency":"USD"'
+                "}}"
+            ),
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content=(
+                "FACTURA DE PROVEEDOR\n"
+                "Proveedor\n"
+                "Distribuidora Integral Andina S.A.\n"
+                "RUC: 1792845612001\n"
+                "Fecha de emision: 03/04/2026\n"
+                "Subtotal\n"
+                "$ 14,792.40\n"
+                "IVA 12%\n"
+                "$ 1,775.09\n"
+                "Total\n"
+                "$ 16,567.49\n"
+            ),
+            filename="factura-proveedor.pdf",
+            format_hint="PDF",
+            canonical_fields={
+                "vendor": {"type": "text"},
+                "vendor_tax_id": {"type": "text"},
+                "issue_date": {"type": "date"},
+                "total_amount": {"type": "numeric"},
+                "currency": {"type": "text"},
+            },
+        )
+    )
+
+    assert result["fields"]["vendor"] == "Distribuidora Integral Andina S.A."
+    assert result["fields"]["vendor_tax_id"] == "1792845612001"
+    assert result["fields"]["issue_date"] == "2026-04-03"
+    assert result["fields"]["total_amount"] == 16567.49
+    assert result["fields"]["currency"] == "USD"
+
+
 def test_analyze_document_rebuilds_line_item_extra_columns_from_ocr(monkeypatch):
     async def fake_query(**kwargs):
         del kwargs

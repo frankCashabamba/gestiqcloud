@@ -121,6 +121,28 @@ def test_runtime_config_loads_ai_processing_and_routing_scoring_defaults():
     assert routing_scoring["blocked_confidence_cap"] == 0.58
 
 
+def test_runtime_config_preserves_pdf_ocr_evidence_formats_when_seed_overrides(monkeypatch):
+    invalidate_runtime_config_cache()
+
+    monkeypatch.setattr(
+        "app.modules.importador.runtime_config._seed_module_payload",
+        lambda module: (
+            {
+                "ocr_evidence_formats": ["IMAGE_OCR", "PDF_OCR", "JPG"],
+                "vision_allowed_formats": ["IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG"],
+            }
+            if module == "ai_runtime"
+            else {}
+        ),
+    )
+
+    config = load_ai_runtime_config(None)
+
+    assert "PDF" in config["ocr_evidence_formats"]
+    assert "PDF" in config["vision_allowed_formats"]
+    assert config["ocr_evidence_formats"][0] == "IMAGE_OCR"
+
+
 def test_pre_classifier_loader_delegates_to_runtime_config(monkeypatch):
     pre_classifier._cache.pop("config", None)
 

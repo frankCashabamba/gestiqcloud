@@ -226,7 +226,7 @@
     "ocr_score_weight_alpha": "0.20",
     "ocr_score_weight_clean": "0.10",
     "ocr_guard_confidence_cap": "0.45",
-    "ocr_evidence_formats": ["IMAGE_OCR", "PDF_OCR", "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"],
+    "ocr_evidence_formats": ["IMAGE_OCR", "PDF_OCR", "PDF", "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"],
     "vision_allowed_formats": ["IMAGE_OCR", "PDF_OCR", "JPG", "PNG", "IMG", "PDF"],
     "evidence_stop_tokens": ["cliente", "customer", "proveedor", "vendor", "empresa", "company", "concepto", "concept"],
     "currency_markers": {

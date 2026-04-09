@@ -141,6 +141,7 @@ _DEFAULT_AI_RUNTIME_CONFIG: dict[str, Any] = {
     "ocr_evidence_formats": [
         "IMAGE_OCR",
         "PDF_OCR",
+        "PDF",
         "JPG",
         "JPEG",
         "PNG",
@@ -286,6 +287,17 @@ def _load_runtime_seed() -> dict[str, Any]:
 def _seed_module_payload(module: str) -> dict[str, Any]:
     payload = _load_runtime_seed().get(module)
     return payload if isinstance(payload, dict) else {}
+
+
+def list_runtime_config_modules() -> list[str]:
+    """Return the runtime config modules seeded in runtime_seed.json."""
+    return sorted(_load_runtime_seed().keys())
+
+
+def ensure_runtime_config_seeded(db: Any) -> None:
+    """Seed every runtime config module once so admin tooling can edit them."""
+    for module in list_runtime_config_modules():
+        _ensure_module_seeded(db, module)
 
 
 def _ensure_module_seeded(db: Any, module: str) -> list[Any]:
@@ -910,8 +922,15 @@ def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
     def _list_value(value: Any, default: list[str]) -> list[str]:
         if not isinstance(value, list):
             return list(default)
-        parsed = [str(item).strip().upper() for item in value if str(item).strip()]
-        return parsed or list(default)
+        parsed_default = [str(item).strip().upper() for item in default if str(item).strip()]
+        parsed_value = [str(item).strip().upper() for item in value if str(item).strip()]
+        merged: list[str] = []
+        seen: set[str] = set()
+        for item in parsed_default + parsed_value:
+            if item and item not in seen:
+                seen.add(item)
+                merged.append(item)
+        return merged or list(default)
 
     def _list_value_keep_case(value: Any, default: list[str]) -> list[str]:
         if not isinstance(value, list):

@@ -15,6 +15,7 @@ from .schemas import (
     ColumnCandidateOut,
     FieldAliasCreateIn,
     FieldAliasOut,
+    ImportadorRoutingOverviewOut,
     RoutingLearningInsightOut,
     RoutingPreviewDocumentOut,
     RoutingPreviewRequest,
@@ -24,6 +25,9 @@ from .schemas import (
     RoutingProfileUpdateProposalOut,
     RoutingRuleAdminIn,
     RoutingRuleAdminOut,
+    RuntimeConfigCatalogOut,
+    RuntimeConfigEntryOut,
+    RuntimeConfigEntryUpsertIn,
 )
 from .services.document_learning_queue_service import (
     flag_reprocess_candidates,
@@ -44,6 +48,13 @@ from .services.document_routing_admin_service import (
 from .services.document_routing_learning_insights_service import (
     build_routing_profile_update_proposal,
     list_routing_learning_insights,
+)
+from .services.importador_admin_service import (
+    build_importador_routing_overview,
+    delete_runtime_config_entry,
+    list_importador_runtime_config,
+    reset_runtime_config_module,
+    upsert_runtime_config_entry,
 )
 
 router = APIRouter(
@@ -159,6 +170,40 @@ def get_routing_learning_proposal(
         if detail == "routing_learning_insight_not_found":
             raise HTTPException(status_code=404, detail=detail)
         raise HTTPException(status_code=400, detail=detail)
+
+
+@router.get("/overview", response_model=ImportadorRoutingOverviewOut)
+def get_importador_overview(
+    tenant_id: UUID = Query(...),
+    limit: int = Query(default=8, ge=1, le=20),
+    db: Session = Depends(get_db),
+):
+    return build_importador_routing_overview(db, tenant_id=tenant_id, limit=limit)
+
+
+@router.get("/runtime-config", response_model=RuntimeConfigCatalogOut)
+def get_runtime_config(db: Session = Depends(get_db)):
+    return list_importador_runtime_config(db)
+
+
+@router.put("/runtime-config/{module}/{key}", response_model=RuntimeConfigEntryOut)
+def put_runtime_config_entry(
+    module: str,
+    key: str,
+    payload: RuntimeConfigEntryUpsertIn,
+    db: Session = Depends(get_db),
+):
+    return upsert_runtime_config_entry(db, module=module, key=key, payload=payload)
+
+
+@router.delete("/runtime-config/{module}/{key}")
+def remove_runtime_config_entry(module: str, key: str, db: Session = Depends(get_db)):
+    return delete_runtime_config_entry(db, module=module, key=key)
+
+
+@router.post("/runtime-config/{module}/reset")
+def reset_runtime_config(module: str, db: Session = Depends(get_db)):
+    return reset_runtime_config_module(db, module=module)
 
 
 # ── Learning Reprocess Queue ──────────────────────────────────────────────────

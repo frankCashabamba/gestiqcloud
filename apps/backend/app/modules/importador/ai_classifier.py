@@ -16,6 +16,7 @@ from app.modules.importador.runtime_config import (
     load_ai_runtime_config,
     load_doc_type_patterns,
     load_prompt_config,
+    load_tax_id_patterns_config,
 )
 from app.services.ai.base import AITask
 from app.services.ai.service import AIService
@@ -882,7 +883,8 @@ def _extract_labeled_amount(
 
     candidates: list[float] = []
     label_patterns = [(label, re.compile(rf"\b{re.escape(label)}\b")) for label in labels]
-    for raw_line in str(content or "").splitlines():
+    lines = [str(line).strip() for line in str(content or "").splitlines()]
+    for idx, raw_line in enumerate(lines):
         line = " ".join(raw_line.split()).strip()
         if not line:
             continue
@@ -908,7 +910,16 @@ def _extract_labeled_amount(
             continue
 
         segment = line[matched.end() :].strip() or line
-        for amount in reversed(_extract_amount_candidates_from_line(segment)):
+        amount_candidates = _extract_amount_candidates_from_line(segment)
+        if not amount_candidates:
+            for lookahead in lines[idx + 1 : min(len(lines), idx + 3)]:
+                lookahead = " ".join(str(lookahead).split()).strip()
+                if not lookahead:
+                    continue
+                amount_candidates = _extract_amount_candidates_from_line(lookahead)
+                if amount_candidates:
+                    break
+        for amount in reversed(amount_candidates):
             candidates.append(amount)
             break
 
@@ -952,6 +963,23 @@ def _extract_issue_date_from_ocr(content: str) -> str | None:
     if iso_match:
         return f"{iso_match.group(1)}-{iso_match.group(2)}-{iso_match.group(3)}"
 
+    slash_match = re.search(r"\b(\d{2})[/-](\d{2})[/-](20\d{2})\b", text)
+    if slash_match:
+        first = int(slash_match.group(1))
+        second = int(slash_match.group(2))
+        year = int(slash_match.group(3))
+        if first > 12 and second <= 12:
+            day, month = first, second
+        elif second > 12 and first <= 12:
+            day, month = second, first
+        else:
+            day, month = first, second
+        return f"{year:04d}-{month:02d}-{day:02d}"
+
+    ymd_match = re.search(r"\b(20\d{2})[/-](\d{2})[/-](\d{2})\b", text)
+    if ymd_match:
+        return f"{ymd_match.group(1)}-{ymd_match.group(2)}-{ymd_match.group(3)}"
+
     normalized = _normalize_evidence_text(text)
     written_match = re.search(
         r"\b(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(20\d{2})\b",
@@ -967,6 +995,48 @@ def _extract_issue_date_from_ocr(content: str) -> str | None:
     day = int(written_match.group(1))
     year = int(written_match.group(3))
     return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def _extract_tax_id_from_ocr(content: str) -> str | None:
+    text = str(content or "")
+    if not text:
+        return None
+
+    try:
+        cfg = load_tax_id_patterns_config(None)
+    except Exception:
+        cfg = {
+            "match_patterns": [
+                r"(?:R\.?U\.?C\.?|RUC|NIF|CIF|CUIT|CUIL|RFC)\s*[:\-#]?\s*([0-9][\d\-]{6,19})",
+                r"\b(20\d{9}|10\d{9})\b",
+            ],
+            "scan_max_chars": 3000,
+            "min_digits": 8,
+            "max_digits": 15,
+        }
+
+    patterns = [
+        str(pattern) for pattern in (cfg.get("match_patterns") or []) if str(pattern).strip()
+    ]
+    scan_max_chars = int(cfg.get("scan_max_chars") or 3000)
+    min_digits = int(cfg.get("min_digits") or 8)
+    max_digits = int(cfg.get("max_digits") or 15)
+
+    for pattern in patterns:
+        match = re.search(pattern, text[:scan_max_chars], re.IGNORECASE)
+        if not match:
+            continue
+        groups = (
+            [match.group(i) for i in range(1, (match.lastindex or 0) + 1)]
+            if match.lastindex
+            else []
+        )
+        candidates = groups or [match.group(0)]
+        for candidate in candidates:
+            digits = _digits_only(candidate)
+            if min_digits <= len(digits) <= max_digits:
+                return digits
+    return None
 
 
 def _apply_high_evidence_ocr_repairs(
@@ -1054,6 +1124,19 @@ def _apply_high_evidence_ocr_repairs(
         issue_date in (None, "") or not _numeric_evidence(text_digits, issue_date)
     ):
         fields["issue_date"] = ocr_issue_date
+
+    current_vendor_tax_id = fields.get("vendor_tax_id")
+    ocr_vendor_tax_id = _extract_tax_id_from_ocr(content)
+    if ocr_vendor_tax_id and (
+        current_vendor_tax_id in (None, "")
+        or _digits_only(current_vendor_tax_id) != ocr_vendor_tax_id
+        or not _numeric_evidence(text_digits, current_vendor_tax_id)
+    ):
+        fields["vendor_tax_id"] = ocr_vendor_tax_id
+    elif current_vendor_tax_id not in (None, "") and not _numeric_evidence(
+        text_digits, current_vendor_tax_id
+    ):
+        fields["vendor_tax_id"] = None
 
 
 def _find_sequential_anchor_indexes(lines: list[str], anchors: list[str]) -> list[int]:

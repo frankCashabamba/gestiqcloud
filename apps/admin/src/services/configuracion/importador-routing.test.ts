@@ -15,10 +15,14 @@ vi.mock('../../shared/api/client', () => ({
 
 import {
   createRoutingProfile,
+  getImportadorRoutingOverview,
+  listRuntimeConfig,
   listRoutingProfiles,
   listRoutingPreviewDocuments,
   listRoutingRules,
   previewRouting,
+  resetRuntimeConfigModule,
+  upsertRuntimeConfigEntry,
   updateRoutingRule,
 } from './importador-routing'
 
@@ -205,5 +209,82 @@ describe('importador-routing service', () => {
 
     expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/documents?tenant_id=tenant-1&q=factura')
     expect(result[0].monto_total).toBe(199.5)
+  })
+
+  it('loads routing overview for a tenant', async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        tenant_id: 'tenant-1',
+        tenant_name: 'Demo',
+        dashboard: { total: 10, pendientes: 2, en_revision: 1, confirmados: 6, fallidos: 1 },
+        recent_batches: [],
+        recent_documents: [],
+        reprocess_queue: [],
+        learning_insights: [],
+      },
+    })
+
+    const result = await getImportadorRoutingOverview('tenant-1', 6)
+
+    expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/overview?tenant_id=tenant-1&limit=6')
+    expect(result.dashboard.confirmados).toBe(6)
+    expect(result.tenant_name).toBe('Demo')
+  })
+
+  it('lists and updates runtime config entries', async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        modules: [
+          {
+            module: 'doc_categories',
+            title: 'Document Categories',
+            description: null,
+            editable: true,
+            entries: [
+              {
+                id: 'e1',
+                module: 'doc_categories',
+                key: 'invoice',
+                label: 'Invoice',
+                value_list: ['INVOICE'],
+                value_text: null,
+                value_kind: 'list',
+                updated_at: '2026-04-08T10:00:00Z',
+              },
+            ],
+          },
+        ],
+      },
+    })
+    api.put.mockResolvedValueOnce({
+      data: {
+        id: 'e2',
+        module: 'learning',
+        key: 'event_weight_save',
+        label: 'Save weight',
+        value_text: '4.2',
+        value_list: [],
+        value_kind: 'text',
+        updated_at: '2026-04-08T10:00:00Z',
+      },
+    })
+    api.post.mockResolvedValueOnce({ data: { ok: true } })
+
+    const catalog = await listRuntimeConfig()
+    const updated = await upsertRuntimeConfigEntry('learning', 'event_weight_save', {
+      label: 'Save weight',
+      value_text: '4.2',
+      value_list: [],
+    })
+    await resetRuntimeConfigModule('learning')
+
+    expect(api.get).toHaveBeenCalledWith('/v1/admin/importador/routing/runtime-config')
+    expect(catalog.modules[0].entries[0].value_kind).toBe('list')
+    expect(updated.module).toBe('learning')
+    expect(api.put).toHaveBeenCalledWith(
+      '/v1/admin/importador/routing/runtime-config/learning/event_weight_save',
+      expect.any(Object)
+    )
+    expect(api.post).toHaveBeenCalledWith('/v1/admin/importador/routing/runtime-config/learning/reset')
   })
 })

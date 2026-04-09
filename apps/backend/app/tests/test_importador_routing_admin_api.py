@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.models.importador import ImpDocumento, ImpRoutingProfile
+from app.models.importador import ImpConfig, ImpDocumento, ImpRoutingProfile
 from app.models.tenant import Tenant
 from app.modules.importador.services.document_routing_agent import (
     build_document_routing_decision,
@@ -76,6 +76,115 @@ def test_admin_importador_routing_profile_crud(client: TestClient, superuser_fac
     )
     assert deleted.status_code == 200
     assert deleted.json()["ok"] is True
+
+
+def test_admin_importador_routing_overview_returns_tenant_state(
+    client: TestClient, superuser_factory, db
+):
+    headers = _admin_headers(client, superuser_factory)
+    tenant = Tenant(
+        id=uuid4(),
+        name="Overview Tenant",
+        slug="overview-tenant",
+        sector_template_name="panaderia",
+    )
+    doc_pending = ImpDocumento(
+        id=uuid4(),
+        tenant_id=tenant.id,
+        nombre_archivo="pending.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=256,
+        estado="PENDING",
+        raw_ai_json={"canonical_document": {"fields": {}}},
+    )
+    doc_confirmed = ImpDocumento(
+        id=uuid4(),
+        tenant_id=tenant.id,
+        nombre_archivo="confirmed.pdf",
+        tipo_archivo="PDF",
+        tamanio_bytes=512,
+        estado="CONFIRMED",
+        requiere_revision=False,
+        raw_ai_json={"canonical_document": {"fields": {}}},
+    )
+    db.add_all([tenant, doc_pending, doc_confirmed])
+    db.commit()
+
+    response = client.get(
+        f"/api/v1/admin/importador/routing/overview?tenant_id={tenant.id}&limit=5",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == str(tenant.id)
+    assert body["tenant_name"] == "Overview Tenant"
+    assert body["dashboard"]["total"] >= 2
+    assert body["dashboard"]["pendientes"] >= 1
+    assert body["dashboard"]["confirmados"] >= 1
+    assert any(item["id"] == str(doc_pending.id) for item in body["recent_documents"])
+    assert any(item["id"] == str(doc_confirmed.id) for item in body["recent_documents"])
+
+
+def test_admin_importador_runtime_config_crud_and_reset(client: TestClient, superuser_factory, db):
+    headers = _admin_headers(client, superuser_factory)
+    db.add(
+        ImpConfig(
+            module="learning",
+            key="event_weight_save",
+            label="Save weight",
+            value_text="4.2",
+            value_list=[],
+        )
+    )
+    db.add(
+        ImpConfig(
+            module="learning",
+            key="event_weight_confirm",
+            label="Confirm weight",
+            value_text="6.0",
+            value_list=[],
+        )
+    )
+    db.commit()
+
+    listed = client.get("/api/v1/admin/importador/routing/runtime-config", headers=headers)
+    assert listed.status_code == 200
+    body = listed.json()
+    learning_module = next(module for module in body["modules"] if module["module"] == "learning")
+    assert any(entry["key"] == "event_weight_save" for entry in learning_module["entries"])
+
+    updated = client.put(
+        "/api/v1/admin/importador/routing/runtime-config/learning/event_weight_save",
+        json={
+            "label": "Save weight updated",
+            "value_text": "5.1",
+            "value_list": [],
+        },
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["label"] == "Save weight updated"
+    assert updated.json()["value_text"] == "5.1"
+
+    deleted = client.delete(
+        "/api/v1/admin/importador/routing/runtime-config/learning/event_weight_confirm",
+        headers=headers,
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["ok"] is True
+    assert (
+        db.query(ImpConfig)
+        .filter(ImpConfig.module == "learning", ImpConfig.key == "event_weight_confirm")
+        .count()
+        == 0
+    )
+
+    reset = client.post(
+        "/api/v1/admin/importador/routing/runtime-config/learning/reset", headers=headers
+    )
+    assert reset.status_code == 200
+    assert reset.json()["ok"] is True
+    assert db.query(ImpConfig).filter(ImpConfig.module == "learning").count() == 0
 
 
 def test_admin_importador_routing_rule_create_invalidates_cache_and_enforces_uniqueness(

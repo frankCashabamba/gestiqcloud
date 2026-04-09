@@ -10,16 +10,25 @@ import {
   deleteFieldAlias,
   deleteRoutingProfile,
   deleteRoutingRule,
+  deleteRuntimeConfigEntry,
+  getImportadorRoutingOverview,
   listCanonicalFields,
   listColumnCandidates,
   listFieldAliases,
   listRoutingProfiles,
   listRoutingPreviewDocuments,
   listRoutingRules,
+  listRuntimeConfig,
   previewRouting,
+  resetRuntimeConfigModule,
+  upsertRuntimeConfigEntry,
   type CanonicalField,
   type ColumnCandidate,
+  type ImportadorRoutingOverview,
   type FieldAlias,
+  type RuntimeConfigCatalog,
+  type RuntimeConfigEntry,
+  type RuntimeConfigModule,
   type RoutingDestination,
   type RoutingPreviewDocument,
   type RoutingPreviewPayload,
@@ -86,6 +95,20 @@ type PreviewPreset = {
   description: string
   patch: Partial<PreviewFormState>
 }
+
+type RuntimeEntryFormState = {
+  label: string
+  value_text: string
+  value_list_text: string
+}
+
+type RuntimeEntryEditState = {
+  module: string
+  key: string
+  value_kind: RuntimeConfigEntry['value_kind']
+}
+
+type MainTab = 'estado' | 'preview' | 'routing' | 'runtime' | 'vocabulario'
 
 const PROFILE_DEFAULTS: ProfileFormState = {
   code: '',
@@ -301,14 +324,42 @@ function normalizeCompanyOption(input: any): AdminCompanyOption | null {
   }
 }
 
+function runtimeEntryToForm(entry: RuntimeConfigEntry): RuntimeEntryFormState {
+  return {
+    label: entry.label || '',
+    value_text: entry.value_text || '',
+    value_list_text: entry.value_list.join('\n'),
+  }
+}
+
+function parseRuntimeList(text: string): string[] {
+  return text
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function runtimeEntryValuePreview(entry: RuntimeConfigEntry): string {
+  if (entry.value_kind === 'list') {
+    return entry.value_list.join(', ')
+  }
+  return entry.value_text || '—'
+}
+
 export default function ImportadorRoutingManager() {
   const [profiles, setProfiles] = useState<RoutingProfile[]>([])
   const [rules, setRules] = useState<RoutingRule[]>([])
   const [companies, setCompanies] = useState<AdminCompanyOption[]>([])
   const [previewDocuments, setPreviewDocuments] = useState<RoutingPreviewDocument[]>([])
+  const [overview, setOverview] = useState<ImportadorRoutingOverview | null>(null)
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigCatalog>({ modules: [] })
+  const [mainTab, setMainTab] = useState<MainTab>('estado')
   const [loading, setLoading] = useState(false)
+  const [overviewLoading, setOverviewLoading] = useState(false)
+  const [runtimeLoading, setRuntimeLoading] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingRule, setSavingRule] = useState(false)
+  const [savingRuntimeEntry, setSavingRuntimeEntry] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scopeFilter, setScopeFilter] = useState<RoutingScopeKind | ''>('')
@@ -321,6 +372,9 @@ export default function ImportadorRoutingManager() {
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [editingProfileCode, setEditingProfileCode] = useState<string | null>(null)
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
+  const [editingRuntimeEntry, setEditingRuntimeEntry] = useState<RuntimeEntryEditState | null>(null)
+  const [runtimeForm, setRuntimeForm] = useState<RuntimeEntryFormState>({ label: '', value_text: '', value_list_text: '' })
+  const [runtimeModuleFilter, setRuntimeModuleFilter] = useState('')
   // Vocabulario
   const [vocabTab, setVocabTab] = useState<'candidates' | 'aliases'>('candidates')
   const [candidates, setCandidates] = useState<ColumnCandidate[]>([])
@@ -385,6 +439,37 @@ export default function ImportadorRoutingManager() {
       setVocabLoading(false)
     }
   }, [unassignedOnly, toastError])
+
+  const loadOverview = useCallback(async (tenantId: string) => {
+    const trimmedTenantId = tenantId.trim()
+    if (!trimmedTenantId) {
+      setOverview(null)
+      return
+    }
+    try {
+      setOverviewLoading(true)
+      const data = await getImportadorRoutingOverview(trimmedTenantId)
+      setOverview(data)
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+      setOverview(null)
+    } finally {
+      setOverviewLoading(false)
+    }
+  }, [toastError])
+
+  const loadRuntimeConfig = useCallback(async () => {
+    try {
+      setRuntimeLoading(true)
+      const data = await listRuntimeConfig()
+      setRuntimeConfig(data)
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+      setRuntimeConfig({ modules: [] })
+    } finally {
+      setRuntimeLoading(false)
+    }
+  }, [toastError])
 
   const handleAssignCandidate = useCallback(async (id: string, canonicalField: string) => {
     if (!canonicalField) return
@@ -466,6 +551,75 @@ export default function ImportadorRoutingManager() {
     }
   }, [editingRuleId, loadAll, success, toastError])
 
+  const handleEditRuntimeEntry = useCallback((module: RuntimeConfigModule, entry: RuntimeConfigEntry) => {
+    setEditingRuntimeEntry({
+      module: module.module,
+      key: entry.key,
+      value_kind: entry.value_kind,
+    })
+    setRuntimeForm(runtimeEntryToForm(entry))
+    setRuntimeModuleFilter(module.module)
+  }, [])
+
+  const handleCancelRuntimeEntry = useCallback(() => {
+    setEditingRuntimeEntry(null)
+    setRuntimeForm({ label: '', value_text: '', value_list_text: '' })
+  }, [])
+
+  const handleSaveRuntimeEntry = useCallback(async () => {
+    if (!editingRuntimeEntry) return
+    const label = runtimeForm.label.trim() || null
+    const isList = editingRuntimeEntry.value_kind === 'list'
+    const payload = {
+      label,
+      value_text: isList ? null : runtimeForm.value_text.trim() || null,
+      value_list: isList ? parseRuntimeList(runtimeForm.value_list_text) : [],
+    }
+    try {
+      setSavingRuntimeEntry(true)
+      await upsertRuntimeConfigEntry(editingRuntimeEntry.module, editingRuntimeEntry.key, payload)
+      success('Configuracion runtime guardada')
+      setEditingRuntimeEntry(null)
+      setRuntimeForm({ label: '', value_text: '', value_list_text: '' })
+      await loadRuntimeConfig()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    } finally {
+      setSavingRuntimeEntry(false)
+    }
+  }, [editingRuntimeEntry, loadRuntimeConfig, runtimeForm.label, runtimeForm.value_list_text, runtimeForm.value_text, success, toastError])
+
+  const handleDeleteRuntimeEntry = useCallback(async (module: string, key: string) => {
+    if (!window.confirm(`Â¿Eliminar parametro ${module}.${key}?`)) return
+    try {
+      await deleteRuntimeConfigEntry(module, key)
+      success('Parametro eliminado')
+      if (editingRuntimeEntry?.module === module && editingRuntimeEntry?.key === key) {
+        handleCancelRuntimeEntry()
+      }
+      await loadRuntimeConfig()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    }
+  }, [editingRuntimeEntry, handleCancelRuntimeEntry, loadRuntimeConfig, success, toastError])
+
+  const handleResetRuntimeModule = useCallback(async (module: string) => {
+    if (!window.confirm(`Â¿Restablecer el modulo runtime ${module}? Se perderan los valores editados.`)) return
+    try {
+      setSavingRuntimeEntry(true)
+      await resetRuntimeConfigModule(module)
+      success(`Modulo ${module} restablecido`)
+      if (editingRuntimeEntry?.module === module) {
+        handleCancelRuntimeEntry()
+      }
+      await loadRuntimeConfig()
+    } catch (err: any) {
+      toastError(getErrorMessage(err))
+    } finally {
+      setSavingRuntimeEntry(false)
+    }
+  }, [editingRuntimeEntry, handleCancelRuntimeEntry, loadRuntimeConfig, success, toastError])
+
   useEffect(() => {
     void loadAll(scopeFilter)
   }, [loadAll, scopeFilter])
@@ -473,6 +627,14 @@ export default function ImportadorRoutingManager() {
   useEffect(() => {
     void loadVocab(unassignedOnly)
   }, [loadVocab, unassignedOnly])
+
+  useEffect(() => {
+    void loadRuntimeConfig()
+  }, [loadRuntimeConfig])
+
+  useEffect(() => {
+    void loadOverview(previewForm.tenant_id)
+  }, [loadOverview, previewForm.tenant_id])
 
   useEffect(() => {
     let cancelled = false
@@ -524,6 +686,22 @@ export default function ImportadorRoutingManager() {
     () => companies.find((company) => company.id === previewForm.tenant_id) || null,
     [companies, previewForm.tenant_id]
   )
+  const selectedTenantLabel = useMemo(() => {
+    if (overview?.tenant_name) return overview.tenant_name
+    const tenantId = previewForm.tenant_id.trim()
+    return tenantId || 'Sin tenant seleccionado'
+  }, [overview?.tenant_name, previewForm.tenant_id])
+  const runtimeModuleCount = runtimeConfig.modules.length
+  const hasTenantOverview = Boolean(previewForm.tenant_id.trim())
+  const filteredRuntimeModules = useMemo(() => {
+    const q = runtimeModuleFilter.trim().toLowerCase()
+    if (!q) return runtimeConfig.modules
+    return runtimeConfig.modules.filter((module) =>
+      [module.module, module.title, module.description || ''].some((value) =>
+        String(value).toLowerCase().includes(q)
+      )
+    )
+  }, [runtimeConfig.modules, runtimeModuleFilter])
 
   const onSubmitProfile = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -618,7 +796,7 @@ export default function ImportadorRoutingManager() {
   }
 
   return (
-    <div className="admin-container routing-admin">
+    <div className={`admin-container routing-admin routing-admin--${mainTab}`}>
       <div className="admin-header-bar">
         <div>
           <h1 className="admin-title">Routing documental</h1>
@@ -631,6 +809,43 @@ export default function ImportadorRoutingManager() {
         </button>
       </div>
 
+      <section className="routing-hero">
+        <div className="routing-hero__copy">
+          <div className="routing-kicker">Consola de routing y runtime</div>
+          <h2>Configura, prueba y supervisa el importador sin cambiar de pantalla.</h2>
+          <p>
+            Selecciona un tenant para ver su estado real, usa el preview para validar reglas antes de guardar y edita el runtime solo cuando necesites tocar el motor.
+          </p>
+        </div>
+
+        <div className="routing-hero__facts">
+          <div className="routing-hero-fact">
+            <span>Tenant</span>
+            <strong>{selectedTenantLabel}</strong>
+          </div>
+          <div className="routing-hero-fact">
+            <span>Runtime</span>
+            <strong>{runtimeModuleCount} módulos</strong>
+          </div>
+          <div className="routing-hero-fact">
+            <span>Routing</span>
+            <strong>{profiles.length} perfiles · {rules.length} reglas</strong>
+          </div>
+          <div className="routing-hero-fact">
+            <span>Preview</span>
+            <strong>{hasTenantOverview ? 'con tenant' : 'sin tenant seleccionado'}</strong>
+          </div>
+        </div>
+      </section>
+
+      <nav className="routing-section-nav" aria-label="Navegación de secciones">
+        <a href="#estado-runtime">Estado</a>
+        <a href="#preview">Preview</a>
+        <a href="#perfiles">Perfiles</a>
+        <a href="#reglas">Reglas</a>
+        <a href="#vocabulario">Vocabulario</a>
+      </nav>
+
       <div className="routing-stats">
         <StatCard label="Perfiles" value={String(profiles.length)} helper="Comportamientos reutilizables" />
         <StatCard label="Reglas sistema" value={String(systemRules)} helper="Base global" />
@@ -638,15 +853,338 @@ export default function ImportadorRoutingManager() {
         <StatCard label="Reglas tenant" value={String(tenantRules)} helper="Overrides específicos" />
       </div>
 
+      <div className="routing-mode-tabs" role="tablist" aria-label="Secciones de routing">
+        {([
+          ['estado', 'Estado'],
+          ['preview', 'Preview'],
+          ['routing', 'Routing'],
+          ['runtime', 'Runtime'],
+          ['vocabulario', 'Vocabulario'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={mainTab === key}
+            className={`routing-mode-tab ${mainTab === key ? 'routing-mode-tab--active' : ''}`}
+            onClick={() => setMainTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {error && <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {loading && <div className="mb-4 text-sm text-slate-500">Cargando configuración…</div>}
 
-      <section className="routing-preview-panel">
+      <section id="estado-runtime" className="mb-6 grid gap-6 xl:grid-cols-2" style={{ scrollMarginTop: '1rem' }}>
+        <div className="routing-shell routing-state-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Estado del importador</h2>
+              <p className="text-sm text-slate-500">
+                Vista consolidada del tenant seleccionado, batches recientes, cola de reaplicaciÃ³n y seÃ±ales de aprendizaje.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => void loadOverview(previewForm.tenant_id)}
+              disabled={overviewLoading}
+            >
+              {overviewLoading ? 'Actualizando...' : 'Recargar estado'}
+            </button>
+          </div>
+
+          {!previewForm.tenant_id && (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              Selecciona un tenant en el preview para ver su estado operativo.
+            </div>
+          )}
+
+          {overview && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-sm font-semibold text-slate-900">{overview.tenant_name || overview.tenant_id}</div>
+                <div className="text-xs text-slate-500">{overview.tenant_id}</div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <StatCard label="Total" value={String(overview.dashboard.total)} helper="Documentos del tenant" />
+                <StatCard label="Pendientes" value={String(overview.dashboard.pendientes)} helper="Procesando o en cola" />
+                <StatCard label="Revisión" value={String(overview.dashboard.en_revision)} helper="Requieren atención" />
+                <StatCard label="Confirmados" value={String(overview.dashboard.confirmados)} helper="Procesados correctamente" />
+                <StatCard label="Fallidos" value={String(overview.dashboard.fallidos)} helper="Errores detectados" />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-slate-900">Batches recientes</h3>
+                    <span className="text-xs text-slate-500">{overview.recent_batches.length} items</span>
+                  </div>
+                  <div className="space-y-2">
+                    {overview.recent_batches.map((batch) => (
+                      <div key={batch.id} className="rounded border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-mono text-xs text-slate-700">{batch.id}</span>
+                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{batch.estado}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {batch.confirmed_items}/{batch.total_items} confirmados | {batch.progress_pct}% | actualizaciÃ³n {new Date(batch.updated_at).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                    {overview.recent_batches.length === 0 && (
+                      <div className="text-sm text-slate-500">No hay batches recientes.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-slate-900">Documentos recientes</h3>
+                    <span className="text-xs text-slate-500">{overview.recent_documents.length} items</span>
+                  </div>
+                  <div className="space-y-2">
+                    {overview.recent_documents.map((doc) => (
+                      <div key={doc.id} className="rounded border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-slate-900">{doc.nombre_archivo}</span>
+                          <span className="text-xs text-slate-500">{doc.estado}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {doc.tipo_documento_detectado || 'sin tipo'} | {doc.proveedor_detectado || 'sin proveedor'} | {doc.monto_total ?? '-'}
+                        </div>
+                      </div>
+                    ))}
+                    {overview.recent_documents.length === 0 && (
+                      <div className="text-sm text-slate-500">No hay documentos recientes.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-slate-900">Cola de re-proceso</h3>
+                    <span className="text-xs text-slate-500">{overview.reprocess_queue.length} items</span>
+                  </div>
+                  <div className="space-y-2">
+                    {overview.reprocess_queue.map((item) => (
+                      <div key={item.id} className="rounded border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-slate-900">{item.nombre_archivo}</span>
+                          <span className="text-xs text-slate-500">{item.estado}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          lag {item.version_lag} | snapshot {item.snapshot_learning_version} | aplicado {item.applied_learning_version}
+                        </div>
+                      </div>
+                    ))}
+                    {overview.reprocess_queue.length === 0 && (
+                      <div className="text-sm text-slate-500">No hay documentos en cola de reaplicaciÃ³n.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-slate-900">Learning insights</h3>
+                    <span className="text-xs text-slate-500">{overview.learning_insights.length} items</span>
+                  </div>
+                  <div className="space-y-2">
+                    {overview.learning_insights.map((insight) => (
+                      <div key={`${insight.source_doc_type}:${insight.document_type}`} className="rounded border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-slate-900">{insight.source_doc_type} → {insight.document_type}</span>
+                          <span className="text-xs text-slate-500">{insight.signals_count} seÃ±ales</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          sugerencia {Math.round(insight.suggested_confidence_threshold * 100)}% | media {Math.round(insight.avg_success_confidence * 100)}%
+                        </div>
+                      </div>
+                    ))}
+                    {overview.learning_insights.length === 0 && (
+                      <div className="text-sm text-slate-500">No hay insights de aprendizaje disponibles.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {overviewLoading && <div className="mt-4 text-sm text-slate-500">Cargando estado operativo...</div>}
+        </div>
+
+        <div className="routing-shell routing-runtime-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">ConfiguraciÃ³n runtime</h2>
+              <p className="text-sm text-slate-500">
+                Edita aquÃ­ la configuraciÃ³n viva del importador. Los cambios invalidan cache y quedan versionados en la base de datos.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => void loadRuntimeConfig()}
+              disabled={runtimeLoading}
+            >
+              {runtimeLoading ? 'Recargando...' : 'Recargar runtime'}
+            </button>
+          </div>
+
+          <label className="mb-4 block text-sm">
+            <div className="mb-1 font-medium text-slate-700">Filtrar mÃ³dulos</div>
+            <input
+              className="w-full rounded border px-3 py-2"
+              value={runtimeModuleFilter}
+              onChange={(e) => setRuntimeModuleFilter(e.target.value)}
+              placeholder="doc_categories, prompt_config, learning..."
+            />
+          </label>
+
+          {runtimeLoading && <div className="text-sm text-slate-500">Cargando runtime config...</div>}
+          {!runtimeLoading && filteredRuntimeModules.length === 0 && (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              No hay mÃ³dulos que coincidan con el filtro.
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {filteredRuntimeModules.map((module) => (
+              <div key={module.module} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-slate-900">{module.title}</h3>
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">{module.module}</span>
+                    </div>
+                    {module.description && <p className="mt-1 text-sm text-slate-500">{module.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">{module.entries.length} entradas</span>
+                    <button
+                      type="button"
+                      className="rounded border border-amber-300 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-50"
+                      onClick={() => void handleResetRuntimeModule(module.module)}
+                      disabled={savingRuntimeEntry || !module.entries.length}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {module.entries.map((entry) => {
+                    const isEditing = editingRuntimeEntry?.module === module.module && editingRuntimeEntry?.key === entry.key
+                    return (
+                      <div key={entry.id} className="rounded border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-semibold text-slate-900">{entry.key}</span>
+                              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{entry.value_kind}</span>
+                            </div>
+                            <div className="text-xs text-slate-500">{entry.label || 'Sin etiqueta'} | actualizado {new Date(entry.updated_at).toLocaleString()}</div>
+                            <div className="mt-2 text-sm text-slate-700">{runtimeEntryValuePreview(entry)}</div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="text-blue-600 hover:underline"
+                              onClick={() => handleEditRuntimeEntry(module, entry)}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="text-red-700 hover:underline"
+                              onClick={() => void handleDeleteRuntimeEntry(module.module, entry.key)}
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </div>
+
+                        {isEditing && (
+                          <div className="mt-4 grid gap-3 rounded border border-slate-200 bg-slate-50 p-3">
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <label className="text-sm">
+                                <div className="mb-1 font-medium text-slate-700">Etiqueta</div>
+                                <input
+                                  className="w-full rounded border px-3 py-2"
+                                  value={runtimeForm.label}
+                                  onChange={(e) => setRuntimeForm((prev) => ({ ...prev, label: e.target.value }))}
+                                />
+                              </label>
+                              <div className="text-sm">
+                                <div className="mb-1 font-medium text-slate-700">Modo</div>
+                                <div className="rounded border border-slate-200 bg-white px-3 py-2 text-slate-600">
+                                  {editingRuntimeEntry.value_kind === 'list' ? 'Lista de valores' : 'Texto / JSON'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {editingRuntimeEntry.value_kind === 'list' ? (
+                              <label className="text-sm">
+                                <div className="mb-1 font-medium text-slate-700">Valores</div>
+                                <textarea
+                                  className="min-h-[120px] w-full rounded border px-3 py-2 font-mono text-xs"
+                                  value={runtimeForm.value_list_text}
+                                  onChange={(e) => setRuntimeForm((prev) => ({ ...prev, value_list_text: e.target.value }))}
+                                  placeholder="uno por linea"
+                                />
+                              </label>
+                            ) : (
+                              <label className="text-sm">
+                                <div className="mb-1 font-medium text-slate-700">Valor</div>
+                                <textarea
+                                  className="min-h-[120px] w-full rounded border px-3 py-2 font-mono text-xs"
+                                  value={runtimeForm.value_text}
+                                  onChange={(e) => setRuntimeForm((prev) => ({ ...prev, value_text: e.target.value }))}
+                                  placeholder='{"enabled": true}'
+                                />
+                              </label>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                                disabled={savingRuntimeEntry}
+                                onClick={() => { void handleSaveRuntimeEntry() }}
+                              >
+                                {savingRuntimeEntry ? 'Guardando...' : 'Guardar cambios'}
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded border border-slate-300 px-4 py-2 text-sm"
+                                onClick={handleCancelRuntimeEntry}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="preview" className="routing-preview-panel" style={{ scrollMarginTop: '1rem' }}>
         <div className="routing-preview-header">
           <div>
-            <h2 className="routing-preview-title">Preview de resolucion</h2>
+            <h2 className="routing-preview-title">Simulador de routing</h2>
             <p className="routing-preview-subtitle">
-              Prueba un `doc_type` y algunos campos antes de guardar reglas nuevas. El resultado usa el mismo resolver del backend.
+              Prueba un `doc_type` y algunos campos antes de guardar reglas nuevas. El resultado usa el mismo resolver del backend y muestra qué regla ganó.
             </p>
           </div>
           <button
@@ -878,12 +1416,12 @@ export default function ImportadorRoutingManager() {
         </form>
       </section>
 
-      <div className="routing-columns">
-        <section className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="routing-columns routing-routing-panel">
+        <section id="perfiles" className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm" style={{ scrollMarginTop: '1rem' }}>
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <h4 className="text-lg font-semibold text-slate-900">Perfiles</h4>
-              <p className="text-sm text-slate-500">Definen campos obligatorios, score y destino sugerido.</p>
+              <h4 className="text-lg font-semibold text-slate-900">Perfiles base</h4>
+              <p className="text-sm text-slate-500">Definen los tipos documentales y la base de decisión del routing.</p>
             </div>
             <button
               type="button"
@@ -1033,11 +1571,11 @@ export default function ImportadorRoutingManager() {
           </div>
         </section>
 
-        <section className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section id="reglas" className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm" style={{ scrollMarginTop: '1rem' }}>
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <h4 className="text-lg font-semibold text-slate-900">Reglas</h4>
-              <p className="text-sm text-slate-500">Resuelven doc_type o category hacia un perfil.</p>
+              <h4 className="text-lg font-semibold text-slate-900">Reglas de resolución</h4>
+              <p className="text-sm text-slate-500">Resuelven `doc_type` o `category` hacia un perfil concreto.</p>
             </div>
             <div className="flex gap-2">
               <select className="rounded border px-3 py-2 text-sm" value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as RoutingScopeKind | '')}>
@@ -1196,7 +1734,7 @@ export default function ImportadorRoutingManager() {
       </div>
 
       {/* ── Vocabulario ─────────────────────────────────────────── */}
-      <section className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm" style={{ marginTop: '1.5rem' }}>
+      <section id="vocabulario" className="routing-panel rounded-xl border border-slate-200 bg-white p-5 shadow-sm" style={{ marginTop: '1.5rem', scrollMarginTop: '1rem' }}>
         <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h4 className="text-lg font-semibold text-slate-900">Vocabulario de columnas</h4>

@@ -81,9 +81,122 @@ export type RoutingPreviewDocument = {
   monto_total: number | null
 }
 
+export type ImportadorDashboardStats = {
+  total: number
+  pendientes: number
+  en_revision: number
+  confirmados: number
+  fallidos: number
+}
+
+export type ImportadorBatchSummary = {
+  id: string
+  estado: string
+  total_items: number
+  pending_items: number
+  processing_items: number
+  review_items: number
+  confirmed_items: number
+  failed_items: number
+  progress_pct: number
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+}
+
+export type ImportadorDocumentSummary = {
+  id: string
+  nombre_archivo: string
+  tipo_archivo: string
+  tamanio_bytes: number | null
+  tipo_documento_detectado: string | null
+  confianza_clasificacion: number | null
+  requiere_revision: boolean
+  estado: string
+  proveedor_detectado: string | null
+  monto_total: number | null
+  synced_recipe_id: string | null
+  synced_sheets: Record<string, unknown> | null
+  saved_as: string | null
+  saved_record_id: string | null
+  saved_at: string | null
+  last_processing_reason: string | null
+  last_learning_reprocess_at: string | null
+  last_confirmation_mode: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export type ImportadorLearningQueueItem = {
+  id: string
+  nombre_archivo: string
+  tipo_documento_detectado: string | null
+  estado: string
+  confianza_clasificacion: number | null
+  recipe_snapshot_id: string | null
+  updated_at: string
+  snapshot_learning_version: number
+  applied_learning_version: number
+  version_lag: number
+}
+
+export type ImportadorLearningInsight = {
+  source_doc_type: string
+  document_type: string
+  signals_count: number
+  save_count: number
+  confirm_count: number
+  edit_count: number
+  top_missing_fields: string[]
+  top_changed_fields: string[]
+  suggested_required_groups: string[][]
+  suggested_support_fields: string[]
+  suggested_confidence_threshold: number
+  avg_success_confidence: number
+  notes: string[]
+}
+
+export type ImportadorRoutingOverview = {
+  tenant_id: string
+  tenant_name: string | null
+  dashboard: ImportadorDashboardStats
+  recent_batches: ImportadorBatchSummary[]
+  recent_documents: ImportadorDocumentSummary[]
+  reprocess_queue: ImportadorLearningQueueItem[]
+  learning_insights: ImportadorLearningInsight[]
+}
+
+export type RuntimeConfigEntry = {
+  id: string
+  module: string
+  key: string
+  label: string | null
+  value_text: string | null
+  value_list: string[]
+  value_kind: 'text' | 'list' | 'json'
+  updated_at: string
+}
+
+export type RuntimeConfigModule = {
+  module: string
+  title: string
+  description: string | null
+  editable: boolean
+  entries: RuntimeConfigEntry[]
+}
+
+export type RuntimeConfigCatalog = {
+  modules: RuntimeConfigModule[]
+}
+
 export type RoutingProfilePayload = Omit<RoutingProfile, 'id'>
 export type RoutingRulePayload = Omit<RoutingRule, 'id'>
 export type RoutingPreviewPayload = RoutingPreviewRequest
+export type RuntimeConfigEntryPayload = {
+  label: string | null
+  value_text: string | null
+  value_list: string[]
+}
 
 const BASE = '/v1/admin/importador/routing'
 
@@ -159,6 +272,128 @@ function normalizePreviewDocument(input: Partial<RoutingPreviewDocument>): Routi
   }
 }
 
+function normalizeOverviewDocument(input: Partial<ImportadorDocumentSummary>): ImportadorDocumentSummary {
+  return {
+    id: String(input.id || ''),
+    nombre_archivo: String(input.nombre_archivo || ''),
+    tipo_archivo: String(input.tipo_archivo || ''),
+    tamanio_bytes: input.tamanio_bytes == null ? null : Number(input.tamanio_bytes),
+    tipo_documento_detectado: input.tipo_documento_detectado ? String(input.tipo_documento_detectado) : null,
+    confianza_clasificacion: input.confianza_clasificacion == null ? null : Number(input.confianza_clasificacion),
+    requiere_revision: Boolean(input.requiere_revision),
+    estado: String(input.estado || ''),
+    proveedor_detectado: input.proveedor_detectado ? String(input.proveedor_detectado) : null,
+    monto_total: input.monto_total == null ? null : Number(input.monto_total),
+    synced_recipe_id: input.synced_recipe_id ? String(input.synced_recipe_id) : null,
+    synced_sheets: input.synced_sheets && typeof input.synced_sheets === 'object' ? input.synced_sheets : null,
+    saved_as: input.saved_as ? String(input.saved_as) : null,
+    saved_record_id: input.saved_record_id ? String(input.saved_record_id) : null,
+    saved_at: input.saved_at ? String(input.saved_at) : null,
+    last_processing_reason: input.last_processing_reason ? String(input.last_processing_reason) : null,
+    last_learning_reprocess_at: input.last_learning_reprocess_at ? String(input.last_learning_reprocess_at) : null,
+    last_confirmation_mode: input.last_confirmation_mode ? String(input.last_confirmation_mode) : null,
+    created_at: String(input.created_at || ''),
+    updated_at: input.updated_at ? String(input.updated_at) : null,
+  }
+}
+
+function normalizeBatchSummary(input: Partial<ImportadorBatchSummary>): ImportadorBatchSummary {
+  return {
+    id: String(input.id || ''),
+    estado: String(input.estado || ''),
+    total_items: Number(input.total_items ?? 0),
+    pending_items: Number(input.pending_items ?? 0),
+    processing_items: Number(input.processing_items ?? 0),
+    review_items: Number(input.review_items ?? 0),
+    confirmed_items: Number(input.confirmed_items ?? 0),
+    failed_items: Number(input.failed_items ?? 0),
+    progress_pct: Number(input.progress_pct ?? 0),
+    created_at: String(input.created_at || ''),
+    updated_at: String(input.updated_at || ''),
+    completed_at: input.completed_at ? String(input.completed_at) : null,
+  }
+}
+
+function normalizeLearningQueueItem(input: Partial<ImportadorLearningQueueItem>): ImportadorLearningQueueItem {
+  return {
+    id: String(input.id || ''),
+    nombre_archivo: String(input.nombre_archivo || ''),
+    tipo_documento_detectado: input.tipo_documento_detectado ? String(input.tipo_documento_detectado) : null,
+    estado: String(input.estado || ''),
+    confianza_clasificacion: input.confianza_clasificacion == null ? null : Number(input.confianza_clasificacion),
+    recipe_snapshot_id: input.recipe_snapshot_id ? String(input.recipe_snapshot_id) : null,
+    updated_at: String(input.updated_at || ''),
+    snapshot_learning_version: Number(input.snapshot_learning_version ?? 0),
+    applied_learning_version: Number(input.applied_learning_version ?? 0),
+    version_lag: Number(input.version_lag ?? 0),
+  }
+}
+
+function normalizeLearningInsight(input: Partial<ImportadorLearningInsight>): ImportadorLearningInsight {
+  return {
+    source_doc_type: String(input.source_doc_type || ''),
+    document_type: String(input.document_type || ''),
+    signals_count: Number(input.signals_count ?? 0),
+    save_count: Number(input.save_count ?? 0),
+    confirm_count: Number(input.confirm_count ?? 0),
+    edit_count: Number(input.edit_count ?? 0),
+    top_missing_fields: Array.isArray(input.top_missing_fields) ? input.top_missing_fields.map(String) : [],
+    top_changed_fields: Array.isArray(input.top_changed_fields) ? input.top_changed_fields.map(String) : [],
+    suggested_required_groups: Array.isArray(input.suggested_required_groups)
+      ? input.suggested_required_groups.map((group) => Array.isArray(group) ? group.map(String) : [])
+      : [],
+    suggested_support_fields: Array.isArray(input.suggested_support_fields) ? input.suggested_support_fields.map(String) : [],
+    suggested_confidence_threshold: Number(input.suggested_confidence_threshold ?? 0),
+    avg_success_confidence: Number(input.avg_success_confidence ?? 0),
+    notes: Array.isArray(input.notes) ? input.notes.map(String) : [],
+  }
+}
+
+function normalizeOverview(input: Partial<ImportadorRoutingOverview>): ImportadorRoutingOverview {
+  return {
+    tenant_id: String(input.tenant_id || ''),
+    tenant_name: input.tenant_name ? String(input.tenant_name) : null,
+    dashboard: {
+      total: Number(input.dashboard?.total ?? 0),
+      pendientes: Number(input.dashboard?.pendientes ?? 0),
+      en_revision: Number(input.dashboard?.en_revision ?? 0),
+      confirmados: Number(input.dashboard?.confirmados ?? 0),
+      fallidos: Number(input.dashboard?.fallidos ?? 0),
+    },
+    recent_batches: Array.isArray(input.recent_batches) ? input.recent_batches.map((batch) => normalizeBatchSummary(batch || {})) : [],
+    recent_documents: Array.isArray(input.recent_documents) ? input.recent_documents.map((doc) => normalizeOverviewDocument(doc || {})) : [],
+    reprocess_queue: Array.isArray(input.reprocess_queue) ? input.reprocess_queue.map((item) => normalizeLearningQueueItem(item || {})) : [],
+    learning_insights: Array.isArray(input.learning_insights) ? input.learning_insights.map((item) => normalizeLearningInsight(item || {})) : [],
+  }
+}
+
+function normalizeRuntimeConfigEntry(input: Partial<RuntimeConfigEntry>): RuntimeConfigEntry {
+  return {
+    id: String(input.id || ''),
+    module: String(input.module || ''),
+    key: String(input.key || ''),
+    label: input.label ? String(input.label) : null,
+    value_text: input.value_text ?? null,
+    value_list: Array.isArray(input.value_list) ? input.value_list.map(String) : [],
+    value_kind: (input.value_kind as RuntimeConfigEntry['value_kind']) || 'text',
+    updated_at: String(input.updated_at || ''),
+  }
+}
+
+function normalizeRuntimeConfigCatalog(input: Partial<RuntimeConfigCatalog>): RuntimeConfigCatalog {
+  return {
+    modules: Array.isArray(input.modules)
+      ? input.modules.map((module) => ({
+          module: String(module?.module || ''),
+          title: String(module?.title || ''),
+          description: module?.description ? String(module.description) : null,
+          editable: module?.editable ?? true,
+          entries: Array.isArray(module?.entries) ? module.entries.map((entry) => normalizeRuntimeConfigEntry(entry || {})) : [],
+        }))
+      : [],
+  }
+}
+
 export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
   const { data } = await api.get<Array<Partial<RoutingProfile>>>(`${BASE}/profiles`)
   return Array.isArray(data) ? data.map(normalizeProfile) : []
@@ -208,6 +443,37 @@ export async function listRoutingPreviewDocuments(tenantId: string, q?: string):
   if (q && q.trim()) params.set('q', q.trim())
   const { data } = await api.get<Array<Partial<RoutingPreviewDocument>>>(`${BASE}/documents?${params.toString()}`)
   return Array.isArray(data) ? data.map(normalizePreviewDocument) : []
+}
+
+export async function getImportadorRoutingOverview(tenantId: string, limit = 8): Promise<ImportadorRoutingOverview> {
+  const params = new URLSearchParams({ tenant_id: tenantId, limit: String(limit) })
+  const { data } = await api.get<Partial<ImportadorRoutingOverview>>(`${BASE}/overview?${params.toString()}`)
+  return normalizeOverview(data || {})
+}
+
+export async function listRuntimeConfig(): Promise<RuntimeConfigCatalog> {
+  const { data } = await api.get<Partial<RuntimeConfigCatalog>>(`${BASE}/runtime-config`)
+  return normalizeRuntimeConfigCatalog(data || {})
+}
+
+export async function upsertRuntimeConfigEntry(
+  module: string,
+  key: string,
+  payload: RuntimeConfigEntryPayload
+): Promise<RuntimeConfigEntry> {
+  const { data } = await api.put<Partial<RuntimeConfigEntry>>(
+    `${BASE}/runtime-config/${encodeURIComponent(module)}/${encodeURIComponent(key)}`,
+    payload
+  )
+  return normalizeRuntimeConfigEntry(data || {})
+}
+
+export async function deleteRuntimeConfigEntry(module: string, key: string): Promise<void> {
+  await api.delete(`${BASE}/runtime-config/${encodeURIComponent(module)}/${encodeURIComponent(key)}`)
+}
+
+export async function resetRuntimeConfigModule(module: string): Promise<void> {
+  await api.post(`${BASE}/runtime-config/${encodeURIComponent(module)}/reset`)
 }
 
 // ── Column Candidates ─────────────────────────────────────────────────────────

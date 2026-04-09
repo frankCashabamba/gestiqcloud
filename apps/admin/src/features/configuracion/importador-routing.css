@@ -1,5 +1,178 @@
 .routing-admin {
   color: var(--gc-foreground);
+  display: grid;
+  gap: 1rem;
+}
+
+.routing-admin .routing-hero,
+.routing-admin .routing-section-nav {
+  display: none;
+}
+
+.routing-admin .routing-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.routing-admin .routing-mode-tab {
+  border: 1px solid var(--gc-border);
+  background: var(--gc-surface);
+  color: var(--gc-muted);
+  padding: 0.55rem 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.routing-admin .routing-mode-tab--active {
+  color: var(--gc-primary);
+  border-color: color-mix(in srgb, var(--gc-primary) 35%, var(--gc-border));
+  background: color-mix(in srgb, var(--gc-primary) 10%, white);
+}
+
+.routing-admin--estado .routing-preview-panel,
+.routing-admin--estado .routing-routing-panel,
+.routing-admin--estado #vocabulario {
+  display: none;
+}
+
+.routing-admin--preview #estado-runtime,
+.routing-admin--preview .routing-routing-panel,
+.routing-admin--preview #vocabulario {
+  display: none;
+}
+
+.routing-admin--routing #estado-runtime,
+.routing-admin--routing .routing-preview-panel,
+.routing-admin--routing #vocabulario {
+  display: none;
+}
+
+.routing-admin--runtime .routing-state-panel,
+.routing-admin--runtime .routing-preview-panel,
+.routing-admin--runtime .routing-routing-panel,
+.routing-admin--runtime #vocabulario {
+  display: none;
+}
+
+.routing-admin--vocabulario #estado-runtime,
+.routing-admin--vocabulario .routing-preview-panel,
+.routing-admin--vocabulario .routing-routing-panel {
+  display: none;
+}
+
+.routing-admin--estado .routing-runtime-panel {
+  display: none;
+}
+
+.routing-admin--runtime .routing-state-panel {
+  display: none;
+}
+
+.routing-admin .routing-hero {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--gc-primary) 14%, var(--gc-border));
+  border-radius: var(--gc-radius-lg);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--gc-primary) 22%, transparent) 0, transparent 45%),
+    linear-gradient(135deg, color-mix(in srgb, var(--gc-primary) 10%, white), var(--gc-surface));
+  padding: 1.1rem 1.2rem;
+  box-shadow: var(--gc-shadow-sm);
+}
+
+.routing-admin .routing-hero__copy {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+
+.routing-admin .routing-kicker {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gc-primary) 12%, white);
+  color: var(--gc-primary);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.routing-admin .routing-hero__copy h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 2rem);
+  line-height: 1.12;
+  color: var(--gc-foreground);
+  max-width: 32rem;
+}
+
+.routing-admin .routing-hero__copy p {
+  margin: 0;
+  max-width: 52rem;
+  color: var(--gc-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.routing-admin .routing-hero__facts {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.routing-admin .routing-hero-fact {
+  display: grid;
+  gap: 0.2rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--gc-border) 70%, white);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 0.85rem 0.95rem;
+}
+
+.routing-admin .routing-hero-fact span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gc-muted);
+}
+
+.routing-admin .routing-hero-fact strong {
+  font-size: 0.95rem;
+  color: var(--gc-foreground);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.routing-admin .routing-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.routing-admin .routing-section-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--gc-border);
+  background: var(--gc-surface);
+  color: var(--gc-foreground);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: var(--gc-shadow-sm);
+}
+
+.routing-admin .routing-section-nav a:hover {
+  border-color: color-mix(in srgb, var(--gc-primary) 45%, var(--gc-border));
+  color: var(--gc-primary);
 }
 
 .routing-admin .routing-stats {
@@ -19,7 +192,7 @@
   margin-bottom: 1.5rem;
   border: 1px solid var(--gc-border);
   border-radius: var(--gc-radius-lg);
-  background: var(--gc-surface);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gc-primary) 4%, var(--gc-surface)), var(--gc-surface));
   padding: 1rem;
   box-shadow: var(--gc-shadow-sm);
 }
@@ -198,6 +371,25 @@
   border: 1px solid var(--gc-border);
   background: var(--gc-surface);
   color: var(--gc-foreground);
+}
+
+.routing-admin .routing-shell,
+.routing-admin .routing-panel,
+.routing-admin .routing-stat-card,
+.routing-admin .routing-preview-result,
+.routing-admin .routing-form,
+.routing-admin .routing-entry-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.routing-admin .routing-entry-card {
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.routing-admin .routing-entry-card:hover {
+  border-color: color-mix(in srgb, var(--gc-primary) 25%, var(--gc-border));
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 .routing-admin .routing-checkbox {
@@ -399,8 +591,24 @@
 }
 
 @media (max-width: 1100px) {
+  .routing-admin .routing-hero,
   .routing-admin .routing-preview-grid,
   .routing-admin .routing-columns {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .routing-admin .routing-hero__facts {
+    grid-template-columns: 1fr;
+  }
+
+  .routing-admin .routing-section-nav {
+    gap: 0.35rem;
+  }
+
+  .routing-admin .routing-section-nav a {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }

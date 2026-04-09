@@ -56,3 +56,10 @@ def classify_doc_type(tipo: str, categories: dict[str, list[str]]) -> str:
         if any(kw in tipo_upper for kw in keywords):
             return category
     return "other"
+
+
+def invalidate_cache() -> None:
+    """Force reload of doc_categories on the next call."""
+    global _cache, _cache_ts
+    _cache = {}
+    _cache_ts = 0.0

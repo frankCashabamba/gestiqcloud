@@ -654,6 +654,45 @@ class RoutingProfileUpdateProposalOut(BaseModel):
     based_on: RoutingLearningInsightOut
 
 
+class ImportadorRoutingOverviewOut(BaseModel):
+    tenant_id: UUID
+    tenant_name: str | None = None
+    dashboard: DashboardStats
+    recent_batches: list[BatchSummaryOut] = Field(default_factory=list)
+    recent_documents: list[DocumentoListOut] = Field(default_factory=list)
+    reprocess_queue: list[dict] = Field(default_factory=list)
+    learning_insights: list[RoutingLearningInsightOut] = Field(default_factory=list)
+
+
+class RuntimeConfigEntryOut(BaseModel):
+    id: UUID
+    module: str
+    key: str
+    label: str | None = None
+    value_text: str | None = None
+    value_list: list[str] = Field(default_factory=list)
+    value_kind: Literal["text", "list", "json"]
+    updated_at: datetime
+
+
+class RuntimeConfigEntryUpsertIn(BaseModel):
+    label: str | None = None
+    value_text: str | None = None
+    value_list: list[str] = Field(default_factory=list)
+
+
+class RuntimeConfigModuleOut(BaseModel):
+    module: str
+    title: str
+    description: str | None = None
+    editable: bool = True
+    entries: list[RuntimeConfigEntryOut] = Field(default_factory=list)
+
+
+class RuntimeConfigCatalogOut(BaseModel):
+    modules: list[RuntimeConfigModuleOut] = Field(default_factory=list)
+
+
 # ── Column Candidate ──────────────────────────────────────────────────────────
 
 
