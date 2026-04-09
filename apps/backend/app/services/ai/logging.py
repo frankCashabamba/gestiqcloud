@@ -82,6 +82,7 @@ class AILogger:
         status: AIResponseStatus = AIResponseStatus.SUCCESS,
         retry_count: int = 0,
         fallback_used: str | None = None,
+        resolved_provider_model: str | None = None,
     ) -> None:
         """
         Registra response y resultado
@@ -100,6 +101,8 @@ class AILogger:
             log_entry.processing_time_ms = response.processing_time_ms
             log_entry.retry_count = retry_count
             log_entry.fallback_used = fallback_used
+            if resolved_provider_model:
+                log_entry.provider_model = resolved_provider_model
             log_entry.confidence_score = response.confidence
 
             if response.is_error:

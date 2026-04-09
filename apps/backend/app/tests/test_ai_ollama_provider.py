@@ -3,40 +3,31 @@ from __future__ import annotations
 import asyncio
 
 from app.services.ai.base import AIRequest, AITask
+from app.services.ai.factory import AIProviderFactory
 from app.services.ai.providers.ollama import OllamaProvider
 
 
-def test_ollama_provider_reuses_semaphore_for_same_base_url_and_concurrency():
+def test_ollama_provider_uses_independent_semaphores_for_same_base_url_and_concurrency():
     first = OllamaProvider(
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "qwen2.5:3b",
-            "max_concurrency": "3",
+            "model": "llama3.1:8b",
+            "max_concurrency": "4",
         }
     )
     second = OllamaProvider(
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "qwen2.5:3b",
-            "max_concurrency": "3",
-        }
-    )
-    third = OllamaProvider(
-        {
-            "url": "http://127.0.0.1:11434",
-            "endpoint": "/api/chat",
-            "model": "qwen2.5:3b",
-            "max_concurrency": "1",
+            "model": "llama3.1:8b",
+            "max_concurrency": "4",
         }
     )
 
-    assert first.max_concurrency == 3
-    assert second.max_concurrency == 3
-    assert third.max_concurrency == 1
-    assert first._semaphore is second._semaphore
-    assert first._semaphore is not third._semaphore
+    assert first.max_concurrency == 4
+    assert second.max_concurrency == 4
+    assert first._semaphore is not second._semaphore
 
 
 def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
@@ -47,7 +38,7 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
             return None
 
         def json(self):
-            return {"message": {"content": '{"ok": true}'}, "model": "qwen2.5:3b"}
+            return {"message": {"content": '{"ok": true}'}, "model": "llama3.1:8b"}
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -60,6 +51,17 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
             del exc_type, exc, tb
             return False
 
+        async def get(self, url):
+            captured["tags_url"] = url
+            return type(
+                "TagsResponse",
+                (),
+                {
+                    "raise_for_status": lambda self: None,
+                    "json": lambda self: {"models": [{"name": "llama3.1:8b"}]},
+                },
+            )()
+
         async def post(self, url, json):
             captured["url"] = url
             captured["json"] = json
@@ -69,15 +71,11 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "qwen2.5:3b",
+            "model": "llama3.1:8b",
             "max_concurrency": "1",
         }
     )
 
-    async def _healthy():
-        return True
-
-    monkeypatch.setattr(provider, "health_check", _healthy)
     monkeypatch.setattr("app.services.ai.providers.ollama.httpx.AsyncClient", FakeClient)
 
     response = asyncio.run(
@@ -98,54 +96,180 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
         {"role": "system", "content": "System"},
         {"role": "user", "content": "User"},
     ]
+    assert captured["json"]["model"] == "llama3.1:8b"
 
 
-def test_ollama_provider_prefers_safest_available_extraction_model(monkeypatch):
+def test_ollama_provider_prefers_available_extraction_model(monkeypatch):
     provider = OllamaProvider(
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "qwen2.5-coder:14b",
+            "model": "invalid-model",
             "max_concurrency": "1",
         }
     )
 
-    monkeypatch.setenv("OLLAMA_EXTRACTION_MAX_PARAMETER_SIZE_B", "3")
     monkeypatch.setattr(
         provider,
         "_get_available_models",
-        lambda timeout=3.0: [
-            "minicpm-v:latest",
-            "qwen2.5-coder:14b",
-            "qwen3:8b",
-            "qwen2.5-coder:1.5b",
-            "qwen2.5-coder:0.5b",
-            "glm-4.7:cloud",
-        ],
+        lambda timeout=3.0: asyncio.sleep(0, result=["mistral:7b", "llama3.1:8b"]),
     )
 
-    assert provider.get_default_model(AITask.EXTRACTION) == "qwen2.5-coder:1.5b"
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"message": {"content": '{"ok": true}'}, "model": "mistral:7b"}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            del args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            del exc_type, exc, tb
+            return False
+
+        async def get(self, url):
+            del url
+            return type(
+                "TagsResponse",
+                (),
+                {
+                    "raise_for_status": lambda self: None,
+                    "json": lambda self: {
+                        "models": [{"name": "mistral:7b"}, {"name": "llama3.1:8b"}]
+                    },
+                },
+            )()
+
+        async def post(self, url, json):
+            del url, json
+            return FakeResponse()
+
+    monkeypatch.setattr("app.services.ai.providers.ollama.httpx.AsyncClient", FakeClient)
+
+    response = asyncio.run(
+        provider.call(
+            AIRequest(
+                task=AITask.EXTRACTION,
+                prompt="flattened",
+            )
+        )
+    )
+
+    assert response.is_error is False
+    assert response.model == "llama3.1:8b"
 
 
-def test_ollama_provider_respects_explicit_extraction_model_override(monkeypatch):
+def test_ollama_provider_ignores_qwen_extraction_override(monkeypatch):
     provider = OllamaProvider(
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
             "model": "qwen2.5-coder:3b",
             "max_concurrency": "1",
+            "timeout": "30",
         }
     )
 
-    monkeypatch.setenv("OLLAMA_EXTRACTION_MODEL", "qwen2.5-coder:14b")
     monkeypatch.setattr(
         provider,
         "_get_available_models",
-        lambda timeout=3.0: [
-            "qwen2.5-coder:3b",
-            "qwen2.5-coder:14b",
-            "qwen3-coder:latest",
-        ],
+        lambda timeout=3.0: asyncio.sleep(0, result=["llama3.1:8b", "mistral:7b"]),
     )
 
-    assert provider.get_default_model(AITask.EXTRACTION) == "qwen2.5-coder:14b"
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"message": {"content": '{"ok": true}'}, "model": "llama3.1:8b"}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            del args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            del exc_type, exc, tb
+            return False
+
+        async def get(self, url):
+            del url
+            return type(
+                "TagsResponse",
+                (),
+                {
+                    "raise_for_status": lambda self: None,
+                    "json": lambda self: {
+                        "models": [{"name": "llama3.1:8b"}, {"name": "mistral:7b"}]
+                    },
+                },
+            )()
+
+        async def post(self, url, json):
+            del url, json
+            return FakeResponse()
+
+    monkeypatch.setattr("app.services.ai.providers.ollama.httpx.AsyncClient", FakeClient)
+
+    response = asyncio.run(
+        provider.call(
+            AIRequest(
+                task=AITask.EXTRACTION,
+                prompt="flattened",
+                model="qwen2.5-coder:3b",
+            )
+        )
+    )
+
+    assert response.is_error is False
+    assert response.model == "llama3.1:8b"
+
+
+def test_ollama_provider_rejects_missing_explicit_model_before_call(monkeypatch):
+    provider = OllamaProvider(
+        {
+            "url": "http://127.0.0.1:11434",
+            "endpoint": "/api/chat",
+            "model": "llama3.1:8b",
+            "max_concurrency": "1",
+        }
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_get_available_models",
+        lambda timeout=3.0: asyncio.sleep(0, result=["llama3.1:8b", "mistral:7b"]),
+    )
+
+    response = asyncio.run(
+        provider.call(
+            AIRequest(
+                task=AITask.EXTRACTION,
+                prompt="flattened",
+                model="missing-model",
+            )
+        )
+    )
+
+    assert response.is_error is True
+    assert "no disponible" in (response.error or "").lower()
+
+
+def test_ollama_factory_caps_legacy_timeout_and_model(monkeypatch):
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5-coder:3b")
+    monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
+
+    config = AIProviderFactory._get_provider_config("ollama")
+
+    assert config["model"] == "llama3.1:8b"
+    assert config["timeout"] == 30.0
+    assert config["model_source"] == "legacy_blocked"
+    assert config["timeout_source"] == "env_capped"

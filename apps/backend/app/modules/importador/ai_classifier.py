@@ -18,7 +18,7 @@ from app.modules.importador.runtime_config import (
     load_prompt_config,
     load_tax_id_patterns_config,
 )
-from app.services.ai.base import AITask
+from app.services.ai.base import AITask, model_name
 from app.services.ai.service import AIService
 
 logger = logging.getLogger("importador.ai")
@@ -35,6 +35,17 @@ def _resolve_model_for_doctype(doc_type: str | None, db: Any = None) -> str | No
         return None
     model = routing.get(str(doc_type or "").upper().strip()) or routing.get("DEFAULT") or ""
     return model if model else None
+
+
+def _sanitize_extraction_model_override(model: str | None) -> str | None:
+    resolved = model_name(model)
+    if not resolved:
+        return None
+    lowered = resolved.lower()
+    if lowered.startswith(("qwen2.5-coder", "qwen2.5")):
+        logger.warning("Ignoring legacy extraction routing model=%s", resolved)
+        return None
+    return resolved
 
 
 def _build_document_time_context(prompt_config: dict[str, Any] | None, *, current_year: int) -> str:
@@ -1454,10 +1465,16 @@ async def _analyze_with_vision(
     }
 
     try:
-        timeout_secs = float(
-            os.getenv("OLLAMA_VISION_TIMEOUT")
-            or ai_runtime.get("vision_timeout_seconds")
-            or os.getenv("OLLAMA_TIMEOUT", "45")
+        timeout_secs = min(
+            30.0,
+            max(
+                1.0,
+                float(
+                    os.getenv("OLLAMA_VISION_TIMEOUT")
+                    or ai_runtime.get("vision_timeout_seconds")
+                    or os.getenv("OLLAMA_TIMEOUT", "30")
+                ),
+            ),
         )
         timeout = httpx.Timeout(timeout_secs, read=timeout_secs)
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -1517,12 +1534,108 @@ async def _analyze_with_vision(
         return None
 
 
+def _structured_payload_to_fields(
+    structured_data: Any,
+    structured_metadata: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], list[str]]:
+    fields: dict[str, Any] = {}
+    columns: list[str] = []
+
+    if isinstance(structured_data, dict):
+        fields = {
+            str(key): value
+            for key, value in structured_data.items()
+            if not str(key).startswith("_")
+        }
+        columns = [str(key) for key in structured_data.keys() if not str(key).startswith("_")]
+    elif isinstance(structured_data, list):
+        rows = [dict(row) for row in structured_data if isinstance(row, dict)]
+        if rows:
+            cleaned_rows: list[dict[str, Any]] = []
+            for row in rows:
+                cleaned_row = {
+                    str(key): value for key, value in row.items() if not str(key).startswith("_")
+                }
+                if cleaned_row:
+                    cleaned_rows.append(cleaned_row)
+            if cleaned_rows:
+                fields["line_items"] = cleaned_rows
+                columns = [str(key) for key in cleaned_rows[0].keys()]
+
+    if isinstance(structured_metadata, dict):
+        for value in structured_metadata.values():
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if item is None:
+                        continue
+                    key_name = str(key)
+                    if key_name.startswith("_"):
+                        continue
+                    fields.setdefault(key_name, item)
+                    if key_name not in columns:
+                        columns.append(key_name)
+            elif (
+                isinstance(value, list) and value and all(isinstance(item, dict) for item in value)
+            ):
+                fields.setdefault("line_items", value)
+
+    return fields, columns
+
+
+def _structured_direct_analysis(
+    *,
+    content: str,
+    filename: str,
+    format_hint: str,
+    structured_data: Any,
+    structured_metadata: dict[str, Any] | None,
+    recipe_config: dict[str, Any] | None,
+    fallback_patterns: dict[str, list[str]] | None,
+) -> dict[str, Any]:
+    fields, columns = _structured_payload_to_fields(structured_data, structured_metadata)
+    prompt_parts = _build_prompt_trace(
+        mode="structured_bypass",
+        system_prompt="",
+        user_prompt=f"File: {filename} | Format: {format_hint}",
+        response_contract="",
+        critical_rules=[],
+        doc_type_instruction="",
+        prompt_messages=[],
+    )
+
+    doc_type_hint = str((recipe_config or {}).get("doc_type_hint") or "").strip().upper()
+    confidence_hint = float((recipe_config or {}).get("doc_type_hint_confidence") or 0.0)
+    fallback_guess = _fallback_classify(
+        content or json.dumps(structured_data or {}, ensure_ascii=False),
+        filename,
+        fallback_patterns,
+    )
+    doc_type = doc_type_hint or fallback_guess.get("doc_type", "OTHER")
+    confidence = max(confidence_hint, 0.86 if fields else 0.72)
+
+    return {
+        "doc_type": doc_type,
+        "confidence": confidence,
+        "reasoning": "Structured bypass: parsed CSV/Excel/JSON directly without LLM.",
+        "is_table": bool(fields.get("line_items")) or isinstance(structured_data, list),
+        "columns": columns,
+        "fields": fields,
+        "raw_response": "structured_bypass",
+        "model_used": "structured-direct",
+        "prompt_sent": "",
+        "prompt_full": "",
+        "prompt_parts": prompt_parts,
+    }
+
+
 async def analyze_document(
     content: str,
     filename: str = "",
     format_hint: str = "",
     has_structured_rows: bool = False,
     recipe_config: dict | None = None,
+    structured_data: Any | None = None,
+    structured_metadata: dict[str, Any] | None = None,
     image_bytes: bytes | None = None,
     fallback_patterns: dict[str, list[str]] | None = None,
     canonical_fields: dict[str, dict] | None = None,
@@ -1555,6 +1668,19 @@ async def analyze_document(
         "prompt_sent": str,
     }
     """
+    if structured_data is not None and (
+        has_structured_rows or str(format_hint or "").strip().upper() in {"CSV", "EXCEL", "JSON"}
+    ):
+        return _structured_direct_analysis(
+            content=content,
+            filename=filename,
+            format_hint=format_hint,
+            structured_data=structured_data,
+            structured_metadata=structured_metadata,
+            recipe_config=recipe_config,
+            fallback_patterns=fallback_patterns,
+        )
+
     if has_structured_rows:
         return await _analyze_structured_document(
             content,
@@ -1703,7 +1829,9 @@ async def analyze_document(
 
     # Resolver model y parámetros desde imp_config
     _doc_type_for_routing = (rc.get("doc_type_hint") or "").upper().strip() or None
-    model_override = _resolve_model_for_doctype(_doc_type_for_routing, db)
+    model_override = _sanitize_extraction_model_override(
+        _resolve_model_for_doctype(_doc_type_for_routing, db)
+    )
     temperature = float(ai_params.get("temperature") or 0.1)
     _by_dt: dict = ai_params.get("max_tokens_by_doctype") or {}
     max_tokens = int(

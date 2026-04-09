@@ -36,7 +36,6 @@ class AIModel(str, Enum):
     LLAMA3_1_70B = "llama3.1:70b"
     MISTRAL_7B = "mistral:7b"
     NEURAL_CHAT = "neural-chat:7b"
-    QWEN2_5_3B = "qwen2.5:3b"
 
     GPT_4O = "gpt-4o"
     GPT_4_TURBO = "gpt-4-turbo"
@@ -137,8 +136,8 @@ class BaseAIProvider(ABC):
         pass
 
     async def validate_model(self, model: AIModel | str) -> bool:
-        supported = self.get_supported_models()
-        return model in supported
+        supported = {model_name(item) for item in self.get_supported_models()}
+        return model_name(model) in supported
 
     @abstractmethod
     def get_supported_models(self) -> list[AIModel | str]:

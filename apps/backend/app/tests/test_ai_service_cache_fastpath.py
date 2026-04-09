@@ -18,13 +18,13 @@ def test_ai_service_returns_cached_response_without_provider_lookup(monkeypatch)
             "metadata": {"cached": True},
         }
 
-    async def _unexpected_provider_lookup(_task):
+    def _unexpected_provider_lookup(name=None):
         provider_calls["count"] += 1
         raise AssertionError("provider lookup should not run on cache hit")
 
     monkeypatch.setattr("app.services.ai.service.cache_get", _fake_cache_get)
     monkeypatch.setattr(
-        "app.services.ai.service.AIProviderFactory.get_available_provider",
+        "app.services.ai.service.AIProviderFactory.get_provider",
         _unexpected_provider_lookup,
     )
 

@@ -561,3 +561,42 @@ def test_analyze_document_rebuilds_line_item_extra_columns_from_ocr(monkeypatch)
     line_items = result["fields"]["line_items"]
     assert line_items[0]["extra_columns"]["Ref."] == "REF-BZ-1042"
     assert line_items[1]["extra_columns"]["Ref."] == "REF-HG-2210"
+
+
+def test_analyze_document_bypasses_ai_for_structured_payload(monkeypatch):
+    called = {"count": 0}
+
+    async def fake_query(**kwargs):
+        called["count"] += 1
+        raise AssertionError("AIService.query should not run for structured payloads")
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content="sku,qty\nA1,2",
+            filename="inventario.csv",
+            format_hint="CSV",
+            structured_data=[
+                {"sku": "A1", "qty": 2},
+                {"sku": "B2", "qty": 4},
+            ],
+            structured_metadata={
+                "sheet_1": {
+                    "warehouse": "Central",
+                }
+            },
+            recipe_config={
+                "doc_type_hint": "INVENTORY",
+                "doc_type_hint_confidence": 0.91,
+            },
+            fallback_patterns={},
+        )
+    )
+
+    assert called["count"] == 0
+    assert result["model_used"] == "structured-direct"
+    assert result["doc_type"] == "INVENTORY"
+    assert result["is_table"] is True
+    assert result["fields"]["line_items"][0]["sku"] == "A1"
+    assert result["fields"]["warehouse"] == "Central"

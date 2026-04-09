@@ -328,6 +328,8 @@ async def _analyze_with_context(
     format_hint: str,
     has_structured_rows: bool,
     recipe_config: dict[str, Any] | None,
+    structured_data: Any | None = None,
+    structured_metadata: dict[str, Any] | None = None,
     vision_image_bytes: bytes | bytearray | None,
     fallback_patterns: dict[str, Any],
     canonical_fields: dict[str, Any],
@@ -348,6 +350,8 @@ async def _analyze_with_context(
         format_hint,
         has_structured_rows=has_structured_rows,
         recipe_config=recipe_config,
+        structured_data=structured_data,
+        structured_metadata=structured_metadata,
         image_bytes=image_bytes,
         fallback_patterns=fallback_patterns,
         canonical_fields=canonical_fields,
@@ -424,14 +428,20 @@ async def _process_async_document(
     text = extraction.get("text", "")
     structured = extraction.get("structured_data")
     sheet_profiles = extraction.get("sheet_profiles")
+    sheet_metadata = extraction.get("sheet_metadata")
     processing_cfg = load_processing_runtime_config(db)
     _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
 
-    has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
+    file_format = str(extraction.get("format", tipo_archivo) or tipo_archivo).upper()
+    has_structured = bool(
+        structured is not None
+        and file_format in {"CSV", "EXCEL", "JSON"}
+        and ((isinstance(structured, list) and bool(structured)) or isinstance(structured, dict))
+    )
 
     headers_norm: list[str] = []
     headers_display: list[str] = []
-    if has_structured:
+    if isinstance(sheet_profiles, dict) and sheet_profiles:
         for profile in sheet_profiles.values():
             headers_norm = profile.get("headers_norm") or []
             headers_display = profile.get("headers") or headers_norm
@@ -625,6 +635,8 @@ async def _process_async_document(
             format_hint=extraction.get("format", tipo_archivo),
             has_structured_rows=has_structured,
             recipe_config=_rc_for_ai,
+            structured_data=structured if has_structured else None,
+            structured_metadata=(sheet_profiles if has_structured else sheet_metadata),
             vision_image_bytes=vision_image_bytes,
             fallback_patterns=fallback_patterns,
             canonical_fields=canonical_fields,
@@ -854,6 +866,8 @@ async def _process_async_document(
                         format_hint=extraction.get("format", tipo_archivo),
                         has_structured_rows=False,
                         recipe_config=rerun_recipe_config,
+                        structured_data=None,
+                        structured_metadata=None,
                         vision_image_bytes=vision_image_bytes,
                         fallback_patterns=fallback_patterns,
                         canonical_fields=canonical_fields,
@@ -1269,6 +1283,8 @@ async def _process_run_document(
             extraction.get("format", tipo_archivo),
             has_structured_rows=has_structured,
             recipe_config=_rc_for_run,
+            structured_data=structured if has_structured else None,
+            structured_metadata=sheet_profiles if has_structured else sheet_metadata,
             image_bytes=(
                 bytes(vision_image_bytes)
                 if (is_image_doc or is_scanned_pdf) and vision_image_bytes
@@ -1465,6 +1481,8 @@ async def _process_run_document(
                     extraction.get("format", tipo_archivo),
                     has_structured_rows=False,
                     recipe_config=auto_rc2,
+                    structured_data=None,
+                    structured_metadata=None,
                     image_bytes=(
                         bytes(vision_image_bytes)
                         if (is_image_doc or is_scanned_pdf) and vision_image_bytes

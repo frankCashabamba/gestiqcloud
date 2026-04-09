@@ -18,8 +18,8 @@ from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIP
 logger = logging.getLogger(__name__)
 
 
-# Ollama often degrades under bursty parallel loads. Keep concurrency
-# explicit and bounded per base_url instead of freezing one semaphore at import time.
+# Keep concurrency bounded per provider instance. Sharing a module-level
+# semaphore creates avoidable cross-tenant contention and hides real capacity.
 def _ollama_max_concurrency(default: int = 1) -> int:
     raw = (os.getenv("OLLAMA_MAX_CONCURRENCY") or "").strip()
     try:
@@ -28,22 +28,19 @@ def _ollama_max_concurrency(default: int = 1) -> int:
         return default
 
 
-_ollama_semaphores: dict[tuple[str, int], asyncio.Semaphore] = {}
 _logged_concurrency_configs: set[tuple[str, int]] = set()
 _tags_cache: dict[str, tuple[float, list[str]]] = {}
 _health_cache: dict[str, tuple[float, bool]] = {}
+_CONTROLLED_EXTRACTION_MODELS = {
+    AIModel.LLAMA3_1_8B.value,
+    AIModel.MISTRAL_7B.value,
+}
+_BLOCKED_MODEL_PREFIXES = ("qwen2.5-coder", "qwen2.5")
 
 
 def _coerce_positive_int(value: Any, default: int) -> int:
     try:
         return max(1, int(str(value).strip()))
-    except (TypeError, ValueError, AttributeError):
-        return default
-
-
-def _coerce_positive_float(value: Any, default: float) -> float:
-    try:
-        return max(0.0, float(str(value).strip()))
     except (TypeError, ValueError, AttributeError):
         return default
 
@@ -66,13 +63,20 @@ def _is_non_extraction_model(model: str) -> bool:
     return ":cloud" in normalized or "embed" in normalized
 
 
-def _get_ollama_semaphore(base_url: str, max_concurrency: int) -> asyncio.Semaphore:
-    key = (base_url, max_concurrency)
-    semaphore = _ollama_semaphores.get(key)
-    if semaphore is None:
-        semaphore = asyncio.Semaphore(max_concurrency)
-        _ollama_semaphores[key] = semaphore
-    return semaphore
+def _is_blocked_legacy_model(model: str | None) -> bool:
+    normalized = model_name(model).lower()
+    return bool(normalized) and normalized.startswith(_BLOCKED_MODEL_PREFIXES)
+
+
+def _first_allowed_model(available_models: list[str]) -> str | None:
+    for model in available_models:
+        normalized = model_name(model)
+        if not normalized:
+            continue
+        if _is_non_extraction_model(normalized) or _is_blocked_legacy_model(normalized):
+            continue
+        return normalized
+    return None
 
 
 def _cache_ttl(name: str, default: float) -> float:
@@ -105,33 +109,37 @@ class OllamaProvider(BaseAIProvider):
             self._endpoint_url = f"{self.base_url}{normalized_endpoint}"
 
         self.use_chat_api = "chat" in self.endpoint
-        self.default_model = config.get("model", "qwen2.5:3b")
-        # Algunos modelos locales tardan bastante en la primera inferencia (carga a GPU/CPU)
-        self.request_timeout = config.get("timeout", 300.0)
+        self.default_model = model_name(config.get("model")) or AIModel.LLAMA3_1_8B.value
+        try:
+            parsed_timeout = float(str(config.get("timeout", 30.0)).strip())
+            self.request_timeout = parsed_timeout if parsed_timeout > 0 else 30.0
+        except (TypeError, ValueError, AttributeError):
+            self.request_timeout = 30.0
         self.max_concurrency = _coerce_positive_int(
             config.get("max_concurrency"),
             _ollama_max_concurrency(),
         )
-        self._semaphore = _get_ollama_semaphore(self.base_url, self.max_concurrency)
-        config_key = (self.base_url, self.max_concurrency)
+        self._semaphore = asyncio.Semaphore(self.max_concurrency)
+        config_key = (
+            self.base_url,
+            self.max_concurrency,
+            self.default_model,
+            round(self.request_timeout, 3),
+        )
         if config_key not in _logged_concurrency_configs:
             logger.info(
-                "Ollama concurrency configured base_url=%s max_concurrency=%s endpoint=%s timeout=%.1fs",
+                "Ollama configured base_url=%s endpoint=%s max_concurrency=%s timeout=%.1fs timeout_source=%s model=%s model_source=%s",
                 self.base_url,
-                self.max_concurrency,
                 self.endpoint,
+                self.max_concurrency,
                 self.request_timeout,
+                self.config.get("timeout_source") or "default",
+                self.default_model,
+                self.config.get("model_source") or "default",
             )
             _logged_concurrency_configs.add(config_key)
 
-    def _resolve_explicit_extraction_model(self, available: set[str]) -> str | None:
-        """Allow forcing a specific extraction model through config or env."""
-        override = model_name(os.getenv("OLLAMA_EXTRACTION_MODEL"))
-        if override and (not available or override in available):
-            return override
-        return None
-
-    def _get_available_models(self, timeout: float = 3.0) -> list[str]:
+    async def _get_available_models(self, timeout: float = 3.0) -> list[str]:
         """Cache /api/tags to avoid repeated round-trips on every request."""
         ttl = _cache_ttl("OLLAMA_TAGS_CACHE_TTL", 30.0)
         now = time.monotonic()
@@ -139,29 +147,126 @@ class OllamaProvider(BaseAIProvider):
         if cached and now - cached[0] <= ttl:
             return list(cached[1])
 
-        resp = httpx.get(f"{self.base_url}/api/tags", timeout=timeout)
-        resp.raise_for_status()
-        models = [str(model.get("name") or "").strip() for model in resp.json().get("models", [])]
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(f"{self.base_url}/api/tags")
+            resp.raise_for_status()
+            models = [
+                str(model.get("name") or "").strip() for model in resp.json().get("models", [])
+            ]
         models = [model for model in models if model]
         _tags_cache[self.base_url] = (now, models)
         _health_cache[self.base_url] = (now, True)
         return list(models)
 
-    async def call(self, request: AIRequest) -> AIResponse:
-        """Llama a Ollama API."""
-        start_time = time.time()
-        selected_model = model_name(request.model) or self.get_default_model(request.task)
+    async def _available_model_set(self, timeout: float | None = None) -> set[str]:
+        models = await self._get_available_models(timeout=timeout or self._health_check_timeout)
+        return {model_name(model) for model in models if model_name(model)}
 
+    async def validate_model(self, model: AIModel | str) -> bool:
+        normalized = model_name(model)
+        if not normalized or _is_blocked_legacy_model(normalized):
+            return False
         try:
-            if not await self.health_check():
-                return AIResponse(
-                    task=request.task,
-                    content="",
-                    model=selected_model,
-                    error=f"Ollama no disponible en {self.base_url}",
-                    processing_time_ms=int((time.time() - start_time) * 1000),
+            available = await self._available_model_set(timeout=self._health_check_timeout)
+        except Exception:
+            available = set()
+        return normalized in available
+
+    async def _resolve_model_for_request(self, request: AIRequest) -> tuple[str, str | None, str]:
+        """Resolve a usable model before the POST request goes out."""
+        configured = model_name(self.default_model) or AIModel.LLAMA3_1_8B.value
+        explicit = model_name(request.model)
+        try:
+            available_models = await self._get_available_models(timeout=self._health_check_timeout)
+        except Exception as exc:
+            logger.warning("No se pudo consultar /api/tags en Ollama: %s", exc)
+            available_models = []
+
+        available_set = {model_name(item) for item in available_models if model_name(item)}
+        if explicit:
+            if _is_blocked_legacy_model(explicit):
+                logger.warning(
+                    "Ignoring blocked legacy Ollama model task=%s requested=%s",
+                    request.task.value,
+                    explicit,
+                )
+            elif explicit in available_set:
+                return explicit, None, "explicit_request"
+            else:
+                return (
+                    explicit,
+                    f"Modelo Ollama no disponible: {explicit}",
+                    "explicit_request_missing",
                 )
 
+        if configured and configured in available_set and not _is_blocked_legacy_model(configured):
+            return configured, None, "configured_default"
+
+        if request.task == AITask.EXTRACTION:
+            extraction_model = self._best_extraction_model(available_models)
+            if extraction_model:
+                reason = (
+                    "controlled_extraction_configured"
+                    if extraction_model == configured
+                    else "controlled_extraction_preferred"
+                )
+                return extraction_model, None, reason
+
+            return (
+                AIModel.LLAMA3_1_8B.value,
+                "No hay modelos de extraccion controlados disponibles",
+                "controlled_extraction_missing",
+            )
+
+        if available_models:
+            fallback_model = _first_allowed_model(available_models)
+            if fallback_model:
+                return fallback_model, None, "first_available"
+
+        if configured and not _is_blocked_legacy_model(configured):
+            return configured, None, "configured_default_fallback"
+
+        return (
+            AIModel.LLAMA3_1_8B.value,
+            f"No hay modelos Ollama disponibles en {self.base_url}",
+            "no_available_models",
+        )
+
+    async def call(self, request: AIRequest) -> AIResponse:
+        """Llama a Ollama API."""
+        start_time = time.perf_counter()
+        requested_model = model_name(request.model)
+        selected_model, model_error, selection_reason = await self._resolve_model_for_request(
+            request
+        )
+        if model_error:
+            return AIResponse(
+                task=request.task,
+                content="",
+                model=selected_model,
+                error=model_error,
+                processing_time_ms=int((time.perf_counter() - start_time) * 1000),
+                metadata={
+                    "provider": "ollama",
+                    "model_requested": requested_model or None,
+                    "model_resolved": selected_model,
+                    "selection_reason": selection_reason,
+                    "timeout_seconds": self.request_timeout,
+                    "timeout_source": self.config.get("timeout_source") or "default",
+                },
+            )
+
+        logger.info(
+            "Ollama request task=%s requested_model=%s resolved_model=%s reason=%s timeout=%.1fs timeout_source=%s",
+            request.task.value,
+            requested_model or "default",
+            selected_model,
+            selection_reason,
+            self.request_timeout,
+            self.config.get("timeout_source") or "default",
+        )
+
+        try:
             prompt = self._prepare_prompt(request)
             if self.use_chat_api:
                 options: dict[str, Any] = {"temperature": request.temperature}
@@ -202,17 +307,32 @@ class OllamaProvider(BaseAIProvider):
                 tokens_used = data.get("eval_count", 0)
                 eval_duration = data.get("eval_duration")
 
+            if not content:
+                return AIResponse(
+                    task=request.task,
+                    content="",
+                    model=selected_model,
+                    error="Respuesta vacía de Ollama",
+                    processing_time_ms=int((time.perf_counter() - start_time) * 1000),
+                )
+
+            elapsed_ms = int((time.perf_counter() - start_time) * 1000)
             return AIResponse(
                 task=request.task,
                 content=content,
                 model=selected_model,
                 tokens_used=tokens_used or 0,
-                processing_time_ms=int((time.time() - start_time) * 1000),
+                processing_time_ms=elapsed_ms,
                 metadata={
                     "provider": "ollama",
                     "temperature": request.temperature,
                     "endpoint": self.endpoint,
                     "max_concurrency": self.max_concurrency,
+                    "model_requested": requested_model or None,
+                    "model_resolved": selected_model,
+                    "selection_reason": selection_reason,
+                    "timeout_seconds": self.request_timeout,
+                    "timeout_source": self.config.get("timeout_source") or "default",
                     "eval_duration_ns": eval_duration,
                 },
             )
@@ -237,8 +357,8 @@ class OllamaProvider(BaseAIProvider):
                 task=request.task,
                 content="",
                 model=selected_model,
-                error=f"Ollama timeout ({self.request_timeout:.0f}s). Revisa que el modelo esté cargado o aumenta OLLAMA_TIMEOUT.",
-                processing_time_ms=int((time.time() - start_time) * 1000),
+                error=f"Ollama timeout ({self.request_timeout:.0f}s)",
+                processing_time_ms=int((time.perf_counter() - start_time) * 1000),
             )
         except httpx.HTTPStatusError as e:
             status = e.response.status_code if e.response is not None else "unknown"
@@ -263,7 +383,7 @@ class OllamaProvider(BaseAIProvider):
                 content="",
                 model=selected_model,
                 error=error_msg,
-                processing_time_ms=int((time.time() - start_time) * 1000),
+                processing_time_ms=int((time.perf_counter() - start_time) * 1000),
             )
         except Exception as e:
             logger.error("Error en Ollama call: %s", e, exc_info=True)
@@ -272,7 +392,7 @@ class OllamaProvider(BaseAIProvider):
                 content="",
                 model=selected_model,
                 error=f"Error Ollama: {str(e)}",
-                processing_time_ms=int((time.time() - start_time) * 1000),
+                processing_time_ms=int((time.perf_counter() - start_time) * 1000),
             )
 
     async def health_check(self) -> bool:
@@ -284,109 +404,57 @@ class OllamaProvider(BaseAIProvider):
             return cached[1]
 
         try:
-            self._get_available_models(timeout=self._health_check_timeout)
+            await self._get_available_models(timeout=self._health_check_timeout)
             _health_cache[self.base_url] = (now, True)
             return True
         except Exception:
             _health_cache[self.base_url] = (now, False)
             return False
 
-    def _extract_model_candidates(self, available_models: list[str]) -> list[tuple[float, str]]:
-        candidates: list[tuple[float, str]] = []
-        for model in available_models:
-            if _is_non_extraction_model(model):
-                continue
-            size_b = _model_parameter_size_b(model)
-            if size_b is None:
-                continue
-            candidates.append((size_b, model))
-        return candidates
-
     def _best_extraction_model(self, available_models: list[str] | None = None) -> str | None:
-        """Find the safest locally available model for document extraction.
+        """Find a controlled locally available model for document extraction.
 
-        Preference order:
-        1. Highest-capacity model that is still within the configured safety limit.
-        2. If nothing fits under the safety limit, the smallest available candidate.
+        The extraction path is whitelist-only to avoid hidden qwen fallbacks.
         """
         try:
             available = available_models or self._get_available_models(timeout=3.0)
-            candidates = self._extract_model_candidates(available)
-            if not candidates:
-                return None
-
-            safe_limit_b = _coerce_positive_float(
-                os.getenv("OLLAMA_EXTRACTION_MAX_PARAMETER_SIZE_B"),
-                3.0,
-            )
-            safe_candidates = [item for item in candidates if item[0] <= safe_limit_b]
-            if safe_candidates:
-                best_size_b, best_model = max(safe_candidates, key=lambda item: (item[0], item[1]))
-                logger.info(
-                    "Using %s for extraction (size=%.1fB within safe limit %.1fB)",
-                    best_model,
-                    best_size_b,
-                    safe_limit_b,
-                )
-                return best_model
-
-            smallest_size_b, best_model = min(candidates, key=lambda item: (item[0], item[1]))
-            logger.info(
-                "Using %s for extraction (smallest available; size=%.1fB exceeds safe limit %.1fB)",
-                best_model,
-                smallest_size_b,
-                safe_limit_b,
-            )
-            return best_model
+            available_set = {model_name(model) for model in available if model_name(model)}
+            ordered_candidates = [
+                model_name(self.default_model),
+                AIModel.LLAMA3_1_8B.value,
+                AIModel.MISTRAL_7B.value,
+            ]
+            seen: set[str] = set()
+            for candidate in ordered_candidates:
+                normalized = model_name(candidate)
+                if not normalized or normalized in seen:
+                    continue
+                seen.add(normalized)
+                if normalized not in _CONTROLLED_EXTRACTION_MODELS:
+                    continue
+                if normalized in available_set:
+                    logger.info("Using controlled extraction model: %s", normalized)
+                    return normalized
+            return None
         except Exception:
             return None
 
     def get_default_model(self, task: AITask) -> str:
         """Modelo por defecto para Ollama.
 
-        Para tareas de extracción, usa primero un override explícito y luego
-        el mejor modelo local que siga dentro del límite seguro configurado.
-        Para otras tareas, usa el modelo configurado por entorno.
+        El modelo configurado se valida en tiempo de ejecución antes de llamar.
+        Si no hay configuracion valida, usamos Llama 3.1 8B como fallback seguro.
         """
         configured = model_name(self.default_model)
-        if task == AITask.EXTRACTION:
-            try:
-                available_models = self._get_available_models(timeout=3.0)
-            except Exception:
-                available_models = []
-            available_set = set(available_models)
-
-            explicit = self._resolve_explicit_extraction_model(available_set)
-            if explicit:
-                return explicit
-
-            if configured and configured in available_set:
-                configured_size_b = _model_parameter_size_b(configured)
-                safe_limit_b = _coerce_positive_float(
-                    os.getenv("OLLAMA_EXTRACTION_MAX_PARAMETER_SIZE_B"),
-                    3.0,
-                )
-                if configured_size_b is None or configured_size_b <= safe_limit_b:
-                    logger.info(
-                        "Using configured Ollama model %s for extraction (size=%s)",
-                        configured,
-                        f"{configured_size_b:.1f}B" if configured_size_b is not None else "unknown",
-                    )
-                    return configured
-
-            extraction_model = self._best_extraction_model(available_models)
-            if extraction_model:
-                return extraction_model
-        if configured:
+        if configured and not _is_blocked_legacy_model(configured):
             return configured
-        return AIModel.QWEN2_5_3B.value
+        return AIModel.LLAMA3_1_8B.value
 
     def get_supported_models(self) -> list[AIModel]:
         """Modelos soportados historicamente por esta app para Ollama."""
         return [
-            AIModel.QWEN2_5_3B,
             AIModel.LLAMA3_1_8B,
-            AIModel.LLAMA3_1_70B,
             AIModel.MISTRAL_7B,
+            AIModel.LLAMA3_1_70B,
             AIModel.NEURAL_CHAT,
         ]

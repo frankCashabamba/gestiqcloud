@@ -20,6 +20,11 @@ from typing import Any
 import openpyxl
 from PIL import Image, ImageFilter, ImageOps
 
+try:
+    import pandas as pd
+except Exception:  # pragma: no cover - optional dependency
+    pd = None
+
 from .runtime_config import load_file_support_config, load_ocr_runtime_config
 from .utils import json_safe as _json_safe
 
@@ -529,6 +534,8 @@ async def extract_text_from_file(file_bytes: bytes, filename: str) -> dict[str, 
             }
     elif ext == ".csv":
         extraction = _extract_csv(file_bytes)
+    elif ext == ".json":
+        extraction = _extract_json(file_bytes)
     elif ext == ".xml":
         try:
             extraction = _extract_xml(file_bytes)
@@ -1053,7 +1060,25 @@ def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
     else:
         text_content = file_bytes.decode("utf-8", errors="replace")
 
-    # Auto-detect delimiter
+    if pd is not None:
+        try:
+            frame = pd.read_csv(io.BytesIO(file_bytes))
+            frame = frame.dropna(how="all")
+            data = frame.where(pd.notna(frame), None).to_dict(orient="records")
+            data = [
+                {str(key): value for key, value in row.items() if value is not None}
+                for row in data
+                if any(value is not None for value in row.values())
+            ]
+            return {
+                "text": text_content[:10000],
+                "pages": 1,
+                "structured_data": data,
+                "format": "CSV",
+            }
+        except Exception as exc:
+            logger.debug("pandas CSV parse failed; falling back to stdlib parser: %s", exc)
+
     sniffer = csv.Sniffer()
     try:
         dialect = sniffer.sniff(text_content[:2048])
@@ -1064,6 +1089,32 @@ def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
     reader = csv.DictReader(io.StringIO(text_content), delimiter=delimiter)
     data = [row for row in reader if any(v and v.strip() for v in row.values())]
     return {"text": text_content[:10000], "pages": 1, "structured_data": data, "format": "CSV"}
+
+
+def _extract_json(file_bytes: bytes) -> dict[str, Any]:
+    text_content = file_bytes.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(text_content)
+    except json.JSONDecodeError as exc:
+        return {
+            "text": text_content[:10000],
+            "pages": 1,
+            "structured_data": None,
+            "format": "JSON_PARSE_ERROR",
+            "error": str(exc),
+        }
+
+    if isinstance(payload, list):
+        structured_data = [item for item in payload if isinstance(item, dict)]
+    else:
+        structured_data = payload if isinstance(payload, dict) else {"value": payload}
+
+    return {
+        "text": json.dumps(payload, ensure_ascii=False)[:10000],
+        "pages": 1,
+        "structured_data": structured_data,
+        "format": "JSON",
+    }
 
 
 def _extract_xml(file_bytes: bytes) -> dict[str, Any]:

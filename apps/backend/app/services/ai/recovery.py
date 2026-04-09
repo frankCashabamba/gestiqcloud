@@ -286,12 +286,7 @@ class AIRecoveryManager:
     """Orquestador de estrategias de recuperación"""
 
     def __init__(self):
-        self.strategies: list[ErrorRecoveryStrategy] = [
-            RetryStrategy(max_retries=2, initial_delay=0.5),
-            SimplifyStrategy(),
-            FallbackStrategy(),
-            CacheStrategy(),
-        ]
+        self.strategies: list[ErrorRecoveryStrategy] = [CacheStrategy()]
 
     async def recover(
         self,
