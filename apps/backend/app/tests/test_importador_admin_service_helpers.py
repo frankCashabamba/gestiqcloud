@@ -4,6 +4,7 @@ These tests cover pure utility functions that don't require a database,
 focusing on increasing coverage of the new importador_admin_service.py file
 and the category_loader module.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -17,7 +18,6 @@ from app.modules.importador.services.importador_admin_service import (
     _normalize_list,
     _value_kind,
 )
-
 
 # ── _module_title ──────────────────────────────────────────────────────────────
 

@@ -1,9 +1,9 @@
 """Tests for app/schemas/base.py and app/utils/time.py — simple pure-python tests."""
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 # ── app/utils/time.py ─────────────────────────────────────────────────────────
 
@@ -14,15 +14,15 @@ def test_utcnow_returns_aware_datetime():
     result = utcnow()
     assert isinstance(result, datetime)
     assert result.tzinfo is not None
-    assert result.tzinfo == timezone.utc
+    assert result.tzinfo == UTC
 
 
 def test_utcnow_is_recent():
     from app.utils.time import utcnow
 
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     result = utcnow()
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
     assert before <= result <= after
 
 

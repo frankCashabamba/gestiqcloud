@@ -3,8 +3,8 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text as sa_text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpConfig
@@ -248,11 +248,15 @@ def build_importador_routing_overview(
         limit=max(1, min(limit, 20)),
     )
     try:
-        reprocess_queue = list_reprocess_candidates(db, tenant_id=tenant_id, limit=max(1, min(limit, 20)))
+        reprocess_queue = list_reprocess_candidates(
+            db, tenant_id=tenant_id, limit=max(1, min(limit, 20))
+        )
     except SQLAlchemyError:
         reprocess_queue = []
     try:
-        learning_insights = list_routing_learning_insights(db, tenant_id=tenant_id, limit=max(1, min(limit, 10)))
+        learning_insights = list_routing_learning_insights(
+            db, tenant_id=tenant_id, limit=max(1, min(limit, 10))
+        )
     except SQLAlchemyError:
         learning_insights = []
 

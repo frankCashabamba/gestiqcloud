@@ -1,8 +1,10 @@
 """Tests for utils/unit_converter.py — pure functions, no DB needed."""
+
 from __future__ import annotations
 
-import pytest
 from decimal import Decimal
+
+import pytest
 
 from app.utils.unit_converter import (
     UnitType,
@@ -17,7 +19,6 @@ from app.utils.unit_converter import (
     normalize_to_base,
     normalize_unit_name,
 )
-
 
 # ── get_unit_type ─────────────────────────────────────────────────────────────
 
