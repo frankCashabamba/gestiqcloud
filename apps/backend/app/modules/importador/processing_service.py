@@ -24,6 +24,7 @@ from .auto_recipe import (
 from .canonical_document import build_document_projection
 from .category_loader import get_doc_categories
 from .classifier_learning import learn_column_candidates as _learn_column_candidates
+from .document_fields import detect_document_total, get_data_value
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
@@ -367,6 +368,111 @@ def _sanitize_text_fallback_fields(
         logger.info("text_fallback_sanitized removed_fields=%s", sorted(set(removed)))
 
     return cleaned
+
+
+def _field_keys_for_reprocess(data: dict[str, Any] | None) -> list[str]:
+    if not isinstance(data, dict):
+        return []
+    return sorted(
+        str(key)
+        for key, value in data.items()
+        if not str(key).startswith("_") and value not in (None, "", [], {})
+    )
+
+
+def _promote_doc_type_from_text_fallback(
+    *,
+    current_doc_type: str,
+    current_confidence: float,
+    current_reasoning: str,
+    fields: dict[str, Any] | None,
+    content: str,
+    filename: str,
+    pre_class_doc_type: str | None = None,
+) -> tuple[str, float, str, str | None]:
+    if str(current_doc_type or "").strip().upper() != "OTHER":
+        return current_doc_type, current_confidence, current_reasoning, None
+    if not isinstance(fields, dict) or not fields:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    pre_class_upper = str(pre_class_doc_type or "").strip().upper()
+    blocked_preclass_types = {
+        "SALES",
+        "PAYROLL",
+        "BANK_STATEMENT",
+        "BANK",
+        "INVENTORY",
+        "PRICE_LIST",
+        "PRODUCT_LIST",
+        "PRODUCTS",
+        "COSTING",
+        "RECIPE",
+    }
+    if pre_class_upper in blocked_preclass_types:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    text_context = f"{filename}\n{content}".lower()
+    has_issue_date = bool(get_data_value(fields, "issue_date"))
+    has_total = detect_document_total(
+        fields,
+        aliases=["total_amount", "total_price", "total", "amount"],
+    ) is not None
+    has_vendor = bool(get_data_value(fields, "vendor", "vendor_tax_id"))
+    has_customer = bool(get_data_value(fields, "customer", "customer_tax_id"))
+    has_doc_number = bool(get_data_value(fields, "doc_number", "supplier_ref"))
+    has_concept = bool(get_data_value(fields, "concept", "description"))
+    has_payment_method = bool(get_data_value(fields, "payment_method"))
+    raw_line_items = fields.get("line_items")
+    has_line_items = isinstance(raw_line_items, list) and any(
+        isinstance(item, dict) for item in raw_line_items
+    )
+    invoice_support = sum(1 for flag in (has_issue_date, has_total, has_vendor, has_doc_number) if flag)
+    receipt_support = sum(
+        1 for flag in (has_issue_date, has_total, has_vendor, has_customer, has_concept, has_payment_method) if flag
+    )
+
+    promoted_type: str | None = None
+    promoted_confidence: float | None = None
+    reason_tag: str | None = None
+
+    if any(token in text_context for token in ("invoice", "factura", "comprobante")):
+        if has_total and (invoice_support >= 2 or has_line_items):
+            promoted_type = "INVOICE"
+            promoted_confidence = 0.68
+            reason_tag = "invoice_keyword"
+    elif any(token in text_context for token in ("receipt", "recibo", "boleta", "ticket", "voucher")):
+        if has_total and receipt_support >= 2:
+            promoted_type = "RECEIPT"
+            promoted_confidence = 0.66
+            reason_tag = "receipt_keyword"
+
+    if promoted_type is None:
+        if has_issue_date and has_total and (has_doc_number or (has_vendor and has_customer)):
+            promoted_type = "INVOICE"
+            promoted_confidence = 0.64
+            reason_tag = "invoice_like_fields"
+        elif has_issue_date and has_total and (has_vendor or has_customer):
+            promoted_type = "RECEIPT"
+            promoted_confidence = 0.61
+            reason_tag = "receipt_like_fields"
+        elif pre_class_upper == "RECEIPT" and has_total:
+            promoted_type = "RECEIPT"
+            promoted_confidence = 0.56
+            reason_tag = "minimal_receipt_fields"
+
+    if not promoted_type or promoted_confidence is None:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    promoted_reasoning = (
+        f"Promoted from OCR text fallback due to {reason_tag}. "
+        "Heavy AI extraction did not produce a usable classification."
+    )
+    return (
+        promoted_type,
+        max(float(current_confidence or 0.0), promoted_confidence),
+        promoted_reasoning,
+        reason_tag,
+    )
 
 
 @dataclass(slots=True)
@@ -1116,8 +1222,47 @@ async def _process_async_document(
                     datos_extraidos = fallback_fields
                 else:
                     _merge_text_fallback_fields(datos_extraidos, fallback_fields)
+                if isinstance(datos_extraidos, dict):
+                    analysis_fields = datos_extraidos
+                    current_field_keys = _field_keys_for_reprocess(datos_extraidos)
+                    current_field_count = _count_detected_scalar_fields(datos_extraidos)
+                    promoted_doc_type, promoted_confidence, promoted_reasoning, promotion_reason = (
+                        _promote_doc_type_from_text_fallback(
+                            current_doc_type=tipo_doc,
+                            current_confidence=confianza,
+                            current_reasoning=razonamiento,
+                            fields=datos_extraidos,
+                            content=text,
+                            filename=filename,
+                            pre_class_doc_type=(pre_class.doc_type if pre_class else None),
+                        )
+                    )
+                    if promotion_reason:
+                        logger.info(
+                            "text_fallback_doc_type_promoted=true filename=%s from=%s to=%s confidence=%.2f reason=%s",
+                            filename,
+                            tipo_doc,
+                            promoted_doc_type,
+                            promoted_confidence,
+                            promotion_reason,
+                        )
+                        tipo_doc = promoted_doc_type
+                        confianza = promoted_confidence
+                        razonamiento = promoted_reasoning
+                        analysis["doc_type"] = tipo_doc
+                        analysis["confidence"] = confianza
+                        analysis["reasoning"] = razonamiento
+                        analysis["analysis_path"] = "text_fallback_doc_type_promotion"
                 requiere_revision = True
                 _used_text_fallback = True
+                reprocess_result_changed = _reprocess_result_changed(
+                    previous_result if isinstance(previous_result, dict) else None,
+                    doc_type=tipo_doc,
+                    confidence=confianza,
+                    requires_review=requiere_revision,
+                    field_count=current_field_count,
+                    field_keys=current_field_keys,
+                )
             else:
                 logger.info(
                     "text_fallback_result=empty_after_sanitize filename=%s mode=%s quality_hint=%s",
@@ -1129,7 +1274,7 @@ async def _process_async_document(
 
         if tipo_doc != "OTHER" and not explicit_recipe_context:
             auto_recipe_started_at = time.perf_counter()
-            auto_recipe_config, post_snapshot_id, _, auto_recipe_created, _ = (
+            auto_recipe_config, post_snapshot_id, auto_resolution_mode, auto_recipe_created, _ = (
                 resolve_auto_recipe_from_text(
                     db,
                     tenant_id,
@@ -1142,6 +1287,7 @@ async def _process_async_document(
             )
             _set_stage_timing(stage_timings, "auto_recipe_resolution", auto_recipe_started_at)
             if post_snapshot_id:
+                resolution_mode = auto_resolution_mode or resolution_mode
                 resolved_snapshot_id = post_snapshot_id
                 recipe_snapshot = _load_snapshot(db, post_snapshot_id)
                 remember_snapshot_learning(
@@ -1799,7 +1945,7 @@ async def _process_run_document(
     auto_recipe_name: str | None = local_auto_name
     if not sheet_profiles and tipo_doc != "OTHER" and not recipe_context.explicit_recipe_context:
         auto_recipe_started_at = time.perf_counter()
-        auto_rc2, post_snap_id, _, auto_recipe_created, auto_recipe_name = (
+        auto_rc2, post_snap_id, auto_resolution_mode, auto_recipe_created, auto_recipe_name = (
             resolve_auto_recipe_from_text(
                 db,
                 tenant_id,
@@ -1812,6 +1958,7 @@ async def _process_run_document(
         )
         _set_stage_timing(stage_timings, "auto_recipe_resolution", auto_recipe_started_at)
         if post_snap_id and not local_snapshot_id:
+            resolution_mode = auto_resolution_mode or resolution_mode
             local_snapshot_id = post_snap_id
             _run_snap = _load_snapshot(db, post_snap_id)
             if _run_snap:

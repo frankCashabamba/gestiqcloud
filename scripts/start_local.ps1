@@ -2,14 +2,14 @@ Write-Host "=== GestiQCloud - Inicio Local (sin Docker, como en PRO) ===" -Foreg
 
 Write-Host "[1/7] Preparando .env..." -ForegroundColor Yellow
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$rootEnvPath = Join-Path $repoRoot ".env.local"
-if (Test-Path $rootEnvPath) {
-    Copy-Item $rootEnvPath (Join-Path $repoRoot "apps/backend/.env") -Force
-    $rootEnvLines = Get-Content $rootEnvPath
-} else {
-    Write-Host "No se encontro .env.local. Crea uno basado en .env.production" -ForegroundColor Red
+$rootEnvPath = Join-Path $repoRoot ".env"
+$legacyEnvLocalPath = Join-Path $repoRoot ".env.local"
+$legacyEnvStagingPath = Join-Path $repoRoot ".env.staging"
+if (-not (Test-Path $rootEnvPath)) {
+    Write-Host "No se encontro .env en la raiz del repo. Crea uno basado en .env.example" -ForegroundColor Red
     exit 1
 }
+$rootEnvLines = Get-Content $rootEnvPath
 
 function Get-EnvValue {
     param([string[]]$lines, [string]$key, [string]$default = "")
@@ -27,6 +27,64 @@ function Get-PortFromUrl {
     } catch {}
     return $fallback
 }
+
+function Mask-ConnectionString {
+    param([string]$value)
+    if (-not $value) { return "<unset>" }
+    try {
+        $uri = [System.Uri]$value
+        $userInfo = $uri.UserInfo
+        $maskedUserInfo = ""
+        if ($userInfo) {
+            $userParts = $userInfo.Split(":", 2)
+            $maskedUser = if ($userParts[0].Length -gt 0) { $userParts[0].Substring(0, 1) + "***" } else { "***" }
+            $maskedPass = if ($userParts.Count -gt 1) { ":***" } else { "" }
+            $maskedUserInfo = "$maskedUser$maskedPass@"
+        }
+        $builder = "{0}://{1}{2}" -f $uri.Scheme, $maskedUserInfo, $uri.Authority
+        return "$builder$($uri.AbsolutePath)$($uri.Query)"
+    } catch {
+        if ($value.Length -le 8) { return "***" }
+        return ($value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4))
+    }
+}
+
+function Show-EnvStartupSummary {
+    param([string[]]$lines, [string]$envPath)
+
+    $legacyFiles = @()
+    foreach ($candidate in @($legacyEnvLocalPath, $legacyEnvStagingPath)) {
+        if (Test-Path $candidate) {
+            $legacyFiles += $candidate
+        }
+    }
+
+    Write-Host ("Usando archivo de entorno: {0}" -f $envPath) -ForegroundColor Cyan
+    if ($legacyFiles.Count -gt 0) {
+        Write-Host ("Archivos legacy detectados e ignorados por defecto: {0}" -f ($legacyFiles -join ", ")) -ForegroundColor DarkYellow
+        Write-Host "Si quieres uno de esos, arrancalo con ENV_FILE explicito." -ForegroundColor DarkYellow
+    }
+
+    $environment = Get-EnvValue -lines $lines -key "ENVIRONMENT" -default "development"
+    $databaseUrl = Get-EnvValue -lines $lines -key "DATABASE_URL" -default ""
+    $dbDsn = Get-EnvValue -lines $lines -key "DB_DSN" -default ""
+    $frontendUrlSummary = Get-EnvValue -lines $lines -key "FRONTEND_URL" -default "http://localhost:8081"
+    $tenantUrlSummary = Get-EnvValue -lines $lines -key "TENANT_URL" -default "http://localhost:8082"
+    $viteApiUrl = Get-EnvValue -lines $lines -key "VITE_API_URL" -default "http://localhost:8000"
+
+    Write-Host ("ENVIRONMENT={0}" -f $environment) -ForegroundColor Gray
+    Write-Host ("DATABASE_URL={0}" -f (Mask-ConnectionString -value $databaseUrl)) -ForegroundColor Gray
+    Write-Host ("DB_DSN={0}" -f (Mask-ConnectionString -value $dbDsn)) -ForegroundColor Gray
+    Write-Host ("FRONTEND_URL={0}" -f $frontendUrlSummary) -ForegroundColor Gray
+    Write-Host ("TENANT_URL={0}" -f $tenantUrlSummary) -ForegroundColor Gray
+    Write-Host ("VITE_API_URL={0}" -f $viteApiUrl) -ForegroundColor Gray
+
+    if ($databaseUrl -and $dbDsn -and $databaseUrl -ne $dbDsn) {
+        Write-Host "Aviso: DATABASE_URL y DB_DSN no coinciden. Conviene mantenerlos iguales." -ForegroundColor Yellow
+    }
+}
+
+Show-EnvStartupSummary -lines $rootEnvLines -envPath $rootEnvPath
 
 Write-Host "[2/7] Verificando DB local (PostgreSQL en localhost:5432)..." -ForegroundColor Yellow
 # Asume PostgreSQL corriendo nativamente. Si no, instala y ejecuta.
@@ -405,6 +463,7 @@ if ($tenantBuildExit -ne 0) {
 }
 
 Write-Host "[5/7] Iniciando backend..." -ForegroundColor Green
+Write-Host ("Backend ENV_FILE={0}" -f $rootEnvPath) -ForegroundColor Cyan
 
 if (Test-Path $venvActivate) {
     & $venvActivate
@@ -478,6 +537,7 @@ Write-Host "`n[OK] Sistema listo (como en PRO)" -ForegroundColor Green
 Write-Host "API: http://localhost:8000/docs" -ForegroundColor White
 Write-Host "Admin: $frontendUrl" -ForegroundColor White
 Write-Host "Tenant: $tenantOrigin" -ForegroundColor White
+Write-Host ("Env activo: {0}" -f $rootEnvPath) -ForegroundColor White
 Write-Host ""
 Write-Host "Tips: Usa 'Get-Job' y 'Receive-Job -Name backend|admin|tenant -Keep' para ver logs." -ForegroundColor DarkGray
 Write-Host ("Para detener: Stop-Job -Name {0}; Remove-Job -Name {0}" -f ($allJobNames -join ",")) -ForegroundColor DarkGray

@@ -13,26 +13,22 @@ from app.services.ai.providers.ollama import OllamaProvider
 
 logger = logging.getLogger(__name__)
 
-_OLLAMA_SAFE_DEFAULT_MODEL = AIModel.LLAMA3_1_8B.value
-_OLLAMA_BLOCKED_MODEL_PREFIXES = ("qwen2.5-coder", "qwen2.5")
-_OLLAMA_DEFAULT_TIMEOUT_SECONDS = 30.0
-_OLLAMA_EXTRACTION_ALLOWED_MODELS: tuple[str, ...] = (
-    AIModel.LLAMA3_1_8B.value,
-    "llama3:8b",
-    AIModel.MISTRAL_7B.value,
-    AIModel.LLAMA3_1_70B.value,
-    AIModel.NEURAL_CHAT.value,
+# Leídos del .env al arrancar — sin valores hardcodeados en código
+_OLLAMA_BLOCKED_MODEL_PREFIXES: tuple[str, ...] = tuple(
+    p.strip()
+    for p in os.getenv("OLLAMA_BLOCKED_PREFIXES", "").split(",")
+    if p.strip()
 )
+_OLLAMA_MAX_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_MAX_TIMEOUT", "30"))
 
 
 def _sanitize_ollama_model(raw_model: Any) -> tuple[str, str, str | None]:
     requested = str(raw_model or "").strip()
     if not requested:
-        return _OLLAMA_SAFE_DEFAULT_MODEL, "default", None
+        return AIModel.QWEN3_8B.value, "default", None
 
-    lowered = requested.lower()
-    if lowered.startswith(_OLLAMA_BLOCKED_MODEL_PREFIXES):
-        return _OLLAMA_SAFE_DEFAULT_MODEL, "legacy_blocked", requested
+    if _OLLAMA_BLOCKED_MODEL_PREFIXES and requested.lower().startswith(_OLLAMA_BLOCKED_MODEL_PREFIXES):
+        return AIModel.QWEN3_8B.value, "legacy_blocked", requested
 
     return requested, "env", requested
 
@@ -40,18 +36,18 @@ def _sanitize_ollama_model(raw_model: Any) -> tuple[str, str, str | None]:
 def _sanitize_ollama_timeout(raw_timeout: Any) -> tuple[float, str, str | None]:
     requested_text = str(raw_timeout or "").strip()
     if not requested_text:
-        return _OLLAMA_DEFAULT_TIMEOUT_SECONDS, "default", None
+        return _OLLAMA_MAX_TIMEOUT_SECONDS, "default", None
 
     try:
         requested = float(requested_text)
     except (TypeError, ValueError):
-        return _OLLAMA_DEFAULT_TIMEOUT_SECONDS, "default_invalid", requested_text
+        return _OLLAMA_MAX_TIMEOUT_SECONDS, "default_invalid", requested_text
 
     if requested <= 0:
-        return _OLLAMA_DEFAULT_TIMEOUT_SECONDS, "default_invalid", requested_text
+        return _OLLAMA_MAX_TIMEOUT_SECONDS, "default_invalid", requested_text
 
-    if requested > _OLLAMA_DEFAULT_TIMEOUT_SECONDS:
-        return _OLLAMA_DEFAULT_TIMEOUT_SECONDS, "env_capped", requested_text
+    if requested > _OLLAMA_MAX_TIMEOUT_SECONDS:
+        return _OLLAMA_MAX_TIMEOUT_SECONDS, "env_capped", requested_text
 
     return requested, "env", requested_text
 
@@ -59,10 +55,10 @@ def _sanitize_ollama_timeout(raw_timeout: Any) -> tuple[float, str, str | None]:
 def _parse_ollama_extraction_allowed_models(raw: Any) -> list[str]:
     requested = str(raw or "").strip()
     if not requested:
-        return list(_OLLAMA_EXTRACTION_ALLOWED_MODELS)
+        return [AIModel.QWEN3_8B.value]
 
     allowed = [item.strip() for item in requested.split(",") if item.strip()]
-    return allowed or list(_OLLAMA_EXTRACTION_ALLOWED_MODELS)
+    return allowed or [AIModel.QWEN3_8B.value]
 
 
 class AIProviderFactory:

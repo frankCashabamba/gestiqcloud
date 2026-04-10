@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+from app.services.ai.base import AIModel
 from app.modules.importador.ai_classifier import (
     _fallback_classify,
     _extract_invoice_doc_number_from_ocr,
@@ -260,7 +261,7 @@ def test_sanitize_extraction_model_override_blocks_non_extraction_models():
 
 
 def test_sanitize_extraction_model_override_keeps_text_models():
-    assert _sanitize_extraction_model_override("llama3.1:8b") == "llama3.1:8b"
+    assert _sanitize_extraction_model_override(AIModel.QWEN3_8B.value) == AIModel.QWEN3_8B.value
 
 
 def test_normalize_invoice_ocr_line_uses_runtime_patterns(monkeypatch):

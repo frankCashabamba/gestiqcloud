@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 
-from app.services.ai.base import AIRequest, AIResponse, AITask
+from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask
 from app.services.ai.service import AIService
+
+_MODEL = AIModel.QWEN3_8B.value
 
 
 def test_ai_request_derives_prompt_from_messages():
@@ -47,7 +49,7 @@ def test_ai_service_query_passes_messages_into_request(monkeypatch):
 
     class _Provider:
         name = "ollama"
-        default_model = "llama3.1:8b"
+        default_model = _MODEL
 
         async def call(self, request):
             captured["prompt"] = request.prompt
@@ -55,7 +57,7 @@ def test_ai_service_query_passes_messages_into_request(monkeypatch):
             return AIResponse(
                 task=request.task,
                 content='{"ok": true}',
-                model="llama3.1:8b",
+                model=_MODEL,
             )
 
     monkeypatch.setattr("app.services.ai.service.cache_get", _fake_cache_get)
@@ -96,7 +98,7 @@ def test_ai_service_keeps_ollama_when_it_succeeds_even_with_complexity_context(m
 
     class _OllamaProvider:
         name = "ollama"
-        default_model = "llama3.1:8b"
+        default_model = _MODEL
 
         async def call(self, request):
             del request
@@ -104,7 +106,7 @@ def test_ai_service_keeps_ollama_when_it_succeeds_even_with_complexity_context(m
             return AIResponse(
                 task=AITask.EXTRACTION,
                 content='{"provider":"ollama"}',
-                model="llama3.1:8b",
+                model=_MODEL,
                 processing_time_ms=2200,
             )
 
@@ -151,7 +153,7 @@ def test_ai_service_keeps_ollama_when_it_succeeds_even_with_complexity_context(m
 
     assert response.is_error is False
     assert response.content == '{"provider":"ollama"}'
-    assert response.model == "llama3.1:8b"
+    assert response.model == _MODEL
     assert captured["ollama_calls"] == 1
     assert captured["openai_calls"] == 0
 
@@ -168,7 +170,7 @@ def test_ai_service_returns_ollama_error_without_fallback(monkeypatch):
 
     class _OllamaProvider:
         name = "ollama"
-        default_model = "llama3.1:8b"
+        default_model = _MODEL
 
         async def call(self, request):
             del request
@@ -176,7 +178,7 @@ def test_ai_service_returns_ollama_error_without_fallback(monkeypatch):
             return AIResponse(
                 task=AITask.EXTRACTION,
                 content="",
-                model="llama3.1:8b",
+                model=_MODEL,
                 error="Ollama timeout",
             )
 
@@ -231,7 +233,7 @@ def test_ai_service_does_not_use_openai_when_fallback_chain_is_disabled(monkeypa
 
     class _OllamaProvider:
         name = "ollama"
-        default_model = "llama3.1:8b"
+        default_model = _MODEL
 
         async def call(self, request):
             del request
@@ -239,7 +241,7 @@ def test_ai_service_does_not_use_openai_when_fallback_chain_is_disabled(monkeypa
             return AIResponse(
                 task=AITask.EXTRACTION,
                 content="",
-                model="llama3.1:8b",
+                model=_MODEL,
                 error="Ollama timeout",
             )
 

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 
-from app.services.ai.base import AIRequest, AITask
+from app.services.ai.base import AIModel, AIRequest, AITask
 from app.services.ai.factory import AIProviderFactory
 from app.services.ai.providers.ollama import OllamaProvider
+
+_MODEL = AIModel.QWEN3_8B.value
 
 
 def test_ollama_provider_uses_independent_semaphores_for_same_base_url_and_concurrency():
@@ -12,7 +14,7 @@ def test_ollama_provider_uses_independent_semaphores_for_same_base_url_and_concu
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "llama3.1:8b",
+            "model": _MODEL,
             "max_concurrency": "4",
         }
     )
@@ -20,7 +22,7 @@ def test_ollama_provider_uses_independent_semaphores_for_same_base_url_and_concu
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "llama3.1:8b",
+            "model": _MODEL,
             "max_concurrency": "4",
         }
     )
@@ -38,7 +40,7 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
             return None
 
         def json(self):
-            return {"message": {"content": '{"ok": true}'}, "model": "llama3.1:8b"}
+            return {"message": {"content": '{"ok": true}'}, "model": _MODEL}
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -58,7 +60,7 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
                 (),
                 {
                     "raise_for_status": lambda self: None,
-                    "json": lambda self: {"models": [{"name": "llama3.1:8b"}]},
+                    "json": lambda self: {"models": [{"name": _MODEL}]},
                 },
             )()
 
@@ -71,7 +73,7 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "llama3.1:8b",
+            "model": _MODEL,
             "max_concurrency": "1",
         }
     )
@@ -96,7 +98,7 @@ def test_ollama_provider_chat_api_uses_request_messages(monkeypatch):
         {"role": "system", "content": "System"},
         {"role": "user", "content": "User"},
     ]
-    assert captured["json"]["model"] == "llama3.1:8b"
+    assert captured["json"]["model"] == _MODEL
 
 
 def test_ollama_provider_prefers_available_extraction_model(monkeypatch):
@@ -114,7 +116,7 @@ def test_ollama_provider_prefers_available_extraction_model(monkeypatch):
             return None
 
         def json(self):
-            return {"message": {"content": '{"ok": true}'}, "model": "mistral:7b"}
+            return {"message": {"content": '{"ok": true}'}, "model": _MODEL}
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -134,9 +136,7 @@ def test_ollama_provider_prefers_available_extraction_model(monkeypatch):
                 (),
                 {
                     "raise_for_status": lambda self: None,
-                    "json": lambda self: {
-                        "models": [{"name": "mistral:7b"}, {"name": "llama3.1:8b"}]
-                    },
+                    "json": lambda self: {"models": [{"name": _MODEL}]},
                 },
             )()
 
@@ -156,65 +156,7 @@ def test_ollama_provider_prefers_available_extraction_model(monkeypatch):
     )
 
     assert response.is_error is False
-    assert response.model == "llama3.1:8b"
-
-
-def test_ollama_provider_falls_back_to_llama3_when_llama31_is_missing(monkeypatch):
-    provider = OllamaProvider(
-        {
-            "url": "http://127.0.0.1:11434",
-            "endpoint": "/api/chat",
-            "model": "llama3.1:8b",
-            "max_concurrency": "1",
-        }
-    )
-
-    class FakeResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"message": {"content": '{"ok": true}'}, "model": "llama3:8b"}
-
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            del args, kwargs
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            del exc_type, exc, tb
-            return False
-
-        async def get(self, url):
-            del url
-            return type(
-                "TagsResponse",
-                (object,),
-                {
-                    "raise_for_status": lambda self: None,
-                    "json": lambda self: {"models": [{"name": "llama3:8b"}]},
-                },
-            )()
-
-        async def post(self, url, json):
-            del url, json
-            return FakeResponse()
-
-    monkeypatch.setattr("app.services.ai.providers.ollama.httpx.AsyncClient", FakeClient)
-
-    response = asyncio.run(
-        provider.call(
-            AIRequest(
-                task=AITask.EXTRACTION,
-                prompt="flattened",
-            )
-        )
-    )
-
-    assert response.is_error is False
-    assert response.model == "llama3:8b"
+    assert response.model == _MODEL
 
 
 def test_ollama_provider_blocks_legacy_qwen_extraction_override(monkeypatch):
@@ -233,7 +175,7 @@ def test_ollama_provider_blocks_legacy_qwen_extraction_override(monkeypatch):
             return None
 
         def json(self):
-            return {"message": {"content": '{"ok": true}'}, "model": "llama3.1:8b"}
+            return {"message": {"content": '{"ok": true}'}, "model": _MODEL}
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -253,9 +195,7 @@ def test_ollama_provider_blocks_legacy_qwen_extraction_override(monkeypatch):
                 (),
                 {
                     "raise_for_status": lambda self: None,
-                    "json": lambda self: {
-                        "models": [{"name": "llama3.1:8b"}, {"name": "mistral:7b"}]
-                    },
+                    "json": lambda self: {"models": [{"name": _MODEL}]},
                 },
             )()
 
@@ -336,7 +276,7 @@ def test_ollama_provider_rejects_missing_explicit_model_before_call(monkeypatch)
         {
             "url": "http://127.0.0.1:11434",
             "endpoint": "/api/chat",
-            "model": "llama3.1:8b",
+            "model": _MODEL,
             "max_concurrency": "1",
         }
     )
@@ -359,9 +299,7 @@ def test_ollama_provider_rejects_missing_explicit_model_before_call(monkeypatch)
                 (object,),
                 {
                     "raise_for_status": lambda self: None,
-                    "json": lambda self: {
-                        "models": [{"name": "llama3.1:8b"}, {"name": "mistral:7b"}]
-                    },
+                    "json": lambda self: {"models": [{"name": _MODEL}]},
                 },
             )()
 
@@ -387,10 +325,17 @@ def test_ollama_provider_rejects_missing_explicit_model_before_call(monkeypatch)
 def test_ollama_factory_caps_legacy_timeout_and_model(monkeypatch):
     monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5-coder:3b")
     monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
+    monkeypatch.setenv("OLLAMA_BLOCKED_PREFIXES", "qwen2.5-coder,qwen2.5")
+    monkeypatch.setenv("OLLAMA_MAX_TIMEOUT", "30")
 
-    config = AIProviderFactory._get_provider_config("ollama")
+    # Re-importar las constantes del módulo para que lean los nuevos env vars
+    import importlib
+    import app.services.ai.factory as factory_mod
+    importlib.reload(factory_mod)
 
-    assert config["model"] == "llama3.1:8b"
+    config = factory_mod.AIProviderFactory._get_provider_config("ollama")
+
+    assert config["model"] == _MODEL
     assert config["timeout"] == 30.0
     assert config["model_source"] == "legacy_blocked"
     assert config["timeout_source"] == "env_capped"

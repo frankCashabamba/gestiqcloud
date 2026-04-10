@@ -5,6 +5,7 @@ Base AI Provider Interface - Abstraccion centralizada para multiples proveedores
 from __future__ import annotations
 
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -30,16 +31,11 @@ def messages_to_prompt(messages: list[dict[str, Any]] | None) -> str:
 
 
 class AIModel(str, Enum):
-    """Modelos disponibles en cada proveedor"""
+    """Modelos disponibles — requiere AI_MODEL_QWEN3_8B en .env (falla si no está definida)"""
 
-    LLAMA3_1_8B = "llama3.1:8b"
-    LLAMA3_1_70B = "llama3.1:70b"
-    MISTRAL_7B = "mistral:7b"
-    NEURAL_CHAT = "neural-chat:7b"
+    QWEN3_8B = os.environ["AI_MODEL_QWEN3_8B"]
 
-    GPT_4O = "gpt-4o"
-    GPT_4_TURBO = "gpt-4-turbo"
-    GPT_35_TURBO = "gpt-3.5-turbo"
+   
 
 
 def model_name(model: AIModel | str | None) -> str:

@@ -27,8 +27,8 @@ async def initialize_ai_providers() -> None:
         available = sum(1 for value in health.values() if value)
         if available == 0:
             logger.warning(
-                "No AI provider is available. Check AI_PROVIDER, OLLAMA_BASE_URL/OLLAMA_URL, "
-                "OVHCLOUD_BASE_URL/OVHCLOUD_API_URL, and OPENAI_API_KEY."
+                "No AI provider is available. Check OLLAMA_BASE_URL/OLLAMA_URL, "
+                "OLLAMA_MODEL, and Ollama local service status."
             )
         else:
             logger.info("%s/%s AI providers available", available, len(health))

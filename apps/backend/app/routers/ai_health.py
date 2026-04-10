@@ -15,6 +15,44 @@ router = APIRouter(prefix="/health/ai", tags=["AI Health"])
 logger = logging.getLogger(__name__)
 
 
+async def _serialize_provider(name: str, provider: Any, *, available: bool) -> dict[str, Any]:
+    discovered_models: list[str] = []
+    discovery_error: str | None = None
+
+    if hasattr(provider, "discover_models"):
+        try:
+            discovered_models = list(await provider.discover_models(force_refresh=True))
+        except Exception as exc:
+            discovery_error = str(exc)
+
+    configured_models = []
+    try:
+        configured_models = [str(m.value if hasattr(m, "value") else m) for m in provider.get_supported_models()]
+    except Exception:
+        configured_models = []
+
+    config = {
+        "base_url": getattr(provider, "base_url", None),
+        "endpoint": getattr(provider, "endpoint", None),
+        "default_model": str(getattr(provider, "default_model", "") or ""),
+        "allowed_extraction_models": list(getattr(provider, "allowed_extraction_models", []) or []),
+        "timeout_seconds": getattr(provider, "request_timeout", None),
+        "max_concurrency": getattr(provider, "max_concurrency", None),
+        "health_check_timeout": getattr(provider, "_health_check_timeout", None),
+    }
+
+    return {
+        "name": name,
+        "available": available,
+        "configured": True,
+        "models": discovered_models or configured_models,
+        "configured_models": configured_models,
+        "discovered_models": discovered_models,
+        "config": config,
+        "discovery_error": discovery_error,
+    }
+
+
 @router.get("", response_model=dict[str, Any])
 async def ai_health_check():
     """
@@ -69,7 +107,7 @@ async def ai_health_check():
 @router.get("/providers", response_model=dict[str, Any])
 async def list_ai_providers():
     """
-    Lista todos los proveedores configurados y disponibles
+    Lista los proveedores IA activos y su configuración efectiva.
 
     Returns:
         {
@@ -77,10 +115,11 @@ async def list_ai_providers():
                 {
                     "name": "ollama",
                     "available": true,
-                    "models": ["llama3.1:8b", ...],
+                    "models": ["<AI_MODEL_QWEN3_8B>", ...],
+                    "configured_models": [...],
+                    "discovered_models": [...],
                     "config": {...}
                 },
-                ...
             ]
         }
     """
@@ -88,22 +127,31 @@ async def list_ai_providers():
         if not AIProviderFactory._instances:
             AIProviderFactory.initialize()
 
-        providers_list = []
+        if not AIProviderFactory._instances:
+            return {
+                "providers": [],
+                "primary": None,
+                "fallback_chain": [],
+                "count": 0,
+            }
+
         health_status = await AIProviderFactory.health_check_all()
+        providers_list = []
 
         for name, provider in AIProviderFactory._instances.items():
-            provider_info = {
-                "name": name,
-                "available": health_status.get(name, False),
-                "supported_models": [m.value for m in provider.get_supported_models()],
-                "default_model": str(getattr(provider, "default_model", "unknown")),
-            }
-            providers_list.append(provider_info)
+            providers_list.append(
+                await _serialize_provider(
+                    name,
+                    provider,
+                    available=health_status.get(name, False),
+                )
+            )
 
         return {
             "providers": providers_list,
             "primary": AIProviderFactory._primary_provider,
             "fallback_chain": AIProviderFactory._fallback_chain,
+            "count": len(providers_list),
         }
 
     except Exception as e:

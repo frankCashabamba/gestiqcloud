@@ -30,11 +30,7 @@ _logged_configs: set[tuple[str, str, int, float, str]] = set()
 _tags_cache: dict[tuple[str, str], tuple[float, list[str]]] = {}
 _health_cache: dict[tuple[str, str], tuple[float, bool]] = {}
 _DEFAULT_ALLOWED_EXTRACTION_MODELS: tuple[str, ...] = (
-    AIModel.LLAMA3_1_8B.value,
-    "llama3:8b",
-    AIModel.MISTRAL_7B.value,
-    AIModel.LLAMA3_1_70B.value,
-    AIModel.NEURAL_CHAT.value,
+    AIModel.QWEN3_8B.value,
 )
 
 
@@ -76,7 +72,7 @@ class OllamaProvider(BaseAIProvider):
         self._endpoint_url = self._build_endpoint_url(self.base_url, self.endpoint)
         self.use_chat_api = "chat" in self.endpoint
 
-        self.default_model = self._coerce_model(config.get("model"), AIModel.LLAMA3_1_8B.value)
+        self.default_model = self._coerce_model(config.get("model"), AIModel.QWEN3_8B.value)
         self.allowed_extraction_models = self._normalize_allowed_extraction_models(
             config.get("allowed_extraction_models")
         )
@@ -87,6 +83,7 @@ class OllamaProvider(BaseAIProvider):
         )
         self._semaphore = asyncio.Semaphore(self.max_concurrency)
         self._client: httpx.AsyncClient | None = None
+        self._client_loop: asyncio.AbstractEventLoop | None = None
         self._cache_key = (self.base_url, self.endpoint)
 
         config_key = (
@@ -116,16 +113,23 @@ class OllamaProvider(BaseAIProvider):
     async def close(self) -> None:
         client = self._client
         self._client = None
+        self._client_loop = None
         if client is not None:
             await client.aclose()
 
     async def _get_client(self, timeout: float | None = None) -> httpx.AsyncClient:
         effective_timeout = timeout if timeout is not None else self.request_timeout
+        current_loop = asyncio.get_running_loop()
         client = self._client
-        if client is None or float(client.timeout.read) != float(effective_timeout):
+        if (
+            client is None
+            or self._client_loop is not current_loop
+            or float(client.timeout.read) != float(effective_timeout)
+        ):
             if client is not None:
                 await client.aclose()
             self._client = httpx.AsyncClient(timeout=effective_timeout)
+            self._client_loop = current_loop
             client = self._client
         return client
 
@@ -182,7 +186,7 @@ class OllamaProvider(BaseAIProvider):
 
     async def resolve_model(self, request: AIRequest) -> ModelResolution:
         explicit = self._coerce_model(request.model, "")
-        configured = self._coerce_model(self.default_model, AIModel.LLAMA3_1_8B.value)
+        configured = self._coerce_model(self.default_model, AIModel.QWEN3_8B.value)
 
         try:
             available_models = await self.discover_models(timeout=self._health_check_timeout)
@@ -220,7 +224,7 @@ class OllamaProvider(BaseAIProvider):
             return ModelResolution(configured, SelectionReason.CONFIGURED_DEFAULT_FALLBACK)
 
         return ModelResolution(
-            AIModel.LLAMA3_1_8B.value,
+            AIModel.QWEN3_8B.value,
             SelectionReason.NO_AVAILABLE_MODELS,
             error=f"No hay modelos Ollama disponibles en {self.base_url}",
         )
@@ -421,15 +425,10 @@ class OllamaProvider(BaseAIProvider):
             )
 
     def get_default_model(self, task: AITask) -> str:
-        return self._coerce_model(self.default_model, AIModel.LLAMA3_1_8B.value)
+        return self._coerce_model(self.default_model, AIModel.QWEN3_8B.value)
 
     def get_supported_models(self) -> list[AIModel]:
-        return [
-            AIModel.LLAMA3_1_8B,
-            AIModel.MISTRAL_7B,
-            AIModel.LLAMA3_1_70B,
-            AIModel.NEURAL_CHAT,
-        ]
+        return [AIModel.QWEN3_8B]
 
     @staticmethod
     def _normalize_base_url(value: Any) -> str:

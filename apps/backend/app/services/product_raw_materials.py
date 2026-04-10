@@ -23,7 +23,7 @@ def ensure_products_raw_material_column(db: Session) -> None:
     if cached is True:
         return
 
-    inspector = inspect(db.bind)
+    inspector = inspect(db.get_bind())
     schema = None if IS_SQLITE else "public"
     columns = {col["name"] for col in inspector.get_columns("products", schema=schema)}
     if "is_raw_material" in columns:

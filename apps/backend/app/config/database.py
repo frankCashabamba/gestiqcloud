@@ -56,7 +56,8 @@ STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mínimo 1s
 
 CONNECT_ARGS = {
     # Requiere driver psycopg (postgresql+psycopg://) para respetar options
-    "options": f"-c statement_timeout={STATEMENT_TIMEOUT_MS}",
+    # lc_messages=C fuerza mensajes del servidor en ASCII (evita UnicodeDecodeError en Windows)
+    "options": f"-c statement_timeout={STATEMENT_TIMEOUT_MS} -c lc_messages=C",
     "client_encoding": "UTF8",
 }
 

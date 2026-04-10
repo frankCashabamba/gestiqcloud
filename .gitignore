@@ -25,7 +25,6 @@ htmlcov/
 apps/*/.env
 apps/*/.env.*
 !apps/*/.env.example
-backend/.env
 *.pem
 *.key
 *.secret

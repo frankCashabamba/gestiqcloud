@@ -9,6 +9,7 @@ from app.modules.importador.processing_service import (
     _analyze_with_context,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
+    _promote_doc_type_from_text_fallback,
     _sanitize_text_fallback_fields,
 )
 from app.modules.importador.text_fallback_extractor import (
@@ -371,6 +372,74 @@ def test_sanitize_text_fallback_fields_drops_noisy_tax_ids_and_keeps_clean_value
     assert cleaned["customer_tax_id"] == "1792845612001"
     assert cleaned["customer"] == "MARIA AURORA CASABAMBA CASABAMBA Boh"
     assert cleaned["issue_date"] == "2026-04-03"
+
+
+@pytest.mark.no_db
+def test_promote_doc_type_from_text_fallback_promotes_receipt_from_minimal_fields():
+    promoted_type, promoted_confidence, promoted_reasoning, reason_tag = (
+        _promote_doc_type_from_text_fallback(
+            current_doc_type="OTHER",
+            current_confidence=0.2,
+            current_reasoning="fallback",
+            fields={
+                "issue_date": "2026-01-16",
+                "total_amount": 2145,
+                "vendor_tax_id": "1890004195001",
+            },
+            content="texto OCR sin clasificacion usable",
+            filename="whatsapp-image.jpeg",
+        )
+    )
+
+    assert promoted_type == "RECEIPT"
+    assert promoted_confidence >= 0.61
+    assert reason_tag == "receipt_like_fields"
+    assert "Promoted from OCR text fallback" in promoted_reasoning
+
+
+@pytest.mark.no_db
+def test_promote_doc_type_from_text_fallback_promotes_invoice_when_doc_number_or_lines_exist():
+    promoted_type, promoted_confidence, _, reason_tag = _promote_doc_type_from_text_fallback(
+        current_doc_type="OTHER",
+        current_confidence=0.2,
+        current_reasoning="fallback",
+        fields={
+            "issue_date": "2026-01-16",
+            "total_amount": 2145,
+            "vendor_tax_id": "1890004195001",
+            "doc_number": "001-002-000123",
+            "line_items": [{"description": "Harina", "quantity": 2}],
+        },
+        content="texto OCR sin clasificacion usable",
+        filename="factura.jpeg",
+    )
+
+    assert promoted_type == "INVOICE"
+    assert promoted_confidence >= 0.64
+    assert reason_tag in {"invoice_keyword", "invoice_like_fields"}
+
+
+@pytest.mark.no_db
+def test_promote_doc_type_from_text_fallback_respects_sales_preclassification():
+    promoted_type, promoted_confidence, promoted_reasoning, reason_tag = (
+        _promote_doc_type_from_text_fallback(
+            current_doc_type="OTHER",
+            current_confidence=0.2,
+            current_reasoning="fallback",
+            fields={
+                "total_amount": 79.24,
+                "line_items": [{"description": "Pedido 1"}, {"description": "Pedido 2"}],
+            },
+            content="Ventas del dia total 79.24",
+            filename="Ventas_2026-02-21_2026-03-23.pdf",
+            pre_class_doc_type="SALES",
+        )
+    )
+
+    assert promoted_type == "OTHER"
+    assert promoted_confidence == 0.2
+    assert promoted_reasoning == "fallback"
+    assert reason_tag is None
 
 
 @pytest.mark.no_db
