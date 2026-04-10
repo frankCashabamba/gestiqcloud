@@ -109,12 +109,6 @@ def test_ollama_provider_prefers_available_extraction_model(monkeypatch):
         }
     )
 
-    monkeypatch.setattr(
-        provider,
-        "_get_available_models",
-        lambda timeout=3.0: asyncio.sleep(0, result=["mistral:7b", "llama3.1:8b"]),
-    )
-
     class FakeResponse:
         def raise_for_status(self):
             return None
@@ -175,12 +169,6 @@ def test_ollama_provider_falls_back_to_llama3_when_llama31_is_missing(monkeypatc
         }
     )
 
-    monkeypatch.setattr(
-        provider,
-        "_get_available_models",
-        lambda timeout=3.0: asyncio.sleep(0, result=["llama3:8b"]),
-    )
-
     class FakeResponse:
         def raise_for_status(self):
             return None
@@ -229,7 +217,7 @@ def test_ollama_provider_falls_back_to_llama3_when_llama31_is_missing(monkeypatc
     assert response.model == "llama3:8b"
 
 
-def test_ollama_provider_ignores_qwen_extraction_override(monkeypatch):
+def test_ollama_provider_blocks_legacy_qwen_extraction_override(monkeypatch):
     provider = OllamaProvider(
         {
             "url": "http://127.0.0.1:11434",
@@ -238,12 +226,6 @@ def test_ollama_provider_ignores_qwen_extraction_override(monkeypatch):
             "max_concurrency": "1",
             "timeout": "30",
         }
-    )
-
-    monkeypatch.setattr(
-        provider,
-        "_get_available_models",
-        lambda timeout=3.0: asyncio.sleep(0, result=["llama3.1:8b", "mistral:7b"]),
     )
 
     class FakeResponse:
@@ -293,8 +275,60 @@ def test_ollama_provider_ignores_qwen_extraction_override(monkeypatch):
         )
     )
 
-    assert response.is_error is False
-    assert response.model == "llama3.1:8b"
+    assert response.is_error is True
+    assert response.metadata["selection_reason"] == "no_allowed_extraction_model"
+    assert "no permitido" in (response.error or "").lower()
+
+
+def test_ollama_provider_blocks_first_available_for_extraction(monkeypatch):
+    provider = OllamaProvider(
+        {
+            "url": "http://127.0.0.1:11434",
+            "endpoint": "/api/chat",
+            "model": "invalid-model",
+            "max_concurrency": "1",
+        }
+    )
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            del args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            del exc_type, exc, tb
+            return False
+
+        async def get(self, url):
+            del url
+            return type(
+                "TagsResponse",
+                (object,),
+                {
+                    "raise_for_status": lambda self: None,
+                    "json": lambda self: {"models": [{"name": "minicpm-v:latest"}]},
+                },
+            )()
+
+        async def post(self, url, json):
+            raise AssertionError("Ollama post should not run when model selection is blocked")
+
+    monkeypatch.setattr("app.services.ai.providers.ollama.httpx.AsyncClient", FakeClient)
+
+    response = asyncio.run(
+        provider.call(
+            AIRequest(
+                task=AITask.EXTRACTION,
+                prompt="flattened",
+            )
+        )
+    )
+
+    assert response.is_error is True
+    assert response.metadata["selection_reason"] == "no_allowed_extraction_model"
+    assert "allowed extraction model" in (response.error or "").lower()
 
 
 def test_ollama_provider_rejects_missing_explicit_model_before_call(monkeypatch):
@@ -307,11 +341,34 @@ def test_ollama_provider_rejects_missing_explicit_model_before_call(monkeypatch)
         }
     )
 
-    monkeypatch.setattr(
-        provider,
-        "_get_available_models",
-        lambda timeout=3.0: asyncio.sleep(0, result=["llama3.1:8b", "mistral:7b"]),
-    )
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            del args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            del exc_type, exc, tb
+            return False
+
+        async def get(self, url):
+            del url
+            return type(
+                "TagsResponse",
+                (object,),
+                {
+                    "raise_for_status": lambda self: None,
+                    "json": lambda self: {
+                        "models": [{"name": "llama3.1:8b"}, {"name": "mistral:7b"}]
+                    },
+                },
+            )()
+
+        async def post(self, url, json):
+            raise AssertionError("Ollama post should not run for missing explicit model")
+
+    monkeypatch.setattr("app.services.ai.providers.ollama.httpx.AsyncClient", FakeClient)
 
     response = asyncio.run(
         provider.call(

@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import datetime
+import math
+from numbers import Integral, Real
 from typing import Any
 from uuid import UUID
 
 
 def json_safe(obj: Any) -> Any:
     """Convierte recursivamente tipos no serializables en JSON a sus equivalentes seguros."""
+    if isinstance(obj, Integral) and not isinstance(obj, bool):
+        return int(obj)
+    if isinstance(obj, Real) and not isinstance(obj, bool):
+        value = float(obj)
+        if not math.isfinite(value):
+            return None
+        return value
     if isinstance(obj, (datetime.datetime, datetime.date)):
         return obj.isoformat()
     if isinstance(obj, UUID):

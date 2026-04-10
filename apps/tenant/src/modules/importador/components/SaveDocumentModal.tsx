@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { listPaymentMethods, type PaymentMethod } from '../../accounting/services'
 import {
   canSaveDocument,
@@ -28,6 +28,20 @@ function formatMoney(value: number | null): string {
   return value == null || Number.isNaN(value) ? '' : value.toFixed(2)
 }
 
+function formatCompactNumber(
+  value: number | null | undefined,
+  options?: { minDecimals?: number; maxDecimals?: number },
+): string {
+  if (value == null || Number.isNaN(Number(value))) return '0'
+  const numeric = Number(value)
+  const minDecimals = Math.max(0, Math.min(options?.minDecimals ?? 0, 6))
+  const maxDecimals = Math.max(minDecimals, Math.min(options?.maxDecimals ?? 2, 6))
+  return numeric.toLocaleString(undefined, {
+    minimumFractionDigits: Number.isInteger(numeric) ? minDecimals : Math.max(minDecimals, 1),
+    maximumFractionDigits: maxDecimals,
+  })
+}
+
 
 function parseMoney(value: unknown): number | null {
   if (value == null || typeof value === 'boolean') return null
@@ -43,11 +57,51 @@ function parseMoney(value: unknown): number | null {
       ? raw.replace(/\./g, '').replace(',', '.')
       : raw.replace(/,/g, '')
   } else if (raw.includes(',') && !raw.includes('.')) {
-    raw = raw.replace(',', '.')
+    const parts = raw.split(',').map((part) => part.trim()).filter(Boolean)
+    const allNumeric = parts.length > 1 && parts.every((part) => /^\d+$/.test(part))
+    if (allNumeric && parts[parts.length - 1].length === 3) {
+      raw = parts.join('')
+    } else {
+      raw = raw.replace(',', '.')
+    }
   }
 
   const numeric = Number(raw)
   return Number.isFinite(numeric) ? numeric : null
+}
+
+function getLineItemText(
+  item: Record<string, unknown>,
+  ...keys: string[]
+): string {
+  for (const key of keys) {
+    const value = item[key]
+    if (value == null) continue
+    const text = String(value).trim()
+    if (text) return text
+  }
+  return ''
+}
+
+function getLineItemDescription(item: Record<string, unknown>): string {
+  const description = getLineItemText(
+    item,
+    'description',
+    'descripcion',
+    'concept',
+    'concepto',
+    'product_name',
+    'nombre_producto',
+    'item',
+    'name',
+  )
+  if (description) return description
+  const reference = getLineItemText(item, 'supplier_ref', 'codigo', 'code', 'sku')
+  return reference || 'Producto sin nombre'
+}
+
+function getLineItemUnit(item: Record<string, unknown>): string {
+  return getLineItemText(item, 'unit', 'unidad', 'uom')
 }
 
 function normalizeText(value: unknown): string {
@@ -253,8 +307,33 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   const lineItems = useMemo(() => {
     const data = getDocumentData(doc)
     const items = data.line_items as Array<Record<string, unknown>> | undefined
-    return Array.isArray(items) ? items.filter(it => it && it.quantity) : []
+    if (!Array.isArray(items)) return []
+    return items
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => {
+        const row = item as Record<string, unknown>
+        const quantity = parseMoney(
+          row.quantity ?? row.cantidad ?? row.qty ?? row.cant ?? row.amount ?? null,
+        )
+        const unitPrice = parseMoney(
+          row.unit_price ?? row.precio_unitario ?? row['p. unitario'] ?? row.price ?? null,
+        )
+        return {
+          description: getLineItemDescription(row),
+          unit: getLineItemUnit(row),
+          quantity,
+          unitPrice,
+        }
+      })
+      .filter((item) => item.quantity != null || item.description)
   }, [doc])
+  const stockPreviewLines = useMemo(() => {
+    return lineItems.slice(0, 6).map((item) => ({
+      quantity: item.quantity ?? 0,
+      unit: item.unit || '',
+      description: String(item.description ?? 'Item').trim() || 'Item',
+    }))
+  }, [lineItems])
 
   const hasStockItems = lineItems.length > 0
   const canSaveInvoice = Boolean(capabilities.purchases || capabilities.invoicing)
@@ -356,9 +435,10 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   const routingDecision = doc.routing_decision || null
   const reviewHints = Array.isArray(doc.review_hints) ? doc.review_hints : []
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
+  const reviewIsReady = routingDecision ? routingDecision.required_fields_ok : true
   const reviewTitle = resumeMode
     ? 'Complete pending stock'
-    : (routingDecision?.required_fields_ok ? 'Ready to save' : 'Review before saving')
+    : (reviewIsReady ? 'Ready to save' : 'Review before saving')
   const reviewSummary = resumeMode
     ? 'The purchase already exists. This step only appears if there are still unlinked lines to update stock.'
     : (routingDecision?.reason
@@ -378,8 +458,8 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     : lineItems.map((item, index) => ({
         line_index: index,
         description: String(item.description ?? ''),
-        quantity: Number(item.quantity ?? 0),
-        unit_price: Number(item.unit_price ?? 0),
+        quantity: item.quantity ?? 0,
+        unit_price: item.unitPrice ?? 0,
         selected_product_id: null,
         selected_reason: null,
         inferred_factor: 1,
@@ -396,6 +476,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     return isLineResolved(row.line_index)
   }).length
   const unmatchedLines = Math.max(effectiveLineMatches.length - matchedLines, 0)
+  const hiddenStockPreview = Math.max(lineItems.length - stockPreviewLines.length, 0)
 
   const handlePaymentStatusChange = (nextStatus: DocumentPaymentStatus) => {
     setPaymentStatus(nextStatus)
@@ -520,16 +601,26 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
             <div style={{ fontSize: 15, fontWeight: 700 }}>{resumeMode ? 'Complete pending stock' : 'Save document'}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{doc.nombre_archivo}</div>
           </div>
-          <button onClick={onClose} style={closeBtn} disabled={saving}>X</button>
+          <button onClick={onClose} style={closeBtn} disabled={saving} aria-label="Close modal">Ã—</button>
         </div>
 
         <div style={body}>
           <div>
-            <div style={heroBox}>
+            <div style={{ ...heroBox, ...(reviewIsReady ? heroBoxReady : heroBoxReview) }}>
               <div>
                 <div style={heroEyebrow}>Final review</div>
                 <div style={heroTitle}>{reviewTitle}</div>
                 <div style={heroCopy}>{reviewSummary}</div>
+                <div style={heroMetaRow}>
+                  <span style={heroPill}>{destinationTitle}</span>
+                  {!canSubmit && <span style={heroPillWarn}>Missing required fields</span>}
+                  {destination === 'supplier_invoice' && hasStockItems && (
+                    <span style={heroPillMuted}>
+                      {matchedLines}/{effectiveLineMatches.length} lines linked
+                    </span>
+                  )}
+                </div>
+                <div style={heroSubCopy}>{destinationSummary}</div>
               </div>
               <button
                 type="button"
@@ -572,7 +663,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
           {showAdvanced && (
             <div style={advancedSection}>
-              <div>
+              <div style={advancedCard}>
                 <div style={label}>Save as</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
                   {canSaveInvoice && (
@@ -607,7 +698,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
               </div>
 
           {canUpdateStock && destination === 'supplier_invoice' && (
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ ...advancedCard, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
               <input
                 type="checkbox"
                 checked={updateStock}
@@ -619,13 +710,16 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
                   Actualizar stock ({lineItems.length} producto{lineItems.length > 1 ? 's' : ''})
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  {lineItems.map((it, i) => (
-                    <span key={i}>
-                      {i > 0 && ', '}
-                      +{String(it.quantity ?? '')} {String(it.description ?? '').slice(0, 40)}
+                <div style={stockChipWrap}>
+                  {stockPreviewLines.map((line, i) => (
+                    <span key={i} style={stockChip}>
+                      +{formatCompactNumber(line.quantity, { maxDecimals: 3 })}
+                      {line.unit ? ` ${line.unit}` : ''} - {line.description.slice(0, 34)}
                     </span>
                   ))}
+                  {hiddenStockPreview > 0 && (
+                    <span style={stockChipMore}>+{hiddenStockPreview} more lines</span>
+                  )}
                 </div>
               </div>
             </label>
@@ -659,6 +753,19 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                     </thead>
                     <tbody>
                       {effectiveLineMatches.map((row) => {
+                        const fallbackLine = lineItems[row.line_index]
+                        const rowDescription = String(
+                          row.description || fallbackLine?.description || `Línea ${row.line_index + 1}`,
+                        ).trim()
+                        const rowQuantityRaw = Number(row.quantity)
+                        const rowQuantity = Number.isFinite(rowQuantityRaw)
+                          ? rowQuantityRaw
+                          : (fallbackLine?.quantity ?? 0)
+                        const rowUnitPriceRaw = Number(row.unit_price)
+                        const rowUnitPrice = Number.isFinite(rowUnitPriceRaw)
+                          ? rowUnitPriceRaw
+                          : (fallbackLine?.unitPrice ?? 0)
+                        const rowUnit = fallbackLine?.unit || ''
                         const selectedId = lineMatchSelection[row.line_index] || ''
                         const isCreateNew = !selectedId && createNewByLine[row.line_index] === true
                         const selectedCandidate = row.candidates.find((candidate) => candidate.product_id === selectedId)
@@ -672,13 +779,14 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                             <td style={matchTdCompact}>
                               <div style={{ fontWeight: 600, color: '#0f172a' }}>#{row.line_index + 1}</div>
                               <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                                +{row.quantity} x {row.unit_price ? row.unit_price.toFixed(2) : '0.00'}
+                                +{formatCompactNumber(rowQuantity, { maxDecimals: 3 })}
+                                {rowUnit ? ` ${rowUnit}` : ''} - {formatCompactNumber(rowUnitPrice, { maxDecimals: 4 })}
                               </div>
                             </td>
                             <td style={matchTd}>
-                              <div style={{ fontWeight: 600, color: '#0f172a' }}>{row.description}</div>
+                              <div style={{ fontWeight: 600, color: '#0f172a' }}>{rowDescription}</div>
                               <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                                {selectedReason ? getMatchReasonLabel(selectedReason) : 'No link'} · factor {Number(selectedCandidate?.inferred_factor ?? row.inferred_factor ?? 1).toFixed(2)}
+                                {selectedReason ? getMatchReasonLabel(selectedReason) : 'No link'} - factor {Number(selectedCandidate?.inferred_factor ?? row.inferred_factor ?? 1).toFixed(2)}
                               </div>
                             </td>
                             <td style={matchTd}>
@@ -696,7 +804,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                                 <option value="">Sin vincular</option>
                                 {row.candidates.map((candidate) => (
                                   <option key={candidate.product_id} value={candidate.product_id}>
-                                    {candidate.name}{candidate.sku ? ` (${candidate.sku})` : ''} · {candidate.unit} · {Math.round(candidate.score * 100)}%
+                                    {candidate.name}{candidate.sku ? ` (${candidate.sku})` : ''} - {candidate.unit} - {Math.round(candidate.score * 100)}%
                                   </option>
                                 ))}
                               </select>
@@ -709,7 +817,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                                       onChange={(e) => setCreateNewByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
                                       disabled={saving}
                                     />
-                                    Create new product (+{row.quantity} {row.description.split(' ')[0]})
+                                    Create new product (+{formatCompactNumber(rowQuantity, { maxDecimals: 3 })}{rowUnit ? ` ${rowUnit}` : ''} - {rowDescription.slice(0, 28)})
                                   </label>
                                 ) : (
                                   <div style={{ fontSize: 12, color: '#64748b' }}>
@@ -849,7 +957,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
           {error && <div style={errorBox}>{error}</div>}
           {saveMessage && (
-            <div style={saveMessage.includes('⚠️') ? warnBox : infoBox}>
+            <div style={saveMessage.includes('âš ï¸') ? warnBox : infoBox}>
               {saveMessage}
             </div>
           )}
@@ -915,6 +1023,7 @@ const body: React.CSSProperties = {
   overflowY: 'auto',
   minHeight: 0,
   flex: '1 1 auto',
+  background: '#f8fafc',
 }
 
 const footer: React.CSSProperties = {
@@ -936,8 +1045,16 @@ const heroBox: React.CSSProperties = {
   flexWrap: 'wrap',
   padding: '0.95rem 1rem',
   borderRadius: 12,
-  background: '#eff6ff',
-  border: '1px solid #bfdbfe',
+}
+
+const heroBoxReady: React.CSSProperties = {
+  background: '#eefaf2',
+  border: '1px solid #86efac',
+}
+
+const heroBoxReview: React.CSSProperties = {
+  background: '#fff7ed',
+  border: '1px solid #fdba74',
 }
 
 const heroEyebrow: React.CSSProperties = {
@@ -962,11 +1079,54 @@ const heroCopy: React.CSSProperties = {
   maxWidth: 420,
 }
 
+const heroMetaRow: React.CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap',
+  marginTop: 8,
+}
+
+const heroPill: React.CSSProperties = {
+  borderRadius: 999,
+  padding: '0.2rem 0.55rem',
+  background: '#dbeafe',
+  color: '#1e40af',
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+}
+
+const heroPillWarn: React.CSSProperties = {
+  ...heroPill,
+  background: '#ffedd5',
+  color: '#9a3412',
+}
+
+const heroPillMuted: React.CSSProperties = {
+  ...heroPill,
+  background: '#e2e8f0',
+  color: '#334155',
+}
+
+const heroSubCopy: React.CSSProperties = {
+  marginTop: 7,
+  fontSize: 12,
+  color: '#475569',
+}
+
 const advancedSection: React.CSSProperties = {
   display: 'grid',
   gap: 16,
   paddingTop: 4,
   borderTop: '1px solid #e2e8f0',
+}
+
+const advancedCard: React.CSSProperties = {
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  padding: '0.8rem',
+  background: '#ffffff',
 }
 
 const field: React.CSSProperties = {
@@ -1034,7 +1194,7 @@ const matchPanel: React.CSSProperties = {
   padding: '0.9rem',
   borderRadius: 12,
   border: '1px solid #dbeafe',
-  background: '#f8fbff',
+  background: '#ffffff',
 }
 
 const matchTableWrap: React.CSSProperties = {
@@ -1118,10 +1278,41 @@ const secondaryBtn: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+const stockChipWrap: React.CSSProperties = {
+  display: 'flex',
+  gap: 6,
+  flexWrap: 'wrap',
+  marginTop: 6,
+}
+
+const stockChip: React.CSSProperties = {
+  border: '1px solid #dbeafe',
+  borderRadius: 999,
+  background: '#f8fbff',
+  color: '#334155',
+  fontSize: 11,
+  fontWeight: 600,
+  padding: '0.2rem 0.55rem',
+}
+
+const stockChipMore: React.CSSProperties = {
+  ...stockChip,
+  background: '#f1f5f9',
+  border: '1px solid #e2e8f0',
+  color: '#475569',
+}
+
 const closeBtn: React.CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: '#64748b',
-  fontSize: 16,
+  border: '1px solid #cbd5e1',
+  background: '#fff',
+  color: '#475569',
+  width: 30,
+  height: 30,
+  lineHeight: '26px',
+  borderRadius: 999,
+  textAlign: 'center',
+  fontSize: 18,
   cursor: 'pointer',
 }
+
+

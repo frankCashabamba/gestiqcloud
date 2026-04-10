@@ -7,6 +7,7 @@ from app.modules.importador.ai_classifier import (
     _fallback_classify,
     _extract_invoice_doc_number_from_ocr,
     _normalize_invoice_ocr_line,
+    _sanitize_extraction_model_override,
     analyze_document,
 )
 
@@ -251,6 +252,15 @@ def test_fallback_classify_uses_runtime_doc_type_patterns(monkeypatch):
 
     assert result["doc_type"] == "DELIVERY_NOTE"
     assert result["confidence"] > 0.2
+
+
+def test_sanitize_extraction_model_override_blocks_non_extraction_models():
+    assert _sanitize_extraction_model_override("minicpm-v:latest") is None
+    assert _sanitize_extraction_model_override("nomic-embed-text:latest") is None
+
+
+def test_sanitize_extraction_model_override_keeps_text_models():
+    assert _sanitize_extraction_model_override("llama3.1:8b") == "llama3.1:8b"
 
 
 def test_normalize_invoice_ocr_line_uses_runtime_patterns(monkeypatch):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from .runtime_config import (
     load_classification_threshold,
     load_doc_type_patterns,
     load_learning_control,
+    load_ocr_runtime_config,
     load_pdf_table_parse_config,
     load_processing_runtime_config,
     load_product_sheet_detection_config,
@@ -51,7 +53,7 @@ from .text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
     learn_labels_from_text,
 )
-from .ai_classifier import _estimate_text_quality
+from .ai_classifier import _apply_high_evidence_ocr_repairs, _estimate_text_quality
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
@@ -177,9 +179,15 @@ def _analysis_indicates_ai_failure(
     processing_cfg: dict[str, Any] | None = None,
 ) -> bool:
     """Detect whether the AI analysis failed (timeout, connection error, etc.)."""
+    if bool(analysis.get("fast_mode_skip_ai_due_to_sufficient_text")):
+        return True
     combined = " ".join(
         str(analysis.get(k, "") or "") for k in ("raw_response", "reasoning", "error", "model_used")
     ).lower()
+    if "fast_mode_text_sufficient_skip" in combined:
+        return True
+    if "no_allowed_extraction_model" in combined:
+        return True
     cfg = processing_cfg or load_processing_runtime_config(None)
     return any(token.lower() in combined for token in _runtime_text_list(cfg, "ai_failure_tokens"))
 
@@ -287,6 +295,78 @@ def _merge_text_fallback_fields(
             changed = True
 
     return changed
+
+
+def _sanitize_text_fallback_fields(
+    fallback_fields: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+    prompt_config: dict[str, Any] | None,
+    ai_runtime: dict[str, Any] | None,
+    ocr_runtime: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Drop noisy OCR fallback values and apply high-evidence repairs."""
+    cleaned = dict(fallback_fields or {})
+    if not cleaned:
+        return {}
+
+    # Reuse existing high-evidence repair rules from AI path without calling heavy LLM.
+    try:
+        parsed = {"doc_type": "OTHER", "fields": cleaned}
+        _apply_high_evidence_ocr_repairs(
+            parsed,
+            content=content,
+            format_hint=format_hint,
+            prompt_config=prompt_config,
+            ai_runtime=ai_runtime,
+            ocr_runtime=ocr_runtime,
+        )
+        fields_after_repairs = parsed.get("fields")
+        if isinstance(fields_after_repairs, dict):
+            cleaned = dict(fields_after_repairs)
+    except Exception as exc:
+        logger.debug("text fallback OCR repair skipped due to error: %s", exc)
+
+    removed: list[str] = []
+
+    for key in ("vendor_tax_id", "customer_tax_id"):
+        value = cleaned.get(key)
+        if value in (None, ""):
+            continue
+        digits = re.sub(r"[^0-9]", "", str(value))
+        if 10 <= len(digits) <= 15:
+            cleaned[key] = digits
+        else:
+            cleaned.pop(key, None)
+            removed.append(key)
+
+    for key in ("vendor", "customer"):
+        value = cleaned.get(key)
+        raw = " ".join(str(value or "").split()).strip()
+        if not raw:
+            continue
+        alpha = sum(1 for ch in raw if ch.isalpha())
+        weird = sum(1 for ch in raw if not (ch.isalnum() or ch.isspace() or ch in ".,&-/()"))
+        alpha_ratio = alpha / max(len(raw), 1)
+        weird_ratio = weird / max(len(raw), 1)
+        if alpha < 4 or alpha_ratio < 0.3 or weird_ratio > 0.12:
+            cleaned.pop(key, None)
+            removed.append(key)
+            continue
+        cleaned[key] = raw[:140]
+
+    issue_date = cleaned.get("issue_date")
+    if issue_date not in (None, ""):
+        normalized_date = str(issue_date).strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", normalized_date):
+            cleaned.pop("issue_date", None)
+            removed.append("issue_date")
+
+    if removed:
+        logger.info("text_fallback_sanitized removed_fields=%s", sorted(set(removed)))
+
+    return cleaned
 
 
 @dataclass(slots=True)
@@ -509,24 +589,50 @@ async def _analyze_with_context(
                 reprocess_mode,
             )
 
-    analysis = await analyze_document_fn(
-        content,
-        filename,
-        format_hint,
-        has_structured_rows=has_structured_rows,
-        recipe_config=recipe_config,
-        structured_data=structured_data,
-        structured_metadata=structured_metadata,
-        image_bytes=image_bytes,
-        fallback_patterns=fallback_patterns,
-        canonical_fields=canonical_fields,
-        prompt_config=prompt_config,
-        db=db,
-        reprocess_mode=reprocess_mode,
-        bypass_cache=bypass_cache,
-        deep_reprocess_context=deep_reprocess_context,
-        deep_focus_fields=deep_focus_fields,
+    fast_mode_skip_ai = (
+        str(reprocess_mode or "").strip().lower() == "fast"
+        and not has_structured_rows
+        and text_is_sufficient
     )
+    if fast_mode_skip_ai:
+        logger.info(
+            "fast_mode_skip_ai_due_to_sufficient_text=true filename=%s mode=%s text_is_sufficient=%s reason=fast_mode_text_sufficient_skip",
+            filename,
+            reprocess_mode,
+            text_is_sufficient,
+        )
+        analysis = {
+            "doc_type": "OTHER",
+            "confidence": 0.2,
+            "reasoning": "Skipped heavy AI extraction in fast mode because OCR text is sufficient.",
+            "is_table": False,
+            "columns": [],
+            "fields": {},
+            "raw_response": "reason=fast_mode_text_sufficient_skip",
+            "model_used": "fast-mode-skip",
+            "analysis_path": "fast_mode_text_sufficient_skip",
+            "requires_review": True,
+            "fast_mode_skip_ai_due_to_sufficient_text": True,
+        }
+    else:
+        analysis = await analyze_document_fn(
+            content,
+            filename,
+            format_hint,
+            has_structured_rows=has_structured_rows,
+            recipe_config=recipe_config,
+            structured_data=structured_data,
+            structured_metadata=structured_metadata,
+            image_bytes=image_bytes,
+            fallback_patterns=fallback_patterns,
+            canonical_fields=canonical_fields,
+            prompt_config=prompt_config,
+            db=db,
+            reprocess_mode=reprocess_mode,
+            bypass_cache=bypass_cache,
+            deep_reprocess_context=deep_reprocess_context,
+            deep_focus_fields=deep_focus_fields,
+        )
 
     if quality_warning:
         analysis.setdefault("warnings", [])
@@ -958,13 +1064,9 @@ async def _process_async_document(
         datos_extraidos = analysis_fields or {}
         # Text fallback: when AI failed and OCR text is available, extract
         # fields using DB-configured labels and aliases.
-        if (
-            not datos_extraidos
-            and text.strip()
-            and _analysis_indicates_ai_failure(
-                analysis,
-                processing_cfg=processing_cfg,
-            )
+        if text.strip() and _analysis_indicates_ai_failure(
+            analysis,
+            processing_cfg=processing_cfg,
         ):
             text_fallback_started_at = time.perf_counter()
             # El timeout de la IA puede haber dejado la transacción en estado abortado.
@@ -1001,6 +1103,14 @@ async def _process_async_document(
                 pdf_config=pdf_config,
                 page_texts=extraction.get("page_texts"),
             )
+            fallback_fields = _sanitize_text_fallback_fields(
+                fallback_fields,
+                content=text,
+                format_hint=str(extraction.get("format", tipo_archivo) or tipo_archivo),
+                prompt_config=prompt_config,
+                ai_runtime=load_ai_runtime_config(db),
+                ocr_runtime=load_ocr_runtime_config(db),
+            )
             if fallback_fields:
                 if not datos_extraidos:
                     datos_extraidos = fallback_fields
@@ -1008,6 +1118,13 @@ async def _process_async_document(
                     _merge_text_fallback_fields(datos_extraidos, fallback_fields)
                 requiere_revision = True
                 _used_text_fallback = True
+            else:
+                logger.info(
+                    "text_fallback_result=empty_after_sanitize filename=%s mode=%s quality_hint=%s",
+                    filename,
+                    reprocess_mode,
+                    "low_or_noisy_ocr",
+                )
             _set_stage_timing(stage_timings, "text_fallback", text_fallback_started_at)
 
         if tipo_doc != "OTHER" and not explicit_recipe_context:

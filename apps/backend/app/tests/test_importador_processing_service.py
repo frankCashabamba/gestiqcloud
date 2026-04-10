@@ -9,6 +9,7 @@ from app.modules.importador.processing_service import (
     _analyze_with_context,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
+    _sanitize_text_fallback_fields,
 )
 from app.modules.importador.text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
@@ -67,10 +68,177 @@ def test_analyze_with_context_uses_processing_runtime_threshold(monkeypatch):
             canonical_fields={},
             prompt_config={},
             db=None,
+            reprocess_mode="deep",
         )
     )
 
     assert captured["image_bytes"] is None
+
+
+@pytest.mark.no_db
+def test_analyze_with_context_skips_heavy_ai_in_fast_mode_when_text_is_sufficient(monkeypatch):
+    called = {"count": 0}
+
+    async def fake_analyze_document_fn(*args, **kwargs):
+        del args, kwargs
+        called["count"] += 1
+        return {"doc_type": "INVOICE", "confidence": 0.9, "reasoning": "unexpected", "fields": {}}
+
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_processing_runtime_config",
+        lambda _db=None: {
+            "ocr_text_sufficient_min_chars": 20,
+            "llm_text_preview_chars": 6000,
+            "structured_preview_rows": 5,
+            "structured_preview_fields": 8,
+            "doc_type_hint_min_confidence": 0.65,
+            "structured_output_rows_limit": 200,
+            "persist_text_ocr_max_chars": 50000,
+        },
+    )
+
+    analysis = asyncio.run(
+        _analyze_with_context(
+            analyze_document_fn=fake_analyze_document_fn,
+            content="texto OCR muy suficiente para saltar IA pesada en fast mode",
+            filename="doc.pdf",
+            format_hint="PDF_OCR",
+            has_structured_rows=False,
+            recipe_config=None,
+            vision_image_bytes=None,
+            fallback_patterns={},
+            canonical_fields={},
+            prompt_config={},
+            db=None,
+            reprocess_mode="fast",
+        )
+    )
+
+    assert called["count"] == 0
+    assert analysis["fast_mode_skip_ai_due_to_sufficient_text"] is True
+    assert analysis["model_used"] == "fast-mode-skip"
+    assert analysis["requires_review"] is True
+    assert analysis["raw_response"] == "reason=fast_mode_text_sufficient_skip"
+
+
+@pytest.mark.no_db
+def test_analyze_with_context_fast_mode_low_quality_still_skips_ai_when_text_is_sufficient(monkeypatch):
+    called = {"count": 0}
+
+    async def fake_analyze_document_fn(*args, **kwargs):
+        del args, kwargs
+        called["count"] += 1
+        return {"doc_type": "INVOICE", "confidence": 0.82, "reasoning": "ai", "fields": {"total_amount": 10}}
+
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_processing_runtime_config",
+        lambda _db=None: {
+            "ocr_text_sufficient_min_chars": 20,
+            "llm_text_preview_chars": 6000,
+            "structured_preview_rows": 5,
+            "structured_preview_fields": 8,
+            "doc_type_hint_min_confidence": 0.65,
+            "structured_output_rows_limit": 200,
+            "persist_text_ocr_max_chars": 50000,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_ai_runtime_config",
+        lambda _db=None: {
+            "ocr_min_quality": 0.95,
+            "openai_fallback_ocr_quality_threshold": 0.95,
+            "ocr_length_target_chars": 1200,
+            "ocr_word_target": 180,
+            "ocr_alpha_ratio_target": 0.6,
+            "ocr_noise_ratio_limit": 0.2,
+            "ocr_score_weight_length": 0.35,
+            "ocr_score_weight_words": 0.35,
+            "ocr_score_weight_alpha": 0.2,
+            "ocr_score_weight_clean": 0.1,
+        },
+    )
+
+    analysis = asyncio.run(
+        _analyze_with_context(
+            analyze_document_fn=fake_analyze_document_fn,
+            content="texto OCR suficientemente largo pero con baja calidad para override",
+            filename="doc.jpg",
+            format_hint="IMAGE_OCR",
+            has_structured_rows=False,
+            recipe_config=None,
+            vision_image_bytes=b"fake-image",
+            fallback_patterns={},
+            canonical_fields={},
+            prompt_config={},
+            db=None,
+            reprocess_mode="fast",
+        )
+    )
+
+    assert called["count"] == 0
+    assert analysis["doc_type"] == "OTHER"
+    assert analysis["fast_mode_skip_ai_due_to_sufficient_text"] is True
+    assert analysis["raw_response"] == "reason=fast_mode_text_sufficient_skip"
+
+
+@pytest.mark.no_db
+def test_analyze_with_context_fast_mode_image_with_sufficient_text_skips_ai(monkeypatch):
+    called = {"count": 0}
+
+    async def fake_analyze_document_fn(*args, **kwargs):
+        del args, kwargs
+        called["count"] += 1
+        return {"doc_type": "INVOICE", "confidence": 0.8, "reasoning": "ai", "fields": {}}
+
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_processing_runtime_config",
+        lambda _db=None: {
+            "ocr_text_sufficient_min_chars": 20,
+            "llm_text_preview_chars": 6000,
+            "structured_preview_rows": 5,
+            "structured_preview_fields": 8,
+            "doc_type_hint_min_confidence": 0.65,
+            "structured_output_rows_limit": 200,
+            "persist_text_ocr_max_chars": 50000,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_ai_runtime_config",
+        lambda _db=None: {
+            "ocr_min_quality": 0.1,
+            "openai_fallback_ocr_quality_threshold": 0.1,
+            "ocr_length_target_chars": 1200,
+            "ocr_word_target": 180,
+            "ocr_alpha_ratio_target": 0.6,
+            "ocr_noise_ratio_limit": 0.2,
+            "ocr_score_weight_length": 0.35,
+            "ocr_score_weight_words": 0.35,
+            "ocr_score_weight_alpha": 0.2,
+            "ocr_score_weight_clean": 0.1,
+        },
+    )
+
+    analysis = asyncio.run(
+        _analyze_with_context(
+            analyze_document_fn=fake_analyze_document_fn,
+            content="texto OCR aparentemente suficiente en imagen",
+            filename="doc.jpg",
+            format_hint="IMAGE_OCR",
+            has_structured_rows=False,
+            recipe_config=None,
+            vision_image_bytes=b"fake-image",
+            fallback_patterns={},
+            canonical_fields={},
+            prompt_config={},
+            db=None,
+            reprocess_mode="fast",
+        )
+    )
+
+    assert called["count"] == 0
+    assert analysis["doc_type"] == "OTHER"
+    assert analysis["fast_mode_skip_ai_due_to_sufficient_text"] is True
+    assert analysis["raw_response"] == "reason=fast_mode_text_sufficient_skip"
 
 
 @pytest.mark.no_db
@@ -114,7 +282,7 @@ def test_analyze_with_context_rejects_low_quality_image_ocr(monkeypatch):
         asyncio.run(
             _analyze_with_context(
                 analyze_document_fn=fake_analyze_document_fn,
-                content="A B C D E 12345 !!! A B C D E 12345 !!!",
+                content="A B",
                 filename="foto.jpg",
                 format_hint="IMAGE_OCR",
                 has_structured_rows=False,
@@ -124,6 +292,7 @@ def test_analyze_with_context_rejects_low_quality_image_ocr(monkeypatch):
                 canonical_fields={},
                 prompt_config={},
                 db=None,
+                reprocess_mode="deep",
             )
         )
 
@@ -178,6 +347,30 @@ def test_merge_text_fallback_fields_completes_missing_values_without_overwriting
     assert base["tax_amount"] == 1775.09
     assert base["total_amount"] == 16567.49
     assert base["line_items"][0]["concept"] == "Aceite"
+
+
+@pytest.mark.no_db
+def test_sanitize_text_fallback_fields_drops_noisy_tax_ids_and_keeps_clean_values():
+    fallback = {
+        "vendor_tax_id": ":: NORM e T n_n-'buyeme Especial Resolución 04519 . AL 0g _SGs.",
+        "customer_tax_id": "1792845612001",
+        "customer": "MARIA AURORA CASABAMBA CASABAMBA Boh",
+        "issue_date": "2026-04-03",
+    }
+
+    cleaned = _sanitize_text_fallback_fields(
+        fallback,
+        content="texto OCR",
+        format_hint="IMAGE_OCR",
+        prompt_config={},
+        ai_runtime={"ocr_evidence_formats": ["IMAGE_OCR"]},
+        ocr_runtime={},
+    )
+
+    assert "vendor_tax_id" not in cleaned
+    assert cleaned["customer_tax_id"] == "1792845612001"
+    assert cleaned["customer"] == "MARIA AURORA CASABAMBA CASABAMBA Boh"
+    assert cleaned["issue_date"] == "2026-04-03"
 
 
 @pytest.mark.no_db

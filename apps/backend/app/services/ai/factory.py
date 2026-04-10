@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 _OLLAMA_SAFE_DEFAULT_MODEL = AIModel.LLAMA3_1_8B.value
 _OLLAMA_BLOCKED_MODEL_PREFIXES = ("qwen2.5-coder", "qwen2.5")
 _OLLAMA_DEFAULT_TIMEOUT_SECONDS = 30.0
+_OLLAMA_EXTRACTION_ALLOWED_MODELS: tuple[str, ...] = (
+    AIModel.LLAMA3_1_8B.value,
+    "llama3:8b",
+    AIModel.MISTRAL_7B.value,
+    AIModel.LLAMA3_1_70B.value,
+    AIModel.NEURAL_CHAT.value,
+)
 
 
 def _sanitize_ollama_model(raw_model: Any) -> tuple[str, str, str | None]:
@@ -47,6 +54,15 @@ def _sanitize_ollama_timeout(raw_timeout: Any) -> tuple[float, str, str | None]:
         return _OLLAMA_DEFAULT_TIMEOUT_SECONDS, "env_capped", requested_text
 
     return requested, "env", requested_text
+
+
+def _parse_ollama_extraction_allowed_models(raw: Any) -> list[str]:
+    requested = str(raw or "").strip()
+    if not requested:
+        return list(_OLLAMA_EXTRACTION_ALLOWED_MODELS)
+
+    allowed = [item.strip() for item in requested.split(",") if item.strip()]
+    return allowed or list(_OLLAMA_EXTRACTION_ALLOWED_MODELS)
 
 
 class AIProviderFactory:
@@ -115,6 +131,9 @@ class AIProviderFactory:
                 "health_check_timeout": float(os.getenv("OLLAMA_HEALTH_TIMEOUT", "5")),
                 "max_concurrency": os.getenv("OLLAMA_MAX_CONCURRENCY", "4"),
                 "max_prompt_length": int(os.getenv("AI_MAX_PROMPT_LENGTH", "10000")),
+                "allowed_extraction_models": _parse_ollama_extraction_allowed_models(
+                    os.getenv("OLLAMA_EXTRACTION_ALLOWED_MODELS")
+                ),
             }
 
         return {}

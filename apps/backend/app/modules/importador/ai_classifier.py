@@ -45,11 +45,56 @@ def _sanitize_extraction_model_override(model: str | None) -> str | None:
     resolved = model_name(model)
     if not resolved:
         return None
-    lowered = resolved.lower()
-    if lowered.startswith(("qwen2.5-coder", "qwen2.5")):
-        logger.warning("Ignoring legacy extraction routing model=%s", resolved)
+    if _is_non_extraction_model(resolved):
+        logger.warning(
+            "extraction_model_selection=blocked reason=no_allowed_extraction_model model=%s",
+            resolved,
+        )
         return None
     return resolved
+
+
+def _is_non_extraction_model(model: str | None) -> bool:
+    normalized = model_name(model).lower()
+    if not normalized:
+        return True
+
+    base = normalized.split(":", 1)[0]
+    blocked_prefixes = (
+        "qwen2.5-coder",
+        "qwen2.5",
+        "minicpm-v",
+        "llava",
+        "bakllava",
+        "moondream",
+        "nomic-embed",
+        "mxbai-embed",
+        "snowflake-arctic-embed",
+        "jina-embeddings",
+        "all-minilm",
+        "bge-",
+        "gte-",
+        "clip-",
+    )
+    if base.startswith(blocked_prefixes):
+        return True
+
+    blocked_tokens = (
+        "vision",
+        "multimodal",
+        "embed",
+        "embedding",
+        "adapter",
+        "proxy",
+        "gateway",
+        "openai",
+        "azure",
+        "anthropic",
+        "bedrock",
+        "vertex",
+        "gemini",
+    )
+    return any(token in normalized for token in blocked_tokens)
 
 
 def _build_document_time_context(prompt_config: dict[str, Any] | None, *, current_year: int) -> str:

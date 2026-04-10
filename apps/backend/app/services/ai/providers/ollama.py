@@ -1,4 +1,4 @@
-"""
+﻿"""
 Ollama AI Provider - Local LLM via Ollama
 
 Refactor goals:
@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 _logged_configs: set[tuple[str, str, int, float, str]] = set()
 _tags_cache: dict[tuple[str, str], tuple[float, list[str]]] = {}
 _health_cache: dict[tuple[str, str], tuple[float, bool]] = {}
+_DEFAULT_ALLOWED_EXTRACTION_MODELS: tuple[str, ...] = (
+    AIModel.LLAMA3_1_8B.value,
+    "llama3:8b",
+    AIModel.MISTRAL_7B.value,
+    AIModel.LLAMA3_1_70B.value,
+    AIModel.NEURAL_CHAT.value,
+)
 
 
 @dataclass(frozen=True)
@@ -43,7 +50,9 @@ class SelectionReason:
     EXPLICIT_REQUEST_MISSING = "explicit_request_missing"
     CONFIGURED_DEFAULT = "configured_default"
     CONFIGURED_DEFAULT_FALLBACK = "configured_default_fallback"
+    ALLOWED_EXTRACTION_MODEL = "allowed_extraction_model"
     FIRST_AVAILABLE = "first_available"
+    NO_ALLOWED_EXTRACTION_MODEL = "no_allowed_extraction_model"
     NO_AVAILABLE_MODELS = "no_available_models"
 
 
@@ -52,12 +61,11 @@ class OllamaProvider(BaseAIProvider):
     Transport/provider layer for Ollama.
 
     IMPORTANT:
-    - This provider should not decide product/business routing policies such as:
-      * fast vs deep extraction
-      * blocked model families by business rule
-      * which model family is allowed for a given task
-    - Those decisions should be made by an upper orchestration layer, and passed in
-      through request.model when needed.
+    - This provider does transport + model selection safety.
+    - For AITask.EXTRACTION it enforces a stricter model policy:
+      * no first-available fallback
+      * no non-extraction model families (vision/embed/adapter)
+      * only explicitly requested/configured/allow-listed extraction models
     """
 
     def __init__(self, config: dict[str, Any]):
@@ -69,6 +77,9 @@ class OllamaProvider(BaseAIProvider):
         self.use_chat_api = "chat" in self.endpoint
 
         self.default_model = self._coerce_model(config.get("model"), AIModel.LLAMA3_1_8B.value)
+        self.allowed_extraction_models = self._normalize_allowed_extraction_models(
+            config.get("allowed_extraction_models")
+        )
         self.request_timeout = self._coerce_positive_float(config.get("timeout"), 30.0)
         self.max_concurrency = self._coerce_positive_int(
             config.get("max_concurrency"),
@@ -95,6 +106,10 @@ class OllamaProvider(BaseAIProvider):
                 self.config.get("timeout_source") or "default",
                 self.default_model,
                 self.config.get("model_source") or "default",
+            )
+            logger.info(
+                "Ollama extraction policy allowed_models=%s",
+                ",".join(self.allowed_extraction_models) or "none",
             )
             _logged_configs.add(config_key)
 
@@ -177,6 +192,14 @@ class OllamaProvider(BaseAIProvider):
 
         available_set = {self._coerce_model(item, "") for item in available_models if item}
 
+        if request.task == AITask.EXTRACTION:
+            return self._resolve_extraction_model(
+                explicit=explicit,
+                configured=configured,
+                available_models=available_models,
+                available_set=available_set,
+            )
+
         if explicit:
             if explicit in available_set:
                 return ModelResolution(explicit, SelectionReason.EXPLICIT_REQUEST)
@@ -200,6 +223,69 @@ class OllamaProvider(BaseAIProvider):
             AIModel.LLAMA3_1_8B.value,
             SelectionReason.NO_AVAILABLE_MODELS,
             error=f"No hay modelos Ollama disponibles en {self.base_url}",
+        )
+
+    def _resolve_extraction_model(
+        self,
+        *,
+        explicit: str,
+        configured: str,
+        available_models: list[str],
+        available_set: set[str],
+    ) -> ModelResolution:
+        if explicit:
+            if self._is_non_extraction_model(explicit):
+                return self._blocked_extraction_model_resolution(
+                    explicit=explicit,
+                    configured=configured,
+                    available_models=available_models,
+                    detail=("reason=no_allowed_extraction_model " f"Modelo no permitido para extracción: {explicit}"),
+                )
+            if explicit in available_set:
+                return ModelResolution(explicit, SelectionReason.EXPLICIT_REQUEST)
+            return ModelResolution(
+                explicit,
+                SelectionReason.EXPLICIT_REQUEST_MISSING,
+                error=f"Modelo Ollama no disponible: {explicit}",
+            )
+
+        if configured and not self._is_non_extraction_model(configured) and configured in available_set:
+            return ModelResolution(configured, SelectionReason.CONFIGURED_DEFAULT)
+
+        for candidate in self.allowed_extraction_models:
+            normalized = self._coerce_model(candidate, "")
+            if not normalized or self._is_non_extraction_model(normalized):
+                continue
+            if normalized in available_set:
+                return ModelResolution(normalized, SelectionReason.ALLOWED_EXTRACTION_MODEL)
+
+        return self._blocked_extraction_model_resolution(
+            explicit=explicit,
+            configured=configured,
+            available_models=available_models,
+            detail="reason=no_allowed_extraction_model No allowed extraction model available in Ollama",
+        )
+
+    def _blocked_extraction_model_resolution(
+        self,
+        *,
+        explicit: str,
+        configured: str,
+        available_models: list[str],
+        detail: str,
+    ) -> ModelResolution:
+        selected = explicit or configured or "none"
+        logger.warning(
+            "extraction_model_selection=blocked reason=no_allowed_extraction_model requested_model=%s configured_model=%s selected_model=%s available_models=%s",
+            explicit or "none",
+            configured or "none",
+            selected,
+            available_models,
+        )
+        return ModelResolution(
+            selected,
+            SelectionReason.NO_ALLOWED_EXTRACTION_MODEL,
+            error=detail,
         )
 
     async def call(self, request: AIRequest) -> AIResponse:
@@ -251,7 +337,7 @@ class OllamaProvider(BaseAIProvider):
                     task=request.task,
                     content="",
                     model=selected_model,
-                    error="Respuesta vacía de Ollama",
+                    error="Respuesta vacÃ­a de Ollama",
                     processing_time_ms=int((time.perf_counter() - start_time) * 1000),
                 )
 
@@ -402,6 +488,58 @@ class OllamaProvider(BaseAIProvider):
             return default
 
     @staticmethod
+    def _normalize_allowed_extraction_models(value: Any) -> list[str]:
+        if isinstance(value, (list, tuple, set)):
+            items = [model_name(item) for item in value]
+            normalized = [item for item in items if item]
+            return normalized or list(_DEFAULT_ALLOWED_EXTRACTION_MODELS)
+        raw = str(value or "").strip()
+        if not raw:
+            return list(_DEFAULT_ALLOWED_EXTRACTION_MODELS)
+        return [item for item in (part.strip() for part in raw.split(",")) if item]
+
+    @staticmethod
+    def _is_non_extraction_model(model: str) -> bool:
+        normalized = model_name(model).lower()
+        if not normalized:
+            return True
+        base = normalized.split(":", 1)[0]
+        blocked_prefixes = (
+            "qwen2.5-coder",
+            "qwen2.5",
+            "minicpm-v",
+            "llava",
+            "bakllava",
+            "moondream",
+            "nomic-embed",
+            "mxbai-embed",
+            "snowflake-arctic-embed",
+            "jina-embeddings",
+            "all-minilm",
+            "bge-",
+            "gte-",
+            "clip-",
+        )
+        if base.startswith(blocked_prefixes):
+            return True
+        blocked_tokens = (
+            "vision",
+            "multimodal",
+            "embed",
+            "embedding",
+            "adapter",
+            "proxy",
+            "gateway",
+            "openai",
+            "azure",
+            "anthropic",
+            "bedrock",
+            "vertex",
+            "gemini",
+        )
+        return any(token in normalized for token in blocked_tokens)
+
+    @staticmethod
     def _first_available_model(models: list[str]) -> str | None:
         for item in models:
             normalized = model_name(item)
@@ -454,3 +592,4 @@ def model_parameter_size_b(model: str) -> float | None:
     size = float(match.group(1))
     unit = match.group(2)
     return size / 1000.0 if unit == "m" else size
+
