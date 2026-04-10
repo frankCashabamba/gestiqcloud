@@ -210,21 +210,16 @@ def test_iter_small_rotations_uses_runtime_angles(monkeypatch):
     assert labels == ["base_rot-2", "base_rot+3"]
 
 
-def test_extract_pdf_uses_configured_dpi(monkeypatch):
-    dpi_calls: list[int] = []
-
-    class FakePixmap:
-        width = 2
-        height = 2
-        samples = bytes([255, 255, 255] * 4)
+def test_extract_pdf_prefers_embedded_text_when_quality_is_good(monkeypatch):
+    pixmap_calls: list[int] = []
 
     class FakePage:
         def get_text(self, *args, **kwargs):
-            return ""
+            return "Factura 001-2026-0001 Cliente RUC Total 5.30"
 
         def get_pixmap(self, dpi=300):
-            dpi_calls.append(dpi)
-            return FakePixmap()
+            pixmap_calls.append(dpi)
+            raise AssertionError("OCR should not run for strong embedded text")
 
     class FakeDoc:
         def __iter__(self):
@@ -244,12 +239,91 @@ def test_extract_pdf_uses_configured_dpi(monkeypatch):
 
     monkeypatch.setitem(__import__("sys").modules, "fitz", FakeFitz())
     monkeypatch.setattr(ocr_service, "_ocr_runtime_config", lambda: {"pdf_render_dpi": 240})
-    monkeypatch.setattr(ocr_service, "_ocr_image", lambda img: "OCR OK")
+    monkeypatch.setattr(
+        ocr_service,
+        "load_ai_runtime_config",
+        lambda _db=None: {"ocr_min_quality": 0.45, "ocr_min_words_for_vision": 18},
+    )
+    monkeypatch.setattr(
+        ocr_service,
+        "_estimate_text_quality",
+        lambda text, ai_runtime=None: {"score": 0.95, "words": 20.0, "chars": float(len(text))},
+    )
+
+    result = asyncio.run(ocr_service._extract_pdf(b"%PDF-1.4 fake"))
+
+    assert result["format"] == "PDF"
+    assert result["text"] == "Factura 001-2026-0001 Cliente RUC Total 5.30"
+    assert result["page_texts"] == ["Factura 001-2026-0001 Cliente RUC Total 5.30"]
+    assert pixmap_calls == []
+
+
+def test_extract_pdf_uses_multiple_dpi_candidates_when_embedded_text_is_weak(monkeypatch):
+    dpi_calls: list[int] = []
+
+    class FakePixmap:
+        def __init__(self, width: int, height: int):
+            self.width = width
+            self.height = height
+            self.samples = bytes([255, 255, 255] * width * height)
+
+    class FakePage:
+        def get_text(self, *args, **kwargs):
+            return "borroso"
+
+        def get_pixmap(self, dpi=300):
+            dpi_calls.append(dpi)
+            width = 2 if dpi < 300 else 4
+            return FakePixmap(width, 2)
+
+    class FakeDoc:
+        def __iter__(self):
+            yield FakePage()
+
+        def __len__(self):
+            return 1
+
+        def close(self):
+            return None
+
+    class FakeFitz:
+        @staticmethod
+        def open(stream=None, filetype=None):
+            del stream, filetype
+            return FakeDoc()
+
+    def fake_text_quality(text, ai_runtime=None):
+        del ai_runtime
+        if text == "borroso":
+            return {"score": 0.05, "words": 1.0, "chars": float(len(text))}
+        if "EXTRA" in text:
+            return {"score": 0.95, "words": 7.0, "chars": float(len(text))}
+        return {"score": 0.2, "words": 3.0, "chars": float(len(text))}
+
+    monkeypatch.setitem(__import__("sys").modules, "fitz", FakeFitz())
+    monkeypatch.setattr(ocr_service, "_ocr_runtime_config", lambda: {"pdf_render_dpi": 240})
+    monkeypatch.setattr(
+        ocr_service,
+        "load_ai_runtime_config",
+        lambda _db=None: {"ocr_min_quality": 0.45, "ocr_min_words_for_vision": 18},
+    )
+    monkeypatch.setattr(ocr_service, "_estimate_text_quality", fake_text_quality)
+    monkeypatch.setattr(
+        ocr_service,
+        "_ocr_image",
+        lambda img: (
+            "NOTA DE VENTA CLIENTE DESCRIPCION TOTAL 5.30 EXTRA"
+            if img.width >= 4
+            else "NOTA DE VENTA TOTAL 5.30"
+        ),
+    )
 
     result = asyncio.run(ocr_service._extract_pdf(b"%PDF-1.4 fake"))
 
     assert result["format"] == "PDF_OCR"
-    assert dpi_calls == [240]
+    assert dpi_calls == [240, 360]
+    assert result["page_texts"] == ["NOTA DE VENTA CLIENTE DESCRIPCION TOTAL 5.30 EXTRA"]
+    assert "EXTRA" in result["text"]
 
 
 def test_extract_excel_uses_runtime_limits(monkeypatch):

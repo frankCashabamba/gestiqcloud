@@ -269,6 +269,26 @@ def _normalize_line_item_extra_columns(
     return unmapped
 
 
+def _merge_text_fallback_fields(
+    datos_extraidos: dict[str, Any],
+    fallback_fields: dict[str, Any],
+) -> bool:
+    """Merge OCR text-fallback fields into an existing extraction result."""
+    changed = False
+    for key, value in fallback_fields.items():
+        if key == "line_items":
+            if value and not datos_extraidos.get(key):
+                datos_extraidos[key] = value
+                changed = True
+            continue
+
+        if datos_extraidos.get(key) in (None, "", [], {}):
+            datos_extraidos[key] = value
+            changed = True
+
+    return changed
+
+
 @dataclass(slots=True)
 class RecipeContext:
     recipe_config: dict[str, Any] = field(default_factory=dict)
@@ -438,24 +458,58 @@ async def _analyze_with_context(
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
     processing_cfg = load_processing_runtime_config(db)
     min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 100))
+
+    content_text = (content or "").strip()
+    text_is_sufficient = len(content_text) >= min_chars
+    structured_is_usable = bool(has_structured_rows or structured_data)
+
+    quality_warning: dict[str, Any] | None = None
+    image_bytes = None if text_is_sufficient else bytes(vision_image_bytes) if vision_image_bytes else None
+
     if vision_image_bytes:
         ai_runtime = load_ai_runtime_config(db)
-        quality = _estimate_text_quality(content, ai_runtime=ai_runtime)
+        quality = _estimate_text_quality(content_text, ai_runtime=ai_runtime)
         quality_threshold = float(
             ai_runtime.get("openai_fallback_ocr_quality_threshold")
             or ai_runtime.get("ocr_min_quality")
             or 0.45
         )
-        if quality["score"] <= quality_threshold and quality["chars"] >= min_chars:
-            raise ValueError(
-                "Imagen de mala calidad: no se pudo extraer texto con suficiente confianza. "
-                "Sube una nueva imagen más nítida, con mejor luz y sin cortes."
+        low_quality = quality["score"] <= quality_threshold
+
+        if low_quality:
+            quality_warning = {
+                "quality_gate": "warning",
+                "quality_score": quality["score"],
+                "quality_threshold": quality_threshold,
+                "chars": quality["chars"],
+                "text_is_sufficient": text_is_sufficient,
+                "structured_is_usable": structured_is_usable,
+                "degraded_to_review": text_is_sufficient or structured_is_usable or reprocess_mode == "fast",
+                "rejected_for_quality": False,
+            }
+
+            # Solo en el caso realmente extremo: sin texto útil, sin estructura y en deep mode.
+            if not text_is_sufficient and not structured_is_usable and reprocess_mode == "deep":
+                quality_warning["quality_gate"] = "rejected"
+                quality_warning["degraded_to_review"] = False
+                quality_warning["rejected_for_quality"] = True
+                raise ValueError(
+                    "Imagen de mala calidad: no se pudo extraer texto con suficiente confianza. "
+                    "Sube una nueva imagen más nítida, con mejor luz y sin cortes."
+                )
+
+            logger.info(
+                "quality_gate=degraded_to_review filename=%s score=%.3f threshold=%.3f chars=%s text_is_sufficient=%s structured_is_usable=%s mode=%s",
+                filename,
+                float(quality["score"]),
+                quality_threshold,
+                quality["chars"],
+                text_is_sufficient,
+                structured_is_usable,
+                reprocess_mode,
             )
-    text_is_sufficient = bool(content and len(content.strip()) >= min_chars)
-    image_bytes = (
-        None if text_is_sufficient else bytes(vision_image_bytes) if vision_image_bytes else None
-    )
-    return await analyze_document_fn(
+
+    analysis = await analyze_document_fn(
         content,
         filename,
         format_hint,
@@ -473,6 +527,22 @@ async def _analyze_with_context(
         deep_reprocess_context=deep_reprocess_context,
         deep_focus_fields=deep_focus_fields,
     )
+
+    if quality_warning:
+        analysis.setdefault("warnings", [])
+        analysis["warnings"].append(quality_warning)
+        analysis["requires_review"] = True
+
+        current_confidence = analysis.get("confidence")
+        if current_confidence is None:
+            analysis["confidence"] = 0.35
+        else:
+            try:
+                analysis["confidence"] = min(float(current_confidence), 0.35)
+            except (TypeError, ValueError):
+                analysis["confidence"] = 0.35
+
+    return analysis
 
 
 async def process_import_document(
@@ -932,7 +1002,10 @@ async def _process_async_document(
                 page_texts=extraction.get("page_texts"),
             )
             if fallback_fields:
-                datos_extraidos = fallback_fields
+                if not datos_extraidos:
+                    datos_extraidos = fallback_fields
+                else:
+                    _merge_text_fallback_fields(datos_extraidos, fallback_fields)
                 requiere_revision = True
                 _used_text_fallback = True
             _set_stage_timing(stage_timings, "text_fallback", text_fallback_started_at)

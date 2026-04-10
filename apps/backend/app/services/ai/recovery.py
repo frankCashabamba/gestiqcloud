@@ -341,7 +341,7 @@ class AIRecoveryManager:
                 "type": "connectivity",
                 "suggestions": [
                     "Verificar conexión de red",
-                    "Verificar que Ollama/OVHCloud está corriendo",
+                    "Verificar que Ollama está corriendo",
                     "Revisar firewall/proxy",
                     "Aumentar timeout",
                 ],
@@ -373,9 +373,8 @@ class AIRecoveryManager:
             fixes = {
                 "type": "auth",
                 "suggestions": [
-                    "Verificar API key/secret",
-                    "Verificar credenciales OVHCloud",
-                    "Rotar keys si es necesario",
+                    "Verificar que no se esté intentando usar un proveedor distinto de Ollama",
+                    "Revisar la configuración de AI_PROVIDER/OLLAMA_*",
                 ],
             }
 

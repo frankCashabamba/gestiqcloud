@@ -156,7 +156,7 @@ def test_ai_service_keeps_ollama_when_it_succeeds_even_with_complexity_context(m
     assert captured["openai_calls"] == 0
 
 
-def test_ai_service_falls_back_to_openai_on_real_ollama_error(monkeypatch):
+def test_ai_service_returns_ollama_error_without_fallback(monkeypatch):
     captured: dict[str, int] = {"ollama_calls": 0, "openai_calls": 0}
 
     async def _fake_cache_get(_key: str):
@@ -210,14 +210,14 @@ def test_ai_service_falls_back_to_openai_on_real_ollama_error(monkeypatch):
         )
     )
 
-    assert response.is_error is False
-    assert response.content == '{"provider":"openai"}'
-    assert response.model == "gpt-4o"
+    assert response.is_error is True
+    assert response.error == "Ollama timeout"
+    assert response.content == ""
     assert captured["ollama_calls"] == 1
-    assert captured["openai_calls"] == 1
+    assert captured["openai_calls"] == 0
 
 
-def test_ai_service_skips_openai_when_rate_limited(monkeypatch):
+def test_ai_service_does_not_use_openai_when_fallback_chain_is_disabled(monkeypatch):
     captured: dict[str, int] = {"ollama_calls": 0, "openai_calls": 0}
 
     async def _fake_cache_get(key: str):

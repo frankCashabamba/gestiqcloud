@@ -16,6 +16,8 @@ import {
   type SaveDocumentResult,
 } from '../services'
 
+/* eslint-disable jsx-a11y/no-noninteractive-element-to-interactive-role */
+
 const STALE_THRESHOLD_MS = 30 * 60 * 1000
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -306,21 +308,23 @@ export default function DocumentList() {
             >
               Back to dashboard
             </button>
-            <button
-              onClick={openUploader}
-              style={{
-                border: 'none',
-                borderRadius: 14,
-                padding: '0.8rem 1rem',
-                background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
-                color: '#fff',
-                fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 14px 28px rgba(13, 148, 136, 0.22)',
-              }}
-            >
-              {t('workspace.openUpload')}
-            </button>
+            {docs.length > 0 && (
+              <button
+                onClick={openUploader}
+                style={{
+                  border: 'none',
+                  borderRadius: 14,
+                  padding: '0.8rem 1rem',
+                  background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
+                  color: '#fff',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 14px 28px rgba(13, 148, 136, 0.22)',
+                }}
+              >
+                {t('workspace.openUpload')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -554,7 +558,7 @@ export default function DocumentList() {
                 opacity: refreshing ? 0.5 : 1,
               }}
             >
-              {refreshing ? '↻' : '↻'}
+              {refreshing ? 'Refreshing' : 'Refresh'}
             </button>
           </div>
         </div>
@@ -570,21 +574,6 @@ export default function DocumentList() {
               <div style={{ marginTop: 6, fontSize: 13, color: '#64748b' }}>
                 {filter ? t('workspace.filteredEmptyBody') : t('workspace.emptyBody')}
               </div>
-              <button
-                onClick={openUploader}
-                style={{
-                  marginTop: '1rem',
-                  border: 'none',
-                  borderRadius: 12,
-                  padding: '0.75rem 1rem',
-                  background: '#0f766e',
-                  color: '#fff',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
-                {t('workspace.emptyAction')}
-              </button>
             </div>
             {showUploader && (
               <div ref={uploadPanelRef}>
@@ -597,8 +586,164 @@ export default function DocumentList() {
             )}
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ display: 'grid', gap: '0.9rem' }}>
+            <div style={{ display: 'grid', gap: '0.9rem', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+              {docs.map((doc) => {
+                const isInProgress = doc.estado === 'PROCESSING' || doc.estado === 'PENDING'
+                const isImported = isDocumentSaved(doc)
+                const displayStatus = getDocumentDisplayStatus(doc)
+                const docActivityBadges = activityBadges(doc)
+                const destination = suggestSaveDestination(doc)
+                const saveEnabled = canSaveDocument(doc) && doc.estado !== 'FAILED' && !isInProgress && (
+                  destination === 'recipe' || hasConfirmedDocumentData(doc)
+                )
+                const nextStepLabel = isInProgress
+                  ? 'Processing...'
+                  : doc.estado === 'FAILED'
+                    ? 'View error'
+                    : isImported
+                      ? 'Saved'
+                      : saveEnabled
+                        ? saveLabel(doc)
+                        : 'Review document'
+                const nextStepTitle = isInProgress
+                  ? 'The document is still processing in the background.'
+                  : doc.estado === 'FAILED'
+                    ? 'The document failed. Click to view the details.'
+                    : isImported
+                      ? 'The document was already confirmed and saved. Click to view it.'
+                      : saveEnabled
+                        ? saveLabel(doc)
+                        : 'Open the document to confirm its data before saving.'
+                const cardTone = isImported
+                  ? { border: '#bbf7d0', bg: 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%)', accent: '#166534' }
+                  : doc.estado === 'FAILED'
+                    ? { border: '#fecaca', bg: 'linear-gradient(180deg, #fff7f7 0%, #ffffff 100%)', accent: '#991b1b' }
+                    : saveEnabled
+                      ? { border: '#bfdbfe', bg: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)', accent: '#1d4ed8' }
+                      : { border: '#e2e8f0', bg: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)', accent: '#475569' }
+                return (
+                  <article
+                    key={doc.id}
+                    onClick={() => navigate(doc.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        navigate(doc.id)
+                      }
+                    }}
+                    style={{
+                      borderRadius: 22,
+                      border: `1px solid ${cardTone.border}`,
+                      background: cardTone.bg,
+                      boxShadow: '0 14px 30px rgba(15, 23, 42, 0.05)',
+                      padding: '1rem',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      display: 'grid',
+                      gap: '0.85rem',
+                      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.transform = 'translateY(-1px)'
+                      event.currentTarget.style.boxShadow = '0 18px 34px rgba(15, 23, 42, 0.08)'
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.transform = 'translateY(0)'
+                      event.currentTarget.style.boxShadow = '0 14px 30px rgba(15, 23, 42, 0.05)'
+                    }}
+                  >
+                    <div style={{ position: 'absolute', inset: '0 auto auto 0', width: '100%', height: 4, background: cardTone.accent, opacity: 0.9 }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: 0, flex: '1 1 220px' }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <h3 style={{ margin: 0, fontSize: 16, lineHeight: 1.2, color: '#0f172a' }}>{doc.nombre_archivo}</h3>
+                          {statusBadge(displayStatus)}
+                        </div>
+                        <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', color: '#64748b', fontSize: 12 }}>
+                          <span>{doc.tipo_archivo}</span>
+                          <span>·</span>
+                          <span>{Math.round(Number(doc.tamanio_bytes ?? 0) / 1024)} KB</span>
+                          <span>·</span>
+                          <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (saveEnabled && !isImported) {
+                            setFeedback(null)
+                            setSelectedDoc(doc)
+                          } else {
+                            navigate(doc.id)
+                          }
+                        }}
+                        disabled={isInProgress}
+                        style={{
+                          ...saveBtn,
+                          width: 'auto',
+                          minWidth: 140,
+                          background: isInProgress ? '#e2e8f0' : isImported ? '#166534' : saveEnabled ? '#0f766e' : doc.estado === 'FAILED' ? '#dc2626' : '#64748b',
+                          color: isInProgress ? '#94a3b8' : '#fff',
+                          cursor: isInProgress ? 'not-allowed' : 'pointer',
+                        }}
+                        title={nextStepTitle}
+                      >
+                        {nextStepLabel}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.8rem' }}>
+                      <div style={{ padding: '0.75rem 0.8rem', borderRadius: 16, background: '#fff', border: '1px solid rgba(148, 163, 184, 0.14)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b' }}>Type</div>
+                        <div style={{ marginTop: 4, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{doc.tipo_documento_detectado || doc.tipo_archivo}</div>
+                      </div>
+                      <div style={{ padding: '0.75rem 0.8rem', borderRadius: 16, background: '#fff', border: '1px solid rgba(148, 163, 184, 0.14)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b' }}>Confidence</div>
+                        <div style={{ marginTop: 4 }}>{confidenceBadge(doc.confianza_clasificacion)}</div>
+                      </div>
+                      <div style={{ padding: '0.75rem 0.8rem', borderRadius: 16, background: '#fff', border: '1px solid rgba(148, 163, 184, 0.14)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b' }}>Vendor</div>
+                        <div style={{ marginTop: 4, fontSize: 14, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {doc.proveedor_detectado || '-'}
+                        </div>
+                      </div>
+                      <div style={{ padding: '0.75rem 0.8rem', borderRadius: 16, background: '#fff', border: '1px solid rgba(148, 163, 184, 0.14)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b' }}>Amount</div>
+                        <div style={{ marginTop: 4, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{formatCurrency(doc)}</div>
+                      </div>
+                    </div>
+
+                    {docActivityBadges.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {docActivityBadges.map((badge) => (
+                          <span
+                            key={badge.label}
+                            title={badge.title}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '0.22rem 0.55rem',
+                              borderRadius: 999,
+                              background: badge.bg,
+                              color: badge.color,
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {badge.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+            <table style={{ display: 'none' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #e5e7eb', textAlign: 'left', background: '#f8fafc' }}>
                   <th style={th}>File</th>

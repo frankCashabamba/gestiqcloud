@@ -10,8 +10,6 @@ from typing import Any
 
 from app.services.ai.base import AIModel, AITask, BaseAIProvider
 from app.services.ai.providers.ollama import OllamaProvider
-from app.services.ai.providers.openai import OpenAIProvider
-from app.services.ai.providers.ovhcloud import OVHCloudProvider
 
 logger = logging.getLogger(__name__)
 
@@ -56,51 +54,28 @@ class AIProviderFactory:
 
     _instances: dict[str, BaseAIProvider] = {}
     _primary_provider: str = "ollama"
-    _fallback_chain: list[str] = ["ollama", "ovhcloud", "openai"]
-    _supported_providers: tuple[str, ...] = ("ollama", "ovhcloud", "openai")
+    _fallback_chain: list[str] = ["ollama"]
+    _supported_providers: tuple[str, ...] = ("ollama",)
 
     @classmethod
     def initialize(cls) -> None:
-        """Inicializa proveedores basado en configuracion de entorno."""
-        environment = os.getenv("ENVIRONMENT", "development").lower()
-        requested_provider = os.getenv("AI_PROVIDER", "").strip().lower()
-
-        if requested_provider in cls._supported_providers:
-            cls._primary_provider = requested_provider
-            cls._fallback_chain = [requested_provider] + [
-                provider for provider in cls._supported_providers if provider != requested_provider
-            ]
-            logger.info(
-                "AI_PROVIDER=%s: explicit provider priority enabled",
-                requested_provider,
-            )
-        elif environment == "production":
-            cls._primary_provider = "ovhcloud"
-            cls._fallback_chain = ["ovhcloud", "openai"]
-            logger.info("Production mode: OVHCloud primary, OpenAI fallback")
-        else:
-            cls._primary_provider = "ollama"
-            cls._fallback_chain = ["ollama", "openai"]
-            logger.info("Development mode: Ollama primary, OpenAI fallback")
+        """Inicializa solo el proveedor Ollama."""
+        cls._primary_provider = "ollama"
+        cls._fallback_chain = ["ollama"]
+        logger.info("AI provider locked to Ollama")
 
         cls._create_provider("ollama")
-        cls._create_provider("ovhcloud")
-        cls._create_provider("openai")
 
     @classmethod
     def _create_provider(cls, name: str) -> None:
         """Crea instancia de proveedor especifico."""
-        config = cls._get_provider_config(name)
+        if name != "ollama":
+            logger.warning("Unknown or disabled provider: %s", name)
+            return
 
+        config = cls._get_provider_config(name)
         try:
-            if name == "ollama":
-                cls._instances[name] = OllamaProvider(config)
-            elif name == "ovhcloud":
-                cls._instances[name] = OVHCloudProvider(config)
-            elif name == "openai":
-                cls._instances[name] = OpenAIProvider(config)
-            else:
-                logger.warning("Unknown provider: %s", name)
+            cls._instances[name] = OllamaProvider(config)
         except Exception as exc:
             logger.error("Error creating provider %s: %s", name, exc)
 
@@ -139,32 +114,6 @@ class AIProviderFactory:
                 "timeout_source": timeout_source,
                 "health_check_timeout": float(os.getenv("OLLAMA_HEALTH_TIMEOUT", "5")),
                 "max_concurrency": os.getenv("OLLAMA_MAX_CONCURRENCY", "4"),
-                "max_prompt_length": int(os.getenv("AI_MAX_PROMPT_LENGTH", "10000")),
-            }
-
-        if name == "ovhcloud":
-            return {
-                "url": (
-                    os.getenv("OVHCLOUD_BASE_URL")
-                    or os.getenv("OVHCLOUD_API_URL")
-                    or "https://manager.eu.ovhcloud.com/api/v2"
-                ),
-                "api_key": os.getenv("OVHCLOUD_API_KEY"),
-                "api_secret": os.getenv("OVHCLOUD_API_SECRET"),
-                "service_name": os.getenv("OVHCLOUD_SERVICE_NAME", "ai"),
-                "model": os.getenv("OVHCLOUD_MODEL", "gpt-4o"),
-                "timeout": float(os.getenv("OVHCLOUD_TIMEOUT", "60")),
-                "health_check_timeout": float(os.getenv("OVHCLOUD_HEALTH_TIMEOUT", "10")),
-                "max_prompt_length": int(os.getenv("AI_MAX_PROMPT_LENGTH", "10000")),
-            }
-
-        if name == "openai":
-            return {
-                "api_key": os.getenv("OPENAI_API_KEY"),
-                "base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-                "model": os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
-                "timeout": float(os.getenv("OPENAI_TIMEOUT", "30")),
-                "health_check_timeout": float(os.getenv("OPENAI_HEALTH_TIMEOUT", "5")),
                 "max_prompt_length": int(os.getenv("AI_MAX_PROMPT_LENGTH", "10000")),
             }
 

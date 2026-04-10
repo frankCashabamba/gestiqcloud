@@ -25,7 +25,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     pd = None
 
-from .runtime_config import load_file_support_config, load_ocr_runtime_config
+from .ai_classifier import _estimate_text_quality
+from .runtime_config import load_ai_runtime_config, load_file_support_config, load_ocr_runtime_config
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.ocr")
@@ -40,7 +41,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-08-2"
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-09-1"
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -506,6 +507,38 @@ def _run_easyocr(img: Image.Image) -> str:
     return "\n".join([r[1] for r in results]).strip()
 
 
+def _pdf_render_dpi_candidates(base_dpi: int) -> tuple[int, ...]:
+    """Return a small set of render DPIs for weak PDF pages."""
+    boosted = max(int(round(base_dpi * 1.4)), base_dpi + 120)
+    boosted = min(boosted, max(base_dpi, 450))
+    candidates = []
+    for dpi in (base_dpi, boosted):
+        dpi = max(72, int(dpi))
+        if dpi not in candidates:
+            candidates.append(dpi)
+    return tuple(candidates)
+
+
+def _best_text_candidate(candidates: list[str], *, ai_runtime: dict[str, Any]) -> str:
+    """Pick the OCR candidate with the best text-quality score."""
+    best_text = ""
+    best_key = (-1.0, -1.0, -1.0)
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if not text:
+            continue
+        quality = _estimate_text_quality(text, ai_runtime=ai_runtime)
+        key = (
+            float(quality.get("score") or 0.0),
+            float(quality.get("words") or 0.0),
+            float(quality.get("chars") or 0.0),
+        )
+        if key > best_key:
+            best_key = key
+            best_text = text
+    return best_text
+
+
 async def extract_text_from_file(
     file_bytes: bytes,
     filename: str,
@@ -624,6 +657,7 @@ def _extract_zip_summary(file_bytes: bytes, zip_name: str) -> dict[str, Any]:
 async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     """PDF: intenta texto embebido con PyMuPDF, si no hay, usa OCR."""
     config = _ocr_runtime_config()
+    ai_runtime = load_ai_runtime_config(None)
     pdf_render_dpi = int(config["pdf_render_dpi"])
     try:
         import fitz
@@ -633,42 +667,72 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text_parts = []
     page_texts: list[str] = []
-    total_chars = 0
+    used_ocr = False
+    vision_image_bytes: bytes | None = None
 
     try:
+        selected_page_texts: list[str] = []
         for page in doc:
             page_text = page.get_text("text")
             page_texts.append(page_text)
-            if page_text.strip():
-                total_chars += len(page_text.strip())
-                text_parts.append(page_text)
+            page_text_clean = str(page_text or "").strip()
+            if page_text_clean:
+                page_quality = _estimate_text_quality(page_text_clean, ai_runtime=ai_runtime)
+                is_sufficient = (
+                    page_quality["score"] >= float(ai_runtime.get("ocr_min_quality") or 0.45)
+                    and page_quality["words"]
+                    >= int(ai_runtime.get("ocr_min_words_for_vision") or 18)
+                )
+                if is_sufficient:
+                    text_parts.append(page_text_clean)
+                    selected_page_texts.append(page_text_clean)
+                    continue
+
+            used_ocr = True
+            ocr_candidates: list[str] = [page_text_clean] if page_text_clean else []
+            for dpi in _pdf_render_dpi_candidates(pdf_render_dpi):
+                pix = page.get_pixmap(dpi=dpi)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                if vision_image_bytes is None:
+                    vision_image_bytes = _image_to_jpeg_bytes(img)
+                ocr_candidates.append(_ocr_image(img))
+
+            best_page_text = _best_text_candidate(ocr_candidates, ai_runtime=ai_runtime)
+            if best_page_text:
+                text_parts.append(best_page_text)
+                selected_page_texts.append(best_page_text)
+            else:
+                selected_page_texts.append(page_text_clean)
 
         pages = len(doc)
     finally:
         doc.close()
 
-    # If embedded text is sufficient, use it
-    if total_chars > 50:
+    if any(str(text or "").strip() for text in selected_page_texts):
         return {
-            "text": "\n".join(page_texts) if page_texts else "\n".join(text_parts),
+            "text": "\n".join(selected_page_texts),
             "pages": pages,
             "structured_data": None,
-            "format": "PDF",
-            "page_texts": page_texts,
+            "format": "PDF_OCR" if used_ocr else "PDF",
+            "page_texts": selected_page_texts,
+            "vision_image_bytes": vision_image_bytes,
         }
 
     # Otherwise, convert pages to images and OCR
     # Strategy 1: Use PyMuPDF native rendering (no Poppler needed)
     doc2 = fitz.open(stream=file_bytes, filetype="pdf")
-    vision_image_bytes: bytes | None = None
+    vision_image_bytes = None
     try:
         ocr_texts = []
         for page in doc2:
-            pix = page.get_pixmap(dpi=pdf_render_dpi)
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            if vision_image_bytes is None:
-                vision_image_bytes = _image_to_jpeg_bytes(img)
-            ocr_texts.append(_ocr_image(img))
+            page_candidates: list[str] = []
+            for dpi in _pdf_render_dpi_candidates(pdf_render_dpi):
+                pix = page.get_pixmap(dpi=dpi)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                if vision_image_bytes is None:
+                    vision_image_bytes = _image_to_jpeg_bytes(img)
+                page_candidates.append(_ocr_image(img))
+            ocr_texts.append(_best_text_candidate(page_candidates, ai_runtime=ai_runtime))
         combined = "\n\n".join(t for t in ocr_texts if t)
         if combined.strip():
             return {

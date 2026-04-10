@@ -8,6 +8,7 @@ from app.modules.importador.processing_service import (
     _analysis_indicates_ai_failure,
     _analyze_with_context,
     _build_table_prompt_preview,
+    _merge_text_fallback_fields,
 )
 from app.modules.importador.text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
@@ -151,6 +152,32 @@ def test_analysis_indicates_ai_failure_uses_runtime_tokens(monkeypatch):
     assert _analysis_indicates_ai_failure(
         {"raw_response": "Gateway exploded while contacting provider"}
     )
+
+
+@pytest.mark.no_db
+def test_merge_text_fallback_fields_completes_missing_values_without_overwriting():
+    base = {
+        "vendor": "Distribuidora Integral Andina S.A.",
+        "line_items": [],
+        "total_amount": 16567.49,
+    }
+    fallback = {
+        "vendor": "Other vendor",
+        "issue_date": "2026-04-03",
+        "subtotal": 14792.4,
+        "tax_amount": 1775.09,
+        "line_items": [{"concept": "Aceite", "total_amount": 204.0}],
+    }
+
+    changed = _merge_text_fallback_fields(base, fallback)
+
+    assert changed is True
+    assert base["vendor"] == "Distribuidora Integral Andina S.A."
+    assert base["issue_date"] == "2026-04-03"
+    assert base["subtotal"] == 14792.4
+    assert base["tax_amount"] == 1775.09
+    assert base["total_amount"] == 16567.49
+    assert base["line_items"][0]["concept"] == "Aceite"
 
 
 @pytest.mark.no_db
