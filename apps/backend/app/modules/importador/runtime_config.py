@@ -273,7 +273,7 @@ _DEFAULT_AI_RUNTIME_CONFIG: dict[str, Any] = {
 }
 
 _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
-    "ocr_text_sufficient_min_chars": 100,
+    "ocr_text_sufficient_min_chars": 500,
     "llm_text_preview_chars": 6000,
     "structured_preview_rows": 5,
     "structured_preview_fields": 8,

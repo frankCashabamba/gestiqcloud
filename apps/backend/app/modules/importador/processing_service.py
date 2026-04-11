@@ -553,7 +553,7 @@ async def _analyze_with_context(
     # Si el OCR ya extrajo texto suficiente, no usar visión.
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
     processing_cfg = load_processing_runtime_config(db)
-    min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 100))
+    min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 500))
 
     content_text = (content or "").strip()
     text_is_sufficient = len(content_text) >= min_chars
@@ -623,19 +623,31 @@ async def _analyze_with_context(
 
     _prev_was_good = _prev_confidence_for_skip is None or _prev_confidence_for_skip >= 0.75
 
+    # Primera importación: no hay resultado previo en el contexto de reproceso.
+    # En primera importación la IA siempre debe intentar extraer campos,
+    # independientemente de si el texto parece suficiente.
+    is_first_import = (
+        not isinstance(deep_reprocess_context, dict)
+        or not deep_reprocess_context.get("previous_result")
+    )
+
     fast_mode_skip_ai = (
         str(reprocess_mode or "").strip().lower() == "fast"
         and not has_structured_rows
         and text_is_sufficient
+        and not is_first_import     # Primera importación: IA siempre debe correr (no hay resultado previo)
         and _prev_was_good          # Si confianza previa era baja, forzar IA aunque sea fast mode
         and not vision_image_bytes  # Imágenes SIEMPRE usan IA (nunca saltar para JPEG/PNG/PDF-imagen)
     )
     if fast_mode_skip_ai:
         logger.info(
-            "fast_mode_skip_ai_due_to_sufficient_text=true filename=%s mode=%s text_is_sufficient=%s reason=fast_mode_text_sufficient_skip",
+            "fast_mode_skip_ai_due_to_sufficient_text=true filename=%s mode=%s text_is_sufficient=%s "
+            "is_first_import=%s _prev_was_good=%s reason=fast_mode_text_sufficient_skip",
             filename,
             reprocess_mode,
             text_is_sufficient,
+            is_first_import,
+            _prev_was_good,
         )
         analysis = {
             "doc_type": "OTHER",
@@ -651,6 +663,13 @@ async def _analyze_with_context(
             "fast_mode_skip_ai_due_to_sufficient_text": True,
         }
     else:
+        if is_first_import and str(reprocess_mode or "").strip().lower() == "fast":
+            logger.info(
+                "first_import_ai_forced=true filename=%s mode=%s text_is_sufficient=%s reason=first_import_guard",
+                filename,
+                reprocess_mode,
+                text_is_sufficient,
+            )
         analysis = await analyze_document_fn(
             content,
             filename,
