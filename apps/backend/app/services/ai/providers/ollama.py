@@ -329,8 +329,21 @@ class OllamaProvider(BaseAIProvider):
             prompt = self._prepare_prompt(request)
             payload = self._build_payload(request, prompt, selected_model)
 
+            _call_timeout = (
+                float(request.timeout_override)
+                if request.timeout_override and request.timeout_override > 0
+                else None
+            )
+            if _call_timeout and _call_timeout != self.request_timeout:
+                logger.info(
+                    "Ollama timeout_override=%.1fs (default=%.1fs) task=%s model=%s",
+                    _call_timeout,
+                    self.request_timeout,
+                    request.task.value,
+                    selected_model,
+                )
             async with self._semaphore:
-                client = await self._get_client()
+                client = await self._get_client(timeout=_call_timeout)
                 response = await client.post(self._endpoint_url, json=payload)
                 response.raise_for_status()
                 data = response.json()

@@ -1925,6 +1925,7 @@ async def _analyze_with_vision(
     recipe_config: dict | None = None,
     prompt_config: dict[str, Any] | None = None,
     db: Any = None,
+    timeout_override_secs: float | None = None,
 ) -> dict[str, Any] | None:
     """Try to analyze a document image using a vision-capable model via Ollama.
 
@@ -2051,15 +2052,13 @@ async def _analyze_with_vision(
     }
 
     try:
-        timeout_secs = min(
-            30.0,
-            max(
-                1.0,
-                float(
-                    os.getenv("OLLAMA_VISION_TIMEOUT")
-                    or ai_runtime.get("vision_timeout_seconds")
-                    or os.getenv("OLLAMA_TIMEOUT", "30")
-                ),
+        timeout_secs = max(
+            1.0,
+            float(
+                timeout_override_secs
+                or os.getenv("OLLAMA_VISION_TIMEOUT")
+                or ai_runtime.get("vision_timeout_seconds")
+                or os.getenv("OLLAMA_TIMEOUT", "30")
             ),
         )
         timeout = httpx.Timeout(timeout_secs, read=timeout_secs)
@@ -2291,6 +2290,8 @@ async def analyze_document(
     bypass_cache: bool = False,
     deep_reprocess_context: dict[str, Any] | None = None,
     deep_focus_fields: list[str] | None = None,
+    timeout_override: float | None = None,
+    force_vision: bool = False,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -2360,12 +2361,12 @@ async def analyze_document(
     ai_runtime = load_ai_runtime_config(db)
     ocr_runtime = load_ocr_runtime_config(db)
 
-    if not has_structured_rows and _should_use_vision_fallback(
-        content,
-        format_hint,
-        image_bytes,
-        ai_runtime=ai_runtime,
-    ):
+    _use_vision = force_vision and bool(image_bytes)
+    if not _use_vision and not has_structured_rows:
+        _use_vision = _should_use_vision_fallback(content, format_hint, image_bytes, ai_runtime=ai_runtime)
+    if _use_vision:
+        if force_vision:
+            logger.info("force_vision=true filename=%s format=%s", filename, format_hint)
         vision_result = await _analyze_with_vision(
             image_bytes,
             filename,
@@ -2374,6 +2375,7 @@ async def analyze_document(
             recipe_config,
             prompt_config,
             db=db,
+            timeout_override_secs=timeout_override,
         )
         if vision_result:
             return vision_result
@@ -2516,6 +2518,7 @@ async def analyze_document(
             model=model_override,
             provider=provider_override,
             bypass_cache=bypass_cache or deep_active,
+            timeout_override=timeout_override,
         )
 
         raw_content = response.content

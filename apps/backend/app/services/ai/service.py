@@ -141,6 +141,7 @@ class AIService:
         model: str | None = None,
         messages: list[dict[str, Any]] | None = None,
         bypass_cache: bool = False,
+        timeout_override: float | None = None,
     ) -> AIResponse:
         request = AIRequest(
             task=task,
@@ -150,6 +151,7 @@ class AIService:
             context=context,
             model=model or None,
             messages=messages,
+            timeout_override=timeout_override,
         )
 
         if bypass_cache:

@@ -70,6 +70,7 @@ class AIRequest:
     context: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     messages: list[dict[str, Any]] | None = None
+    timeout_override: float | None = None  # Por-llamada, anula el timeout del proveedor
 
     def __post_init__(self):
         if self.temperature < 0 or self.temperature > 1:

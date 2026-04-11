@@ -68,6 +68,55 @@ AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[..., Awaitable[dict[str, Any]]]
 ProcessingMode = Literal["run", "async"]
 
+# Estrategias de procesamiento y sus timeouts por defecto.
+# Los timeouts de la BD (imp_config) tienen prioridad si están configurados.
+_STRATEGY_TIMEOUTS: dict[str, float] = {
+    "structured_fast": 15.0,
+    "text_doc": 45.0,
+    "visual_complex": 90.0,
+}
+
+
+def decide_processing_strategy(
+    *,
+    tipo_archivo: str,
+    has_vision: bool,
+    text_len: int,
+    has_structured_rows: bool,
+    processing_cfg: dict[str, Any] | None = None,
+) -> tuple[str, float, bool]:
+    """Decide la estrategia de procesamiento según el tipo y complejidad del documento.
+
+    Returns:
+        (strategy_name, timeout_secs, force_vision)
+        - strategy_name: "structured_fast" | "text_doc" | "visual_complex"
+        - timeout_secs:  timeout a usar para la llamada AI (anula el default del proveedor)
+        - force_vision:  True si se debe intentar el modelo de visión aunque el OCR sea bueno
+    """
+    cfg = processing_cfg or {}
+    tipo = str(tipo_archivo or "").upper()
+
+    # Timeouts configurables desde BD (imp_config), con fallback a los defaults
+    t_fast = float(cfg.get("strategy_timeout_structured_fast") or _STRATEGY_TIMEOUTS["structured_fast"])
+    t_text = float(cfg.get("strategy_timeout_text_doc") or _STRATEGY_TIMEOUTS["text_doc"])
+    t_visual = float(cfg.get("strategy_timeout_visual_complex") or _STRATEGY_TIMEOUTS["visual_complex"])
+
+    # 1. Documentos estructurados: nunca necesitan LLM pesado
+    if has_structured_rows or tipo in {"XLSX", "XLS", "CSV", "XML", "JSON"}:
+        return "structured_fast", t_fast, False
+
+    # 2. Imágenes o PDFs escaneados: siempre paciente + intentar visión
+    image_types = {"JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR"}
+    if has_vision or tipo in image_types:
+        return "visual_complex", t_visual, True
+
+    # 3. PDFs con texto claro: timeout moderado, sin visión forzada
+    if text_len >= 800:
+        return "text_doc", t_text, False
+
+    # 4. PDF con texto escaso: más tiempo, sin visión
+    return "visual_complex", t_visual, False
+
 
 def _elapsed_ms(started_at: float) -> int:
     return max(0, int(round((time.perf_counter() - started_at) * 1000)))
@@ -549,6 +598,8 @@ async def _analyze_with_context(
     bypass_cache: bool = False,
     deep_reprocess_context: dict[str, Any] | None = None,
     deep_focus_fields: list[str] | None = None,
+    timeout_override: float | None = None,
+    force_vision: bool = False,
 ) -> dict[str, Any]:
     # Si el OCR ya extrajo texto suficiente, no usar visión.
     # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
@@ -639,6 +690,19 @@ async def _analyze_with_context(
         and _prev_was_good          # Si confianza previa era baja, forzar IA aunque sea fast mode
         and not vision_image_bytes  # Imágenes SIEMPRE usan IA (nunca saltar para JPEG/PNG/PDF-imagen)
     )
+    # DBG[C] decisión de ruta AI vs fast-skip
+    logger.info(
+        "DBG[C] ai_routing filename=%s mode=%s fast_mode_skip=%s is_first_import=%s "
+        "text_is_sufficient=%s has_vision=%s _prev_was_good=%s has_structured=%s",
+        filename,
+        reprocess_mode,
+        fast_mode_skip_ai,
+        is_first_import,
+        text_is_sufficient,
+        bool(vision_image_bytes),
+        _prev_was_good,
+        has_structured_rows,
+    )
     if fast_mode_skip_ai:
         logger.info(
             "fast_mode_skip_ai_due_to_sufficient_text=true filename=%s mode=%s text_is_sufficient=%s "
@@ -687,6 +751,8 @@ async def _analyze_with_context(
             bypass_cache=bypass_cache,
             deep_reprocess_context=deep_reprocess_context,
             deep_focus_fields=deep_focus_fields,
+            timeout_override=timeout_override,
+            force_vision=force_vision,
         )
 
     if quality_warning:
@@ -766,6 +832,15 @@ async def _process_async_document(
     sheet_metadata = extraction.get("sheet_metadata")
     processing_cfg = load_processing_runtime_config(db)
     _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
+    # DBG[A] OCR bruto — comprobar si los datos llegan del extractor
+    logger.info(
+        "DBG[A] ocr filename=%s text_len=%d page_texts=%d has_vision=%s text_head=%r",
+        filename,
+        len(text or ""),
+        len(extraction.get("page_texts") or []),
+        bool(extraction.get("vision_image_bytes")),
+        (text or "")[:300],
+    )
 
     file_format = str(extraction.get("format", tipo_archivo) or tipo_archivo).upper()
     has_structured = bool(
@@ -831,6 +906,22 @@ async def _process_async_document(
     vision_image_bytes = extraction.get("vision_image_bytes")
     if not isinstance(vision_image_bytes, (bytes, bytearray)):
         vision_image_bytes = file_bytes if tipo_archivo in ("JPG", "PNG", "IMG") else None
+
+    # Decidir estrategia de procesamiento (timeout + visión) según complejidad del documento
+    _strategy, _strategy_timeout, _force_vision = decide_processing_strategy(
+        tipo_archivo=str(extraction.get("format", tipo_archivo) or tipo_archivo),
+        has_vision=bool(vision_image_bytes),
+        text_len=len(text or ""),
+        has_structured_rows=has_structured,
+        processing_cfg=processing_cfg,
+    )
+    logger.info(
+        "processing_strategy=%s timeout=%.0fs force_vision=%s filename=%s",
+        _strategy,
+        _strategy_timeout,
+        _force_vision,
+        filename,
+    )
 
     recipe_snapshot = None
     recipe_config: dict[str, Any] = {}
@@ -905,6 +996,15 @@ async def _process_async_document(
         tipo_archivo=tipo_archivo,
     )
     _set_stage_timing(stage_timings, "pre_classify", pre_classify_started_at)
+    # DBG[B] Pre-clasificador — ¿se saltó la IA?
+    logger.info(
+        "DBG[B] pre_classify filename=%s layer=%s skip_ai=%s doc_type=%s confidence=%.2f",
+        filename,
+        pre_class.layer if pre_class else None,
+        pre_class.skip_ai if pre_class else None,
+        pre_class.doc_type if pre_class else None,
+        pre_class.confidence if pre_class else 0.0,
+    )
 
     if pre_class and pre_class.skip_ai:
         if pre_class.layer == "template":
@@ -986,6 +1086,8 @@ async def _process_async_document(
                 if deep_reprocess
                 else None
             ),
+            timeout_override=_strategy_timeout,
+            force_vision=_force_vision,
         )
         _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
 
@@ -1000,6 +1102,24 @@ async def _process_async_document(
             },
         )
 
+    # DBG[D] AI raw — qué devolvió el modelo antes de normalizar
+    _dbg_ai_fields = analysis.get("fields") or {}
+    _dbg_raw = str(analysis.get("raw_response") or "")
+    _dbg_error = str(analysis.get("error") or "")
+    logger.info(
+        "DBG[D] ai_raw filename=%s model=%s path=%s fields_count=%d fields_keys=%s "
+        "line_items=%d timeout_hint=%s fast_skip=%s error_hint=%r",
+        filename,
+        analysis.get("model_used"),
+        analysis.get("analysis_path"),
+        len(_dbg_ai_fields) if isinstance(_dbg_ai_fields, dict) else 0,
+        sorted(_dbg_ai_fields.keys()) if isinstance(_dbg_ai_fields, dict) else [],
+        len(_dbg_ai_fields.get("line_items") or []) if isinstance(_dbg_ai_fields, dict) else 0,
+        any(t in (_dbg_raw + _dbg_error).lower() for t in ["timeout", "timed out", "connection"]),
+        bool(analysis.get("fast_mode_skip_ai_due_to_sufficient_text")),
+        _dbg_error[:120] if _dbg_error else None,
+    )
+
     normalize_analysis_started_at = time.perf_counter()
     normalized_analysis = _normalize_analysis_output(analysis)
     _set_stage_timing(stage_timings, "analysis_normalize", normalize_analysis_started_at)
@@ -1008,6 +1128,15 @@ async def _process_async_document(
     requiere_revision = confianza < classification_threshold
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
+    # DBG[E] Normalización — si aquí ya faltan campos que sí estaban en DBG[D], el problema es _normalize_analysis_output
+    logger.info(
+        "DBG[E] normalize filename=%s doc_type=%s confidence=%.2f fields_keys=%s line_items=%d",
+        filename,
+        normalized_analysis.get("doc_type"),
+        float(normalized_analysis.get("confidence") or 0),
+        sorted(k for k in (analysis_fields or {}) if not k.startswith("_")),
+        len((analysis_fields or {}).get("line_items") or []) if isinstance(analysis_fields, dict) else 0,
+    )
     current_field_keys = (
         sorted(
             str(key)
@@ -1110,10 +1239,130 @@ async def _process_async_document(
         datos_extraidos = analysis_fields or {}
         # Text fallback: when AI failed and OCR text is available, extract
         # fields using DB-configured labels and aliases.
-        if text.strip() and _analysis_indicates_ai_failure(
-            analysis,
-            processing_cfg=processing_cfg,
+        _dbg_ai_failure = _analysis_indicates_ai_failure(analysis, processing_cfg=processing_cfg)
+
+        # Auto-retry interno: solo para visual_complex con fallo NO-timeout.
+        # Si la primera llamada hizo timeout, repetir la misma ruta con el mismo
+        # timeout solo añade latencia sin nueva información — ir directo al OCR rescue.
+        # Si falló por otro motivo (conexión, error de modelo), sí se reintenta una vez
+        # sin visión forzada. Si este segundo intento también falla, el text fallback toma el relevo.
+        _auto_retry_done = False
+        _was_timeout = "timeout" in str(analysis.get("error") or "").lower()
+        if _was_timeout:
+            logger.info(
+                "auto_retry=skipped_timeout filename=%s strategy=%s reason=first_call_timed_out",
+                filename,
+                _strategy,
+            )
+        if (
+            _dbg_ai_failure
+            and not _was_timeout
+            and _strategy == "visual_complex"
+            and not bool(analysis.get("fast_mode_skip_ai_due_to_sufficient_text"))
+            and text.strip()
         ):
+            _missing_scalar = _count_detected_scalar_fields(datos_extraidos)
+            _critical_fields = {"vendor", "doc_number", "subtotal", "tax_amount", "line_items"}
+            _missing_critical = _critical_fields - set(
+                k for k, v in datos_extraidos.items() if v not in (None, "", [], {})
+            )
+            if len(_missing_critical) >= 2:
+                logger.info(
+                    "auto_retry=start filename=%s strategy=%s missing_critical=%s",
+                    filename,
+                    _strategy,
+                    sorted(_missing_critical),
+                )
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    retry_analysis_started_at = time.perf_counter()
+                    retry_analysis = await _analyze_with_context(
+                        analyze_document_fn=analyze_document_fn,
+                        content=llm_content,
+                        filename=filename,
+                        format_hint=extraction.get("format", tipo_archivo),
+                        has_structured_rows=False,
+                        recipe_config=analysis_recipe_config or {},
+                        structured_data=None,
+                        structured_metadata=None,
+                        vision_image_bytes=vision_image_bytes,
+                        fallback_patterns=fallback_patterns,
+                        canonical_fields=canonical_fields,
+                        prompt_config=prompt_config,
+                        db=db,
+                        reprocess_mode=reprocess_mode,
+                        bypass_cache=True,
+                        timeout_override=_strategy_timeout,
+                        force_vision=False,  # sin visión: ya falló antes
+                    )
+                    _set_stage_timing(
+                        stage_timings,
+                        "ai_auto_retry",
+                        retry_analysis_started_at,
+                    )
+                    if not _analysis_indicates_ai_failure(retry_analysis, processing_cfg=processing_cfg):
+                        retry_normalized = _normalize_analysis_output(retry_analysis)
+                        retry_fields = retry_normalized.get("fields") or {}
+                        _retry_field_count = _count_detected_scalar_fields(retry_fields)
+                        _still_missing_critical = _critical_fields - set(
+                            k for k, v in retry_fields.items() if v not in (None, "", [], {})
+                        )
+                        # Éxito genuino: más campos Y al menos 4 de 5 críticos cubiertos.
+                        # Si mejora parcial (añade 1 campo pero falta la mayoría de críticos),
+                        # actualizar datos pero dejar que el text fallback complete el resto.
+                        genuinely_improved = (
+                            _retry_field_count > _missing_scalar
+                            and len(_still_missing_critical) <= 1
+                        )
+                        if genuinely_improved:
+                            logger.info(
+                                "auto_retry=success filename=%s fields_before=%d fields_after=%d",
+                                filename,
+                                _missing_scalar,
+                                _retry_field_count,
+                            )
+                            analysis = retry_analysis
+                            normalized_analysis = retry_normalized
+                            tipo_doc = str(retry_normalized["doc_type"])
+                            confianza = float(retry_normalized["confidence"])
+                            razonamiento = str(retry_normalized["reasoning"])
+                            analysis_fields = retry_fields
+                            datos_extraidos = retry_fields
+                            _dbg_ai_failure = False
+                            _auto_retry_done = True
+                        else:
+                            # Mejora parcial: tomar los campos del retry pero dejar que el
+                            # OCR rescue complete los críticos que aún faltan.
+                            if retry_fields:
+                                datos_extraidos = retry_fields
+                            logger.info(
+                                "auto_retry=partial_improvement filename=%s fields_before=%d "
+                                "fields_after=%d still_missing_critical=%s → fallback_will_rescue",
+                                filename,
+                                _missing_scalar,
+                                _retry_field_count,
+                                sorted(_still_missing_critical),
+                            )
+                    else:
+                        logger.info("auto_retry=also_failed filename=%s", filename)
+                except Exception as _retry_exc:
+                    logger.warning("auto_retry=exception filename=%s err=%s", filename, _retry_exc)
+
+        # DBG[F] Gate del fallback — si is_ai_failure=False y datos_extraidos está vacío, la IA respondió vacío
+        logger.info(
+            "DBG[F] fallback_gate filename=%s is_ai_failure=%s fast_skip=%s "
+            "datos_extraidos_keys=%s text_available=%s auto_retry_done=%s",
+            filename,
+            _dbg_ai_failure,
+            bool(analysis.get("fast_mode_skip_ai_due_to_sufficient_text")),
+            sorted(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else "NOT_DICT",
+            bool(text.strip()),
+            _auto_retry_done,
+        )
+        if text.strip() and _dbg_ai_failure:
             text_fallback_started_at = time.perf_counter()
             # El timeout de la IA puede haber dejado la transacción en estado abortado.
             # Hacemos rollback para limpiarla antes de continuar con queries al DB.
@@ -1149,6 +1398,18 @@ async def _process_async_document(
                 pdf_config=pdf_config,
                 page_texts=extraction.get("page_texts"),
             )
+            # DBG[G-pre] Fallback bruto — antes del sanitize
+            logger.info(
+                "DBG[G-pre] fallback_raw filename=%s keys=%s line_items=%d "
+                "vendor=%r vendor_tax_id=%r total_amount=%r",
+                filename,
+                sorted(k for k in fallback_fields if k not in {"line_items", "line_item_page_groups"}),
+                len((fallback_fields or {}).get("line_items") or []),
+                (fallback_fields or {}).get("vendor"),
+                (fallback_fields or {}).get("vendor_tax_id"),
+                (fallback_fields or {}).get("total_amount"),
+            )
+            _fallback_keys_before_sanitize = set(fallback_fields.keys())
             fallback_fields = _sanitize_text_fallback_fields(
                 fallback_fields,
                 content=text,
@@ -1156,6 +1417,17 @@ async def _process_async_document(
                 prompt_config=prompt_config,
                 ai_runtime=load_ai_runtime_config(db),
                 ocr_runtime=load_ocr_runtime_config(db),
+            )
+            # DBG[G-post] Sanitize — campos que desaparecieron aquí son rechazados por reglas de limpieza
+            logger.info(
+                "DBG[G-post] fallback_sanitized filename=%s keys=%s lost_in_sanitize=%s "
+                "vendor=%r vendor_tax_id=%r total_amount=%r",
+                filename,
+                sorted(k for k in fallback_fields if k not in {"line_items", "line_item_page_groups"}),
+                sorted(_fallback_keys_before_sanitize - set(fallback_fields.keys())),
+                (fallback_fields or {}).get("vendor"),
+                (fallback_fields or {}).get("vendor_tax_id"),
+                (fallback_fields or {}).get("total_amount"),
             )
             if fallback_fields:
                 if not datos_extraidos:
@@ -1340,6 +1612,8 @@ async def _process_async_document(
                             if deep_reprocess
                             else None
                         ),
+                        timeout_override=_strategy_timeout,
+                        force_vision=False,  # rerun: sin visión forzada, ya intentó en el primer pass
                     )
                     _set_stage_timing(stage_timings, "ai_rerun", ai_rerun_started_at)
                     rerun_normalized = _normalize_analysis_output(rerun_analysis)
@@ -1383,6 +1657,23 @@ async def _process_async_document(
                         analysis_fields = rerun_fields
                         datos_extraidos = rerun_fields
                         recipe_config = auto_recipe_config
+
+    # DBG[H] datos_extraidos final — si está completo aquí pero no en la UI, el problema es persistencia o serializer
+    logger.info(
+        "DBG[H] datos_extraidos_final filename=%s keys=%s line_items=%d "
+        "vendor=%r vendor_tax_id=%r doc_number=%r issue_date=%r "
+        "subtotal=%r tax_amount=%r total_amount=%r",
+        filename,
+        sorted(k for k in (datos_extraidos or {}) if k not in {"line_items", "line_item_page_groups"}),
+        len((datos_extraidos or {}).get("line_items") or []) if isinstance(datos_extraidos, dict) else 0,
+        (datos_extraidos or {}).get("vendor"),
+        (datos_extraidos or {}).get("vendor_tax_id"),
+        (datos_extraidos or {}).get("doc_number"),
+        (datos_extraidos or {}).get("issue_date"),
+        (datos_extraidos or {}).get("subtotal"),
+        (datos_extraidos or {}).get("tax_amount"),
+        (datos_extraidos or {}).get("total_amount"),
+    )
 
     crud.add_log(
         db,
