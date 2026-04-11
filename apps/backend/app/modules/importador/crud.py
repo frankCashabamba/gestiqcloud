@@ -43,6 +43,9 @@ _REPROCESS_CLEAN_FIELDS = {
     "sheet_profiles_json": None,
     "llm_model": None,
     "raw_ai_json": None,
+    # Al reprocesar, reprocess_status se limpia para que el nuevo ciclo lo escriba.
+    # extraction_status se mantiene intencionalmente: se sobreescribe al terminar el procesamiento.
+    "reprocess_status": None,
 }
 
 

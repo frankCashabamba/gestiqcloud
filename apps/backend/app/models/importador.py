@@ -79,6 +79,18 @@ class ImpDocumento(Base):
     )
     error_detalle: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Status dimensions (separadas del estado principal del workflow)
+    extraction_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="ok | partial | failed — resultado de la extracción, nunca sobreescrito por reproceso",
+    )
+    reprocess_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="available | unavailable | failed — disponibilidad del archivo original para reproceso",
+    )
+
     # Metadata
     proveedor_detectado: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ruc_detectado: Mapped[str | None] = mapped_column(String(100), nullable=True)

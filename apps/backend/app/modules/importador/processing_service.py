@@ -1540,6 +1540,12 @@ async def _process_async_document(
             "datos_extraidos": datos_extraidos,
             "estado": "REVIEW",
             "error_detalle": ai_timeout_error,
+            "extraction_status": (
+                "ok" if datos_extraidos and isinstance(datos_extraidos, dict) and datos_extraidos
+                else "partial" if isinstance(datos_extraidos, dict)
+                else "failed"
+            ),
+            "reprocess_status": "available",
             **projection,
             "fingerprint_json": sheet_profiles,
             "sheet_profiles_json": sheet_profiles,
@@ -2123,6 +2129,12 @@ async def _process_run_document(
             "requiere_revision": requiere_revision,
             "datos_extraidos": datos_extraidos,
             "estado": "REVIEW",
+            "extraction_status": (
+                "ok" if datos_extraidos and isinstance(datos_extraidos, dict) and datos_extraidos
+                else "partial" if isinstance(datos_extraidos, dict)
+                else "failed"
+            ),
+            "reprocess_status": "available",
             **projection,
             "llm_model": model_used,
             "raw_ai_json": raw_ai_json,

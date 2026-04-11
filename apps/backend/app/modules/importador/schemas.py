@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class DocumentRoutingDecision(BaseModel):
@@ -42,6 +42,32 @@ class AssistedReviewOut(BaseModel):
     can_derive_total: bool = False
 
 
+def _derive_classification_level(confianza: float | None) -> str | None:
+    """Convierte confianza_clasificacion (0-1) a un nivel discreto legible."""
+    if confianza is None:
+        return None
+    if confianza >= 0.75:
+        return "high"
+    if confianza >= 0.50:
+        return "medium"
+    return "low"
+
+
+def _derive_save_readiness(
+    routing_decision: Any | None,
+    requiere_revision: bool,
+) -> str:
+    """Determina si el documento está listo para guardar sin acción adicional."""
+    required_fields_ok = bool(
+        routing_decision and getattr(routing_decision, "required_fields_ok", False)
+    )
+    if not required_fields_ok:
+        return "missing_required"
+    if requiere_revision:
+        return "needs_review"
+    return "ready"
+
+
 class DocumentoOut(BaseModel):
     id: UUID
     nombre_archivo: str
@@ -54,6 +80,12 @@ class DocumentoOut(BaseModel):
     datos_confirmados: dict | None = None
     estado: str
     error_detalle: str | None = None
+    # Dimensiones de estado separadas
+    extraction_status: str | None = None   # ok | partial | failed
+    reprocess_status: str | None = None    # available | unavailable | failed
+    # Campos calculados (no en BD, derivados al serializar)
+    classification_level: str | None = None  # high | medium | low
+    save_readiness: str | None = None        # ready | needs_review | missing_required
     proveedor_detectado: str | None = None
     ruc_detectado: str | None = None
     monto_total: float | None = None
@@ -78,6 +110,16 @@ class DocumentoOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _compute_derived_fields(self) -> "DocumentoOut":
+        if self.classification_level is None:
+            self.classification_level = _derive_classification_level(self.confianza_clasificacion)
+        if self.save_readiness is None:
+            self.save_readiness = _derive_save_readiness(
+                self.routing_decision, self.requiere_revision
+            )
+        return self
 
 
 class SyncRecipeResponse(BaseModel):
@@ -115,6 +157,9 @@ class DocumentoListOut(BaseModel):
     confianza_clasificacion: float | None = None
     requiere_revision: bool = False
     estado: str
+    extraction_status: str | None = None   # ok | partial | failed
+    reprocess_status: str | None = None    # available | unavailable | failed
+    classification_level: str | None = None
     proveedor_detectado: str | None = None
     monto_total: float | None = None
     synced_recipe_id: UUID | None = None
@@ -130,6 +175,12 @@ class DocumentoListOut(BaseModel):
     updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _compute_classification_level(self) -> "DocumentoListOut":
+        if self.classification_level is None:
+            self.classification_level = _derive_classification_level(self.confianza_clasificacion)
+        return self
 
 
 class LogCambioOut(BaseModel):

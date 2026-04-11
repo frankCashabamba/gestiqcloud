@@ -273,18 +273,44 @@ def _make_task():
                     db.execute(_text("SELECT 1"))
                     doc = db.query(ImpDocumento).filter(ImpDocumento.id == UUID(doc_id)).first()
                     if doc:
-                        crud.update_documento(db, doc, {"estado": "FAILED", "error_detalle": user_msg})
+                        # Si el documento ya tiene datos extraídos de un ciclo anterior, NO
+                        # marcarlo como FAILED: la extracción fue exitosa. Solo registrar que
+                        # el archivo original ya no está disponible para reprocesar.
+                        tiene_datos = bool(
+                            doc.datos_extraidos
+                            and isinstance(doc.datos_extraidos, dict)
+                            and doc.datos_extraidos
+                        )
+                        if tiene_datos:
+                            doc_update: dict = {"reprocess_status": "unavailable"}
+                            batch_estado = doc.estado  # preservar estado actual (REVIEW, etc.)
+                            logger.warning(
+                                "Payload no encontrado para doc %s pero tiene datos extraídos; "
+                                "marcando reprocess_status=unavailable sin cambiar estado=%s",
+                                doc_id,
+                                doc.estado,
+                            )
+                        else:
+                            doc_update = {
+                                "estado": "FAILED",
+                                "error_detalle": user_msg,
+                                "extraction_status": "failed",
+                                "reprocess_status": "unavailable",
+                            }
+                            batch_estado = "FAILED"
+
+                        crud.update_documento(db, doc, doc_update)
                         for batch_id in crud.touch_batch_items_for_document(
                             db,
                             doc.id,
-                            estado="FAILED",
-                            error_detalle=user_msg,
+                            estado=batch_estado,
+                            error_detalle=user_msg if not tiene_datos else None,
                         ):
                             crud.refresh_batch_status(db, batch_id)
                             publish_batch_update(db, batch_id)
                         db.commit()
             except Exception as exc:
-                logger.error("No se pudo marcar FAILED doc %s: %s", doc_id, exc)
+                logger.error("No se pudo actualizar estado doc %s: %s", doc_id, exc)
             return {"ok": False, "error": user_msg}
 
         try:
