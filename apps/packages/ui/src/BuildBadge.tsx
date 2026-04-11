@@ -29,7 +29,7 @@ function buildVersionUrl(rawApiUrl: string): string {
 
 export default function BuildBadge() {
   const env = useEnv()
-  const [info, setInfo] = useState<{ buildId: string; version: string }>({ buildId: __APP_BUILD_ID__, version: __APP_VERSION__ })
+  const [info, setInfo] = useState<{ buildId: string; version: string | null }>({ buildId: __APP_BUILD_ID__, version: null })
 
   useEffect(() => {
     // Fetch live version from DB via backend
@@ -38,16 +38,18 @@ export default function BuildBadge() {
       .then((d) => { if (d?.version) setInfo((prev) => ({ ...prev, version: d.version })) })
       .catch(() => {})
 
-    // Also listen to service worker updates
+    // Listen to service worker updates (buildId only, version siempre viene de BD)
     const onMsg = (e: MessageEvent) => {
       const d = e.data || {}
-      if (d.type === 'APP_VERSION' && (d.buildId || d.version)) {
-        setInfo((prev) => ({ buildId: d.buildId || prev.buildId, version: d.version || prev.version }))
+      if (d.type === 'APP_VERSION' && d.buildId) {
+        setInfo((prev) => ({ ...prev, buildId: d.buildId }))
       }
     }
     navigator.serviceWorker?.addEventListener('message', onMsg)
     return () => navigator.serviceWorker?.removeEventListener('message', onMsg)
   }, [env.apiUrl])
+
+  if (!info.version) return null
 
   return (
     <div

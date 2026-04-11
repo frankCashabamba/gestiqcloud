@@ -1,0 +1,212 @@
+from __future__ import annotations
+
+from typing import Any
+
+from .document_fields import detect_document_total, get_data_value
+
+
+def should_preserve_strong_preclassification(
+    *,
+    pre_class_doc_type: str | None,
+    pre_class_confidence: float | None,
+    product_like_doc_types: set[str],
+    min_confidence: float,
+) -> bool:
+    pre_class_upper = str(pre_class_doc_type or "").strip().upper()
+    if not pre_class_upper:
+        return False
+    try:
+        confidence = float(pre_class_confidence or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return confidence >= min_confidence and pre_class_upper not in product_like_doc_types
+
+
+def _confidence_from_map(
+    mapping: dict[str, float],
+    doc_type: str,
+    default: float = 0.0,
+) -> float:
+    try:
+        return float(mapping.get(str(doc_type or "").strip().upper(), default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _keyword_tokens(
+    fallback_patterns: dict[str, list[str]] | None,
+    doc_type: str,
+) -> tuple[str, ...]:
+    values = (fallback_patterns or {}).get(str(doc_type or "").strip().upper()) or []
+    return tuple(str(item).strip().lower() for item in values if str(item).strip())
+
+
+def promote_doc_type_from_text_fallback(
+    *,
+    current_doc_type: str,
+    current_confidence: float,
+    current_reasoning: str,
+    fields: dict[str, Any] | None,
+    content: str,
+    filename: str,
+    pre_class_doc_type: str | None = None,
+    resolution_config: dict[str, Any] | None = None,
+    fallback_patterns: dict[str, list[str]] | None = None,
+) -> tuple[str, float, str, str | None]:
+    if str(current_doc_type or "").strip().upper() != "OTHER":
+        return current_doc_type, current_confidence, current_reasoning, None
+    if not isinstance(fields, dict) or not fields:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    cfg = dict(resolution_config or {})
+    pre_class_upper = str(pre_class_doc_type or "").strip().upper()
+    blocked_preclass_types = {
+        str(item).strip().upper()
+        for item in (cfg.get("promotion_blocked_preclass_types") or [])
+        if str(item).strip()
+    }
+    if pre_class_upper in blocked_preclass_types:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    text_context = f"{filename}\n{content}".lower()
+    total_aliases = [
+        str(item).strip()
+        for item in (cfg.get("text_fallback_total_field_aliases") or [])
+        if str(item).strip()
+    ] or ["total_amount", "total_price", "total", "amount"]
+    has_issue_date = bool(get_data_value(fields, "issue_date"))
+    has_total = detect_document_total(fields, aliases=total_aliases) is not None
+    has_vendor = bool(get_data_value(fields, "vendor", "vendor_tax_id"))
+    has_customer = bool(get_data_value(fields, "customer", "customer_tax_id"))
+    has_doc_number = bool(get_data_value(fields, "doc_number", "supplier_ref"))
+    has_concept = bool(get_data_value(fields, "concept", "description"))
+    has_payment_method = bool(get_data_value(fields, "payment_method"))
+    raw_line_items = fields.get("line_items")
+    has_line_items = isinstance(raw_line_items, list) and any(
+        isinstance(item, dict) for item in raw_line_items
+    )
+    invoice_support = sum(1 for flag in (has_issue_date, has_total, has_vendor, has_doc_number) if flag)
+    receipt_support = sum(
+        1
+        for flag in (
+            has_issue_date,
+            has_total,
+            has_vendor,
+            has_customer,
+            has_concept,
+            has_payment_method,
+        )
+        if flag
+    )
+
+    keyword_confidence = {
+        str(key).strip().upper(): float(value)
+        for key, value in (cfg.get("text_fallback_keyword_confidence") or {}).items()
+        if str(key).strip()
+    }
+    like_confidence = {
+        str(key).strip().upper(): float(value)
+        for key, value in (cfg.get("text_fallback_like_confidence") or {}).items()
+        if str(key).strip()
+    }
+    minimal_confidence = {
+        str(key).strip().upper(): float(value)
+        for key, value in (cfg.get("text_fallback_minimal_confidence") or {}).items()
+        if str(key).strip()
+    }
+
+    promoted_type: str | None = None
+    promoted_confidence: float | None = None
+    reason_tag: str | None = None
+
+    invoice_tokens = _keyword_tokens(fallback_patterns, "INVOICE")
+    receipt_tokens = _keyword_tokens(fallback_patterns, "RECEIPT")
+    if any(token in text_context for token in invoice_tokens):
+        if has_total and (invoice_support >= 2 or has_line_items):
+            promoted_type = "INVOICE"
+            promoted_confidence = _confidence_from_map(keyword_confidence, "INVOICE", 0.68)
+            reason_tag = "invoice_keyword"
+    elif any(token in text_context for token in receipt_tokens):
+        if has_total and receipt_support >= 2:
+            promoted_type = "RECEIPT"
+            promoted_confidence = _confidence_from_map(keyword_confidence, "RECEIPT", 0.66)
+            reason_tag = "receipt_keyword"
+
+    if promoted_type is None:
+        if has_issue_date and has_total and (has_doc_number or (has_vendor and has_customer)):
+            promoted_type = "INVOICE"
+            promoted_confidence = _confidence_from_map(like_confidence, "INVOICE", 0.64)
+            reason_tag = "invoice_like_fields"
+        elif has_issue_date and has_total and (has_vendor or has_customer):
+            promoted_type = "RECEIPT"
+            promoted_confidence = _confidence_from_map(like_confidence, "RECEIPT", 0.61)
+            reason_tag = "receipt_like_fields"
+        elif pre_class_upper == "RECEIPT" and has_total:
+            promoted_type = "RECEIPT"
+            promoted_confidence = _confidence_from_map(minimal_confidence, "RECEIPT", 0.56)
+            reason_tag = "minimal_receipt_fields"
+
+    if not promoted_type or promoted_confidence is None:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    promoted_reasoning = (
+        f"Promoted from OCR text fallback due to {reason_tag}. "
+        "Heavy AI extraction did not produce a usable classification."
+    )
+    return (
+        promoted_type,
+        max(float(current_confidence or 0.0), promoted_confidence),
+        promoted_reasoning,
+        reason_tag,
+    )
+
+
+def restore_preclassified_doc_type(
+    *,
+    current_doc_type: str,
+    current_confidence: float,
+    current_reasoning: str,
+    pre_class_doc_type: str | None,
+    pre_class_confidence: float | None = None,
+    pre_class_layer: str | None = None,
+    resolution_config: dict[str, Any] | None = None,
+) -> tuple[str, float, str, str | None]:
+    current_upper = str(current_doc_type or "").strip().upper() or "OTHER"
+    pre_class_upper = str(pre_class_doc_type or "").strip().upper()
+    if not pre_class_upper or current_upper == pre_class_upper:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    try:
+        normalized_pre_conf = float(pre_class_confidence or 0.0)
+    except (TypeError, ValueError):
+        normalized_pre_conf = 0.0
+    if normalized_pre_conf <= 0:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    cfg = dict(resolution_config or {})
+    stable_preclassified_types = {
+        str(item).strip().upper()
+        for item in (cfg.get("restore_stable_preclassified_types") or [])
+        if str(item).strip()
+    }
+    if pre_class_upper not in stable_preclassified_types:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    restore_conflict_doc_types = {
+        str(item).strip().upper()
+        for item in (cfg.get("restore_conflict_doc_types") or [])
+        if str(item).strip()
+    }
+    allow_restore = current_upper == "OTHER" or {
+        current_upper,
+        pre_class_upper,
+    } <= restore_conflict_doc_types
+    if not allow_restore:
+        return current_doc_type, current_confidence, current_reasoning, None
+
+    layer = str(pre_class_layer or "pre_classifier").strip() or "pre_classifier"
+    reasoning = (
+        f"Restored stable pre-classification {pre_class_upper} from {layer} "
+        f"after weak fallback result."
+    )
+    return pre_class_upper, normalized_pre_conf, reasoning, "preclassification_restore"

@@ -312,6 +312,15 @@
     "product_like_doc_types": ["INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS"],
     "recipe_name_field_candidates": ["nombre_de_la_receta", "nombre_receta", "nombre de la receta", "nombre"]
   },
+  "doc_type_resolution": {
+    "promotion_blocked_preclass_types": ["SALES", "PAYROLL", "BANK_STATEMENT", "BANK", "INVENTORY", "PRICE_LIST", "PRODUCT_LIST", "PRODUCTS", "COSTING", "RECIPE"],
+    "restore_stable_preclassified_types": ["BANK_MOVEMENTS", "BANK_STATEMENT", "EXPENSE", "EXPENSES", "INVOICE", "PAYROLL", "RECEIPT", "SALES"],
+    "restore_conflict_doc_types": ["INVOICE", "RECEIPT"],
+    "text_fallback_total_field_aliases": ["total_amount", "total_price", "total", "amount"],
+    "text_fallback_keyword_confidence": ["INVOICE=0.68", "RECEIPT=0.66"],
+    "text_fallback_like_confidence": ["INVOICE=0.64", "RECEIPT=0.61"],
+    "text_fallback_minimal_confidence": ["RECEIPT=0.56"]
+  },
   "reprocess_control": {
     "enable_premium_deep_reprocess": "false",
     "deep_premium_provider": "openai",

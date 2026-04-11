@@ -299,6 +299,36 @@ _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
     ],
 }
 
+_DEFAULT_DOC_TYPE_RESOLUTION_CONFIG: dict[str, Any] = {
+    "promotion_blocked_preclass_types": [
+        "SALES",
+        "PAYROLL",
+        "BANK_STATEMENT",
+        "BANK",
+        "INVENTORY",
+        "PRICE_LIST",
+        "PRODUCT_LIST",
+        "PRODUCTS",
+        "COSTING",
+        "RECIPE",
+    ],
+    "restore_stable_preclassified_types": [
+        "BANK_MOVEMENTS",
+        "BANK_STATEMENT",
+        "EXPENSE",
+        "EXPENSES",
+        "INVOICE",
+        "PAYROLL",
+        "RECEIPT",
+        "SALES",
+    ],
+    "restore_conflict_doc_types": ["INVOICE", "RECEIPT"],
+    "text_fallback_total_field_aliases": ["total_amount", "total_price", "total", "amount"],
+    "text_fallback_keyword_confidence": {"INVOICE": 0.68, "RECEIPT": 0.66},
+    "text_fallback_like_confidence": {"INVOICE": 0.64, "RECEIPT": 0.61},
+    "text_fallback_minimal_confidence": {"RECEIPT": 0.56},
+}
+
 _DEFAULT_REPROCESS_CONTROL_CONFIG: dict[str, Any] = {
     "enable_premium_deep_reprocess": False,
     "deep_premium_provider": "openai",
@@ -1262,6 +1292,108 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
             logger.warning("No se pudo cargar processing_runtime desde imp_config: %s", exc)
 
     return _cache_set("processing_runtime", config)  # type: ignore[return-value]
+
+
+def load_doc_type_resolution_config(db: Any | None = None) -> dict[str, Any]:
+    cached = _cache_get("doc_type_resolution")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    config: dict[str, Any] = {
+        "promotion_blocked_preclass_types": list(
+            _DEFAULT_DOC_TYPE_RESOLUTION_CONFIG["promotion_blocked_preclass_types"]
+        ),
+        "restore_stable_preclassified_types": list(
+            _DEFAULT_DOC_TYPE_RESOLUTION_CONFIG["restore_stable_preclassified_types"]
+        ),
+        "restore_conflict_doc_types": list(
+            _DEFAULT_DOC_TYPE_RESOLUTION_CONFIG["restore_conflict_doc_types"]
+        ),
+        "text_fallback_total_field_aliases": list(
+            _DEFAULT_DOC_TYPE_RESOLUTION_CONFIG["text_fallback_total_field_aliases"]
+        ),
+        "text_fallback_keyword_confidence": dict(
+            _DEFAULT_DOC_TYPE_RESOLUTION_CONFIG["text_fallback_keyword_confidence"]
+        ),
+        "text_fallback_like_confidence": dict(
+            _DEFAULT_DOC_TYPE_RESOLUTION_CONFIG["text_fallback_like_confidence"]
+        ),
+        "text_fallback_minimal_confidence": dict(
+            _DEFAULT_DOC_TYPE_RESOLUTION_CONFIG["text_fallback_minimal_confidence"]
+        ),
+    }
+    seed = _seed_module_payload("doc_type_resolution")
+
+    def _list_value(value: Any, default: list[str], *, uppercase: bool = False) -> list[str]:
+        if not isinstance(value, list):
+            return list(default)
+        parsed: list[str] = []
+        for item in value:
+            text = str(item).strip()
+            if not text:
+                continue
+            parsed.append(text.upper() if uppercase else text)
+        return parsed or list(default)
+
+    def _float_map_value(value: Any, default: dict[str, float]) -> dict[str, float]:
+        parsed = dict(default)
+        if not isinstance(value, list):
+            return parsed
+        for item in value:
+            raw = str(item).strip()
+            if not raw:
+                continue
+            separator = "=" if "=" in raw else ":"
+            key, _, val = raw.partition(separator)
+            key = key.strip().upper()
+            if not key:
+                continue
+            try:
+                parsed[key] = float(str(val).strip())
+            except (TypeError, ValueError):
+                continue
+        return parsed
+
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key in {
+                "promotion_blocked_preclass_types",
+                "restore_stable_preclassified_types",
+                "restore_conflict_doc_types",
+            }:
+                config[key] = _list_value(value, config[key], uppercase=True)
+            elif key == "text_fallback_total_field_aliases":
+                config[key] = _list_value(value, config[key], uppercase=False)
+            elif key in {
+                "text_fallback_keyword_confidence",
+                "text_fallback_like_confidence",
+                "text_fallback_minimal_confidence",
+            }:
+                config[key] = _float_map_value(value, config[key])
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "doc_type_resolution")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if key in {
+                    "promotion_blocked_preclass_types",
+                    "restore_stable_preclassified_types",
+                    "restore_conflict_doc_types",
+                }:
+                    config[key] = _list_value(row.value_list, config[key], uppercase=True)
+                elif key == "text_fallback_total_field_aliases":
+                    config[key] = _list_value(row.value_list, config[key], uppercase=False)
+                elif key in {
+                    "text_fallback_keyword_confidence",
+                    "text_fallback_like_confidence",
+                    "text_fallback_minimal_confidence",
+                }:
+                    config[key] = _float_map_value(row.value_list, config[key])
+        except Exception as exc:
+            logger.warning("No se pudo cargar doc_type_resolution desde imp_config: %s", exc)
+
+    return _cache_set("doc_type_resolution", config)  # type: ignore[return-value]
 
 
 def load_routing_scoring_config(db: Any | None = None) -> dict[str, float]:

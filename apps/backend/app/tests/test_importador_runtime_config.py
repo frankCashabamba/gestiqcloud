@@ -5,6 +5,7 @@ from app.modules.importador.runtime_config import (
     invalidate_runtime_config_cache,
     load_ai_runtime_config,
     load_doc_categories_config,
+    load_doc_type_resolution_config,
     load_filename_normalization_config,
     load_pre_classifier_runtime_config,
     load_processing_runtime_config,
@@ -94,6 +95,7 @@ def test_runtime_config_loads_ai_processing_and_routing_scoring_defaults():
 
     ai_runtime = load_ai_runtime_config(None)
     processing_runtime = load_processing_runtime_config(None)
+    doc_type_resolution = load_doc_type_resolution_config(None)
     routing_scoring = load_routing_scoring_config(None)
 
     assert ai_runtime["ocr_min_quality"] == 0.45
@@ -117,6 +119,9 @@ def test_runtime_config_loads_ai_processing_and_routing_scoring_defaults():
     assert "timeout" in processing_runtime["ai_failure_tokens"]
     assert "PRODUCT_LIST" in processing_runtime["table_only_doc_types"]
     assert "nombre_de_la_receta" in processing_runtime["recipe_name_field_candidates"]
+    assert "SALES" in doc_type_resolution["promotion_blocked_preclass_types"]
+    assert doc_type_resolution["text_fallback_keyword_confidence"]["INVOICE"] == 0.68
+    assert "RECEIPT" in doc_type_resolution["restore_conflict_doc_types"]
     assert routing_scoring["ai_confidence_weight"] == 0.60
     assert routing_scoring["blocked_confidence_cap"] == 0.58
 

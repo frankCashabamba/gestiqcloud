@@ -24,7 +24,11 @@ from .auto_recipe import (
 from .canonical_document import build_document_projection
 from .category_loader import get_doc_categories
 from .classifier_learning import learn_column_candidates as _learn_column_candidates
-from .document_fields import detect_document_total, get_data_value
+from .doc_type_resolution import (
+    promote_doc_type_from_text_fallback,
+    restore_preclassified_doc_type,
+    should_preserve_strong_preclassification,
+)
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
@@ -37,6 +41,7 @@ from .runtime_config import (
     load_ocr_runtime_config,
     load_pdf_table_parse_config,
     load_processing_runtime_config,
+    load_doc_type_resolution_config,
     load_product_sheet_detection_config,
     load_prompt_config,
 )
@@ -380,101 +385,6 @@ def _field_keys_for_reprocess(data: dict[str, Any] | None) -> list[str]:
     )
 
 
-def _promote_doc_type_from_text_fallback(
-    *,
-    current_doc_type: str,
-    current_confidence: float,
-    current_reasoning: str,
-    fields: dict[str, Any] | None,
-    content: str,
-    filename: str,
-    pre_class_doc_type: str | None = None,
-) -> tuple[str, float, str, str | None]:
-    if str(current_doc_type or "").strip().upper() != "OTHER":
-        return current_doc_type, current_confidence, current_reasoning, None
-    if not isinstance(fields, dict) or not fields:
-        return current_doc_type, current_confidence, current_reasoning, None
-
-    pre_class_upper = str(pre_class_doc_type or "").strip().upper()
-    blocked_preclass_types = {
-        "SALES",
-        "PAYROLL",
-        "BANK_STATEMENT",
-        "BANK",
-        "INVENTORY",
-        "PRICE_LIST",
-        "PRODUCT_LIST",
-        "PRODUCTS",
-        "COSTING",
-        "RECIPE",
-    }
-    if pre_class_upper in blocked_preclass_types:
-        return current_doc_type, current_confidence, current_reasoning, None
-
-    text_context = f"{filename}\n{content}".lower()
-    has_issue_date = bool(get_data_value(fields, "issue_date"))
-    has_total = detect_document_total(
-        fields,
-        aliases=["total_amount", "total_price", "total", "amount"],
-    ) is not None
-    has_vendor = bool(get_data_value(fields, "vendor", "vendor_tax_id"))
-    has_customer = bool(get_data_value(fields, "customer", "customer_tax_id"))
-    has_doc_number = bool(get_data_value(fields, "doc_number", "supplier_ref"))
-    has_concept = bool(get_data_value(fields, "concept", "description"))
-    has_payment_method = bool(get_data_value(fields, "payment_method"))
-    raw_line_items = fields.get("line_items")
-    has_line_items = isinstance(raw_line_items, list) and any(
-        isinstance(item, dict) for item in raw_line_items
-    )
-    invoice_support = sum(1 for flag in (has_issue_date, has_total, has_vendor, has_doc_number) if flag)
-    receipt_support = sum(
-        1 for flag in (has_issue_date, has_total, has_vendor, has_customer, has_concept, has_payment_method) if flag
-    )
-
-    promoted_type: str | None = None
-    promoted_confidence: float | None = None
-    reason_tag: str | None = None
-
-    if any(token in text_context for token in ("invoice", "factura", "comprobante")):
-        if has_total and (invoice_support >= 2 or has_line_items):
-            promoted_type = "INVOICE"
-            promoted_confidence = 0.68
-            reason_tag = "invoice_keyword"
-    elif any(token in text_context for token in ("receipt", "recibo", "boleta", "ticket", "voucher")):
-        if has_total and receipt_support >= 2:
-            promoted_type = "RECEIPT"
-            promoted_confidence = 0.66
-            reason_tag = "receipt_keyword"
-
-    if promoted_type is None:
-        if has_issue_date and has_total and (has_doc_number or (has_vendor and has_customer)):
-            promoted_type = "INVOICE"
-            promoted_confidence = 0.64
-            reason_tag = "invoice_like_fields"
-        elif has_issue_date and has_total and (has_vendor or has_customer):
-            promoted_type = "RECEIPT"
-            promoted_confidence = 0.61
-            reason_tag = "receipt_like_fields"
-        elif pre_class_upper == "RECEIPT" and has_total:
-            promoted_type = "RECEIPT"
-            promoted_confidence = 0.56
-            reason_tag = "minimal_receipt_fields"
-
-    if not promoted_type or promoted_confidence is None:
-        return current_doc_type, current_confidence, current_reasoning, None
-
-    promoted_reasoning = (
-        f"Promoted from OCR text fallback due to {reason_tag}. "
-        "Heavy AI extraction did not produce a usable classification."
-    )
-    return (
-        promoted_type,
-        max(float(current_confidence or 0.0), promoted_confidence),
-        promoted_reasoning,
-        reason_tag,
-    )
-
-
 @dataclass(slots=True)
 class RecipeContext:
     recipe_config: dict[str, Any] = field(default_factory=dict)
@@ -650,7 +560,11 @@ async def _analyze_with_context(
     structured_is_usable = bool(has_structured_rows or structured_data)
 
     quality_warning: dict[str, Any] | None = None
-    image_bytes = None if text_is_sufficient else bytes(vision_image_bytes) if vision_image_bytes else None
+    _deep_mode = str(reprocess_mode or "").strip().lower() == "deep"
+    # Para archivos imagen (JPEG, PNG, PDF escaneado): SIEMPRE pasar la imagen a la IA.
+    # El OCR extrae texto pero pierde contexto visual (layout, logos, sellos, firmas).
+    # Para documentos de texto puro (PDF con texto, XLSX, CSV): no hay imagen, solo texto.
+    image_bytes = bytes(vision_image_bytes) if vision_image_bytes else None
 
     if vision_image_bytes:
         ai_runtime = load_ai_runtime_config(db)
@@ -695,10 +609,26 @@ async def _analyze_with_context(
                 reprocess_mode,
             )
 
+    # En modo fast: saltar IA si el texto es suficiente Y la confianza previa era buena (>= 0.75).
+    # Si la confianza anterior era baja (< 0.75) y hay un resultado previo, forzar IA para mejorar.
+    _prev_confidence_for_skip: float | None = None
+    if isinstance(deep_reprocess_context, dict):
+        _prev_result = deep_reprocess_context.get("previous_result") or {}
+        if isinstance(_prev_result, dict):
+            try:
+                _v = _prev_result.get("confianza_clasificacion")
+                _prev_confidence_for_skip = float(_v) if _v is not None else None
+            except (TypeError, ValueError):
+                _prev_confidence_for_skip = None
+
+    _prev_was_good = _prev_confidence_for_skip is None or _prev_confidence_for_skip >= 0.75
+
     fast_mode_skip_ai = (
         str(reprocess_mode or "").strip().lower() == "fast"
         and not has_structured_rows
         and text_is_sufficient
+        and _prev_was_good          # Si confianza previa era baja, forzar IA aunque sea fast mode
+        and not vision_image_bytes  # Imágenes SIEMPRE usan IA (nunca saltar para JPEG/PNG/PDF-imagen)
     )
     if fast_mode_skip_ai:
         logger.info(
@@ -772,20 +702,6 @@ async def process_import_document(
     analyze_document_fn: AnalyzeDocumentFn,
     recipe_context: RecipeContext | None = None,
 ) -> DocumentProcessingResult:
-    if mode == "run":
-        return await _process_run_document(
-            db=db,
-            doc=doc,
-            tenant_id=tenant_id,
-            user_id=user_id,
-            file_bytes=file_bytes,
-            filename=filename,
-            tipo_archivo=tipo_archivo,
-            force=force,
-            extract_text_fn=extract_text_fn,
-            analyze_document_fn=analyze_document_fn,
-            recipe_context=recipe_context or RecipeContext(),
-        )
     return await _process_async_document(
         mode=mode,
         db=db,
@@ -804,7 +720,7 @@ async def process_import_document(
 
 async def _process_async_document(
     *,
-    mode: Literal["async"],
+    mode: ProcessingMode,
     db: Session,
     doc,
     tenant_id: UUID,
@@ -927,6 +843,7 @@ async def _process_async_document(
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
     classification_threshold = load_classification_threshold(db)
+    doc_type_resolution_config = load_doc_type_resolution_config(db)
     learning_ctrl = load_learning_control(db)
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
@@ -955,6 +872,7 @@ async def _process_async_document(
     pre_classify_started_at = time.perf_counter()
     _pre_cfg = load_pre_classifier_config(db)
     _structured_skip_threshold = float(_pre_cfg.get("structured_skip_threshold", 0.75))
+    doc_type_hint_min_confidence = float(processing_cfg.get("doc_type_hint_min_confidence") or 0.65)
 
     pre_class: PreClassResult | None = classify_before_ai(
         db=db,
@@ -1008,9 +926,6 @@ async def _process_async_document(
         # for non-structured docs (PDFs, images) — those types require spreadsheet rows
         # that a PDF can never provide, causing datos_extraidos to be always empty.
         table_only_doc_types = _runtime_doc_type_set(processing_cfg, "table_only_doc_types")
-        doc_type_hint_min_confidence = float(
-            processing_cfg.get("doc_type_hint_min_confidence") or 0.65
-        )
         _rc_for_ai = dict(recipe_config) if recipe_config else {}
         if pre_class and pre_class.confidence >= doc_type_hint_min_confidence:
             _hint_type = pre_class.doc_type.upper()
@@ -1152,6 +1067,12 @@ async def _process_async_document(
                 detection_config=load_product_sheet_detection_config(db),
             )
             and tipo_doc not in product_like_doc_types
+            and not should_preserve_strong_preclassification(
+                pre_class_doc_type=(pre_class.doc_type if pre_class else None),
+                pre_class_confidence=(pre_class.confidence if pre_class else None),
+                product_like_doc_types=product_like_doc_types,
+                min_confidence=doc_type_hint_min_confidence,
+            )
         ):
             tipo_doc = "INVENTORY"
             requiere_revision = True
@@ -1227,7 +1148,7 @@ async def _process_async_document(
                     current_field_keys = _field_keys_for_reprocess(datos_extraidos)
                     current_field_count = _count_detected_scalar_fields(datos_extraidos)
                     promoted_doc_type, promoted_confidence, promoted_reasoning, promotion_reason = (
-                        _promote_doc_type_from_text_fallback(
+                        promote_doc_type_from_text_fallback(
                             current_doc_type=tipo_doc,
                             current_confidence=confianza,
                             current_reasoning=razonamiento,
@@ -1235,6 +1156,8 @@ async def _process_async_document(
                             content=text,
                             filename=filename,
                             pre_class_doc_type=(pre_class.doc_type if pre_class else None),
+                            resolution_config=doc_type_resolution_config,
+                            fallback_patterns=fallback_patterns,
                         )
                     )
                     if promotion_reason:
@@ -1271,6 +1194,35 @@ async def _process_async_document(
                     "low_or_noisy_ocr",
                 )
             _set_stage_timing(stage_timings, "text_fallback", text_fallback_started_at)
+
+        restored_doc_type, restored_confidence, restored_reasoning, restore_reason = (
+            restore_preclassified_doc_type(
+                current_doc_type=tipo_doc,
+                current_confidence=confianza,
+                current_reasoning=razonamiento,
+                pre_class_doc_type=(pre_class.doc_type if pre_class else None),
+                pre_class_confidence=(pre_class.confidence if pre_class else None),
+                pre_class_layer=(pre_class.layer if pre_class else None),
+                resolution_config=doc_type_resolution_config,
+            )
+        )
+        if restore_reason:
+            logger.info(
+                "preclassification_restored=true filename=%s from=%s to=%s confidence=%.2f reason=%s",
+                filename,
+                tipo_doc,
+                restored_doc_type,
+                restored_confidence,
+                restore_reason,
+            )
+            tipo_doc = restored_doc_type
+            confianza = restored_confidence
+            razonamiento = restored_reasoning
+            analysis["doc_type"] = tipo_doc
+            analysis["confidence"] = confianza
+            analysis["reasoning"] = razonamiento
+            analysis["analysis_path"] = "preclassification_restore"
+            requiere_revision = True
 
         if tipo_doc != "OTHER" and not explicit_recipe_context:
             auto_recipe_started_at = time.perf_counter()
