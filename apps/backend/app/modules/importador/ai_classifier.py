@@ -2292,6 +2292,7 @@ async def analyze_document(
     deep_focus_fields: list[str] | None = None,
     timeout_override: float | None = None,
     force_vision: bool = False,
+    vision_first: bool = True,
 ) -> dict[str, Any]:
     """Analyzes any accounting document with a single LLM call.
 
@@ -2364,9 +2365,16 @@ async def analyze_document(
     _use_vision = force_vision and bool(image_bytes)
     if not _use_vision and not has_structured_rows:
         _use_vision = _should_use_vision_fallback(content, format_hint, image_bytes, ai_runtime=ai_runtime)
-    if _use_vision:
+
+    # ── Fase visión-primero (OCR malo / docs visuales) ───────────────────────
+    # Si vision_first=True intentamos visión antes que texto.
+    # Si visión acierta, no ejecutamos texto (condición de parada).
+    # Cada fase usa el mismo `timeout_override` (presupuesto por fase).
+    if _use_vision and vision_first:
         if force_vision:
-            logger.info("force_vision=true filename=%s format=%s", filename, format_hint)
+            logger.info(
+                "force_vision=true vision_first=true filename=%s format=%s", filename, format_hint
+            )
         vision_result = await _analyze_with_vision(
             image_bytes,
             filename,
@@ -2378,7 +2386,17 @@ async def analyze_document(
             timeout_override_secs=timeout_override,
         )
         if vision_result:
+            logger.info(
+                "pdf_second_phase_skipped reason=primary_success filename=%s format=%s path=%s",
+                filename, format_hint, vision_result.get("analysis_path", "ai_vision"),
+            )
             return vision_result
+        # Visión falló/timeout; texto continúa con el mismo timeout por fase.
+        logger.info(
+            "vision_phase_failed_fallback_to_text filename=%s format=%s",
+            filename, format_hint,
+        )
+        _use_vision = False  # ya intentado; no reintentar después del texto
 
     rc = dict(recipe_config or {})
     pc = prompt_config or load_prompt_config(None)
@@ -2505,6 +2523,11 @@ async def analyze_document(
         _by_dt.get(_doc_type_for_routing or "") or ai_params.get("max_tokens_extraction") or 1500
     )
 
+    # ── Fase texto (LLM) ────────────────────────────────────────────────────
+    # El resultado se guarda en _text_result para poder intentar rescate de
+    # visión después si el texto falló (modo texto-primero, vision_first=False).
+    _text_result: dict[str, Any]
+
     try:
         response = await AIService.query(
             task=AITask.EXTRACTION,
@@ -2542,64 +2565,68 @@ async def analyze_document(
             fallback["prompt_sent"] = full_prompt[:500]
             fallback["prompt_full"] = full_prompt
             fallback["prompt_parts"] = prompt_trace
-            return fallback
+            fallback["analysis_path"] = "fallback"
+            fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+            fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
+            _text_result = fallback
 
-        parsed = _parse_json_response(raw_content)
-        if parsed and parsed.get("doc_type"):
-            parsed.setdefault("is_table", False)
-            parsed.setdefault("columns", [])
-            parsed.setdefault("fields", {})
-            parsed.setdefault("confidence", 0.7)
-            parsed.setdefault("reasoning", "")
-            _apply_low_evidence_guard(
-                parsed,
-                content=content,
-                format_hint=format_hint,
-                ai_runtime=ai_runtime,
-            )
-            _apply_high_evidence_ocr_repairs(
-                parsed,
-                content=content,
-                format_hint=format_hint,
-                prompt_config=pc,
-                ai_runtime=ai_runtime,
-                ocr_runtime=ocr_runtime,
-            )
-            _rebuild_line_item_extra_columns_from_ocr(
-                parsed,
-                content=content,
-                format_hint=format_hint,
-                ai_runtime=ai_runtime,
-            )
-            parsed["raw_response"] = raw_content
-            parsed["model_used"] = model_used
-            parsed["prompt_sent"] = full_prompt[:500]
-            parsed["prompt_full"] = full_prompt
-            parsed["prompt_parts"] = prompt_trace
-            parsed["analysis_path"] = "ai_text"
-            parsed["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
-            parsed["cache_bypassed"] = bool(bypass_cache or deep_active)
-            return parsed
-
-        fallback = _fallback_classify(content, filename, fallback_patterns)
-        fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
-        _apply_high_evidence_ocr_repairs(
-            fallback,
-            content=content,
-            format_hint=format_hint,
-            prompt_config=pc,
-            ai_runtime=ai_runtime,
-            ocr_runtime=ocr_runtime,
-        )
-        fallback["raw_response"] = raw_content
-        fallback["model_used"] = model_used
-        fallback["prompt_sent"] = full_prompt[:500]
-        fallback["prompt_full"] = full_prompt
-        fallback["prompt_parts"] = prompt_trace
-        fallback["analysis_path"] = "fallback"
-        fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
-        fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
-        return fallback
+        else:
+            parsed = _parse_json_response(raw_content)
+            if parsed and parsed.get("doc_type"):
+                parsed.setdefault("is_table", False)
+                parsed.setdefault("columns", [])
+                parsed.setdefault("fields", {})
+                parsed.setdefault("confidence", 0.7)
+                parsed.setdefault("reasoning", "")
+                _apply_low_evidence_guard(
+                    parsed,
+                    content=content,
+                    format_hint=format_hint,
+                    ai_runtime=ai_runtime,
+                )
+                _apply_high_evidence_ocr_repairs(
+                    parsed,
+                    content=content,
+                    format_hint=format_hint,
+                    prompt_config=pc,
+                    ai_runtime=ai_runtime,
+                    ocr_runtime=ocr_runtime,
+                )
+                _rebuild_line_item_extra_columns_from_ocr(
+                    parsed,
+                    content=content,
+                    format_hint=format_hint,
+                    ai_runtime=ai_runtime,
+                )
+                parsed["raw_response"] = raw_content
+                parsed["model_used"] = model_used
+                parsed["prompt_sent"] = full_prompt[:500]
+                parsed["prompt_full"] = full_prompt
+                parsed["prompt_parts"] = prompt_trace
+                parsed["analysis_path"] = "ai_text"
+                parsed["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+                parsed["cache_bypassed"] = bool(bypass_cache or deep_active)
+                _text_result = parsed
+            else:
+                fallback = _fallback_classify(content, filename, fallback_patterns)
+                fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
+                _apply_high_evidence_ocr_repairs(
+                    fallback,
+                    content=content,
+                    format_hint=format_hint,
+                    prompt_config=pc,
+                    ai_runtime=ai_runtime,
+                    ocr_runtime=ocr_runtime,
+                )
+                fallback["raw_response"] = raw_content
+                fallback["model_used"] = model_used
+                fallback["prompt_sent"] = full_prompt[:500]
+                fallback["prompt_full"] = full_prompt
+                fallback["prompt_parts"] = prompt_trace
+                fallback["analysis_path"] = "fallback"
+                fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+                fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
+                _text_result = fallback
 
     except Exception as exc:
         logger.error("AI analysis error: %s", exc)
@@ -2621,7 +2648,45 @@ async def analyze_document(
         fallback["analysis_path"] = "fallback_error"
         fallback["cache_hit"] = False
         fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
-        return fallback
+        _text_result = fallback
+
+    # ── Rescate de visión en modo texto-primero ──────────────────────────────
+    # Si el texto falló (fallback/fallback_error) y tenemos imagen disponible,
+    # intentamos visión como segunda fase. El mismo timeout por fase aplica.
+    # Condición de parada: si el texto fue "ai_text", no se ejecuta visión.
+    if not vision_first and _use_vision:
+        if _text_result.get("analysis_path") not in {"fallback", "fallback_error"}:
+            # Texto primero tuvo éxito: no ejecutar visión
+            logger.info(
+                "pdf_second_phase_skipped reason=primary_success filename=%s format=%s path=%s",
+                filename, format_hint, _text_result.get("analysis_path"),
+            )
+
+    if (
+        not vision_first
+        and _use_vision
+        and _text_result.get("analysis_path") in {"fallback", "fallback_error"}
+    ):
+        logger.info(
+            "text_first_vision_rescue filename=%s format=%s text_path=%s",
+            filename,
+            format_hint,
+            _text_result.get("analysis_path"),
+        )
+        vision_result = await _analyze_with_vision(
+            image_bytes,
+            filename,
+            format_hint,
+            content,
+            recipe_config,
+            prompt_config,
+            db=db,
+            timeout_override_secs=timeout_override,
+        )
+        if vision_result:
+            return vision_result
+
+    return _text_result
 
 
 def _fallback_classify(

@@ -307,7 +307,6 @@ async def run_import(
 
         try:
             result = await process_import_document(
-                mode="run",
                 db=db,
                 doc=doc,
                 tenant_id=tenant_id,

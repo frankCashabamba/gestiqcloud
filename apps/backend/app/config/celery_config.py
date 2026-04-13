@@ -57,6 +57,7 @@ celery_app = Celery(
         "app.workers.ai_tasks",
         "app.workers.expiry_tasks",
         "app.workers.backup_tasks",
+        "app.modules.importador.tasks",
     ],
 )
 
@@ -154,6 +155,17 @@ celery_app.conf.task_routes = {
     "app.workers.expiry_tasks.*": {"queue": "notifications"},
     "app.workers.backup_tasks.*": {"queue": "default"},
     "app.workers.reports.*": {"queue": "reports"},
+    # El importador usa dos colas separadas por carril de procesamiento.
+    # batch_service.py elige la cola con decide_initial_lane() y apply_async(queue=...).
+    # Workers:
+    #   Fast  → alta concurrencia, timeout corto (XLSX/CSV/JSON/XML, reimportaciones)
+    #   Deep  → baja concurrencia, timeout amplio (PDF, imagen, OCR, primera importación)
+    # Ejemplo de arranque:
+    #   celery -A celery_app worker -Q importador_fast -c 8 --max-tasks-per-child 200
+    #   celery -A celery_app worker -Q importador_deep -c 2 --max-tasks-per-child 50
+    # La cola legada "importador" sigue siendo el default del task para
+    # compatibilidad con despliegues que no hayan actualizado aún los workers.
+    "importador.process_document": {"queue": "importador"},
 }
 
 # ============================================================================

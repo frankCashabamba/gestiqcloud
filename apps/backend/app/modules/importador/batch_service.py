@@ -171,7 +171,7 @@ async def enqueue_async_batch(
     reprocess_mode: str = "fast",
     db: Session,
 ) -> list[dict]:
-    from .tasks import process_document_task, store_payload
+    from .tasks import decide_initial_lane, process_document_task, store_payload
 
     max_files_per_request = _env_int("IMPORTADOR_MAX_FILES_PER_REQUEST", 100)
     max_queue_per_tenant = _env_int("IMPORTADOR_MAX_QUEUE_PER_TENANT", 100)
@@ -443,20 +443,33 @@ async def enqueue_async_batch(
 
         await asyncio.to_thread(store_payload, str(existing.id), file_bytes)
         if process_document_task:
-            process_document_task.delay(
-                doc_id=str(existing.id),
-                tenant_id=str(tenant_id),
-                user_id=user_id,
-                filename=filename,
+            _rerun_snap_id = (
+                str(recipe_snapshot_id)
+                if recipe_snapshot_id and normalized_reprocess_mode != "deep"
+                else None
+            )
+            _rerun_lane = decide_initial_lane(
                 tipo_archivo=tipo_archivo,
-                recipe_snapshot_id=(
-                    str(recipe_snapshot_id)
-                    if recipe_snapshot_id and normalized_reprocess_mode != "deep"
-                    else None
-                ),
-                force=force,
                 reprocess_mode=normalized_reprocess_mode,
-                reprocess_context=reprocess_context,
+                has_recipe_context=bool(_rerun_snap_id),
+            )
+            process_document_task.apply_async(
+                kwargs={
+                    "doc_id": str(existing.id),
+                    "tenant_id": str(tenant_id),
+                    "user_id": user_id,
+                    "filename": filename,
+                    "tipo_archivo": tipo_archivo,
+                    "recipe_snapshot_id": _rerun_snap_id,
+                    "force": force,
+                    "reprocess_mode": normalized_reprocess_mode,
+                    "reprocess_context": reprocess_context,
+                },
+                queue=f"importador_{_rerun_lane}",
+            )
+            logger.info(
+                "importador.enqueue rerun doc_id=%s lane=%s queue=importador_%s",
+                existing.id, _rerun_lane, _rerun_lane,
             )
         else:
             logger.warning("Celery no disponible; dejando documento %s en PENDING", existing.id)
@@ -530,18 +543,31 @@ async def enqueue_async_batch(
 
         await asyncio.to_thread(store_payload, str(doc.id), file_bytes)
         if process_document_task:
-            process_document_task.delay(
-                doc_id=str(doc.id),
-                tenant_id=str(tenant_id),
-                user_id=user_id,
-                filename=filename,
+            _upload_snap_id = (
+                str(effective_recipe_snapshot_id) if effective_recipe_snapshot_id else None
+            )
+            _upload_lane = decide_initial_lane(
                 tipo_archivo=tipo_archivo,
-                recipe_snapshot_id=(
-                    str(effective_recipe_snapshot_id) if effective_recipe_snapshot_id else None
-                ),
-                force=force,
                 reprocess_mode=normalized_reprocess_mode,
-                reprocess_context={},
+                has_recipe_context=bool(_upload_snap_id),
+            )
+            process_document_task.apply_async(
+                kwargs={
+                    "doc_id": str(doc.id),
+                    "tenant_id": str(tenant_id),
+                    "user_id": user_id,
+                    "filename": filename,
+                    "tipo_archivo": tipo_archivo,
+                    "recipe_snapshot_id": _upload_snap_id,
+                    "force": force,
+                    "reprocess_mode": normalized_reprocess_mode,
+                    "reprocess_context": {},
+                },
+                queue=f"importador_{_upload_lane}",
+            )
+            logger.info(
+                "importador.enqueue upload doc_id=%s lane=%s queue=importador_%s",
+                doc.id, _upload_lane, _upload_lane,
             )
         else:
             logger.warning("Celery no disponible, procesando %s sincronicamente", filename)

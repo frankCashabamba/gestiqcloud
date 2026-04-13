@@ -669,6 +669,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     page_texts: list[str] = []
     used_ocr = False
     vision_image_bytes: bytes | None = None
+    _page_quality_scores: list[float] = []
 
     try:
         selected_page_texts: list[str] = []
@@ -678,6 +679,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             page_text_clean = str(page_text or "").strip()
             if page_text_clean:
                 page_quality = _estimate_text_quality(page_text_clean, ai_runtime=ai_runtime)
+                _page_quality_scores.append(float(page_quality.get("score") or 0.0))
                 is_sufficient = (
                     page_quality["score"] >= float(ai_runtime.get("ocr_min_quality") or 0.45)
                     and page_quality["words"]
@@ -708,6 +710,10 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     finally:
         doc.close()
 
+    _ocr_quality_score: float | None = (
+        sum(_page_quality_scores) / len(_page_quality_scores) if _page_quality_scores else None
+    )
+
     if any(str(text or "").strip() for text in selected_page_texts):
         return {
             "text": "\n".join(selected_page_texts),
@@ -716,6 +722,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             "format": "PDF_OCR" if used_ocr else "PDF",
             "page_texts": selected_page_texts,
             "vision_image_bytes": vision_image_bytes,
+            "ocr_quality_score": _ocr_quality_score,
         }
 
     # Otherwise, convert pages to images and OCR
@@ -742,6 +749,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
                 "format": "PDF_OCR",
                 "vision_image_bytes": vision_image_bytes,
                 "page_texts": ocr_texts,
+                "ocr_quality_score": 0.0,
             }
     except Exception as exc:
         logger.warning("PyMuPDF OCR fallback failed: %s", exc)
@@ -764,6 +772,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             "format": "PDF_OCR",
             "vision_image_bytes": vision_image_bytes,
             "page_texts": ocr_texts,
+            "ocr_quality_score": 0.0,
         }
     except Exception as exc:
         logger.warning("pdf2image OCR fallback failed: %s", exc)

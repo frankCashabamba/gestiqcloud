@@ -25,6 +25,51 @@ logger = logging.getLogger("importador.tasks")
 
 LEGACY_REDIS_KEY_PREFIX = "imp:payload:"
 
+# Formatos visuales: pre-OCR sabemos que necesitan deep lane.
+_INITIAL_VISUAL_FORMATS: frozenset[str] = frozenset({
+    "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR", "PDF_OCR",
+})
+# Formatos estructurados: bypass directo sin LLM → fast lane.
+_INITIAL_STRUCTURED_FORMATS: frozenset[str] = frozenset({
+    "CSV", "XML", "JSON", "XLS", "XLSX", "EXCEL",
+})
+
+
+def decide_initial_lane(
+    *,
+    tipo_archivo: str,
+    reprocess_mode: str,
+    has_recipe_context: bool = False,
+) -> str:
+    """Decisión de carril pre-OCR para encolado en Celery.
+
+    Usa solo señales disponibles antes del procesamiento (formato, modo,
+    contexto de receta). La decisión post-OCR completa ocurre en
+    processing_service.decide_processing_lane() dentro de la tarea.
+
+    Returns:
+        "fast"  → cola importador_fast  (documentos estructurados o contexto fuerte)
+        "deep"  → cola importador_deep  (visual, PDF ambiguo, primera importación)
+    """
+    if str(reprocess_mode or "").strip().lower() == "deep":
+        return "deep"
+
+    tipo = str(tipo_archivo or "").upper()
+
+    if tipo in _INITIAL_VISUAL_FORMATS:
+        return "deep"
+
+    # PDF sin contexto de receta → puede ser escaneado, ambiguo → deep
+    if tipo == "PDF" and not has_recipe_context:
+        return "deep"
+
+    # Estructurados → bypass local sin LLM → fast
+    if tipo in _INITIAL_STRUCTURED_FORMATS:
+        return "fast"
+
+    # Conservador: cualquier formato desconocido va a deep
+    return "deep"
+
 
 def _payload_dir() -> Path:
     from app.config.settings import settings
@@ -139,7 +184,6 @@ async def _run_processing(
         task_started_at = time.perf_counter()
         try:
             await process_import_document(
-                mode="async",
                 db=db,
                 doc=doc,
                 tenant_id=tenant_id,

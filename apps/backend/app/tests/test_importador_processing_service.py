@@ -7,10 +7,13 @@ import pytest
 from app.modules.importador.processing_service import (
     _analysis_indicates_ai_failure,
     _analyze_with_context,
+    _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
+    _should_skip_useless_retry,
     _sanitize_text_fallback_fields,
 )
+from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
 from app.modules.importador.text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
 )
@@ -123,7 +126,7 @@ def test_analyze_with_context_skips_heavy_ai_in_fast_mode_when_text_is_sufficien
 
 
 @pytest.mark.no_db
-def test_analyze_with_context_fast_mode_image_always_calls_ai(monkeypatch):
+def test_analyze_with_context_fast_mode_image_skips_ai_when_ocr_is_sufficient(monkeypatch):
     """Imágenes (vision_image_bytes set) SIEMPRE llaman a la IA, incluso en fast mode.
     El OCR extrae texto pero pierde layout, logos y sellos que el modelo de visión sí ve."""
     called = {"count": 0}
@@ -148,8 +151,8 @@ def test_analyze_with_context_fast_mode_image_always_calls_ai(monkeypatch):
     monkeypatch.setattr(
         "app.modules.importador.processing_service.load_ai_runtime_config",
         lambda _db=None: {
-            "ocr_min_quality": 0.95,
-            "openai_fallback_ocr_quality_threshold": 0.95,
+            "ocr_min_quality": 0.1,
+            "openai_fallback_ocr_quality_threshold": 0.1,
             "ocr_length_target_chars": 1200,
             "ocr_word_target": 180,
             "ocr_alpha_ratio_target": 0.6,
@@ -164,7 +167,7 @@ def test_analyze_with_context_fast_mode_image_always_calls_ai(monkeypatch):
     analysis = asyncio.run(
         _analyze_with_context(
             analyze_document_fn=fake_analyze_document_fn,
-            content="texto OCR suficientemente largo pero con baja calidad para override",
+            content="texto OCR suficientemente largo y limpio para resolver el documento",
             filename="doc.jpg",
             format_hint="IMAGE_OCR",
             has_structured_rows=False,
@@ -179,13 +182,14 @@ def test_analyze_with_context_fast_mode_image_always_calls_ai(monkeypatch):
     )
 
     # Las imágenes siempre llaman a la IA, incluso en fast mode con texto suficiente
-    assert called["count"] == 1
-    assert analysis["doc_type"] == "INVOICE"
-    assert analysis.get("fast_mode_skip_ai_due_to_sufficient_text") is not True
+    assert called["count"] == 0
+    assert analysis["fast_mode_skip_ai_due_to_sufficient_text"] is True
+    assert analysis["analysis_path"] == "fast_mode_image_ocr_sufficient_skip"
+    assert analysis["model_used"] == "fast-mode-skip"
 
 
 @pytest.mark.no_db
-def test_analyze_with_context_fast_mode_image_with_sufficient_text_calls_ai(monkeypatch):
+def test_analyze_with_context_fast_mode_image_low_quality_still_calls_ai(monkeypatch):
     called = {"count": 0}
 
     async def fake_analyze_document_fn(*args, **kwargs):
@@ -208,8 +212,8 @@ def test_analyze_with_context_fast_mode_image_with_sufficient_text_calls_ai(monk
     monkeypatch.setattr(
         "app.modules.importador.processing_service.load_ai_runtime_config",
         lambda _db=None: {
-            "ocr_min_quality": 0.1,
-            "openai_fallback_ocr_quality_threshold": 0.1,
+            "ocr_min_quality": 0.95,
+            "openai_fallback_ocr_quality_threshold": 0.95,
             "ocr_length_target_chars": 1200,
             "ocr_word_target": 180,
             "ocr_alpha_ratio_target": 0.6,
@@ -327,6 +331,33 @@ def test_analysis_indicates_ai_failure_uses_runtime_tokens(monkeypatch):
 
 
 @pytest.mark.no_db
+def test_retry_guard_blocks_timeout_for_same_model_input_and_strategy():
+    previous_attempt = _build_ai_attempt_fingerprint(
+        model_used="qwen3:8b",
+        content="texto OCR de la factura",
+        timeout_override=90.0,
+        strategy="visual_complex",
+        force_vision=True,
+    )
+    next_attempt = _build_ai_attempt_fingerprint(
+        model_used="qwen3:8b",
+        content="texto OCR de la factura",
+        timeout_override=90.0,
+        strategy="visual_complex",
+        force_vision=False,
+    )
+
+    blocked, reason = _should_skip_useless_retry(
+        previous_analysis={"error": "Ollama timeout (90s)"},
+        previous_attempt=previous_attempt,
+        next_attempt=next_attempt,
+    )
+
+    assert blocked is True
+    assert reason == "timeout_same_model_input_strategy"
+
+
+@pytest.mark.no_db
 def test_merge_text_fallback_fields_completes_missing_values_without_overwriting():
     base = {
         "vendor": "Distribuidora Integral Andina S.A.",
@@ -374,6 +405,79 @@ def test_sanitize_text_fallback_fields_drops_noisy_tax_ids_and_keeps_clean_value
     assert cleaned["customer_tax_id"] == "1792845612001"
     assert cleaned["customer"] == "MARIA AURORA CASABAMBA CASABAMBA Boh"
     assert cleaned["issue_date"] == "2026-04-03"
+
+
+@pytest.mark.no_db
+def test_sanitize_text_fallback_fields_preserves_rescued_numeric_values_when_repairs_null_them(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service._apply_high_evidence_ocr_repairs",
+        lambda parsed, **kwargs: parsed["fields"].update({"subtotal": None, "tax_amount": None}),
+    )
+
+    cleaned = _sanitize_text_fallback_fields(
+        {"subtotal": 2145.0, "tax_amount": 0.0, "vendor": "Proveedor Demo S.A."},
+        content="texto OCR",
+        format_hint="IMAGE_OCR",
+        prompt_config={},
+        ai_runtime={"ocr_evidence_formats": ["IMAGE_OCR"]},
+        ocr_runtime={},
+    )
+
+    assert cleaned["subtotal"] == 2145.0
+    assert cleaned["tax_amount"] == 0.0
+
+
+@pytest.mark.no_db
+def test_sanitize_text_fallback_fields_trims_vendor_timestamp_noise():
+    cleaned = _sanitize_text_fallback_fields(
+        {
+            "vendor": "LINOS MIRAFLORES S.A. 2026-01-16T08:56:16-05:00 ga Bins",
+            "total_amount": 2145.0,
+        },
+        content="texto OCR",
+        format_hint="IMAGE_OCR",
+        prompt_config={},
+        ai_runtime={"ocr_evidence_formats": ["IMAGE_OCR"]},
+        ocr_runtime={},
+    )
+
+    assert cleaned["vendor"] == "LINOS MIRAFLORES S.A."
+
+
+@pytest.mark.no_db
+def test_invoice_rescue_from_ocr_recovers_missing_invoice_fields():
+    text = """
+    COMERCIALIZADORA ANDINA S.A.
+    RUC: 1792845612001
+    FACTURA N° 001-001-000120085
+    Fecha: 03/04/2026
+
+    2 Aceite de oliva extra virgen 10.00 20.00
+    1 Vinagre balsamico reserva 5.00 5.00
+
+    SUBTOTAL $ 25.00
+    IVA 15% $ 3.75
+    VALOR TOTAL $ 28.75
+    """.strip()
+
+    rescued = invoice_rescue_from_ocr(
+        text,
+        {
+            "vendor_tax_id": "1792845612001",
+            "issue_date": "2026-04-03",
+            "total_amount": 28.75,
+        },
+    )
+
+    assert rescued["vendor"] == "COMERCIALIZADORA ANDINA S.A."
+    assert rescued["doc_number"] == "001-001-000120085"
+    assert rescued["subtotal"] == 25.0
+    assert rescued["tax_amount"] == 3.75
+    assert len(rescued["line_items"]) == 2
+    assert rescued["line_items"][0]["quantity"] == 2.0
+    assert rescued["line_items"][0]["total_price"] == 20.0
 
 
 @pytest.mark.no_db

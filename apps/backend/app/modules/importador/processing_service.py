@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 import re
 import time
+from hashlib import sha1
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -30,6 +31,7 @@ from .doc_type_resolution import (
     should_preserve_strong_preclassification,
 )
 from .field_alias_loader import get_canonical_fields, get_field_aliases
+from .invoice_ocr_rescue import invoice_rescue_from_ocr
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
@@ -54,6 +56,7 @@ from .services.document_model_learning_service import (
 from .services.document_routing_agent import build_document_routing_decision
 from .services.iteration_service import upsert_staging_lines_from_extraction
 from .snapshot_learning import build_snapshot_review_hints
+from .document_fields import safe_floatish
 from .text_fallback_extractor import (
     extract_fields_from_text,
     extract_line_items_table_preview_from_text,
@@ -66,14 +69,36 @@ logger = logging.getLogger("importador.processing")
 
 AnalyzeDocumentFn = Callable[..., Awaitable[dict[str, Any]]]
 ExtractTextFn = Callable[..., Awaitable[dict[str, Any]]]
-ProcessingMode = Literal["run", "async"]
 
 # Estrategias de procesamiento y sus timeouts por defecto.
 # Los timeouts de la BD (imp_config) tienen prioridad si están configurados.
 _STRATEGY_TIMEOUTS: dict[str, float] = {
-    "structured_fast": 15.0,
-    "text_doc": 45.0,
-    "visual_complex": 90.0,
+    "structured_fast": 10.0,
+    "text_doc": 15.0,
+    "visual_complex": 25.0,
+}
+
+# Formatos con parser determinista propio: no necesitan LLM si ya hay estructura utilizable.
+# La clasificación (doc_type) se toma del recipe hint o se deja como "STRUCTURED".
+_STRUCTURED_SKIP_FORMATS: frozenset[str] = frozenset({
+    "CSV",
+    "XML",
+    "JSON",
+    "XLS",
+    "XLSX",
+    "EXCEL",
+})
+
+# Formatos puramente visuales: no tienen extracción de texto, siempre deep con visión primero.
+# PDF_OCR se excluye aquí: tiene texto OCR y se enruta por calidad (bloque pdf_ocr en decide_processing_lane).
+_VISUAL_FORMATS: frozenset[str] = frozenset({
+    "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR",
+})
+
+# Timeouts por carril (segundos). Los valores de imp_config tienen prioridad.
+_LANE_TIMEOUTS: dict[str, float] = {
+    "fast": 12.0,
+    "deep": 40.0,
 }
 
 
@@ -116,6 +141,233 @@ def decide_processing_strategy(
 
     # 4. PDF con texto escaso: más tiempo, sin visión
     return "visual_complex", t_visual, False
+
+
+@dataclass(slots=True)
+class LaneDecision:
+    """Resultado de la decisión de carril para un documento."""
+    lane: str             # "fast" | "deep"
+    timeout_secs: float   # timeout por fase LLM (mitad del budget total para deep con 2 fases)
+    force_vision: bool
+    vision_first: bool    # deep only: True=visión antes de texto, False=texto antes de visión
+    reasons: list[str]
+
+
+def decide_processing_lane(
+    *,
+    doc_format: str,
+    has_structured: bool,
+    has_vision: bool,
+    text_is_sufficient: bool,
+    has_semantic_hint: bool,
+    has_cached_analysis: bool,
+    is_first_import: bool,
+    previous_confidence: float | None,
+    deep_reprocess: bool,
+    processing_cfg: dict[str, Any],
+    ocr_quality_score: float | None = None,
+) -> LaneDecision:
+    """Decide el carril de procesamiento (fast/deep) usando señales post-OCR.
+
+    Fast lane  → latencia baja.  Documentos estructurados (bypass directo sin LLM)
+                  o reimportaciones de texto con alta confianza previa.
+    Deep lane  → exactitud máxima.  Docs visuales, escaneados, primera importación
+                  ambigua, baja calidad OCR o confianza previa insuficiente.
+
+    Timeouts provienen de imp_config (lane_timeout_fast / lane_timeout_deep);
+    si no están configurados se usan los defaults de _LANE_TIMEOUTS.
+
+    Para deep lane con documentos de texto+imagen, `timeout_secs` es el presupuesto
+    por fase (no el total). El total máximo es 2 × timeout_secs = t_deep.
+
+    vision_first determina el orden de fases en deep lane:
+      True  → OCR malo / doc visual: visión primero; si acierta, texto no se ejecuta.
+      False → OCR decente: texto primero; si acierta, visión no se ejecuta.
+
+    Nota: documentos estructurados con `has_structured=True` llaman siempre a
+    _structured_direct_analysis (bypass local, sin HTTP al proveedor LLM). Por eso
+    son candidatos naturales a fast lane independientemente de is_first_import.
+    """
+    fmt = str(doc_format or "").upper()
+
+    t_fast = float(processing_cfg.get("lane_timeout_fast") or _LANE_TIMEOUTS["fast"])
+    t_deep = float(processing_cfg.get("lane_timeout_deep") or _LANE_TIMEOUTS["deep"])
+    # Por fase en deep: mitad del presupuesto total para dejar margen a ambas fases.
+    t_deep_phase = t_deep / 2.0
+
+    # Umbral de calidad OCR a partir del cual se prefiere texto-primero en deep.
+    _ocr_quality_threshold = float(
+        processing_cfg.get("ocr_quality_vision_threshold") or 0.45
+    )
+
+    def _vision_first_from_quality() -> bool:
+        """True si la calidad OCR es insuficiente (visión rinde más)."""
+        if ocr_quality_score is None:
+            return True  # sin datos → conservador → visión primero
+        return ocr_quality_score < _ocr_quality_threshold
+
+    # ── Deep incondicional ─────────────────────────────────────────────────
+    if deep_reprocess:
+        _vf = _vision_first_from_quality()
+        return LaneDecision("deep", t_deep_phase, False, _vf, ["deep_reprocess_mode"])
+
+    if has_vision or fmt in _VISUAL_FORMATS:
+        # Documentos puramente visuales (JPG/PNG/IMAGE_OCR): solo fase de visión,
+        # presupuesto completo porque no hay fase de texto que rescatar.
+        return LaneDecision("deep", t_deep, True, True, ["visual_or_scan_doc"])
+
+    if fmt == "PDF_OCR":
+        # PDF escaneado: deep siempre, pero visión-primero solo si OCR es muy malo.
+        # Umbral bajo (0.25) para ser conservadores: solo los peores PDFs van vision-first.
+        # PDFs con OCR aceptable (score >= 0.25) usan texto-primero y visión como rescate.
+        _pdf_vision_threshold = float(
+            processing_cfg.get("ocr_pdf_vision_primary_threshold") or 0.25
+        )
+        _ocr_very_bad = (
+            ocr_quality_score is None
+            or ocr_quality_score < _pdf_vision_threshold
+        )
+        _pdf_reasons = ["pdf_ocr_scanned"]
+        if ocr_quality_score is not None:
+            _pdf_reasons.append(f"ocr_quality={ocr_quality_score:.2f}")
+        _pdf_reasons.append("vision_first" if _ocr_very_bad else "text_first")
+        return LaneDecision("deep", t_deep_phase, _ocr_very_bad, _ocr_very_bad, _pdf_reasons)
+
+    if not has_structured and not text_is_sufficient:
+        # Sin texto extraíble y sin estructura parseable: nada que hacer en fast
+        _vf = _vision_first_from_quality()
+        return LaneDecision("deep", t_deep_phase, False, _vf, ["no_usable_content"])
+
+    # ── Fast: sin llamada HTTP al LLM ──────────────────────────────────────
+    if has_cached_analysis:
+        return LaneDecision("fast", t_fast, False, False, ["snapshot_cache_hit"])
+
+    if has_structured:
+        # _structured_direct_analysis hace bypass local; el timeout es irrelevante.
+        if has_semantic_hint:
+            return LaneDecision("fast", t_fast, False, False, ["structured_with_hint"])
+        return LaneDecision("fast", t_fast, False, False, ["structured_direct_bypass"])
+
+    # ── Fast: reimportación de texto con buena historia ────────────────────
+    if (
+        not is_first_import
+        and previous_confidence is not None
+        and previous_confidence >= 0.75
+        and text_is_sufficient
+    ):
+        return LaneDecision("fast", t_fast, False, False, ["text_reimport_high_confidence"])
+
+    # ── CSV/XML con texto suficiente: fast lane sin deep
+    # CSV/XML tienen nombres de campo en el texto aunque no haya estructura parseable.
+    # El LLM puede clasificarlos en fast (t_fast). Si falla, queda OTHER — nunca INVOICE falso.
+    # Solo van a deep si el parser no extrajo nada y el texto es también insuficiente
+    # (ese caso ya fue capturado por `not has_structured and not text_is_sufficient` arriba).
+    if fmt in {"CSV", "XML"} and text_is_sufficient:
+        _csv_reasons = ["csv_xml_text_sufficient"]
+        if has_semantic_hint:
+            _csv_reasons.append("has_semantic_hint")
+        return LaneDecision("fast", t_fast, False, False, _csv_reasons)
+
+    # ── Deep por defecto: primera importación ambigua, texto insuficiente, etc.
+    _vf = _vision_first_from_quality()
+    reasons = ["default_deep"]
+    if ocr_quality_score is not None:
+        reasons.append(f"ocr_quality={ocr_quality_score:.2f}")
+    return LaneDecision("deep", t_deep_phase, False, _vf, reasons)
+
+
+# Tipos documentales "fuertes" que requieren evidencia mínima para ser aceptados tras fallback.
+_FALLBACK_STRONG_TYPES: frozenset[str] = frozenset({
+    "INVOICE", "RECEIPT", "PAYROLL", "CREDIT_NOTE", "DEBIT_NOTE",
+})
+# Campos de evidencia que cuentan como prueba de documento de factura/recibo.
+_INVOICE_EVIDENCE_FIELDS: tuple[str, ...] = (
+    "vendor", "doc_number", "total_amount", "subtotal", "issue_date", "line_items",
+)
+
+
+def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> dict[str, Any]:
+    """Bloquea promoción fuerte de doc_type cuando el camino final fue fallback/fallback_error.
+
+    Si analysis_path es fallback o fallback_error, tipos fuertes (INVOICE, RECEIPT,
+    PAYROLL, CREDIT_NOTE, DEBIT_NOTE) requieren al menos 2 campos de evidencia
+    en `fields`. Sin evidencia suficiente, degrada a OTHER con confianza baja.
+
+    El bloque `_apply_high_evidence_ocr_repairs` en ai_classifier puede haber
+    intentado extraer campos tras el fallback; contamos los que resultaron no-nulos.
+    """
+    path = str(analysis.get("analysis_path") or "").strip().lower()
+    if path not in {"fallback", "fallback_error"}:
+        return analysis
+
+    doc_type = str(analysis.get("doc_type") or "OTHER").upper()
+    if doc_type not in _FALLBACK_STRONG_TYPES:
+        return analysis
+
+    fields = analysis.get("fields") or {}
+    if not isinstance(fields, dict):
+        fields = {}
+
+    present = sum(
+        1 for f in _INVOICE_EVIDENCE_FIELDS
+        if fields.get(f) not in (None, "", [], {})
+    )
+
+    if present >= 2:
+        logger.info(
+            "fallback_doc_type_accepted candidate=%s fields_present=%d path=%s",
+            doc_type, present, path,
+        )
+        return analysis
+
+    logger.info(
+        "fallback_doc_type_promotion_blocked candidate=%s reason=missing_minimum_evidence "
+        "fields_present=%d required=2 path=%s",
+        doc_type, present, path,
+    )
+    degraded = {**analysis}
+    degraded["doc_type"] = "OTHER"
+    degraded["confidence"] = min(float(analysis.get("confidence") or 0.2), 0.3)
+    degraded["reasoning"] = (
+        f"Degraded from {doc_type} to OTHER: fallback path with insufficient evidence "
+        f"({present}/2 minimum evidence fields present). Original: {analysis.get('reasoning', '')}"
+    )
+    logger.info(
+        "fallback_doc_type_degraded from=%s to=OTHER reason=insufficient_evidence_after_timeout "
+        "fields_present=%d",
+        doc_type, present,
+    )
+    return degraded
+
+
+def _fast_lane_result_is_sufficient(
+    *,
+    analysis_path: str,
+    tipo_doc: str,
+    confianza: float,
+    classification_threshold: float,
+) -> tuple[bool, str]:
+    """¿El resultado de fast lane es suficiente o se debe escalar a deep?
+
+    Los caminos bypass/cache siempre son suficientes (no hubo LLM, no hay nada
+    que mejorar reintentando con más tiempo).
+    Solo evalúa cuando fast lane hizo una llamada LLM real (texto/PDF).
+
+    Returns: (is_sufficient, reason_if_not)
+    """
+    # Bypass/cache: no hubo LLM → aceptar siempre
+    if analysis_path in ("ok_structured", "ok_snapshot_cache", "structured_direct"):
+        return True, ""
+
+    # Fallback = LLM falló (timeout, JSON inválido, excepción)
+    if analysis_path in ("fallback", "fallback_error"):
+        return False, "ai_fallback"
+
+    # Tipo genérico + baja confianza = clasificación inconclusa
+    if tipo_doc in ("OTHER", "STRUCTURED") and confianza < classification_threshold:
+        return False, f"generic_low_confidence_type_{tipo_doc}"
+
+    return True, ""
 
 
 def _elapsed_ms(started_at: float) -> int:
@@ -247,6 +499,51 @@ def _analysis_indicates_ai_failure(
     return any(token.lower() in combined for token in _runtime_text_list(cfg, "ai_failure_tokens"))
 
 
+def _build_ai_attempt_fingerprint(
+    *,
+    model_used: Any,
+    content: str,
+    timeout_override: float | None,
+    strategy: str,
+    force_vision: bool,
+) -> dict[str, Any]:
+    normalized_content = str(content or "").strip()
+    normalized_model = str(model_used or "").strip().lower()
+    return {
+        "model": normalized_model,
+        "content_sha1": sha1(normalized_content.encode("utf-8")).hexdigest()
+        if normalized_content
+        else "",
+        "timeout": round(float(timeout_override or 0.0), 3),
+        "strategy": str(strategy or "").strip().lower(),
+        "force_vision": bool(force_vision),
+    }
+
+
+def _should_skip_useless_retry(
+    *,
+    previous_analysis: dict[str, Any],
+    previous_attempt: dict[str, Any],
+    next_attempt: dict[str, Any],
+) -> tuple[bool, str]:
+    error_text = " ".join(
+        str(previous_analysis.get(key) or "")
+        for key in ("error", "raw_response", "reasoning")
+    ).lower()
+    if "timeout" not in error_text:
+        return False, ""
+
+    same_model = previous_attempt.get("model") == next_attempt.get("model")
+    same_input = previous_attempt.get("content_sha1") == next_attempt.get("content_sha1")
+    same_strategy = (
+        previous_attempt.get("timeout") == next_attempt.get("timeout")
+        and previous_attempt.get("strategy") == next_attempt.get("strategy")
+    )
+    if same_model and same_input and same_strategy:
+        return True, "timeout_same_model_input_strategy"
+    return False, ""
+
+
 def _project_line_item_slots(
     datos_extraidos: dict[str, Any],
     canonical_fields: dict[str, dict],
@@ -365,6 +662,9 @@ def _sanitize_text_fallback_fields(
     cleaned = dict(fallback_fields or {})
     if not cleaned:
         return {}
+    original_numeric_values = {
+        key: safe_floatish(cleaned.get(key)) for key in ("subtotal", "tax_amount", "total_amount")
+    }
 
     # Reuse existing high-evidence repair rules from AI path without calling heavy LLM.
     try:
@@ -385,6 +685,20 @@ def _sanitize_text_fallback_fields(
 
     removed: list[str] = []
 
+    for key, original_value in original_numeric_values.items():
+        if original_value is None:
+            continue
+        current_value = safe_floatish(cleaned.get(key))
+        if current_value is None:
+            cleaned[key] = original_value
+
+    for key in ("subtotal", "tax_amount", "total_amount"):
+        parsed_value = safe_floatish(cleaned.get(key))
+        if parsed_value is None:
+            cleaned.pop(key, None)
+            continue
+        cleaned[key] = parsed_value
+
     for key in ("vendor_tax_id", "customer_tax_id"):
         value = cleaned.get(key)
         if value in (None, ""):
@@ -399,6 +713,13 @@ def _sanitize_text_fallback_fields(
     for key in ("vendor", "customer"):
         value = cleaned.get(key)
         raw = " ".join(str(value or "").split()).strip()
+        raw = re.split(
+            r"\b20\d{2}-\d{2}-\d{2}t\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2})?\b",
+            raw,
+            maxsplit=1,
+            flags=re.I,
+        )[0].strip()
+        raw = re.split(r"\b(?:ambiente|emision|fecha|ruc)\b", raw, maxsplit=1, flags=re.I)[0].strip()
         if not raw:
             continue
         alpha = sum(1 for ch in raw if ch.isalpha())
@@ -601,21 +922,20 @@ async def _analyze_with_context(
     timeout_override: float | None = None,
     force_vision: bool = False,
 ) -> dict[str, Any]:
-    # Si el OCR ya extrajo texto suficiente, no usar visión.
-    # La visión solo aplica a imágenes puras o PDFs sin texto extraíble.
     processing_cfg = load_processing_runtime_config(db)
     min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 500))
 
     content_text = (content or "").strip()
     text_is_sufficient = len(content_text) >= min_chars
     structured_is_usable = bool(has_structured_rows or structured_data)
+    _fast_mode = str(reprocess_mode or "").strip().lower() == "fast"
+    _format_hint = str(format_hint or "").strip().upper()
+    _has_visual_input = bool(vision_image_bytes)
 
     quality_warning: dict[str, Any] | None = None
-    _deep_mode = str(reprocess_mode or "").strip().lower() == "deep"
-    # Para archivos imagen (JPEG, PNG, PDF escaneado): SIEMPRE pasar la imagen a la IA.
-    # El OCR extrae texto pero pierde contexto visual (layout, logos, sellos, firmas).
-    # Para documentos de texto puro (PDF con texto, XLSX, CSV): no hay imagen, solo texto.
     image_bytes = bytes(vision_image_bytes) if vision_image_bytes else None
+    low_quality = False
+    quality: dict[str, Any] | None = None
 
     if vision_image_bytes:
         ai_runtime = load_ai_runtime_config(db)
@@ -639,7 +959,6 @@ async def _analyze_with_context(
                 "rejected_for_quality": False,
             }
 
-            # Solo en el caso realmente extremo: sin texto útil, sin estructura y en deep mode.
             if not text_is_sufficient and not structured_is_usable and reprocess_mode == "deep":
                 quality_warning["quality_gate"] = "rejected"
                 quality_warning["degraded_to_review"] = False
@@ -660,8 +979,6 @@ async def _analyze_with_context(
                 reprocess_mode,
             )
 
-    # En modo fast: saltar IA si el texto es suficiente Y la confianza previa era buena (>= 0.75).
-    # Si la confianza anterior era baja (< 0.75) y hay un resultado previo, forzar IA para mejorar.
     _prev_confidence_for_skip: float | None = None
     if isinstance(deep_reprocess_context, dict):
         _prev_result = deep_reprocess_context.get("previous_result") or {}
@@ -674,26 +991,37 @@ async def _analyze_with_context(
 
     _prev_was_good = _prev_confidence_for_skip is None or _prev_confidence_for_skip >= 0.75
 
-    # Primera importación: no hay resultado previo en el contexto de reproceso.
-    # En primera importación la IA siempre debe intentar extraer campos,
-    # independientemente de si el texto parece suficiente.
     is_first_import = (
         not isinstance(deep_reprocess_context, dict)
         or not deep_reprocess_context.get("previous_result")
     )
 
+    # tipos donde NO conviene saltar IA aunque el OCR tenga texto suficiente
+    never_skip_doc_types = {
+        "PDF",
+        "PDF_OCR",
+        "IMAGE_OCR",
+        "JPG",
+        "JPEG",
+        "PNG",
+        "IMG",
+        "HEIC",
+        "WEBP",
+    }
+
     fast_mode_skip_ai = (
-        str(reprocess_mode or "").strip().lower() == "fast"
+        _fast_mode
         and not has_structured_rows
         and text_is_sufficient
-        and not is_first_import     # Primera importación: IA siempre debe correr (no hay resultado previo)
-        and _prev_was_good          # Si confianza previa era baja, forzar IA aunque sea fast mode
-        and not vision_image_bytes  # Imágenes SIEMPRE usan IA (nunca saltar para JPEG/PNG/PDF-imagen)
+        and not is_first_import
+        and _prev_was_good
+        and not _has_visual_input
+        and _format_hint not in never_skip_doc_types
     )
-    # DBG[C] decisión de ruta AI vs fast-skip
+
     logger.info(
         "DBG[C] ai_routing filename=%s mode=%s fast_mode_skip=%s is_first_import=%s "
-        "text_is_sufficient=%s has_vision=%s _prev_was_good=%s has_structured=%s",
+        "text_is_sufficient=%s has_vision=%s _prev_was_good=%s has_structured=%s format=%s",
         filename,
         reprocess_mode,
         fast_mode_skip_ai,
@@ -702,16 +1030,21 @@ async def _analyze_with_context(
         bool(vision_image_bytes),
         _prev_was_good,
         has_structured_rows,
+        _format_hint,
     )
+
     if fast_mode_skip_ai:
         logger.info(
             "fast_mode_skip_ai_due_to_sufficient_text=true filename=%s mode=%s text_is_sufficient=%s "
-            "is_first_import=%s _prev_was_good=%s reason=fast_mode_text_sufficient_skip",
+            "is_first_import=%s _prev_was_good=%s has_vision=%s low_quality=%s reason=%s",
             filename,
             reprocess_mode,
             text_is_sufficient,
             is_first_import,
             _prev_was_good,
+            _has_visual_input,
+            low_quality,
+            "fast_mode_text_sufficient_skip",
         )
         analysis = {
             "doc_type": "OTHER",
@@ -772,9 +1105,127 @@ async def _analyze_with_context(
     return analysis
 
 
+def _build_structured_payload(
+    *,
+    structured_rows: list[dict[str, Any]],
+    structured_rows_all: list[dict[str, Any]],
+    sheet_profiles: dict[str, Any] | None,
+    sheet_metadata: dict[str, Any] | None,
+    sheet_used: str | None,
+    sheet_names: list[str],
+    headers_norm: list[str],
+    headers_display: list[str],
+    recipe_name_detected: str | None,
+    recipe_name_field_candidates: set[str],
+    structured_output_limit: int,
+    filename: str,
+) -> tuple[dict[str, Any], str]:
+    """Construye el payload estructurado para documentos tabulares (XLSX, CSV, XML…).
+
+    Resuelve el nombre de receta (desde filas, metadata o fallback al nombre de archivo)
+    y agrupa las filas por hoja.
+
+    Returns:
+        (payload, recipe_name_detected)
+    """
+    columnas = headers_display or headers_norm
+
+    if recipe_name_detected is None:
+        for row in structured_rows[:structured_output_limit]:
+            if not isinstance(row, dict):
+                continue
+            for key in row.keys():
+                if str(key or "").strip().lower() in recipe_name_field_candidates:
+                    value = row.get(key)
+                    if value:
+                        recipe_name_detected = str(value).strip()
+                        break
+            if recipe_name_detected:
+                break
+
+    meta_for_sheet: dict[str, Any] | None = None
+    if sheet_metadata:
+        meta_for_sheet = sheet_metadata.get(sheet_used) or (
+            sheet_metadata.get(sheet_names[0]) if sheet_names else None
+        )
+
+    if recipe_name_detected is None and meta_for_sheet:
+        for key, value in meta_for_sheet.items():
+            if str(key or "").strip().lower() in recipe_name_field_candidates and value:
+                recipe_name_detected = str(value).strip()
+                break
+
+    if recipe_name_detected is None:
+        recipe_name_detected = (
+            sheet_used
+            or (list(sheet_profiles.keys())[0] if sheet_profiles else None)
+            or Path(filename).stem
+        )
+
+    filas_por_hoja: dict[str, list] = {}
+    for row in structured_rows_all:
+        if not isinstance(row, dict):
+            continue
+        sheet_key = row.get("_sheet") or sheet_used or ""
+        filas_por_hoja.setdefault(str(sheet_key), []).append(row)
+
+    filas_count = {key: len(value) for key, value in filas_por_hoja.items()}
+
+    perfiles_hojas: dict[str, dict[str, Any]] = {}
+    for sheet_name in sheet_names:
+        prof = sheet_profiles.get(sheet_name) if sheet_profiles else None
+        if prof:
+            perfiles_hojas[sheet_name] = {
+                "columnas": prof.get("headers") or prof.get("headers_norm") or [],
+                "columnas_norm": prof.get("headers_norm") or [],
+                "total_filas": len(filas_por_hoja.get(sheet_name, [])),
+            }
+
+    payload: dict[str, Any] = {
+        "filas": structured_rows[:structured_output_limit],
+        "total_filas": len(structured_rows),
+        "columnas": columnas,
+        "columnas_norm": headers_norm,
+        "nombre_receta": recipe_name_detected,
+        "sheet_usada": sheet_used,
+        "hojas": sheet_names,
+        "perfiles_hojas": perfiles_hojas,
+    }
+
+    if meta_for_sheet:
+        payload["metadata"] = meta_for_sheet
+
+    if filas_por_hoja:
+        payload["filas_por_hoja"] = {
+            key: value[:structured_output_limit] for key, value in filas_por_hoja.items()
+        }
+        payload["filas_por_hoja_count"] = filas_count
+
+    return payload, recipe_name_detected
+
+
+def _merge_structured_extraction(
+    base_extracted: dict[str, Any],
+    structured_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Fusiona los campos extraídos por IA con el payload tabular estructurado.
+
+    El payload estructurado toma precedencia en claves duplicadas.
+    Preserva los line_items del resultado IA si el payload no produjo ninguno.
+    """
+    previous_line_items = (
+        list(base_extracted.get("line_items") or [])
+        if isinstance(base_extracted.get("line_items"), list)
+        else []
+    )
+    merged = {**base_extracted, **structured_payload}
+    if previous_line_items and not merged.get("line_items"):
+        merged["line_items"] = previous_line_items
+    return merged
+
+
 async def process_import_document(
     *,
-    mode: ProcessingMode,
     db: Session,
     doc,
     tenant_id: UUID,
@@ -787,8 +1238,7 @@ async def process_import_document(
     analyze_document_fn: AnalyzeDocumentFn,
     recipe_context: RecipeContext | None = None,
 ) -> DocumentProcessingResult:
-    return await _process_async_document(
-        mode=mode,
+    return await _process_run_document(
         db=db,
         doc=doc,
         tenant_id=tenant_id,
@@ -803,1078 +1253,7 @@ async def process_import_document(
     )
 
 
-async def _process_async_document(
-    *,
-    mode: ProcessingMode,
-    db: Session,
-    doc,
-    tenant_id: UUID,
-    user_id: str | None,
-    file_bytes: bytes,
-    filename: str,
-    tipo_archivo: str,
-    force: bool,
-    extract_text_fn: ExtractTextFn,
-    analyze_document_fn: AnalyzeDocumentFn,
-    recipe_context: RecipeContext,
-) -> DocumentProcessingResult:
-    processing_started_at = time.perf_counter()
-    stage_timings: dict[str, int] = {}
-    reprocess_mode = _normalize_reprocess_mode(recipe_context.reprocess_mode)
-    deep_reprocess = reprocess_mode == "deep"
-    force_clean_reimport = bool(recipe_context.force_clean_reimport or deep_reprocess)
-    extraction_started_at = time.perf_counter()
-    extraction = await extract_text_fn(file_bytes, filename, bypass_cache=deep_reprocess)
-    _set_stage_timing(stage_timings, "ocr_extract", extraction_started_at)
-    text = extraction.get("text", "")
-    structured = extraction.get("structured_data")
-    sheet_profiles = extraction.get("sheet_profiles")
-    sheet_metadata = extraction.get("sheet_metadata")
-    processing_cfg = load_processing_runtime_config(db)
-    _field_aliases_for_pre = get_field_aliases(db, tenant_id=tenant_id)
-    # DBG[A] OCR bruto — comprobar si los datos llegan del extractor
-    logger.info(
-        "DBG[A] ocr filename=%s text_len=%d page_texts=%d has_vision=%s text_head=%r",
-        filename,
-        len(text or ""),
-        len(extraction.get("page_texts") or []),
-        bool(extraction.get("vision_image_bytes")),
-        (text or "")[:300],
-    )
 
-    file_format = str(extraction.get("format", tipo_archivo) or tipo_archivo).upper()
-    has_structured = bool(
-        structured is not None
-        and file_format in {"CSV", "EXCEL", "JSON"}
-        and ((isinstance(structured, list) and bool(structured)) or isinstance(structured, dict))
-    )
-
-    headers_norm: list[str] = []
-    headers_display: list[str] = []
-    if isinstance(sheet_profiles, dict) and sheet_profiles:
-        for profile in sheet_profiles.values():
-            headers_norm = profile.get("headers_norm") or []
-            headers_display = profile.get("headers") or headers_norm
-            break
-
-    resolved_snapshot_id = recipe_context.resolved_snapshot_id
-    resolution_mode = recipe_context.resolution_mode or "zero_shot"
-    explicit_recipe_context = recipe_context.explicit_recipe_context and not force_clean_reimport
-    if force_clean_reimport:
-        resolved_snapshot_id = None
-    if not resolved_snapshot_id and not force_clean_reimport:
-        existing_snapshot_id = getattr(doc, "recipe_snapshot_id", None)
-        if existing_snapshot_id:
-            resolved_snapshot_id = existing_snapshot_id
-            explicit_recipe_context = True
-            if resolution_mode == "zero_shot":
-                resolution_mode = "snapshot"
-    if sheet_profiles and not force_clean_reimport:
-        _, auto_snapshot_id, auto_resolution_mode, _, _ = resolve_auto_recipe(
-            db,
-            tenant_id,
-            sheet_profiles,
-            user_id,
-        )
-        resolution_mode = auto_resolution_mode
-        if auto_snapshot_id and not resolved_snapshot_id:
-            resolved_snapshot_id = auto_snapshot_id
-
-    if explicit_recipe_context and recipe_context.resolved_snapshot_id:
-        resolved_snapshot_id = recipe_context.resolved_snapshot_id
-
-    if has_structured:
-        preview_rows = max(1, int(processing_cfg.get("structured_preview_rows") or 5))
-        preview_fields = max(1, int(processing_cfg.get("structured_preview_fields") or 8))
-        sample_lines = [f"Columnas: {headers_display}"]
-        for row in structured[:preview_rows] if isinstance(structured, list) else []:
-            if isinstance(row, dict):
-                sample_lines.append(
-                    str(
-                        {
-                            k: v
-                            for k, v in list(row.items())[:preview_fields]
-                            if not k.startswith("_")
-                        }
-                    )
-                )
-        llm_content = "\n".join(sample_lines)
-    else:
-        llm_preview_chars = max(1, int(processing_cfg.get("llm_text_preview_chars") or 6000))
-        llm_content = text[:llm_preview_chars] if text else ""
-
-    vision_image_bytes = extraction.get("vision_image_bytes")
-    if not isinstance(vision_image_bytes, (bytes, bytearray)):
-        vision_image_bytes = file_bytes if tipo_archivo in ("JPG", "PNG", "IMG") else None
-
-    # Decidir estrategia de procesamiento (timeout + visión) según complejidad del documento
-    _strategy, _strategy_timeout, _force_vision = decide_processing_strategy(
-        tipo_archivo=str(extraction.get("format", tipo_archivo) or tipo_archivo),
-        has_vision=bool(vision_image_bytes),
-        text_len=len(text or ""),
-        has_structured_rows=has_structured,
-        processing_cfg=processing_cfg,
-    )
-    logger.info(
-        "processing_strategy=%s timeout=%.0fs force_vision=%s filename=%s",
-        _strategy,
-        _strategy_timeout,
-        _force_vision,
-        filename,
-    )
-
-    recipe_snapshot = None
-    recipe_config: dict[str, Any] = {}
-    cached_analysis = None
-    text_cached_analysis = None
-    analysis_recipe_config: dict[str, Any] = {}
-    recipe_resolution_started_at = time.perf_counter()
-    if resolved_snapshot_id:
-        recipe_snapshot = _load_snapshot(db, resolved_snapshot_id)
-        if recipe_snapshot and isinstance(recipe_snapshot.content_json, dict):
-            recipe_config = _snapshot_recipe_config(recipe_snapshot)
-        if has_structured:
-            cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
-        else:
-            text_cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=False)
-
-    recipe_config = build_signal_learning_recipe_config(
-        db,
-        tenant_id=tenant_id,
-        source_doc_type=None,
-        base_recipe_config=recipe_config,
-    )
-    signal_learning_meta = recipe_config.get("_signal_learning") if recipe_config else None
-    learning_rerun_summary = None
-    _set_stage_timing(stage_timings, "recipe_resolution", recipe_resolution_started_at)
-
-    runtime_config_started_at = time.perf_counter()
-    canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
-    prompt_config = load_prompt_config(db)
-    fallback_patterns = load_doc_type_patterns(db)
-    classification_threshold = load_classification_threshold(db)
-    doc_type_resolution_config = load_doc_type_resolution_config(db)
-    learning_ctrl = load_learning_control(db)
-    _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
-
-    if not has_structured and text.strip():
-        file_format = str(extraction.get("format", tipo_archivo) or tipo_archivo).upper()
-        if file_format in {"PDF", "PDF_OCR", "IMAGE_OCR"}:
-            try:
-                table_preview = extract_line_items_table_preview_from_text(
-                    text,
-                    _field_aliases_for_pre,
-                    pdf_config=load_pdf_table_parse_config(db),
-                    page_texts=extraction.get("page_texts"),
-                )
-                if table_preview:
-                    preview_rows = max(1, int(processing_cfg.get("structured_preview_rows") or 5))
-                    preview_content = _build_table_prompt_preview(
-                        table_preview,
-                        max_rows=preview_rows,
-                    )
-                    if preview_content:
-                        llm_content = preview_content
-            except Exception:
-                logger.debug("No se pudo construir preview tabular OCR", exc_info=True)
-
-    # ── Pre-classification: attempt to resolve doc_type without AI ──────────────
-    pre_classify_started_at = time.perf_counter()
-    _pre_cfg = load_pre_classifier_config(db)
-    _structured_skip_threshold = float(_pre_cfg.get("structured_skip_threshold", 0.75))
-    doc_type_hint_min_confidence = float(processing_cfg.get("doc_type_hint_min_confidence") or 0.65)
-
-    pre_class: PreClassResult | None = classify_before_ai(
-        db=db,
-        filename=filename,
-        headers_norm=headers_norm,
-        field_aliases=_field_aliases_for_pre,
-        cached_analysis=cached_analysis,
-        config=_pre_cfg,
-        ocr_text=text if not has_structured else None,
-        tenant_id=tenant_id,
-        tipo_archivo=tipo_archivo,
-    )
-    _set_stage_timing(stage_timings, "pre_classify", pre_classify_started_at)
-    # DBG[B] Pre-clasificador — ¿se saltó la IA?
-    logger.info(
-        "DBG[B] pre_classify filename=%s layer=%s skip_ai=%s doc_type=%s confidence=%.2f",
-        filename,
-        pre_class.layer if pre_class else None,
-        pre_class.skip_ai if pre_class else None,
-        pre_class.doc_type if pre_class else None,
-        pre_class.confidence if pre_class else 0.0,
-    )
-
-    if pre_class and pre_class.skip_ai:
-        if pre_class.layer == "template":
-            # L5: Template extraction — campos extraídos directamente, sin AI
-            analysis = {
-                **(pre_class.cached_analysis or {}),
-                "model_used": "pre-classifier/template",
-                "prompt_sent": "",
-                "raw_response": pre_class.reasoning,
-            }
-        else:
-            # L1: Snapshot cache — full result, no AI call
-            analysis = {
-                **(pre_class.cached_analysis or {}),
-                "fields": {},
-                "is_table": True,
-                "columns": [],
-                "model_used": f"pre-classifier/{pre_class.layer}",
-                "prompt_sent": "",
-                "raw_response": pre_class.reasoning,
-            }
-    elif pre_class and has_structured and pre_class.confidence >= _structured_skip_threshold:
-        # L2/L3: Structured doc with confident pre-classification — skip CLASSIFICATION AI call
-        analysis = {
-            "doc_type": pre_class.doc_type,
-            "confidence": pre_class.confidence,
-            "reasoning": pre_class.reasoning,
-            "is_table": True,
-            "columns": headers_display,
-            "fields": {},
-            "model_used": f"pre-classifier/{pre_class.layer}",
-            "prompt_sent": "",
-            "raw_response": pre_class.reasoning,
-        }
-    else:
-        # Inject pre-classifier hint so AI skips classification guesswork.
-        # Exception: never inject table-only type hints (INVENTORY, PRICE_LIST, etc.)
-        # for non-structured docs (PDFs, images) — those types require spreadsheet rows
-        # that a PDF can never provide, causing datos_extraidos to be always empty.
-        table_only_doc_types = _runtime_doc_type_set(processing_cfg, "table_only_doc_types")
-        _rc_for_ai = dict(recipe_config) if recipe_config else {}
-        if pre_class and pre_class.confidence >= doc_type_hint_min_confidence:
-            _hint_type = pre_class.doc_type.upper()
-            if has_structured or _hint_type not in table_only_doc_types:
-                _rc_for_ai["doc_type_hint"] = pre_class.doc_type
-                _rc_for_ai["doc_type_hint_confidence"] = pre_class.confidence
-        if not has_structured and text_cached_analysis and not _rc_for_ai.get("doc_type_hint"):
-            _cached_type = str(text_cached_analysis.get("doc_type") or "").upper()
-            _cached_conf = float(text_cached_analysis.get("confidence") or 0)
-            if (
-                _cached_type
-                and _cached_type != "OTHER"
-                and _cached_conf >= doc_type_hint_min_confidence
-            ):
-                if _cached_type not in table_only_doc_types:
-                    _rc_for_ai["doc_type_hint"] = _cached_type
-                    _rc_for_ai["doc_type_hint_confidence"] = _cached_conf
-        analysis_recipe_config = dict(_rc_for_ai)
-        ai_primary_started_at = time.perf_counter()
-        analysis = await _analyze_with_context(
-            analyze_document_fn=analyze_document_fn,
-            content=llm_content,
-            filename=filename,
-            format_hint=extraction.get("format", tipo_archivo),
-            has_structured_rows=has_structured,
-            recipe_config=_rc_for_ai,
-            structured_data=structured if has_structured else None,
-            structured_metadata=(sheet_profiles if has_structured else sheet_metadata),
-            vision_image_bytes=vision_image_bytes,
-            fallback_patterns=fallback_patterns,
-            canonical_fields=canonical_fields,
-            prompt_config=prompt_config,
-            db=db,
-            reprocess_mode=reprocess_mode,
-            bypass_cache=deep_reprocess,
-            deep_reprocess_context=recipe_context.reprocess_context,
-            deep_focus_fields=(
-                _reprocess_context_summary(recipe_context.reprocess_context).get("missing_fields")
-                if deep_reprocess
-                else None
-            ),
-            timeout_override=_strategy_timeout,
-            force_vision=_force_vision,
-        )
-        _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
-
-    # Attach pre-classification metadata for learning at confirm time
-    if pre_class:
-        analysis.setdefault(
-            "_pre_class",
-            {
-                "layer": pre_class.layer,
-                "doc_type": pre_class.doc_type,
-                "confidence": pre_class.confidence,
-            },
-        )
-
-    # DBG[D] AI raw — qué devolvió el modelo antes de normalizar
-    _dbg_ai_fields = analysis.get("fields") or {}
-    _dbg_raw = str(analysis.get("raw_response") or "")
-    _dbg_error = str(analysis.get("error") or "")
-    logger.info(
-        "DBG[D] ai_raw filename=%s model=%s path=%s fields_count=%d fields_keys=%s "
-        "line_items=%d timeout_hint=%s fast_skip=%s error_hint=%r",
-        filename,
-        analysis.get("model_used"),
-        analysis.get("analysis_path"),
-        len(_dbg_ai_fields) if isinstance(_dbg_ai_fields, dict) else 0,
-        sorted(_dbg_ai_fields.keys()) if isinstance(_dbg_ai_fields, dict) else [],
-        len(_dbg_ai_fields.get("line_items") or []) if isinstance(_dbg_ai_fields, dict) else 0,
-        any(t in (_dbg_raw + _dbg_error).lower() for t in ["timeout", "timed out", "connection"]),
-        bool(analysis.get("fast_mode_skip_ai_due_to_sufficient_text")),
-        _dbg_error[:120] if _dbg_error else None,
-    )
-
-    normalize_analysis_started_at = time.perf_counter()
-    normalized_analysis = _normalize_analysis_output(analysis)
-    _set_stage_timing(stage_timings, "analysis_normalize", normalize_analysis_started_at)
-    tipo_doc = str(normalized_analysis["doc_type"])
-    confianza = float(normalized_analysis["confidence"])
-    requiere_revision = confianza < classification_threshold
-    razonamiento = str(normalized_analysis["reasoning"])
-    analysis_fields = normalized_analysis["fields"]
-    # DBG[E] Normalización — si aquí ya faltan campos que sí estaban en DBG[D], el problema es _normalize_analysis_output
-    logger.info(
-        "DBG[E] normalize filename=%s doc_type=%s confidence=%.2f fields_keys=%s line_items=%d",
-        filename,
-        normalized_analysis.get("doc_type"),
-        float(normalized_analysis.get("confidence") or 0),
-        sorted(k for k in (analysis_fields or {}) if not k.startswith("_")),
-        len((analysis_fields or {}).get("line_items") or []) if isinstance(analysis_fields, dict) else 0,
-    )
-    current_field_keys = (
-        sorted(
-            str(key)
-            for key, value in analysis_fields.items()
-            if not str(key).startswith("_") and value not in (None, "", [], {})
-        )
-        if isinstance(analysis_fields, dict)
-        else []
-    )
-    reprocess_context_summary = _reprocess_context_summary(recipe_context.reprocess_context)
-    previous_result = recipe_context.reprocess_context.get("previous_result")
-    current_field_count = (
-        _count_detected_scalar_fields(analysis_fields) if isinstance(analysis_fields, dict) else 0
-    )
-    reprocess_result_changed = _reprocess_result_changed(
-        previous_result if isinstance(previous_result, dict) else None,
-        doc_type=tipo_doc,
-        confidence=confianza,
-        requires_review=requiere_revision,
-        field_count=current_field_count,
-        field_keys=current_field_keys,
-    )
-
-    if recipe_snapshot:
-        remember_snapshot_learning(
-            db,
-            recipe_snapshot,
-            {
-                "doc_type": tipo_doc,
-                "confidence": confianza,
-                "reasoning": razonamiento,
-            },
-            structured_only=has_structured,
-        )
-
-    crud.add_log(
-        db,
-        doc.id,
-        "CLASSIFY",
-        user_id,
-        {
-            "tipo_documento": tipo_doc,
-            "confianza": confianza,
-            "razonamiento": razonamiento,
-            "model_used": analysis.get("model_used"),
-        },
-    )
-
-    _used_text_fallback = False
-    if has_structured:
-        structured_output_limit = max(
-            1, int(processing_cfg.get("structured_output_rows_limit") or 200)
-        )
-        sheet_used = extraction.get("sheet_used")
-        sheet_metadata = extraction.get("sheet_metadata") or {}
-        filas_por_hoja: dict[str, list] = {}
-        for row in structured or []:
-            if isinstance(row, dict):
-                sheet_name = str(row.get("_sheet") or sheet_used or "")
-                if sheet_name:
-                    filas_por_hoja.setdefault(sheet_name, []).append(row)
-        datos_extraidos = {
-            "filas": structured[:structured_output_limit],
-            "total_filas": len(structured),
-            "columnas": headers_display or headers_norm,
-            "columnas_norm": headers_norm,
-            "filas_por_hoja": filas_por_hoja,
-            "metadata_por_hoja": sheet_metadata,
-            "sheet_usada": sheet_used,
-        }
-        product_like_doc_types = _runtime_doc_type_set(processing_cfg, "product_like_doc_types")
-        if (
-            looks_like_product_document(
-                datos_extraidos,
-                sheet_name=sheet_used,
-                detection_config=load_product_sheet_detection_config(db),
-            )
-            and tipo_doc not in product_like_doc_types
-            and not should_preserve_strong_preclassification(
-                pre_class_doc_type=(pre_class.doc_type if pre_class else None),
-                pre_class_confidence=(pre_class.confidence if pre_class else None),
-                product_like_doc_types=product_like_doc_types,
-                min_confidence=doc_type_hint_min_confidence,
-            )
-        ):
-            tipo_doc = "INVENTORY"
-            requiere_revision = True
-            crud.add_log(
-                db,
-                doc.id,
-                "CLASSIFY_OVERRIDE",
-                user_id,
-                {
-                    "reason": "product_sheet_detection",
-                    "tipo_documento": tipo_doc,
-                    "sheet": sheet_used,
-                },
-            )
-    else:
-        datos_extraidos = analysis_fields or {}
-        # Text fallback: when AI failed and OCR text is available, extract
-        # fields using DB-configured labels and aliases.
-        _dbg_ai_failure = _analysis_indicates_ai_failure(analysis, processing_cfg=processing_cfg)
-
-        # Auto-retry interno: solo para visual_complex con fallo NO-timeout.
-        # Si la primera llamada hizo timeout, repetir la misma ruta con el mismo
-        # timeout solo añade latencia sin nueva información — ir directo al OCR rescue.
-        # Si falló por otro motivo (conexión, error de modelo), sí se reintenta una vez
-        # sin visión forzada. Si este segundo intento también falla, el text fallback toma el relevo.
-        _auto_retry_done = False
-        _was_timeout = "timeout" in str(analysis.get("error") or "").lower()
-        if _was_timeout:
-            logger.info(
-                "auto_retry=skipped_timeout filename=%s strategy=%s reason=first_call_timed_out",
-                filename,
-                _strategy,
-            )
-        if (
-            _dbg_ai_failure
-            and not _was_timeout
-            and _strategy == "visual_complex"
-            and not bool(analysis.get("fast_mode_skip_ai_due_to_sufficient_text"))
-            and text.strip()
-        ):
-            _missing_scalar = _count_detected_scalar_fields(datos_extraidos)
-            _critical_fields = {"vendor", "doc_number", "subtotal", "tax_amount", "line_items"}
-            _missing_critical = _critical_fields - set(
-                k for k, v in datos_extraidos.items() if v not in (None, "", [], {})
-            )
-            if len(_missing_critical) >= 2:
-                logger.info(
-                    "auto_retry=start filename=%s strategy=%s missing_critical=%s",
-                    filename,
-                    _strategy,
-                    sorted(_missing_critical),
-                )
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-                try:
-                    retry_analysis_started_at = time.perf_counter()
-                    retry_analysis = await _analyze_with_context(
-                        analyze_document_fn=analyze_document_fn,
-                        content=llm_content,
-                        filename=filename,
-                        format_hint=extraction.get("format", tipo_archivo),
-                        has_structured_rows=False,
-                        recipe_config=analysis_recipe_config or {},
-                        structured_data=None,
-                        structured_metadata=None,
-                        vision_image_bytes=vision_image_bytes,
-                        fallback_patterns=fallback_patterns,
-                        canonical_fields=canonical_fields,
-                        prompt_config=prompt_config,
-                        db=db,
-                        reprocess_mode=reprocess_mode,
-                        bypass_cache=True,
-                        timeout_override=_strategy_timeout,
-                        force_vision=False,  # sin visión: ya falló antes
-                    )
-                    _set_stage_timing(
-                        stage_timings,
-                        "ai_auto_retry",
-                        retry_analysis_started_at,
-                    )
-                    if not _analysis_indicates_ai_failure(retry_analysis, processing_cfg=processing_cfg):
-                        retry_normalized = _normalize_analysis_output(retry_analysis)
-                        retry_fields = retry_normalized.get("fields") or {}
-                        _retry_field_count = _count_detected_scalar_fields(retry_fields)
-                        _still_missing_critical = _critical_fields - set(
-                            k for k, v in retry_fields.items() if v not in (None, "", [], {})
-                        )
-                        # Éxito genuino: más campos Y al menos 4 de 5 críticos cubiertos.
-                        # Si mejora parcial (añade 1 campo pero falta la mayoría de críticos),
-                        # actualizar datos pero dejar que el text fallback complete el resto.
-                        genuinely_improved = (
-                            _retry_field_count > _missing_scalar
-                            and len(_still_missing_critical) <= 1
-                        )
-                        if genuinely_improved:
-                            logger.info(
-                                "auto_retry=success filename=%s fields_before=%d fields_after=%d",
-                                filename,
-                                _missing_scalar,
-                                _retry_field_count,
-                            )
-                            analysis = retry_analysis
-                            normalized_analysis = retry_normalized
-                            tipo_doc = str(retry_normalized["doc_type"])
-                            confianza = float(retry_normalized["confidence"])
-                            razonamiento = str(retry_normalized["reasoning"])
-                            analysis_fields = retry_fields
-                            datos_extraidos = retry_fields
-                            _dbg_ai_failure = False
-                            _auto_retry_done = True
-                        else:
-                            # Mejora parcial: tomar los campos del retry pero dejar que el
-                            # OCR rescue complete los críticos que aún faltan.
-                            if retry_fields:
-                                datos_extraidos = retry_fields
-                            logger.info(
-                                "auto_retry=partial_improvement filename=%s fields_before=%d "
-                                "fields_after=%d still_missing_critical=%s → fallback_will_rescue",
-                                filename,
-                                _missing_scalar,
-                                _retry_field_count,
-                                sorted(_still_missing_critical),
-                            )
-                    else:
-                        logger.info("auto_retry=also_failed filename=%s", filename)
-                except Exception as _retry_exc:
-                    logger.warning("auto_retry=exception filename=%s err=%s", filename, _retry_exc)
-
-        # DBG[F] Gate del fallback — si is_ai_failure=False y datos_extraidos está vacío, la IA respondió vacío
-        logger.info(
-            "DBG[F] fallback_gate filename=%s is_ai_failure=%s fast_skip=%s "
-            "datos_extraidos_keys=%s text_available=%s auto_retry_done=%s",
-            filename,
-            _dbg_ai_failure,
-            bool(analysis.get("fast_mode_skip_ai_due_to_sufficient_text")),
-            sorted(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else "NOT_DICT",
-            bool(text.strip()),
-            _auto_retry_done,
-        )
-        if text.strip() and _dbg_ai_failure:
-            text_fallback_started_at = time.perf_counter()
-            # El timeout de la IA puede haber dejado la transacción en estado abortado.
-            # Hacemos rollback para limpiarla antes de continuar con queries al DB.
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-            amount_labels = load_amount_label_config(db)
-            pdf_config = load_pdf_table_parse_config(db)
-            # Auto-learn new aliases from OCR labels before extraction
-            try:
-                learned = learn_labels_from_text(
-                    db,
-                    text,
-                    canonical_fields,
-                    field_aliases,
-                    amount_labels,
-                )
-                if learned:
-                    from .field_alias_loader import invalidate_cache
-
-                    invalidate_cache()
-                    field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-            except Exception as exc:
-                logger.debug("Auto-learn aliases error (non-fatal): %s", exc)
-
-            fallback_fields = extract_fields_from_text(
-                text,
-                canonical_fields=canonical_fields,
-                field_aliases=field_aliases,
-                amount_labels=amount_labels,
-                pdf_config=pdf_config,
-                page_texts=extraction.get("page_texts"),
-            )
-            # DBG[G-pre] Fallback bruto — antes del sanitize
-            logger.info(
-                "DBG[G-pre] fallback_raw filename=%s keys=%s line_items=%d "
-                "vendor=%r vendor_tax_id=%r total_amount=%r",
-                filename,
-                sorted(k for k in fallback_fields if k not in {"line_items", "line_item_page_groups"}),
-                len((fallback_fields or {}).get("line_items") or []),
-                (fallback_fields or {}).get("vendor"),
-                (fallback_fields or {}).get("vendor_tax_id"),
-                (fallback_fields or {}).get("total_amount"),
-            )
-            _fallback_keys_before_sanitize = set(fallback_fields.keys())
-            fallback_fields = _sanitize_text_fallback_fields(
-                fallback_fields,
-                content=text,
-                format_hint=str(extraction.get("format", tipo_archivo) or tipo_archivo),
-                prompt_config=prompt_config,
-                ai_runtime=load_ai_runtime_config(db),
-                ocr_runtime=load_ocr_runtime_config(db),
-            )
-            # DBG[G-post] Sanitize — campos que desaparecieron aquí son rechazados por reglas de limpieza
-            logger.info(
-                "DBG[G-post] fallback_sanitized filename=%s keys=%s lost_in_sanitize=%s "
-                "vendor=%r vendor_tax_id=%r total_amount=%r",
-                filename,
-                sorted(k for k in fallback_fields if k not in {"line_items", "line_item_page_groups"}),
-                sorted(_fallback_keys_before_sanitize - set(fallback_fields.keys())),
-                (fallback_fields or {}).get("vendor"),
-                (fallback_fields or {}).get("vendor_tax_id"),
-                (fallback_fields or {}).get("total_amount"),
-            )
-            if fallback_fields:
-                if not datos_extraidos:
-                    datos_extraidos = fallback_fields
-                else:
-                    _merge_text_fallback_fields(datos_extraidos, fallback_fields)
-                if isinstance(datos_extraidos, dict):
-                    analysis_fields = datos_extraidos
-                    current_field_keys = _field_keys_for_reprocess(datos_extraidos)
-                    current_field_count = _count_detected_scalar_fields(datos_extraidos)
-                    promoted_doc_type, promoted_confidence, promoted_reasoning, promotion_reason = (
-                        promote_doc_type_from_text_fallback(
-                            current_doc_type=tipo_doc,
-                            current_confidence=confianza,
-                            current_reasoning=razonamiento,
-                            fields=datos_extraidos,
-                            content=text,
-                            filename=filename,
-                            pre_class_doc_type=(pre_class.doc_type if pre_class else None),
-                            resolution_config=doc_type_resolution_config,
-                            fallback_patterns=fallback_patterns,
-                        )
-                    )
-                    if promotion_reason:
-                        logger.info(
-                            "text_fallback_doc_type_promoted=true filename=%s from=%s to=%s confidence=%.2f reason=%s",
-                            filename,
-                            tipo_doc,
-                            promoted_doc_type,
-                            promoted_confidence,
-                            promotion_reason,
-                        )
-                        tipo_doc = promoted_doc_type
-                        confianza = promoted_confidence
-                        razonamiento = promoted_reasoning
-                        analysis["doc_type"] = tipo_doc
-                        analysis["confidence"] = confianza
-                        analysis["reasoning"] = razonamiento
-                        analysis["analysis_path"] = "text_fallback_doc_type_promotion"
-                requiere_revision = True
-                _used_text_fallback = True
-                reprocess_result_changed = _reprocess_result_changed(
-                    previous_result if isinstance(previous_result, dict) else None,
-                    doc_type=tipo_doc,
-                    confidence=confianza,
-                    requires_review=requiere_revision,
-                    field_count=current_field_count,
-                    field_keys=current_field_keys,
-                )
-            else:
-                logger.info(
-                    "text_fallback_result=empty_after_sanitize filename=%s mode=%s quality_hint=%s",
-                    filename,
-                    reprocess_mode,
-                    "low_or_noisy_ocr",
-                )
-            _set_stage_timing(stage_timings, "text_fallback", text_fallback_started_at)
-
-        restored_doc_type, restored_confidence, restored_reasoning, restore_reason = (
-            restore_preclassified_doc_type(
-                current_doc_type=tipo_doc,
-                current_confidence=confianza,
-                current_reasoning=razonamiento,
-                pre_class_doc_type=(pre_class.doc_type if pre_class else None),
-                pre_class_confidence=(pre_class.confidence if pre_class else None),
-                pre_class_layer=(pre_class.layer if pre_class else None),
-                resolution_config=doc_type_resolution_config,
-            )
-        )
-        if restore_reason:
-            logger.info(
-                "preclassification_restored=true filename=%s from=%s to=%s confidence=%.2f reason=%s",
-                filename,
-                tipo_doc,
-                restored_doc_type,
-                restored_confidence,
-                restore_reason,
-            )
-            tipo_doc = restored_doc_type
-            confianza = restored_confidence
-            razonamiento = restored_reasoning
-            analysis["doc_type"] = tipo_doc
-            analysis["confidence"] = confianza
-            analysis["reasoning"] = razonamiento
-            analysis["analysis_path"] = "preclassification_restore"
-            requiere_revision = True
-
-        if tipo_doc != "OTHER" and not explicit_recipe_context:
-            auto_recipe_started_at = time.perf_counter()
-            auto_recipe_config, post_snapshot_id, auto_resolution_mode, auto_recipe_created, _ = (
-                resolve_auto_recipe_from_text(
-                    db,
-                    tenant_id,
-                    tipo_doc,
-                    datos_extraidos,
-                    extraction.get("format", tipo_archivo),
-                    user_id,
-                    force_new=force,
-                )
-            )
-            _set_stage_timing(stage_timings, "auto_recipe_resolution", auto_recipe_started_at)
-            if post_snapshot_id:
-                resolution_mode = auto_resolution_mode or resolution_mode
-                resolved_snapshot_id = post_snapshot_id
-                recipe_snapshot = _load_snapshot(db, post_snapshot_id)
-                remember_snapshot_learning(
-                    db,
-                    recipe_snapshot,
-                    {
-                        "doc_type": tipo_doc,
-                        "confidence": confianza,
-                        "reasoning": razonamiento,
-                    },
-                    structured_only=False,
-                )
-            _snapshot_learning_version = get_snapshot_learning_version(recipe_snapshot)
-            _first_pass_had_learning = bool(
-                analysis_recipe_config.get("field_descriptions")
-                or analysis_recipe_config.get("prompt_user")
-            )
-            _learning_mature = (
-                _first_pass_had_learning
-                and _snapshot_learning_version >= 2
-                and confianza >= classification_threshold
-            )
-            _rerun_allowed = bool(learning_ctrl.get("rerun_enabled", True)) and float(
-                confianza or 0.0
-            ) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
-            if (
-                auto_recipe_config
-                and not auto_recipe_created
-                and not _learning_mature
-                and _rerun_allowed
-            ):
-                baseline_routing = build_document_routing_decision(
-                    source_doc_type=tipo_doc,
-                    ai_confidence=confianza,
-                    extracted_data=analysis_fields if isinstance(analysis_fields, dict) else {},
-                    canonical_document={},
-                    category_keywords=get_doc_categories(db),
-                    requires_review=requiere_revision,
-                    db=db,
-                    tenant_id=tenant_id,
-                )
-                rerun_recipe_config = build_signal_learning_recipe_config(
-                    db,
-                    tenant_id=tenant_id,
-                    source_doc_type=tipo_doc,
-                    document_type_hint=baseline_routing.document_type,
-                    base_recipe_config=auto_recipe_config,
-                )
-                if should_run_learning_rerun(
-                    baseline_confidence=confianza,
-                    classification_threshold=classification_threshold,
-                    baseline_fields=analysis_fields if isinstance(analysis_fields, dict) else {},
-                    baseline_routing=baseline_routing,
-                    base_recipe_config=analysis_recipe_config,
-                    candidate_recipe_config=rerun_recipe_config,
-                ):
-                    ai_rerun_started_at = time.perf_counter()
-                    rerun_analysis = await _analyze_with_context(
-                        analyze_document_fn=analyze_document_fn,
-                        content=llm_content,
-                        filename=filename,
-                        format_hint=extraction.get("format", tipo_archivo),
-                        has_structured_rows=False,
-                        recipe_config=rerun_recipe_config,
-                        structured_data=None,
-                        structured_metadata=None,
-                        vision_image_bytes=vision_image_bytes,
-                        fallback_patterns=fallback_patterns,
-                        canonical_fields=canonical_fields,
-                        prompt_config=prompt_config,
-                        db=db,
-                        reprocess_mode=reprocess_mode,
-                        bypass_cache=deep_reprocess,
-                        deep_reprocess_context=recipe_context.reprocess_context,
-                        deep_focus_fields=(
-                            _reprocess_context_summary(recipe_context.reprocess_context).get(
-                                "missing_fields"
-                            )
-                            if deep_reprocess
-                            else None
-                        ),
-                        timeout_override=_strategy_timeout,
-                        force_vision=False,  # rerun: sin visión forzada, ya intentó en el primer pass
-                    )
-                    _set_stage_timing(stage_timings, "ai_rerun", ai_rerun_started_at)
-                    rerun_normalized = _normalize_analysis_output(rerun_analysis)
-                    rerun_fields = rerun_normalized["fields"]
-                    if isinstance(rerun_fields, dict) and rerun_fields:
-                        rerun_routing = build_document_routing_decision(
-                            source_doc_type=str(rerun_normalized["doc_type"]),
-                            ai_confidence=float(rerun_normalized["confidence"]),
-                            extracted_data=rerun_fields,
-                            canonical_document={},
-                            category_keywords=get_doc_categories(db),
-                            requires_review=(
-                                float(rerun_normalized["confidence"]) < classification_threshold
-                            ),
-                            db=db,
-                            tenant_id=tenant_id,
-                        )
-                        learning_rerun_summary = summarize_learning_rerun(
-                            baseline_doc_type=tipo_doc,
-                            baseline_confidence=confianza,
-                            baseline_fields=(
-                                analysis_fields if isinstance(analysis_fields, dict) else {}
-                            ),
-                            baseline_routing=baseline_routing.model_dump(mode="json"),
-                            rerun_doc_type=str(rerun_normalized["doc_type"]),
-                            rerun_confidence=float(rerun_normalized["confidence"]),
-                            rerun_fields=rerun_fields,
-                            rerun_routing=rerun_routing.model_dump(mode="json"),
-                            signal_learning_meta=(
-                                rerun_recipe_config.get("_signal_learning")
-                                if isinstance(rerun_recipe_config, dict)
-                                else None
-                            ),
-                        )
-                        analysis = rerun_analysis
-                        normalized_analysis = rerun_normalized
-                        tipo_doc = str(rerun_normalized["doc_type"])
-                        confianza = float(rerun_normalized["confidence"])
-                        requiere_revision = confianza < classification_threshold
-                        razonamiento = str(rerun_normalized["reasoning"])
-                        analysis_fields = rerun_fields
-                        datos_extraidos = rerun_fields
-                        recipe_config = auto_recipe_config
-
-    # DBG[H] datos_extraidos final — si está completo aquí pero no en la UI, el problema es persistencia o serializer
-    logger.info(
-        "DBG[H] datos_extraidos_final filename=%s keys=%s line_items=%d "
-        "vendor=%r vendor_tax_id=%r doc_number=%r issue_date=%r "
-        "subtotal=%r tax_amount=%r total_amount=%r",
-        filename,
-        sorted(k for k in (datos_extraidos or {}) if k not in {"line_items", "line_item_page_groups"}),
-        len((datos_extraidos or {}).get("line_items") or []) if isinstance(datos_extraidos, dict) else 0,
-        (datos_extraidos or {}).get("vendor"),
-        (datos_extraidos or {}).get("vendor_tax_id"),
-        (datos_extraidos or {}).get("doc_number"),
-        (datos_extraidos or {}).get("issue_date"),
-        (datos_extraidos or {}).get("subtotal"),
-        (datos_extraidos or {}).get("tax_amount"),
-        (datos_extraidos or {}).get("total_amount"),
-    )
-
-    crud.add_log(
-        db,
-        doc.id,
-        "EXTRACT",
-        user_id,
-        {
-            "campos_extraidos": (
-                list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
-            ),
-            "reprocess_mode": reprocess_mode,
-            "reprocess_cache_hit": bool(analysis.get("cache_hit")),
-            "reprocess_cache_bypassed": bool(analysis.get("cache_bypassed")),
-            "reprocess_result_changed": reprocess_result_changed,
-            "reprocess_missing_fields": reprocess_context_summary.get("missing_fields", []),
-        },
-    )
-
-    datos_extraidos = (
-        _json_safe(datos_extraidos)
-        if isinstance(datos_extraidos, (dict, list))
-        else datos_extraidos
-    )
-    sheet_profiles = (
-        _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
-    )
-    postprocess_started_at = time.perf_counter()
-    field_aliases = get_field_aliases(db, tenant_id=tenant_id)
-    canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
-    if isinstance(datos_extraidos, dict):
-        unmapped_cols = _normalize_line_item_extra_columns(datos_extraidos, field_aliases)
-        _project_line_item_slots(datos_extraidos, canonical_fields)
-        if unmapped_cols:
-            try:
-                _learn_column_candidates(
-                    db,
-                    col_names=unmapped_cols,
-                    doc_type=tipo_doc,
-                    tenant_id=tenant_id,
-                    field_aliases=field_aliases,
-                    canonical_fields=canonical_fields,
-                )
-            except Exception as exc:
-                logger.debug("Column candidate learning error (non-fatal): %s", exc)
-    canonical_document, projection = build_document_projection(
-        datos_extraidos if isinstance(datos_extraidos, dict) else {},
-        doc_type=tipo_doc,
-        source_format=extraction.get("format", tipo_archivo),
-        field_aliases=field_aliases,
-        canonical_fields=canonical_fields,
-    )
-    _set_stage_timing(stage_timings, "postprocess_projection", postprocess_started_at)
-    current_snapshot = recipe_snapshot
-    if current_snapshot is None and resolved_snapshot_id:
-        current_snapshot = _load_snapshot(db, resolved_snapshot_id)
-    learning_version_applied = get_snapshot_learning_version(current_snapshot)
-    model_used = (analysis.get("model_used") or "unknown") + (
-        "+text-fallback" if _used_text_fallback else ""
-    )
-    raw_ai_json = _json_safe(
-        {
-            "run": {
-                "recipe_resolution": {
-                    "used": resolution_mode,
-                    "recipe_snapshot_id": (
-                        str(resolved_snapshot_id) if resolved_snapshot_id else None
-                    ),
-                    "learning_version_applied": learning_version_applied,
-                },
-                "learning_version_applied": learning_version_applied,
-                "model": model_used,
-                "signal_learning": signal_learning_meta,
-                "learning_rerun": learning_rerun_summary,
-                "pre_classification": analysis.get("_pre_class"),
-                "headers_norm": headers_norm,
-                "reprocess": {
-                    "mode": reprocess_mode,
-                    "deep": deep_reprocess,
-                    "ocr_cache_hit": bool(extraction.get("_cache_hit")),
-                    "ocr_cache_bypassed": bool(extraction.get("_cache_bypassed")),
-                    "ai_cache_hit": bool(analysis.get("cache_hit")),
-                    "ai_cache_bypassed": bool(analysis.get("cache_bypassed")),
-                    "result_changed": reprocess_result_changed,
-                    "context": reprocess_context_summary,
-                },
-            },
-            "analysis": {
-                "prompt": analysis.get("prompt_sent", ""),
-                "raw_response": analysis.get("raw_response", ""),
-                "parsed": {
-                    "tipo_documento": tipo_doc,
-                    "confianza": confianza,
-                    "razonamiento": razonamiento,
-                },
-                "campos_extraidos": (
-                    list(datos_extraidos.keys()) if isinstance(datos_extraidos, dict) else []
-                ),
-            },
-            "canonical_document": canonical_document,
-        }
-    )
-    routing_started_at = time.perf_counter()
-    routing_decision = build_document_routing_decision(
-        source_doc_type=tipo_doc,
-        ai_confidence=confianza,
-        extracted_data=datos_extraidos if isinstance(datos_extraidos, dict) else {},
-        canonical_document=canonical_document,
-        category_keywords=get_doc_categories(db),
-        requires_review=requiere_revision,
-        db=db,
-        tenant_id=tenant_id,
-    )
-    _set_stage_timing(stage_timings, "routing", routing_started_at)
-    raw_ai_json["routing"] = routing_decision.model_dump(mode="json")
-
-    # Detect AI timeout / empty extraction for unstructured docs
-    ai_raw_response = str(analysis.get("raw_response", "") or "")
-    ai_timeout_error = None
-    if (
-        not has_structured
-        and isinstance(datos_extraidos, dict)
-        and not datos_extraidos
-        and ("timeout" in ai_raw_response.lower() or "unavailable" in ai_raw_response.lower())
-    ):
-        ai_timeout_error = ai_raw_response
-
-    staging_started_at = time.perf_counter()
-    if isinstance(datos_extraidos, dict):
-        upsert_staging_lines_from_extraction(db, doc.id, tenant_id, datos_extraidos)
-    _set_stage_timing(stage_timings, "staging_sync", staging_started_at)
-
-    review_hints_started_at = time.perf_counter()
-    review_hints = _build_review_hints(
-        db,
-        doc=doc,
-        routing_decision=routing_decision,
-        snapshot_id=resolved_snapshot_id,
-    )
-    _set_stage_timing(stage_timings, "review_hints", review_hints_started_at)
-    raw_ai_json["run"].update(
-        _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
-    )
-
-    document_update_started_at = time.perf_counter()
-    crud.update_documento(
-        db,
-        doc,
-        {
-            "texto_ocr": text[
-                : max(1, int(processing_cfg.get("persist_text_ocr_max_chars") or 50000))
-            ],
-            "tipo_documento_detectado": tipo_doc,
-            "confianza_clasificacion": confianza,
-            "requiere_revision": routing_decision.needs_human_review,
-            "datos_extraidos": datos_extraidos,
-            "estado": "REVIEW",
-            "error_detalle": ai_timeout_error,
-            "extraction_status": (
-                "ok" if datos_extraidos and isinstance(datos_extraidos, dict) and datos_extraidos
-                else "partial" if isinstance(datos_extraidos, dict)
-                else "failed"
-            ),
-            "reprocess_status": "available",
-            **projection,
-            "fingerprint_json": sheet_profiles,
-            "sheet_profiles_json": sheet_profiles,
-            "llm_model": model_used,
-            "raw_ai_json": raw_ai_json,
-            "recipe_snapshot_id": resolved_snapshot_id,
-        },
-    )
-    _set_stage_timing(stage_timings, "document_update", document_update_started_at)
-    raw_ai_json["run"].update(
-        _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
-    )
-    crud.update_documento(db, doc, {"raw_ai_json": raw_ai_json})
-    logger.info(
-        "importador.processing.completed doc_id=%s mode=%s metrics=%s",
-        doc.id,
-        mode,
-        _json_safe(
-            {
-                "tenant_id": str(tenant_id),
-                "doc_type": tipo_doc,
-                "model": model_used,
-                **raw_ai_json["run"],
-            }
-        ),
-    )
-    return DocumentProcessingResult(
-        tipo_documento_detectado=tipo_doc,
-        confianza_clasificacion=confianza,
-        requiere_revision=routing_decision.needs_human_review,
-        datos_extraidos=datos_extraidos if isinstance(datos_extraidos, dict) else None,
-        llm_model=model_used,
-        recipe_snapshot_id=resolved_snapshot_id,
-        recipe_used=resolution_mode,
-        routing_decision=routing_decision,
-        review_hints=review_hints,
-        raw_ai_json=raw_ai_json,
-    )
 
 
 async def _process_run_document(
@@ -1896,9 +1275,11 @@ async def _process_run_document(
     reprocess_mode = _normalize_reprocess_mode(recipe_context.reprocess_mode)
     deep_reprocess = reprocess_mode == "deep"
     force_clean_reimport = bool(recipe_context.force_clean_reimport or deep_reprocess)
+
     extraction_started_at = time.perf_counter()
     extraction = await extract_text_fn(file_bytes, filename, bypass_cache=deep_reprocess)
     _set_stage_timing(stage_timings, "ocr_extract", extraction_started_at)
+
     text = extraction.get("text", "")
     structured = extraction.get("structured_data")
     sheet_profiles = extraction.get("sheet_profiles")
@@ -1912,13 +1293,15 @@ async def _process_run_document(
 
     headers_norm: list[str] = []
     headers_display: list[str] = []
+    structured_output_limit = max(
+        1, int(processing_cfg.get("structured_output_rows_limit") or 200)
+    )
+
     if has_structured:
-        structured_output_limit = max(
-            1, int(processing_cfg.get("structured_output_rows_limit") or 200)
-        )
         sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
         if sheet_used is None and sheet_names:
             sheet_used = sheet_names[0]
+
         if sheet_used and structured_rows:
             filtered_rows = [
                 row
@@ -1927,6 +1310,7 @@ async def _process_run_document(
             ]
             if filtered_rows:
                 structured_rows = filtered_rows
+
         if sheet_profiles:
             profile = sheet_profiles.get(sheet_used) or (
                 sheet_profiles[sheet_names[0]] if sheet_names else None
@@ -1947,14 +1331,17 @@ async def _process_run_document(
         if force_clean_reimport and not local_recipe_config
         else recipe_context.resolved_snapshot_id
     )
+
     if local_snapshot_id and not local_recipe_config:
         snapshot = _load_snapshot(db, local_snapshot_id)
         if snapshot and isinstance(snapshot.content_json, dict):
             local_recipe_config = _snapshot_recipe_config(snapshot)
+
     local_auto_created = False
     local_auto_name: str | None = None
     generated_auto_snapshot_id: UUID | None = None
     generated_auto_mode: str | None = None
+
     if sheet_profiles and not force_clean_reimport and not local_recipe_config:
         auto_rc, auto_snap_id, auto_mode, local_auto_created, local_auto_name = resolve_auto_recipe(
             db, tenant_id, sheet_profiles, user_id, force_new=force
@@ -1966,18 +1353,21 @@ async def _process_run_document(
             local_resolution = auto_mode
         if auto_snap_id:
             local_snapshot_id = auto_snap_id
+
     _set_stage_timing(stage_timings, "recipe_resolution", recipe_resolution_started_at)
 
     recipe_name_detected: str | None = None
     recipe_name_field_candidates = {
         key.lower() for key in _runtime_text_list(processing_cfg, "recipe_name_field_candidates")
     }
+
     if has_structured:
         preview_rows = max(1, int(processing_cfg.get("structured_preview_rows") or 5))
         preview_fields = max(1, int(processing_cfg.get("structured_preview_fields") or 8))
         sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
         if sheet_used is None and sheet_names:
             sheet_used = sheet_names[0]
+
         sample_lines = [f"Columnas: {headers_display}"]
         for row in structured_rows[:preview_rows]:
             if isinstance(row, dict):
@@ -1998,6 +1388,7 @@ async def _process_run_document(
                             if value:
                                 recipe_name_detected = str(value).strip()
                                 break
+
         llm_content = "\n".join(sample_lines)
     else:
         llm_preview_chars = max(1, int(processing_cfg.get("llm_text_preview_chars") or 6000))
@@ -2013,6 +1404,7 @@ async def _process_run_document(
     cached_analysis = None
     text_cached_analysis_run = None
     analysis_recipe_config = dict(local_recipe_config or {})
+
     if recipe_snapshot:
         if has_structured:
             cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
@@ -2026,6 +1418,112 @@ async def _process_run_document(
     classification_threshold = load_classification_threshold(db)
     learning_ctrl = load_learning_control(db)
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
+
+    _rc_for_run = dict(local_recipe_config or {})
+    doc_type_hint_min_confidence = float(
+        processing_cfg.get("doc_type_hint_min_confidence") or 0.65
+    )
+    table_only_doc_types = _runtime_doc_type_set(processing_cfg, "table_only_doc_types")
+
+    if text_cached_analysis_run and not _rc_for_run.get("doc_type_hint"):
+        _cached_type = str(text_cached_analysis_run.get("doc_type") or "").upper()
+        _cached_conf = float(text_cached_analysis_run.get("confidence") or 0)
+        if (
+            _cached_type
+            and _cached_type != "OTHER"
+            and _cached_conf >= doc_type_hint_min_confidence
+            and (has_structured or _cached_type not in table_only_doc_types)
+        ):
+            _rc_for_run["doc_type_hint"] = _cached_type
+            _rc_for_run["doc_type_hint_confidence"] = _cached_conf
+
+    _doc_format = str(extraction.get("format", tipo_archivo) or "").upper()
+    # Skip LLM only when we already have a real semantic type from a previous run.
+    # "STRUCTURED" and "OTHER" are placeholders, not semantic types: they mean the LLM
+    # never classified this document properly, so we must still run it to get line_items,
+    # kv_pairs, column_profiles and a meaningful doc_type.
+    _has_semantic_hint = (
+        bool(_rc_for_run.get("doc_type_hint"))
+        and str(_rc_for_run.get("doc_type_hint", "")).upper() not in ("", "STRUCTURED", "OTHER")
+    )
+    _skip_ai_for_structured = (
+        has_structured
+        and _doc_format in _STRUCTURED_SKIP_FORMATS
+        and not force_clean_reimport
+        and _has_semantic_hint
+    )
+
+    # ── Señales post-OCR para routing de carril ────────────────────────────
+    _reprocess_ctx = recipe_context.reprocess_context or {}
+    _prev_result_ctx = _reprocess_ctx.get("previous_result") or {}
+    _is_first_import = not bool(isinstance(_prev_result_ctx, dict) and _prev_result_ctx)
+    _prev_confidence: float | None = None
+    if isinstance(_prev_result_ctx, dict) and _prev_result_ctx:
+        try:
+            _c = _prev_result_ctx.get("confianza_clasificacion")
+            _prev_confidence = float(_c) if _c is not None else None
+        except (TypeError, ValueError):
+            _prev_confidence = None
+
+    _text_is_sufficient_for_lane = len(str(text or "").strip()) >= max(
+        1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 500)
+    )
+    _has_vision_for_lane = bool(vision_image_bytes) or tipo_archivo in (
+        "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR",
+    )
+
+    _ocr_quality_score: float | None = extraction.get("ocr_quality_score")
+
+    lane_decision = decide_processing_lane(
+        doc_format=_doc_format,
+        has_structured=has_structured,
+        has_vision=_has_vision_for_lane,
+        text_is_sufficient=_text_is_sufficient_for_lane,
+        has_semantic_hint=_has_semantic_hint,
+        has_cached_analysis=bool(cached_analysis),
+        is_first_import=_is_first_import,
+        previous_confidence=_prev_confidence,
+        deep_reprocess=deep_reprocess,
+        processing_cfg=processing_cfg,
+        ocr_quality_score=_ocr_quality_score,
+    )
+    logger.info(
+        "processing_lane doc_id=%s lane=%s phase_timeout=%.1fs force_vision=%s vision_first=%s reasons=%s",
+        doc.id,
+        lane_decision.lane,
+        lane_decision.timeout_secs,
+        lane_decision.force_vision,
+        lane_decision.vision_first,
+        lane_decision.reasons,
+    )
+
+    # Log específico para PDFs para observabilidad de estrategia de fases
+    if _doc_format in {"PDF", "PDF_OCR"}:
+        logger.info(
+            "pdf_strategy doc_id=%s format=%s primary=%s secondary=%s "
+            "phase_timeout=%.1fs ocr_quality=%s",
+            doc.id,
+            _doc_format,
+            "vision" if lane_decision.vision_first else "text",
+            "text_if_needed" if lane_decision.vision_first else "vision_if_needed",
+            lane_decision.timeout_secs,
+            f"{_ocr_quality_score:.2f}" if _ocr_quality_score is not None else "unknown",
+        )
+
+    # Log específico para CSV/XML resueltos sin deep
+    if _doc_format in {"CSV", "XML"} and lane_decision.lane == "fast":
+        logger.info(
+            "structured_or_parser_skip_deep doc_id=%s filename=%s format=%s reason=%s",
+            doc.id,
+            filename,
+            _doc_format,
+            ",".join(lane_decision.reasons),
+        )
+
+    # Flags de escalado (se actualizan si fast→deep escala inline)
+    _lane_escalated = False
+    _lane_escalation_reason: str | None = None
+
     if cached_analysis:
         analysis = {
             **cached_analysis,
@@ -2035,25 +1533,33 @@ async def _process_run_document(
             "model_used": "snapshot-cache",
             "prompt_sent": "",
             "raw_response": "snapshot-cache",
+            "analysis_path": "ok_snapshot_cache",
         }
-    else:
-        _rc_for_run = dict(local_recipe_config or {})
-        doc_type_hint_min_confidence = float(
-            processing_cfg.get("doc_type_hint_min_confidence") or 0.65
+    elif _skip_ai_for_structured:
+        _hint_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper() or "STRUCTURED"
+        analysis = {
+            "doc_type": _hint_doc_type,
+            "confidence": 0.82,
+            "reasoning": f"Structured data ({_doc_format}) parsed directly; LLM skipped.",
+            "is_table": True,
+            "columns": headers_display or headers_norm,
+            "fields": {},
+            "raw_response": "reason=structured_parse_skip",
+            "model_used": "structured-parse-skip",
+            "analysis_path": "ok_structured",
+            "requires_review": False,
+        }
+        logger.info(
+            "structured_parse_skip filename=%s format=%s doc_type=%s",
+            filename,
+            _doc_format,
+            _hint_doc_type,
         )
-        table_only_doc_types = _runtime_doc_type_set(processing_cfg, "table_only_doc_types")
-        if text_cached_analysis_run and not _rc_for_run.get("doc_type_hint"):
-            _cached_type = str(text_cached_analysis_run.get("doc_type") or "").upper()
-            _cached_conf = float(text_cached_analysis_run.get("confidence") or 0)
-            if (
-                _cached_type
-                and _cached_type != "OTHER"
-                and _cached_conf >= doc_type_hint_min_confidence
-                and (has_structured or _cached_type not in table_only_doc_types)
-            ):
-                _rc_for_run["doc_type_hint"] = _cached_type
-                _rc_for_run["doc_type_hint_confidence"] = _cached_conf
+    else:
         ai_primary_started_at = time.perf_counter()
+        _send_vision = (lane_decision.force_vision or is_image_doc or is_scanned_pdf) and bool(
+            vision_image_bytes
+        )
         analysis = await analyze_document_fn(
             llm_content,
             filename,
@@ -2062,11 +1568,7 @@ async def _process_run_document(
             recipe_config=_rc_for_run,
             structured_data=structured if has_structured else None,
             structured_metadata=sheet_profiles if has_structured else sheet_metadata,
-            image_bytes=(
-                bytes(vision_image_bytes)
-                if (is_image_doc or is_scanned_pdf) and vision_image_bytes
-                else None
-            ),
+            image_bytes=bytes(vision_image_bytes) if _send_vision else None,
             fallback_patterns=fallback_patterns,
             canonical_fields=canonical_fields,
             prompt_config=prompt_config,
@@ -2078,8 +1580,15 @@ async def _process_run_document(
                 if deep_reprocess
                 else None
             ),
+            timeout_override=lane_decision.timeout_secs,
+            force_vision=lane_decision.force_vision,
+            vision_first=lane_decision.vision_first,
         )
         _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
+        analysis.setdefault("analysis_path", "ok_llm")
+        # Guard: si el análisis terminó en fallback con tipo fuerte sin evidencia → degrada a OTHER
+        analysis = _guard_fallback_doc_type(analysis, content=llm_content)
+
     normalize_analysis_started_at = time.perf_counter()
     normalized_analysis = _normalize_analysis_output(analysis)
     _set_stage_timing(stage_timings, "analysis_normalize", normalize_analysis_started_at)
@@ -2089,6 +1598,7 @@ async def _process_run_document(
     razonamiento = str(normalized_analysis["reasoning"])
     analysis_fields = normalized_analysis["fields"]
     requiere_revision = confianza < classification_threshold
+
     current_field_keys = (
         sorted(
             str(key)
@@ -2112,6 +1622,74 @@ async def _process_run_document(
         field_keys=current_field_keys,
     )
 
+    # ── Escalación inline fast → deep ─────────────────────────────────────
+    # Solo aplica cuando: (a) carril fast, (b) no cache, (c) doc de texto/PDF
+    # (los estructurados usan _structured_direct_analysis, bypass sin HTTP, y
+    # no se benefician de más timeout).
+    _used_real_llm = (
+        not cached_analysis
+        and not _skip_ai_for_structured
+        and not has_structured
+    )
+    if lane_decision.lane == "fast" and _used_real_llm:
+        _current_analysis_path = str(analysis.get("analysis_path") or "")
+        _sufficient, _escalation_reason = _fast_lane_result_is_sufficient(
+            analysis_path=_current_analysis_path,
+            tipo_doc=tipo_doc,
+            confianza=confianza,
+            classification_threshold=classification_threshold,
+        )
+        if not _sufficient:
+            _t_deep = float(processing_cfg.get("lane_timeout_deep") or _LANE_TIMEOUTS["deep"])
+            logger.info(
+                "lane_escalation fast->deep doc_id=%s reason=%s timeout_deep=%.1fs",
+                doc.id,
+                _escalation_reason,
+                _t_deep,
+            )
+            _escalation_started_at = time.perf_counter()
+            _escalated_analysis = await analyze_document_fn(
+                llm_content,
+                filename,
+                extraction.get("format", tipo_archivo),
+                has_structured_rows=False,  # no bypass en escalación: forzar ruta LLM real
+                recipe_config=_rc_for_run,
+                structured_data=None,
+                structured_metadata=None,
+                image_bytes=bytes(vision_image_bytes) if vision_image_bytes else None,
+                fallback_patterns=fallback_patterns,
+                canonical_fields=canonical_fields,
+                prompt_config=prompt_config,
+                reprocess_mode=reprocess_mode,
+                bypass_cache=True,
+                deep_reprocess_context=recipe_context.reprocess_context,
+                deep_focus_fields=None,
+                timeout_override=_t_deep,
+                force_vision=bool(vision_image_bytes),
+            )
+            _set_stage_timing(stage_timings, "ai_escalation", _escalation_started_at)
+            # Guard también para el resultado escalado
+            _escalated_analysis = _guard_fallback_doc_type(_escalated_analysis, content=llm_content)
+            _escalated_norm = _normalize_analysis_output(_escalated_analysis)
+            _escalated_fields = _escalated_norm["fields"]
+            if isinstance(_escalated_fields, dict) and _escalated_fields:
+                # El resultado escalado tiene contenido: usarlo
+                analysis = _escalated_analysis
+                analysis.setdefault("analysis_path", "ok_llm_escalated")
+                normalized_analysis = _escalated_norm
+                tipo_doc = str(_escalated_norm["doc_type"])
+                confianza = float(_escalated_norm["confidence"])
+                razonamiento = str(_escalated_norm["reasoning"])
+                analysis_fields = _escalated_fields
+                requiere_revision = confianza < classification_threshold
+                _lane_escalated = True
+                _lane_escalation_reason = _escalation_reason
+            else:
+                logger.info(
+                    "lane_escalation_noop doc_id=%s escalated_result_empty keeping_fast_result",
+                    doc.id,
+                )
+
     if recipe_snapshot:
         remember_snapshot_learning(
             db,
@@ -2128,73 +1706,38 @@ async def _process_run_document(
         sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
         if sheet_used is None and sheet_names:
             sheet_used = sheet_names[0]
-        columnas = headers_display or headers_norm
-        if recipe_name_detected is None:
-            for row in structured_rows[:structured_output_limit]:
-                if not isinstance(row, dict):
-                    continue
-                for key in row.keys():
-                    key_norm = str(key or "").strip().lower()
-                    if key_norm in recipe_name_field_candidates:
-                        value = row.get(key)
-                        if value:
-                            recipe_name_detected = str(value).strip()
-                            break
-                if recipe_name_detected:
-                    break
-        meta_for_sheet = None
-        if sheet_metadata:
-            meta_for_sheet = sheet_metadata.get(sheet_used) or (
-                sheet_metadata.get(sheet_names[0]) if sheet_names else None
-            )
-        if recipe_name_detected is None and meta_for_sheet:
-            for key, value in meta_for_sheet.items():
-                key_norm = str(key or "").strip().lower()
-                if key_norm in recipe_name_field_candidates and value:
-                    recipe_name_detected = str(value).strip()
-                    break
-        if recipe_name_detected is None:
-            recipe_name_detected = (
-                sheet_used
-                or (list(sheet_profiles.keys())[0] if sheet_profiles else None)
-                or Path(filename).stem
-            )
 
-        filas_por_hoja: dict[str, list] = {}
-        for row in structured_rows_all:
-            if not isinstance(row, dict):
-                continue
-            sheet_name = row.get("_sheet") or sheet_used or ""
-            filas_por_hoja.setdefault(str(sheet_name), []).append(row)
-        filas_count = {key: len(value) for key, value in filas_por_hoja.items()}
+        structured_payload, recipe_name_detected = _build_structured_payload(
+            structured_rows=structured_rows,
+            structured_rows_all=structured_rows_all,
+            sheet_profiles=sheet_profiles,
+            sheet_metadata=sheet_metadata,
+            sheet_used=sheet_used,
+            sheet_names=sheet_names,
+            headers_norm=headers_norm,
+            headers_display=headers_display,
+            recipe_name_detected=recipe_name_detected,
+            recipe_name_field_candidates=recipe_name_field_candidates,
+            structured_output_limit=structured_output_limit,
+            filename=filename,
+        )
 
-        perfiles_hojas: dict[str, dict[str, Any]] = {}
-        for sheet_name in sheet_names:
-            prof = sheet_profiles.get(sheet_name) if sheet_profiles else None
-            if prof:
-                perfiles_hojas[sheet_name] = {
-                    "columnas": prof.get("headers") or prof.get("headers_norm") or [],
-                    "columnas_norm": prof.get("headers_norm") or [],
-                    "total_filas": len(filas_por_hoja.get(sheet_name, [])),
-                }
+        base_extracted = analysis_fields if isinstance(analysis_fields, dict) else {}
+        datos_extraidos = _merge_structured_extraction(base_extracted, structured_payload)
 
-        datos_extraidos = {
-            "filas": structured_rows[:structured_output_limit],
-            "total_filas": len(structured_rows),
-            "columnas": columnas,
-            "columnas_norm": headers_norm,
-            "nombre_receta": recipe_name_detected,
-            "sheet_usada": sheet_used,
-            "hojas": sheet_names,
-            "perfiles_hojas": perfiles_hojas,
-        }
-        if meta_for_sheet:
-            datos_extraidos["metadata"] = meta_for_sheet
-        if filas_por_hoja:
-            datos_extraidos["filas_por_hoja"] = {
-                key: value[:structured_output_limit] for key, value in filas_por_hoja.items()
-            }
-            datos_extraidos["filas_por_hoja_count"] = filas_count
+        analysis_fields = datos_extraidos
+        current_field_keys = _field_keys_for_reprocess(datos_extraidos)
+        current_field_count = _count_detected_scalar_fields(datos_extraidos)
+
+        logger.info(
+            "structured_merge.run filename=%s base_keys=%s final_keys=%s line_items=%d total_filas=%d",
+            filename,
+            sorted(k for k in base_extracted.keys() if not str(k).startswith("_")),
+            sorted(k for k in datos_extraidos.keys() if not str(k).startswith("_")),
+            len(datos_extraidos.get("line_items") or []),
+            int(datos_extraidos.get("total_filas") or 0),
+        )
+
         product_like_doc_types = _runtime_doc_type_set(processing_cfg, "product_like_doc_types")
         if (
             looks_like_product_document(
@@ -2211,6 +1754,7 @@ async def _process_run_document(
 
     auto_recipe_created = local_auto_created
     auto_recipe_name: str | None = local_auto_name
+
     if not sheet_profiles and tipo_doc != "OTHER" and not recipe_context.explicit_recipe_context:
         auto_recipe_started_at = time.perf_counter()
         auto_rc2, post_snap_id, auto_resolution_mode, auto_recipe_created, auto_recipe_name = (
@@ -2225,8 +1769,9 @@ async def _process_run_document(
             )
         )
         _set_stage_timing(stage_timings, "auto_recipe_resolution", auto_recipe_started_at)
+
         if post_snap_id and not local_snapshot_id:
-            resolution_mode = auto_resolution_mode or resolution_mode
+            local_resolution = auto_resolution_mode or local_resolution
             local_snapshot_id = post_snap_id
             _run_snap = _load_snapshot(db, post_snap_id)
             if _run_snap:
@@ -2240,6 +1785,7 @@ async def _process_run_document(
                     },
                     structured_only=False,
                 )
+
         _run_learning_version = (
             get_snapshot_learning_version(_load_snapshot(db, local_snapshot_id))
             if local_snapshot_id
@@ -2257,6 +1803,7 @@ async def _process_run_document(
         _run_rerun_allowed = bool(learning_ctrl.get("rerun_enabled", True)) and float(
             confianza or 0.0
         ) >= float(learning_ctrl.get("rerun_min_confidence", 0.0))
+
         if (
             auto_rc2
             and not auto_recipe_created
@@ -2311,6 +1858,7 @@ async def _process_run_document(
                     ),
                 )
                 _set_stage_timing(stage_timings, "ai_rerun", ai_rerun_started_at)
+
                 rerun_normalized = _normalize_analysis_output(rerun_analysis)
                 rerun_fields = rerun_normalized["fields"]
                 if isinstance(rerun_fields, dict) and rerun_fields:
@@ -2326,6 +1874,7 @@ async def _process_run_document(
 
     current_snapshot = _load_snapshot(db, local_snapshot_id)
     learning_version_applied = get_snapshot_learning_version(current_snapshot)
+
     postprocess_started_at = time.perf_counter()
     field_aliases = get_field_aliases(db, tenant_id=tenant_id)
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
@@ -2344,6 +1893,7 @@ async def _process_run_document(
                 )
             except Exception as exc:
                 logger.debug("Column candidate learning error (non-fatal): %s", exc)
+
     canonical_document, projection = build_document_projection(
         datos_extraidos if isinstance(datos_extraidos, dict) else {},
         doc_type=tipo_doc,
@@ -2352,9 +1902,40 @@ async def _process_run_document(
         canonical_fields=canonical_fields,
     )
     _set_stage_timing(stage_timings, "postprocess_projection", postprocess_started_at)
+
     model_used = analysis.get("model_used") or "unknown"
+    # Normalizar a minúsculas y sin espacios para comparaciones deterministas.
+    # Default "" (vacío) para no colisionar con ningún valor semántico real.
+    _analysis_path = str(analysis.get("analysis_path") or "").strip().lower()
+
+    # extraction_status semántico para observabilidad — basado en el camino real.
+    _has_useful_data = isinstance(datos_extraidos, dict) and bool(datos_extraidos)
+    if not isinstance(datos_extraidos, dict):
+        _extraction_status = "failed"
+    elif not datos_extraidos:
+        _extraction_status = "partial_empty"
+    elif _analysis_path in {"structured_direct", "ok_structured", "ok_snapshot_cache"}:
+        _extraction_status = "ok_structured"
+    elif _analysis_path in {"fallback", "fallback_error"}:
+        _extraction_status = "ok_ocr_rescue" if _has_useful_data else "partial_timeout_fallback"
+    elif _analysis_indicates_ai_failure(analysis, processing_cfg=processing_cfg):
+        _extraction_status = "ok_ocr_rescue" if _has_useful_data else "partial_timeout_fallback"
+    else:
+        _extraction_status = "ok_llm"
+
     raw_ai_json = {
         "run": {
+            "extraction_path": _analysis_path,
+            "lane": {
+                "lane": lane_decision.lane,
+                "phase_timeout_secs": lane_decision.timeout_secs,
+                "reasons": lane_decision.reasons,
+                "force_vision": lane_decision.force_vision,
+                "vision_first": lane_decision.vision_first,
+                "ocr_quality_score": _ocr_quality_score,
+                "escalated": _lane_escalated,
+                "escalation_reason": _lane_escalation_reason,
+            },
             "recipe_resolution": {
                 "recipe_id": str(recipe_context.recipe_id) if recipe_context.recipe_id else None,
                 "recipe_snapshot_id": str(local_snapshot_id) if local_snapshot_id else None,
@@ -2420,11 +2001,7 @@ async def _process_run_document(
             "requiere_revision": requiere_revision,
             "datos_extraidos": datos_extraidos,
             "estado": "REVIEW",
-            "extraction_status": (
-                "ok" if datos_extraidos and isinstance(datos_extraidos, dict) and datos_extraidos
-                else "partial" if isinstance(datos_extraidos, dict)
-                else "failed"
-            ),
+            "extraction_status": _extraction_status,
             "reprocess_status": "available",
             **projection,
             "llm_model": model_used,
@@ -2435,10 +2012,12 @@ async def _process_run_document(
         },
     )
     _set_stage_timing(stage_timings, "document_update", document_update_started_at)
+
     raw_ai_json["run"].update(
         _build_timing_summary(stage_timings=stage_timings, started_at=processing_started_at)
     )
     crud.update_documento(db, doc, {"raw_ai_json": raw_ai_json})
+
     crud.add_log(
         db,
         doc.id,
@@ -2462,10 +2041,10 @@ async def _process_run_document(
             ),
         },
     )
+
     logger.info(
-        "importador.processing.completed doc_id=%s mode=%s metrics=%s",
+        "importador.processing.completed doc_id=%s metrics=%s",
         doc.id,
-        "run",
         _json_safe(
             {
                 "tenant_id": str(tenant_id),
