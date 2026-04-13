@@ -257,16 +257,12 @@ def decide_processing_lane(
     ):
         return LaneDecision("fast", t_fast, False, False, ["text_reimport_high_confidence"])
 
-    # ── CSV/XML con texto suficiente: fast lane sin deep
-    # CSV/XML tienen nombres de campo en el texto aunque no haya estructura parseable.
-    # El LLM puede clasificarlos en fast (t_fast). Si falla, queda OTHER — nunca INVOICE falso.
-    # Solo van a deep si el parser no extrajo nada y el texto es también insuficiente
-    # (ese caso ya fue capturado por `not has_structured and not text_is_sufficient` arriba).
-    if fmt in {"CSV", "XML"} and text_is_sufficient:
-        _csv_reasons = ["csv_xml_text_sufficient"]
+    # ── CSV/XML/JSON textuales: fast lane sin deep aunque no haya estructura completa
+    if fmt in {"CSV", "JSON", "XML", "XML_UBL", "XML_FACTURAE"} and text_is_sufficient:
+        reasons = ["parser_text_fast"]
         if has_semantic_hint:
-            _csv_reasons.append("has_semantic_hint")
-        return LaneDecision("fast", t_fast, False, False, _csv_reasons)
+            reasons.append("has_semantic_hint")
+        return LaneDecision("fast", t_fast, False, False, reasons)
 
     # ── Deep por defecto: primera importación ambigua, texto insuficiente, etc.
     _vf = _vision_first_from_quality()
@@ -280,21 +276,72 @@ def decide_processing_lane(
 _FALLBACK_STRONG_TYPES: frozenset[str] = frozenset({
     "INVOICE", "RECEIPT", "PAYROLL", "CREDIT_NOTE", "DEBIT_NOTE",
 })
-# Campos de evidencia que cuentan como prueba de documento de factura/recibo.
-_INVOICE_EVIDENCE_FIELDS: tuple[str, ...] = (
+# Campos de evidencia genéricos para tipos no-INVOICE (RECEIPT, PAYROLL, etc.).
+_GENERIC_EVIDENCE_FIELDS: tuple[str, ...] = (
     "vendor", "doc_number", "total_amount", "subtotal", "issue_date", "line_items",
 )
 
 
+# ── Cambio 4: helpers de saneamiento de evidencia ─────────────────────────────
+
+def _vendor_is_valid_evidence(vendor_value: Any) -> bool:
+    """Vendor válido como evidencia: parece razón social, no narrativa ni frase larga.
+
+    Rechaza strings que superen 120 chars o 10 palabras — señales de texto descriptivo
+    que OCR confundió con un nombre de proveedor.
+    """
+    if not vendor_value or not isinstance(vendor_value, str):
+        return False
+    v = vendor_value.strip()
+    if not v:
+        return False
+    if len(v) > 120:
+        logger.info("pdf_vendor_rejected reason=narrative_text length=%d", len(v))
+        return False
+    if len(v.split()) > 10:
+        logger.info("pdf_vendor_rejected reason=narrative_text words=%d", len(v.split()))
+        return False
+    return True
+
+
+def _line_items_are_valid_evidence(line_items_value: Any) -> bool:
+    """Line items válidos: lista no vacía donde cada item tiene al menos un campo semántico coherente.
+
+    Rechaza tablas corruptas donde todas las filas carecen de descripción Y de campos numéricos,
+    lo que indica que las columnas están cruzadas o el parser falló.
+    """
+    if not isinstance(line_items_value, list) or not line_items_value:
+        return False
+    coherent = 0
+    for item in line_items_value[:5]:
+        if not isinstance(item, dict):
+            continue
+        has_desc = bool(
+            item.get("description") or item.get("descripcion")
+            or item.get("name") or item.get("nombre")
+        )
+        has_numeric = any(
+            item.get(k) is not None
+            for k in ("quantity", "cantidad", "unit_price", "precio_unitario",
+                      "total", "total_price", "precio_total")
+        )
+        if has_desc or has_numeric:
+            coherent += 1
+    if coherent == 0:
+        logger.info("pdf_line_items_rejected reason=incoherent_columns items_checked=%d", len(line_items_value[:5]))
+        return False
+    return True
+
+
+# ── Cambio 3: guard con evidencia fuerte para INVOICE ─────────────────────────
+
 def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> dict[str, Any]:
     """Bloquea promoción fuerte de doc_type cuando el camino final fue fallback/fallback_error.
 
-    Si analysis_path es fallback o fallback_error, tipos fuertes (INVOICE, RECEIPT,
-    PAYROLL, CREDIT_NOTE, DEBIT_NOTE) requieren al menos 2 campos de evidencia
-    en `fields`. Sin evidencia suficiente, degrada a OTHER con confianza baja.
+    INVOICE requiere una combinación fuerte de campos (no basta con contar 2 campos
+    cualesquiera). El vendor y los line_items se sanean antes de contar como evidencia.
 
-    El bloque `_apply_high_evidence_ocr_repairs` en ai_classifier puede haber
-    intentado extraer campos tras el fallback; contamos los que resultaron no-nulos.
+    Para otros tipos fuertes (RECEIPT, PAYROLL, etc.) se mantiene el check de 2 campos.
     """
     path = str(analysis.get("analysis_path") or "").strip().lower()
     if path not in {"fallback", "fallback_error"}:
@@ -308,8 +355,59 @@ def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> 
     if not isinstance(fields, dict):
         fields = {}
 
+    def _has(f: str) -> bool:
+        return fields.get(f) not in (None, "", [], {})
+
+    if doc_type == "INVOICE":
+        # Cambio 3: para INVOICE, exigir una combinación fuerte de evidencia.
+        # Cambio 4: sanear vendor y line_items antes de contar como evidencia.
+        has_total = _has("total_amount")
+        has_doc_number = _has("doc_number")
+        has_vendor_tax = _has("vendor_tax_id")
+        has_vendor = _has("vendor") and _vendor_is_valid_evidence(fields.get("vendor"))
+        has_issue_date = _has("issue_date")
+        has_line_items = _line_items_are_valid_evidence(fields.get("line_items"))
+
+        # Al menos una de estas combinaciones debe cumplirse:
+        strong_evidence = (
+            (has_doc_number and has_total)
+            or (has_vendor_tax and has_total)
+            or (has_vendor and has_total and has_issue_date)
+            or (has_line_items and has_total)
+        )
+
+        if strong_evidence:
+            logger.info(
+                "fallback_doc_type_accepted candidate=INVOICE "
+                "doc_number=%s vendor_tax=%s vendor=%s issue_date=%s line_items=%s total=%s path=%s",
+                has_doc_number, has_vendor_tax, has_vendor, has_issue_date, has_line_items,
+                has_total, path,
+            )
+            return analysis
+
+        logger.info(
+            "fallback_doc_type_promotion_blocked candidate=INVOICE "
+            "reason=missing_strong_invoice_evidence "
+            "doc_number=%s vendor_tax=%s vendor=%s issue_date=%s line_items=%s total=%s path=%s",
+            has_doc_number, has_vendor_tax, has_vendor, has_issue_date, has_line_items,
+            has_total, path,
+        )
+        degraded = {**analysis}
+        degraded["doc_type"] = "OTHER"
+        degraded["confidence"] = min(float(analysis.get("confidence") or 0.2), 0.3)
+        degraded["reasoning"] = (
+            f"Degraded from INVOICE to OTHER: fallback path, no strong invoice evidence combo. "
+            f"Original: {analysis.get('reasoning', '')}"
+        )
+        logger.info(
+            "fallback_doc_type_degraded from=INVOICE to=OTHER "
+            "reason=missing_strong_invoice_evidence",
+        )
+        return degraded
+
+    # Para RECEIPT, PAYROLL, CREDIT_NOTE, DEBIT_NOTE: mantener check de 2 campos genéricos.
     present = sum(
-        1 for f in _INVOICE_EVIDENCE_FIELDS
+        1 for f in _GENERIC_EVIDENCE_FIELDS
         if fields.get(f) not in (None, "", [], {})
     )
 
@@ -996,27 +1094,12 @@ async def _analyze_with_context(
         or not deep_reprocess_context.get("previous_result")
     )
 
-    # tipos donde NO conviene saltar IA aunque el OCR tenga texto suficiente
-    never_skip_doc_types = {
-        "PDF",
-        "PDF_OCR",
-        "IMAGE_OCR",
-        "JPG",
-        "JPEG",
-        "PNG",
-        "IMG",
-        "HEIC",
-        "WEBP",
-    }
-
     fast_mode_skip_ai = (
         _fast_mode
         and not has_structured_rows
         and text_is_sufficient
-        and not is_first_import
-        and _prev_was_good
-        and not _has_visual_input
-        and _format_hint not in never_skip_doc_types
+        and (not _has_visual_input or not low_quality)
+        and (is_first_import or _prev_was_good)
     )
 
     logger.info(
@@ -1034,6 +1117,11 @@ async def _analyze_with_context(
     )
 
     if fast_mode_skip_ai:
+        skip_reason = (
+            "fast_mode_image_ocr_sufficient_skip"
+            if _has_visual_input
+            else "fast_mode_text_sufficient_skip"
+        )
         logger.info(
             "fast_mode_skip_ai_due_to_sufficient_text=true filename=%s mode=%s text_is_sufficient=%s "
             "is_first_import=%s _prev_was_good=%s has_vision=%s low_quality=%s reason=%s",
@@ -1044,7 +1132,7 @@ async def _analyze_with_context(
             _prev_was_good,
             _has_visual_input,
             low_quality,
-            "fast_mode_text_sufficient_skip",
+            skip_reason,
         )
         analysis = {
             "doc_type": "OTHER",
@@ -1053,9 +1141,9 @@ async def _analyze_with_context(
             "is_table": False,
             "columns": [],
             "fields": {},
-            "raw_response": "reason=fast_mode_text_sufficient_skip",
+            "raw_response": f"reason={skip_reason}",
             "model_used": "fast-mode-skip",
-            "analysis_path": "fast_mode_text_sufficient_skip",
+            "analysis_path": skip_reason,
             "requires_review": True,
             "fast_mode_skip_ai_due_to_sufficient_text": True,
         }
@@ -1286,8 +1374,14 @@ async def _process_run_document(
     sheet_metadata = extraction.get("sheet_metadata") or {}
     sheet_used = extraction.get("sheet_used")
     processing_cfg = load_processing_runtime_config(db)
+    _doc_format = str(extraction.get("format", tipo_archivo) or "").upper()
 
-    has_structured = bool(structured and isinstance(structured, list) and sheet_profiles)
+    has_structured = bool(
+        structured
+        and isinstance(structured, list)
+        and sheet_profiles
+        and _doc_format not in {"XML_PARSE_ERROR", "EXCEL_ERROR"}
+    )
     structured_rows_all: list[dict[str, Any]] = structured if isinstance(structured, list) else []
     structured_rows: list[dict[str, Any]] = list(structured_rows_all)
 
@@ -1408,6 +1502,18 @@ async def _process_run_document(
     if recipe_snapshot:
         if has_structured:
             cached_analysis = get_snapshot_learning(recipe_snapshot, structured_only=True)
+            # Cambio 2: no aceptar cache semánticamente vacío (base_keys=[], line_items=0).
+            if cached_analysis is not None:
+                _cache_base_keys = cached_analysis.get("base_keys") or []
+                _cache_line_items = cached_analysis.get("line_items") or []
+                if not _cache_base_keys and not _cache_line_items:
+                    logger.info(
+                        "snapshot_cache_rejected doc_id=%s reason=empty_semantic_result "
+                        "base_keys=%s line_items_count=0",
+                        doc.id,
+                        _cache_base_keys,
+                    )
+                    cached_analysis = None
         else:
             text_cached_analysis_run = get_snapshot_learning(recipe_snapshot, structured_only=False)
 
@@ -1437,7 +1543,6 @@ async def _process_run_document(
             _rc_for_run["doc_type_hint"] = _cached_type
             _rc_for_run["doc_type_hint_confidence"] = _cached_conf
 
-    _doc_format = str(extraction.get("format", tipo_archivo) or "").upper()
     # Skip LLM only when we already have a real semantic type from a previous run.
     # "STRUCTURED" and "OTHER" are placeholders, not semantic types: they mean the LLM
     # never classified this document properly, so we must still run it to get line_items,
@@ -1452,7 +1557,6 @@ async def _process_run_document(
         and not force_clean_reimport
         and _has_semantic_hint
     )
-
     # ── Señales post-OCR para routing de carril ────────────────────────────
     _reprocess_ctx = recipe_context.reprocess_context or {}
     _prev_result_ctx = _reprocess_ctx.get("previous_result") or {}
@@ -1511,7 +1615,7 @@ async def _process_run_document(
         )
 
     # Log específico para CSV/XML resueltos sin deep
-    if _doc_format in {"CSV", "XML"} and lane_decision.lane == "fast":
+    if _doc_format in {"CSV", "JSON", "XML", "XML_UBL", "XML_FACTURAE"} and lane_decision.lane == "fast":
         logger.info(
             "structured_or_parser_skip_deep doc_id=%s filename=%s format=%s reason=%s",
             doc.id,
@@ -1567,7 +1671,7 @@ async def _process_run_document(
             has_structured_rows=has_structured,
             recipe_config=_rc_for_run,
             structured_data=structured if has_structured else None,
-            structured_metadata=sheet_profiles if has_structured else sheet_metadata,
+            structured_metadata=sheet_metadata if has_structured else None,
             image_bytes=bytes(vision_image_bytes) if _send_vision else None,
             fallback_patterns=fallback_patterns,
             canonical_fields=canonical_fields,

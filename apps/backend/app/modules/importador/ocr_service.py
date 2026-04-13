@@ -41,7 +41,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-09-1"
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-13-2"
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -104,7 +104,7 @@ def _deserialize_cached_extraction(payload: dict[str, Any]) -> dict[str, Any]:
             extraction["vision_image_bytes"] = base64.b64decode(vision_image_b64.encode("ascii"))
         except Exception:
             logger.warning("No se pudo decodificar vision_image_b64 de cache OCR", exc_info=True)
-    return extraction
+    return _rehydrate_virtual_sheet_context(extraction)
 
 
 def _can_cache_extraction(extraction: dict[str, Any]) -> bool:
@@ -599,6 +599,7 @@ async def extract_text_from_file(
         extraction = _extract_zip_summary(file_bytes, filename)
     else:
         raise ValueError(f"Formato no soportado: {ext}")
+    extraction = _rehydrate_virtual_sheet_context(extraction)
     extraction["_cache_hit"] = False
     extraction["_cache_bypassed"] = bool(bypass_cache)
     if not bypass_cache:
@@ -1137,6 +1138,122 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
     }
 
 
+def _build_virtual_sheet_context(
+    structured_data: Any,
+    *,
+    sheet_name: str,
+    metadata: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], str | None]:
+    rows: list[dict[str, Any]] = []
+    if isinstance(structured_data, dict):
+        rows = [{str(key): value for key, value in structured_data.items()}]
+    elif isinstance(structured_data, list):
+        rows = [
+            {str(key): value for key, value in row.items()}
+            for row in structured_data
+            if isinstance(row, dict)
+        ]
+
+    if not rows:
+        return {}, {}, None
+
+    headers_display: list[str] = []
+    seen_headers: set[str] = set()
+    for row in rows:
+        for raw_key in row.keys():
+            key = str(raw_key).strip()
+            if not key or key.startswith("_") or key in seen_headers:
+                continue
+            seen_headers.add(key)
+            headers_display.append(key)
+
+    if not headers_display:
+        return {}, {}, None
+
+    headers_norm = [_normalize_header(header, index) for index, header in enumerate(headers_display)]
+    sample_values_by_col: dict[str, list[Any]] = {header: [] for header in headers_norm}
+    preview_rows = min(len(rows), 50)
+    for row in rows[:preview_rows]:
+        for raw_header, norm_header in zip(headers_display, headers_norm):
+            value = row.get(raw_header)
+            if value is not None and value != "":
+                sample_values_by_col[norm_header].append(value)
+
+    column_profiles = {
+        header: {"type": _detect_col_type(values) if values else "string"}
+        for header, values in sample_values_by_col.items()
+    }
+    kv_pairs = {
+        str(key): value
+        for key, value in (metadata or {}).items()
+        if value not in (None, "", [], {}) and not str(key).startswith("_")
+    }
+
+    return (
+        {
+            sheet_name: {
+                "rows_previewed": preview_rows,
+                "rows_counted": len(rows),
+                "headers": headers_display,
+                "headers_norm": headers_norm,
+                "column_profiles": column_profiles,
+                "kv_pairs": kv_pairs,
+            }
+        },
+        {sheet_name: kv_pairs},
+        sheet_name,
+    )
+
+
+def _rehydrate_virtual_sheet_context(extraction: dict[str, Any]) -> dict[str, Any]:
+    fmt = str(extraction.get("format") or "").upper()
+    if fmt not in {"CSV", "JSON", "XML", "XML_UBL", "XML_FACTURAE"}:
+        return extraction
+
+    if extraction.get("sheet_profiles"):
+        return extraction
+
+    structured_data = extraction.get("structured_data")
+    if not structured_data:
+        return extraction
+
+    sheet_name = "XML" if fmt.startswith("XML") else fmt
+    metadata: dict[str, Any] | None = None
+    raw_metadata = extraction.get("sheet_metadata")
+    if isinstance(raw_metadata, dict):
+        for value in raw_metadata.values():
+            if isinstance(value, dict) and value:
+                metadata = value
+                break
+    if metadata is None and isinstance(structured_data, list) and structured_data:
+        first_row = structured_data[0]
+        if isinstance(first_row, dict):
+            metadata = {
+                str(key): value
+                for key, value in first_row.items()
+                if not str(key).startswith("_")
+            }
+    elif metadata is None and isinstance(structured_data, dict):
+        metadata = {
+            str(key): value
+            for key, value in structured_data.items()
+            if not str(key).startswith("_")
+        }
+
+    sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
+        structured_data,
+        sheet_name=sheet_name,
+        metadata=metadata,
+    )
+    if sheet_profiles:
+        extraction["sheet_profiles"] = sheet_profiles
+    if sheet_metadata and not extraction.get("sheet_metadata"):
+        extraction["sheet_metadata"] = sheet_metadata
+    if sheet_used and not extraction.get("sheet_used"):
+        extraction["sheet_used"] = sheet_used
+    return extraction
+
+
 def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
     for enc in ("utf-8", "latin-1", "cp1252"):
         try:
@@ -1157,11 +1274,18 @@ def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
                 for row in data
                 if any(value is not None for value in row.values())
             ]
+            sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
+                data,
+                sheet_name="CSV",
+            )
             return {
                 "text": text_content[:10000],
                 "pages": 1,
                 "structured_data": data,
                 "format": "CSV",
+                "sheet_profiles": sheet_profiles,
+                "sheet_metadata": sheet_metadata,
+                "sheet_used": sheet_used,
             }
         except Exception as exc:
             logger.debug("pandas CSV parse failed; falling back to stdlib parser: %s", exc)
@@ -1175,7 +1299,19 @@ def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
 
     reader = csv.DictReader(io.StringIO(text_content), delimiter=delimiter)
     data = [row for row in reader if any(v and v.strip() for v in row.values())]
-    return {"text": text_content[:10000], "pages": 1, "structured_data": data, "format": "CSV"}
+    sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
+        data,
+        sheet_name="CSV",
+    )
+    return {
+        "text": text_content[:10000],
+        "pages": 1,
+        "structured_data": data,
+        "format": "CSV",
+        "sheet_profiles": sheet_profiles,
+        "sheet_metadata": sheet_metadata,
+        "sheet_used": sheet_used,
+    }
 
 
 def _extract_json(file_bytes: bytes) -> dict[str, Any]:
@@ -1195,32 +1331,134 @@ def _extract_json(file_bytes: bytes) -> dict[str, Any]:
         structured_data = [item for item in payload if isinstance(item, dict)]
     else:
         structured_data = payload if isinstance(payload, dict) else {"value": payload}
+    sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
+        structured_data,
+        sheet_name="JSON",
+    )
 
     return {
         "text": json.dumps(payload, ensure_ascii=False)[:10000],
         "pages": 1,
         "structured_data": structured_data,
         "format": "JSON",
+        "sheet_profiles": sheet_profiles,
+        "sheet_metadata": sheet_metadata,
+        "sheet_used": sheet_used,
     }
 
 
 def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
-    """XML UBL 2.1 extraction with graceful fallback on malformed XML."""
+    """XML extraction for UBL/Facturae with graceful fallback on malformed XML."""
+    raw_xml_text = file_bytes.decode("utf-8", errors="ignore")
     try:
         root = ET.fromstring(file_bytes)
     except Exception as exc:
-        # Malformed XML: degrade to text preview and mark parse error, but do NOT raise
-        preview = file_bytes[:4000].decode("utf-8", errors="ignore")
-        return {
-            "text": preview,
-            "pages": 1,
-            "structured_data": None,
-            "format": "XML_PARSE_ERROR",
-            "error": str(exc),
-        }
+        root = None
+        for closing_tag in ("</Facturae>", "</Invoice>", "</CreditNote>", "</DebitNote>"):
+            close_at = raw_xml_text.find(closing_tag)
+            if close_at < 0:
+                continue
+            candidate = raw_xml_text[: close_at + len(closing_tag)]
+            try:
+                root = ET.fromstring(candidate)
+                logger.info(
+                    "XML parse recovered by truncating trailing content closing_tag=%s",
+                    closing_tag,
+                )
+                break
+            except Exception:
+                continue
+        if root is None:
+            # Malformed XML: degrade to text preview and mark parse error, but do NOT raise
+            preview = file_bytes[:4000].decode("utf-8", errors="ignore")
+            return {
+                "text": preview,
+                "pages": 1,
+                "structured_data": None,
+                "format": "XML_PARSE_ERROR",
+                "error": str(exc),
+            }
     tag = root.tag.split("}")[-1] if "}" in root.tag else root.tag
-    is_credit_note = tag.lower() in ("creditnote", "debitnote")
+    root_ns = root.tag.split("}")[0].strip("{") if "}" in root.tag else ""
 
+    if root_ns == "http://www.facturae.gob.es/formato" or tag.lower() == "facturae":
+        ns = {"fe": root_ns or "http://www.facturae.gob.es/formato"}
+
+        def find_text(*paths):
+            for path in paths:
+                el = root.find(path, ns)
+                if el is not None and el.text and el.text.strip():
+                    return el.text.strip()
+            return None
+
+        def find_text_in(element: ET.Element, *paths: str):
+            for path in paths:
+                el = element.find(path, ns)
+                if el is not None and el.text and el.text.strip():
+                    return el.text.strip()
+            return None
+
+        invoice_lines = root.findall(".//fe:InvoiceLine", ns)
+        line_items: list[dict[str, Any]] = []
+        tax_total = 0.0
+        for line in invoice_lines:
+            item = {
+                "descripcion": find_text_in(line, ".//fe:ItemDescription"),
+                "cantidad": find_text_in(line, ".//fe:Quantity"),
+                "precio_unitario": find_text_in(line, ".//fe:UnitPriceWithoutTax"),
+                "total": find_text_in(line, ".//fe:TotalAmountWithoutTax"),
+            }
+            tax_amount_text = find_text_in(line, ".//fe:TaxesOutputs//fe:TaxAmount/fe:TotalAmount")
+            tax_rate_text = find_text_in(line, ".//fe:TaxesOutputs//fe:TaxRate")
+            if tax_rate_text:
+                item["impuesto_pct"] = tax_rate_text
+            if tax_amount_text:
+                item["impuesto"] = tax_amount_text
+                try:
+                    tax_total += float(str(tax_amount_text).replace(",", "."))
+                except (TypeError, ValueError):
+                    pass
+            if any(value not in (None, "", [], {}) for value in item.values()):
+                line_items.append(item)
+
+        header = {
+            "documento": " ".join(
+                part
+                for part in [
+                    find_text(".//fe:InvoiceNumber"),
+                    find_text(".//fe:InvoiceSeriesCode"),
+                ]
+                if part
+            ) or find_text(".//fe:InvoiceNumber"),
+            "fecha": find_text(".//fe:IssueDate"),
+            "tipo_documento": "FACTURA",
+            "proveedor": find_text(".//fe:SellerParty//fe:CorporateName"),
+            "comprador": find_text(".//fe:BuyerParty//fe:CorporateName"),
+            "subtotal": find_text(".//fe:InvoiceTotals//fe:TotalGrossAmount"),
+            "monto": find_text(".//fe:InvoiceTotals//fe:InvoiceTotal")
+            or find_text(".//fe:InvoiceTotals//fe:TotalGrossAmount"),
+        }
+        if tax_total:
+            header["impuesto"] = f"{tax_total:.2f}"
+
+        full_text = ET.tostring(root, encoding="unicode", method="text")
+        structured_rows = line_items or [{k: v for k, v in header.items() if v not in (None, "")}]
+        sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
+            structured_rows,
+            sheet_name="XML",
+            metadata=header,
+        )
+        return {
+            "text": full_text[:10000] if full_text else str(header),
+            "pages": 1,
+            "structured_data": structured_rows,
+            "format": "XML_FACTURAE",
+            "sheet_profiles": sheet_profiles,
+            "sheet_metadata": sheet_metadata,
+            "sheet_used": sheet_used,
+        }
+
+    is_credit_note = tag.lower() in ("creditnote", "debitnote")
     ns = _UBL_NS
 
     def find_text(*paths):
@@ -1237,7 +1475,6 @@ def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
         "tipo_documento": "NOTA_CREDITO" if is_credit_note else "FACTURA",
     }
 
-    # Supplier
     supplier = root.find(".//cac:AccountingSupplierParty//cac:Party", ns)
     if supplier is not None:
         tax_scheme = supplier.find(".//cac:PartyTaxScheme", ns)
@@ -1249,7 +1486,6 @@ def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
         if name_el is not None and name_el.text:
             header["proveedor"] = name_el.text.strip()
 
-    # Totals
     monetary = root.find(".//cac:LegalMonetaryTotal", ns)
     if monetary is not None:
         st = monetary.find("cbc:TaxExclusiveAmount", ns)
@@ -1265,7 +1501,6 @@ def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
         if ta is not None and ta.text:
             header["igv"] = ta.text.strip()
 
-    # Credit note: negate amounts
     if is_credit_note:
         for field in ("monto", "subtotal", "igv"):
             if header.get(field):
@@ -1277,11 +1512,19 @@ def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
                     pass
 
     full_text = ET.tostring(root, encoding="unicode", method="text")
+    sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
+        [header],
+        sheet_name="XML",
+        metadata=header,
+    )
     return {
         "text": full_text[:10000] if full_text else str(header),
         "pages": 1,
         "structured_data": [header],
         "format": "XML_UBL",
+        "sheet_profiles": sheet_profiles,
+        "sheet_metadata": sheet_metadata,
+        "sheet_used": sheet_used,
     }
 
 

@@ -60,6 +60,120 @@ def test_run_easyocr_reuses_reader_instance(monkeypatch):
     assert constructor_calls["count"] == 1
 
 
+def test_extract_csv_builds_virtual_sheet_context():
+    result = ocr_service._extract_csv(b"fecha,total\n2026-04-01,12.5\n2026-04-02,8.0\n")
+
+    assert result["format"] == "CSV"
+    assert result["sheet_used"] == "CSV"
+    assert result["structured_data"][0]["fecha"] == "2026-04-01"
+    assert result["sheet_profiles"]["CSV"]["headers"] == ["fecha", "total"]
+    assert result["sheet_profiles"]["CSV"]["rows_counted"] == 2
+
+
+def test_extract_xml_ubl_builds_virtual_sheet_context():
+    xml_bytes = b'''<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:ID>F001-123</cbc:ID>
+  <cbc:IssueDate>2026-04-01</cbc:IssueDate>
+  <cbc:DocumentCurrencyCode>USD</cbc:DocumentCurrencyCode>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cac:PartyName><cbc:Name>Proveedor Demo</cbc:Name></cac:PartyName>
+      <cac:PartyTaxScheme><cbc:CompanyID>0999999999001</cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:TaxTotal><cbc:TaxAmount>1.50</cbc:TaxAmount></cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:TaxExclusiveAmount>10.00</cbc:TaxExclusiveAmount>
+    <cbc:PayableAmount>11.50</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+</Invoice>'''
+
+    result = ocr_service._extract_xml(xml_bytes)
+
+    assert result["format"] == "XML_UBL"
+    assert result["sheet_used"] == "XML"
+    assert result["structured_data"][0]["documento"] == "F001-123"
+    assert result["sheet_profiles"]["XML"]["headers"] == [
+        "documento",
+        "fecha",
+        "moneda",
+        "tipo_documento",
+        "ruc",
+        "proveedor",
+        "subtotal",
+        "monto",
+        "igv",
+    ]
+
+
+def test_extract_xml_facturae_builds_structured_context():
+    xml_bytes = b'''<?xml version="1.0" encoding="UTF-8"?>
+<Facturae xmlns="http://www.facturae.gob.es/formato">
+  <Invoices>
+    <Invoice>
+      <InvoiceHeader>
+        <InvoiceNumber>2024-001</InvoiceNumber>
+        <InvoiceSeriesCode>A</InvoiceSeriesCode>
+      </InvoiceHeader>
+      <InvoiceIssueData>
+        <IssueDate>2025-07-25</IssueDate>
+      </InvoiceIssueData>
+      <Items>
+        <InvoiceLine>
+          <ItemDescription>Harina</ItemDescription>
+          <Quantity>1</Quantity>
+          <UnitPriceWithoutTax>10.00</UnitPriceWithoutTax>
+          <TotalAmountWithoutTax>10.00</TotalAmountWithoutTax>
+          <TaxesOutputs>
+            <Tax>
+              <TaxRate>21</TaxRate>
+              <TaxAmount><TotalAmount>2.10</TotalAmount></TaxAmount>
+            </Tax>
+          </TaxesOutputs>
+        </InvoiceLine>
+      </Items>
+      <InvoiceTotals>
+        <TotalGrossAmount>10.00</TotalGrossAmount>
+      </InvoiceTotals>
+    </Invoice>
+  </Invoices>
+</Facturae>
+<Signature>
+  <SignedInfo>MockSignatureInfo</SignedInfo>
+</Signature>'''
+
+    result = ocr_service._extract_xml(xml_bytes)
+
+    assert result["format"] == "XML_FACTURAE"
+    assert result["sheet_used"] == "XML"
+    assert result["sheet_metadata"]["XML"]["documento"] == "2024-001 A"
+    assert result["sheet_metadata"]["XML"]["fecha"] == "2025-07-25"
+    assert result["structured_data"][0]["descripcion"] == "Harina"
+    assert result["structured_data"][0]["total"] == "10.00"
+
+
+def test_extract_text_from_file_rehydrates_cached_csv_context(monkeypatch, tmp_path):
+    file_bytes = b"Fecha,Pedidos,Items,Total\n2026-03-22,11,268.000,$79.24\n"
+
+    monkeypatch.setattr(ocr_service, "_ocr_cache_dir", lambda: tmp_path)
+    cache_path = ocr_service._ocr_cache_path(file_bytes)
+    cache_path.write_text(
+        '{"version":"2026-04-13-2","text":"cached","pages":1,"structured_data":[{"Fecha":"2026-03-22","Pedidos":"11","Items":"268.000","Total":"$79.24"}],"format":"CSV"}',
+        encoding="utf-8",
+    )
+
+    result = asyncio.run(
+        ocr_service.extract_text_from_file(file_bytes, "Ventas_2026-02-21_2026-03-23.csv")
+    )
+
+    assert result["_cache_hit"] is True
+    assert result["sheet_used"] == "CSV"
+    assert result["sheet_profiles"]["CSV"]["headers"] == ["Fecha", "Pedidos", "Items", "Total"]
+
+
 def test_ocr_image_uses_best_tesseract_variant_when_available(monkeypatch):
     def fake_tesseract(img, lang=None, config=None):
         variant = img.info.get("ocr_variant")

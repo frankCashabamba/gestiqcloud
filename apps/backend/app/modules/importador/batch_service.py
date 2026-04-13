@@ -14,7 +14,7 @@ from app.models.importador import ImpBatchImport, ImpBatchItem
 
 from . import crud
 from .auto_recipe import should_reprocess_existing_document
-from .ocr_service import detect_file_type
+from .ocr_service import detect_file_type, iter_zip_entries
 from .snapshot_learning import bootstrap_learning_from_existing_document
 
 logger = logging.getLogger(__name__)
@@ -190,10 +190,62 @@ async def enqueue_async_batch(
         )
 
     active_docs = crud.count_documentos_en_estados(db, tenant_id, ("PENDING", "PROCESSING"))
-    staged_uploads: list[tuple[str, bytes, int, str, str, object | None]] = []
-    existing_matches: list[tuple[object, str, int, str]] = []
-    rerun_existing: list[tuple[object, str, bytes, int, str, str, str]] = []
+    staged_uploads: list[dict[str, object]] = []
+    existing_matches: list[dict[str, object]] = []
+    rerun_existing: list[dict[str, object]] = []
+    failed_uploads: list[dict[str, object]] = []
     batch_size_bytes = 0
+    request_hash_map: dict[str, tuple[str, int]] = {}
+    bucket_map = {
+        "staged": staged_uploads,
+        "existing": existing_matches,
+        "rerun": rerun_existing,
+    }
+    order_counter = 0
+
+    def _alias_payload(filename: str, file_size: int, file_hash: str, order: int) -> dict[str, object]:
+        return {
+            "filename": filename,
+            "file_size": file_size,
+            "file_hash": file_hash,
+            "order": order,
+        }
+
+    def _append_request_duplicate(file_hash: str, alias: dict[str, object]) -> bool:
+        bucket_info = request_hash_map.get(file_hash)
+        if not bucket_info:
+            return False
+        bucket_name, index = bucket_info
+        bucket_map[bucket_name][index].setdefault("aliases", []).append(alias)
+        return True
+
+    def _register_request_hash(file_hash: str, bucket_name: str, index: int) -> None:
+        request_hash_map[file_hash] = (bucket_name, index)
+
+    def _iter_incoming_entries(
+        filename: str,
+        file_bytes: bytes,
+        tipo_archivo: str,
+        order: int,
+    ) -> list[tuple[str, bytes, str, int]]:
+        if tipo_archivo != "ZIP":
+            return [(filename, file_bytes, tipo_archivo, order)]
+        entries = list(iter_zip_entries(file_bytes, db=db))
+        if not entries:
+            failed_uploads.append(
+                {
+                    "filename": filename,
+                    "file_size": len(file_bytes),
+                    "tipo_archivo": tipo_archivo,
+                    "order": order,
+                    "error_detalle": "ZIP vacio o sin ficheros soportados",
+                }
+            )
+            return []
+        return [
+            (f"{filename}::{inner_name}", inner_bytes, detect_file_type(inner_name, db), order + index)
+            for index, (inner_name, inner_bytes) in enumerate(entries)
+        ]
 
     for file in files:
         filename = (file.filename or "unknown").strip()
@@ -206,9 +258,8 @@ async def enqueue_async_batch(
         if file_size <= 0:
             logger.info("Ignorando archivo vacio en importador: %s", filename)
             continue
+
         tipo_archivo = detect_file_type(filename, db)
-        # Excel/XLS: sin límite de tamaño — openpyxl read_only ignora imágenes
-        # embebidas; los row-limits internos acotan la memoria real usada.
         _es_excel = tipo_archivo in ("XLSX", "XLS")
         if not _es_excel and file_size > max_file_size_bytes:
             raise HTTPException(
@@ -219,83 +270,139 @@ async def enqueue_async_batch(
                 ),
             )
 
-        if not _es_excel:
-            batch_size_bytes += file_size
-            if batch_size_bytes > max_batch_size_bytes:
-                raise HTTPException(
-                    status_code=413,
-                    detail=(
-                        f"El lote excede el limite de {max_batch_size_mb} MB. "
-                        "Divide la importacion en bloques mas pequenos."
-                    ),
-                )
-        file_hash = hashlib.sha256(file_bytes).hexdigest()
+        incoming_entries = _iter_incoming_entries(filename, file_bytes, tipo_archivo, order_counter)
+        order_counter += max(1, len(incoming_entries))
 
-        existing = (
-            None
-            if force and not file_hash
-            else crud.find_existing_documento(
+        for entry_filename, entry_bytes, entry_tipo_archivo, entry_order in incoming_entries:
+            entry_size = len(entry_bytes)
+            entry_is_excel = entry_tipo_archivo in ("XLSX", "XLS")
+            if not entry_is_excel:
+                batch_size_bytes += entry_size
+                if batch_size_bytes > max_batch_size_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            f"El lote excede el limite de {max_batch_size_mb} MB. "
+                            "Divide la importacion en bloques mas pequenos."
+                        ),
+                    )
+
+            entry_hash = hashlib.sha256(entry_bytes).hexdigest()
+            if _append_request_duplicate(
+                entry_hash,
+                _alias_payload(entry_filename, entry_size, entry_hash, entry_order),
+            ):
+                continue
+
+            existing = (
+                None
+                if force and not entry_hash
+                else crud.find_existing_documento(
+                    db,
+                    tenant_id,
+                    entry_filename,
+                    entry_size,
+                    entry_hash,
+                    usuario_id=user_id,
+                )
+            )
+            exact_hash_match = bool(existing and existing.hash_sha256 == entry_hash)
+            if existing:
+                if (
+                    isinstance(getattr(existing, "datos_confirmados", None), dict)
+                    and existing.datos_confirmados
+                ):
+                    bootstrap_learning_from_existing_document(db, existing, user_id)
+                learning_reprocess_needed = bool(
+                    exact_hash_match
+                    and existing.estado in ("CONFIRMED", "REVIEW")
+                    and should_reprocess_existing_document(db, existing)
+                )
+
+                if existing.estado in ("PENDING", "PROCESSING"):
+                    existing_matches.append(
+                        {
+                            "existing": existing,
+                            "filename": entry_filename,
+                            "file_size": entry_size,
+                            "file_hash": entry_hash,
+                            "order": entry_order,
+                            "aliases": [],
+                        }
+                    )
+                    _register_request_hash(entry_hash, "existing", len(existing_matches) - 1)
+                    continue
+
+                if learning_reprocess_needed and not force:
+                    rerun_existing.append(
+                        {
+                            "existing": existing,
+                            "filename": entry_filename,
+                            "file_bytes": entry_bytes,
+                            "file_size": entry_size,
+                            "file_hash": entry_hash,
+                            "tipo_archivo": entry_tipo_archivo,
+                            "rerun_reason": "learning_update",
+                            "order": entry_order,
+                            "aliases": [],
+                        }
+                    )
+                    _register_request_hash(entry_hash, "rerun", len(rerun_existing) - 1)
+                    continue
+
+                if existing.estado in ("CONFIRMED", "REVIEW") and not force:
+                    existing_matches.append(
+                        {
+                            "existing": existing,
+                            "filename": entry_filename,
+                            "file_size": entry_size,
+                            "file_hash": entry_hash,
+                            "order": entry_order,
+                            "aliases": [],
+                        }
+                    )
+                    _register_request_hash(entry_hash, "existing", len(existing_matches) - 1)
+                    continue
+
+                if exact_hash_match and existing.estado in ("FAILED", "REVIEW", "CONFIRMED"):
+                    rerun_existing.append(
+                        {
+                            "existing": existing,
+                            "filename": entry_filename,
+                            "file_bytes": entry_bytes,
+                            "file_size": entry_size,
+                            "file_hash": entry_hash,
+                            "tipo_archivo": entry_tipo_archivo,
+                            "rerun_reason": "manual",
+                            "order": entry_order,
+                            "aliases": [],
+                        }
+                    )
+                    _register_request_hash(entry_hash, "rerun", len(rerun_existing) - 1)
+                    continue
+
+            predecessor = crud.find_latest_documento_by_name(
                 db,
                 tenant_id,
-                filename,
-                file_size,
-                file_hash,
+                entry_filename,
+                exclude_hash_sha256=entry_hash,
                 usuario_id=user_id,
             )
-        )
-        exact_hash_match = bool(existing and existing.hash_sha256 == file_hash)
-        if existing:
-            if (
-                isinstance(getattr(existing, "datos_confirmados", None), dict)
-                and existing.datos_confirmados
-            ):
-                bootstrap_learning_from_existing_document(db, existing, user_id)
-            learning_reprocess_needed = bool(
-                exact_hash_match
-                and existing.estado in ("CONFIRMED", "REVIEW")
-                and should_reprocess_existing_document(db, existing)
+            staged_uploads.append(
+                {
+                    "filename": entry_filename,
+                    "file_bytes": entry_bytes,
+                    "file_size": entry_size,
+                    "file_hash": entry_hash,
+                    "tipo_archivo": entry_tipo_archivo,
+                    "predecessor": predecessor,
+                    "order": entry_order,
+                    "aliases": [],
+                }
             )
+            _register_request_hash(entry_hash, "staged", len(staged_uploads) - 1)
 
-            if existing.estado in ("PENDING", "PROCESSING"):
-                existing_matches.append((existing, filename, file_size, file_hash))
-                continue
-
-            if learning_reprocess_needed and not force:
-                rerun_existing.append(
-                    (
-                        existing,
-                        filename,
-                        file_bytes,
-                        file_size,
-                        file_hash,
-                        tipo_archivo,
-                        "learning_update",
-                    )
-                )
-                continue
-
-            if existing.estado in ("CONFIRMED", "REVIEW") and not force:
-                existing_matches.append((existing, filename, file_size, file_hash))
-                continue
-
-            if exact_hash_match and existing.estado in ("FAILED", "REVIEW", "CONFIRMED"):
-                rerun_existing.append(
-                    (existing, filename, file_bytes, file_size, file_hash, tipo_archivo, "manual")
-                )
-                continue
-
-        predecessor = crud.find_latest_documento_by_name(
-            db,
-            tenant_id,
-            filename,
-            exclude_hash_sha256=file_hash,
-            usuario_id=user_id,
-        )
-        staged_uploads.append(
-            (filename, file_bytes, file_size, file_hash, tipo_archivo, predecessor)
-        )
-
-    if not staged_uploads and not existing_matches and not rerun_existing:
+    if not staged_uploads and not existing_matches and not rerun_existing and not failed_uploads:
         raise HTTPException(status_code=400, detail="No hay archivos validos para importar.")
     queued_docs = len(staged_uploads) + len(rerun_existing)
     if active_docs + queued_docs > max_queue_per_tenant:
@@ -321,7 +428,15 @@ async def enqueue_async_batch(
         "tenant_id": tenant_id,
         "usuario_id": user_id,
         "estado": "PENDING",
-        "total_items": len(existing_matches) + len(staged_uploads) + len(rerun_existing),
+        "total_items": (
+            len(existing_matches)
+            + len(staged_uploads)
+            + len(rerun_existing)
+            + len(failed_uploads)
+            + sum(len(item.get("aliases") or []) for item in existing_matches)
+            + sum(len(item.get("aliases") or []) for item in staged_uploads)
+            + sum(len(item.get("aliases") or []) for item in rerun_existing)
+        ),
         "force_reprocess": force,
         "recipe_snapshot_id": effective_recipe_snapshot_id,
     }
@@ -338,7 +453,56 @@ async def enqueue_async_batch(
 
     results: list[dict] = []
 
-    for index, (existing, filename, file_size, file_hash) in enumerate(existing_matches):
+    def _append_alias_results(
+        *,
+        document_id,
+        estado: str,
+        aliases: list[dict[str, object]],
+        message: str,
+    ) -> None:
+        for alias in sorted(aliases, key=lambda current: int(current["order"])):
+            batch_item = crud.create_batch_item(
+                db,
+                {
+                    "batch_id": batch.id,
+                    "tenant_id": tenant_id,
+                    "documento_id": document_id,
+                    "nombre_archivo": alias["filename"],
+                    "tamanio_bytes": alias["file_size"],
+                    "hash_sha256": alias["file_hash"],
+                    "orden": alias["order"],
+                    "estado": estado,
+                },
+            )
+            crud.add_log(
+                db,
+                document_id,
+                "SKIP_DUPLICATE",
+                user_id,
+                {
+                    "filename": alias["filename"],
+                    "size": alias["file_size"],
+                    "mode": "async",
+                    "reason": "same_hash_same_request",
+                },
+            )
+            results.append(
+                {
+                    "id": document_id,
+                    "batch_id": batch.id,
+                    "batch_item_id": batch_item.id,
+                    "estado": estado,
+                    "nombre_archivo": alias["filename"],
+                    "action": "REUSED",
+                    "message": message,
+                }
+            )
+
+    for item in sorted(existing_matches, key=lambda current: int(current["order"])):
+        existing = item["existing"]
+        filename = str(item["filename"])
+        file_size = int(item["file_size"])
+        file_hash = str(item["file_hash"])
         batch_item = crud.create_batch_item(
             db,
             {
@@ -348,7 +512,7 @@ async def enqueue_async_batch(
                 "nombre_archivo": filename,
                 "tamanio_bytes": file_size,
                 "hash_sha256": file_hash,
-                "orden": index,
+                "orden": item["order"],
                 "estado": existing.estado,
                 "error_detalle": getattr(existing, "error_detalle", None),
             },
@@ -379,21 +543,22 @@ async def enqueue_async_batch(
                 ),
             }
         )
+        _append_alias_results(
+            document_id=existing.id,
+            estado=existing.estado,
+            aliases=list(item.get("aliases") or []),
+            message="Archivo duplicado dentro de la misma subida; se reutilizo el mismo documento existente.",
+        )
     db.commit()
 
-    rerun_start = len(existing_matches)
-    for offset, (
-        existing,
-        filename,
-        file_bytes,
-        file_size,
-        file_hash,
-        tipo_archivo,
-        rerun_reason,
-    ) in enumerate(
-        rerun_existing,
-        start=rerun_start,
-    ):
+    for item in sorted(rerun_existing, key=lambda current: int(current["order"])):
+        existing = item["existing"]
+        filename = str(item["filename"])
+        file_bytes = bytes(item["file_bytes"])
+        file_size = int(item["file_size"])
+        file_hash = str(item["file_hash"])
+        tipo_archivo = str(item["tipo_archivo"])
+        rerun_reason = str(item["rerun_reason"])
         reprocess_context = _build_reprocess_context(
             existing,
             reprocess_mode=normalized_reprocess_mode,
@@ -420,7 +585,7 @@ async def enqueue_async_batch(
                 "nombre_archivo": filename,
                 "tamanio_bytes": file_size,
                 "hash_sha256": file_hash,
-                "orden": offset,
+                "orden": item["order"],
                 "estado": "PENDING",
             },
         )
@@ -493,18 +658,20 @@ async def enqueue_async_batch(
                 ),
             }
         )
+        _append_alias_results(
+            document_id=existing.id,
+            estado="PENDING",
+            aliases=list(item.get("aliases") or []),
+            message="Archivo duplicado dentro de la misma subida; se reutilizo el mismo reprocesado ya en cola.",
+        )
 
-    for offset, (
-        filename,
-        file_bytes,
-        file_size,
-        file_hash,
-        tipo_archivo,
-        predecessor,
-    ) in enumerate(
-        staged_uploads,
-        start=rerun_start + len(rerun_existing),
-    ):
+    for item in sorted(staged_uploads, key=lambda current: int(current["order"])):
+        filename = str(item["filename"])
+        file_bytes = bytes(item["file_bytes"])
+        file_size = int(item["file_size"])
+        file_hash = str(item["file_hash"])
+        tipo_archivo = str(item["tipo_archivo"])
+        predecessor = item.get("predecessor")
         doc = crud.create_documento(
             db,
             {
@@ -528,7 +695,7 @@ async def enqueue_async_batch(
                 "nombre_archivo": filename,
                 "tamanio_bytes": file_size,
                 "hash_sha256": file_hash,
-                "orden": offset,
+                "orden": item["order"],
                 "estado": "PENDING",
             },
         )
@@ -598,6 +765,58 @@ async def enqueue_async_batch(
                 "nombre_archivo": filename,
                 "action": "CREATED",
                 "message": "Se creo un nuevo documento para esta importacion.",
+            }
+        )
+        _append_alias_results(
+            document_id=doc.id,
+            estado="PENDING",
+            aliases=list(item.get("aliases") or []),
+            message="Archivo duplicado dentro de la misma subida; se reutilizo el mismo documento en cola.",
+        )
+
+    for failed in sorted(failed_uploads, key=lambda current: int(current["order"])):
+        doc = crud.create_documento(
+            db,
+            {
+                "tenant_id": tenant_id,
+                "nombre_archivo": failed["filename"],
+                "tipo_archivo": failed["tipo_archivo"],
+                "tamanio_bytes": failed["file_size"],
+                "estado": "FAILED",
+                "usuario_id": user_id,
+                "error_detalle": failed["error_detalle"],
+            },
+        )
+        batch_item = crud.create_batch_item(
+            db,
+            {
+                "batch_id": batch.id,
+                "tenant_id": tenant_id,
+                "documento_id": doc.id,
+                "nombre_archivo": failed["filename"],
+                "tamanio_bytes": failed["file_size"],
+                "hash_sha256": None,
+                "orden": failed["order"],
+                "estado": "FAILED",
+                "error_detalle": failed["error_detalle"],
+            },
+        )
+        crud.add_log(
+            db,
+            doc.id,
+            "ERROR",
+            user_id,
+            {"error": failed["error_detalle"], "mode": "async"},
+        )
+        results.append(
+            {
+                "id": doc.id,
+                "batch_id": batch.id,
+                "batch_item_id": batch_item.id,
+                "estado": "FAILED",
+                "nombre_archivo": failed["filename"],
+                "action": "CREATED",
+                "message": failed["error_detalle"],
             }
         )
 
