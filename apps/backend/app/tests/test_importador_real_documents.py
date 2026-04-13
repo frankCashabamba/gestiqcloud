@@ -117,6 +117,14 @@ _CANONICAL_FIELDS_MINIMAL: dict[str, dict] = {
     "tax_amount":     {"type": "numeric"},
 }
 
+# Mismos campos usando el alias 'number' (tipo que algunas configuraciones de BD usan)
+_CANONICAL_FIELDS_NUMBER_ALIAS: dict[str, dict] = {
+    **_CANONICAL_FIELDS_MINIMAL,
+    "total_amount": {"type": "number"},
+    "subtotal":     {"type": "number"},
+    "tax_amount":   {"type": "number"},
+}
+
 _FIELD_ALIASES_MINIMAL: dict[str, list[str]] = {
     "vendor":         ["proveedor", "empresa", "razon social"],
     "vendor_tax_id":  ["RUC", "NIT", "CIF"],
@@ -263,13 +271,10 @@ class TestTicketOCRSimulado:
     """invoice_rescue_from_ocr sobre texto simulado del ticket vectorial."""
 
     @pytest.mark.no_db
-    def test_rescue_doc_number_r0013_no_encontrado(self):
-        """R-0013 tiene un primer grupo de solo 1 caracter — el patrón requiere 3+.
-        La función rescue devuelve None en este caso (comportamiento esperado).
-        Documentos con números cortos como R-XXXX no los detecta el rescue.
-        """
+    def test_rescue_doc_number_r0013(self):
+        """R-0013 se detecta mediante el patrón de formato corto (letra + guion + dígitos)."""
         doc_number = _rescue_doc_number(_TICKET_OCR_TEXT)
-        assert doc_number is None
+        assert doc_number == "R-0013"
 
     @pytest.mark.no_db
     def test_rescue_amounts_subtotal_ticket(self):
@@ -281,8 +286,7 @@ class TestTicketOCRSimulado:
     @pytest.mark.no_db
     def test_invoice_rescue_ticket_completo(self):
         rescued = invoice_rescue_from_ocr(_TICKET_OCR_TEXT)
-        # doc_number no se encuentra (R-0013 tiene primer grupo de 1 char, necesita 3+)
-        # subtotal sí se encuentra porque hay línea "Subtotal 1.50"
+        assert rescued.get("doc_number") == "R-0013"
         assert "subtotal" in rescued
         assert abs(rescued["subtotal"] - 1.50) < 0.01
 
@@ -432,6 +436,32 @@ class TestPDFRealDisponibilidad:
         )
 
 
+class TestXMLRealDisponibilidad:
+    """Verificación de una ruta estructurada real desde un XML de importación."""
+
+    @pytest.mark.no_db
+    def test_facturae_xml_real_extrae_contexto_estructurado(self):
+        path = _IMPORT_DIR / "2024-001.xml"
+        assert path.exists(), f"XML de factura no encontrado en {path}"
+
+        from app.modules.importador import ocr_service
+
+        result = ocr_service._extract_xml(path.read_bytes())
+
+        assert result["format"] == "XML_FACTURAE"
+        assert result["sheet_used"] == "XML"
+
+        metadata = result["sheet_metadata"]["XML"]
+        assert metadata["documento"] == "2024-001 A"
+        assert metadata["fecha"] == "2025-07-25"
+        assert metadata["tipo_documento"] == "FACTURA"
+
+        assert result["structured_data"], "El XML real debe generar al menos una fila estructurada"
+        first_row = result["structured_data"][0]
+        assert first_row["cantidad"] == "1"
+        assert first_row["impuesto_pct"] == "21"
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Tests: _rescue_doc_number — lógica del filtro de dígitos
 # ══════════════════════════════════════════════════════════════════════════════
@@ -453,13 +483,10 @@ class TestRescueDocNumberFiltros:
         assert "001-001-000120085" in result
 
     @pytest.mark.no_db
-    def test_r_0013_no_detectado_primer_grupo_corto(self):
-        """R-0013 no se detecta: el primer componente 'R' tiene solo 1 caracter.
-        El patrón requiere [A-Z0-9]{3,} en el primer grupo (mínimo 3 caracteres).
-        Formatos como 'R-XXXX' son demasiado cortos para el rescuedor regex.
-        """
+    def test_r_0013_detectado_por_patron_corto(self):
+        """R-0013 se detecta por el patrón de formato corto: letra + guion + dígitos."""
         text = "N° R-0013\nFecha: 08/12/2025"
-        assert _rescue_doc_number(text) is None
+        assert _rescue_doc_number(text) == "R-0013"
 
     @pytest.mark.no_db
     def test_numero_cedula_pura_rechazado(self):
@@ -468,3 +495,51 @@ class TestRescueDocNumberFiltros:
         result = _rescue_doc_number(text)
         # No debe devolver el número de cédula puro (sin guiones, 10 dígitos)
         assert result is None or "-" in str(result)
+
+    @pytest.mark.no_db
+    def test_patron_corto_varias_letras(self):
+        """El patrón corto detecta B-001, N-045, etc."""
+        assert _rescue_doc_number("Recibo N° B-001\nFecha: 01/01/2026") == "B-001"
+        assert _rescue_doc_number("Ticket N° N-045") == "N-045"
+
+    @pytest.mark.no_db
+    def test_patron_corto_no_match_sin_prefijo(self):
+        """Sin prefijo (N°, No., etc.) el patrón corto no activa para evitar falsos positivos."""
+        # "R-0013" sin prefijo no debe matchear
+        result = _rescue_doc_number("Fecha: 08/12/2025\nR-0013\nTotal: 1.50")
+        assert result is None or result != "R-0013"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Regresión: alias 'number' como sinónimo de 'numeric' en extract_fields_from_text
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestParseValueNumberAlias:
+    """Verifica que field_type='number' produce floats igual que 'numeric'."""
+
+    @pytest.mark.no_db
+    def test_type_number_devuelve_float_no_string(self):
+        """Antes de la corrección, type='number' devolvía '$ 1.50' en vez de 1.5."""
+        result = extract_fields_from_text(
+            _TICKET_OCR_TEXT,
+            _CANONICAL_FIELDS_NUMBER_ALIAS,
+            _FIELD_ALIASES_MINIMAL,
+            _AMOUNT_LABELS_MINIMAL,
+        )
+        total = result.get("total_amount")
+        assert total is not None
+        assert isinstance(total, float), f"Se esperaba float, se obtuvo {type(total).__name__}: {total!r}"
+        assert abs(total - 1.50) < 0.01
+
+    @pytest.mark.no_db
+    def test_type_number_factura_proveedor(self, factura_pdf_text):
+        """Con type='number', la factura real extrae los montos como floats."""
+        result = extract_fields_from_text(
+            factura_pdf_text,
+            _CANONICAL_FIELDS_NUMBER_ALIAS,
+            _FIELD_ALIASES_MINIMAL,
+            _AMOUNT_LABELS_MINIMAL,
+        )
+        total = result.get("total_amount")
+        assert isinstance(total, float), f"total_amount debe ser float, no {type(total).__name__}"
+        assert abs(total - 16567.49) < 1.0

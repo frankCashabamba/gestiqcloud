@@ -41,7 +41,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-13-2"
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-13-3"
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -108,6 +108,9 @@ def _deserialize_cached_extraction(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _can_cache_extraction(extraction: dict[str, Any]) -> bool:
+    fmt = str(extraction.get("format") or "").upper()
+    if fmt.endswith("_ERROR"):
+        return False
     text = str(extraction.get("text") or "").strip()
     structured_data = extraction.get("structured_data")
     page_texts = extraction.get("page_texts")

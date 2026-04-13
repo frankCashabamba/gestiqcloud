@@ -16,6 +16,44 @@ from .document_fields import safe_floatish
 
 logger = logging.getLogger("importador.text_fallback")
 
+# Unidades de medida reconocidas como celdas de columna, no como continuación de descripción.
+# Se usa cuando pdf_config no provee unit_values (fallback sin base de datos).
+_DEFAULT_UNIT_VALUES: frozenset[str] = frozenset({
+    "ml", "mg", "g", "gr", "kg", "l", "lt", "lts", "ltr",
+    "unit", "und", "unid", "unidad", "unidades", "uds",
+    "oz", "lb", "lbs", "pz", "pza", "pzas",
+    "m", "cm", "mm", "m2", "m3",
+    "caja", "caj", "bolsa", "bol", "saco", "rollo", "par",
+})
+
+# Patrones de pie de página que siempre se filtran aunque pdf_config no los provea.
+_DEFAULT_FOOTER_PATTERNS: tuple[re.Pattern, ...] = tuple(
+    re.compile(p, re.I)
+    for p in (
+        r"\bpagina\s+\d",   # "Pagina 1 de 3"
+        r"\bpage\s+\d",     # "Page 1 of 3"
+        r"\bpag\.?\s+\d",   # "Pag. 1"
+    )
+)
+
+# Patrones que indican el inicio de una sección post-tabla (observaciones, totales, firmas).
+# Cuando aparecen en la tabla vertical, el parser detiene la lectura de ítems.
+_SECTION_END_PATTERNS: tuple[re.Pattern, ...] = tuple(
+    re.compile(p, re.I)
+    for p in (
+        r"^\s*observaciones?\s*$",
+        r"^\s*notas?\s*$",
+        r"^\s*condiciones?\s*$",
+        r"^\s*resumen\b",
+        r"^\s*terminos?\b",
+        r"^\s*firma\b",
+        r"^\s*autorizado\b",
+        r"^\s*recibido\s+por\b",
+        r"^\s*_+\s*$",           # línea de guiones bajos (espacio para firma)
+        r"^\s*-{5,}\s*$",        # separador con guiones
+    )
+)
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -251,7 +289,7 @@ def _match_next_line(
 
 def _parse_value(raw: str, field_type: str) -> Any | None:
     """Parse a raw text candidate according to canonical field type."""
-    if field_type == "numeric":
+    if field_type in ("numeric", "number"):
         return _parse_numeric(raw)
     if field_type == "date":
         return _parse_date(raw)
@@ -665,7 +703,7 @@ def _parse_vertical_table(
     items: list[dict[str, Any]] = []
     max_items = 200
     column_norms = [_normalize_label(cn) for cn in column_names]
-    _unit_values = unit_values or set()
+    _unit_values = unit_values if unit_values else _DEFAULT_UNIT_VALUES
     _footer_patterns = footer_patterns or []
 
     # Índice de la columna de descripción para detectar continuaciones
@@ -675,7 +713,8 @@ def _parse_vertical_table(
             desc_col_idx = idx
             break
 
-    # Construir lista de líneas limpias: sin blancos, pies de página ni encabezados repetidos
+    # Construir lista de líneas limpias: sin blancos, pies de página ni encabezados repetidos.
+    # Parar cuando se detecta el inicio de una sección post-tabla (observaciones, firmas, etc.).
     clean: list[str] = []
     i = data_start
     while i < len(lines):
@@ -684,9 +723,13 @@ def _parse_vertical_table(
             i += 1
             continue
         line_norm = _normalize_label(line)
-        if _is_footer_line(line_norm, _footer_patterns):
+        if _is_footer_line(line_norm, _footer_patterns) or any(
+            p.search(line_norm) for p in _DEFAULT_FOOTER_PATTERNS
+        ):
             i += 1
             continue
+        if any(p.search(line) for p in _SECTION_END_PATTERNS):
+            break  # fin de la tabla de ítems
         if _is_header_repetition(lines, i, column_norms):
             i += len(column_norms)
             continue
@@ -739,8 +782,18 @@ def _parse_vertical_table(
             else:
                 item.setdefault("extra_columns", {})[col_name] = cell
 
+        # Validar que al menos un campo de precio/cantidad sea parseable como número.
+        # Evita incluir bloques de sección (Observaciones, totales) que pasaron el filtro
+        # de sección-end pero aún llegaron al bloque de parseo.
         if valid and any(k in field_aliases for k in item):
-            items.append(item)
+            _numeric_fields = ("total_price", "quantity", "unit_price")
+            _has_numeric = any(
+                safe_floatish(item.get(f, "")) is not None
+                for f in _numeric_fields
+                if f in item
+            )
+            if _has_numeric:
+                items.append(item)
         ci += block_size
 
     return items

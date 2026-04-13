@@ -113,6 +113,7 @@ def test_runtime_config_loads_ai_processing_and_routing_scoring_defaults():
     assert ai_runtime["openai_fallback_on_complex"] is True
     assert ai_runtime["openai_fallback_complexity_threshold"] == 0.72
     assert ai_runtime["openai_fallback_slow_threshold_ms"] == 15000
+    assert processing_runtime["ai_enabled"] is False
     assert processing_runtime["ocr_text_sufficient_min_chars"] == 100
     assert processing_runtime["structured_preview_rows"] == 5
     assert processing_runtime["structured_output_rows_limit"] == 200

@@ -1924,6 +1924,7 @@ async def _analyze_with_vision(
     ocr_content: str = "",
     recipe_config: dict | None = None,
     prompt_config: dict[str, Any] | None = None,
+    pre_extracted_fields: dict[str, Any] | None = None,
     db: Any = None,
     timeout_override_secs: float | None = None,
 ) -> dict[str, Any] | None:
@@ -1997,10 +1998,18 @@ async def _analyze_with_vision(
     additional_instructions_heading = str(
         pc.get("additional_instructions_heading") or "Additional instructions:"
     ).strip()
+    pre_extracted_block = ""
+    if isinstance(pre_extracted_fields, dict) and pre_extracted_fields:
+        pre_extracted_block = (
+            "PRE-EXTRACTED HINTS (already obtained by deterministic tools; "
+            "use them as input, do not ignore them):\n"
+            f"{json.dumps(pre_extracted_fields, ensure_ascii=False, indent=2, default=str)}\n\n"
+        )
 
     user_prompt = (
         f"File: {filename} | Format: {format_hint}\n"
         f"{_build_document_time_context(pc, current_year=current_year)}\n\n"
+        f"{pre_extracted_block}"
         f"{vision_preamble}\n"
         f"{response_label}\n"
         f"{response_contract}\n"
@@ -2281,6 +2290,7 @@ async def analyze_document(
     recipe_config: dict | None = None,
     structured_data: Any | None = None,
     structured_metadata: dict[str, Any] | None = None,
+    pre_extracted_fields: dict[str, Any] | None = None,
     image_bytes: bytes | None = None,
     fallback_patterns: dict[str, list[str]] | None = None,
     canonical_fields: dict[str, dict] | None = None,
@@ -2382,6 +2392,7 @@ async def analyze_document(
             content,
             recipe_config,
             prompt_config,
+            pre_extracted_fields,
             db=db,
             timeout_override_secs=timeout_override,
         )
@@ -2460,6 +2471,13 @@ async def analyze_document(
     additional_instructions_heading = str(
         pc.get("additional_instructions_heading") or "Additional instructions:"
     ).strip()
+    pre_extracted_block = ""
+    if isinstance(pre_extracted_fields, dict) and pre_extracted_fields:
+        pre_extracted_block = (
+            "PRE-EXTRACTED HINTS (already obtained by deterministic tools; "
+            "use them as input, do not ignore them):\n"
+            f"{json.dumps(pre_extracted_fields, ensure_ascii=False, indent=2, default=str)}\n\n"
+        )
 
     _doc_type_hint = rc.get("doc_type_hint")
     _hint_line = (
@@ -2474,6 +2492,7 @@ async def analyze_document(
         f"File: {filename} | Format: {format_hint}\n"
         f"{_build_document_time_context(pc, current_year=current_year)}\n"
         f"{_hint_line}\n"
+        f"{pre_extracted_block}"
         f"Content:\n{content[:content_limit]}\n\n"
         f"{response_label}\n"
         f"{response_contract}\n"

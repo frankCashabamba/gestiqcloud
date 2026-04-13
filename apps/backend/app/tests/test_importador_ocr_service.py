@@ -155,6 +155,37 @@ def test_extract_xml_facturae_builds_structured_context():
     assert result["structured_data"][0]["total"] == "10.00"
 
 
+def test_store_cached_extraction_skips_parse_errors(monkeypatch, tmp_path):
+    monkeypatch.setattr(ocr_service, "_ocr_cache_dir", lambda: tmp_path)
+
+    file_bytes = b"<?xml version='1.0'?><Facturae></Facturae>"
+    cache_path = ocr_service._ocr_cache_path(file_bytes)
+
+    ocr_service._store_cached_extraction(
+        file_bytes,
+        {
+            "text": "preview",
+            "pages": 1,
+            "structured_data": None,
+            "format": "XML_PARSE_ERROR",
+        },
+    )
+
+    assert not cache_path.exists()
+
+    ocr_service._store_cached_extraction(
+        file_bytes,
+        {
+            "text": "preview",
+            "pages": 1,
+            "structured_data": [{"documento": "2024-001 A"}],
+            "format": "XML_FACTURAE",
+        },
+    )
+
+    assert cache_path.exists()
+
+
 def test_extract_text_from_file_rehydrates_cached_csv_context(monkeypatch, tmp_path):
     file_bytes = b"Fecha,Pedidos,Items,Total\n2026-03-22,11,268.000,$79.24\n"
 

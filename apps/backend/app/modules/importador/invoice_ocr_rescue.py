@@ -32,6 +32,8 @@ _DOC_NUMBER_LABEL_PATTERNS = (
     r"(?i)\b(?:factura|invoice|fact)\s*(?:n(?:o|ro|umero)?\.?|n[°º])?\s*[:#.-]?\s*([A-Z0-9]{3,}(?:-[A-Z0-9]{2,}){1,3})\b",
     r"(?i)\b(?:n(?:o|ro|umero)?\.?|n[°º]|documento|doc)\s*[:#.-]?\s*([A-Z0-9]{3,}(?:-[A-Z0-9]{2,}){1,3})\b",
     r"\b(\d{3}-\d{3}-\d{6,12})\b",
+    # Formatos cortos tipo R-0013, B-001, N-0045 — ticket y recibo sin prefijo largo
+    r"(?i)\b(?:n(?:o|ro|umero)?\.?|n[°º]|comprobante|recibo|ticket)\s*[:#.-]?\s*([A-Z]-\d{2,})\b",
 )
 
 _BLOCKED_VENDOR_EXACTS = {

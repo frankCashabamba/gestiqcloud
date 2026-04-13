@@ -505,6 +505,45 @@ def _fast_lane_result_is_sufficient(
     return True, ""
 
 
+def _pre_extract_route_decision(
+    *,
+    pre_fields: dict[str, Any],
+    processing_cfg: dict[str, Any],
+) -> dict[str, Any]:
+    """Evaluate whether deterministic extraction is strong enough to skip the LLM.
+
+    The decision is intentionally explicit and configurable so the import flow can
+    skip AI only when native parsers already produced enough signal.
+    """
+    has_total = safe_floatish(pre_fields.get("total_amount")) != 0.0
+    has_date = bool(pre_fields.get("issue_date"))
+    has_doc = bool(pre_fields.get("doc_number"))
+    has_vendor = bool(pre_fields.get("vendor"))
+    has_tax_id = bool(pre_fields.get("vendor_tax_id"))
+    strong_count = sum([has_total, has_date, has_doc, has_vendor, has_tax_id])
+
+    min_strong_fields = max(
+        1, int(processing_cfg.get("pre_extract_min_strong_fields") or 3)
+    )
+    min_confidence = float(processing_cfg.get("pre_extract_min_confidence") or 0.62)
+    confidence = min(0.62 + max(strong_count - 3, 0) * 0.08, 0.82)
+
+    return {
+        "has_total": has_total,
+        "has_date": has_date,
+        "has_doc": has_doc,
+        "has_vendor": has_vendor,
+        "has_tax_id": has_tax_id,
+        "strong_count": strong_count,
+        "min_strong_fields": min_strong_fields,
+        "min_confidence": min_confidence,
+        "confidence": confidence,
+        "skip_ai": bool(
+            has_total and strong_count >= min_strong_fields and confidence >= min_confidence
+        ),
+    }
+
+
 def _elapsed_ms(started_at: float) -> int:
     return max(0, int(round((time.perf_counter() - started_at) * 1000)))
 
@@ -1046,6 +1085,7 @@ async def _analyze_with_context(
     structured_data: Any | None = None,
     structured_metadata: dict[str, Any] | None = None,
     vision_image_bytes: bytes | bytearray | None,
+    pre_extracted_fields: dict[str, Any] | None = None,
     fallback_patterns: dict[str, Any],
     canonical_fields: dict[str, Any],
     prompt_config: dict[str, Any],
@@ -1063,9 +1103,7 @@ async def _analyze_with_context(
     content_text = (content or "").strip()
     text_is_sufficient = len(content_text) >= min_chars
     structured_is_usable = bool(has_structured_rows or structured_data)
-    _fast_mode = str(reprocess_mode or "").strip().lower() == "fast"
     _format_hint = str(format_hint or "").strip().upper()
-    _has_visual_input = bool(vision_image_bytes)
 
     quality_warning: dict[str, Any] | None = None
     image_bytes = bytes(vision_image_bytes) if vision_image_bytes else None
@@ -1131,20 +1169,12 @@ async def _analyze_with_context(
         or not deep_reprocess_context.get("previous_result")
     )
 
-    fast_mode_skip_ai = (
-        _fast_mode
-        and not has_structured_rows
-        and text_is_sufficient
-        and (not _has_visual_input or not low_quality)
-        and (is_first_import or _prev_was_good)
-    )
-
     logger.info(
-        "DBG[C] ai_routing filename=%s mode=%s fast_mode_skip=%s is_first_import=%s "
+        "DBG[C] ai_routing filename=%s mode=%s ai_invoked=%s is_first_import=%s "
         "text_is_sufficient=%s has_vision=%s _prev_was_good=%s has_structured=%s format=%s",
         filename,
         reprocess_mode,
-        fast_mode_skip_ai,
+        True,
         is_first_import,
         text_is_sufficient,
         bool(vision_image_bytes),
@@ -1152,66 +1182,34 @@ async def _analyze_with_context(
         has_structured_rows,
         _format_hint,
     )
-
-    if fast_mode_skip_ai:
-        skip_reason = (
-            "fast_mode_image_ocr_sufficient_skip"
-            if _has_visual_input
-            else "fast_mode_text_sufficient_skip"
-        )
+    if is_first_import and str(reprocess_mode or "").strip().lower() == "fast":
         logger.info(
-            "fast_mode_skip_ai_due_to_sufficient_text=true filename=%s mode=%s text_is_sufficient=%s "
-            "is_first_import=%s _prev_was_good=%s has_vision=%s low_quality=%s reason=%s",
+            "first_import_ai_forced=true filename=%s mode=%s text_is_sufficient=%s reason=first_import_guard",
             filename,
             reprocess_mode,
             text_is_sufficient,
-            is_first_import,
-            _prev_was_good,
-            _has_visual_input,
-            low_quality,
-            skip_reason,
         )
-        analysis = {
-            "doc_type": "OTHER",
-            "confidence": 0.2,
-            "reasoning": "Skipped heavy AI extraction in fast mode because OCR text is sufficient.",
-            "is_table": False,
-            "columns": [],
-            "fields": {},
-            "raw_response": f"reason={skip_reason}",
-            "model_used": "fast-mode-skip",
-            "analysis_path": skip_reason,
-            "requires_review": True,
-            "fast_mode_skip_ai_due_to_sufficient_text": True,
-        }
-    else:
-        if is_first_import and str(reprocess_mode or "").strip().lower() == "fast":
-            logger.info(
-                "first_import_ai_forced=true filename=%s mode=%s text_is_sufficient=%s reason=first_import_guard",
-                filename,
-                reprocess_mode,
-                text_is_sufficient,
-            )
-        analysis = await analyze_document_fn(
-            content,
-            filename,
-            format_hint,
-            has_structured_rows=has_structured_rows,
-            recipe_config=recipe_config,
-            structured_data=structured_data,
-            structured_metadata=structured_metadata,
-            image_bytes=image_bytes,
-            fallback_patterns=fallback_patterns,
-            canonical_fields=canonical_fields,
-            prompt_config=prompt_config,
-            db=db,
-            reprocess_mode=reprocess_mode,
-            bypass_cache=bypass_cache,
-            deep_reprocess_context=deep_reprocess_context,
-            deep_focus_fields=deep_focus_fields,
-            timeout_override=timeout_override,
-            force_vision=force_vision,
-        )
+    analysis = await analyze_document_fn(
+        content,
+        filename,
+        format_hint,
+        has_structured_rows=has_structured_rows,
+        recipe_config=recipe_config,
+        structured_data=structured_data,
+        structured_metadata=structured_metadata,
+        image_bytes=image_bytes,
+        fallback_patterns=fallback_patterns,
+        canonical_fields=canonical_fields,
+        prompt_config=prompt_config,
+        pre_extracted_fields=pre_extracted_fields,
+        db=db,
+        reprocess_mode=reprocess_mode,
+        bypass_cache=bypass_cache,
+        deep_reprocess_context=deep_reprocess_context,
+        deep_focus_fields=deep_focus_fields,
+        timeout_override=timeout_override,
+        force_vision=force_vision,
+    )
 
     if quality_warning:
         analysis.setdefault("warnings", [])
@@ -1535,6 +1533,7 @@ async def _process_run_document(
     cached_analysis = None
     text_cached_analysis_run = None
     analysis_recipe_config = dict(local_recipe_config or {})
+    analysis: dict[str, Any] = {}
 
     if recipe_snapshot:
         if has_structured:
@@ -1563,6 +1562,7 @@ async def _process_run_document(
     classification_threshold = load_classification_threshold(db)
     learning_ctrl = load_learning_control(db)
     pdf_table_cfg = load_pdf_table_parse_config(db)
+    ai_enabled = bool(processing_cfg.get("ai_enabled", True))
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
     _rc_for_run = dict(local_recipe_config or {})
@@ -1598,7 +1598,7 @@ async def _process_run_document(
         has_structured
         and _doc_format in _STRUCTURED_SKIP_FORMATS
         and not force_clean_reimport
-        and (_has_semantic_hint or _is_xml_invoice_format)
+        and (_has_semantic_hint or _is_xml_invoice_format or not ai_enabled)
     )
     # ── Señales post-OCR para routing de carril ────────────────────────────
     _reprocess_ctx = recipe_context.reprocess_context or {}
@@ -1727,9 +1727,9 @@ async def _process_run_document(
         # (total + fecha/doc_number/vendor/tax_id) saltamos el LLM completamente.
         # Esto evita esperar 5-9 min de CPU con qwen:8b cuando el regex ya extrajo
         # lo que necesitamos. deep_reprocess siempre pasa por LLM (el usuario lo pidió).
-        _PRE_EXTRACT_FORMATS = {"PDF", "PDF_OCR", "TXT", "IMAGE_OCR"}
         _pre_fields: dict[str, Any] = {}
         _pre_skipped_ai = False
+        _PRE_EXTRACT_FORMATS = {"PDF", "PDF_OCR", "TXT", "IMAGE_OCR"}
 
         if (
             text
@@ -1760,15 +1760,47 @@ async def _process_run_document(
             except Exception as _exc:
                 logger.debug("pre_extract text error (non-fatal): %s", _exc)
 
-            _has_total = safe_floatish(_pre_fields.get("total_amount")) != 0.0
-            _has_date = bool(_pre_fields.get("issue_date"))
-            _has_doc = bool(_pre_fields.get("doc_number"))
-            _has_vendor = bool(_pre_fields.get("vendor"))
-            _has_tax_id = bool(_pre_fields.get("vendor_tax_id"))
-            _strong_count = sum([_has_total, _has_date, _has_doc, _has_vendor, _has_tax_id])
+            _pre_decision = _pre_extract_route_decision(
+                pre_fields=_pre_fields,
+                processing_cfg=processing_cfg,
+            )
+            _has_total = bool(_pre_decision["has_total"])
+            _has_date = bool(_pre_decision["has_date"])
+            _has_doc = bool(_pre_decision["has_doc"])
+            _has_vendor = bool(_pre_decision["has_vendor"])
+            _has_tax_id = bool(_pre_decision["has_tax_id"])
+            _strong_count = int(_pre_decision["strong_count"])
 
-            # Necesitamos total_amount + al menos 2 campos identificadores
-            if _has_total and _strong_count >= 3:
+            if not ai_enabled:
+                _pre_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper()
+                if not _pre_doc_type:
+                    _pre_doc_type = "STRUCTURED" if has_structured else "OTHER"
+                _pre_confidence = float(_pre_decision["confidence"] if _pre_fields else 0.35)
+                analysis = {
+                    "doc_type": _pre_doc_type,
+                    "confidence": _pre_confidence,
+                    "reasoning": "AI disabled by runtime config; using deterministic extraction only.",
+                    "is_table": bool(has_structured),
+                    "columns": [],
+                    "fields": _pre_fields,
+                    "raw_response": "reason=ai_disabled",
+                    "model_used": "deterministic-only",
+                    "analysis_path": "ok_pre_extract",
+                    "requires_review": _pre_confidence < classification_threshold,
+                }
+                _pre_skipped_ai = True
+                logger.info(
+                    "ai_disabled_deterministic_only filename=%s format=%s doc_type=%s fields=%s",
+                    filename,
+                    _doc_format,
+                    _pre_doc_type,
+                    sorted(_pre_fields.keys()),
+                )
+            # Saltamos IA solo cuando la extracción nativa ya cubrió suficiente señal
+            # y la confianza estimada supera el umbral configurable.
+            # Saltamos IA solo cuando la extracción nativa ya cubrió suficiente señal
+            # y la confianza estimada supera el umbral configurable.
+            elif _pre_decision["skip_ai"]:
                 _pre_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper()
                 if not _pre_doc_type or _pre_doc_type in ("OTHER", "STRUCTURED"):
                     if _has_doc or _has_tax_id:
@@ -1777,27 +1809,63 @@ async def _process_run_document(
                         _pre_doc_type = "INVOICE"
                     else:
                         _pre_doc_type = "RECEIPT"
-                _pre_confidence = min(0.62 + (_strong_count - 3) * 0.08, 0.82)
+                _pre_confidence = float(_pre_decision["confidence"])
                 analysis = {
                     "doc_type": _pre_doc_type,
                     "confidence": _pre_confidence,
-                    "reasoning": f"Pre-extracción regex: {_strong_count} campos clave extraídos sin LLM.",
+                    "reasoning": (
+                        f"Pre-extracción determinista: {_strong_count} campos clave "
+                        "extraídos sin LLM."
+                    ),
                     "is_table": False,
                     "columns": [],
                     "fields": _pre_fields,
-                    "raw_response": "reason=pre_extract_bypass",
-                    "model_used": "pre-extract-bypass",
+                    "raw_response": "reason=pre_extract_skip_ai",
+                    "model_used": "deterministic-preextract",
                     "analysis_path": "ok_pre_extract",
-                    "requires_review": True,
+                    "requires_review": _pre_confidence < classification_threshold,
                 }
                 _pre_skipped_ai = True
                 logger.info(
-                    "pre_extract_bypass filename=%s format=%s doc_type=%s "
-                    "fields=%s total=%s date=%s doc=%s vendor=%s tax_id=%s",
+                    "pre_extract_skip_ai filename=%s format=%s doc_type=%s "
+                    "fields=%s total=%s date=%s doc=%s vendor=%s tax_id=%s "
+                    "strong_count=%s min_strong=%s min_confidence=%.2f confidence=%.2f",
                     filename, _doc_format, _pre_doc_type,
                     sorted(_pre_fields.keys()),
                     _has_total, _has_date, _has_doc, _has_vendor, _has_tax_id,
+                    _strong_count,
+                    _pre_decision["min_strong_fields"],
+                    float(_pre_decision["min_confidence"]),
+                    _pre_confidence,
                 )
+
+        if not ai_enabled and not analysis:
+            _deterministic_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper()
+            if not _deterministic_doc_type:
+                _deterministic_doc_type = "STRUCTURED" if has_structured else "OTHER"
+            _deterministic_confidence = (
+                float(_pre_decision["confidence"]) if "_pre_decision" in locals() else 0.35
+            )
+            analysis = {
+                "doc_type": _deterministic_doc_type,
+                "confidence": _deterministic_confidence,
+                "reasoning": "AI disabled by runtime config; using deterministic extraction only.",
+                "is_table": bool(has_structured),
+                "columns": [],
+                "fields": _pre_fields,
+                "raw_response": "reason=ai_disabled",
+                "model_used": "deterministic-only",
+                "analysis_path": "ok_pre_extract",
+                "requires_review": _deterministic_confidence < classification_threshold,
+            }
+            _pre_skipped_ai = True
+            logger.info(
+                "ai_disabled_deterministic_fallback filename=%s format=%s doc_type=%s fields=%s",
+                filename,
+                _doc_format,
+                _deterministic_doc_type,
+                sorted(_pre_fields.keys()),
+            )
 
         if not _pre_skipped_ai:
             # ── Llamada al LLM ────────────────────────────────────────────────
@@ -1817,6 +1885,7 @@ async def _process_run_document(
                 fallback_patterns=fallback_patterns,
                 canonical_fields=canonical_fields,
                 prompt_config=prompt_config,
+                pre_extracted_fields=_pre_fields or None,
                 reprocess_mode=reprocess_mode,
                 bypass_cache=deep_reprocess,
                 deep_reprocess_context=recipe_context.reprocess_context,
@@ -1910,11 +1979,12 @@ async def _process_run_document(
     # (los estructurados usan _structured_direct_analysis, bypass sin HTTP, y
     # no se benefician de más timeout).
     _used_real_llm = (
-        not cached_analysis
+        ai_enabled
+        and not cached_analysis
         and not _skip_ai_for_structured
         and not has_structured
     )
-    if lane_decision.lane == "fast" and _used_real_llm:
+    if ai_enabled and lane_decision.lane == "fast" and _used_real_llm:
         _current_analysis_path = str(analysis.get("analysis_path") or "")
         _sufficient, _escalation_reason = _fast_lane_result_is_sufficient(
             analysis_path=_current_analysis_path,
@@ -1943,6 +2013,7 @@ async def _process_run_document(
                 fallback_patterns=fallback_patterns,
                 canonical_fields=canonical_fields,
                 prompt_config=prompt_config,
+                pre_extracted_fields=_pre_fields or None,
                 reprocess_mode=reprocess_mode,
                 bypass_cache=True,
                 deep_reprocess_context=recipe_context.reprocess_context,
@@ -2038,7 +2109,12 @@ async def _process_run_document(
     auto_recipe_created = local_auto_created
     auto_recipe_name: str | None = local_auto_name
 
-    if not sheet_profiles and tipo_doc != "OTHER" and not recipe_context.explicit_recipe_context:
+    if (
+        ai_enabled
+        and not sheet_profiles
+        and tipo_doc != "OTHER"
+        and not recipe_context.explicit_recipe_context
+    ):
         auto_recipe_started_at = time.perf_counter()
         auto_rc2, post_snap_id, auto_resolution_mode, auto_recipe_created, auto_recipe_name = (
             resolve_auto_recipe_from_text(
@@ -2129,6 +2205,7 @@ async def _process_run_document(
                     fallback_patterns=fallback_patterns,
                     canonical_fields=canonical_fields,
                     prompt_config=prompt_config,
+                    pre_extracted_fields=_pre_fields or None,
                     reprocess_mode=reprocess_mode,
                     bypass_cache=deep_reprocess,
                     deep_reprocess_context=recipe_context.reprocess_context,

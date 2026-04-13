@@ -273,11 +273,14 @@ _DEFAULT_AI_RUNTIME_CONFIG: dict[str, Any] = {
 }
 
 _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
+    "ai_enabled": False,
     "ocr_text_sufficient_min_chars": 500,
     "llm_text_preview_chars": 6000,
     "structured_preview_rows": 5,
     "structured_preview_fields": 8,
     "doc_type_hint_min_confidence": 0.65,
+    "pre_extract_min_strong_fields": 3,
+    "pre_extract_min_confidence": 0.62,
     "structured_output_rows_limit": 200,
     "persist_text_ocr_max_chars": 50000,
     "ai_failure_tokens": ["timeout", "timed out", "unavailable", "connection", "refused", "failed"],
@@ -1037,6 +1040,16 @@ def load_ai_runtime_config(db: Any | None = None) -> dict[str, Any]:
         except (TypeError, ValueError):
             return default
 
+    def _bool_value(value: Any, default: bool) -> bool:
+        if value is None:
+            return default
+        return str(value).strip().lower() not in {"false", "0", "no", "off"}
+
+    def _bool_value(value: Any, default: bool) -> bool:
+        if value is None:
+            return default
+        return str(value).strip().lower() not in {"false", "0", "no", "off"}
+
     def _int_value(value: Any, default: int, *, minimum: int = 0) -> int:
         try:
             return max(minimum, int(str(value).strip()))
@@ -1249,6 +1262,11 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
         except (TypeError, ValueError):
             return default
 
+    def _bool_value(value: Any, default: bool) -> bool:
+        if value is None:
+            return default
+        return str(value).strip().lower() not in {"false", "0", "no", "off"}
+
     def _list_value(value: Any, default: list[str], *, uppercase: bool = False) -> list[str]:
         if not isinstance(value, list):
             return list(default)
@@ -1262,8 +1280,12 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
 
     if isinstance(seed, dict):
         for key, value in seed.items():
-            if key == "doc_type_hint_min_confidence":
+            if key == "ai_enabled":
+                config[key] = _bool_value(value, bool(config.get(key, True)))
+            elif key == "doc_type_hint_min_confidence":
                 config[key] = _float_value(value, float(config[key]))
+            elif key == "pre_extract_min_confidence":
+                config[key] = _float_value(value, float(config[key]), minimum=0.0)
             elif key == "ai_failure_tokens":
                 config[key] = _list_value(value, config[key], uppercase=False)
             elif key in {"table_only_doc_types", "product_like_doc_types"}:
@@ -1278,8 +1300,12 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
             rows = _ensure_module_seeded(db, "processing_runtime")
             for row in rows:
                 key = str(row.key or "").strip()
-                if key == "doc_type_hint_min_confidence" and row.value_text is not None:
+                if key == "ai_enabled" and row.value_text is not None:
+                    config[key] = _bool_value(row.value_text, bool(config.get(key, True)))
+                elif key == "doc_type_hint_min_confidence" and row.value_text is not None:
                     config[key] = _float_value(row.value_text, float(config[key]))
+                elif key == "pre_extract_min_confidence" and row.value_text is not None:
+                    config[key] = _float_value(row.value_text, float(config[key]), minimum=0.0)
                 elif key == "ai_failure_tokens":
                     config[key] = _list_value(row.value_list, config[key], uppercase=False)
                 elif key in {"table_only_doc_types", "product_like_doc_types"}:

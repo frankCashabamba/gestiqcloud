@@ -14,6 +14,7 @@ from app.modules.importador.processing_service import (
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
+    _pre_extract_route_decision,
     _should_skip_useless_retry,
     _sanitize_text_fallback_fields,
 )
@@ -84,7 +85,36 @@ def test_analyze_with_context_uses_processing_runtime_threshold(monkeypatch):
 
 
 @pytest.mark.no_db
-def test_analyze_with_context_skips_heavy_ai_in_fast_mode_when_text_is_sufficient(monkeypatch):
+def test_pre_extract_route_decision_uses_configured_threshold():
+    pre_fields = {
+        "total_amount": 100.0,
+        "vendor": "ACME S.A.",
+        "doc_number": "F-001",
+    }
+
+    relaxed = _pre_extract_route_decision(
+        pre_fields=pre_fields,
+        processing_cfg={
+            "pre_extract_min_strong_fields": 3,
+            "pre_extract_min_confidence": 0.62,
+        },
+    )
+    strict = _pre_extract_route_decision(
+        pre_fields=pre_fields,
+        processing_cfg={
+            "pre_extract_min_strong_fields": 4,
+            "pre_extract_min_confidence": 0.62,
+        },
+    )
+
+    assert relaxed["skip_ai"] is True
+    assert relaxed["strong_count"] == 3
+    assert strict["skip_ai"] is False
+    assert strict["confidence"] == relaxed["confidence"]
+
+
+@pytest.mark.no_db
+def test_analyze_with_context_calls_ai_in_fast_mode_when_text_is_sufficient(monkeypatch):
     called = {"count": 0}
 
     async def fake_analyze_document_fn(*args, **kwargs):
@@ -122,15 +152,13 @@ def test_analyze_with_context_skips_heavy_ai_in_fast_mode_when_text_is_sufficien
         )
     )
 
-    assert called["count"] == 0
-    assert analysis["fast_mode_skip_ai_due_to_sufficient_text"] is True
-    assert analysis["model_used"] == "fast-mode-skip"
-    assert analysis["requires_review"] is True
-    assert analysis["raw_response"] == "reason=fast_mode_text_sufficient_skip"
+    assert called["count"] == 1
+    assert analysis["doc_type"] == "INVOICE"
+    assert analysis["confidence"] == 0.9
 
 
 @pytest.mark.no_db
-def test_analyze_with_context_fast_mode_image_skips_ai_when_ocr_is_sufficient(monkeypatch):
+def test_analyze_with_context_fast_mode_image_calls_ai_when_ocr_is_sufficient(monkeypatch):
     """Imágenes (vision_image_bytes set) SIEMPRE llaman a la IA, incluso en fast mode.
     El OCR extrae texto pero pierde layout, logos y sellos que el modelo de visión sí ve."""
     called = {"count": 0}
@@ -186,10 +214,9 @@ def test_analyze_with_context_fast_mode_image_skips_ai_when_ocr_is_sufficient(mo
     )
 
     # Las imágenes siempre llaman a la IA, incluso en fast mode con texto suficiente
-    assert called["count"] == 0
-    assert analysis["fast_mode_skip_ai_due_to_sufficient_text"] is True
-    assert analysis["analysis_path"] == "fast_mode_image_ocr_sufficient_skip"
-    assert analysis["model_used"] == "fast-mode-skip"
+    assert called["count"] == 1
+    assert analysis["doc_type"] == "INVOICE"
+    assert analysis["confidence"] == 0.82
 
 
 @pytest.mark.no_db

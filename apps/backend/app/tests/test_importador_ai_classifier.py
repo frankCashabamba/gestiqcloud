@@ -67,6 +67,39 @@ def test_analyze_document_uses_runtime_prompt_config_and_canonical_fields(monkey
     ]
 
 
+def test_analyze_document_includes_pre_extracted_fields_in_prompt(monkeypatch):
+    captured: dict[str, str] = {}
+
+    async def fake_query(**kwargs):
+        captured["prompt"] = kwargs["prompt"]
+        return SimpleNamespace(
+            content='{"doc_type":"INVOICE","confidence":0.88,"reasoning":"ok","is_table":false,"columns":[],"fields":{}}',
+            model="test-model",
+            is_error=False,
+            error=None,
+        )
+
+    monkeypatch.setattr("app.modules.importador.ai_classifier.AIService.query", fake_query)
+
+    result = asyncio.run(
+        analyze_document(
+            content="Factura de prueba con total 123.45",
+            filename="doc.pdf",
+            format_hint="PDF",
+            pre_extracted_fields={
+                "vendor": "ACME S.A.",
+                "total_amount": 123.45,
+                "doc_number": "F-001",
+            },
+        )
+    )
+
+    assert result["doc_type"] == "INVOICE"
+    assert "PRE-EXTRACTED HINTS" in captured["prompt"]
+    assert '"vendor": "ACME S.A."' in captured["prompt"]
+    assert '"total_amount": 123.45' in captured["prompt"]
+
+
 def test_analyze_document_uses_runtime_doc_type_instruction_for_structured_inputs(monkeypatch):
     captured: dict[str, str] = {}
 
