@@ -121,13 +121,25 @@ class OllamaProvider(BaseAIProvider):
         effective_timeout = timeout if timeout is not None else self.request_timeout
         current_loop = asyncio.get_running_loop()
         client = self._client
+        loop_changed = self._client_loop is not current_loop
         if (
             client is None
-            or self._client_loop is not current_loop
+            or loop_changed
             or float(client.timeout.read) != float(effective_timeout)
         ):
             if client is not None:
-                await client.aclose()
+                # El cliente antiguo puede pertenecer a un event loop ya cerrado
+                # (ocurre en Celery cuando cada tarea crea su propio asyncio.run()).
+                # En ese caso aclose() lanzaría RuntimeError: Event loop is closed.
+                # Ignoramos el error: el GC limpiará las conexiones TCP subyacentes.
+                try:
+                    await client.aclose()
+                except Exception:
+                    pass
+            if loop_changed:
+                # El Semaphore de asyncio también queda ligado al loop anterior.
+                # Recrearlo garantiza que funcione correctamente en el nuevo contexto.
+                self._semaphore = asyncio.Semaphore(self.max_concurrency)
             self._client = httpx.AsyncClient(timeout=effective_timeout)
             self._client_loop = current_loop
             client = self._client
@@ -334,6 +346,8 @@ class OllamaProvider(BaseAIProvider):
                 if request.timeout_override and request.timeout_override > 0
                 else None
             )
+            # timeout efectivo para logging y mensajes de error
+            _effective_timeout = _call_timeout if _call_timeout is not None else self.request_timeout
             if _call_timeout and _call_timeout != self.request_timeout:
                 logger.info(
                     "Ollama timeout_override=%.1fs (default=%.1fs) task=%s model=%s",
@@ -342,19 +356,54 @@ class OllamaProvider(BaseAIProvider):
                     request.task.value,
                     selected_model,
                 )
-            async with self._semaphore:
-                client = await self._get_client(timeout=_call_timeout)
-                response = await client.post(self._endpoint_url, json=payload)
-                response.raise_for_status()
-                data = response.json()
 
-            content, tokens_used, eval_duration = self._parse_response(data)
+            # Streaming + asyncio.wait_for como hard wall-clock timeout.
+            # IMPORTANTE: el wait_for envuelve TODA la operación (conexión + lectura),
+            # no solo la lectura. Con stream=False el modelo debe terminar antes de
+            # enviar cualquier byte → ReadTimeout en 30s. Con stream=True el HTTP 200
+            # llega cuando Ollama empieza a generar, pero el prompt processing puede
+            # tardar minutos. Envolver solo _read_stream_response no cubre ese tiempo.
+            async with self._semaphore:
+                # Cliente sin ReadTimeout propio: asyncio.wait_for controla el total.
+                stream_client = httpx.AsyncClient(timeout=httpx.Timeout(
+                    connect=10.0,
+                    read=None,    # sin read-timeout: asyncio.wait_for lo controla
+                    write=10.0,
+                    pool=5.0,
+                ))
+
+                async def _do_streaming_call() -> tuple[str, int | None, int | None]:
+                    async with stream_client.stream(
+                        "POST", self._endpoint_url, json=payload
+                    ) as response:
+                        response.raise_for_status()
+                        return await self._read_stream_response(response)
+
+                try:
+                    content, tokens_used, eval_duration = await asyncio.wait_for(
+                        _do_streaming_call(),
+                        timeout=_effective_timeout,
+                    )
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    # Re-lanzar después de cerrar el cliente limpiamente.
+                    # Si aclose() falla (loop ya cerrado) lo ignoramos: es best-effort.
+                    try:
+                        await stream_client.aclose()
+                    except Exception:
+                        pass
+                    raise
+                finally:
+                    # Cierre normal (sin timeout o tras timeout/cancel ya relanzado).
+                    try:
+                        await stream_client.aclose()
+                    except Exception:
+                        pass
             if not content:
                 return AIResponse(
                     task=request.task,
                     content="",
                     model=selected_model,
-                    error="Respuesta vacÃ­a de Ollama",
+                    error="Respuesta vacía de Ollama",
                     processing_time_ms=int((time.perf_counter() - start_time) * 1000),
                 )
 
@@ -373,8 +422,11 @@ class OllamaProvider(BaseAIProvider):
                     "model_requested": requested_model or None,
                     "model_resolved": selected_model,
                     "selection_reason": resolution.reason,
-                    "timeout_seconds": self.request_timeout,
-                    "timeout_source": self.config.get("timeout_source") or "default",
+                    "timeout_seconds": _effective_timeout,
+                    "timeout_source": (
+                        "override" if _call_timeout is not None
+                        else self.config.get("timeout_source") or "default"
+                    ),
                     "eval_duration_ns": eval_duration,
                 },
             )
@@ -388,10 +440,12 @@ class OllamaProvider(BaseAIProvider):
                 error=f"No se puede conectar a Ollama: {exc}",
                 processing_time_ms=int((time.perf_counter() - start_time) * 1000),
             )
-        except httpx.ReadTimeout:
+        except (asyncio.TimeoutError, httpx.ReadTimeout):
+            # asyncio.TimeoutError: wall-clock budget de asyncio.wait_for agotado
+            # httpx.ReadTimeout: timeout de conexión inicial (connect/write, no read)
             logger.error(
                 "Ollama timeout tras %.0fs para modelo '%s' en %s",
-                self.request_timeout,
+                _effective_timeout,
                 selected_model,
                 self._endpoint_url,
             )
@@ -399,7 +453,7 @@ class OllamaProvider(BaseAIProvider):
                 task=request.task,
                 content="",
                 model=selected_model,
-                error=f"Ollama timeout ({self.request_timeout:.0f}s)",
+                error=f"Ollama timeout ({_effective_timeout:.0f}s)",
                 processing_time_ms=int((time.perf_counter() - start_time) * 1000),
             )
         except httpx.HTTPStatusError as exc:
@@ -568,21 +622,61 @@ class OllamaProvider(BaseAIProvider):
             return {
                 "model": selected_model,
                 "messages": messages,
-                "stream": False,
+                "stream": True,
                 "options": options,
             }
 
         payload: dict[str, Any] = {
             "model": selected_model,
             "prompt": prompt,
-            "stream": False,
+            "stream": True,
             "temperature": request.temperature,
         }
         if request.max_tokens:
             payload["num_predict"] = request.max_tokens
         return payload
 
+    @staticmethod
+    async def _read_stream_response(response: httpx.Response) -> tuple[str, int | None, Any]:
+        """Lee una respuesta NDJSON en streaming de Ollama y acumula el contenido.
+
+        Funciona tanto para /api/chat (use_chat_api=True) como /api/generate.
+        Cada línea es un objeto JSON; la línea con "done": true contiene los
+        contadores de evaluación. Acumula todos los tokens intermedios.
+        """
+        import json as _json
+
+        content_parts: list[str] = []
+        tokens_used: int | None = None
+        eval_duration: Any = None
+
+        async for raw_line in response.aiter_lines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                chunk = _json.loads(line)
+            except _json.JSONDecodeError:
+                continue
+
+            # /api/chat emite {"message": {"content": "..."}}
+            # /api/generate emite {"response": "..."}
+            token = (
+                ((chunk.get("message") or {}).get("content") or "")
+                or (chunk.get("response") or "")
+            )
+            if token:
+                content_parts.append(token)
+
+            if chunk.get("done"):
+                tokens_used = chunk.get("eval_count") or chunk.get("total_tokens")
+                eval_duration = chunk.get("eval_duration") or chunk.get("total_duration")
+                break
+
+        return "".join(content_parts).strip(), tokens_used, eval_duration
+
     def _parse_response(self, data: dict[str, Any]) -> tuple[str, int | None, Any]:
+        """Parsea una respuesta NO-streaming (fallback legacy, no se usa en el flujo normal)."""
         if self.use_chat_api:
             content = ((data.get("message") or {}).get("content") or data.get("response") or "").strip()
             tokens_used = data.get("eval_count") or data.get("total_tokens")

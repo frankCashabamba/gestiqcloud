@@ -69,24 +69,54 @@ def _infer_pack_conversion_factor(description: str, product_unit: str | None) ->
 
 
 def _parse_numeric(value: object) -> float:
+    """Parsea un valor numérico desde string, tolerando:
+    - Prefijos de símbolo de moneda y espacios: "$ 0.0034" → 0.0034
+    - Separadores de miles con coma: "60,000" → 60000.0
+    - Formato anglosajón: "1,234.56" → 1234.56
+    - Formato europeo: "1.234,56" → 1234.56
+    - Sufijos de unidad: "60,000 ml" → 60000.0
+    """
     if not value:
         return 0.0
     s = str(value).strip()
-    # Remove trailing non-numeric chars (units like 'ml', 'kg', etc.)
-    import re
-
-    match = re.match(r"^[\s]*([\d,.\s]+)", s)
+    # Eliminar prefijo no numérico (símbolos de moneda, espacios: $, €, S/, etc.)
+    s = re.sub(r"^[^\d,\.]+", "", s)
+    if not s:
+        return 0.0
+    # Capturar solo la parte numérica inicial (dígitos, comas, puntos, espacios internos)
+    match = re.match(r"^([\d,.\s]+)", s)
     if not match:
         return 0.0
     num_str = match.group(1).strip()
-    # Remove thousands separators: if comma is used as thousands sep (e.g. '60,000')
-    # Heuristic: if comma appears but no dot, treat commas as thousands separators
+    # Eliminar espacios internos usados como separador de miles (e.g. '1 234')
+    num_str = num_str.replace(" ", "")
+    if not num_str:
+        return 0.0
+    # Heurística de separadores:
+    # solo coma + 3 dígitos tras ella → miles: "60,000" → 60000
+    # solo coma + 1-2 dígitos tras ella → decimal europeo: "99,50" → 99.5
+    # coma antes del punto → miles=coma, dec=punto: "1,234.56" → 1234.56
+    # punto antes de coma  → miles=punto, dec=coma: "1.234,56" → 1234.56
     if "," in num_str and "." not in num_str:
-        num_str = num_str.replace(",", "")
+        # Contar dígitos tras la última coma para decidir su rol
+        last_part = num_str.rsplit(",", 1)[-1]
+        if len(last_part) == 3:
+            # "60,000" o "1,000,000" — coma como miles
+            num_str = num_str.replace(",", "")
+        else:
+            # "99,50" o "1,5" — coma como decimal (formato europeo)
+            num_str = num_str.replace(",", ".")
     elif "," in num_str and "." in num_str:
-        # e.g. '1,234.56' — comma is thousands sep
-        num_str = num_str.replace(",", "")
-    return float(num_str)
+        if num_str.index(",") < num_str.index("."):
+            # "1,234.56" — coma es separador de miles
+            num_str = num_str.replace(",", "")
+        else:
+            # "1.234,56" — punto es separador de miles, coma es decimal
+            num_str = num_str.replace(".", "").replace(",", ".")
+    try:
+        return float(num_str)
+    except ValueError:
+        return 0.0
 
 
 def _get_line_values(item: dict) -> tuple[str, float, float]:

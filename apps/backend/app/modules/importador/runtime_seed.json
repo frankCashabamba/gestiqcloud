@@ -200,18 +200,18 @@
   },
   "ai_params": {
     "temperature": "0.1",
-    "max_tokens_extraction": "1500",
-    "max_tokens_classification": "220",
-    "content_limit_unstructured": "7000",
-    "content_limit_structured": "4000",
+    "max_tokens_extraction": "500",
+    "max_tokens_classification": "180",
+    "content_limit_unstructured": "1200",
+    "content_limit_structured": "2000",
     "max_tokens_by_doctype": {
-      "INVOICE": "1200",
-      "RECEIPT": "600",
-      "PAYROLL": "800",
-      "BANK_STATEMENT": "500",
-      "INVENTORY": "400",
-      "COSTING": "600",
-      "OTHER": "1500"
+      "INVOICE": "500",
+      "RECEIPT": "350",
+      "PAYROLL": "500",
+      "BANK_STATEMENT": "350",
+      "INVENTORY": "300",
+      "COSTING": "400",
+      "OTHER": "400"
     }
   },
   "ai_runtime": {
@@ -301,7 +301,7 @@
   },
   "processing_runtime": {
     "ocr_text_sufficient_min_chars": "100",
-    "llm_text_preview_chars": "6000",
+    "llm_text_preview_chars": "1200",
     "structured_preview_rows": "5",
     "structured_preview_fields": "8",
     "doc_type_hint_min_confidence": "0.65",

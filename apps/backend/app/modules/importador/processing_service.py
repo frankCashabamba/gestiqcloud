@@ -83,11 +83,40 @@ _STRATEGY_TIMEOUTS: dict[str, float] = {
 _STRUCTURED_SKIP_FORMATS: frozenset[str] = frozenset({
     "CSV",
     "XML",
+    "XML_FACTURAE",
+    "XML_UBL",
     "JSON",
     "XLS",
     "XLSX",
     "EXCEL",
 })
+
+# Formatos XML de facturas electrónicas con parser determinista: el tipo de documento
+# y los campos clave se leen directamente del header estructurado, sin necesidad de LLM.
+_XML_INVOICE_FORMATS: frozenset[str] = frozenset({"XML_FACTURAE", "XML_UBL"})
+
+# Mapa de tipo_documento (según parser XML) → doc_type canónico del sistema.
+_XML_TIPO_DOCUMENTO_MAP: dict[str, str] = {
+    "FACTURA": "INVOICE",
+    "NOTA_CREDITO": "CREDIT_NOTE",
+    "NOTA_DEBITO": "DEBIT_NOTE",
+    "RECIBO": "RECEIPT",
+    "BOLETA": "RECEIPT",
+}
+
+# Mapa de clave del header XML → nombre de campo canónico del sistema.
+_XML_HEADER_TO_CANONICAL: dict[str, str] = {
+    "fecha": "issue_date",
+    "monto": "total_amount",
+    "subtotal": "subtotal",
+    "igv": "tax_amount",
+    "impuesto": "tax_amount",
+    "proveedor": "vendor",
+    "comprador": "buyer",
+    "documento": "doc_number",
+    "ruc": "vendor_tax_id",
+    "moneda": "currency",
+}
 
 # Formatos puramente visuales: no tienen extracción de texto, siempre deep con visión primero.
 # PDF_OCR se excluye aquí: tiene texto OCR y se enruta por calidad (bloque pdf_ocr en decide_processing_lane).
@@ -96,9 +125,11 @@ _VISUAL_FORMATS: frozenset[str] = frozenset({
 })
 
 # Timeouts por carril (segundos). Los valores de imp_config tienen prioridad.
+# deep=90s → cada fase (texto/visión) dispone de 45s; aumentado desde 40s porque
+# PDFs complejos y modelos locales grandes necesitan más margen para no caer en fallback.
 _LANE_TIMEOUTS: dict[str, float] = {
     "fast": 12.0,
-    "deep": 40.0,
+    "deep": 90.0,
 }
 
 
@@ -265,11 +296,17 @@ def decide_processing_lane(
         return LaneDecision("fast", t_fast, False, False, reasons)
 
     # ── Deep por defecto: primera importación ambigua, texto insuficiente, etc.
+    # Si no hay visión disponible (formato PDF con texto, sin bytes de imagen), el
+    # presupuesto de la segunda fase nunca se usará: darle el presupuesto completo
+    # al modelo de texto en lugar de reservar la mitad para una visión que no existe.
     _vf = _vision_first_from_quality()
     reasons = ["default_deep"]
     if ocr_quality_score is not None:
         reasons.append(f"ocr_quality={ocr_quality_score:.2f}")
-    return LaneDecision("deep", t_deep_phase, False, _vf, reasons)
+    _phase_budget = t_deep if not has_vision else t_deep_phase
+    if not has_vision:
+        reasons.append("full_budget_no_vision")
+    return LaneDecision("deep", _phase_budget, False, _vf, reasons)
 
 
 # Tipos documentales "fuertes" que requieren evidencia mínima para ser aceptados tras fallback.
@@ -454,7 +491,7 @@ def _fast_lane_result_is_sufficient(
     Returns: (is_sufficient, reason_if_not)
     """
     # Bypass/cache: no hubo LLM → aceptar siempre
-    if analysis_path in ("ok_structured", "ok_snapshot_cache", "structured_direct"):
+    if analysis_path in ("ok_structured", "ok_snapshot_cache", "structured_direct", "ok_pre_extract"):
         return True, ""
 
     # Fallback = LLM falló (timeout, JSON inválido, excepción)
@@ -1519,10 +1556,13 @@ async def _process_run_document(
 
     runtime_config_started_at = time.perf_counter()
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+    field_aliases_early = get_field_aliases(db, tenant_id=tenant_id)
+    amount_label_cfg = load_amount_label_config(db)
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
     classification_threshold = load_classification_threshold(db)
     learning_ctrl = load_learning_control(db)
+    pdf_table_cfg = load_pdf_table_parse_config(db)
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
     _rc_for_run = dict(local_recipe_config or {})
@@ -1551,11 +1591,14 @@ async def _process_run_document(
         bool(_rc_for_run.get("doc_type_hint"))
         and str(_rc_for_run.get("doc_type_hint", "")).upper() not in ("", "STRUCTURED", "OTHER")
     )
+    # Los formatos XML de factura electrónica llevan su propio tipo de documento en el
+    # header parseado, por lo que no necesitan un hint semántico externo para saltar el LLM.
+    _is_xml_invoice_format = _doc_format in _XML_INVOICE_FORMATS
     _skip_ai_for_structured = (
         has_structured
         and _doc_format in _STRUCTURED_SKIP_FORMATS
         and not force_clean_reimport
-        and _has_semantic_hint
+        and (_has_semantic_hint or _is_xml_invoice_format)
     )
     # ── Señales post-OCR para routing de carril ────────────────────────────
     _reprocess_ctx = recipe_context.reprocess_context or {}
@@ -1640,62 +1683,198 @@ async def _process_run_document(
             "analysis_path": "ok_snapshot_cache",
         }
     elif _skip_ai_for_structured:
-        _hint_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper() or "STRUCTURED"
+        if _is_xml_invoice_format and sheet_metadata:
+            # Para XML_FACTURAE / XML_UBL: leer tipo de documento y campos del header parseado.
+            # sheet_metadata tiene forma {sheet_name: kv_pairs}, usamos sheet_used como clave.
+            _xml_meta_kv: dict[str, Any] = sheet_metadata.get(sheet_used or "") or (
+                next(iter(sheet_metadata.values()), {}) if sheet_metadata else {}
+            )
+            _xml_tipo = str(_xml_meta_kv.get("tipo_documento") or "").upper()
+            _hint_doc_type = _XML_TIPO_DOCUMENTO_MAP.get(_xml_tipo, "INVOICE")
+            _xml_fields: dict[str, Any] = {}
+            for _xml_key, _canonical_key in _XML_HEADER_TO_CANONICAL.items():
+                _xml_val = _xml_meta_kv.get(_xml_key)
+                if _xml_val not in (None, "", "0", "0.00", "0.0") and _canonical_key not in _xml_fields:
+                    _xml_fields[_canonical_key] = _xml_val
+            _xml_confidence = 0.90 if _xml_fields else 0.72
+        else:
+            _hint_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper() or "STRUCTURED"
+            _xml_fields = {}
+            _xml_confidence = 0.82
         analysis = {
             "doc_type": _hint_doc_type,
-            "confidence": 0.82,
+            "confidence": _xml_confidence,
             "reasoning": f"Structured data ({_doc_format}) parsed directly; LLM skipped.",
-            "is_table": True,
+            "is_table": not _is_xml_invoice_format,
             "columns": headers_display or headers_norm,
-            "fields": {},
+            "fields": _xml_fields,
             "raw_response": "reason=structured_parse_skip",
             "model_used": "structured-parse-skip",
             "analysis_path": "ok_structured",
             "requires_review": False,
         }
         logger.info(
-            "structured_parse_skip filename=%s format=%s doc_type=%s",
+            "structured_parse_skip filename=%s format=%s doc_type=%s fields=%s",
             filename,
             _doc_format,
             _hint_doc_type,
+            list(_xml_fields.keys()) if _xml_fields else [],
         )
     else:
-        ai_primary_started_at = time.perf_counter()
-        _send_vision = (lane_decision.force_vision or is_image_doc or is_scanned_pdf) and bool(
-            vision_image_bytes
-        )
-        analysis = await analyze_document_fn(
-            llm_content,
-            filename,
-            extraction.get("format", tipo_archivo),
-            has_structured_rows=has_structured,
-            recipe_config=_rc_for_run,
-            structured_data=structured if has_structured else None,
-            structured_metadata=sheet_metadata if has_structured else None,
-            image_bytes=bytes(vision_image_bytes) if _send_vision else None,
-            fallback_patterns=fallback_patterns,
-            canonical_fields=canonical_fields,
-            prompt_config=prompt_config,
-            reprocess_mode=reprocess_mode,
-            bypass_cache=deep_reprocess,
-            deep_reprocess_context=recipe_context.reprocess_context,
-            deep_focus_fields=(
-                _reprocess_context_summary(recipe_context.reprocess_context).get("missing_fields")
-                if deep_reprocess
-                else None
-            ),
-            timeout_override=lane_decision.timeout_secs,
-            force_vision=lane_decision.force_vision,
-            vision_first=lane_decision.vision_first,
-        )
-        _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
-        analysis.setdefault("analysis_path", "ok_llm")
-        # Guard: si el análisis terminó en fallback con tipo fuerte sin evidencia → degrada a OTHER
-        analysis = _guard_fallback_doc_type(analysis, content=llm_content)
+        # ── Pre-extracción determinista (regex) ANTES del LLM ─────────────────
+        # Para PDF, PDF_OCR e imágenes con texto OCR: extraemos campos con regex
+        # (invoice_rescue + field_aliases de BD). Si encontramos ≥3 campos clave
+        # (total + fecha/doc_number/vendor/tax_id) saltamos el LLM completamente.
+        # Esto evita esperar 5-9 min de CPU con qwen:8b cuando el regex ya extrajo
+        # lo que necesitamos. deep_reprocess siempre pasa por LLM (el usuario lo pidió).
+        _PRE_EXTRACT_FORMATS = {"PDF", "PDF_OCR", "TXT", "IMAGE_OCR"}
+        _pre_fields: dict[str, Any] = {}
+        _pre_skipped_ai = False
+
+        if (
+            text
+            and text.strip()
+            and _doc_format in _PRE_EXTRACT_FORMATS
+            and not deep_reprocess
+            and not lane_decision.force_vision  # visión forzada → LLM con imagen
+        ):
+            try:
+                _rescue = invoice_rescue_from_ocr(text, _doc_format)
+                if isinstance(_rescue, dict):
+                    _pre_fields.update({k: v for k, v in _rescue.items() if v not in (None, "", [], {})})
+            except Exception as _exc:
+                logger.debug("pre_extract rescue error (non-fatal): %s", _exc)
+            try:
+                _tf = extract_fields_from_text(
+                    ocr_text=text,
+                    canonical_fields=canonical_fields,
+                    field_aliases=field_aliases_early,
+                    amount_labels=amount_label_cfg,
+                    pdf_config=pdf_table_cfg,
+                    page_texts=extraction.get("page_texts"),
+                )
+                if isinstance(_tf, dict):
+                    for _k, _v in _tf.items():
+                        if _v not in (None, "", [], {}) and _k not in _pre_fields:
+                            _pre_fields[_k] = _v
+            except Exception as _exc:
+                logger.debug("pre_extract text error (non-fatal): %s", _exc)
+
+            _has_total = safe_floatish(_pre_fields.get("total_amount")) != 0.0
+            _has_date = bool(_pre_fields.get("issue_date"))
+            _has_doc = bool(_pre_fields.get("doc_number"))
+            _has_vendor = bool(_pre_fields.get("vendor"))
+            _has_tax_id = bool(_pre_fields.get("vendor_tax_id"))
+            _strong_count = sum([_has_total, _has_date, _has_doc, _has_vendor, _has_tax_id])
+
+            # Necesitamos total_amount + al menos 2 campos identificadores
+            if _has_total and _strong_count >= 3:
+                _pre_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper()
+                if not _pre_doc_type or _pre_doc_type in ("OTHER", "STRUCTURED"):
+                    if _has_doc or _has_tax_id:
+                        _pre_doc_type = "INVOICE"
+                    elif _has_date and _has_vendor:
+                        _pre_doc_type = "INVOICE"
+                    else:
+                        _pre_doc_type = "RECEIPT"
+                _pre_confidence = min(0.62 + (_strong_count - 3) * 0.08, 0.82)
+                analysis = {
+                    "doc_type": _pre_doc_type,
+                    "confidence": _pre_confidence,
+                    "reasoning": f"Pre-extracción regex: {_strong_count} campos clave extraídos sin LLM.",
+                    "is_table": False,
+                    "columns": [],
+                    "fields": _pre_fields,
+                    "raw_response": "reason=pre_extract_bypass",
+                    "model_used": "pre-extract-bypass",
+                    "analysis_path": "ok_pre_extract",
+                    "requires_review": True,
+                }
+                _pre_skipped_ai = True
+                logger.info(
+                    "pre_extract_bypass filename=%s format=%s doc_type=%s "
+                    "fields=%s total=%s date=%s doc=%s vendor=%s tax_id=%s",
+                    filename, _doc_format, _pre_doc_type,
+                    sorted(_pre_fields.keys()),
+                    _has_total, _has_date, _has_doc, _has_vendor, _has_tax_id,
+                )
+
+        if not _pre_skipped_ai:
+            # ── Llamada al LLM ────────────────────────────────────────────────
+            ai_primary_started_at = time.perf_counter()
+            _send_vision = (lane_decision.force_vision or is_image_doc or is_scanned_pdf) and bool(
+                vision_image_bytes
+            )
+            analysis = await analyze_document_fn(
+                llm_content,
+                filename,
+                extraction.get("format", tipo_archivo),
+                has_structured_rows=has_structured,
+                recipe_config=_rc_for_run,
+                structured_data=structured if has_structured else None,
+                structured_metadata=sheet_metadata if has_structured else None,
+                image_bytes=bytes(vision_image_bytes) if _send_vision else None,
+                fallback_patterns=fallback_patterns,
+                canonical_fields=canonical_fields,
+                prompt_config=prompt_config,
+                reprocess_mode=reprocess_mode,
+                bypass_cache=deep_reprocess,
+                deep_reprocess_context=recipe_context.reprocess_context,
+                deep_focus_fields=(
+                    _reprocess_context_summary(recipe_context.reprocess_context).get("missing_fields")
+                    if deep_reprocess
+                    else None
+                ),
+                timeout_override=lane_decision.timeout_secs,
+                force_vision=lane_decision.force_vision,
+                vision_first=lane_decision.vision_first,
+            )
+            _set_stage_timing(stage_timings, "ai_primary", ai_primary_started_at)
+            analysis.setdefault("analysis_path", "ok_llm")
+            # Guard: si el análisis terminó en fallback con tipo fuerte sin evidencia → degrada a OTHER
+            analysis = _guard_fallback_doc_type(analysis, content=llm_content)
 
     normalize_analysis_started_at = time.perf_counter()
     normalized_analysis = _normalize_analysis_output(analysis)
     _set_stage_timing(stage_timings, "analysis_normalize", normalize_analysis_started_at)
+
+    # ── Rescate de texto OCR cuando el LLM falló (timeout, error, fallback) ──
+    # extract_fields_from_text usa los alias canónicos de la BD para extraer
+    # campos escalares y line_items directamente del texto OCR, sin LLM.
+    # Se activa solo en caminos de fallback para no interferir con extracciones OK.
+    _ai_path = str(analysis.get("analysis_path") or "")
+    if _ai_path in {"fallback", "fallback_error"} and text and text.strip():
+        try:
+            _ocr_fallback_fields = extract_fields_from_text(
+                ocr_text=text,
+                canonical_fields=canonical_fields,
+                field_aliases=field_aliases_early,
+                amount_labels=amount_label_cfg,
+                pdf_config=pdf_table_cfg,
+                page_texts=extraction.get("page_texts"),
+            )
+            if _ocr_fallback_fields:
+                _sanitized = _sanitize_text_fallback_fields(
+                    _ocr_fallback_fields,
+                    content=text,
+                    format_hint=extraction.get("format", tipo_archivo),
+                    prompt_config=prompt_config,
+                    ai_runtime=None,
+                    ocr_runtime=load_ocr_runtime_config(db),
+                )
+                _existing_fields = normalized_analysis.get("fields")
+                if not isinstance(_existing_fields, dict):
+                    _existing_fields = {}
+                    normalized_analysis["fields"] = _existing_fields
+                _text_fallback_changed = _merge_text_fallback_fields(_existing_fields, _sanitized)
+                if _text_fallback_changed:
+                    logger.info(
+                        "text_fallback_rescue doc_id=%s fields=%s",
+                        doc.id,
+                        sorted(k for k in _sanitized if k not in {"line_items", "line_item_page_groups"}),
+                    )
+        except Exception as _exc:
+            logger.warning("text_fallback_rescue error (non-fatal): %s", _exc)
 
     tipo_doc = str(normalized_analysis["doc_type"])
     confianza = float(normalized_analysis["confidence"])
@@ -2018,7 +2197,7 @@ async def _process_run_document(
         _extraction_status = "failed"
     elif not datos_extraidos:
         _extraction_status = "partial_empty"
-    elif _analysis_path in {"structured_direct", "ok_structured", "ok_snapshot_cache"}:
+    elif _analysis_path in {"structured_direct", "ok_structured", "ok_snapshot_cache", "ok_pre_extract"}:
         _extraction_status = "ok_structured"
     elif _analysis_path in {"fallback", "fallback_error"}:
         _extraction_status = "ok_ocr_rescue" if _has_useful_data else "partial_timeout_fallback"

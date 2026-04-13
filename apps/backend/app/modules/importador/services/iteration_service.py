@@ -16,6 +16,7 @@ import logging
 from uuid import UUID
 
 from sqlalchemy import String, and_, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento, ImpIteration, ImpLineErrorLog, ImpStagingLine
@@ -41,30 +42,31 @@ def _insert_staging_line_idempotent(
     sheet_name: str,
     raw_data: dict,
 ) -> int:
-    existing = db.scalar(
-        select(ImpStagingLine.id)
-        .where(
-            ImpStagingLine.documento_id == doc_id,
-            ImpStagingLine.line_number == line_number,
-            ImpStagingLine.sheet_name == sheet_name,
-        )
-        .limit(1)
-    )
-    if existing:
-        return 0
+    """Inserta una staging line de forma idempotente usando ON CONFLICT DO NOTHING.
 
-    db.add(
-        ImpStagingLine(
-            tenant_id=tenant_id,
-            documento_id=doc_id,
+    sheet_name nunca debe ser NULL — los documentos no tabulares usan el centinela
+    '__document__'. Esto permite referenciar el UNIQUE CONSTRAINT nombrado
+    uq_imp_staging_line_doc_line_sheet sin expresiones de función.
+
+    Retorna 1 si se insertó, 0 si ya existía.
+    """
+    stmt = (
+        pg_insert(ImpStagingLine)
+        .values(
+            tenant_id=str(tenant_id),
+            documento_id=str(doc_id),
             line_number=line_number,
             sheet_name=sheet_name,
             raw_data=raw_data,
             estado="PENDING",
         )
+        .on_conflict_do_nothing(
+            constraint="uq_imp_staging_line_doc_line_sheet",
+        )
     )
+    result = db.execute(stmt)
     db.flush()
-    return 1
+    return result.rowcount if result.rowcount >= 0 else 0
 
 
 # ─── Creación inicial de staging lines ───────────────────────────────────

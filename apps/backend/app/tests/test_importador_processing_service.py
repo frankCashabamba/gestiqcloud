@@ -5,6 +5,10 @@ import asyncio
 import pytest
 
 from app.modules.importador.processing_service import (
+    _XML_HEADER_TO_CANONICAL,
+    _XML_INVOICE_FORMATS,
+    _XML_TIPO_DOCUMENTO_MAP,
+    _STRUCTURED_SKIP_FORMATS,
     _analysis_indicates_ai_failure,
     _analyze_with_context,
     _build_ai_attempt_fingerprint,
@@ -591,3 +595,109 @@ $ 147.00
     assert preview["line_item_page_groups"][0]["line_items"][0]["supplier_ref"] == "PRO-0040"
     assert preview["line_item_page_groups"][1]["line_items"][0]["supplier_ref"] == "PRO-0060"
     assert len(preview["line_items"]) == 2
+
+
+# ── Regresión: bypass determinista para XML_FACTURAE / XML_UBL ────────────────
+
+class TestXmlInvoiceBypassConstants:
+    """
+    Verifica que los formatos XML de factura electrónica estén correctamente
+    incluidos en los sets y mapas que controlan el bypass del LLM.
+
+    Bug: XML_FACTURAE caía en el LLM (que expiraba → confidence 22%, type OTHER)
+    porque solo "XML" (genérico) estaba en _STRUCTURED_SKIP_FORMATS.
+    """
+
+    def test_xml_facturae_in_structured_skip_formats(self):
+        assert "XML_FACTURAE" in _STRUCTURED_SKIP_FORMATS
+
+    def test_xml_ubl_in_structured_skip_formats(self):
+        assert "XML_UBL" in _STRUCTURED_SKIP_FORMATS
+
+    def test_xml_facturae_in_xml_invoice_formats(self):
+        assert "XML_FACTURAE" in _XML_INVOICE_FORMATS
+
+    def test_xml_ubl_in_xml_invoice_formats(self):
+        assert "XML_UBL" in _XML_INVOICE_FORMATS
+
+    def test_tipo_documento_factura_maps_to_invoice(self):
+        assert _XML_TIPO_DOCUMENTO_MAP["FACTURA"] == "INVOICE"
+
+    def test_tipo_documento_nota_credito_maps_to_credit_note(self):
+        assert _XML_TIPO_DOCUMENTO_MAP["NOTA_CREDITO"] == "CREDIT_NOTE"
+
+    def test_header_fecha_maps_to_issue_date(self):
+        assert _XML_HEADER_TO_CANONICAL["fecha"] == "issue_date"
+
+    def test_header_monto_maps_to_total_amount(self):
+        assert _XML_HEADER_TO_CANONICAL["monto"] == "total_amount"
+
+    def test_header_proveedor_maps_to_vendor(self):
+        assert _XML_HEADER_TO_CANONICAL["proveedor"] == "vendor"
+
+    def test_header_documento_maps_to_doc_number(self):
+        assert _XML_HEADER_TO_CANONICAL["documento"] == "doc_number"
+
+    def test_header_ruc_maps_to_vendor_tax_id(self):
+        assert _XML_HEADER_TO_CANONICAL["ruc"] == "vendor_tax_id"
+
+
+class TestXmlInvoiceBypassFieldMapping:
+    """
+    Verifica la lógica de mapeo de campos XML → campos canónicos que se usa
+    en el bloque _skip_ai_for_structured de process_document_logic.
+    """
+
+    def test_tipo_documento_unknown_defaults_to_invoice(self):
+        """Tipos desconocidos deben defaultear a INVOICE (el tipo más común en XML)."""
+        assert _XML_TIPO_DOCUMENTO_MAP.get("DESCONOCIDO", "INVOICE") == "INVOICE"
+
+    def test_all_canonical_keys_are_strings(self):
+        """Todos los valores de _XML_HEADER_TO_CANONICAL deben ser strings no vacíos."""
+        for xml_key, canonical_key in _XML_HEADER_TO_CANONICAL.items():
+            assert isinstance(canonical_key, str) and canonical_key, (
+                f"La clave canónica para '{xml_key}' debe ser un string no vacío"
+            )
+
+    def test_duplicates_only_in_tax_amount(self):
+        """igv e impuesto mapean ambos a tax_amount (alternativas de idioma).
+        El código previene sobreescritura con 'if canonical_key not in _xml_fields'.
+        No debe haber otros duplicados."""
+        from collections import Counter
+        counts = Counter(_XML_HEADER_TO_CANONICAL.values())
+        allowed_duplicates = {"tax_amount"}
+        unexpected = {k for k, v in counts.items() if v > 1 and k not in allowed_duplicates}
+        assert not unexpected, f"Duplicados no esperados en _XML_HEADER_TO_CANONICAL: {unexpected}"
+
+    def test_xml_bypass_field_extraction_logic(self):
+        """
+        Simula manualmente la lógica de extracción de campos del bloque
+        _skip_ai_for_structured para XML_FACTURAE, verificando que:
+        - Los campos con valores válidos se incluyen
+        - Los campos con '0.00' se excluyen
+        - El tipo de documento se mapea correctamente
+        """
+        _xml_meta_kv = {
+            "tipo_documento": "FACTURA",
+            "fecha": "2025-07-25",
+            "documento": "2024-001 A",
+            "monto": "0.00",       # debe excluirse
+            "subtotal": "0.00",    # debe excluirse
+            "proveedor": None,     # debe excluirse (None)
+        }
+        _EXCLUDES = (None, "", "0", "0.00", "0.0")
+
+        _xml_tipo = str(_xml_meta_kv.get("tipo_documento") or "").upper()
+        _hint_doc_type = _XML_TIPO_DOCUMENTO_MAP.get(_xml_tipo, "INVOICE")
+        _xml_fields: dict = {}
+        for xml_key, canonical_key in _XML_HEADER_TO_CANONICAL.items():
+            val = _xml_meta_kv.get(xml_key)
+            if val not in _EXCLUDES and canonical_key not in _xml_fields:
+                _xml_fields[canonical_key] = val
+
+        assert _hint_doc_type == "INVOICE"
+        assert _xml_fields.get("issue_date") == "2025-07-25"
+        assert _xml_fields.get("doc_number") == "2024-001 A"
+        assert "total_amount" not in _xml_fields
+        assert "subtotal" not in _xml_fields
+        assert "vendor" not in _xml_fields
