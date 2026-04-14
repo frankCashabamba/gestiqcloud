@@ -149,7 +149,31 @@ def _looks_invoice_like(text: str, existing_fields: dict[str, Any]) -> bool:
     ):
         return True
     norm = _normalize_text(text)
-    return any(token in norm for token in ("factura", "invoice", "subtotal", "iva", "valor total"))
+    strong_markers = (
+        "factura",
+        "invoice",
+        "recibo",
+        "boleta",
+        "ticket",
+        "comprobante",
+    )
+    support_markers = (
+        "subtotal",
+        "valor total",
+        "monto total",
+        "total",
+        "iva",
+        "impuesto",
+        "ruc",
+        "nit",
+        "fecha",
+        "proveedor",
+        "supplier",
+        "documento",
+    )
+    if any(token in norm for token in strong_markers):
+        return True
+    return sum(1 for token in support_markers if token in norm) >= 2
 
 
 def _alpha_count(text: str) -> int:

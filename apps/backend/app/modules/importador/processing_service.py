@@ -27,7 +27,6 @@ from .category_loader import get_doc_categories
 from .classifier_learning import learn_column_candidates as _learn_column_candidates
 from .doc_type_resolution import (
     promote_doc_type_from_text_fallback,
-    restore_preclassified_doc_type,
     should_preserve_strong_preclassification,
 )
 from .field_alias_loader import get_canonical_fields, get_field_aliases
@@ -35,15 +34,14 @@ from .invoice_ocr_rescue import invoice_rescue_from_ocr
 from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
-    load_ai_runtime_config,
     load_amount_label_config,
     load_classification_threshold,
     load_doc_type_patterns,
+    load_doc_type_resolution_config,
     load_learning_control,
     load_ocr_runtime_config,
     load_pdf_table_parse_config,
     load_processing_runtime_config,
-    load_doc_type_resolution_config,
     load_product_sheet_detection_config,
     load_prompt_config,
 )
@@ -62,7 +60,7 @@ from .text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
     learn_labels_from_text,
 )
-from .ai_classifier import _apply_high_evidence_ocr_repairs, _estimate_text_quality
+from .ocr_quality import estimate_text_quality as _estimate_text_quality
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
@@ -829,7 +827,6 @@ def _sanitize_text_fallback_fields(
     content: str,
     format_hint: str,
     prompt_config: dict[str, Any] | None,
-    ai_runtime: dict[str, Any] | None,
     ocr_runtime: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Drop noisy OCR fallback values and apply high-evidence repairs."""
@@ -839,23 +836,6 @@ def _sanitize_text_fallback_fields(
     original_numeric_values = {
         key: safe_floatish(cleaned.get(key)) for key in ("subtotal", "tax_amount", "total_amount")
     }
-
-    # Reuse existing high-evidence repair rules from AI path without calling heavy LLM.
-    try:
-        parsed = {"doc_type": "OTHER", "fields": cleaned}
-        _apply_high_evidence_ocr_repairs(
-            parsed,
-            content=content,
-            format_hint=format_hint,
-            prompt_config=prompt_config,
-            ai_runtime=ai_runtime,
-            ocr_runtime=ocr_runtime,
-        )
-        fields_after_repairs = parsed.get("fields")
-        if isinstance(fields_after_repairs, dict):
-            cleaned = dict(fields_after_repairs)
-    except Exception as exc:
-        logger.debug("text fallback OCR repair skipped due to error: %s", exc)
 
     removed: list[str] = []
 
@@ -1111,13 +1091,9 @@ async def _analyze_with_context(
     quality: dict[str, Any] | None = None
 
     if vision_image_bytes:
-        ai_runtime = load_ai_runtime_config(db)
-        quality = _estimate_text_quality(content_text, ai_runtime=ai_runtime)
-        quality_threshold = float(
-            ai_runtime.get("openai_fallback_ocr_quality_threshold")
-            or ai_runtime.get("ocr_min_quality")
-            or 0.45
-        )
+        ocr_runtime = load_ocr_runtime_config(db)
+        quality = _estimate_text_quality(content_text, ocr_runtime=ocr_runtime)
+        quality_threshold = float(ocr_runtime.get("ocr_min_quality") or 0.45)
         low_quality = quality["score"] <= quality_threshold
 
         if low_quality:
@@ -1523,7 +1499,7 @@ async def _process_run_document(
         llm_preview_chars = max(1, int(processing_cfg.get("llm_text_preview_chars") or 6000))
         llm_content = text[:llm_preview_chars] if text else ""
 
-    is_image_doc = tipo_archivo in ("JPG", "PNG", "IMG")
+    is_image_doc = tipo_archivo.upper() in _VISUAL_FORMATS
     is_scanned_pdf = tipo_archivo == "PDF" and extraction.get("format") == "PDF_OCR"
     vision_image_bytes = extraction.get("vision_image_bytes")
     if not isinstance(vision_image_bytes, (bytes, bytearray)):
@@ -1559,10 +1535,12 @@ async def _process_run_document(
     amount_label_cfg = load_amount_label_config(db)
     prompt_config = load_prompt_config(db)
     fallback_patterns = load_doc_type_patterns(db)
+    doc_type_resolution_cfg = load_doc_type_resolution_config(db)
     classification_threshold = load_classification_threshold(db)
     learning_ctrl = load_learning_control(db)
     pdf_table_cfg = load_pdf_table_parse_config(db)
-    ai_enabled = bool(processing_cfg.get("ai_enabled", True))
+    # Fase nativa: la extracción no debe depender del runtime AI durante esta estabilización.
+    ai_enabled = False
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
     _rc_for_run = dict(local_recipe_config or {})
@@ -1736,10 +1714,9 @@ async def _process_run_document(
             and text.strip()
             and _doc_format in _PRE_EXTRACT_FORMATS
             and not deep_reprocess
-            and not lane_decision.force_vision  # visión forzada → LLM con imagen
         ):
             try:
-                _rescue = invoice_rescue_from_ocr(text, _doc_format)
+                _rescue = invoice_rescue_from_ocr(text, existing_fields=_pre_fields)
                 if isinstance(_rescue, dict):
                     _pre_fields.update({k: v for k, v in _rescue.items() if v not in (None, "", [], {})})
             except Exception as _exc:
@@ -1771,26 +1748,54 @@ async def _process_run_document(
             _has_tax_id = bool(_pre_decision["has_tax_id"])
             _strong_count = int(_pre_decision["strong_count"])
 
+            def _resolve_native_doc_type(base_doc_type: str, base_confidence: float) -> tuple[str, float, str, str | None]:
+                return promote_doc_type_from_text_fallback(
+                    current_doc_type=base_doc_type,
+                    current_confidence=base_confidence,
+                    current_reasoning="Native deterministic extraction only.",
+                    fields=_pre_fields,
+                    content=text,
+                    filename=filename,
+                    resolution_config=doc_type_resolution_cfg,
+                    fallback_patterns=fallback_patterns,
+                )
+
+            _native_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper()
+            if not _native_doc_type:
+                _native_doc_type = "STRUCTURED" if has_structured else "OTHER"
+            _native_confidence = float(_pre_decision["confidence"] if _pre_fields else 0.35)
+            _native_doc_type, _native_confidence, _native_reasoning, _native_reason_tag = _resolve_native_doc_type(
+                _native_doc_type,
+                _native_confidence,
+            )
+            if _native_reason_tag:
+                logger.info(
+                    "native_doc_type_promoted filename=%s format=%s doc_type=%s reason=%s fields=%s",
+                    filename,
+                    _doc_format,
+                    _native_doc_type,
+                    _native_reason_tag,
+                    sorted(_pre_fields.keys()),
+                )
+
             if not ai_enabled:
-                _pre_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper()
-                if not _pre_doc_type:
-                    _pre_doc_type = "STRUCTURED" if has_structured else "OTHER"
-                _pre_confidence = float(_pre_decision["confidence"] if _pre_fields else 0.35)
+                _pre_doc_type = _native_doc_type
+                _pre_confidence = _native_confidence
                 analysis = {
                     "doc_type": _pre_doc_type,
                     "confidence": _pre_confidence,
-                    "reasoning": "AI disabled by runtime config; using deterministic extraction only.",
+                    "reasoning": _native_reasoning,
                     "is_table": bool(has_structured),
                     "columns": [],
                     "fields": _pre_fields,
-                    "raw_response": "reason=ai_disabled",
+                    "raw_response": "reason=native_deterministic_only",
                     "model_used": "deterministic-only",
                     "analysis_path": "ok_pre_extract",
                     "requires_review": _pre_confidence < classification_threshold,
                 }
                 _pre_skipped_ai = True
                 logger.info(
-                    "ai_disabled_deterministic_only filename=%s format=%s doc_type=%s fields=%s",
+                    "native_deterministic_only filename=%s format=%s doc_type=%s fields=%s",
                     filename,
                     _doc_format,
                     _pre_doc_type,
@@ -1801,7 +1806,7 @@ async def _process_run_document(
             # Saltamos IA solo cuando la extracción nativa ya cubrió suficiente señal
             # y la confianza estimada supera el umbral configurable.
             elif _pre_decision["skip_ai"]:
-                _pre_doc_type = str(_rc_for_run.get("doc_type_hint") or "").upper()
+                _pre_doc_type = _native_doc_type
                 if not _pre_doc_type or _pre_doc_type in ("OTHER", "STRUCTURED"):
                     if _has_doc or _has_tax_id:
                         _pre_doc_type = "INVOICE"
@@ -1809,11 +1814,13 @@ async def _process_run_document(
                         _pre_doc_type = "INVOICE"
                     else:
                         _pre_doc_type = "RECEIPT"
-                _pre_confidence = float(_pre_decision["confidence"])
+                _pre_confidence = _native_confidence
                 analysis = {
                     "doc_type": _pre_doc_type,
                     "confidence": _pre_confidence,
-                    "reasoning": (
+                    "reasoning": _native_reasoning
+                    if _native_reason_tag
+                    else (
                         f"Pre-extracción determinista: {_strong_count} campos clave "
                         "extraídos sin LLM."
                     ),
@@ -1849,18 +1856,18 @@ async def _process_run_document(
             analysis = {
                 "doc_type": _deterministic_doc_type,
                 "confidence": _deterministic_confidence,
-                "reasoning": "AI disabled by runtime config; using deterministic extraction only.",
+                "reasoning": "Native deterministic extraction only.",
                 "is_table": bool(has_structured),
                 "columns": [],
                 "fields": _pre_fields,
-                "raw_response": "reason=ai_disabled",
+                "raw_response": "reason=native_deterministic_fallback",
                 "model_used": "deterministic-only",
                 "analysis_path": "ok_pre_extract",
                 "requires_review": _deterministic_confidence < classification_threshold,
             }
             _pre_skipped_ai = True
             logger.info(
-                "ai_disabled_deterministic_fallback filename=%s format=%s doc_type=%s fields=%s",
+                "native_deterministic_fallback filename=%s format=%s doc_type=%s fields=%s",
                 filename,
                 _doc_format,
                 _deterministic_doc_type,
@@ -1928,7 +1935,6 @@ async def _process_run_document(
                     content=text,
                     format_hint=extraction.get("format", tipo_archivo),
                     prompt_config=prompt_config,
-                    ai_runtime=None,
                     ocr_runtime=load_ocr_runtime_config(db),
                 )
                 _existing_fields = normalized_analysis.get("fields")

@@ -12,7 +12,7 @@ import re
 import unicodedata
 from typing import Any
 
-from .document_fields import safe_floatish
+from .document_fields import detect_document_total, safe_floatish
 
 logger = logging.getLogger("importador.text_fallback")
 
@@ -138,6 +138,45 @@ def _parse_text(raw: str) -> str | None:
 
 _FieldSpec = dict  # {"type": str, "labels": list[str], "labels_norm": list[str]}
 
+_GENERIC_HEADER_TO_CANONICAL: tuple[tuple[str, str], ...] = (
+    ("fecha", "issue_date"),
+    ("cant", "quantity"),
+    ("cantidad", "quantity"),
+    ("qty", "quantity"),
+    ("descrip", "description"),
+    ("descripcion", "description"),
+    ("unit price", "unit_price"),
+    ("precio unit", "unit_price"),
+    ("p.unit", "unit_price"),
+    ("v.unit", "unit_price"),
+    ("unit", "unit_price"),
+    ("v.total", "total_price"),
+    ("valor total", "total_price"),
+    ("importe", "total_price"),
+    ("total", "total_price"),
+    ("subtotal", "subtotal"),
+    ("iva", "tax_amount"),
+    ("impuesto", "tax_amount"),
+    ("cliente", "customer"),
+    ("proveedor", "vendor"),
+)
+
+_GENERIC_ROW_FIELDS: frozenset[str] = frozenset(
+    {
+        "issue_date",
+        "quantity",
+        "unit_price",
+        "total_price",
+        "description",
+        "customer",
+        "vendor",
+        "subtotal",
+        "tax_amount",
+        "currency",
+        "doc_number",
+    }
+)
+
 
 def _build_specs(
     canonical_fields: dict[str, dict],
@@ -176,6 +215,708 @@ def _build_specs(
             "labels_norm": [_normalize_label(lb) for lb in labels],
         }
     return specs
+
+
+def _generic_header_to_canonical(label: str) -> str | None:
+    """Map common OCR table headers to canonical keys when no DB alias matches."""
+    norm = _normalize_label(label)
+    if not norm:
+        return None
+    compact = re.sub(r"[^\w]+", " ", norm).strip()
+    for token, canonical in _GENERIC_HEADER_TO_CANONICAL:
+        if token in {norm, compact}:
+            return canonical
+        if token in norm or token in compact:
+            return canonical
+    return None
+
+
+def _looks_like_generic_header_token(token: str) -> bool:
+    norm = _normalize_label(token)
+    if not norm:
+        return False
+    if len(norm) > 24 and len(norm.split()) > 3:
+        return False
+    if _generic_header_to_canonical(norm):
+        return True
+    return norm in {
+        "pedidos",
+        "items",
+        "pedido",
+        "linea",
+        "lineas",
+        "cantidad",
+        "cant",
+        "descripcion",
+        "cliente",
+        "ruc",
+        "nit",
+    }
+
+
+def _looks_like_tax_id_value(raw: str) -> bool:
+    """Heuristic guard for RUC/NIT/CEDULA-like values.
+
+    We only accept values that contain enough digits to plausibly be an ID,
+    so an address line after `RUC:` is not misread as a tax identifier.
+    """
+    digits = re.sub(r"\D", "", str(raw or ""))
+    return 8 <= len(digits) <= 15
+
+
+def _is_tax_id_label(label_norm: str) -> bool:
+    return any(
+        token in label_norm
+        for token in (
+            "ruc",
+            "nit",
+            "cedula",
+            "identificacion",
+            "tax id",
+            "tax_id",
+            "nif",
+        )
+    )
+
+
+def _looks_like_address_only(text: str) -> bool:
+    norm = _normalize_label(text)
+    address_hits = sum(
+        1
+        for token in (
+            "calle",
+            "avenida",
+            "av ",
+            "av.",
+            "direccion",
+            "dirección",
+            "telefono",
+            "teléfono",
+            "email",
+            "correo",
+            "piso",
+            "oficina",
+            "urb",
+            "sector",
+            "barrio",
+        )
+        if token in norm
+    )
+    return address_hits >= 2
+
+
+def _extract_inline_pipe_table(ocr_text: str) -> list[dict[str, Any]]:
+    """Fallback para tablas inline separadas por '|' cuando OCR colapsa las líneas."""
+    raw_tokens = [token.strip() for token in re.split(r"\s*\|\s*|\t+", str(ocr_text or "")) if token.strip()]
+    if len(raw_tokens) < 6:
+        return []
+
+    start_idx = None
+    for idx, token in enumerate(raw_tokens):
+        if _looks_like_generic_header_token(token):
+            start_idx = idx
+            break
+    if start_idx is None:
+        return []
+
+    headers: list[str] = []
+    data_start = start_idx
+    for idx in range(start_idx, len(raw_tokens)):
+        token = raw_tokens[idx]
+        if _looks_like_generic_header_token(token):
+            headers.append(token)
+            data_start = idx + 1
+            continue
+        if len(headers) < 3 and not re.search(r"\d", token):
+            headers.append(token)
+            data_start = idx + 1
+            continue
+        break
+
+    if len(headers) < 3:
+        return []
+
+    remaining = raw_tokens[data_start:]
+    if len(remaining) < len(headers):
+        return []
+
+    items: list[dict[str, Any]] = []
+    row_size = len(headers)
+    for offset in range(0, len(remaining) - row_size + 1, row_size):
+        chunk = remaining[offset : offset + row_size]
+        row: dict[str, Any] = {}
+        for header, value in zip(headers, chunk):
+            canonical = _generic_header_to_canonical(header)
+            if canonical == "issue_date":
+                parsed_date = _parse_date(value)
+                if parsed_date is not None:
+                    row[canonical] = parsed_date
+                else:
+                    row[canonical] = value
+            elif canonical in {"quantity", "unit_price", "total_price", "subtotal", "tax_amount"}:
+                parsed_num = _parse_numeric(value)
+                if parsed_num is not None:
+                    row[canonical] = parsed_num
+                else:
+                    row[canonical] = value
+            elif canonical:
+                row[canonical] = value
+            else:
+                row.setdefault("extra_columns", {})[header] = value
+        if row:
+            items.append(row)
+
+    return items
+
+
+def _looks_like_payroll_document(lines: list[str]) -> bool:
+    if not lines:
+        return False
+
+    joined = " ".join(_normalize_label(line) for line in lines[:120])
+    markers = (
+        "devengos",
+        "deducciones",
+        "liquido a percibir",
+        "liquido",
+        "base irpf",
+        "base ss",
+        "cotizacion",
+        "trabajador",
+        "empresa",
+    )
+    hits = sum(1 for marker in markers if marker in joined)
+    return hits >= 3 or ("devengos" in joined and "deducciones" in joined)
+
+
+def _parse_compact_invoice_line_item(line: str) -> dict[str, Any] | None:
+    """Parse compact invoice/photo rows with code, barcode, qty, description and amounts."""
+    raw = str(line or "").strip()
+    if not raw:
+        return None
+
+    amount_pattern = re.compile(
+        r"(?<!\d)(?:-?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|-?\d+[.,]\d{2})(?!\d)"
+    )
+    matches = list(amount_pattern.finditer(raw))
+    if len(matches) < 3:
+        return None
+
+    qty_match, unit_match, total_match = matches[-3], matches[-2], matches[-1]
+    quantity = safe_floatish(qty_match.group(0))
+    unit_price = safe_floatish(unit_match.group(0))
+    total_price = safe_floatish(total_match.group(0))
+    if quantity is None or unit_price is None or total_price is None:
+        return None
+
+    prefix = raw[:qty_match.start()].strip()
+    prefix = prefix.strip("|{}[]")
+    prefix_tokens = [token.strip("{}[]|") for token in re.split(r"\s+", prefix) if token.strip()]
+    if not prefix_tokens:
+        return None
+
+    product_code = None
+    barcode = None
+    if re.fullmatch(r"[A-Z0-9][A-Z0-9\-]{2,}", prefix_tokens[0]):
+        product_code = prefix_tokens.pop(0)
+    if prefix_tokens and re.fullmatch(r"\d{8,15}", re.sub(r"\D", "", prefix_tokens[0])):
+        barcode = re.sub(r"\D", "", prefix_tokens.pop(0))
+
+    description = " ".join(prefix_tokens).strip(" -:|/{}[]")
+    description = re.sub(r"^[^A-Za-zÁÉÍÓÚÑáéíóúñ]+", "", description).strip()
+    if not description:
+        return None
+
+    return {
+        "product_code": product_code,
+        "barcode": barcode,
+        "quantity": round(float(quantity), 2),
+        "unit_price": round(float(unit_price), 2),
+        "total_price": round(float(total_price), 2),
+        "amount": round(float(total_price), 2),
+        "description": description,
+        "concept": description,
+        "raw_text": raw,
+    }
+
+
+def _extract_compact_invoice_items(lines: list[str]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for line in lines:
+        item = _parse_compact_invoice_line_item(line)
+        if item is not None:
+            items.append(item)
+    return items
+
+
+def _parse_compact_invoice_line_item_relaxed(line: str) -> dict[str, Any] | None:
+    raw = str(line or "").strip()
+    if not raw:
+        return None
+
+    amount_pattern = re.compile(
+        r"(?<!\d)(?:-?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|-?\d+[.,]\d{2})(?!\d)"
+    )
+    matches = list(amount_pattern.finditer(raw))
+    if len(matches) < 3:
+        return None
+
+    qty_match, unit_match, total_match = matches[-3], matches[-2], matches[-1]
+    quantity = safe_floatish(qty_match.group(0))
+    unit_price = safe_floatish(unit_match.group(0))
+    total_price = safe_floatish(total_match.group(0))
+    if quantity is None or unit_price is None or total_price is None:
+        return None
+
+    prefix = raw[:qty_match.start()].strip().strip("|{}[]")
+    prefix_tokens = [token.strip("{}[]|") for token in re.split(r"\s+", prefix) if token.strip()]
+    if not prefix_tokens:
+        return None
+
+    product_code = None
+    barcode = None
+    if re.fullmatch(r"[A-Z0-9][A-Z0-9\-]{2,}", prefix_tokens[0]):
+        product_code = prefix_tokens.pop(0)
+    if prefix_tokens and re.fullmatch(r"\d{8,15}", re.sub(r"\D", "", prefix_tokens[0])):
+        barcode = re.sub(r"\D", "", prefix_tokens.pop(0))
+
+    middle_segment = raw[qty_match.end() : unit_match.start()].strip().strip("|{}[]")
+    middle_segment = re.sub(r"^[^A-Za-zÃÃ‰ÃÃ“ÃšÃ‘Ã¡Ã©Ã­Ã³ÃºÃ±]+", "", middle_segment).strip()
+    description = middle_segment or " ".join(prefix_tokens).strip(" -:|/{}[]")
+    description = re.sub(r"^[^A-Za-zÃÃ‰ÃÃ“ÃšÃ‘Ã¡Ã©Ã­Ã³ÃºÃ±]+", "", description).strip()
+    if not description:
+        return None
+
+    return {
+        "product_code": product_code,
+        "barcode": barcode,
+        "quantity": round(float(quantity), 2),
+        "unit_price": round(float(unit_price), 2),
+        "total_price": round(float(total_price), 2),
+        "amount": round(float(total_price), 2),
+        "description": description,
+        "concept": description,
+        "raw_text": raw,
+    }
+
+
+def _extract_compact_invoice_items_relaxed(lines: list[str]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for line in lines:
+        item = _parse_compact_invoice_line_item_relaxed(line)
+        if item is not None:
+            items.append(item)
+    return items
+
+
+def _parse_payroll_row(line: str, *, section: str, index: int) -> dict[str, Any] | None:
+    raw = str(line or "").strip()
+    if not raw:
+        return None
+
+    amount_pattern = re.compile(
+        r"(?<!\d)(?:-?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|-?\d+[.,]\d{2})(?!\d)"
+    )
+    matches = list(amount_pattern.finditer(raw))
+    if not matches:
+        return None
+
+    amount_match = matches[-1]
+    amount = safe_floatish(amount_match.group(0))
+    if amount is None:
+        return None
+
+    prefix = raw[:amount_match.start()].strip()
+    prefix_tokens = [token.strip(" *-:|/{}[]") for token in re.split(r"\s+", prefix) if token.strip()]
+    if not prefix_tokens:
+        return None
+
+    quantity = None
+    unit_price = None
+    code = None
+    cursor = 0
+    if cursor < len(prefix_tokens) and safe_floatish(prefix_tokens[cursor]) is not None:
+        quantity = safe_floatish(prefix_tokens[cursor])
+        cursor += 1
+    if cursor < len(prefix_tokens) and safe_floatish(prefix_tokens[cursor]) is not None:
+        unit_price = safe_floatish(prefix_tokens[cursor])
+        cursor += 1
+    if cursor < len(prefix_tokens):
+        code_candidate = re.sub(r"\D", "", prefix_tokens[cursor])
+        if code_candidate and len(code_candidate) <= 5:
+            code = code_candidate
+            cursor += 1
+
+    concept = " ".join(prefix_tokens[cursor:]).strip(" *-:|/{}[]")
+    if not concept:
+        return None
+
+    return {
+        "section": section,
+        "code": code,
+        "quantity": round(float(quantity), 2) if quantity is not None else None,
+        "unit_price": round(float(unit_price), 3) if unit_price is not None else None,
+        "total_price": round(float(amount), 2),
+        "amount": round(float(amount), 2),
+        "description": concept,
+        "concept": concept,
+        "raw_text": raw,
+        "row_index": index,
+    }
+
+
+def _extract_payroll_items(lines: list[str]) -> list[dict[str, Any]]:
+    if not _looks_like_payroll_document(lines):
+        return []
+
+    start_idx = None
+    for idx, line in enumerate(lines):
+        norm = _normalize_label(line)
+        if "concepto" in norm:
+            window_end = min(idx + 5, len(lines))
+            window = [_normalize_label(lines[j]) for j in range(idx, window_end)]
+            if any("devengos" in item for item in window) and any("deducciones" in item for item in window):
+                last_heading = max(
+                    j
+                    for j in range(idx, window_end)
+                    if "devengos" in _normalize_label(lines[j]) or "deducciones" in _normalize_label(lines[j])
+                )
+                start_idx = last_heading + 1
+                break
+    if start_idx is None:
+        for idx, line in enumerate(lines):
+            norm = _normalize_label(line)
+            if "devengos" in norm:
+                window_end = min(idx + 5, len(lines))
+                if any("deducciones" in _normalize_label(lines[j]) for j in range(idx, window_end)):
+                    last_heading = max(
+                        j
+                        for j in range(idx, window_end)
+                        if "devengos" in _normalize_label(lines[j]) or "deducciones" in _normalize_label(lines[j])
+                    )
+                    start_idx = last_heading + 1
+                    break
+    if start_idx is None:
+        return []
+
+    end_idx = len(lines)
+    for idx in range(start_idx, len(lines)):
+        norm = _normalize_label(lines[idx])
+        if any(
+            marker in norm
+            for marker in (
+                "base s.s",
+                "liquido a percibir",
+                "liquido",
+                "iban",
+                "swift",
+                "coste empresa",
+            )
+        ):
+            end_idx = idx
+            break
+
+    deduction_start = next(
+        (
+            idx
+            for idx in range(max(0, start_idx - 5), end_idx)
+            if "deducciones" in _normalize_label(lines[idx])
+        ),
+        end_idx,
+    )
+
+    items: list[dict[str, Any]] = []
+    for idx in range(start_idx, end_idx):
+        line = lines[idx].strip()
+        norm = _normalize_label(line)
+        if not line or any(token in norm for token in ("concepto", "devengos", "deducciones")):
+            continue
+        if not re.search(r"\d", line):
+            continue
+        section = "DEDUCCION" if idx >= deduction_start else "DEVENGO"
+        parsed = _parse_payroll_row(line, section=section, index=idx)
+        if parsed is not None:
+            items.append(parsed)
+
+    return items
+
+
+def _parse_loose_number(token: str) -> float | None:
+    text = re.sub(r"[^0-9,.-]", "", str(token or "").strip())
+    if not text:
+        return None
+
+    sign = -1.0 if text.startswith("-") else 1.0
+    text = text.lstrip("-")
+
+    if "," in text and "." in text:
+        if text.rfind(",") > text.rfind("."):
+            normalized = text.replace(".", "").replace(",", ".")
+        else:
+            normalized = text.replace(",", "")
+    elif "," in text:
+        normalized = text.replace(".", "").replace(",", ".")
+    elif "." in text:
+        parts = text.split(".")
+        normalized = text if len(parts) <= 2 else text.replace(".", "")
+    else:
+        normalized = text
+
+    try:
+        return sign * float(normalized)
+    except ValueError:
+        return None
+
+
+def _parse_payroll_row_relaxed(line: str, *, section: str, index: int) -> dict[str, Any] | None:
+    raw = str(line or "").strip()
+    if not raw:
+        return None
+
+    amount_pattern = re.compile(
+        r"(?<!\d)(?:-?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|-?\d+[.,]\d{2})(?!\d)"
+    )
+    matches = list(amount_pattern.finditer(raw))
+    if not matches:
+        return None
+
+    total_match = matches[-1]
+    amount = _parse_loose_number(total_match.group(0))
+    if amount is None:
+        return None
+
+    prefix = raw[:total_match.start()].strip().strip("|{}[]")
+    tokens = [token.strip(" *-:|/{}[]") for token in re.split(r"\s+", prefix) if token.strip()]
+    if not tokens:
+        return None
+
+    code = None
+    quantity = None
+    unit_price = None
+    cursor = 0
+
+    if cursor < len(tokens) and re.fullmatch(r"\d{1,5}", re.sub(r"\D", "", tokens[cursor])):
+        next_token = tokens[cursor + 1] if cursor + 1 < len(tokens) else ""
+        if not re.search(r"[A-Za-z]", next_token):
+            code = re.sub(r"\D", "", tokens[cursor])
+            cursor += 1
+        elif len(tokens[cursor]) > 5:
+            quantity = _parse_loose_number(tokens[cursor])
+            cursor += 1
+
+    if cursor < len(tokens) and quantity is None:
+        token = tokens[cursor]
+        if re.search(r"[.,]", token):
+            quantity = _parse_loose_number(token)
+            if quantity is not None:
+                cursor += 1
+
+    if cursor < len(tokens):
+        token = tokens[cursor]
+        if re.search(r"[.,]", token):
+            unit_price = _parse_loose_number(token)
+            if unit_price is not None:
+                cursor += 1
+
+    if quantity is None and tokens:
+        trailing_token = tokens[-1]
+        if re.search(r"[.,]", trailing_token):
+            quantity = _parse_loose_number(trailing_token)
+            if quantity is not None and cursor < len(tokens) and tokens[-1] == trailing_token:
+                tokens = tokens[:-1]
+
+    concept_tokens = tokens[cursor:]
+    if quantity is not None and concept_tokens and re.search(r"[.,]", concept_tokens[-1]):
+        maybe_number = _parse_loose_number(concept_tokens[-1])
+        if maybe_number is not None:
+            if unit_price is None:
+                unit_price = maybe_number
+            concept_tokens = concept_tokens[:-1]
+
+    concept = " ".join(concept_tokens).strip(" *-:|/{}[]")
+    if not concept:
+        concept = " ".join(tokens).strip(" *-:|/{}[]")
+    if not concept:
+        return None
+
+    return {
+        "section": section,
+        "code": code,
+        "quantity": round(float(quantity), 2) if quantity is not None else None,
+        "unit_price": round(float(unit_price), 3) if unit_price is not None else None,
+        "total_price": round(float(amount), 2),
+        "amount": round(float(amount), 2),
+        "description": concept,
+        "concept": concept,
+        "raw_text": raw,
+        "row_index": index,
+    }
+
+
+def _extract_payroll_items_relaxed(lines: list[str]) -> list[dict[str, Any]]:
+    if not _looks_like_payroll_document(lines):
+        return []
+
+    start_idx = None
+    for idx, line in enumerate(lines):
+        norm = _normalize_label(line)
+        if "concepto" in norm:
+            window_end = min(idx + 5, len(lines))
+            window = [_normalize_label(lines[j]) for j in range(idx, window_end)]
+            if any("devengos" in item for item in window) and any("deducciones" in item for item in window):
+                last_heading = max(
+                    j
+                    for j in range(idx, window_end)
+                    if "devengos" in _normalize_label(lines[j]) or "deducciones" in _normalize_label(lines[j])
+                )
+                start_idx = last_heading + 1
+                break
+    if start_idx is None:
+        for idx, line in enumerate(lines):
+            norm = _normalize_label(line)
+            if "devengos" in norm:
+                window_end = min(idx + 5, len(lines))
+                if any("deducciones" in _normalize_label(lines[j]) for j in range(idx, window_end)):
+                    last_heading = max(
+                        j
+                        for j in range(idx, window_end)
+                        if "devengos" in _normalize_label(lines[j]) or "deducciones" in _normalize_label(lines[j])
+                    )
+                    start_idx = last_heading + 1
+                    break
+    if start_idx is None:
+        return []
+
+    end_idx = len(lines)
+    for idx in range(start_idx, len(lines)):
+        norm = _normalize_label(lines[idx])
+        if any(
+            marker in norm
+            for marker in (
+                "base s.s",
+                "liquido a percibir",
+                "liquido",
+                "iban",
+                "swift",
+                "coste empresa",
+            )
+        ):
+            end_idx = idx
+            break
+
+    deduction_start = next(
+        (
+            idx
+            for idx in range(max(0, start_idx - 5), end_idx)
+            if "deducciones" in _normalize_label(lines[idx])
+        ),
+        end_idx,
+    )
+
+    items: list[dict[str, Any]] = []
+    deduction_markers = (
+        "cotizacion",
+        "tributacion",
+        "deduccion",
+        "dcto",
+        "irpf",
+        "mei",
+        "formacion",
+        "desempleo",
+        "seguridad",
+        "cont.comu",
+    )
+    for idx in range(start_idx, end_idx):
+        line = lines[idx].strip()
+        norm = _normalize_label(line)
+        if not line or norm in {"concepto", "devengos", "deducciones"}:
+            continue
+        if not re.search(r"\d", line):
+            continue
+        section = "DEDUCCION" if any(marker in norm for marker in deduction_markers) else "DEVENGO"
+        parsed = _parse_payroll_row_relaxed(line, section=section, index=idx)
+        if parsed is not None:
+            items.append(parsed)
+
+    return items
+
+
+def _infer_payroll_metadata(lines: list[str], payroll_items: list[dict[str, Any]]) -> dict[str, Any]:
+    if not _looks_like_payroll_document(lines):
+        return {}
+
+    result: dict[str, Any] = {}
+
+    if lines:
+        first_line = _parse_text(lines[0])
+        if first_line and len(first_line.split()) <= 8:
+            result["employee_name"] = first_line
+
+    for idx, line in enumerate(lines[:40]):
+        norm = _normalize_label(line)
+        if "empresa" in norm and idx + 1 < len(lines):
+            for look_ahead in range(idx + 1, min(idx + 8, len(lines))):
+                company_line = str(lines[look_ahead] or "").strip()
+                company_norm = _normalize_label(company_line)
+                if not company_line or any(
+                    marker in company_norm
+                    for marker in (
+                        "domicilio",
+                        "trabajador",
+                        "categoria",
+                        "antiguedad",
+                        "periodo",
+                        "nif",
+                    )
+                ):
+                    continue
+                if re.search(r"\b(?:s\.l\.u\.|s\.l\.|s\.a\.|slu|sa)\b", company_norm) or "," in company_line:
+                    company_candidate = re.split(r"\s{2,}", company_line)[0].strip()
+                    company_candidate = company_candidate.strip(" |")
+                    if company_candidate:
+                        result.setdefault("company_name", company_candidate)
+                        break
+        if "trabajador" in norm and idx + 1 < len(lines):
+            worker_candidate = _parse_text(lines[idx + 1])
+            if worker_candidate:
+                result.setdefault("employee_name", worker_candidate)
+        if "periodo" in norm:
+            for look_ahead in range(idx + 1, min(idx + 8, len(lines))):
+                period_candidate = _parse_text(lines[look_ahead])
+                if not period_candidate:
+                    continue
+                period_norm = _normalize_label(period_candidate)
+                if re.search(r"\b\d{2}\s+[A-Z]{3}\s+\d{2}\b", period_norm):
+                    result.setdefault("payroll_period", period_candidate)
+                    break
+        if "liquido a percibir" in norm:
+            amounts = _find_amounts(line)
+            if amounts:
+                result["liquido_a_percibir"] = round(float(amounts[-1]), 2)
+
+    devengos_total = 0.0
+    deducciones_total = 0.0
+    for item in payroll_items:
+        amount = safe_floatish(item.get("total_price"))
+        if amount is None:
+            amount = safe_floatish(item.get("amount"))
+        if amount is None:
+            continue
+        section = str(item.get("section") or "").upper()
+        if section == "DEDUCCION":
+            deducciones_total += float(amount)
+        else:
+            devengos_total += float(amount)
+
+    if devengos_total:
+        result["gross_pay"] = round(devengos_total, 2)
+    if deducciones_total:
+        result["deductions_total"] = round(deducciones_total, 2)
+    if devengos_total and deducciones_total:
+        result["liquido_a_percibir"] = round(devengos_total - deducciones_total, 2)
+        result.setdefault("total_amount", result["liquido_a_percibir"])
+
+    return result
 
 
 def _all_known_labels_norm(specs: dict[str, _FieldSpec]) -> set[str]:
@@ -242,6 +983,34 @@ def _match_same_line(
             raw_value = line[m.start(1) :].strip()
             if raw_value:
                 candidates.append((raw_value, 18 + len(label_norm)))
+                continue
+        # Pattern 3: label + single whitespace + value.
+        # This is common in scanned PDFs where OCR collapses "Fecha 2026-03-21"
+        # or "Total 1.00 USD" into one line without punctuation.
+        if spec["type"] in ("numeric", "number", "date"):
+            p3 = rf"^{escaped}[\w\s.%#]*?\s+(.+)"
+            m = re.search(p3, line_norm)
+            if m:
+                raw_value = line[m.start(1) :].strip()
+                if raw_value:
+                    parsed_value = _parse_value(raw_value, spec["type"])
+                    if parsed_value is not None:
+                        candidates.append((raw_value, 17 + len(label_norm)))
+        elif _is_tax_id_label(label_norm):
+            p3 = rf"^{escaped}[\w\s.%#]*?\s+(.+)"
+            m = re.search(p3, line_norm)
+            if m:
+                raw_value = line[m.start(1) :].strip()
+                if raw_value and _looks_like_tax_id_value(raw_value):
+                    candidates.append((raw_value, 17 + len(label_norm)))
+        elif spec["type"] == "text":
+            p3 = rf"^{escaped}[\w\s.%#]*?\s+(.+)"
+            m = re.search(p3, line_norm)
+            if m:
+                raw_value = line[m.start(1) :].strip()
+                if raw_value and not _looks_like_tax_id_value(raw_value):
+                    if len(raw_value) <= 80 and len(raw_value.split()) <= 8:
+                        candidates.append((raw_value, 16 + len(label_norm)))
     return candidates
 
 
@@ -267,7 +1036,12 @@ def _match_next_line(
         ):
             continue
         # Label-only line found; next non-empty line is the value
-        max_capture = 1 if spec["type"] in ("numeric", "date") else 2
+        if spec["type"] in ("numeric", "number"):
+            max_capture = 4 if "total" in label_norm else 2
+        elif spec["type"] == "date":
+            max_capture = 1
+        else:
+            max_capture = 2
         value_parts: list[str] = []
         for j in range(index + 1, min(index + 1 + max_capture, len(lines))):
             next_norm = lines_norm[j]
@@ -277,6 +1051,8 @@ def _match_next_line(
         if not value_parts:
             continue
         raw_value = " ".join(value_parts)
+        if _is_tax_id_label(label_norm) and not _looks_like_tax_id_value(raw_value):
+            continue
         score = 15 + len(label_norm)
         candidates.append((raw_value, score))
     return candidates
@@ -307,6 +1083,553 @@ def _best_candidate(candidates: list[_Candidate], field_type: str) -> Any | None
         if parsed is not None:
             return parsed
     return None
+
+
+def _find_first_date(text: str) -> str | None:
+    """Find the first parseable date in a text fragment."""
+    for match in re.finditer(r"\b\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}\b", str(text or "")):
+        parsed = _parse_date(match.group(0))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _find_amounts(text: str) -> list[float]:
+    """Return all parseable amounts found in a text fragment."""
+    values: list[float] = []
+    amount_pattern = re.compile(
+        r"(?<!\d)(?:-?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|-?\d+[.,]\d{2})(?!\d)"
+    )
+    for match in amount_pattern.finditer(str(text or "")):
+        parsed = safe_floatish(match.group(0))
+        if parsed is not None:
+            values.append(parsed)
+    return values
+
+
+def _infer_issue_date_from_lines(lines: list[str]) -> str | None:
+    """Infer a likely issue date from generic OCR lines."""
+    if not lines:
+        return None
+
+    date_markers = (
+        "fecha",
+        "emision",
+        "emisión",
+        "operacion",
+        "operación",
+        "valor",
+        "vencimiento",
+        "expedicion",
+        "expedición",
+    )
+
+    scored: list[tuple[int, int, str]] = []
+    for idx, line in enumerate(lines):
+        norm = _normalize_label(line)
+        if not norm:
+            continue
+        date = _find_first_date(line)
+        if date is None and idx + 1 < len(lines):
+            date = _find_first_date(lines[idx + 1])
+        if date is None and idx > 0:
+            date = _find_first_date(lines[idx - 1])
+        if date is None:
+            continue
+
+        score = 0
+        if any(marker in norm for marker in date_markers):
+            score += 20
+        if "fecha" in norm:
+            score += 8
+        if idx < 12:
+            score += 4
+        if re.search(r"\bfecha\s+(valor|operacion|operación|emision|emisión)\b", norm):
+            score += 8
+        scored.append((score, -idx, date))
+
+    if scored:
+        scored.sort(reverse=True)
+        return scored[0][2]
+
+    for line in lines:
+        date = _find_first_date(line)
+        if date is not None:
+            return date
+    return None
+
+
+def _infer_total_amount_from_lines(lines: list[str]) -> float | None:
+    """Infer a likely total/amount from generic OCR lines."""
+    if not lines:
+        return None
+
+    amount_markers = (
+        "total",
+        "importe",
+        "monto",
+        "cuota",
+        "saldo",
+        "compra",
+        "pagado",
+        "pago",
+        "valor",
+        "movimiento",
+        "cargo",
+        "abono",
+        "debe",
+        "haber",
+        "tarjeta",
+    )
+
+    scored: list[tuple[int, int, float]] = []
+    for idx, line in enumerate(lines):
+        norm = _normalize_label(line)
+        if not norm:
+            continue
+        amounts = _find_amounts(line)
+        if not amounts:
+            continue
+
+        score = 0
+        if any(marker in norm for marker in amount_markers):
+            score += 20
+        if re.search(r"\b(total|importe|monto|cuota)\b", norm):
+            score += 10
+        if "eur" in norm or "usd" in norm or "$" in line or "€" in line:
+            score += 4
+        if idx < 12:
+            score += 2
+        if len(amounts) == 1:
+            score += 1
+        for amount in amounts:
+            scored.append((score, -idx, amount))
+
+    if scored:
+        scored.sort(reverse=True)
+        return round(float(scored[0][2]), 2)
+
+    return None
+
+
+def _infer_concept_from_lines(lines: list[str]) -> str | None:
+    """Infer a short human-readable concept/title from the OCR text."""
+    if not lines:
+        return None
+
+    concept_markers = (
+        "nota de venta",
+        "detalle del movimiento",
+        "compra",
+        "cuota",
+        "recibo",
+        "ticket",
+        "factura",
+        "boleta",
+        "movimiento",
+    )
+
+    for idx, line in enumerate(lines[:20]):
+        norm = _normalize_label(line)
+        if not norm or _looks_like_address_only(norm):
+            continue
+        if any(marker in norm for marker in concept_markers):
+            cleaned = _parse_text(line)
+            if cleaned and len(cleaned) <= 80:
+                return cleaned.strip(" -:|'\"")
+
+    for line in lines[:10]:
+        cleaned = _parse_text(line)
+        if not cleaned or _looks_like_address_only(cleaned):
+            continue
+        if re.search(r"\d", cleaned):
+            continue
+        if 3 <= len(cleaned.split()) <= 8:
+            return cleaned.strip(" -:|'\"")
+    return None
+
+
+def _infer_payment_method_from_lines(lines: list[str]) -> str | None:
+    """Infer a simple payment method from OCR text."""
+    if not lines:
+        return None
+
+    payment_markers = (
+        "tarjeta",
+        "efectivo",
+        "transferencia",
+        "debito",
+        "débito",
+        "credito",
+        "crédito",
+        "bizum",
+        "yape",
+        "plin",
+        "deposito",
+        "depósito",
+        "cajero",
+        "cuenta",
+    )
+
+    for line in lines:
+        norm = _normalize_label(line)
+        if any(marker in norm for marker in payment_markers):
+            for marker in payment_markers:
+                if marker in norm:
+                    pretty = marker.replace("  ", " ").strip()
+                    return pretty.title()
+            cleaned = _parse_text(line)
+            if cleaned and len(cleaned) <= 60:
+                return cleaned.strip(" -:|'\"")
+    return None
+
+
+def _looks_like_sales_summary_export(lines: list[str]) -> bool:
+    if not lines:
+        return False
+
+    joined = " ".join(_normalize_label(line) for line in lines[:30])
+    if "sales_summary_export" in joined or "sales summary export" in joined:
+        return True
+    return all(marker in joined for marker in ("fecha", "pedidos", "items", "total"))
+
+
+def _infer_sales_summary_total(lines: list[str]) -> float | None:
+    if not _looks_like_sales_summary_export(lines):
+        return None
+
+    currency_amounts: list[float] = []
+    numeric_tokens: list[float] = []
+    numeric_pattern = re.compile(r"(?<!\d)(-?\d+(?:[.,]\d+)?)(?!\d)")
+    for line in lines:
+        norm = _normalize_label(line)
+        if any(token in norm for token in ("$", "eur", "usd", "€")):
+            currency_amounts.extend(_find_amounts(line))
+        for match in numeric_pattern.finditer(line):
+            parsed = _parse_loose_number(match.group(1))
+            if parsed is not None:
+                numeric_tokens.append(parsed)
+
+    if currency_amounts:
+        return round(float(currency_amounts[-1]), 2)
+    if numeric_tokens:
+        return round(float(numeric_tokens[-1]), 2)
+    return None
+
+
+def _looks_like_bank_statement(lines: list[str]) -> bool:
+    if not lines:
+        return False
+
+    joined = " ".join(_normalize_label(line) for line in lines[:60])
+    markers = (
+        "detalle del movimiento",
+        "transferencias emitidas",
+        "fecha de envio",
+        "fecha valor",
+        "fecha de la operacion",
+        "nuestra referencia",
+        "importe a liquidar",
+        "importe ordenado",
+        "contravalor",
+        "titular",
+        "beneficiario",
+    )
+    if sum(1 for marker in markers if marker in joined) >= 2:
+        return True
+    if "santander" in joined and ("movimiento" in joined or "transferencias emitidas" in joined):
+        return True
+    if "ibercaja" in joined and ("transferencias emitidas" in joined or "concepto" in joined):
+        return True
+    return False
+
+
+def _clean_bank_item_description(text: str) -> str | None:
+    cleaned = _parse_text(text) or str(text or "")
+    if not cleaned.strip():
+        return None
+
+    cleaned = cleaned.replace(">>", " ")
+    cleaned = re.sub(
+        r"(?<!\d)(?:-?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|-?\d+[.,]\d{2})(?!\d)",
+        " ",
+        cleaned,
+    )
+    cleaned = re.sub(r"\b(?:eur|usd|€)\b", " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -:|'\"")
+    norm = _normalize_label(cleaned)
+    boilerplate_markers = (
+        "por cuenta de",
+        "importe ordenado",
+        "importe a liquidar",
+        "ultimo beneficiario",
+        "ultima beneficiaria",
+        "beneficiario",
+        "titular",
+        "contravalor",
+        "nuestra referencia",
+        "total nuestros gastos",
+        "fecha de envio",
+        "fecha de operacion",
+        "fecha valor",
+        "tipo operacion",
+        "gastos por cuenta",
+        "transferencias emitidas",
+        "oficina",
+        "entidad",
+        "iban",
+        "cuenta:",
+    )
+    if any(marker in norm for marker in boilerplate_markers) and not any(
+        marker in norm for marker in ("compra", "tarjeta", "piso", "alquiler")
+    ):
+        return None
+    return cleaned or None
+
+
+def _dedupe_bank_statement_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not items:
+        return []
+
+    stopwords = {
+        "por", "cuenta", "importe", "ordenado", "liquidar", "ultimo", "ultima",
+        "beneficiario", "beneficiaria", "titular", "contravalor", "nuestra",
+        "referencia", "total", "nuestros", "gastos", "fecha", "envio",
+        "operacion", "valor", "tipo", "transferencias", "emitidas", "oficina",
+        "entidad", "iban", "eur", "usd",
+    }
+    seen: set[tuple[float, str]] = set()
+    deduped: list[dict[str, Any]] = []
+
+    for item in items:
+        amount = safe_floatish(item.get("amount"))
+        if amount is None:
+            amount = safe_floatish(item.get("total_price"))
+        amount_value = round(float(amount or 0.0), 2)
+
+        description = _normalize_label(str(item.get("description") or item.get("concept") or ""))
+        description = re.sub(r"^\W+", " ", description)
+        tokens = [
+            token
+            for token in description.split()
+            if len(token) > 1 and token not in stopwords and not token.isdigit()
+        ]
+        if not tokens:
+            tokens = [
+                token
+                for token in description.split()
+                if len(token) > 1 and not token.isdigit()
+            ]
+        signature = " ".join(tokens[:10]).strip()
+        key = (amount_value, signature)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+
+    return deduped
+
+
+def _extract_bank_statement_items(lines: list[str]) -> list[dict[str, Any]]:
+    if not _looks_like_bank_statement(lines):
+        return []
+
+    items: list[dict[str, Any]] = []
+    amount_pattern = re.compile(r"(?P<sign>[-+])?\s*(?P<amount>\d{1,3}(?:[.,]\d{3})*[.,]\d{2})")
+    bank_markers = (
+        "compra",
+        "tarjeta",
+        "detalle del movimiento",
+        "transferencias emitidas",
+        ">>",
+    )
+
+    for idx, line in enumerate(lines):
+        norm = _normalize_label(line)
+        if not norm or not re.search(r"\d", line):
+            continue
+        if not any(marker in norm for marker in bank_markers):
+            continue
+
+        amounts: list[float] = []
+        for match in amount_pattern.finditer(line):
+            raw_amount = match.group("amount")
+            if not raw_amount:
+                continue
+            signed_amount = raw_amount
+            prefix = line[: match.start()]
+            if match.group("sign") == "-" or re.search(r"[-−]\s*$", prefix):
+                signed_amount = f"-{raw_amount}"
+            parsed = safe_floatish(signed_amount)
+            if parsed is not None:
+                amounts.append(parsed)
+        amounts = [amount for amount in amounts if amount is not None]
+        if not amounts:
+            continue
+
+        description = _clean_bank_item_description(line)
+        if not description:
+            continue
+
+        issue_date = None
+        for nearby in (line, lines[idx - 1] if idx > 0 else "", lines[idx + 1] if idx + 1 < len(lines) else ""):
+            issue_date = _find_first_date(nearby)
+            if issue_date is not None:
+                break
+
+        amount = float(amounts[-1])
+        items.append(
+            {
+                "description": description,
+                "concept": description,
+                "issue_date": issue_date,
+                "quantity": None,
+                "unit_price": None,
+                "total_price": round(amount, 2),
+                "amount": round(amount, 2),
+                "raw_text": line,
+            }
+        )
+
+    return _dedupe_bank_statement_items(items)
+
+
+def _infer_bank_statement_total(items: list[dict[str, Any]], lines: list[str]) -> float | None:
+    if items:
+        amounts: list[float] = []
+        for item in items:
+            amount = safe_floatish(item.get("amount"))
+            if amount is None:
+                amount = safe_floatish(item.get("total_price"))
+            if amount is not None:
+                amounts.append(float(amount))
+        if amounts:
+            rounded_unique = {round(amount, 2) for amount in amounts}
+            if len(rounded_unique) == 1:
+                return round(float(amounts[0]), 2)
+            total = sum(amounts)
+            if abs(total) > 0.01:
+                return round(total, 2)
+
+    for label in ("importe a liquidar", "importe ordenado", "contravalor", "saldo", "importe"):
+        for line in lines:
+            norm = _normalize_label(line)
+            if label in norm:
+                amounts = _find_amounts(line)
+                if amounts:
+                    return round(float(amounts[-1]), 2)
+    return None
+
+
+def _looks_like_ticket_document(lines: list[str]) -> bool:
+    if not lines:
+        return False
+
+    joined = " ".join(_normalize_label(line) for line in lines[:40])
+    markers = ("ticket de venta", "productos", "subtotal", "total", "pagos", "cash")
+    if "ticket" in joined and any(marker in joined for marker in ("total", "subtotal", "pagos", "cash", "productos")):
+        return True
+    return sum(1 for marker in markers if marker in joined) >= 3
+
+
+def _extract_ticket_items(lines: list[str]) -> list[dict[str, Any]]:
+    if not _looks_like_ticket_document(lines):
+        return []
+
+    start_idx = None
+    end_idx = len(lines)
+    for idx, line in enumerate(lines):
+        norm = _normalize_label(line)
+        if start_idx is None and ("productos" in norm or "detalle" in norm):
+            start_idx = idx + 1
+            continue
+        if start_idx is not None and any(marker in norm for marker in ("subtotal", "total", "pagos")):
+            end_idx = idx
+            break
+    if start_idx is None:
+        start_idx = 0
+
+    items: list[dict[str, Any]] = []
+    idx = start_idx
+    qty_desc_pattern = re.compile(
+        r"^\s*(\d+(?:[.,]\d+)?)\s*(?:@0?x|0x|[@xX×])\s*(.+?)\s*$"
+    )
+    amount_pattern = re.compile(r"(?<!\d)(?:-?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|-?\d+[.,]\d{2})(?!\d)")
+
+    while idx < end_idx:
+        line = str(lines[idx] or "").strip()
+        if not line:
+            idx += 1
+            continue
+        line_norm = _normalize_label(line)
+        if any(marker in line_norm for marker in ("subtotal", "total", "pagos")):
+            break
+        match = qty_desc_pattern.match(line)
+        if match:
+            quantity = _parse_loose_number(match.group(1))
+            description = _parse_text(match.group(2)) or match.group(2).strip()
+            amount = None
+            unit_price = None
+            look_ahead = idx + 1
+            while look_ahead < end_idx and not str(lines[look_ahead] or "").strip():
+                look_ahead += 1
+            if look_ahead < end_idx:
+                next_line = str(lines[look_ahead] or "").strip()
+                amounts = [safe_floatish(m.group(0)) for m in amount_pattern.finditer(next_line)]
+                amounts = [amount_value for amount_value in amounts if amount_value is not None]
+                if amounts:
+                    amount = float(amounts[-1])
+                    if quantity not in (None, 0):
+                        unit_price = amount / float(quantity)
+                    idx = look_ahead
+            item = {
+                "description": description,
+                "concept": description,
+                "quantity": round(float(quantity), 2) if quantity is not None else None,
+                "unit_price": round(float(unit_price), 2) if unit_price is not None else None,
+                "total_price": round(float(amount), 2) if amount is not None else None,
+                "amount": round(float(amount), 2) if amount is not None else None,
+                "raw_text": line,
+            }
+            if item["description"]:
+                items.append(item)
+        idx += 1
+
+    if items:
+        return items
+
+    # Fallback: detect standalone amount lines after product names.
+    for idx in range(start_idx, end_idx):
+        line = str(lines[idx] or "").strip()
+        line_norm = _normalize_label(line)
+        if not line or any(marker in line_norm for marker in ("subtotal", "total", "pagos")):
+            break
+        if re.search(r"\d", line) and ("x " in line_norm or "@x" in line_norm or "×" in line_norm):
+            desc = _parse_text(re.sub(r"^\s*\d+(?:[.,]\d+)?\s*[@xX×]\s*", "", line)) or line
+            next_amount = None
+            look_ahead = idx + 1
+            while look_ahead < end_idx and not str(lines[look_ahead] or "").strip():
+                look_ahead += 1
+            if look_ahead < end_idx:
+                next_line = str(lines[look_ahead] or "").strip()
+                amount_matches = [safe_floatish(m.group(0)) for m in amount_pattern.finditer(next_line)]
+                amount_matches = [value for value in amount_matches if value is not None]
+                if amount_matches:
+                    next_amount = float(amount_matches[-1])
+            if desc and next_amount is not None:
+                items.append(
+                    {
+                        "description": desc,
+                        "concept": desc,
+                        "quantity": None,
+                        "unit_price": None,
+                        "total_price": round(next_amount, 2),
+                        "amount": round(next_amount, 2),
+                        "raw_text": line,
+                    }
+                )
+
+    return items
 
 
 # ---------------------------------------------------------------------------
@@ -370,10 +1693,99 @@ def extract_fields_from_text(
         field_aliases,
         pdf_config=pdf_config,
     )
+    payroll_document = _looks_like_payroll_document(lines)
+    ticket_document = _looks_like_ticket_document(lines)
+    bank_document = _looks_like_bank_statement(lines)
+    sales_summary_document = _looks_like_sales_summary_export(lines)
+    payroll_items = _extract_payroll_items_relaxed(lines) if payroll_document else []
+    if payroll_items:
+        line_items = payroll_items
+    elif ticket_document:
+        ticket_items = _extract_ticket_items(lines)
+        if ticket_items:
+            line_items = ticket_items
+    elif bank_document:
+        bank_items = _extract_bank_statement_items(lines)
+        if bank_items:
+            line_items = bank_items
+    elif not line_items:
+        inline_items = _extract_inline_pipe_table(ocr_text)
+        if inline_items:
+            line_items = inline_items
+        if not line_items:
+            line_items = _extract_compact_invoice_items_relaxed(lines)
     if line_items:
         result["line_items"] = line_items
     if line_item_page_groups:
         result["line_item_page_groups"] = line_item_page_groups
+
+    payroll_metadata = _infer_payroll_metadata(lines, payroll_items if payroll_document else [])
+    for key, value in payroll_metadata.items():
+        result.setdefault(key, value)
+    if "total_amount" not in result and "liquido_a_percibir" in result:
+        result["total_amount"] = result["liquido_a_percibir"]
+    if ticket_document and line_items:
+        ticket_total = 0.0
+        for item in line_items:
+            amount = safe_floatish(item.get("amount"))
+            if amount is None:
+                amount = safe_floatish(item.get("total_price"))
+            if amount is not None:
+                ticket_total += float(amount)
+        if ticket_total > 0:
+            current_total = safe_floatish(result.get("total_amount"))
+            if current_total is None or abs(float(current_total)) < 0.01:
+                result["total_amount"] = round(ticket_total, 2)
+
+    if "issue_date" not in result and line_items:
+        for item in line_items:
+            issue_date = item.get("issue_date")
+            if issue_date not in (None, "", [], {}):
+                result["issue_date"] = issue_date
+                break
+
+    if "issue_date" not in result:
+        inferred_date = _infer_issue_date_from_lines(lines)
+        if inferred_date is not None:
+            result["issue_date"] = inferred_date
+
+    if "total_amount" not in result:
+        inferred_total = detect_document_total(
+            result,
+            aliases=["total_amount", "total_price", "total", "amount"],
+        )
+        if inferred_total is not None:
+            result["total_amount"] = inferred_total
+    if "total_amount" not in result:
+        inferred_total = _infer_total_amount_from_lines(lines)
+        if inferred_total is not None:
+            result["total_amount"] = inferred_total
+
+    if sales_summary_document:
+        summary_total = _infer_sales_summary_total(lines)
+        if summary_total is not None:
+            result["total_amount"] = summary_total
+    elif bank_document:
+        bank_total = _infer_bank_statement_total(line_items if line_items else [], lines)
+        if bank_total is not None:
+            result["total_amount"] = bank_total
+
+    if "concept" not in result:
+        inferred_concept = _infer_concept_from_lines(lines)
+        if inferred_concept is not None:
+            result["concept"] = inferred_concept
+
+    if bank_document and line_items:
+        current_concept = _normalize_label(str(result.get("concept") or ""))
+        if not current_concept or "detalle del movimiento" in current_concept or "transferencias emitidas" in current_concept:
+            first_description = str(line_items[0].get("description") or "").strip()
+            if first_description:
+                result["concept"] = first_description
+
+    if "payment_method" not in result:
+        inferred_payment_method = _infer_payment_method_from_lines(lines)
+        if inferred_payment_method is not None:
+            result["payment_method"] = inferred_payment_method
 
     if result:
         logged_keys = [key for key in result if key not in {"line_items", "line_item_page_groups"}]
@@ -408,7 +1820,18 @@ def extract_line_items_table_preview_from_text(
         pdf_config=pdf_config,
     )
     if not line_items:
-        return {}
+        line_items = _extract_inline_pipe_table(ocr_text)
+        if not line_items:
+            return {}
+        line_item_page_groups = [
+            {
+                "source_page": 1,
+                "header_index": 0,
+                "headers": [],
+                "headers_norm": [],
+                "line_items": line_items,
+            }
+        ]
 
     first_group = next((group for group in line_item_page_groups if group.get("line_items")), None)
     if first_group is None:
@@ -524,6 +1947,23 @@ def _find_table_header(
             )
             return i, matched_fields, raw_names
 
+    # Fallback genérico para tablas sin alias de BD: preserva encabezados crudos
+    # y asigna claves canónicas solo para columnas obvias como fecha/total/cantidad.
+    for i, line_norm in enumerate(lines_norm[:15]):
+        tokens = re.split(r"\s*\|\s*|\t+|\s{2,}", line_norm)
+        raw_names: list[str] = []
+        matched_fields: list[str] = []
+        for token in tokens:
+            token_clean = token.strip()
+            if not token_clean:
+                continue
+            raw_names.append(token_clean)
+            matched_fields.append(_generic_header_to_canonical(token_clean) or "")
+
+        known_count = sum(1 for f in matched_fields if f)
+        if known_count >= 2 and len(raw_names) >= 3:
+            return i, matched_fields, raw_names
+
     # Fallback: try single-word-per-line header blocks
     # Some OCR outputs put each column header on a separate line
     for i, line_norm in enumerate(lines_norm):
@@ -561,6 +2001,28 @@ def _find_table_header(
                 header_names,
                 reverse_prio,
             )
+            return start_idx, header_fields, header_names
+
+    # Generic fallback: same idea, but with common OCR header tokens even when
+    # there is no DB alias coverage for the document.
+    for i, line_norm in enumerate(lines_norm[:15]):
+        token = line_norm.strip()
+        if not _looks_like_generic_header_token(token):
+            continue
+        start_idx = i
+        header_fields: list[str] = []
+        header_names: list[str] = []
+        for j in range(start_idx, min(start_idx + 15, len(lines_norm))):
+            next_token = lines_norm[j].strip()
+            if _looks_like_generic_header_token(next_token):
+                header_fields.append(_generic_header_to_canonical(next_token) or "")
+                header_names.append(next_token)
+            elif len(next_token.split()) <= 2 and not re.search(r"\d", next_token):
+                header_fields.append("")
+                header_names.append(next_token)
+            else:
+                break
+        if sum(1 for f in header_fields if f) >= 2 and len(header_fields) >= 3:
             return start_idx, header_fields, header_names
 
     return None
@@ -785,7 +2247,7 @@ def _parse_vertical_table(
         # Validar que al menos un campo de precio/cantidad sea parseable como número.
         # Evita incluir bloques de sección (Observaciones, totales) que pasaron el filtro
         # de sección-end pero aún llegaron al bloque de parseo.
-        if valid and any(k in field_aliases for k in item):
+        if valid and (any(k in field_aliases for k in item) or any(k in _GENERIC_ROW_FIELDS for k in item)):
             _numeric_fields = ("total_price", "quantity", "unit_price")
             _has_numeric = any(
                 safe_floatish(item.get(f, "")) is not None
@@ -843,7 +2305,7 @@ def _parse_tabular_table(
             else:
                 item.setdefault("extra_columns", {})[col_name] = token_val
 
-        if any(k in field_aliases for k in item):
+        if any(k in field_aliases for k in item) or any(k in _GENERIC_ROW_FIELDS for k in item):
             items.append(item)
 
     return items

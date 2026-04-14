@@ -18,6 +18,7 @@ Estrategia:
 """
 from __future__ import annotations
 
+import asyncio
 import pathlib
 import re
 
@@ -29,6 +30,8 @@ from app.modules.importador.invoice_ocr_rescue import (
     _rescue_doc_number,
     _rescue_amounts,
 )
+from app.modules.importador.doc_type_resolution import promote_doc_type_from_text_fallback
+from app.modules.importador.ocr_service import extract_text_from_file
 from app.modules.importador.text_fallback_extractor import extract_fields_from_text
 
 # ── Rutas a los documentos reales ─────────────────────────────────────────────
@@ -187,6 +190,70 @@ class TestFacturaProveedorRescue:
         assert rescued.get("doc_number") == "FAC-2026-0487"
         assert "subtotal" in rescued
         assert "tax_amount" in rescued
+
+    @pytest.mark.no_db
+    def test_promote_invoice_from_real_pdf_ocr_fields(self, factura_pdf_text):
+        rescued = invoice_rescue_from_ocr(factura_pdf_text)
+        extracted = extract_fields_from_text(
+            factura_pdf_text,
+            _CANONICAL_FIELDS_MINIMAL,
+            _FIELD_ALIASES_MINIMAL,
+            _AMOUNT_LABELS_MINIMAL,
+        )
+        fields = {**rescued, **extracted}
+        promoted_type, promoted_confidence, promoted_reasoning, reason_tag = (
+            promote_doc_type_from_text_fallback(
+                current_doc_type="OTHER",
+                current_confidence=0.2,
+                current_reasoning="AI disabled",
+                fields=fields,
+                content=factura_pdf_text,
+                filename="factura_proveedor_stock_alto_insumos.pdf",
+                resolution_config={
+                    "promotion_blocked_preclass_types": [
+                        "SALES",
+                        "PAYROLL",
+                        "BANK_STATEMENT",
+                        "BANK",
+                        "INVENTORY",
+                        "PRICE_LIST",
+                        "PRODUCT_LIST",
+                        "PRODUCTS",
+                        "COSTING",
+                        "RECIPE",
+                    ],
+                    "restore_stable_preclassified_types": [
+                        "BANK_MOVEMENTS",
+                        "BANK_STATEMENT",
+                        "EXPENSE",
+                        "EXPENSES",
+                        "INVOICE",
+                        "PAYROLL",
+                        "RECEIPT",
+                        "SALES",
+                    ],
+                    "restore_conflict_doc_types": ["INVOICE", "RECEIPT"],
+                    "text_fallback_total_field_aliases": [
+                        "total_amount",
+                        "total_price",
+                        "total",
+                        "amount",
+                    ],
+                    "text_fallback_keyword_confidence": {"INVOICE": 0.68, "RECEIPT": 0.66},
+                    "text_fallback_like_confidence": {"INVOICE": 0.64, "RECEIPT": 0.61},
+                    "text_fallback_minimal_confidence": {"RECEIPT": 0.56},
+                },
+                fallback_patterns={
+                    "INVOICE": ["factura", "invoice"],
+                    "RECEIPT": ["recibo", "boleta", "ticket"],
+                },
+            )
+        )
+
+        assert promoted_type == "INVOICE"
+        assert promoted_confidence >= 0.64
+        assert reason_tag in {"invoice_keyword", "invoice_like_fields"}
+        assert "Promoted" in promoted_reasoning
 
     @pytest.mark.no_db
     def test_invoice_rescue_no_sobreescribe_campos_existentes(self, factura_pdf_text):
@@ -543,3 +610,415 @@ class TestParseValueNumberAlias:
         total = result.get("total_amount")
         assert isinstance(total, float), f"total_amount debe ser float, no {type(total).__name__}"
         assert abs(total - 16567.49) < 1.0
+
+
+class TestVentasSummaryRealPdf:
+    """El reporte real de ventas debe dejar datos útiles aunque no sea una factura."""
+
+    @pytest.mark.no_db
+    def test_extrae_issue_date_total_y_line_items(self):
+        path = _IMPORT_DIR / "Ventas_2026-02-21_2026-03-23.pdf"
+        if not path.exists():
+            pytest.skip("Ventas_2026-02-21_2026-03-23.pdf no disponible")
+
+        ocr = asyncio.run(
+            extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True)
+        )
+        result = extract_fields_from_text(
+            ocr.get("text") or "",
+            {},
+            {},
+            {},
+            page_texts=ocr.get("page_texts"),
+        )
+
+        assert result.get("issue_date") == "2026-03-20"
+        assert abs(float(result.get("total_amount") or 0.0) - 169.0) < 0.01
+
+    @pytest.mark.no_db
+    def test_promocion_doc_type_sales_summary(self):
+        path = _IMPORT_DIR / "Ventas_2026-02-21_2026-03-23.pdf"
+        if not path.exists():
+            pytest.skip("Ventas_2026-02-21_2026-03-23.pdf no disponible")
+
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
+        text = ocr.get("text") or ""
+        extracted = extract_fields_from_text(
+            text,
+            {},
+            {},
+            {},
+            page_texts=ocr.get("page_texts"),
+        )
+        rescued = invoice_rescue_from_ocr(text, existing_fields=extracted)
+        fields = {**extracted, **rescued}
+
+        promoted_type, promoted_confidence, promoted_reasoning, reason_tag = (
+            promote_doc_type_from_text_fallback(
+                current_doc_type="OTHER",
+                current_confidence=0.35,
+                current_reasoning="Native deterministic extraction only.",
+                fields=fields,
+                content=text,
+                filename=path.name,
+                resolution_config={
+                    "promotion_blocked_preclass_types": [
+                        "SALES",
+                        "PAYROLL",
+                        "BANK_STATEMENT",
+                        "BANK",
+                        "INVENTORY",
+                        "PRICE_LIST",
+                        "PRODUCT_LIST",
+                        "PRODUCTS",
+                        "COSTING",
+                        "RECIPE",
+                    ],
+                    "restore_stable_preclassified_types": [
+                        "BANK_MOVEMENTS",
+                        "BANK_STATEMENT",
+                        "EXPENSE",
+                        "EXPENSES",
+                        "INVOICE",
+                        "PAYROLL",
+                        "RECEIPT",
+                        "SALES",
+                    ],
+                    "restore_conflict_doc_types": ["INVOICE", "RECEIPT"],
+                    "text_fallback_total_field_aliases": [
+                        "total_amount",
+                        "total_price",
+                        "total",
+                        "amount",
+                    ],
+                    "text_fallback_keyword_confidence": {"INVOICE": 0.68, "RECEIPT": 0.66},
+                    "text_fallback_like_confidence": {"INVOICE": 0.64, "RECEIPT": 0.61},
+                    "text_fallback_minimal_confidence": {"RECEIPT": 0.56},
+                },
+                fallback_patterns={
+                    "INVOICE": ["factura", "invoice"],
+                    "RECEIPT": ["recibo", "boleta", "ticket"],
+                    "SALES": ["ventas", "summary", "export", "reporte", "report", "sales"],
+                },
+            )
+        )
+
+        assert promoted_type == "SALES"
+        assert promoted_confidence >= 0.63
+        assert reason_tag in {"sales_keyword", "receipt_like_fields"}
+        assert "Promoted" in promoted_reasoning
+
+
+class TestGenericPdfTextExtractionWithDbConfig:
+    """Verifica que OCR real + aliases reales extraigan campos básicos sin IA."""
+
+    _GENERIC_CANONICAL_FIELDS = {
+        "customer": {"type": "text"},
+        "issue_date": {"type": "date"},
+        "total_amount": {"type": "numeric"},
+        "subtotal": {"type": "numeric"},
+        "tax_amount": {"type": "numeric"},
+    }
+    _GENERIC_FIELD_ALIASES = {
+        "customer": ["cliente"],
+        "issue_date": ["fecha"],
+        "total_amount": ["total"],
+        "subtotal": ["subtotal"],
+        "tax_amount": ["iva"],
+    }
+    _GENERIC_AMOUNT_LABELS = {
+        "total_amount": ["total", "total a pagar"],
+        "subtotal": ["subtotal"],
+        "tax_amount": ["iva"],
+    }
+
+    @pytest.mark.no_db
+    @pytest.mark.parametrize(
+        "filename, expected_total",
+        [
+            ("ddd.pdf", 1.0),
+            ("qwe.pdf", 2.0),
+        ],
+    )
+    def test_extraction_recovers_date_total_and_customer(self, filename, expected_total):
+        path = _IMPORT_DIR / filename
+        if not path.exists():
+            pytest.skip(f"{filename} no disponible")
+
+        ocr = asyncio.run(
+            extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True)
+        )
+        result = extract_fields_from_text(
+            ocr.get("text") or "",
+            self._GENERIC_CANONICAL_FIELDS,
+            self._GENERIC_FIELD_ALIASES,
+            self._GENERIC_AMOUNT_LABELS,
+            page_texts=ocr.get("page_texts"),
+        )
+
+        assert result.get("issue_date") == "2026-03-21"
+        assert abs(float(result.get("total_amount") or 0.0) - expected_total) < 0.01
+        assert result.get("customer") == "demofactura"
+
+
+class TestNativeHeuristicsWeakDocs:
+    """Casos reales débiles que deben rescatar datos sin IA."""
+
+    _WEAK_CANONICAL_FIELDS = {
+        "concept": {"type": "text"},
+        "payment_method": {"type": "text"},
+        "issue_date": {"type": "date"},
+        "total_amount": {"type": "numeric"},
+    }
+    _WEAK_FIELD_ALIASES = {
+        "concept": ["concepto", "detalle", "descripcion"],
+        "payment_method": ["forma de pago", "f. de pago", "metodo de pago"],
+        "issue_date": ["fecha", "fecha valor", "fecha de la operacion", "emision"],
+        "total_amount": ["total", "importe", "monto", "valor total", "total a pagar"],
+    }
+    _WEAK_AMOUNT_LABELS = {
+        "total_amount": ["total", "importe", "monto", "valor total", "total a pagar"],
+    }
+
+    def _extract(self, filename: str) -> dict:
+        path = _IMPORT_DIR / filename
+        if not path.exists():
+            pytest.skip(f"{filename} no disponible")
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
+        return extract_fields_from_text(
+            ocr.get("text") or "",
+            self._WEAK_CANONICAL_FIELDS,
+            self._WEAK_FIELD_ALIASES,
+            self._WEAK_AMOUNT_LABELS,
+            page_texts=ocr.get("page_texts"),
+        )
+
+    @pytest.mark.no_db
+    def test_septiembre_rescata_fecha_total_y_metodo_pago(self):
+        result = self._extract("Septiembre.pdf")
+        assert result.get("issue_date") in {"2024-09-02", "2024-09-04"}
+        assert abs(float(result.get("total_amount") or 0.0) - (-285.41)) < 0.01
+        assert result.get("payment_method") == "Tarjeta"
+        concept = str(result.get("concept") or "").lower()
+        assert "compra" in concept or "wanna" in concept
+
+    @pytest.mark.no_db
+    def test_recibo_pdf_rescata_fecha_total_y_concepto(self):
+        result = self._extract("ReciboPDF_037640_003368_638865448560277604.pdf")
+        assert result.get("issue_date") == "2025-07-01"
+        assert abs(float(result.get("total_amount") or 0.0) - 52.30) < 0.01
+        assert "CUOTA JUL./2025" in str(result.get("concept") or "")
+
+    @pytest.mark.no_db
+    def test_whatsapp_nota_venta_conserva_concepto(self):
+        result = self._extract("WhatsApp Image 2026-03-24 at 16.29.16.jpeg")
+        assert "NOTA DE VENTA" in str(result.get("concept") or "")
+
+    @pytest.mark.no_db
+    def test_whatsapp_nota_venta_ocr_conserva_titulo(self):
+        path = _IMPORT_DIR / "WhatsApp Image 2026-03-24 at 16.29.16.jpeg"
+        if not path.exists():
+            pytest.skip("WhatsApp Image 2026-03-24 at 16.29.16.jpeg no disponible")
+
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
+        text = str(ocr.get("text") or "").upper()
+        assert "NOTA DE VENTA" in text
+        assert len(text) > 100
+
+    @pytest.mark.no_db
+    def test_nomina_enero_recupera_line_items_y_neto(self):
+        result = self._extract("Nómina enero.pdf")
+        assert "CASHABAMBA" in str(result.get("employee_name") or "").upper()
+        assert "BOSONIT" in str(result.get("company_name") or "").upper()
+        assert len(result.get("line_items") or []) >= 6
+        assert abs(float(result.get("gross_pay") or 0.0) - 3000.00) < 0.5
+        assert abs(float(result.get("deductions_total") or 0.0) - 756.96) < 0.5
+        assert abs(float(result.get("liquido_a_percibir") or 0.0) - 2243.04) < 0.5
+        assert abs(float(result.get("total_amount") or 0.0) - 2243.04) < 0.5
+
+    @pytest.mark.no_db
+    def test_whatsapp_factura_recupera_items_de_compra(self):
+        result = self._extract("WhatsApp Image 2026-02-11 at 22.46.23 (1).jpeg")
+        line_items = result.get("line_items") or []
+        assert len(line_items) >= 1
+        descriptions = " ".join(str(item.get("description") or "") for item in line_items).upper()
+        assert "HARINA" in descriptions
+        assert abs(float(result.get("total_amount") or 0.0) - 2145.00) < 0.5
+
+    @pytest.mark.no_db
+    def test_whatsapp_factura_promueve_a_invoice(self):
+        path = _IMPORT_DIR / "WhatsApp Image 2026-02-11 at 22.46.23 (1).jpeg"
+        if not path.exists():
+            pytest.skip("WhatsApp Image 2026-02-11 at 22.46.23 (1).jpeg no disponible")
+
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
+        text = ocr.get("text") or ""
+        extracted = extract_fields_from_text(
+            text,
+            {
+                "vendor": {"type": "text"},
+                "vendor_tax_id": {"type": "text"},
+                "doc_number": {"type": "text"},
+                "issue_date": {"type": "date"},
+                "total_amount": {"type": "numeric"},
+                "subtotal": {"type": "numeric"},
+                "tax_amount": {"type": "numeric"},
+                "payment_method": {"type": "text"},
+                "concept": {"type": "text"},
+                "line_items": {"type": "list"},
+            },
+            {
+                "vendor": ["proveedor", "empresa", "razon social"],
+                "vendor_tax_id": ["RUC", "NIT", "CIF"],
+                "doc_number": ["factura no", "factura no.", "N° factura", "No. factura", "No.", "N°"],
+                "issue_date": ["fecha de emision", "fecha emision", "fecha"],
+                "total_amount": ["total", "total a pagar", "importe total", "valor total"],
+                "subtotal": ["subtotal", "sub total", "base imponible"],
+                "tax_amount": ["IVA", "impuesto", "IVA 12%"],
+                "payment_method": ["forma de pago", "f. de pago", "metodo de pago"],
+                "concept": ["concepto", "detalle", "descripcion"],
+            },
+            {
+                "total_amount": ["total", "total a pagar", "valor total"],
+                "subtotal": ["subtotal", "sub total"],
+                "tax_amount": ["IVA", "IVA 12%"],
+            },
+            page_texts=ocr.get("page_texts"),
+        )
+        rescued = invoice_rescue_from_ocr(text, existing_fields=extracted)
+        fields = {**extracted, **rescued}
+
+        promoted_type, promoted_confidence, promoted_reasoning, reason_tag = (
+            promote_doc_type_from_text_fallback(
+                current_doc_type="OTHER",
+                current_confidence=0.35,
+                current_reasoning="Native deterministic extraction only.",
+                fields=fields,
+                content=text,
+                filename=path.name,
+                resolution_config={
+                    "promotion_blocked_preclass_types": [
+                        "SALES",
+                        "PAYROLL",
+                        "BANK_STATEMENT",
+                        "BANK",
+                        "INVENTORY",
+                        "PRICE_LIST",
+                        "PRODUCT_LIST",
+                        "PRODUCTS",
+                        "COSTING",
+                        "RECIPE",
+                    ],
+                    "restore_stable_preclassified_types": [
+                        "BANK_MOVEMENTS",
+                        "BANK_STATEMENT",
+                        "EXPENSE",
+                        "EXPENSES",
+                        "INVOICE",
+                        "PAYROLL",
+                        "RECEIPT",
+                        "SALES",
+                    ],
+                    "restore_conflict_doc_types": ["INVOICE", "RECEIPT"],
+                    "text_fallback_total_field_aliases": [
+                        "total_amount",
+                        "total_price",
+                        "total",
+                        "amount",
+                    ],
+                    "text_fallback_keyword_confidence": {"INVOICE": 0.68, "RECEIPT": 0.66},
+                    "text_fallback_like_confidence": {"INVOICE": 0.64, "RECEIPT": 0.61},
+                    "text_fallback_minimal_confidence": {"RECEIPT": 0.56},
+                },
+                fallback_patterns={
+                    "INVOICE": ["factura", "invoice"],
+                    "RECEIPT": ["recibo", "boleta", "ticket"],
+                },
+            )
+        )
+
+        assert promoted_type == "INVOICE"
+        assert promoted_confidence >= 0.64
+        assert reason_tag in {"invoice_like_line_items", "invoice_keyword", "invoice_like_fields"}
+        assert "Promoted" in promoted_reasoning
+
+    @pytest.mark.no_db
+    def test_08122025_recupera_items_de_ticket(self):
+        result = self._extract("08122025.pdf")
+        line_items = result.get("line_items") or []
+        assert len(line_items) >= 1
+        descriptions = " ".join(str(item.get("description") or "") for item in line_items).lower()
+        assert "tapados" in descriptions
+        assert abs(float(result.get("total_amount") or 0.0) - 1.50) < 0.01
+
+    @pytest.mark.no_db
+    def test_tikent_recupera_items_de_ticket(self):
+        result = self._extract("tikent.pdf")
+        line_items = result.get("line_items") or []
+        assert len(line_items) >= 2
+        descriptions = " ".join(str(item.get("description") or "") for item in line_items).lower()
+        assert "tapados" in descriptions
+        assert "aceite" in descriptions or "grande" in descriptions
+        assert abs(float(result.get("total_amount") or 0.0) - 4.00) < 0.01
+
+    @pytest.mark.no_db
+    def test_reporte_sales_summary_rescata_fecha_y_total(self):
+        path = _IMPORT_DIR / "reporte_sales_summary.pdf"
+        if not path.exists():
+            pytest.skip("reporte_sales_summary.pdf no disponible")
+
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
+        result = extract_fields_from_text(
+            ocr.get("text") or "",
+            {
+                "issue_date": {"type": "date"},
+                "total_amount": {"type": "numeric"},
+            },
+            {
+                "issue_date": ["fecha"],
+                "total_amount": ["total"],
+            },
+            {
+                "total_amount": ["total"],
+            },
+            page_texts=ocr.get("page_texts"),
+        )
+
+        assert result.get("issue_date") == "2026-03-20"
+        assert abs(float(result.get("total_amount") or 0.0) - 22.34) < 0.01
+
+    @pytest.mark.no_db
+    def test_ventas_summary_export_rescata_total(self):
+        path = _IMPORT_DIR / "Ventas_2026-02-21_2026-03-23.pdf"
+        if not path.exists():
+            pytest.skip("Ventas_2026-02-21_2026-03-23.pdf no disponible")
+
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
+        result = extract_fields_from_text(
+            ocr.get("text") or "",
+            {
+                "issue_date": {"type": "date"},
+                "total_amount": {"type": "numeric"},
+            },
+            {
+                "issue_date": ["fecha"],
+                "total_amount": ["total"],
+            },
+            {
+                "total_amount": ["total"],
+            },
+            page_texts=ocr.get("page_texts"),
+        )
+
+        assert result.get("issue_date") == "2026-03-20"
+        assert abs(float(result.get("total_amount") or 0.0) - 169.0) < 0.01
+
+    @pytest.mark.no_db
+    def test_recibos_recupera_transferencias_y_total(self):
+        result = self._extract("recibos.pdf")
+        line_items = result.get("line_items") or []
+        assert len(line_items) >= 1
+        descriptions = " ".join(str(item.get("description") or "") for item in line_items).lower()
+        assert "cashabamba" in descriptions or "alquiler" in str(result.get("concept") or "").lower()
+        assert result.get("payment_method") == "Transferencia"
+        assert abs(float(result.get("total_amount") or 0.0) - (-330.0)) < 0.01

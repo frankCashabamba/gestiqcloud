@@ -29,6 +29,7 @@ Referencias rápidas por dominio. Este índice no certifica cobertura funcional;
 
 ## Operaciones y AI
 - `imports`: pipeline de importación (OCR/AI/preview/publish), múltiples guías internas. (README pendiente)
+  - `docs/importador-evolutivo.md`: hoja de ruta evolutiva del importador.
 - `ai_agent`/`copilot`: endpoints/servicios de asistencia (si se usan). (README pendiente)
 - `shared`: servicios y repositorios reutilizables. (sin README propio)
 

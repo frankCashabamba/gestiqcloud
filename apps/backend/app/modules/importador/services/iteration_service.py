@@ -21,11 +21,16 @@ from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento, ImpIteration, ImpLineErrorLog, ImpStagingLine
 
-from ..ai_classifier import analyze_document
 from ..analysis_normalizer import _normalize_analysis_output
 from ..canonical_document import build_document_projection
 from ..document_fields import detect_document_total
-from ..runtime_config import load_doc_type_patterns, load_prompt_config
+from ..field_alias_loader import get_field_aliases
+from ..runtime_config import (
+    load_amount_label_config,
+    load_doc_type_patterns,
+    load_pdf_table_parse_config,
+    load_prompt_config,
+)
 from ..schemas import IterationResultOut, IterationScopeIn, StagingLineSummary
 
 logger = logging.getLogger("importador.iteration_service")
@@ -241,6 +246,8 @@ def _reextract_document_scope_fields(
         canonical_meta if requires_full_document_rerun and canonical_meta else narrowed_fields
     )
 
+    from ..native_analyzer import analyze_document
+
     analysis = asyncio.run(
         analyze_document(
             str(doc.texto_ocr or ""),
@@ -248,6 +255,9 @@ def _reextract_document_scope_fields(
             doc.tipo_archivo,
             fallback_patterns=load_doc_type_patterns(db),
             canonical_fields=analysis_fields,
+            field_aliases=get_field_aliases(db, tenant_id=doc.tenant_id),
+            amount_labels=load_amount_label_config(db),
+            pdf_config=load_pdf_table_parse_config(db),
             prompt_config=load_prompt_config(db),
         )
     )

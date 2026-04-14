@@ -95,6 +95,36 @@ def test_promote_doc_type_from_text_fallback_respects_sales_preclassification():
 
 
 @pytest.mark.no_db
+def test_promote_doc_type_from_text_fallback_promotes_payroll_from_payroll_fields():
+    invalidate_runtime_config_cache()
+
+    promoted_type, promoted_confidence, promoted_reasoning, reason_tag = (
+        promote_doc_type_from_text_fallback(
+            current_doc_type="OTHER",
+            current_confidence=0.2,
+            current_reasoning="fallback",
+            fields={
+                "issue_date": "2026-01-31",
+                "gross_pay": 3000.0,
+                "deductions_total": 756.96,
+                "liquido_a_percibir": 2243.04,
+                "total_amount": 2243.04,
+                "line_items": [{"description": "Sueldo base"}, {"description": "Descuento"}],
+            },
+            content="Nomina enero 2026 total 2243.04",
+            filename="Nómina enero.pdf",
+            resolution_config=load_doc_type_resolution_config(None),
+            fallback_patterns=load_doc_type_patterns(None),
+        )
+    )
+
+    assert promoted_type == "PAYROLL"
+    assert promoted_confidence >= 0.62
+    assert reason_tag in {"payroll_keyword", "payroll_like_fields"}
+    assert "Promoted from OCR text fallback" in promoted_reasoning
+
+
+@pytest.mark.no_db
 def test_restore_preclassified_doc_type_recovers_sales_from_other_result():
     invalidate_runtime_config_cache()
 

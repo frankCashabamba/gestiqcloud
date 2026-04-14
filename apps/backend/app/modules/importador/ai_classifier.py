@@ -667,7 +667,7 @@ def _build_ai_fallback_policy_context(
 
     return {
         "ai_fallback_policy": {
-            "enabled": _context_bool("openai_fallback_enabled", True),
+            "enabled": _context_bool("openai_fallback_enabled", False),
             "allow_on_error": _context_bool("openai_fallback_on_error", False),
             "allow_on_slow": _context_bool("openai_fallback_on_slow", True),
             "allow_on_complex": _context_bool("openai_fallback_on_complex", True),

@@ -5,7 +5,8 @@
     "BANK_STATEMENT": ["bank statement", "extracto", "estado de cuenta", "kontoauszug"],
     "PAYROLL": ["payroll", "nomina", "planilla", "lohnabrechnung"],
     "INVENTORY": ["inventory", "inventario", "stock", "price list", "lista precios"],
-    "COSTING": ["costing", "costeo", "recipe", "receta", "food cost"]
+    "COSTING": ["costing", "costeo", "recipe", "receta", "food cost"],
+    "SALES": ["sales", "venta", "ventas", "summary", "resumen", "report", "export"]
   },
   "doc_categories": {
     "invoice": ["INVOICE", "FACTURA", "CREDIT_NOTE", "PURCHASE_ORDER", "QUOTE", "PROFORMA"],
@@ -38,7 +39,7 @@
     "doc_number": ["doc_number", "invoice_number", "numero_factura", "reference", "folio"],
     "subtotal": ["subtotal", "base_amount", "amount_untaxed", "net_amount"],
     "tax_amount": ["tax_amount", "tax", "iva", "vat_amount", "impuesto"],
-    "total_amount": ["total_amount", "monto_total", "total", "grand_total", "importe"],
+    "total_amount": ["total_amount", "monto_total", "total_sales", "sales_total", "total_ventas", "ventas_total", "total", "grand_total", "importe"],
     "currency": ["currency", "moneda", "divisa"],
     "payment_method": ["payment_method", "forma_pago", "metodo_pago", "payment_type"],
     "concept": ["concept", "description", "concepto", "detalle", "glosa"],
@@ -118,6 +119,16 @@
       "blocked": true,
       "confidence_threshold": 0.8
     },
+    "sales": {
+      "code": "sales",
+      "document_type": "sales_report",
+      "suggested_destination": "expense",
+      "required_groups": [["issue_date"], ["total_amount"]],
+      "support_fields": ["line_items", "doc_number", "currency"],
+      "explanation_fields": ["issue_date", "total_amount", "line_items"],
+      "blocked": false,
+      "confidence_threshold": 0.7
+    },
     "other": {
       "code": "other",
       "document_type": "expense",
@@ -136,6 +147,7 @@
     "category.inventory": ["source_kind=category", "source_key=inventory", "profile_code=inventory", "priority=100"],
     "category.bank": ["source_kind=category", "source_key=bank", "profile_code=bank_statement", "priority=100"],
     "category.payroll": ["source_kind=category", "source_key=payroll", "profile_code=payroll", "priority=100"],
+    "doc_type.sales": ["source_kind=doc_type", "source_key=SALES", "profile_code=sales", "priority=90"],
     "category.other": ["source_kind=category", "source_key=other", "profile_code=other", "priority=100"],
     "doc_type.other": ["source_kind=doc_type", "source_key=OTHER", "profile_code=other", "priority=100"]
   },
@@ -258,10 +270,10 @@
     "vision_num_predict": "600",
     "vision_probe_timeout_seconds": "5",
     "vision_timeout_seconds": "45",
-    "openai_fallback_enabled": "true",
+    "openai_fallback_enabled": "false",
     "openai_fallback_on_error": "false",
-    "openai_fallback_on_slow": "true",
-    "openai_fallback_on_complex": "true",
+    "openai_fallback_on_slow": "false",
+    "openai_fallback_on_complex": "false",
     "openai_fallback_complexity_threshold": "0.72",
     "openai_fallback_slow_threshold_ms": "15000",
     "openai_fallback_prompt_chars_threshold": "7000",
@@ -378,7 +390,7 @@
     "perspective_min_output_ratio": "0.35",
     "easyocr_languages": ["es", "en"],
     "easyocr_gpu": "false",
-    "easyocr_enabled": "true",
+    "easyocr_enabled": "false",
     "easyocr_variant_label": "autocontrast",
     "line_cleanup_patterns": [
       "(?<=\\d)(?=[^\\W\\d_])",

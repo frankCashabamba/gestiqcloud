@@ -10,6 +10,8 @@ import io
 import itertools
 import json
 import logging
+import re
+import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Iterable
@@ -25,8 +27,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     pd = None
 
-from .ai_classifier import _estimate_text_quality
-from .runtime_config import load_ai_runtime_config, load_file_support_config, load_ocr_runtime_config
+from .ocr_quality import estimate_text_quality as _estimate_text_quality
+from .runtime_config import load_file_support_config, load_ocr_runtime_config
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.ocr")
@@ -41,7 +43,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-13-3"
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-14-1"
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -196,10 +198,17 @@ def _is_weak_ocr_text(
     *,
     min_words: int | None = None,
     min_chars: int | None = None,
+    min_quality: float | None = None,
 ) -> bool:
     config = _ocr_runtime_config()
     min_words = config["weak_text_min_words"] if min_words is None else min_words
     min_chars = config["weak_text_min_chars"] if min_chars is None else min_chars
+    min_quality = (
+        float(config.get("ocr_min_quality") or 0.45) if min_quality is None else float(min_quality)
+    )
+    quality = _estimate_text_quality(text, ocr_runtime=config)
+    if float(quality.get("score") or 0.0) < min_quality:
+        return True
     words, chars = _ocr_text_score(text)
     return words < min_words or chars < min_chars
 
@@ -208,6 +217,12 @@ def _copy_with_label(img: Image.Image, label: str) -> Image.Image:
     clone = img.copy()
     clone.info["ocr_variant"] = label
     return clone
+
+
+def _channel_grayscale(img: Image.Image, channel_index: int) -> Image.Image:
+    rgb = img.convert("RGB") if img.mode != "RGB" else img
+    channel = rgb.split()[channel_index]
+    return channel if channel.mode == "L" else channel.convert("L")
 
 
 def _trim_document_edges(img: Image.Image) -> Image.Image:
@@ -380,6 +395,15 @@ def _iter_ocr_variants(img: Image.Image) -> list[Image.Image]:
     variants = [_copy_with_label(base, "base")]
     variants.extend(_iter_small_rotations(base, label_prefix="base"))
 
+    red_channel = _channel_grayscale(img, 0)
+    variants.append(_copy_with_label(red_channel, "red_channel"))
+    red_autocontrast = ImageOps.autocontrast(red_channel)
+    variants.append(_copy_with_label(red_autocontrast, "red_autocontrast"))
+    red_threshold = red_autocontrast.point(
+        lambda px: 255 if px > int(config["threshold_low_value"]) else 0
+    )
+    variants.append(_copy_with_label(red_threshold, "red_threshold_low"))
+
     perspective_img, perspective_changed = _rectify_document_perspective(img)
     if perspective_changed:
         perspective_gray = perspective_img.convert("L")
@@ -486,7 +510,7 @@ def _run_tesseract(
             return text
     if not candidates:
         return ""
-    return max(candidates, key=lambda value: _ocr_text_score(value))
+    return _best_text_candidate(candidates, ocr_runtime=_ocr_runtime_config())
 
 
 def _run_easyocr(img: Image.Image) -> str:
@@ -522,7 +546,7 @@ def _pdf_render_dpi_candidates(base_dpi: int) -> tuple[int, ...]:
     return tuple(candidates)
 
 
-def _best_text_candidate(candidates: list[str], *, ai_runtime: dict[str, Any]) -> str:
+def _best_text_candidate(candidates: list[str], *, ocr_runtime: dict[str, Any]) -> str:
     """Pick the OCR candidate with the best text-quality score."""
     best_text = ""
     best_key = (-1.0, -1.0, -1.0)
@@ -530,7 +554,7 @@ def _best_text_candidate(candidates: list[str], *, ai_runtime: dict[str, Any]) -
         text = str(candidate or "").strip()
         if not text:
             continue
-        quality = _estimate_text_quality(text, ai_runtime=ai_runtime)
+        quality = _estimate_text_quality(text, ocr_runtime=ocr_runtime)
         key = (
             float(quality.get("score") or 0.0),
             float(quality.get("words") or 0.0),
@@ -661,7 +685,7 @@ def _extract_zip_summary(file_bytes: bytes, zip_name: str) -> dict[str, Any]:
 async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     """PDF: intenta texto embebido con PyMuPDF, si no hay, usa OCR."""
     config = _ocr_runtime_config()
-    ai_runtime = load_ai_runtime_config(None)
+    ocr_runtime = load_ocr_runtime_config(None)
     pdf_render_dpi = int(config["pdf_render_dpi"])
     try:
         import fitz
@@ -682,12 +706,12 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             page_texts.append(page_text)
             page_text_clean = str(page_text or "").strip()
             if page_text_clean:
-                page_quality = _estimate_text_quality(page_text_clean, ai_runtime=ai_runtime)
+                page_quality = _estimate_text_quality(page_text_clean, ocr_runtime=ocr_runtime)
                 _page_quality_scores.append(float(page_quality.get("score") or 0.0))
                 is_sufficient = (
-                    page_quality["score"] >= float(ai_runtime.get("ocr_min_quality") or 0.45)
+                    page_quality["score"] >= float(ocr_runtime.get("ocr_min_quality") or 0.45)
                     and page_quality["words"]
-                    >= int(ai_runtime.get("ocr_min_words_for_vision") or 18)
+                    >= int(ocr_runtime.get("ocr_min_words_for_vision") or 18)
                 )
                 if is_sufficient:
                     text_parts.append(page_text_clean)
@@ -696,14 +720,18 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
 
             used_ocr = True
             ocr_candidates: list[str] = [page_text_clean] if page_text_clean else []
+            best_page_text: str = page_text_clean
             for dpi in _pdf_render_dpi_candidates(pdf_render_dpi):
                 pix = page.get_pixmap(dpi=dpi)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 if vision_image_bytes is None:
                     vision_image_bytes = _image_to_jpeg_bytes(img)
-                ocr_candidates.append(_ocr_image(img))
-
-            best_page_text = _best_text_candidate(ocr_candidates, ai_runtime=ai_runtime)
+                candidate = _ocr_image(img)
+                if candidate:
+                    ocr_candidates.append(candidate)
+                best_page_text = _best_text_candidate(ocr_candidates, ocr_runtime=ocr_runtime)
+                if candidate and not _is_weak_ocr_text(candidate):
+                    break
             if best_page_text:
                 text_parts.append(best_page_text)
                 selected_page_texts.append(best_page_text)
@@ -742,8 +770,12 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 if vision_image_bytes is None:
                     vision_image_bytes = _image_to_jpeg_bytes(img)
-                page_candidates.append(_ocr_image(img))
-            ocr_texts.append(_best_text_candidate(page_candidates, ai_runtime=ai_runtime))
+                candidate = _ocr_image(img)
+                if candidate:
+                    page_candidates.append(candidate)
+                    if not _is_weak_ocr_text(candidate):
+                        break
+            ocr_texts.append(_best_text_candidate(page_candidates, ocr_runtime=ocr_runtime))
         combined = "\n\n".join(t for t in ocr_texts if t)
         if combined.strip():
             return {
@@ -801,11 +833,7 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
         scale = min_width / img.width
         img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
 
-    # Convert to grayscale
-    if img.mode != "L":
-        img = img.convert("L")
-
-    # Enhance contrast and sharpness before OCR (helps with WhatsApp compressed photos)
+    # Keep color information when available; some handwritten notes OCR better on channels.
     img = ImageEnhance.Contrast(img).enhance(float(config["image_contrast"]))
     img = ImageEnhance.Sharpness(img).enhance(float(config["image_sharpness"]))
     img = img.filter(ImageFilter.SHARPEN)
@@ -847,24 +875,14 @@ def _ocr_image(img: Image.Image) -> str:
                     *_ocr_text_score(cleaned),
                 )
                 return cleaned
-        logger.info("Tesseract OCR weak output detected across variants; trying EasyOCR fallback")
+        logger.info("Tesseract OCR weak output detected across variants; skipping non-native fallback")
     except Exception as exc:
         logger.warning("Tesseract OCR failed: %s", exc)
-
-    if config["easyocr_enabled"]:
-        try:
-            easyocr_variant = _pick_easyocr_variant(variants, config["easyocr_variant_label"])
-            if easyocr_variant is not None:
-                easyocr_text = _run_easyocr(easyocr_variant)
-                if easyocr_text:
-                    candidates.append(easyocr_text)
-        except Exception as exc2:
-            logger.error("All OCR engines failed: %s", exc2)
 
     if not candidates:
         return ""
 
-    return max(candidates, key=lambda value: _ocr_text_score(value))
+    return _best_text_candidate(candidates, ocr_runtime=config)
 
 
 def _normalize_header(h: Any, idx: int) -> str:
@@ -1257,6 +1275,102 @@ def _rehydrate_virtual_sheet_context(extraction: dict[str, Any]) -> dict[str, An
     return extraction
 
 
+_CSV_SUMMARY_TITLE_KEYS = {
+    "resumen",
+    "summary",
+    "totales",
+    "totals",
+    "total",
+}
+_CSV_TOTAL_KEY_ALIASES = {
+    "total_amount",
+    "total_sales",
+    "sales_total",
+    "total_ventas",
+    "ventas_total",
+    "grand_total",
+    "importe_total",
+    "monto_total",
+    "total",
+    "amount",
+}
+
+
+def _csv_cell_has_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if pd is not None:
+        try:
+            if pd.isna(value):
+                return False
+        except Exception:
+            pass
+    if isinstance(value, str):
+        return bool(value.strip())
+    return True
+
+
+def _csv_key_norm(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    normalized = unicodedata.normalize("NFD", raw)
+    normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    normalized = normalized.lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+    return normalized.strip("_")
+
+
+def _csv_parse_summary_and_promote(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    main_rows: list[dict[str, Any]] = []
+    summary_meta: dict[str, Any] = {}
+    summary_mode = False
+
+    for row in rows:
+        clean_row = {
+            str(key): value
+            for key, value in row.items()
+            if _csv_cell_has_value(value)
+        }
+        if not clean_row:
+            continue
+
+        values = list(clean_row.values())
+        if not values:
+            continue
+
+        if not summary_mode:
+            if len(values) == 1 and _csv_key_norm(values[0]) in _CSV_SUMMARY_TITLE_KEYS:
+                summary_mode = True
+                continue
+            main_rows.append(clean_row)
+            continue
+
+        if len(values) < 2:
+            continue
+
+        key = _csv_key_norm(values[0])
+        if not key:
+            continue
+        summary_meta.setdefault(key, values[1])
+        if key in _CSV_TOTAL_KEY_ALIASES:
+            summary_meta.setdefault("total_amount", values[1])
+
+    if main_rows and "issue_date" not in summary_meta:
+        for row in main_rows:
+            for key, value in row.items():
+                key_norm = _csv_key_norm(key)
+                if "fecha" not in key_norm and not key_norm.endswith("_date") and key_norm != "date":
+                    continue
+                if _csv_cell_has_value(value):
+                    summary_meta["issue_date"] = value
+                    break
+            if "issue_date" in summary_meta:
+                break
+
+    return main_rows, summary_meta
+
+
 def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
     for enc in ("utf-8", "latin-1", "cp1252"):
         try:
@@ -1277,9 +1391,11 @@ def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
                 for row in data
                 if any(value is not None for value in row.values())
             ]
+            data, summary_meta = _csv_parse_summary_and_promote(data)
             sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
                 data,
                 sheet_name="CSV",
+                metadata=summary_meta or None,
             )
             return {
                 "text": text_content[:10000],
@@ -1302,9 +1418,11 @@ def _extract_csv(file_bytes: bytes) -> dict[str, Any]:
 
     reader = csv.DictReader(io.StringIO(text_content), delimiter=delimiter)
     data = [row for row in reader if any(v and v.strip() for v in row.values())]
+    data, summary_meta = _csv_parse_summary_and_promote(data)
     sheet_profiles, sheet_metadata, sheet_used = _build_virtual_sheet_context(
         data,
         sheet_name="CSV",
+        metadata=summary_meta or None,
     )
     return {
         "text": text_content[:10000],

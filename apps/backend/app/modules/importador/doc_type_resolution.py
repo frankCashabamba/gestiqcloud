@@ -77,13 +77,20 @@ def promote_doc_type_from_text_fallback(
     has_issue_date = bool(get_data_value(fields, "issue_date"))
     has_total = detect_document_total(fields, aliases=total_aliases) is not None
     has_vendor = bool(get_data_value(fields, "vendor", "vendor_tax_id"))
+    has_vendor_tax_id = bool(get_data_value(fields, "vendor_tax_id"))
     has_customer = bool(get_data_value(fields, "customer", "customer_tax_id"))
     has_doc_number = bool(get_data_value(fields, "doc_number", "supplier_ref"))
     has_concept = bool(get_data_value(fields, "concept", "description"))
     has_payment_method = bool(get_data_value(fields, "payment_method"))
+    has_gross_pay = bool(get_data_value(fields, "gross_pay"))
+    has_deductions_total = bool(get_data_value(fields, "deductions_total"))
+    has_net_pay = bool(get_data_value(fields, "liquido_a_percibir"))
     raw_line_items = fields.get("line_items")
     has_line_items = isinstance(raw_line_items, list) and any(
         isinstance(item, dict) for item in raw_line_items
+    )
+    has_payroll_evidence = has_line_items and (
+        has_gross_pay or has_deductions_total or has_net_pay
     )
     invoice_support = sum(1 for flag in (has_issue_date, has_total, has_vendor, has_doc_number) if flag)
     receipt_support = sum(
@@ -121,13 +128,37 @@ def promote_doc_type_from_text_fallback(
 
     invoice_tokens = _keyword_tokens(fallback_patterns, "INVOICE")
     receipt_tokens = _keyword_tokens(fallback_patterns, "RECEIPT")
+    payroll_tokens = _keyword_tokens(fallback_patterns, "PAYROLL")
+    sales_tokens = _keyword_tokens(fallback_patterns, "SALES")
     if any(token in text_context for token in invoice_tokens):
         if has_total and (invoice_support >= 2 or has_line_items):
             promoted_type = "INVOICE"
             promoted_confidence = _confidence_from_map(keyword_confidence, "INVOICE", 0.68)
             reason_tag = "invoice_keyword"
+    elif any(token in text_context for token in payroll_tokens):
+        payroll_strength = sum(
+            1
+            for flag in (
+                has_gross_pay,
+                has_deductions_total,
+                has_net_pay,
+                has_total,
+                has_issue_date,
+                has_line_items,
+            )
+            if flag
+        )
+        if payroll_strength >= 3:
+            promoted_type = "PAYROLL"
+            promoted_confidence = 0.64
+            reason_tag = "payroll_keyword"
+    elif any(token in text_context for token in sales_tokens):
+        if has_total and has_issue_date:
+            promoted_type = "SALES"
+            promoted_confidence = 0.63
+            reason_tag = "sales_keyword"
     elif any(token in text_context for token in receipt_tokens):
-        if has_total and receipt_support >= 2:
+        if has_total and receipt_support >= 2 and not has_payroll_evidence:
             promoted_type = "RECEIPT"
             promoted_confidence = _confidence_from_map(keyword_confidence, "RECEIPT", 0.66)
             reason_tag = "receipt_keyword"
@@ -137,11 +168,37 @@ def promote_doc_type_from_text_fallback(
             promoted_type = "INVOICE"
             promoted_confidence = _confidence_from_map(like_confidence, "INVOICE", 0.64)
             reason_tag = "invoice_like_fields"
-        elif has_issue_date and has_total and (has_vendor or has_customer):
+        elif has_total and has_line_items and has_vendor and (
+            has_doc_number or has_issue_date or has_vendor_tax_id
+        ):
+            promoted_type = "INVOICE"
+            promoted_confidence = _confidence_from_map(like_confidence, "INVOICE", 0.64)
+            reason_tag = "invoice_like_line_items"
+        elif (
+            has_total
+            and (
+                has_gross_pay
+                or has_deductions_total
+                or has_net_pay
+            )
+            and has_line_items
+        ):
+            promoted_type = "PAYROLL"
+            promoted_confidence = 0.62
+            reason_tag = "payroll_like_fields"
+        elif (
+            has_issue_date
+            and has_total
+            and (has_vendor or has_customer)
+            and not any(token in text_context for token in sales_tokens)
+            and not has_payroll_evidence
+        ):
             promoted_type = "RECEIPT"
             promoted_confidence = _confidence_from_map(like_confidence, "RECEIPT", 0.61)
             reason_tag = "receipt_like_fields"
-        elif pre_class_upper == "RECEIPT" and has_total:
+        elif pre_class_upper == "RECEIPT" and has_total and not any(
+            token in text_context for token in sales_tokens
+        ) and not has_payroll_evidence:
             promoted_type = "RECEIPT"
             promoted_confidence = _confidence_from_map(minimal_confidence, "RECEIPT", 0.56)
             reason_tag = "minimal_receipt_fields"

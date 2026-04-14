@@ -107,10 +107,10 @@ def test_runtime_config_loads_ai_processing_and_routing_scoring_defaults():
     assert "{cleared}" in ai_runtime["low_evidence_reason_template"]
     assert ai_runtime["vision_default_reasoning"] == "Vision model analysis"
     assert ai_runtime["vision_resize_max_dim"] == 1024
-    assert ai_runtime["openai_fallback_enabled"] is True
+    assert ai_runtime["openai_fallback_enabled"] is False
     assert ai_runtime["openai_fallback_on_error"] is False
-    assert ai_runtime["openai_fallback_on_slow"] is True
-    assert ai_runtime["openai_fallback_on_complex"] is True
+    assert ai_runtime["openai_fallback_on_slow"] is False
+    assert ai_runtime["openai_fallback_on_complex"] is False
     assert ai_runtime["openai_fallback_complexity_threshold"] == 0.72
     assert ai_runtime["openai_fallback_slow_threshold_ms"] == 15000
     assert processing_runtime["ai_enabled"] is False

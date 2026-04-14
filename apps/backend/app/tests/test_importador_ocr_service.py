@@ -1,39 +1,40 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 from app.modules.importador import ocr_service
+from app.modules.importador.services.document_routing_agent import (
+    build_document_routing_decision,
+)
 
 
-def test_ocr_image_falls_back_to_easyocr_when_tesseract_is_weak(monkeypatch):
+def test_ocr_image_skips_easyocr_fallback_when_tesseract_is_weak(monkeypatch):
+    constructor_calls = {"count": 0}
+
     class FakeReader:
         def __init__(self, langs, gpu=False):
+            constructor_calls["count"] += 1
             self.langs = langs
             self.gpu = gpu
 
         def readtext(self, _image):
-            return [(None, "NOTA DE VENTA 10246538 TOTAL 5.30", 0.99)]
+            raise AssertionError("easyocr no deberia ejecutarse")
 
-    monkeypatch.setitem(
-        __import__("sys").modules,
-        "pytesseract",
-        type(
-            "P", (), {"image_to_string": staticmethod(lambda img, lang=None, config=None: "...")}
-        )(),
-    )
     monkeypatch.setitem(
         __import__("sys").modules, "easyocr", type("E", (), {"Reader": FakeReader})()
     )
+    monkeypatch.setattr(ocr_service, "_run_tesseract", lambda variant, psm_modes=None: "...")
     ocr_service._EASYOCR_READERS.clear()
 
     img = Image.new("L", (120, 80), color=255)
 
     result = ocr_service._ocr_image(img)
 
-    assert "NOTA DE VENTA" in result
-    assert "5.30" in result
+    assert result == "..."
+    assert constructor_calls["count"] == 0
 
 
 def test_run_easyocr_reuses_reader_instance(monkeypatch):
@@ -68,6 +69,40 @@ def test_extract_csv_builds_virtual_sheet_context():
     assert result["structured_data"][0]["fecha"] == "2026-04-01"
     assert result["sheet_profiles"]["CSV"]["headers"] == ["fecha", "total"]
     assert result["sheet_profiles"]["CSV"]["rows_counted"] == 2
+
+
+def test_extract_csv_sales_summary_promotes_routing_fields():
+    path = Path(r"C:\gestiqcloud\importacion\Ventas_2026-02-21_2026-03-23.csv")
+    result = ocr_service._extract_csv(path.read_bytes())
+
+    assert result["format"] == "CSV"
+    assert result["sheet_used"] == "CSV"
+    assert len(result["structured_data"]) == 3
+
+    metadata = result["sheet_metadata"]["CSV"]
+    assert metadata["issue_date"] == "2026-03-22"
+    assert abs(float(metadata["total_amount"]) - 158.04) < 0.01
+
+
+def test_sales_csv_routes_without_review():
+    path = Path(r"C:\gestiqcloud\importacion\Ventas_2026-02-21_2026-03-23.csv")
+    result = ocr_service._extract_csv(path.read_bytes())
+    metadata = result["sheet_metadata"]["CSV"]
+
+    decision = build_document_routing_decision(
+        source_doc_type="SALES",
+        ai_confidence=0.72,
+        extracted_data=metadata,
+        canonical_document={"fields": metadata},
+        category_keywords={},
+        db=None,
+        tenant_id=None,
+    )
+
+    assert decision.document_type == "sales_report"
+    assert decision.suggested_destination == "expense"
+    assert decision.required_fields_ok is True
+    assert decision.needs_human_review is False
 
 
 def test_extract_xml_ubl_builds_virtual_sheet_context():
@@ -192,7 +227,11 @@ def test_extract_text_from_file_rehydrates_cached_csv_context(monkeypatch, tmp_p
     monkeypatch.setattr(ocr_service, "_ocr_cache_dir", lambda: tmp_path)
     cache_path = ocr_service._ocr_cache_path(file_bytes)
     cache_path.write_text(
-        '{"version":"2026-04-13-2","text":"cached","pages":1,"structured_data":[{"Fecha":"2026-03-22","Pedidos":"11","Items":"268.000","Total":"$79.24"}],"format":"CSV"}',
+        (
+            '{"version":"'
+            + ocr_service.OCR_EXTRACTION_CACHE_VERSION
+            + '","text":"cached","pages":1,"structured_data":[{"Fecha":"2026-03-22","Pedidos":"11","Items":"268.000","Total":"$79.24"}],"format":"CSV"}'
+        ),
         encoding="utf-8",
     )
 
@@ -383,16 +422,20 @@ def test_extract_pdf_prefers_embedded_text_when_quality_is_good(monkeypatch):
             return FakeDoc()
 
     monkeypatch.setitem(__import__("sys").modules, "fitz", FakeFitz())
-    monkeypatch.setattr(ocr_service, "_ocr_runtime_config", lambda: {"pdf_render_dpi": 240})
     monkeypatch.setattr(
         ocr_service,
-        "load_ai_runtime_config",
-        lambda _db=None: {"ocr_min_quality": 0.45, "ocr_min_words_for_vision": 18},
+        "_ocr_runtime_config",
+        lambda: {
+            "pdf_render_dpi": 240,
+            "weak_text_min_words": 2,
+            "weak_text_min_chars": 8,
+            "ocr_min_quality": 0.45,
+        },
     )
     monkeypatch.setattr(
         ocr_service,
         "_estimate_text_quality",
-        lambda text, ai_runtime=None: {"score": 0.95, "words": 20.0, "chars": float(len(text))},
+        lambda text, ocr_runtime=None: {"score": 0.95, "words": 20.0, "chars": float(len(text))},
     )
 
     result = asyncio.run(ocr_service._extract_pdf(b"%PDF-1.4 fake"))
@@ -437,8 +480,8 @@ def test_extract_pdf_uses_multiple_dpi_candidates_when_embedded_text_is_weak(mon
             del stream, filetype
             return FakeDoc()
 
-    def fake_text_quality(text, ai_runtime=None):
-        del ai_runtime
+    def fake_text_quality(text, ocr_runtime=None):
+        del ocr_runtime
         if text == "borroso":
             return {"score": 0.05, "words": 1.0, "chars": float(len(text))}
         if "EXTRA" in text:
@@ -446,11 +489,15 @@ def test_extract_pdf_uses_multiple_dpi_candidates_when_embedded_text_is_weak(mon
         return {"score": 0.2, "words": 3.0, "chars": float(len(text))}
 
     monkeypatch.setitem(__import__("sys").modules, "fitz", FakeFitz())
-    monkeypatch.setattr(ocr_service, "_ocr_runtime_config", lambda: {"pdf_render_dpi": 240})
     monkeypatch.setattr(
         ocr_service,
-        "load_ai_runtime_config",
-        lambda _db=None: {"ocr_min_quality": 0.45, "ocr_min_words_for_vision": 18},
+        "_ocr_runtime_config",
+        lambda: {
+            "pdf_render_dpi": 240,
+            "weak_text_min_words": 2,
+            "weak_text_min_chars": 8,
+            "ocr_min_quality": 0.45,
+        },
     )
     monkeypatch.setattr(ocr_service, "_estimate_text_quality", fake_text_quality)
     monkeypatch.setattr(

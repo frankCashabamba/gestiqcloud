@@ -34,7 +34,7 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 from . import crud, recipe_crud
-from .ai_classifier import analyze_document
+from .native_analyzer import analyze_document
 from .api_lifecycle import mark_legacy_processing_endpoint
 from .auto_recipe import should_reprocess_existing_document
 from .document_fields import safe_floatish
