@@ -44,6 +44,7 @@ from .runtime_config import (
     load_processing_runtime_config,
     load_product_sheet_detection_config,
     load_prompt_config,
+    load_structured_filename_patterns,
 )
 from .schemas import DocumentReviewHintOut, DocumentRoutingDecision
 from .services.document_model_learning_service import (
@@ -646,6 +647,41 @@ def _runtime_doc_type_set(processing_cfg: dict[str, Any], key: str) -> set[str]:
     return {
         str(item).strip().upper() for item in (processing_cfg.get(key) or []) if str(item).strip()
     }
+
+
+def _classify_structured_by_filename(
+    filename: str,
+    patterns: dict[str, list[str]],
+) -> str | None:
+    """Infer doc_type for structured files (Excel/CSV) from the filename.
+
+    Only intended for promoting STRUCTURED → a specific type when column analysis
+    was insufficient. Uses word-boundary matching against structured_filename_patterns.
+    Priority order ensures specific types win over more generic ones.
+    """
+    import unicodedata as _ud
+
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    norm = _ud.normalize("NFKD", stem.lower())
+    norm = "".join(ch for ch in norm if not _ud.combining(ch))
+    norm = re.sub(r"[_\-\.\s]+", " ", norm).strip()
+
+    _PRIORITY = [
+        "EXPENSE",
+        "BANK_MOVEMENTS",
+        "BANK_STATEMENT",
+        "PAYROLL",
+        "COSTING",
+        "SALES",
+    ]
+    for doc_type in _PRIORITY:
+        for keyword in patterns.get(doc_type, []):
+            kw = keyword.lower().strip()
+            if not kw:
+                continue
+            if re.search(r"(?:^|(?<=\s))" + re.escape(kw) + r"(?=\s|$)", norm):
+                return doc_type
+    return None
 
 
 def _runtime_text_list(processing_cfg: dict[str, Any], key: str) -> list[str]:
@@ -1768,6 +1804,51 @@ async def _process_run_document(
                 _native_doc_type,
                 _native_confidence,
             )
+
+            # Corrección conservadora por nombre de fichero (solo para razones débiles o
+            # keyword genérico). No toca tipos fuertes (invoice_like_line_items, payroll_*).
+            # Garantiza requires_review=True al bajar la confianza por debajo del umbral.
+            _fn_stem_norm = re.sub(
+                r"[_\-\.\s]+", " ",
+                filename.rsplit(".", 1)[0].lower()
+            ).strip()
+            if (
+                _native_doc_type == "INVOICE"
+                and _native_reason_tag in ("invoice_keyword", "invoice_like_fields")
+                and re.search(r"(?:^|(?<=\s))(?:receipt|recibo)(?=\s|$)", _fn_stem_norm)
+            ):
+                _native_doc_type = "RECEIPT"
+                _native_confidence = min(_native_confidence, 0.55)
+                _native_reasoning = (
+                    f"Corrección por nombre de fichero '{filename}': "
+                    f"clasificado como RECEIPT (texto sugería INVOICE via {_native_reason_tag})."
+                )
+                _native_reason_tag = "filename_receipt_correction"
+                logger.info(
+                    "ocr_filename_correction filename=%s corrected=RECEIPT was=INVOICE reason=%s",
+                    filename, "invoice_keyword",
+                )
+            elif (
+                _native_doc_type == "RECEIPT"
+                and _native_reason_tag in (
+                    "receipt_like_fields", "receipt_keyword", "minimal_receipt_fields"
+                )
+                and re.search(
+                    r"(?:^|(?<=\s))(?:sales|ventas|venta)(?=\s|$)", _fn_stem_norm
+                )
+            ):
+                _native_doc_type = "SALES"
+                _native_confidence = min(_native_confidence, 0.55)
+                _native_reasoning = (
+                    f"Corrección por nombre de fichero '{filename}': "
+                    f"clasificado como SALES (texto sugería RECEIPT via {_native_reason_tag})."
+                )
+                _native_reason_tag = "filename_sales_correction"
+                logger.info(
+                    "ocr_filename_correction filename=%s corrected=SALES was=RECEIPT reason=%s",
+                    filename, _native_reason_tag,
+                )
+
             if _native_reason_tag:
                 logger.info(
                     "native_doc_type_promoted filename=%s format=%s doc_type=%s reason=%s fields=%s",
@@ -2109,6 +2190,19 @@ async def _process_run_document(
         ):
             tipo_doc = "INVENTORY"
             requiere_revision = True
+
+        if tipo_doc in ("STRUCTURED", "OTHER"):
+            _inferred = _classify_structured_by_filename(
+                filename, load_structured_filename_patterns(db)
+            )
+            if _inferred:
+                tipo_doc = _inferred
+                requiere_revision = True
+                logger.info(
+                    "structured_filename_classified filename=%s doc_type=%s",
+                    filename,
+                    tipo_doc,
+                )
     else:
         datos_extraidos = analysis_fields or {}
 

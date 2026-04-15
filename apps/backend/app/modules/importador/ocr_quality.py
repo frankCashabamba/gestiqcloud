@@ -28,7 +28,12 @@ def estimate_text_quality(
     weird_chars = sum(
         1
         for ch in normalized
-        if not (ch.isalnum() or ch.isspace() or ch in ".,;:/-_#%()[]{}+*'\"@")
+        if not (
+            ch.isalpha()  # cubre todos los Unicode alphabetic (tildes, ñ, etc.)
+            or ch.isdigit()
+            or ch.isspace()
+            or ch in ".,;:/-_#%()[]{}+*'\"@·•€$£¿¡"  # · separador PDF, ¿¡ español
+        )
     )
 
     alpha_ratio = alpha_chars / max(alnum_chars, 1)

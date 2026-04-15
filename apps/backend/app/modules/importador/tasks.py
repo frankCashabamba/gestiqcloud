@@ -235,6 +235,63 @@ async def _run_processing(
                 ),
             )
 
+            # ── IA: inline para casos inciertos, async para enriquecimiento ────────
+            # Regla B: si el determinístico no clasificó bien, la IA corre inline
+            # (bloquea hasta tener resultado, pero el doc llega completo de una vez).
+            # Si ya está bien clasificado, la IA enriquece campos en background.
+            _doc_estado = getattr(doc, "estado", "") or ""
+            _doc_tipo = str(getattr(doc, "tipo_documento_detectado", "") or "").upper()
+            _doc_conf = float(getattr(doc, "confianza_clasificacion", 0.0) or 0.0)
+
+            if _doc_estado == "REVIEW":
+                _needs_ai_inline = _doc_tipo in ("OTHER", "") or _doc_conf < 0.55
+
+                if _needs_ai_inline:
+                    # Caso incierto: IA inline — el doc sale con tipo correcto en un solo paso
+                    try:
+                        from app.modules.importador.services.ai_analysis_agent import (
+                            analyze_document_with_ai as _ai_analyze_inline,
+                        )
+                        logger.info(
+                            "ai_agent.inline_start doc_id=%s tipo=%s conf=%.3f",
+                            doc_id, _doc_tipo, _doc_conf,
+                        )
+                        await _ai_analyze_inline(
+                            doc_id=doc_id,
+                            db=db,
+                            apply_result=True,
+                        )
+                        db.refresh(doc)
+                        logger.info(
+                            "ai_agent.inline_done doc_id=%s tipo_final=%s",
+                            doc_id, getattr(doc, "tipo_documento_detectado", ""),
+                        )
+                    except Exception as _ai_exc:
+                        # No propagar: si falla la IA el doc queda como OTHER, nada roto
+                        logger.warning(
+                            "ai_agent.inline_failed doc_id=%s: %s", doc_id, _ai_exc
+                        )
+
+                elif analyze_document_ai_task is not None:
+                    # Bien clasificado: enriquecer campos en background sin bloquear
+                    try:
+                        analyze_document_ai_task.apply_async(
+                            kwargs={
+                                "doc_id": str(doc_id),
+                                "tenant_id": str(tenant_id),
+                            },
+                            queue="importador_deep",
+                            countdown=3,
+                        )
+                        logger.info(
+                            "ai_agent.task.dispatched doc_id=%s tenant=%s",
+                            doc_id, tenant_id,
+                        )
+                    except Exception as _ai_exc:
+                        logger.warning(
+                            "ai_agent.task.dispatch_failed doc_id=%s: %s", doc_id, _ai_exc
+                        )
+
         except Exception as exc:
             logger.error("Error procesando documento %s: %s", doc_id, exc, exc_info=True)
             try:
@@ -387,3 +444,80 @@ def _make_task():
 
 
 process_document_task = _make_task()
+
+
+# ── Tarea Celery para análisis IA (solo lectura) ───────────────────────────────
+
+def _make_ai_analysis_task():
+    """Registra la tarea de análisis IA. Read-only: no modifica BD."""
+    try:
+        from celery_app import celery_app  # type: ignore
+    except Exception:
+        return None
+
+    @celery_app.task(
+        name="importador.analyze_document_ai",
+        bind=True,
+        queue="importador_deep",
+        max_retries=1,
+        default_retry_delay=15,
+        time_limit=180,
+        soft_time_limit=150,
+        acks_late=True,
+    )
+    def analyze_document_ai(
+        self,
+        doc_id: str,
+        tenant_id: str,
+        bypass_cache: bool = False,
+    ) -> dict:
+        """Tarea Celery: analiza un documento con IA sin modificar la BD.
+
+        Resultado completo accesible via result_backend de Celery.
+        Los logs de comparación quedan en importador.ai_agent.
+        """
+        from app.config.database import SessionLocal
+        from app.modules.importador.services.ai_analysis_agent import (
+            analyze_document_with_ai,
+        )
+
+        logger.info(
+            "ai_agent.task.start doc_id=%s tenant=%s", doc_id, tenant_id
+        )
+        try:
+            with SessionLocal() as db:
+                from sqlalchemy import text as _text
+
+                db.info["tenant_id"] = tenant_id
+                db.info["bypass_rls"] = True
+                db.execute(_text("SELECT 1"))
+
+                result = asyncio.run(
+                    analyze_document_with_ai(
+                        doc_id=UUID(doc_id),
+                        db=db,
+                        bypass_cache=bypass_cache,
+                    )
+                )
+
+            logger.info(
+                "ai_agent.task.done doc_id=%s match=%s ai_type=%s",
+                doc_id,
+                result.get("comparison", {}).get("type_match"),
+                result.get("comparison", {}).get("ai_type"),
+            )
+            return {"ok": True, "doc_id": doc_id, "result": result}
+
+        except Exception as exc:
+            logger.error(
+                "ai_agent.task.error doc_id=%s: %s", doc_id, exc, exc_info=True
+            )
+            try:
+                raise self.retry(exc=exc)
+            except self.MaxRetriesExceededError:
+                return {"ok": False, "doc_id": doc_id, "error": str(exc)}
+
+    return analyze_document_ai
+
+
+analyze_document_ai_task = _make_ai_analysis_task()

@@ -473,6 +473,34 @@ def load_doc_type_patterns(db: Any) -> dict[str, list[str]]:
     }
 
 
+def load_structured_filename_patterns(db: Any) -> dict[str, list[str]]:
+    cached = _cache_get("structured_filename_patterns")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "structured_filename_patterns")
+            patterns: dict[str, list[str]] = {}
+            for row in rows:
+                if not isinstance(row.value_list, list):
+                    continue
+                values = [str(v).strip().lower() for v in row.value_list if str(v).strip()]
+                if values:
+                    patterns[str(row.key).strip().upper()] = values
+            if patterns:
+                return _cache_set("structured_filename_patterns", patterns)  # type: ignore[return-value]
+        except Exception as exc:
+            logger.warning("No se pudo cargar structured_filename_patterns desde imp_config: %s", exc)
+
+    seed = _seed_module_payload("structured_filename_patterns")
+    return {
+        str(key).strip().upper(): list(value)
+        for key, value in seed.items()
+        if isinstance(value, list)
+    }
+
+
 def load_doc_categories_config(db: Any | None = None) -> dict[str, list[str]]:
     cached = _cache_get("doc_categories")
     if cached is not None:

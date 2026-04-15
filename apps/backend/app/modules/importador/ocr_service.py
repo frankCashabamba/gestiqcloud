@@ -43,7 +43,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-14-1"
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-14-2"  # bumped: fix mojibake en texto nativo PDF
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -490,6 +490,44 @@ def _tesseract_configs(psm_modes: list[str] | tuple[str, ...] | None = None) -> 
     return tuple(parsed or ("--psm 6",))
 
 
+def _fix_mojibake(text: str) -> str:
+    """Corrige texto donde bytes UTF-8 fueron decodificados como Latin-1 (mojibake).
+
+    Ejemplo típico de PDF con fuente mal mapeada:
+        "item Â· codigo"  →  "item · codigo"
+        "Ã©"              →  "é"
+
+    Estrategia: re-encodificar como Latin-1 y decodificar como UTF-8.
+    Si el texto NO era mojibake, la operación lanza UnicodeDecodeError y se
+    devuelve el texto original sin cambios. Si es mojibake parcial (mezcla de
+    fragmentos correctos e incorrectos), se intenta un fallback carácter a carácter.
+    """
+    if not text:
+        return text
+    # Fast-path: sin señales típicas de mojibake (0xC2="Â", 0xC3="Ã")
+    if "Â" not in text and "Ã" not in text:
+        return text
+    # Intento 1: todo el texto es mojibake uniforme
+    try:
+        return text.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    # Intento 2: mojibake parcial — corregir fragmento a fragmento
+    # Busca secuencias de 2-3 caracteres Latin-1 que formen bytes UTF-8 válidos
+    _MOJIBAKE_RE = re.compile(
+        r"[\xc2\xc3\xc4\xc5\xe2\xe3][\x80-\xbf\xa1-\xbf](?:[\x80-\xbf])?"
+    )
+
+    def _replace_fragment(m: re.Match) -> str:
+        fragment = m.group(0)
+        try:
+            return fragment.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            return fragment
+
+    return _MOJIBAKE_RE.sub(_replace_fragment, text)
+
+
 def _run_tesseract(
     img: Image.Image,
     *,
@@ -702,7 +740,7 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     try:
         selected_page_texts: list[str] = []
         for page in doc:
-            page_text = page.get_text("text")
+            page_text = _fix_mojibake(page.get_text("text"))
             page_texts.append(page_text)
             page_text_clean = str(page_text or "").strip()
             if page_text_clean:

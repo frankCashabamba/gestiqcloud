@@ -1,12 +1,22 @@
 {
   "doc_type_patterns": {
     "INVOICE": ["invoice", "factura", "rechnung", "fattura", "fatura", "facture"],
-    "RECEIPT": ["receipt", "recibo", "boleta", "ticket", "voucher"],
+    "RECEIPT": ["receipt", "recibo", "boleta", "ticket", "voucher", "nota de venta", "factura simplificada", "simplified invoice"],
     "BANK_STATEMENT": ["bank statement", "extracto", "estado de cuenta", "kontoauszug"],
+    "BANK_MOVEMENTS": ["movimientos bancarios", "bank movements", "movimientos"],
     "PAYROLL": ["payroll", "nomina", "planilla", "lohnabrechnung"],
+    "EXPENSE": ["expense", "expenses", "gastos", "gasto"],
     "INVENTORY": ["inventory", "inventario", "stock", "price list", "lista precios"],
     "COSTING": ["costing", "costeo", "recipe", "receta", "food cost"],
     "SALES": ["sales", "venta", "ventas", "summary", "resumen", "report", "export"]
+  },
+  "structured_filename_patterns": {
+    "EXPENSE": ["gastos", "gasto", "expenses", "expense"],
+    "BANK_MOVEMENTS": ["movimientos", "movements"],
+    "BANK_STATEMENT": ["extracto", "estado de cuenta"],
+    "PAYROLL": ["nomina", "planilla", "payroll"],
+    "COSTING": ["costeo", "costing", "food cost"],
+    "SALES": ["ventas", "venta", "sales"]
   },
   "doc_categories": {
     "invoice": ["INVOICE", "FACTURA", "CREDIT_NOTE", "PURCHASE_ORDER", "QUOTE", "PROFORMA"],

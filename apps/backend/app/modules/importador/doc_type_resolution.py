@@ -130,7 +130,25 @@ def promote_doc_type_from_text_fallback(
     receipt_tokens = _keyword_tokens(fallback_patterns, "RECEIPT")
     payroll_tokens = _keyword_tokens(fallback_patterns, "PAYROLL")
     sales_tokens = _keyword_tokens(fallback_patterns, "SALES")
-    if any(token in text_context for token in invoice_tokens):
+
+    # "Factura simplificada" / "nota de venta" son recibos de punto de venta (POS), NO
+    # facturas B2B. Tienen prioridad sobre el check genérico de invoice_tokens para que
+    # "factura" dentro de "factura simplificada" no dispare INVOICE incorrectamente.
+    _simplified_receipt_markers = (
+        "factura simplificada",
+        "simplified invoice",
+        "nota de venta",
+        "ticket simplificado",
+    )
+    _is_simplified_receipt = any(marker in text_context for marker in _simplified_receipt_markers)
+
+    if _is_simplified_receipt:
+        # Tratar como recibo con confianza media; siempre marca para revisión
+        if has_total:
+            promoted_type = "RECEIPT"
+            promoted_confidence = _confidence_from_map(keyword_confidence, "RECEIPT", 0.62)
+            reason_tag = "simplified_receipt_keyword"
+    elif any(token in text_context for token in invoice_tokens):
         if has_total and (invoice_support >= 2 or has_line_items):
             promoted_type = "INVOICE"
             promoted_confidence = _confidence_from_map(keyword_confidence, "INVOICE", 0.68)
