@@ -671,5 +671,3 @@ def get_save_capabilities(request: Request, db: Session = Depends(get_db)):
     return {mod: mod in resolved or any(mod in n for n in resolved) for mod in relevant}
 
 
-def _safe_float(val) -> float | None:
-    return safe_floatish(val)

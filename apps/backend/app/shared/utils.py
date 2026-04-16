@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import time
 import unicodedata
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -75,3 +76,26 @@ def find_missing_id_defaults(db: Session) -> list[dict[str, object]]:
                 }
             )
     return out
+
+
+def to_decimal(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
+    """Convierte un valor numérico a Decimal con la precisión indicada."""
+    if value is None:
+        value = 0
+    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
+
+
+def normalize_lot(value: str | None) -> str | None:
+    """Normaliza un número de lote: strip y devuelve None si queda vacío."""
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def safe_decimal(value: object, default: Decimal = Decimal("0")) -> Decimal:
+    """Convierte un valor a Decimal. Devuelve `default` si falla la conversión."""
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return default

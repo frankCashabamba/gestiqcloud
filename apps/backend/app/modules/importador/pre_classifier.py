@@ -415,28 +415,6 @@ def _match_headers_to_canonical(
 
 
 def _extract_ruc_from_text(text: str) -> str | None:
-    """Extrae el primer RUC/NIF/CUIT encontrado en el texto OCR.
-
-    Soporta formatos comunes: RUC peruano (11 dígitos), NIF español (9 chars),
-    CUIT argentino (XX-XXXXXXXX-X). Devuelve solo dígitos del match.
-    """
-    if not text:
-        return None
-    # Patrones comunes de identificación fiscal (prefijados por keywords)
-    patterns = [
-        r"(?:R\.?U\.?C\.?|RUC|NIF|CIF|CUIT|CUIL|RFC)\s*[:\-#]?\s*([0-9][\d\-]{6,19})",
-        r"\b(20\d{9}|10\d{9})\b",  # RUC peruano: empieza por 20 (empresa) o 10 (persona)
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, text[:3000], re.IGNORECASE)
-        if match:
-            digits = re.sub(r"\D", "", match.group(1))
-            if 8 <= len(digits) <= 15:
-                return digits
-    return None
-
-
-def _extract_ruc_from_text(text: str) -> str | None:
     """Extrae el primer identificador fiscal configurado encontrado en el OCR."""
     if not text:
         return None

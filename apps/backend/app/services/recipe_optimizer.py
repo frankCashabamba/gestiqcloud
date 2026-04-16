@@ -28,6 +28,7 @@ from app.services.recipe_calculator import (
     calculate_recipe_full_cost,
 )
 from app.utils.unit_converter import convert, normalize_unit_name
+from app.shared.utils import safe_decimal as _safe_decimal
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +59,6 @@ def _extract_json_payload(raw: str) -> dict:
         if start >= 0 and end > start:
             return json.loads(text[start : end + 1])
         raise ValueError("La respuesta de IA no es JSON valido") from None
-
-
-def _safe_decimal(value: object, default: Decimal = Decimal("0")) -> Decimal:
-    try:
-        return Decimal(str(value))
-    except Exception:
-        return default
 
 
 def _convert_qty_to_package_unit(qty: object, unit: object, package_unit: object) -> Decimal:

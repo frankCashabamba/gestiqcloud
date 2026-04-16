@@ -235,62 +235,40 @@ async def _run_processing(
                 ),
             )
 
-            # ── IA: inline para casos inciertos, async para enriquecimiento ────────
-            # Regla B: si el determinístico no clasificó bien, la IA corre inline
-            # (bloquea hasta tener resultado, pero el doc llega completo de una vez).
-            # Si ya está bien clasificado, la IA enriquece campos en background.
+            # ── IA inline: corre dentro del mismo task cuando el resultado es incierto ──
+            # Umbral 0.70: cubre OTHER, correcciones por filename (capeadas a 0.55),
+            # tipos promovidos con poca evidencia (0.61-0.68). Docs con confianza alta
+            # ya tienen todos los campos relevantes → no necesitan IA.
             _doc_estado = getattr(doc, "estado", "") or ""
             _doc_tipo = str(getattr(doc, "tipo_documento_detectado", "") or "").upper()
             _doc_conf = float(getattr(doc, "confianza_clasificacion", 0.0) or 0.0)
 
-            if _doc_estado == "REVIEW":
-                _needs_ai_inline = _doc_tipo in ("OTHER", "") or _doc_conf < 0.55
-
-                if _needs_ai_inline:
-                    # Caso incierto: IA inline — el doc sale con tipo correcto en un solo paso
-                    try:
-                        from app.modules.importador.services.ai_analysis_agent import (
-                            analyze_document_with_ai as _ai_analyze_inline,
-                        )
-                        logger.info(
-                            "ai_agent.inline_start doc_id=%s tipo=%s conf=%.3f",
-                            doc_id, _doc_tipo, _doc_conf,
-                        )
-                        await _ai_analyze_inline(
-                            doc_id=doc_id,
-                            db=db,
-                            apply_result=True,
-                        )
-                        db.refresh(doc)
-                        logger.info(
-                            "ai_agent.inline_done doc_id=%s tipo_final=%s",
-                            doc_id, getattr(doc, "tipo_documento_detectado", ""),
-                        )
-                    except Exception as _ai_exc:
-                        # No propagar: si falla la IA el doc queda como OTHER, nada roto
-                        logger.warning(
-                            "ai_agent.inline_failed doc_id=%s: %s", doc_id, _ai_exc
-                        )
-
-                elif analyze_document_ai_task is not None:
-                    # Bien clasificado: enriquecer campos en background sin bloquear
-                    try:
-                        analyze_document_ai_task.apply_async(
-                            kwargs={
-                                "doc_id": str(doc_id),
-                                "tenant_id": str(tenant_id),
-                            },
-                            queue="importador_deep",
-                            countdown=3,
-                        )
-                        logger.info(
-                            "ai_agent.task.dispatched doc_id=%s tenant=%s",
-                            doc_id, tenant_id,
-                        )
-                    except Exception as _ai_exc:
-                        logger.warning(
-                            "ai_agent.task.dispatch_failed doc_id=%s: %s", doc_id, _ai_exc
-                        )
+            if _doc_estado == "REVIEW" and _doc_tipo in ("OTHER", ""):
+                try:
+                    from app.modules.importador.services.ai_analysis_agent import (
+                        analyze_document_with_ai as _ai_analyze_inline,
+                    )
+                    logger.info(
+                        "ai_agent.inline_start doc_id=%s tipo=%s conf=%.3f",
+                        doc_id, _doc_tipo, _doc_conf,
+                    )
+                    await _ai_analyze_inline(
+                        doc_id=doc_id,
+                        db=db,
+                        apply_result=True,
+                    )
+                    db.refresh(doc)
+                    logger.info(
+                        "ai_agent.inline_done doc_id=%s tipo_final=%s conf_final=%.3f",
+                        doc_id,
+                        getattr(doc, "tipo_documento_detectado", ""),
+                        float(getattr(doc, "confianza_clasificacion", 0.0) or 0.0),
+                    )
+                except Exception as _ai_exc:
+                    # No propagar: si falla la IA el doc queda con el resultado determinístico
+                    logger.warning(
+                        "ai_agent.inline_failed doc_id=%s: %s", doc_id, _ai_exc
+                    )
 
         except Exception as exc:
             logger.error("Error procesando documento %s: %s", doc_id, exc, exc_info=True)

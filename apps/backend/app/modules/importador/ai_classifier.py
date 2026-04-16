@@ -28,6 +28,23 @@ from app.services.ai.service import AIService
 logger = logging.getLogger("importador.ai")
 
 
+def _smart_content_sample(content: str, limit: int) -> str:
+    """Muestrea el contenido en tres zonas: inicio, centro y final.
+
+    En vez de truncar al inicio (content[:limit]), divide el límite en tercios
+    para capturar cabecera del documento (vendor/fecha), cuerpo (line items)
+    y pie (totales). Preserva el 100% si el contenido cabe en el límite.
+    """
+    if not content or len(content) <= limit:
+        return content
+    third = max(1, limit // 3)
+    head = content[:third]
+    mid_start = max(third, (len(content) - third) // 2)
+    mid = content[mid_start : mid_start + third]
+    tail = content[max(0, len(content) - third) :]
+    return f"{head}\n[...]\n{mid}\n[...]\n{tail}"
+
+
 def _resolve_model_for_doctype(doc_type: str | None, db: Any = None) -> str | None:
     """Retorna el nombre del modelo a usar para este doc_type según imp_config.
 
@@ -1426,6 +1443,83 @@ def _extract_vendor_name_from_ocr(
     return candidates[0][1]
 
 
+# Patrón POS ticket: "1.00x descripcion $2.50" o "10x tapados $1.50"
+_POS_ITEM_RE = re.compile(
+    r"^(\d+(?:[.,]\d+)?)\s*[xX×]\s+(.+?)\s+\$\s*(\d+(?:[.,]\d+)?)\s*$"
+)
+# Línea que contiene SOLO un número o importe (para detectar filas multi-línea)
+_STANDALONE_AMOUNT_RE = re.compile(
+    r"^\$?\s*\d+(?:[.,]\d{1,3})?\s*$"
+)
+
+
+def _extract_pos_ticket_items_from_ocr(text: str) -> list[dict[str, Any]]:
+    """Extrae items de tickets POS con formato '1.00x descripcion $precio'."""
+    items: list[dict[str, Any]] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        m = _POS_ITEM_RE.match(line)
+        if not m:
+            continue
+        qty_str = m.group(1)
+        desc = m.group(2).strip().rstrip(".").strip()
+        price_str = m.group(3)
+        qty = safe_floatish(qty_str) or 1.0
+        price = safe_floatish(price_str) or 0.0
+        if not desc or len(desc) < 2 or price <= 0:
+            continue
+        unit_price = round(price / qty, 6) if qty else price
+        items.append(
+            {
+                "description": desc,
+                "quantity": qty,
+                "unit_price": unit_price,
+                "total_price": price,
+            }
+        )
+    return items
+
+
+def _join_multiline_table_rows(lines: list[str]) -> list[str]:
+    """Colapsa filas de tabla donde descripción y valores están en líneas separadas.
+
+    Detecta el patrón típico de facturas PDF que exportan cada celda en su
+    propia línea (descripción → qty → precio_unitario → total) y las une
+    en una sola línea para que el extractor principal las procese.
+
+    Ejemplo Render invoice:
+        "Servers - 743h 59m 59s - 1 instance"  →  línea de descripción
+        "1"                                      →  qty solo
+        "$7.00"                                  →  precio unitario solo
+        "$7.00"                                  →  total solo
+    Se une en: "Servers - 743h 59m 59s - 1 instance 1 7.00 7.00"
+    """
+    result: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Solo intentar colapsar si la línea actual NO es ella misma un número suelto
+        if not _STANDALONE_AMOUNT_RE.match(line.strip()):
+            j = i + 1
+            joined_count = 0
+            while j < len(lines) and joined_count < 3:
+                next_stripped = lines[j].strip()
+                if _STANDALONE_AMOUNT_RE.match(next_stripped):
+                    joined_count += 1
+                    j += 1
+                else:
+                    break
+            # Colapsar solo si hay al menos 2 valores numéricos seguidos (qty + precio/s)
+            if joined_count >= 2:
+                parts = [line] + [lines[k].strip() for k in range(i + 1, j)]
+                result.append(" ".join(parts))
+                i = j
+                continue
+        result.append(line)
+        i += 1
+    return result
+
+
 def _extract_invoice_line_items_from_ocr(
     content: str,
     *,
@@ -1436,7 +1530,9 @@ def _extract_invoice_line_items_from_ocr(
         return []
 
     text_normalized = _normalize_evidence_text(text)
-    lines = [str(line).strip() for line in text.splitlines() if str(line).strip()]
+    # Pre-procesar: colapsar filas multi-línea antes del análisis token a token
+    raw_lines = [str(line).strip() for line in text.splitlines() if str(line).strip()]
+    lines = _join_multiline_table_rows(raw_lines)
     if not lines:
         return []
 
@@ -1481,6 +1577,10 @@ def _extract_invoice_line_items_from_ocr(
             digits = _digits_only(token)
             if not digits or len(digits) > 8:
                 continue
+            # Excluir tokens con sufijo de letra (duraciones "743h", "59m", unidades "1kg")
+            # — representan tiempo o unidades de medida, no cantidades ni precios
+            if re.search(r"\d[a-zA-Z]$", token):
+                continue
             parsed = safe_floatish(token)
             if parsed is None:
                 continue
@@ -1496,6 +1596,8 @@ def _extract_invoice_line_items_from_ocr(
 
         description = " ".join(tokens[qty_idx + 1 : unit_idx]).strip()
         description = description.replace("F/", " ").replace("F /", " ")
+        # Eliminar monedas/símbolos sueltos al inicio o final y limpiar puntuación
+        description = re.sub(r"^[$€£¥]\s*|[$€£¥]\s*$", "", description)
         description = " ".join(description.split()).strip(" -–—|/.,;:()[]{}")
         description = _normalize_invoice_description_strict(description)
         if not description:
@@ -1524,6 +1626,10 @@ def _extract_invoice_line_items_from_ocr(
         candidates.append((candidate_score, row))
 
     if not candidates:
+        # Fallback: formato POS ticket "1.00x descripcion $2.50"
+        pos_items = _extract_pos_ticket_items_from_ocr(text)
+        if pos_items:
+            return pos_items
         return []
 
     deduped: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -1660,12 +1766,16 @@ def _apply_high_evidence_ocr_repairs(
 
     if labeled_total is None:
         labeled_total = _extract_contextual_max_amount(content)
+    _repairs: list[str] = []
+
     current_total = fields.get("total_amount")
     if labeled_total is not None and (
         current_total in (None, "")
         or not _numeric_evidence(text_digits, current_total)
         or abs(float(current_total) - labeled_total) > 1.0
     ):
+        if current_total not in (None, "") and current_total != labeled_total:
+            _repairs.append(f"total_amount: {current_total!r} → {labeled_total!r}")
         fields["total_amount"] = labeled_total
 
     current_subtotal = fields.get("subtotal")
@@ -1682,30 +1792,38 @@ def _apply_high_evidence_ocr_repairs(
     if labeled_subtotal is not None and (
         current_subtotal in (None, "") or not _numeric_evidence(text_digits, current_subtotal)
     ):
+        if current_subtotal not in (None, "") and current_subtotal != labeled_subtotal:
+            _repairs.append(f"subtotal: {current_subtotal!r} → {labeled_subtotal!r}")
         fields["subtotal"] = labeled_subtotal
     elif (
         labeled_subtotal is None
         and current_subtotal not in (None, "")
         and not _numeric_evidence(text_digits, current_subtotal)
     ):
+        _repairs.append(f"subtotal: {current_subtotal!r} → None (sin evidencia numérica)")
         fields["subtotal"] = None
 
     current_tax = fields.get("tax_amount")
     if labeled_tax is not None and (
         current_tax in (None, "") or not _numeric_evidence(text_digits, current_tax)
     ):
+        if current_tax not in (None, "") and current_tax != labeled_tax:
+            _repairs.append(f"tax_amount: {current_tax!r} → {labeled_tax!r}")
         fields["tax_amount"] = labeled_tax
     elif (
         labeled_tax is None
         and current_tax not in (None, "")
         and not _numeric_evidence(text_digits, current_tax)
     ):
+        _repairs.append(f"tax_amount: {current_tax!r} → None (sin evidencia numérica)")
         fields["tax_amount"] = None
 
     issue_date = fields.get("issue_date")
     if ocr_issue_date and (
         issue_date in (None, "") or not _numeric_evidence(text_digits, issue_date)
     ):
+        if issue_date not in (None, "") and issue_date != ocr_issue_date:
+            _repairs.append(f"issue_date: {issue_date!r} → {ocr_issue_date!r}")
         fields["issue_date"] = ocr_issue_date
 
     current_vendor_tax_id = fields.get("vendor_tax_id")
@@ -1715,11 +1833,22 @@ def _apply_high_evidence_ocr_repairs(
         or _digits_only(current_vendor_tax_id) != ocr_vendor_tax_id
         or not _numeric_evidence(text_digits, current_vendor_tax_id)
     ):
+        if current_vendor_tax_id not in (None, "") and current_vendor_tax_id != ocr_vendor_tax_id:
+            _repairs.append(f"vendor_tax_id: {current_vendor_tax_id!r} → {ocr_vendor_tax_id!r}")
         fields["vendor_tax_id"] = ocr_vendor_tax_id
     elif current_vendor_tax_id not in (None, "") and not _numeric_evidence(
         text_digits, current_vendor_tax_id
     ):
+        _repairs.append(f"vendor_tax_id: {current_vendor_tax_id!r} → None (sin evidencia numérica)")
         fields["vendor_tax_id"] = None
+
+    if _repairs:
+        logger.info(
+            "ocr_repair format=%s fields_overwritten=%d %s",
+            normalized_format,
+            len(_repairs),
+            " | ".join(_repairs),
+        )
 
     invoice_repaired_fields = _apply_invoice_ocr_rescue(
         parsed,
@@ -2493,7 +2622,7 @@ async def analyze_document(
         f"{_build_document_time_context(pc, current_year=current_year)}\n"
         f"{_hint_line}\n"
         f"{pre_extracted_block}"
-        f"Content:\n{content[:content_limit]}\n\n"
+        f"Content:\n{_smart_content_sample(content, content_limit)}\n\n"
         f"{response_label}\n"
         f"{response_contract}\n"
         f"{critical_rules_heading}\n"

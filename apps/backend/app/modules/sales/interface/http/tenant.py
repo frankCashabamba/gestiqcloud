@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
@@ -21,6 +21,7 @@ from app.models.sales.order import SalesOrder, SalesOrderItem
 from app.modules.shared.services.statuses import DeliveryStatus
 from app.modules.shared.services.tax import normalize_tax_rate, resolve_tenant_default_tax_rate
 from app.services.inventory_costing import InventoryCostingService
+from app.shared.utils import to_decimal as _dec
 
 router = APIRouter(
     prefix="/sales_orders",
@@ -37,12 +38,6 @@ def _uuid_or_none(value: str | None) -> UUID | None:
     if value is None:
         return None
     return UUID(str(value))
-
-
-def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
-    if value is None:
-        value = 0
-    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
 def _resolve_delivery_stock_item(

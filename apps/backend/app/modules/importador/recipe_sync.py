@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -13,6 +12,7 @@ from app.models.core.products import Product
 from app.models.importador import ImpDocumento
 from app.models.recipes import Recipe, RecipeIngredient
 from app.services.unit_catalog_service import normalize_operational_unit
+from app.shared.utils import safe_decimal as _as_decimal
 
 
 def _normalize_unit(unit: str | None) -> str:
@@ -43,13 +43,6 @@ WASTE_KEYS = (
 def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", name.strip().lower())
     return slug.strip("-") or "sin-nombre"
-
-
-def _as_decimal(val: Any) -> Decimal:
-    try:
-        return Decimal(str(val))
-    except Exception:
-        return Decimal("0")
 
 
 def _pick_first(d: dict, *keys: str):

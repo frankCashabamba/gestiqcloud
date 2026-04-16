@@ -222,10 +222,10 @@
   },
   "ai_params": {
     "temperature": "0.1",
-    "max_tokens_extraction": "500",
+    "max_tokens_extraction": "1500",
     "max_tokens_classification": "180",
-    "content_limit_unstructured": "1200",
-    "content_limit_structured": "2000",
+    "content_limit_unstructured": "4000",
+    "content_limit_structured": "6000",
     "max_tokens_by_doctype": {
       "INVOICE": "500",
       "RECEIPT": "350",
@@ -448,7 +448,13 @@
       "ambiente",
       "emision",
       "autorizacion",
-      "producto"
+      "producto",
+      "ticket de venta",
+      "ticket de ventas",
+      "ticketdeventa",
+      "nota de venta",
+      "comprobante de venta",
+      "recibo de venta"
     ],
     "invoice_vendor_suffix_patterns": [
       "\\b(?:s\\.?\\s*a\\.?\\s*|s\\.?\\s*a\\.?\\s*s\\.?|ltda\\.?|cia\\.?|compania|company|corp\\.?|inc\\.?|s\\.?\\s*r\\.?\\s*l\\.?|sas)\\b"
@@ -473,8 +479,8 @@
       "emision"
     ],
     "excel_max_header_scan_rows": "25",
-    "excel_max_preview_rows_per_sheet": "120",
-    "excel_scan_rows_multiplier": "4",
+    "excel_max_preview_rows_per_sheet": "300",
+    "excel_scan_rows_multiplier": "8",
     "excel_max_text_chars": "4000",
     "vision_jpeg_quality": "75",
     "image_source_formats": ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP"]

@@ -19,6 +19,7 @@ from app.modules.products.interface.http.tenant import (
     _resolve_category_id,
 )
 
+from .document_fields import safe_floatish as _safe_float
 from .runtime_config import load_product_sheet_detection_config
 
 
@@ -45,33 +46,6 @@ def _norm(value: Any) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _safe_float(value: Any) -> float | None:
-    if value is None or isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        numeric = float(value)
-        return numeric if numeric == numeric else None
-
-    raw = str(value).strip()
-    if not raw:
-        return None
-    raw = raw.replace("\xa0", " ")
-    raw = re.sub(r"[^0-9,.\-]", "", raw)
-    if not raw or raw in {"-", ".", ","}:
-        return None
-
-    if "," in raw and "." in raw:
-        if raw.rfind(",") > raw.rfind("."):
-            raw = raw.replace(".", "").replace(",", ".")
-        else:
-            raw = raw.replace(",", "")
-    elif "," in raw:
-        raw = raw.replace(",", ".")
-
-    try:
-        return float(raw)
-    except ValueError:
-        return None
 
 
 def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:

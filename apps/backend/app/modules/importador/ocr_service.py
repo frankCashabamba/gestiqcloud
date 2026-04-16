@@ -43,7 +43,7 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-14-2"  # bumped: fix mojibake en texto nativo PDF
+OCR_EXTRACTION_CACHE_VERSION = "2026-04-15-1"  # bumped: fix precios POS ticket (columnar split) + stop tokens vendor
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -528,6 +528,30 @@ def _fix_mojibake(text: str) -> str:
     return _MOJIBAKE_RE.sub(_replace_fragment, text)
 
 
+def _fix_pos_ticket_prices(text: str) -> str:
+    """Corrige precios partidos en tickets POS con layout columnar.
+
+    PyMuPDF lee columnas en orden stream, lo que parte precios de dos
+    columnas contiguas en líneas separadas:
+        "$2\\n50"  →  "$2.50"
+        "$ 12\\n95"  →  "$12.95"
+
+    También elimina líneas de separador decorativo que generan basura
+    como "www eee eee" o "---- ----" en tickets térmicos.
+    """
+    if not text:
+        return text
+    # Precio partido: "$<enteros>\n<dos_dígitos>" → "$<enteros>.<dos_dígitos>"
+    text = re.sub(r'\$\s*([0-9]+)\n([0-9]{2})\b', r'$\1.\2', text)
+    # Variante con espacio antes del dólar: "$ 12\n95"
+    text = re.sub(r'\$\s+([0-9]+)\n([0-9]{2})\b', r'$\1.\2', text)
+    # Separadores decorativos: líneas compuestas solo de guiones, iguales, puntos, tildes o letras repetidas tipo "www eee"
+    text = re.sub(r'^[ \t]*(?:[=\-~_.*]{4,}|(?:[a-z]{2,4}\s+){2,}[a-z]{2,4})[ \t]*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
+    # Compactar múltiples líneas en blanco consecutivas generadas por la limpieza anterior
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text
+
+
 def _run_tesseract(
     img: Image.Image,
     *,
@@ -720,6 +744,35 @@ def _extract_zip_summary(file_bytes: bytes, zip_name: str) -> dict[str, Any]:
     return {"text": text, "pages": 1, "structured_data": summaries, "format": "ZIP"}
 
 
+def _reconstruct_page_text_by_words(page: Any, *, y_tolerance: int = 3) -> str:
+    """Reconstruye texto de página agrupando palabras por coordenada Y.
+
+    Soluciona el problema de PyMuPDF donde get_text('text') aplana tablas
+    multicolumna en texto columnar. Usar get_text('words') con coordenadas
+    permite reconstruir filas horizontales correctamente.
+    """
+    words = page.get_text("words")  # (x0, y0, x1, y1, text, block_no, line_no, word_no)
+    if not words:
+        return ""
+    rows: dict[float, list[tuple[float, str]]] = {}
+    for w in words:
+        x0, y0, text = float(w[0]), float(w[1]), str(w[4])
+        matched: float | None = None
+        for ry in rows:
+            if abs(y0 - ry) <= y_tolerance:
+                matched = ry
+                break
+        if matched is None:
+            rows[y0] = []
+            matched = y0
+        rows[matched].append((x0, text))
+    lines: list[str] = []
+    for ry in sorted(rows.keys()):
+        row_words = sorted(rows[ry], key=lambda t: t[0])
+        lines.append("  |  ".join(t[1] for t in row_words))
+    return "\n".join(lines)
+
+
 async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     """PDF: intenta texto embebido con PyMuPDF, si no hay, usa OCR."""
     config = _ocr_runtime_config()
@@ -740,7 +793,9 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
     try:
         selected_page_texts: list[str] = []
         for page in doc:
-            page_text = _fix_mojibake(page.get_text("text"))
+            page_text = _fix_pos_ticket_prices(
+                _fix_mojibake(_reconstruct_page_text_by_words(page) or page.get_text("text"))
+            )
             page_texts.append(page_text)
             page_text_clean = str(page_text or "").strip()
             if page_text_clean:
@@ -865,14 +920,34 @@ async def _extract_image(file_bytes: bytes) -> dict[str, Any]:
     config = _ocr_runtime_config()
     img = Image.open(io.BytesIO(file_bytes))
 
-    # Resize if too small — Tesseract works best at ~300 DPI equivalent
+    # Resize if too small — Tesseract works best at ~300 DPI equivalent.
+    # Cap scale at 2x: upscaling más allá introduce artefactos que dañan el OCR.
     min_width = int(config["min_width"])
     if img.width < min_width:
-        scale = min_width / img.width
+        scale = min(min_width / img.width, 2.0)
         img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
 
-    # Keep color information when available; some handwritten notes OCR better on channels.
-    img = ImageEnhance.Contrast(img).enhance(float(config["image_contrast"]))
+    # CLAHE (Contrast Limited Adaptive Histogram Equalization) para iluminación
+    # irregular (fotos de WhatsApp, escáneres con sombras). Mucho más efectivo que
+    # contraste global para documentos fotografiados en condiciones variables.
+    # Si cv2 no está disponible, cae a la mejora global de Pillow como antes.
+    _clahe_applied = False
+    try:
+        import cv2
+        import numpy as np
+
+        gray = cv2.cvtColor(np.array(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(gray)
+        img = Image.fromarray(enhanced).convert("RGB")
+        _clahe_applied = True
+    except Exception:
+        pass
+
+    if not _clahe_applied:
+        # Fallback: mejora global de contraste/nitidez (comportamiento anterior)
+        img = ImageEnhance.Contrast(img).enhance(float(config["image_contrast"]))
+
     img = ImageEnhance.Sharpness(img).enhance(float(config["image_sharpness"]))
     img = img.filter(ImageFilter.SHARPEN)
 
@@ -1115,6 +1190,8 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
 
         preview_rows_sheet: list[dict[str, Any]] = []
         total_rows_counted = 0
+        col_sums: dict[str, float] = {h: 0.0 for h in headers}
+        col_non_null: dict[str, int] = {h: 0 for h in headers}
 
         for row in rows_iter:
             total_rows_counted += 1
@@ -1146,6 +1223,12 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
                 for h in headers:
                     sample_values_by_col[h].append(row_dict.get(h))
 
+            for h in headers:
+                v = row_dict.get(h)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    col_sums[h] += float(v)
+                    col_non_null[h] += 1
+
             if total_rows_counted >= max_scan_rows_per_sheet:
                 break
 
@@ -1154,6 +1237,13 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
             text_lines.append(
                 f"[{sheet_name}] " + "\t".join(str(row.get(h, "") or "") for h in headers)
             )
+        stats_parts = []
+        for h in headers:
+            if col_non_null.get(h, 0) > 0:
+                stats_parts.append(f"{h}:sum={col_sums[h]:.2f},n={col_non_null[h]}")
+        if stats_parts:
+            text_lines.append(f"[{sheet_name}:STATS] " + " | ".join(stats_parts))
+        text_lines.append(f"[{sheet_name}:TOTAL_ROWS] {total_rows_counted}")
 
         col_profiles = {}
         for h, vals in sample_values_by_col.items():

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, date, datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -20,6 +19,8 @@ from app.models.inventory.warehouse import Warehouse
 from app.models.recipes import RecipeIngredient
 from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.services.inventory_costing import InventoryCostingService
+from app.shared.utils import normalize_lot as _normalize_lot
+from app.shared.utils import to_decimal as _dec
 
 router = APIRouter(
     prefix="/inventory",
@@ -57,12 +58,6 @@ def _coerce_uuid(value: str | UUID | None):
         return value
 
 
-def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
-    if value is None:
-        value = 0
-    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
-
-
 def _resolve_inventory_costing_method(db: Session) -> str:
     try:
         repo = SettingsRepo(db)
@@ -82,13 +77,6 @@ def _iso_date(value: date | datetime | str | None) -> str | None:
     if isinstance(value, date):
         return value.isoformat()
     return str(value)
-
-
-def _normalize_lot(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 def _require_tenant_warehouse(db: Session, tenant_id: str, warehouse_id: str) -> Warehouse:

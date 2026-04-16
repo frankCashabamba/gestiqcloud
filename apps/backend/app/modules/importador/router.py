@@ -792,8 +792,8 @@ def _infer_save_destination(doc, db: Session) -> str:
 
 def _normalize_payment_details(total: float | None, body: SaveDocumentRequest) -> dict:
     status = body.payment_status or "pending"
-    paid_amount = _safe_float(body.paid_amount)
-    pending_amount = _safe_float(body.pending_amount)
+    paid_amount = safe_floatish(body.paid_amount)
+    pending_amount = safe_floatish(body.pending_amount)
 
     if status == "paid":
         paid_amount = paid_amount if paid_amount is not None else total
@@ -2722,9 +2722,6 @@ def _sync_batch_projection(
         crud.refresh_batch_status(db, batch_id)
         publish_batch_update(db, batch_id)
 
-
-def _safe_float(val) -> float | None:
-    return safe_floatish(val)
 
 
 @router.post(

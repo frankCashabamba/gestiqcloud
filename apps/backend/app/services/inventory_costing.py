@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Literal, NamedTuple
 from uuid import uuid4
 
@@ -9,23 +9,13 @@ from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.shared.utils import normalize_lot as _normalize_lot
+from app.shared.utils import to_decimal as _dec
+
 
 class CostState(NamedTuple):
     on_hand_qty: Decimal
     avg_cost: Decimal
-
-
-def _dec(value: float | Decimal | None, q: str) -> Decimal:
-    if value is None:
-        value = 0
-    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
-
-
-def _normalize_lot(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 class InventoryCostingService:

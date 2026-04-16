@@ -1,5 +1,4 @@
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,6 +13,8 @@ from app.models.inventory.stock import StockItem, StockMove
 from app.models.purchases.purchase import PurchaseLine
 from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.services.inventory_costing import InventoryCostingService
+from app.shared.utils import normalize_lot as _normalize_lot
+from app.shared.utils import to_decimal as _dec
 
 from ...infrastructure.repositories import PurchaseRepo
 from .schemas import PurchaseCreate, PurchaseOut, PurchaseUpdate
@@ -80,19 +81,6 @@ def delete_purchase(
     except ValueError:
         raise HTTPException(404, "Not found")
     return {"success": True}
-
-
-def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
-    if value is None:
-        value = 0
-    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
-
-
-def _normalize_lot(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 def _resolve_inventory_costing_method(db: Session) -> str:
