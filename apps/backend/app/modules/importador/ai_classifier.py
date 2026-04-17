@@ -742,6 +742,25 @@ async def _analyze_structured_document(
         ai_params=ai_params,
     )
 
+    def _structured_fallback(
+        *,
+        raw_response: Any,
+        model_used_value: str,
+        analysis_path: str,
+        cache_hit: bool,
+    ) -> dict[str, Any]:
+        """Construye un resultado de fallback para clasificacion estructurada."""
+        fb = _fallback_classify(content, filename, fallback_patterns)
+        fb.update({"is_table": True, "columns": [], "fields": {}})
+        fb["raw_response"] = raw_response
+        fb["model_used"] = model_used_value
+        fb["prompt_full"] = prompt
+        fb["prompt_parts"] = prompt_parts
+        fb["analysis_path"] = analysis_path
+        fb["cache_hit"] = cache_hit
+        fb["cache_bypassed"] = bool(bypass_cache)
+        return fb
+
     try:
         response = await AIService.query(
             task=AITask.CLASSIFICATION,
@@ -758,16 +777,15 @@ async def _analyze_structured_document(
         raw_content = response.content
         model_used = response.model or "unknown"
         response_metadata = getattr(response, "metadata", None) or {}
+        cache_hit_flag = bool(response_metadata.get("source") == "redis_cache")
 
         if response.is_error:
-            fallback = _fallback_classify(content, filename, fallback_patterns)
-            fallback.update({"is_table": True, "columns": [], "fields": {}})
-            fallback["raw_response"] = response.error
-            fallback["model_used"] = model_used
-            fallback["prompt_sent"] = prompt[:500]
-            fallback["prompt_full"] = prompt
-            fallback["prompt_parts"] = prompt_parts
-            return fallback
+            return _structured_fallback(
+                raw_response=response.error,
+                model_used_value=model_used,
+                analysis_path="fallback",
+                cache_hit=cache_hit_flag,
+            )
 
         parsed = _parse_json_response(raw_content)
         if parsed and parsed.get("doc_type"):
@@ -778,38 +796,27 @@ async def _analyze_structured_document(
             parsed["fields"] = {}
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
-            parsed["prompt_sent"] = prompt[:500]
             parsed["prompt_full"] = prompt
             parsed["prompt_parts"] = prompt_parts
             parsed["analysis_path"] = "ai_structured"
-            parsed["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+            parsed["cache_hit"] = cache_hit_flag
             parsed["cache_bypassed"] = bool(bypass_cache)
             return parsed
 
-        fallback = _fallback_classify(content, filename, fallback_patterns)
-        fallback.update({"is_table": True, "columns": [], "fields": {}})
-        fallback["raw_response"] = raw_content
-        fallback["model_used"] = model_used
-        fallback["prompt_sent"] = prompt[:500]
-        fallback["prompt_full"] = prompt
-        fallback["prompt_parts"] = prompt_parts
-        fallback["analysis_path"] = "fallback"
-        fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
-        fallback["cache_bypassed"] = bool(bypass_cache)
-        return fallback
+        return _structured_fallback(
+            raw_response=raw_content,
+            model_used_value=model_used,
+            analysis_path="fallback",
+            cache_hit=cache_hit_flag,
+        )
     except Exception as exc:
         logger.error("Structured AI analysis error: %s", exc)
-        fallback = _fallback_classify(content, filename, fallback_patterns)
-        fallback.update({"is_table": True, "columns": [], "fields": {}})
-        fallback["raw_response"] = str(exc)
-        fallback["model_used"] = "fallback"
-        fallback["prompt_sent"] = prompt[:500]
-        fallback["prompt_full"] = prompt
-        fallback["prompt_parts"] = prompt_parts
-        fallback["analysis_path"] = "fallback_error"
-        fallback["cache_hit"] = False
-        fallback["cache_bypassed"] = bool(bypass_cache)
-        return fallback
+        return _structured_fallback(
+            raw_response=str(exc),
+            model_used_value="fallback",
+            analysis_path="fallback_error",
+            cache_hit=False,
+        )
 
 
 def _clean_vision_fields(fields: dict) -> None:
@@ -2235,7 +2242,6 @@ async def _analyze_with_vision(
             )
             parsed["raw_response"] = raw_content
             parsed["model_used"] = model_used
-            parsed["prompt_sent"] = str(prompt_trace["full_prompt"])[:500]
             parsed["prompt_full"] = prompt_trace["full_prompt"]
             parsed["prompt_parts"] = prompt_trace
             logger.info("Vision analysis succeeded with %s for %s", model_used, filename)
@@ -2345,7 +2351,6 @@ def _structured_direct_analysis(
         "fields": fields,
         "raw_response": "structured_bypass",
         "model_used": "structured-direct",
-        "prompt_sent": "",
         "prompt_full": "",
         "prompt_parts": prompt_parts,
         "analysis_path": "structured_direct",
@@ -2456,7 +2461,7 @@ async def analyze_document(
         "fields": dict,         # if is_table=False
         "raw_response": str,
         "model_used": str,
-        "prompt_sent": str,
+        "prompt_full": str,
     }
     """
     deep_active = str(reprocess_mode or "").strip().lower() == "deep"
@@ -2674,7 +2679,37 @@ async def analyze_document(
     # ── Fase texto (LLM) ────────────────────────────────────────────────────
     # El resultado se guarda en _text_result para poder intentar rescate de
     # visión después si el texto falló (modo texto-primero, vision_first=False).
-    _text_result: dict[str, Any]
+    # Se inicializa con {} por defecto para evitar UnboundLocalError si una
+    # excepción ocurre antes de asignarlo dentro del try.
+    _text_result: dict[str, Any] = {}
+
+    def _handle_classify_failure(
+        *,
+        raw_response: Any,
+        model_used_value: str,
+        analysis_path: str,
+        cache_hit: bool,
+    ) -> dict[str, Any]:
+        """Construye un resultado de fallback con el mismo boilerplate repetido
+        en los 3 caminos de error (response.is_error, parse_failure, exception)."""
+        fallback = _fallback_classify(content, filename, fallback_patterns)
+        fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
+        _apply_high_evidence_ocr_repairs(
+            fallback,
+            content=content,
+            format_hint=format_hint,
+            prompt_config=pc,
+            ai_runtime=ai_runtime,
+            ocr_runtime=ocr_runtime,
+        )
+        fallback["raw_response"] = raw_response
+        fallback["model_used"] = model_used_value
+        fallback["prompt_full"] = full_prompt
+        fallback["prompt_parts"] = prompt_trace
+        fallback["analysis_path"] = analysis_path
+        fallback["cache_hit"] = cache_hit
+        fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
+        return fallback
 
     try:
         response = await AIService.query(
@@ -2695,28 +2730,16 @@ async def analyze_document(
         raw_content = response.content
         model_used = response.model or "unknown"
         response_metadata = getattr(response, "metadata", None) or {}
+        cache_hit_flag = bool(response_metadata.get("source") == "redis_cache")
 
         if response.is_error:
             logger.warning("AI analysis failed: %s", response.error)
-            fallback = _fallback_classify(content, filename, fallback_patterns)
-            fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
-            _apply_high_evidence_ocr_repairs(
-                fallback,
-                content=content,
-                format_hint=format_hint,
-                prompt_config=pc,
-                ai_runtime=ai_runtime,
-                ocr_runtime=ocr_runtime,
+            _text_result = _handle_classify_failure(
+                raw_response=response.error,
+                model_used_value=model_used,
+                analysis_path="fallback",
+                cache_hit=cache_hit_flag,
             )
-            fallback["raw_response"] = response.error
-            fallback["model_used"] = model_used
-            fallback["prompt_sent"] = full_prompt[:500]
-            fallback["prompt_full"] = full_prompt
-            fallback["prompt_parts"] = prompt_trace
-            fallback["analysis_path"] = "fallback"
-            fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
-            fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
-            _text_result = fallback
 
         else:
             parsed = _parse_json_response(raw_content)
@@ -2748,55 +2771,28 @@ async def analyze_document(
                 )
                 parsed["raw_response"] = raw_content
                 parsed["model_used"] = model_used
-                parsed["prompt_sent"] = full_prompt[:500]
                 parsed["prompt_full"] = full_prompt
                 parsed["prompt_parts"] = prompt_trace
                 parsed["analysis_path"] = "ai_text"
-                parsed["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
+                parsed["cache_hit"] = cache_hit_flag
                 parsed["cache_bypassed"] = bool(bypass_cache or deep_active)
                 _text_result = parsed
             else:
-                fallback = _fallback_classify(content, filename, fallback_patterns)
-                fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
-                _apply_high_evidence_ocr_repairs(
-                    fallback,
-                    content=content,
-                    format_hint=format_hint,
-                    prompt_config=pc,
-                    ai_runtime=ai_runtime,
-                    ocr_runtime=ocr_runtime,
+                _text_result = _handle_classify_failure(
+                    raw_response=raw_content,
+                    model_used_value=model_used,
+                    analysis_path="fallback",
+                    cache_hit=cache_hit_flag,
                 )
-                fallback["raw_response"] = raw_content
-                fallback["model_used"] = model_used
-                fallback["prompt_sent"] = full_prompt[:500]
-                fallback["prompt_full"] = full_prompt
-                fallback["prompt_parts"] = prompt_trace
-                fallback["analysis_path"] = "fallback"
-                fallback["cache_hit"] = bool(response_metadata.get("source") == "redis_cache")
-                fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
-                _text_result = fallback
 
     except Exception as exc:
         logger.error("AI analysis error: %s", exc)
-        fallback = _fallback_classify(content, filename, fallback_patterns)
-        fallback.update({"is_table": has_structured_rows, "columns": [], "fields": {}})
-        _apply_high_evidence_ocr_repairs(
-            fallback,
-            content=content,
-            format_hint=format_hint,
-            prompt_config=pc,
-            ai_runtime=ai_runtime,
-            ocr_runtime=ocr_runtime,
+        _text_result = _handle_classify_failure(
+            raw_response=str(exc),
+            model_used_value="fallback",
+            analysis_path="fallback_error",
+            cache_hit=False,
         )
-        fallback["raw_response"] = str(exc)
-        fallback["model_used"] = "fallback"
-        fallback["prompt_sent"] = full_prompt[:500]
-        fallback["prompt_full"] = full_prompt
-        fallback["prompt_parts"] = prompt_trace
-        fallback["analysis_path"] = "fallback_error"
-        fallback["cache_hit"] = False
-        fallback["cache_bypassed"] = bool(bypass_cache or deep_active)
-        _text_result = fallback
 
     # ── Rescate de visión en modo texto-primero ──────────────────────────────
     # Si el texto falló (fallback/fallback_error) y tenemos imagen disponible,

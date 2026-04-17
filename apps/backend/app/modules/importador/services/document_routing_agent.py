@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -21,6 +22,15 @@ from .document_routing_config import (
     resolve_routing_profile,
     resolve_routing_profile_match,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _normalize_extracted_data(extracted_data: dict[str, Any] | None) -> dict[str, Any]:
+    """Normaliza las claves del dict extraido UNA SOLA vez por decision."""
+    if not isinstance(extracted_data, dict):
+        return {}
+    return {str(key).strip().lower(): value for key, value in extracted_data.items()}
 
 
 def _field_candidates() -> dict[str, tuple[str, ...]]:
@@ -50,13 +60,15 @@ def _field_from_sources(
     *,
     extracted_data: dict[str, Any] | None,
     canonical_document: dict[str, Any] | None,
+    normalized_source: dict[str, Any] | None = None,
 ) -> Any:
     canonical_fields = _canonical_fields(canonical_document)
     if field_name in canonical_fields:
         return canonical_fields[field_name]
 
     source = extracted_data if isinstance(extracted_data, dict) else {}
-    normalized_source = {str(key).strip().lower(): value for key, value in source.items()}
+    if normalized_source is None:
+        normalized_source = _normalize_extracted_data(source)
     field_candidates = _field_candidates()
     for candidate in field_candidates.get(field_name, (field_name,)):
         value = normalized_source.get(candidate.strip().lower())
@@ -74,11 +86,13 @@ def _has_value(
     *,
     extracted_data: dict[str, Any] | None,
     canonical_document: dict[str, Any] | None,
+    normalized_source: dict[str, Any] | None = None,
 ) -> bool:
     value = _field_from_sources(
         field_name,
         extracted_data=extracted_data,
         canonical_document=canonical_document,
+        normalized_source=normalized_source,
     )
     if value is None:
         return False
@@ -103,6 +117,7 @@ def _build_reason(
     missing_fields: list[str],
     extracted_data: dict[str, Any] | None,
     canonical_document: dict[str, Any] | None,
+    normalized_source: dict[str, Any] | None = None,
 ) -> str:
     if missing_fields:
         field_labels = _field_labels()
@@ -119,6 +134,7 @@ def _build_reason(
             field,
             extracted_data=extracted_data,
             canonical_document=canonical_document,
+            normalized_source=normalized_source,
         )
     ]
     if found_fields:
@@ -133,6 +149,7 @@ def _match_ratio(
     *,
     extracted_data: dict[str, Any] | None,
     canonical_document: dict[str, Any] | None,
+    normalized_source: dict[str, Any] | None = None,
 ) -> tuple[int, list[str]]:
     matched = 0
     missing: list[str] = []
@@ -142,6 +159,7 @@ def _match_ratio(
                 field_name,
                 extracted_data=extracted_data,
                 canonical_document=canonical_document,
+                normalized_source=normalized_source,
             )
             for field_name in group
         ):
@@ -156,6 +174,7 @@ def _support_ratio(
     *,
     extracted_data: dict[str, Any] | None,
     canonical_document: dict[str, Any] | None,
+    normalized_source: dict[str, Any] | None = None,
 ) -> float:
     if not fields:
         return 1.0
@@ -166,6 +185,7 @@ def _support_ratio(
             field_name,
             extracted_data=extracted_data,
             canonical_document=canonical_document,
+            normalized_source=normalized_source,
         )
     )
     return matched / len(fields)
@@ -200,10 +220,15 @@ def build_document_routing_decision(
         destination_override=destination_override,
     )
 
+    # Pre-computar una sola vez por decision para evitar reconstruir el dict
+    # normalizado en cada llamada a _field_from_sources / _has_value.
+    normalized_extracted_data = _normalize_extracted_data(extracted_data)
+
     matched_required, missing_fields = _match_ratio(
         profile.required_groups,
         extracted_data=extracted_data,
         canonical_document=canonical_document,
+        normalized_source=normalized_extracted_data,
     )
     required_groups_total = max(len(profile.required_groups), 1)
     required_ratio = matched_required / required_groups_total
@@ -211,6 +236,7 @@ def build_document_routing_decision(
         profile.support_fields,
         extracted_data=extracted_data,
         canonical_document=canonical_document,
+        normalized_source=normalized_extracted_data,
     )
 
     scoring = load_routing_scoring_config(db)
@@ -253,6 +279,7 @@ def build_document_routing_decision(
             missing_fields=missing_fields,
             extracted_data=extracted_data,
             canonical_document=canonical_document,
+            normalized_source=normalized_extracted_data,
         ),
         needs_human_review=needs_human_review,
         source_doc_type=normalized_source,
@@ -270,7 +297,8 @@ def parse_document_routing_decision(
         return None
     try:
         return DocumentRoutingDecision.model_validate(payload)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[routing] Error parseando routing_decision: {e!r}")
         return None
 
 

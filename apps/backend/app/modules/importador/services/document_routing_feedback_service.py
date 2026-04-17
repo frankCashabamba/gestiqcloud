@@ -6,7 +6,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpRoutingSignal
-from app.modules.importador import crud
 from app.modules.importador.category_loader import get_doc_categories
 
 from ..utils import json_safe as _json_safe
@@ -48,10 +47,10 @@ def record_routing_signal(
         "payload": _json_safe(payload or {}),
     }
 
-    raw_payload = dict(doc.raw_ai_json) if isinstance(doc.raw_ai_json, dict) else {}
-    raw_payload["routing"] = decision_payload
-    raw_payload["routing_feedback"] = signal_payload
-    crud.update_documento(db, doc, {"raw_ai_json": _json_safe(raw_payload)})
+    # REMOVIDO: routing_feedback en raw_ai_json era redundante con ImpRoutingSignal
+    # (la tabla imp_routing_signal es la fuente de verdad y preserva el historial
+    # completo; raw_ai_json solo guardaba el ultimo evento sobrescribiendo los
+    # anteriores).
 
     row = ImpRoutingSignal(
         tenant_id=doc.tenant_id,
@@ -66,18 +65,7 @@ def record_routing_signal(
     db.add(row)
     db.flush()
 
-    crud.add_log(
-        db,
-        doc.id,
-        "ROUTING_SIGNAL",
-        str(user_id) if user_id else None,
-        _json_safe(
-            {
-                "event": event,
-                "chosen_destination": chosen_destination,
-                "changed_fields": signal_payload["changed_fields"],
-                "routing": decision_payload,
-            }
-        ),
-    )
+    # REMOVIDO: log ROUTING_SIGNAL en imp_log_cambios era redundante con
+    # ImpRoutingSignal. La tabla imp_routing_signal es la fuente de verdad
+    # para senales de aprendizaje.
     return row

@@ -1692,7 +1692,7 @@ async def _process_run_document(
             "is_table": True,
             "columns": [],
             "model_used": "snapshot-cache",
-            "prompt_sent": "",
+            "prompt_full": "",
             "raw_response": "snapshot-cache",
             "analysis_path": "ok_snapshot_cache",
         }
@@ -2423,7 +2423,7 @@ async def _process_run_document(
             },
         },
         "analysis": {
-            "prompt": analysis.get("prompt_sent", ""),
+            "prompt": analysis.get("prompt_full", ""),
             "raw_response": analysis.get("raw_response", ""),
             "parsed": {
                 "tipo_documento": tipo_doc,

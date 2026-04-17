@@ -737,24 +737,13 @@ async def enqueue_async_batch(
                 doc.id, _upload_lane, _upload_lane,
             )
         else:
-            logger.warning("Celery no disponible, procesando %s sincronicamente", filename)
-            from .tasks import _run_processing
-
-            try:
-                asyncio.create_task(
-                    _run_processing(
-                        doc_id=UUID(str(doc.id)),
-                        tenant_id=UUID(str(tenant_id)),
-                        user_id=user_id,
-                        file_bytes=file_bytes,
-                        filename=filename,
-                        tipo_archivo=tipo_archivo,
-                        recipe_snapshot_id=recipe_snapshot_id,
-                        force=force,
-                    )
-                )
-            except Exception:
-                pass
+            logger.error(
+                "Celery no disponible; no se puede procesar documento %s sin cola de tareas",
+                doc.id,
+            )
+            raise RuntimeError(
+                "Celery no disponible: no se puede procesar el documento sin cola de tareas"
+            )
 
         results.append(
             {

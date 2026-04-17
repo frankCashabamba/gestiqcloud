@@ -33,6 +33,8 @@ logger = logging.getLogger("importador.pre_classifier")
 _CACHE_TTL = 300.0  # fallback hasta que se cargue desde DB
 _cache: dict[str, tuple[float, Any]] = {}
 
+_DEFAULT_TEMPLATE_CONFIDENCE = 0.5  # Confianza base cuando no hay campos requeridos definidos
+
 
 def _get_cache_ttl() -> float:
     """TTL del caché, configurable desde imp_config(module='cache_ttls')."""
@@ -91,12 +93,14 @@ def load_pre_classifier_config(db: Any) -> dict[str, float]:
 
 def _load_filename_patterns(db: Any) -> list[dict]:
     """Load active filename patterns from imp_filename_pattern, cached 5 min."""
-    entry = _cache.get("filename_patterns")
+    # TODO: scopear por tenant_id cuando las tablas tengan tenant_id
+    cache_key = "filename_patterns"
+    entry = _cache.get(cache_key)
     if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
         return entry[1]  # type: ignore[return-value]
 
     if db is None:
-        _cache["filename_patterns"] = (time.monotonic(), [])
+        _cache[cache_key] = (time.monotonic(), [])
         return []
 
     try:
@@ -120,22 +124,24 @@ def _load_filename_patterns(db: Any) -> list[dict]:
             }
             for r in rows
         ]
-        _cache["filename_patterns"] = (time.monotonic(), patterns)
+        _cache[cache_key] = (time.monotonic(), patterns)
         return patterns
     except Exception as exc:
         logger.debug("Could not load filename patterns: %s", exc)
-        _cache["filename_patterns"] = (time.monotonic(), [])
+        _cache[cache_key] = (time.monotonic(), [])
         return []
 
 
 def _load_header_doc_types(db: Any, min_confirmations: int) -> list[dict]:
     """Load confirmed header→doc_type mappings, cached 5 min."""
-    entry = _cache.get("header_doc_types")
+    # TODO: scopear por tenant_id cuando las tablas tengan tenant_id
+    cache_key = f"header_doc_types:min_c={min_confirmations}"
+    entry = _cache.get(cache_key)
     if entry and (time.monotonic() - entry[0]) < _get_cache_ttl():
         return entry[1]  # type: ignore[return-value]
 
     if db is None:
-        _cache["header_doc_types"] = (time.monotonic(), [])
+        _cache[cache_key] = (time.monotonic(), [])
         return []
 
     try:
@@ -159,11 +165,11 @@ def _load_header_doc_types(db: Any, min_confirmations: int) -> list[dict]:
             }
             for r in rows
         ]
-        _cache["header_doc_types"] = (time.monotonic(), mappings)
+        _cache[cache_key] = (time.monotonic(), mappings)
         return mappings
     except Exception as exc:
         logger.debug("Could not load header doc types: %s", exc)
-        _cache["header_doc_types"] = (time.monotonic(), [])
+        _cache[cache_key] = (time.monotonic(), [])
         return []
 
 
@@ -321,7 +327,7 @@ def classify_before_ai(
                     "reasoning": reasoning,
                     "model_used": f"template/{tmpl['id'][:8]}",
                     "raw_response": "",
-                    "prompt_sent": "",
+                    "prompt_full": "",
                 }
 
             return PreClassResult(
@@ -680,7 +686,7 @@ def _run_template_extraction(
     # Confianza = % de campos definidos que se extrajeron
     total_fields = len(fields_cfg)
     if total_fields == 0:
-        return extracted, 0.5
+        return extracted, _DEFAULT_TEMPLATE_CONFIDENCE
     extracted_count = sum(1 for v in extracted.values() if v is not None)
     confidence = round(extracted_count / total_fields, 3)
     return extracted, confidence
@@ -703,7 +709,7 @@ def _increment_template_usage(db: Any, template_id: str, exitoso: bool) -> None:
             ),
             {"tid": template_id, "ex": 1 if exitoso else 0},
         )
-        db.flush()
+        db.commit()
     except Exception as exc:
         logger.debug("No se pudo actualizar stats de template %s: %s", template_id, exc)
 

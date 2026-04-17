@@ -23,8 +23,6 @@ from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.tasks")
 
-LEGACY_REDIS_KEY_PREFIX = "imp:payload:"
-
 # Formatos visuales: pre-OCR sabemos que necesitan deep lane.
 _INITIAL_VISUAL_FORMATS: frozenset[str] = frozenset({
     "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR", "PDF_OCR",
@@ -87,7 +85,7 @@ def _payload_path(doc_id: str | UUID) -> Path:
 
 
 def _get_redis():
-    """Return a sync Redis client used for legacy payload fallback."""
+    """Return a sync Redis client used for batch update pub/sub."""
     import redis  # type: ignore
 
     url = os.getenv("REDIS_URL") or os.getenv("DEV_REDIS_URL") or "redis://localhost:6379/0"
@@ -103,28 +101,19 @@ def store_payload(doc_id: str | UUID, file_bytes: bytes) -> None:
 
 
 def load_payload(doc_id: str) -> bytes | None:
-    """Load file bytes from disk; fallback to legacy Redis payloads."""
+    """Load file bytes from disk."""
     payload_path = _payload_path(doc_id)
     if payload_path.exists():
         return payload_path.read_bytes()
-
-    try:
-        return _get_redis().get(f"{LEGACY_REDIS_KEY_PREFIX}{doc_id}")
-    except Exception:
-        return None
+    return None
 
 
 def delete_payload(doc_id: str) -> None:
-    """Delete temporary payloads from disk and clear legacy Redis payloads."""
+    """Delete temporary payloads from disk."""
     try:
         _payload_path(doc_id).unlink(missing_ok=True)
     except Exception:
         logger.warning("No se pudo eliminar payload local de %s", doc_id, exc_info=True)
-
-    try:
-        _get_redis().delete(f"{LEGACY_REDIS_KEY_PREFIX}{doc_id}")
-    except Exception:
-        pass
 
 
 def publish_batch_update(db, batch_id: UUID) -> None:
@@ -173,6 +162,11 @@ async def _run_processing(
         if doc is None:
             logger.error("Documento %s no encontrado en BD", doc_id)
             return
+
+        # Guard de idempotencia: si el doc ya fue procesado, no reprocesar
+        if doc and doc.estado in ("REVIEW", "CONFIRMED", "IMPORTED"):
+            logger.info(f"[importador] doc {doc_id} ya en estado {doc.estado}, skipping retry")
+            return {"status": "skipped", "doc_id": doc_id, "reason": "already_processed"}
 
         crud.update_documento(db, doc, {"estado": "PROCESSING"})
         for batch_id in crud.touch_batch_items_for_document(db, doc.id, estado="PROCESSING"):

@@ -40,11 +40,17 @@ export type Documento = {
   version_links?: DocumentoVersionLink[]
 }
 
+// Campos alineados con RoutingDecisionPreview (admin/importador-routing.ts).
+// Diferencia intencional: suggested_destination es opcional (?) aqui porque el
+// campo llega bajo routing_decision.suggested_destination y puede ausentarse en
+// documentos sin perfil asignado. En admin es requerido porque el preview
+// siempre lo devuelve (incluso como null).
 export type DocumentRoutingDecision = {
   document_type: string
   confidence: number
   required_fields_ok: boolean
   missing_fields: string[]
+  // TODO: verificar si suggested_destination se usa como undefined (vs null) en algun componente
   suggested_destination?: DocumentSaveDestination | null
   reason: string
   needs_human_review: boolean

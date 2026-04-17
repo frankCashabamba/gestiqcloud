@@ -2299,17 +2299,27 @@ def edit_document_fields(
 
     # Merge with existing extracted data and rebuild the document projection so
     # edited scalar fields affect both the detail payload and the summary fields.
-    current = dict(doc.datos_extraidos or {})
+    import copy
+    current = copy.deepcopy(doc.datos_extraidos or {})
     previous: dict[str, object | None] = {}
-    if isinstance(current, dict):
-        tenant_id = _tenant_id(request)
-        aliases = get_field_aliases(db, tenant_id=tenant_id)
-        current, previous = _prepare_edit_fields_payload(current, body.campos, aliases)
-
-    else:
-        tenant_id = _tenant_id(request)
-        aliases = get_field_aliases(db, tenant_id=tenant_id)
+    tenant_id = _tenant_id(request)
+    aliases = get_field_aliases(db, tenant_id=tenant_id)
     canonical_fields = get_canonical_fields(db, tenant_id=tenant_id)
+
+    # Validar keys de body.campos contra campos canónicos permitidos
+    allowed_keys = set(canonical_fields.keys())
+    unknown_keys = set(body.campos.keys()) - allowed_keys
+    if unknown_keys:
+        logger.warning(
+            "[edit_document_fields] doc=%s: keys no canónicas ignoradas: %s",
+            doc_id,
+            unknown_keys,
+        )
+        body_campos_filtered = {k: v for k, v in body.campos.items() if k in allowed_keys}
+    else:
+        body_campos_filtered = body.campos
+
+    current, previous = _prepare_edit_fields_payload(current, body_campos_filtered, aliases)
     canonical_document, projection = build_document_projection(
         current,
         doc_type=doc.tipo_documento_detectado,
@@ -2335,14 +2345,20 @@ def edit_document_fields(
         db,
         user_id,
         event="edit",
-        changed_fields=list(body.campos.keys()),
+        changed_fields=list(body_campos_filtered.keys()),
     )
+    log_detalle: dict = {
+        "campos_modificados": body_campos_filtered,
+        "valores_anteriores": previous,
+    }
+    if unknown_keys:
+        log_detalle["keys_ignoradas"] = sorted(unknown_keys)
     crud.add_log(
         db,
         doc.id,
         "EDIT",
         user_id,
-        {"campos_modificados": body.campos, "valores_anteriores": previous},
+        log_detalle,
     )
     db.commit()
     _attach_document_routing(doc, db)
@@ -2361,6 +2377,7 @@ def reject_document(doc_id: UUID, request: Request, db: Session = Depends(get_db
 
     crud.update_documento(db, doc, {"estado": "FAILED"})
     _sync_batch_projection(db, doc.id, "FAILED")
+    _capture_routing_signal(doc, db, user_id, event="reject")
     crud.add_log(db, doc.id, "REJECT", user_id)
     db.commit()
     _attach_document_routing(doc, db)

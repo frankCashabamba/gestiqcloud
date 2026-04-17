@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from .constants import INTERNAL_STRUCTURAL_KEYS
 from .document_fields import get_data_value, safe_floatish
 
+logger = logging.getLogger(__name__)
+
+# IMPORTANTE: Cambiar esta versión requiere migrar los documentos existentes en BD.
+# Los documentos con versión antigua no se actualizan automáticamente.
 CANONICAL_DOCUMENT_SCHEMA_VERSION = "importador.canonical.v1"
 
 
@@ -54,6 +59,15 @@ def _extract_by_type(
 
     if field_type == "list":
         if not isinstance(raw, list):
+            if raw is not None:
+                # field_name no está disponible directamente; usamos el primer alias como contexto.
+                field_context = aliases[0] if aliases else "<unknown>"
+                logger.warning(
+                    "[canonical] Campo '%s' esperaba tipo list, recibió %s: %s",
+                    field_context,
+                    type(raw).__name__,
+                    repr(raw)[:100],
+                )
             return None
         items = [dict(entry) for entry in raw if isinstance(entry, dict)]
         return items if items else None

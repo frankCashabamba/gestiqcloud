@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import datetime
+import logging
 from uuid import UUID
 
 from sqlalchemy import String, and_, case, delete, func
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -21,6 +22,8 @@ from app.models.importador import (
     ImpReviewSession,
     ImpStagingLine,
 )
+
+logger = logging.getLogger(__name__)
 
 _REPROCESS_CLEAN_FIELDS = {
     "texto_ocr": None,
@@ -191,6 +194,12 @@ def _truncate_to_column_length(doc, key: str, value: str) -> str:
 
 def update_documento(db: Session, doc: ImpDocumento, data: dict) -> ImpDocumento:
     for k, v in data.items():
+        if not hasattr(doc.__class__, k):
+            logger.warning(
+                "[crud] update_documento: columna '%s' no existe en ImpDocumento, ignorando",
+                k,
+            )
+            continue
         if isinstance(v, str):
             v = _truncate_to_column_length(doc, k, v)
         setattr(doc, k, v)
@@ -574,12 +583,19 @@ def touch_batch_items_for_document(
     estado: str,
     error_detalle: str | None = None,
 ) -> list[UUID]:
-    items = db.scalars(select(ImpBatchItem).where(ImpBatchItem.documento_id == documento_id)).all()
-    batch_ids: list[UUID] = []
-    for item in items:
-        item.estado = estado
-        item.error_detalle = error_detalle
-        batch_ids.append(item.batch_id)
+    # Obtener batch_ids afectados ANTES del UPDATE para preservar el contrato público.
+    batch_ids: list[UUID] = list(
+        db.scalars(
+            select(ImpBatchItem.batch_id).where(ImpBatchItem.documento_id == documento_id)
+        ).all()
+    )
+    # UPDATE directo en SQL en lugar de iterar en Python (mucho más rápido con muchos items).
+    db.execute(
+        update(ImpBatchItem)
+        .where(ImpBatchItem.documento_id == documento_id)
+        .values(estado=estado, error_detalle=error_detalle)
+        .execution_options(synchronize_session=False)
+    )
     db.flush()
     return batch_ids
 

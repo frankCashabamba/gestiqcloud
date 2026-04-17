@@ -31,6 +31,11 @@ export type RoutingRule = {
   active: boolean
 }
 
+// Campos alineados con DocumentRoutingDecision (tenant/modules/importador/services.ts).
+// Diferencia intencional: suggested_destination es requerido aqui (siempre null o
+// un destino valido) porque el endpoint de preview siempre lo incluye. En tenant
+// es opcional (?) porque puede ausentarse en documentos sin perfil de routing.
+// normalizePreviewDecision() es el equivalente a normalizeRoutingDecision() en tenant.
 export type RoutingDecisionPreview = {
   document_type: string
   confidence: number

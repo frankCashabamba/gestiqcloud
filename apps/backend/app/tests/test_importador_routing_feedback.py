@@ -60,9 +60,10 @@ def test_record_routing_signal_persists_snapshot_and_payload(db, tenant_minimal)
     assert stored.routing_snapshot["document_type"] == "supplier_invoice"
     assert stored.payload["status"] == "created"
 
+    # raw_ai_json ya no almacena routing/routing_feedback (era redundante y solo guardaba
+    # el último evento). La fuente de verdad es ImpRoutingSignal (ya validado arriba).
     db.refresh(document)
-    assert document.raw_ai_json["routing"]["document_type"] == "supplier_invoice"
-    assert document.raw_ai_json["routing_feedback"]["event"] == "save"
+    assert "routing_feedback" not in (document.raw_ai_json or {})
 
 
 def test_confirm_document_creates_routing_signal_row(db, tenant_minimal):
