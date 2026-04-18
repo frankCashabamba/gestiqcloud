@@ -322,7 +322,7 @@
     "ocr_weird_ratio_max": "0.15"
   },
   "processing_runtime": {
-    "ai_enabled": "false",
+    "ai_enabled": "true",
     "ocr_text_sufficient_min_chars": "100",
     "llm_text_preview_chars": "1200",
     "structured_preview_rows": "5",
@@ -330,6 +330,7 @@
     "doc_type_hint_min_confidence": "0.65",
     "pre_extract_min_strong_fields": "3",
     "pre_extract_min_confidence": "0.62",
+    "pre_extract_image_force_ai": "true",
     "structured_output_rows_limit": "200",
     "persist_text_ocr_max_chars": "50000",
     "ai_failure_tokens": ["timeout", "timed out", "unavailable", "connection", "refused", "failed"],

@@ -273,7 +273,7 @@ _DEFAULT_AI_RUNTIME_CONFIG: dict[str, Any] = {
 }
 
 _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
-    "ai_enabled": False,
+    "ai_enabled": True,
     "ocr_text_sufficient_min_chars": 500,
     "llm_text_preview_chars": 6000,
     "structured_preview_rows": 5,
@@ -281,6 +281,7 @@ _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
     "doc_type_hint_min_confidence": 0.65,
     "pre_extract_min_strong_fields": 3,
     "pre_extract_min_confidence": 0.62,
+    "pre_extract_image_force_ai": True,
     "structured_output_rows_limit": 200,
     "persist_text_ocr_max_chars": 50000,
     "ai_failure_tokens": ["timeout", "timed out", "unavailable", "connection", "refused", "failed"],
@@ -1314,6 +1315,8 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 config[key] = _float_value(value, float(config[key]))
             elif key == "pre_extract_min_confidence":
                 config[key] = _float_value(value, float(config[key]), minimum=0.0)
+            elif key == "pre_extract_image_force_ai":
+                config[key] = _bool_value(value, bool(config.get(key, True)))
             elif key == "ai_failure_tokens":
                 config[key] = _list_value(value, config[key], uppercase=False)
             elif key in {"table_only_doc_types", "product_like_doc_types"}:
@@ -1334,6 +1337,8 @@ def load_processing_runtime_config(db: Any | None = None) -> dict[str, Any]:
                     config[key] = _float_value(row.value_text, float(config[key]))
                 elif key == "pre_extract_min_confidence" and row.value_text is not None:
                     config[key] = _float_value(row.value_text, float(config[key]), minimum=0.0)
+                elif key == "pre_extract_image_force_ai" and row.value_text is not None:
+                    config[key] = _bool_value(row.value_text, bool(config.get(key, True)))
                 elif key == "ai_failure_tokens":
                     config[key] = _list_value(row.value_list, config[key], uppercase=False)
                 elif key in {"table_only_doc_types", "product_like_doc_types"}:

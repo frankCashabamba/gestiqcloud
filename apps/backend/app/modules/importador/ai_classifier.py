@@ -2137,8 +2137,9 @@ async def _analyze_with_vision(
     pre_extracted_block = ""
     if isinstance(pre_extracted_fields, dict) and pre_extracted_fields:
         pre_extracted_block = (
-            "PRE-EXTRACTED HINTS (already obtained by deterministic tools; "
-            "use them as input, do not ignore them):\n"
+            "OCR HINTS (extracted from text layer before vision; may be inaccurate "
+            "due to image noise, logos or handwriting — treat as low-confidence reference, "
+            "always prefer what you directly see in the image):\n"
             f"{json.dumps(pre_extracted_fields, ensure_ascii=False, indent=2, default=str)}\n\n"
         )
 

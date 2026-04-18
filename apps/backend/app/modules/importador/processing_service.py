@@ -1575,8 +1575,7 @@ async def _process_run_document(
     classification_threshold = load_classification_threshold(db)
     learning_ctrl = load_learning_control(db)
     pdf_table_cfg = load_pdf_table_parse_config(db)
-    # Fase nativa: la extracción no debe depender del runtime AI durante esta estabilización.
-    ai_enabled = False
+    ai_enabled = bool(processing_cfg.get("ai_enabled", True))
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
     _rc_for_run = dict(local_recipe_config or {})
@@ -1777,6 +1776,12 @@ async def _process_run_document(
                 pre_fields=_pre_fields,
                 processing_cfg=processing_cfg,
             )
+            # Para documentos imagen el OCR es inherentemente ruidoso (logos, manuscrito,
+            # sangrado). Forzar AI aunque la pre-extracción parezca suficiente.
+            if _doc_format in _VISUAL_FORMATS and bool(
+                processing_cfg.get("pre_extract_image_force_ai", True)
+            ):
+                _pre_decision = {**_pre_decision, "skip_ai": False}
             _has_total = bool(_pre_decision["has_total"])
             _has_date = bool(_pre_decision["has_date"])
             _has_doc = bool(_pre_decision["has_doc"])

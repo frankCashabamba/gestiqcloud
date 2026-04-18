@@ -145,7 +145,7 @@ async def _run_processing(
     """Run OCR + AI classification + field extraction and update ImpDocumento."""
     from app.config.database import SessionLocal
     from app.modules.importador import crud
-    from app.modules.importador.native_analyzer import analyze_document
+    from app.modules.importador.ai_classifier import analyze_document
     from app.modules.importador.ocr_service import extract_text_from_file
 
     with SessionLocal() as db:
