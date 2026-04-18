@@ -34,10 +34,9 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
 from . import crud, recipe_crud
-from .native_analyzer import analyze_document
 from .api_lifecycle import mark_legacy_processing_endpoint
 from .auto_recipe import should_reprocess_existing_document
-from .document_fields import safe_floatish
+from .native_analyzer import analyze_document
 from .ocr_service import detect_file_type, extract_text_from_file, iter_zip_entries
 from .processing_service import RecipeContext, process_import_document
 from .schemas import (
@@ -669,5 +668,3 @@ def get_save_capabilities(request: Request, db: Session = Depends(get_db)):
         if name in _es_to_en:
             resolved.update(_es_to_en[name])
     return {mod: mod in resolved or any(mod in n for n in resolved) for mod in relevant}
-
-

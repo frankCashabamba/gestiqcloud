@@ -203,7 +203,9 @@ async def enqueue_async_batch(
     }
     order_counter = 0
 
-    def _alias_payload(filename: str, file_size: int, file_hash: str, order: int) -> dict[str, object]:
+    def _alias_payload(
+        filename: str, file_size: int, file_hash: str, order: int
+    ) -> dict[str, object]:
         return {
             "filename": filename,
             "file_size": file_size,
@@ -243,7 +245,12 @@ async def enqueue_async_batch(
             )
             return []
         return [
-            (f"{filename}::{inner_name}", inner_bytes, detect_file_type(inner_name, db), order + index)
+            (
+                f"{filename}::{inner_name}",
+                inner_bytes,
+                detect_file_type(inner_name, db),
+                order + index,
+            )
             for index, (inner_name, inner_bytes) in enumerate(entries)
         ]
 
@@ -634,7 +641,9 @@ async def enqueue_async_batch(
             )
             logger.info(
                 "importador.enqueue rerun doc_id=%s lane=%s queue=importador_%s",
-                existing.id, _rerun_lane, _rerun_lane,
+                existing.id,
+                _rerun_lane,
+                _rerun_lane,
             )
         else:
             logger.warning("Celery no disponible; dejando documento %s en PENDING", existing.id)
@@ -734,7 +743,9 @@ async def enqueue_async_batch(
             )
             logger.info(
                 "importador.enqueue upload doc_id=%s lane=%s queue=importador_%s",
-                doc.id, _upload_lane, _upload_lane,
+                doc.id,
+                _upload_lane,
+                _upload_lane,
             )
         else:
             logger.error(

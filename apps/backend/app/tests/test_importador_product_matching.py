@@ -4,6 +4,7 @@ Cubre los bugs históricos reportados:
 - _parse_numeric: símbolo de moneda delante ("$ 0.0034" → 0.0)
 - _parse_numeric: miles con coma y sufijo de unidad ("60,000 ml" → error de conversión)
 """
+
 from __future__ import annotations
 
 import pytest
@@ -16,8 +17,8 @@ from app.modules.importador.services.product_matching import (
     _strip_pack_tokens,
 )
 
-
 # ── _parse_numeric ─────────────────────────────────────────────────────────
+
 
 class TestParseNumeric:
     """Regresión completa de _parse_numeric."""
@@ -108,6 +109,7 @@ class TestParseNumeric:
 
 # ── _norm_import_text ──────────────────────────────────────────────────────
 
+
 class TestNormImportText:
     def test_strips_accents(self):
         assert _norm_import_text("Azúcar") == "azucar"
@@ -123,6 +125,7 @@ class TestNormImportText:
 
 
 # ── _strip_pack_tokens ────────────────────────────────────────────────────
+
 
 class TestStripPackTokens:
     def test_removes_kg(self):
@@ -146,6 +149,7 @@ class TestStripPackTokens:
 
 # ── _infer_pack_conversion_factor ─────────────────────────────────────────
 
+
 class TestInferPackConversionFactor:
     def test_returns_1_for_uds_unit(self):
         assert _infer_pack_conversion_factor("Galletas 24 unidades", "uds") == 1.0
@@ -163,6 +167,7 @@ class TestInferPackConversionFactor:
 
 
 # ── _score_product_candidate ──────────────────────────────────────────────
+
 
 class TestScoreProductCandidate:
     """Tests básicos de scoring — sin base de datos, usando objetos simples."""

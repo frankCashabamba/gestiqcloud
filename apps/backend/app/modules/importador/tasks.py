@@ -24,13 +24,29 @@ from .utils import json_safe as _json_safe
 logger = logging.getLogger("importador.tasks")
 
 # Formatos visuales: pre-OCR sabemos que necesitan deep lane.
-_INITIAL_VISUAL_FORMATS: frozenset[str] = frozenset({
-    "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR", "PDF_OCR",
-})
+_INITIAL_VISUAL_FORMATS: frozenset[str] = frozenset(
+    {
+        "JPG",
+        "JPEG",
+        "PNG",
+        "IMG",
+        "HEIC",
+        "WEBP",
+        "IMAGE_OCR",
+        "PDF_OCR",
+    }
+)
 # Formatos estructurados: bypass directo sin LLM → fast lane.
-_INITIAL_STRUCTURED_FORMATS: frozenset[str] = frozenset({
-    "CSV", "XML", "JSON", "XLS", "XLSX", "EXCEL",
-})
+_INITIAL_STRUCTURED_FORMATS: frozenset[str] = frozenset(
+    {
+        "CSV",
+        "XML",
+        "JSON",
+        "XLS",
+        "XLSX",
+        "EXCEL",
+    }
+)
 
 
 def decide_initial_lane(
@@ -73,7 +89,9 @@ def _payload_dir() -> Path:
     from app.config.settings import settings
 
     raw_dir = os.getenv("IMPORTADOR_PAYLOAD_DIR")
-    payload_dir = Path(raw_dir).expanduser() if raw_dir else settings.uploads_path / "_importador_payloads"
+    payload_dir = (
+        Path(raw_dir).expanduser() if raw_dir else settings.uploads_path / "_importador_payloads"
+    )
     if not payload_dir.is_absolute():
         payload_dir = settings.uploads_path.parent / payload_dir
     payload_dir.mkdir(parents=True, exist_ok=True)
@@ -242,9 +260,12 @@ async def _run_processing(
                     from app.modules.importador.services.ai_analysis_agent import (
                         analyze_document_with_ai as _ai_analyze_inline,
                     )
+
                     logger.info(
                         "ai_agent.inline_start doc_id=%s tipo=%s conf=%.3f",
-                        doc_id, _doc_tipo, _doc_conf,
+                        doc_id,
+                        _doc_tipo,
+                        _doc_conf,
                     )
                     await _ai_analyze_inline(
                         doc_id=doc_id,
@@ -260,9 +281,7 @@ async def _run_processing(
                     )
                 except Exception as _ai_exc:
                     # No propagar: si falla la IA el doc queda con el resultado determinístico
-                    logger.warning(
-                        "ai_agent.inline_failed doc_id=%s: %s", doc_id, _ai_exc
-                    )
+                    logger.warning("ai_agent.inline_failed doc_id=%s: %s", doc_id, _ai_exc)
 
         except Exception as exc:
             logger.error("Error procesando documento %s: %s", doc_id, exc, exc_info=True)
@@ -420,6 +439,7 @@ process_document_task = _make_task()
 
 # ── Tarea Celery para análisis IA (solo lectura) ───────────────────────────────
 
+
 def _make_ai_analysis_task():
     """Registra la tarea de análisis IA. Read-only: no modifica BD."""
     try:
@@ -449,13 +469,9 @@ def _make_ai_analysis_task():
         Los logs de comparación quedan en importador.ai_agent.
         """
         from app.config.database import SessionLocal
-        from app.modules.importador.services.ai_analysis_agent import (
-            analyze_document_with_ai,
-        )
+        from app.modules.importador.services.ai_analysis_agent import analyze_document_with_ai
 
-        logger.info(
-            "ai_agent.task.start doc_id=%s tenant=%s", doc_id, tenant_id
-        )
+        logger.info("ai_agent.task.start doc_id=%s tenant=%s", doc_id, tenant_id)
         try:
             with SessionLocal() as db:
                 from sqlalchemy import text as _text
@@ -481,9 +497,7 @@ def _make_ai_analysis_task():
             return {"ok": True, "doc_id": doc_id, "result": result}
 
         except Exception as exc:
-            logger.error(
-                "ai_agent.task.error doc_id=%s: %s", doc_id, exc, exc_info=True
-            )
+            logger.error("ai_agent.task.error doc_id=%s: %s", doc_id, exc, exc_info=True)
             try:
                 raise self.retry(exc=exc)
             except self.MaxRetriesExceededError:

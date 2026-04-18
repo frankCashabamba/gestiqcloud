@@ -27,8 +27,8 @@ from app.services.recipe_calculator import (
     _compute_full_cost_from_objects,
     calculate_recipe_full_cost,
 )
-from app.utils.unit_converter import convert, normalize_unit_name
 from app.shared.utils import safe_decimal as _safe_decimal
+from app.utils.unit_converter import convert, normalize_unit_name
 
 logger = logging.getLogger(__name__)
 

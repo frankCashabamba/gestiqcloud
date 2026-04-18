@@ -1314,5 +1314,3 @@ const closeBtn: React.CSSProperties = {
   fontSize: 18,
   cursor: 'pointer',
 }
-
-

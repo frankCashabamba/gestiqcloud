@@ -16,21 +16,21 @@ Estrategia:
     el documento original).
   - Ningún test requiere base de datos ni conexión a la IA.
 """
+
 from __future__ import annotations
 
 import asyncio
 import pathlib
-import re
 
 import pytest
 
-from app.modules.importador.invoice_ocr_rescue import (
-    invoice_rescue_from_ocr,
-    _rescue_vendor,
-    _rescue_doc_number,
-    _rescue_amounts,
-)
 from app.modules.importador.doc_type_resolution import promote_doc_type_from_text_fallback
+from app.modules.importador.invoice_ocr_rescue import (
+    _rescue_amounts,
+    _rescue_doc_number,
+    _rescue_vendor,
+    invoice_rescue_from_ocr,
+)
 from app.modules.importador.ocr_service import extract_text_from_file
 from app.modules.importador.text_fallback_extractor import extract_fields_from_text
 
@@ -39,6 +39,7 @@ from app.modules.importador.text_fallback_extractor import extract_fields_from_t
 _IMPORT_DIR = pathlib.Path(__file__).parents[4] / "importacion"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
 
 def _extract_pdf_text(path: pathlib.Path) -> str:
     """Extrae texto de un PDF usando PyMuPDF. Devuelve '' si falla o no hay texto."""
@@ -56,6 +57,7 @@ def _pdf_available(path: pathlib.Path) -> bool:
 
 
 # ── Texto del PDF de factura de proveedor (extraído del PDF real) ──────────────
+
 
 @pytest.fixture(scope="module")
 def factura_pdf_text() -> str:
@@ -111,43 +113,44 @@ Total a pagar: 2145.00
 # ══════════════════════════════════════════════════════════════════════════════
 
 _CANONICAL_FIELDS_MINIMAL: dict[str, dict] = {
-    "vendor":         {"type": "text"},
-    "vendor_tax_id":  {"type": "text"},
-    "doc_number":     {"type": "text"},
-    "issue_date":     {"type": "date"},
-    "total_amount":   {"type": "numeric"},
-    "subtotal":       {"type": "numeric"},
-    "tax_amount":     {"type": "numeric"},
+    "vendor": {"type": "text"},
+    "vendor_tax_id": {"type": "text"},
+    "doc_number": {"type": "text"},
+    "issue_date": {"type": "date"},
+    "total_amount": {"type": "numeric"},
+    "subtotal": {"type": "numeric"},
+    "tax_amount": {"type": "numeric"},
 }
 
 # Mismos campos usando el alias 'number' (tipo que algunas configuraciones de BD usan)
 _CANONICAL_FIELDS_NUMBER_ALIAS: dict[str, dict] = {
     **_CANONICAL_FIELDS_MINIMAL,
     "total_amount": {"type": "number"},
-    "subtotal":     {"type": "number"},
-    "tax_amount":   {"type": "number"},
+    "subtotal": {"type": "number"},
+    "tax_amount": {"type": "number"},
 }
 
 _FIELD_ALIASES_MINIMAL: dict[str, list[str]] = {
-    "vendor":         ["proveedor", "empresa", "razon social"],
-    "vendor_tax_id":  ["RUC", "NIT", "CIF"],
-    "doc_number":     ["factura no", "factura no.", "N° factura", "No. factura", "No.", "N°"],
-    "issue_date":     ["fecha de emision", "fecha emision", "fecha"],
-    "total_amount":   ["total", "total a pagar", "importe total", "valor total"],
-    "subtotal":       ["subtotal", "sub total", "base imponible"],
-    "tax_amount":     ["IVA", "impuesto", "IVA 12%"],
+    "vendor": ["proveedor", "empresa", "razon social"],
+    "vendor_tax_id": ["RUC", "NIT", "CIF"],
+    "doc_number": ["factura no", "factura no.", "N° factura", "No. factura", "No.", "N°"],
+    "issue_date": ["fecha de emision", "fecha emision", "fecha"],
+    "total_amount": ["total", "total a pagar", "importe total", "valor total"],
+    "subtotal": ["subtotal", "sub total", "base imponible"],
+    "tax_amount": ["IVA", "impuesto", "IVA 12%"],
 }
 
 _AMOUNT_LABELS_MINIMAL: dict[str, list[str]] = {
-    "total_amount":   ["total", "total a pagar", "valor total"],
-    "subtotal":       ["subtotal", "sub total"],
-    "tax_amount":     ["IVA", "IVA 12%"],
+    "total_amount": ["total", "total a pagar", "valor total"],
+    "subtotal": ["subtotal", "sub total"],
+    "tax_amount": ["IVA", "IVA 12%"],
 }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Tests: factura de proveedor real (PDF texto)
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestFacturaProveedorRescue:
     """invoice_rescue_from_ocr sobre el texto extraído del PDF real."""
@@ -321,7 +324,8 @@ class TestFacturaProveedorExtractFields:
         )
         # Campos fuertes: total_amount, subtotal, tax_amount, issue_date → ≥ 3
         strong_fields = {
-            k for k in ("total_amount", "subtotal", "tax_amount", "issue_date", "doc_number")
+            k
+            for k in ("total_amount", "subtotal", "tax_amount", "issue_date", "doc_number")
             if result.get(k) not in (None, "", [], {})
         }
         assert len(strong_fields) >= 3, (
@@ -333,6 +337,7 @@ class TestFacturaProveedorExtractFields:
 # ══════════════════════════════════════════════════════════════════════════════
 # Tests: ticket 08122025 (OCR simulado)
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestTicketOCRSimulado:
     """invoice_rescue_from_ocr sobre texto simulado del ticket vectorial."""
@@ -386,6 +391,7 @@ class TestTicketOCRSimulado:
 # ══════════════════════════════════════════════════════════════════════════════
 # Tests: foto factura Molinos Miraflores (OCR simulado)
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestMolinosMirafloresOCR:
     """Tests sobre el texto OCR simulado de la foto de Molinos Miraflores."""
@@ -455,18 +461,19 @@ class TestMolinosMirafloresOCR:
             _AMOUNT_LABELS_MINIMAL,
         )
         strong = {
-            k for k in ("total_amount", "subtotal", "tax_amount", "issue_date", "vendor_tax_id")
+            k
+            for k in ("total_amount", "subtotal", "tax_amount", "issue_date", "vendor_tax_id")
             if result.get(k) not in (None, "", [], {})
         }
         assert len(strong) >= 3, (
-            f"Solo {len(strong)} campos fuertes: {strong}. "
-            "El bypass pre-IA requiere al menos 3."
+            f"Solo {len(strong)} campos fuertes: {strong}. " "El bypass pre-IA requiere al menos 3."
         )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Tests: archivo PDF real disponible en disco
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestPDFRealDisponibilidad:
     """Verificaciones básicas de que los archivos PDF existen y PyMuPDF puede abrirlos."""
@@ -498,9 +505,9 @@ class TestPDFRealDisponibilidad:
             pytest.skip("PDF no disponible")
         text = _extract_pdf_text(path)
         # El ticket no tiene texto embebido — solo gráficos vectoriales
-        assert len(text.strip()) == 0, (
-            f"Se esperaba 0 chars de texto (PDF vectorial), pero se extrajeron {len(text)} chars"
-        )
+        assert (
+            len(text.strip()) == 0
+        ), f"Se esperaba 0 chars de texto (PDF vectorial), pero se extrajeron {len(text)} chars"
 
 
 class TestXMLRealDisponibilidad:
@@ -532,6 +539,7 @@ class TestXMLRealDisponibilidad:
 # ══════════════════════════════════════════════════════════════════════════════
 # Tests: _rescue_doc_number — lógica del filtro de dígitos
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestRescueDocNumberFiltros:
     """Verifica que el filtro de longitud de dígitos no descarte números válidos."""
@@ -581,6 +589,7 @@ class TestRescueDocNumberFiltros:
 # Regresión: alias 'number' como sinónimo de 'numeric' en extract_fields_from_text
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestParseValueNumberAlias:
     """Verifica que field_type='number' produce floats igual que 'numeric'."""
 
@@ -595,7 +604,9 @@ class TestParseValueNumberAlias:
         )
         total = result.get("total_amount")
         assert total is not None
-        assert isinstance(total, float), f"Se esperaba float, se obtuvo {type(total).__name__}: {total!r}"
+        assert isinstance(
+            total, float
+        ), f"Se esperaba float, se obtuvo {type(total).__name__}: {total!r}"
         assert abs(total - 1.50) < 0.01
 
     @pytest.mark.no_db
@@ -621,9 +632,7 @@ class TestVentasSummaryRealPdf:
         if not path.exists():
             pytest.skip("Ventas_2026-02-21_2026-03-23.pdf no disponible")
 
-        ocr = asyncio.run(
-            extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True)
-        )
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
         result = extract_fields_from_text(
             ocr.get("text") or "",
             {},
@@ -745,9 +754,7 @@ class TestGenericPdfTextExtractionWithDbConfig:
         if not path.exists():
             pytest.skip(f"{filename} no disponible")
 
-        ocr = asyncio.run(
-            extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True)
-        )
+        ocr = asyncio.run(extract_text_from_file(path.read_bytes(), path.name, bypass_cache=True))
         result = extract_fields_from_text(
             ocr.get("text") or "",
             self._GENERIC_CANONICAL_FIELDS,
@@ -870,7 +877,14 @@ class TestNativeHeuristicsWeakDocs:
             {
                 "vendor": ["proveedor", "empresa", "razon social"],
                 "vendor_tax_id": ["RUC", "NIT", "CIF"],
-                "doc_number": ["factura no", "factura no.", "N° factura", "No. factura", "No.", "N°"],
+                "doc_number": [
+                    "factura no",
+                    "factura no.",
+                    "N° factura",
+                    "No. factura",
+                    "No.",
+                    "N°",
+                ],
                 "issue_date": ["fecha de emision", "fecha emision", "fecha"],
                 "total_amount": ["total", "total a pagar", "importe total", "valor total"],
                 "subtotal": ["subtotal", "sub total", "base imponible"],
@@ -1019,6 +1033,8 @@ class TestNativeHeuristicsWeakDocs:
         line_items = result.get("line_items") or []
         assert len(line_items) >= 1
         descriptions = " ".join(str(item.get("description") or "") for item in line_items).lower()
-        assert "cashabamba" in descriptions or "alquiler" in str(result.get("concept") or "").lower()
+        assert (
+            "cashabamba" in descriptions or "alquiler" in str(result.get("concept") or "").lower()
+        )
         assert result.get("payment_method") == "Transferencia"
         assert abs(float(result.get("total_amount") or 0.0) - (-330.0)) < 0.01

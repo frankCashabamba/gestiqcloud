@@ -35,8 +35,6 @@ class AIModel(str, Enum):
 
     QWEN3_8B = os.environ["AI_MODEL_QWEN3_8B"]
 
-   
-
 
 def model_name(model: AIModel | str | None) -> str:
     """Normalize model identifiers across Enum/string inputs."""

@@ -43,7 +43,9 @@ except Exception:
 _DEFAULT_FILE_SUPPORT = load_file_support_config(None)
 SUPPORTED_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["accepted_extensions"])
 IMAGE_EXTENSIONS = set(_DEFAULT_FILE_SUPPORT["image_extensions"])
-OCR_EXTRACTION_CACHE_VERSION = "2026-04-15-1"  # bumped: fix precios POS ticket (columnar split) + stop tokens vendor
+OCR_EXTRACTION_CACHE_VERSION = (
+    "2026-04-15-1"  # bumped: fix precios POS ticket (columnar split) + stop tokens vendor
+)
 _EASYOCR_READERS: dict[tuple[tuple[str, ...], bool], Any] = {}
 _EASYOCR_READER_LOCK = Lock()
 
@@ -514,9 +516,7 @@ def _fix_mojibake(text: str) -> str:
         pass
     # Intento 2: mojibake parcial — corregir fragmento a fragmento
     # Busca secuencias de 2-3 caracteres Latin-1 que formen bytes UTF-8 válidos
-    _MOJIBAKE_RE = re.compile(
-        r"[\xc2\xc3\xc4\xc5\xe2\xe3][\x80-\xbf\xa1-\xbf](?:[\x80-\xbf])?"
-    )
+    _MOJIBAKE_RE = re.compile(r"[\xc2\xc3\xc4\xc5\xe2\xe3][\x80-\xbf\xa1-\xbf](?:[\x80-\xbf])?")
 
     def _replace_fragment(m: re.Match) -> str:
         fragment = m.group(0)
@@ -542,13 +542,18 @@ def _fix_pos_ticket_prices(text: str) -> str:
     if not text:
         return text
     # Precio partido: "$<enteros>\n<dos_dígitos>" → "$<enteros>.<dos_dígitos>"
-    text = re.sub(r'\$\s*([0-9]+)\n([0-9]{2})\b', r'$\1.\2', text)
+    text = re.sub(r"\$\s*([0-9]+)\n([0-9]{2})\b", r"$\1.\2", text)
     # Variante con espacio antes del dólar: "$ 12\n95"
-    text = re.sub(r'\$\s+([0-9]+)\n([0-9]{2})\b', r'$\1.\2', text)
+    text = re.sub(r"\$\s+([0-9]+)\n([0-9]{2})\b", r"$\1.\2", text)
     # Separadores decorativos: líneas compuestas solo de guiones, iguales, puntos, tildes o letras repetidas tipo "www eee"
-    text = re.sub(r'^[ \t]*(?:[=\-~_.*]{4,}|(?:[a-z]{2,4}\s+){2,}[a-z]{2,4})[ \t]*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
+    text = re.sub(
+        r"^[ \t]*(?:[=\-~_.*]{4,}|(?:[a-z]{2,4}\s+){2,}[a-z]{2,4})[ \t]*$",
+        "",
+        text,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
     # Compactar múltiples líneas en blanco consecutivas generadas por la limpieza anterior
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
 
@@ -801,10 +806,10 @@ async def _extract_pdf(file_bytes: bytes) -> dict[str, Any]:
             if page_text_clean:
                 page_quality = _estimate_text_quality(page_text_clean, ocr_runtime=ocr_runtime)
                 _page_quality_scores.append(float(page_quality.get("score") or 0.0))
-                is_sufficient = (
-                    page_quality["score"] >= float(ocr_runtime.get("ocr_min_quality") or 0.45)
-                    and page_quality["words"]
-                    >= int(ocr_runtime.get("ocr_min_words_for_vision") or 18)
+                is_sufficient = page_quality["score"] >= float(
+                    ocr_runtime.get("ocr_min_quality") or 0.45
+                ) and page_quality["words"] >= int(
+                    ocr_runtime.get("ocr_min_words_for_vision") or 18
                 )
                 if is_sufficient:
                     text_parts.append(page_text_clean)
@@ -988,7 +993,9 @@ def _ocr_image(img: Image.Image) -> str:
                     *_ocr_text_score(cleaned),
                 )
                 return cleaned
-        logger.info("Tesseract OCR weak output detected across variants; skipping non-native fallback")
+        logger.info(
+            "Tesseract OCR weak output detected across variants; skipping non-native fallback"
+        )
     except Exception as exc:
         logger.warning("Tesseract OCR failed: %s", exc)
 
@@ -1319,7 +1326,9 @@ def _build_virtual_sheet_context(
     if not headers_display:
         return {}, {}, None
 
-    headers_norm = [_normalize_header(header, index) for index, header in enumerate(headers_display)]
+    headers_norm = [
+        _normalize_header(header, index) for index, header in enumerate(headers_display)
+    ]
     sample_values_by_col: dict[str, list[Any]] = {header: [] for header in headers_norm}
     preview_rows = min(len(rows), 50)
     for row in rows[:preview_rows]:
@@ -1378,9 +1387,7 @@ def _rehydrate_virtual_sheet_context(extraction: dict[str, Any]) -> dict[str, An
         first_row = structured_data[0]
         if isinstance(first_row, dict):
             metadata = {
-                str(key): value
-                for key, value in first_row.items()
-                if not str(key).startswith("_")
+                str(key): value for key, value in first_row.items() if not str(key).startswith("_")
             }
     elif metadata is None and isinstance(structured_data, dict):
         metadata = {
@@ -1449,17 +1456,15 @@ def _csv_key_norm(value: Any) -> str:
     return normalized.strip("_")
 
 
-def _csv_parse_summary_and_promote(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _csv_parse_summary_and_promote(
+    rows: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     main_rows: list[dict[str, Any]] = []
     summary_meta: dict[str, Any] = {}
     summary_mode = False
 
     for row in rows:
-        clean_row = {
-            str(key): value
-            for key, value in row.items()
-            if _csv_cell_has_value(value)
-        }
+        clean_row = {str(key): value for key, value in row.items() if _csv_cell_has_value(value)}
         if not clean_row:
             continue
 
@@ -1488,7 +1493,11 @@ def _csv_parse_summary_and_promote(rows: list[dict[str, Any]]) -> tuple[list[dic
         for row in main_rows:
             for key, value in row.items():
                 key_norm = _csv_key_norm(key)
-                if "fecha" not in key_norm and not key_norm.endswith("_date") and key_norm != "date":
+                if (
+                    "fecha" not in key_norm
+                    and not key_norm.endswith("_date")
+                    and key_norm != "date"
+                ):
                     continue
                 if _csv_cell_has_value(value):
                     summary_meta["issue_date"] = value
@@ -1678,7 +1687,8 @@ def _extract_xml(file_bytes: bytes) -> dict[str, Any]:
                     find_text(".//fe:InvoiceSeriesCode"),
                 ]
                 if part
-            ) or find_text(".//fe:InvoiceNumber"),
+            )
+            or find_text(".//fe:InvoiceNumber"),
             "fecha": find_text(".//fe:IssueDate"),
             "tipo_documento": "FACTURA",
             "proveedor": find_text(".//fe:SellerParty//fe:CorporateName"),

@@ -89,10 +89,10 @@ def promote_doc_type_from_text_fallback(
     has_line_items = isinstance(raw_line_items, list) and any(
         isinstance(item, dict) for item in raw_line_items
     )
-    has_payroll_evidence = has_line_items and (
-        has_gross_pay or has_deductions_total or has_net_pay
+    has_payroll_evidence = has_line_items and (has_gross_pay or has_deductions_total or has_net_pay)
+    invoice_support = sum(
+        1 for flag in (has_issue_date, has_total, has_vendor, has_doc_number) if flag
     )
-    invoice_support = sum(1 for flag in (has_issue_date, has_total, has_vendor, has_doc_number) if flag)
     receipt_support = sum(
         1
         for flag in (
@@ -186,20 +186,17 @@ def promote_doc_type_from_text_fallback(
             promoted_type = "INVOICE"
             promoted_confidence = _confidence_from_map(like_confidence, "INVOICE", 0.64)
             reason_tag = "invoice_like_fields"
-        elif has_total and has_line_items and has_vendor and (
-            has_doc_number or has_issue_date or has_vendor_tax_id
+        elif (
+            has_total
+            and has_line_items
+            and has_vendor
+            and (has_doc_number or has_issue_date or has_vendor_tax_id)
         ):
             promoted_type = "INVOICE"
             promoted_confidence = _confidence_from_map(like_confidence, "INVOICE", 0.64)
             reason_tag = "invoice_like_line_items"
         elif (
-            has_total
-            and (
-                has_gross_pay
-                or has_deductions_total
-                or has_net_pay
-            )
-            and has_line_items
+            has_total and (has_gross_pay or has_deductions_total or has_net_pay) and has_line_items
         ):
             promoted_type = "PAYROLL"
             promoted_confidence = 0.62
@@ -214,9 +211,12 @@ def promote_doc_type_from_text_fallback(
             promoted_type = "RECEIPT"
             promoted_confidence = _confidence_from_map(like_confidence, "RECEIPT", 0.61)
             reason_tag = "receipt_like_fields"
-        elif pre_class_upper == "RECEIPT" and has_total and not any(
-            token in text_context for token in sales_tokens
-        ) and not has_payroll_evidence:
+        elif (
+            pre_class_upper == "RECEIPT"
+            and has_total
+            and not any(token in text_context for token in sales_tokens)
+            and not has_payroll_evidence
+        ):
             promoted_type = "RECEIPT"
             promoted_confidence = _confidence_from_map(minimal_confidence, "RECEIPT", 0.56)
             reason_tag = "minimal_receipt_fields"
@@ -272,10 +272,14 @@ def restore_preclassified_doc_type(
         for item in (cfg.get("restore_conflict_doc_types") or [])
         if str(item).strip()
     }
-    allow_restore = current_upper == "OTHER" or {
-        current_upper,
-        pre_class_upper,
-    } <= restore_conflict_doc_types
+    allow_restore = (
+        current_upper == "OTHER"
+        or {
+            current_upper,
+            pre_class_upper,
+        }
+        <= restore_conflict_doc_types
+    )
     if not allow_restore:
         return current_doc_type, current_confidence, current_reasoning, None
 

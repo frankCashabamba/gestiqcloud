@@ -176,7 +176,11 @@ def test_importador_golden_set_phase1(case: GoldenCase):
     assert text.strip(), f"{case.filename} no devolvio texto OCR util"
 
     extracted = _extract_fields(text, page_texts)
-    rescued = invoice_rescue_from_ocr(text, existing_fields=extracted) if case.should_use_invoice_rescue else {}
+    rescued = (
+        invoice_rescue_from_ocr(text, existing_fields=extracted)
+        if case.should_use_invoice_rescue
+        else {}
+    )
     fields = {**extracted, **rescued}
 
     promoted_type, promoted_confidence, promoted_reasoning, reason_tag = (

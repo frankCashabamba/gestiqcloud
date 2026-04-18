@@ -10,18 +10,18 @@ import re
 import unicodedata
 from typing import Any
 
+from app.modules.importador.document_fields import safe_floatish
 from app.modules.importador.runtime_config import (
     _DEFAULT_OCR_CONFIG,
     load_ai_model_routing,
     load_ai_params,
     load_ai_runtime_config,
     load_doc_type_patterns,
-    load_prompt_config,
     load_ocr_runtime_config,
+    load_prompt_config,
     load_reprocess_control,
     load_tax_id_patterns_config,
 )
-from app.modules.importador.document_fields import safe_floatish
 from app.services.ai.base import AITask, model_name
 from app.services.ai.service import AIService
 
@@ -1184,11 +1184,7 @@ def _runtime_normalized_text_set(
     defaults: list[str],
 ) -> set[str]:
     values = cfg.get(key) or defaults
-    return {
-        _normalize_evidence_text(value)
-        for value in values
-        if str(value).strip()
-    }
+    return {_normalize_evidence_text(value) for value in values if str(value).strip()}
 
 
 def _runtime_regex_patterns(
@@ -1248,11 +1244,7 @@ def _normalize_invoice_description(description: str, *, text_normalized: str) ->
             return rebuilt
 
     first_token = tokens[0].strip(" -–—|/.,;:()[]{}")
-    if (
-        len(first_token) > 4
-        and first_token[:1].lower() == "i"
-        and first_token[1:].isalpha()
-    ):
+    if len(first_token) > 4 and first_token[:1].lower() == "i" and first_token[1:].isalpha():
         rebuilt = " ".join([first_token[1:], *tokens[1:]]).strip()
         return rebuilt
 
@@ -1418,7 +1410,11 @@ def _extract_vendor_name_from_ocr(
         if not clean:
             continue
         prefix = re.split(r"\d", clean, 1)[0].strip(" ,;:-")
-        working = prefix if prefix and any(pattern.search(prefix) for pattern in suffix_patterns) else clean
+        working = (
+            prefix
+            if prefix and any(pattern.search(prefix) for pattern in suffix_patterns)
+            else clean
+        )
         normalized = _normalize_evidence_text(working)
         if any(stop in normalized for stop in stop_norms):
             continue
@@ -1451,13 +1447,9 @@ def _extract_vendor_name_from_ocr(
 
 
 # Patrón POS ticket: "1.00x descripcion $2.50" o "10x tapados $1.50"
-_POS_ITEM_RE = re.compile(
-    r"^(\d+(?:[.,]\d+)?)\s*[xX×]\s+(.+?)\s+\$\s*(\d+(?:[.,]\d+)?)\s*$"
-)
+_POS_ITEM_RE = re.compile(r"^(\d+(?:[.,]\d+)?)\s*[xX×]\s+(.+?)\s+\$\s*(\d+(?:[.,]\d+)?)\s*$")
 # Línea que contiene SOLO un número o importe (para detectar filas multi-línea)
-_STANDALONE_AMOUNT_RE = re.compile(
-    r"^\$?\s*\d+(?:[.,]\d{1,3})?\s*$"
-)
+_STANDALONE_AMOUNT_RE = re.compile(r"^\$?\s*\d+(?:[.,]\d{1,3})?\s*$")
 
 
 def _extract_pos_ticket_items_from_ocr(text: str) -> list[dict[str, Any]]:
@@ -2509,7 +2501,9 @@ async def analyze_document(
 
     _use_vision = force_vision and bool(image_bytes)
     if not _use_vision and not has_structured_rows:
-        _use_vision = _should_use_vision_fallback(content, format_hint, image_bytes, ai_runtime=ai_runtime)
+        _use_vision = _should_use_vision_fallback(
+            content, format_hint, image_bytes, ai_runtime=ai_runtime
+        )
 
     # ── Fase visión-primero (OCR malo / docs visuales) ───────────────────────
     # Si vision_first=True intentamos visión antes que texto.
@@ -2534,13 +2528,16 @@ async def analyze_document(
         if vision_result:
             logger.info(
                 "pdf_second_phase_skipped reason=primary_success filename=%s format=%s path=%s",
-                filename, format_hint, vision_result.get("analysis_path", "ai_vision"),
+                filename,
+                format_hint,
+                vision_result.get("analysis_path", "ai_vision"),
             )
             return vision_result
         # Visión falló/timeout; texto continúa con el mismo timeout por fase.
         logger.info(
             "vision_phase_failed_fallback_to_text filename=%s format=%s",
-            filename, format_hint,
+            filename,
+            format_hint,
         )
         _use_vision = False  # ya intentado; no reintentar después del texto
 
@@ -2804,7 +2801,9 @@ async def analyze_document(
             # Texto primero tuvo éxito: no ejecutar visión
             logger.info(
                 "pdf_second_phase_skipped reason=primary_success filename=%s format=%s path=%s",
-                filename, format_hint, _text_result.get("analysis_path"),
+                filename,
+                format_hint,
+                _text_result.get("analysis_path"),
             )
 
     if (

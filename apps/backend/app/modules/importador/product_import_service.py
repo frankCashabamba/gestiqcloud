@@ -46,8 +46,6 @@ def _norm(value: Any) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-
-
 def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     normalized: dict[str, Any] = {}
     for raw_key, value in row.items():

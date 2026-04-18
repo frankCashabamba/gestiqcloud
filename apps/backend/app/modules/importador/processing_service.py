@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 import re
 import time
-from hashlib import sha1
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from hashlib import sha1
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -27,11 +27,11 @@ from .category_loader import get_doc_categories
 from .classifier_learning import learn_column_candidates as _learn_column_candidates
 from .doc_type_resolution import (
     promote_doc_type_from_text_fallback,
-    should_preserve_strong_preclassification,
 )
+from .document_fields import safe_floatish
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .invoice_ocr_rescue import invoice_rescue_from_ocr
-from .pre_classifier import PreClassResult, classify_before_ai, load_pre_classifier_config
+from .ocr_quality import estimate_text_quality as _estimate_text_quality
 from .product_import_service import looks_like_product_document
 from .runtime_config import (
     load_amount_label_config,
@@ -48,20 +48,13 @@ from .runtime_config import (
 )
 from .schemas import DocumentReviewHintOut, DocumentRoutingDecision
 from .services.document_model_learning_service import (
-    build_signal_learning_recipe_config,
     should_run_learning_rerun,
-    summarize_learning_rerun,
 )
 from .services.document_routing_agent import build_document_routing_decision
-from .services.iteration_service import upsert_staging_lines_from_extraction
 from .snapshot_learning import build_snapshot_review_hints
-from .document_fields import safe_floatish
 from .text_fallback_extractor import (
     extract_fields_from_text,
-    extract_line_items_table_preview_from_text,
-    learn_labels_from_text,
 )
-from .ocr_quality import estimate_text_quality as _estimate_text_quality
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
@@ -79,16 +72,18 @@ _STRATEGY_TIMEOUTS: dict[str, float] = {
 
 # Formatos con parser determinista propio: no necesitan LLM si ya hay estructura utilizable.
 # La clasificación (doc_type) se toma del recipe hint o se deja como "STRUCTURED".
-_STRUCTURED_SKIP_FORMATS: frozenset[str] = frozenset({
-    "CSV",
-    "XML",
-    "XML_FACTURAE",
-    "XML_UBL",
-    "JSON",
-    "XLS",
-    "XLSX",
-    "EXCEL",
-})
+_STRUCTURED_SKIP_FORMATS: frozenset[str] = frozenset(
+    {
+        "CSV",
+        "XML",
+        "XML_FACTURAE",
+        "XML_UBL",
+        "JSON",
+        "XLS",
+        "XLSX",
+        "EXCEL",
+    }
+)
 
 # Formatos XML de facturas electrónicas con parser determinista: el tipo de documento
 # y los campos clave se leen directamente del header estructurado, sin necesidad de LLM.
@@ -119,9 +114,17 @@ _XML_HEADER_TO_CANONICAL: dict[str, str] = {
 
 # Formatos puramente visuales: no tienen extracción de texto, siempre deep con visión primero.
 # PDF_OCR se excluye aquí: tiene texto OCR y se enruta por calidad (bloque pdf_ocr en decide_processing_lane).
-_VISUAL_FORMATS: frozenset[str] = frozenset({
-    "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR",
-})
+_VISUAL_FORMATS: frozenset[str] = frozenset(
+    {
+        "JPG",
+        "JPEG",
+        "PNG",
+        "IMG",
+        "HEIC",
+        "WEBP",
+        "IMAGE_OCR",
+    }
+)
 
 # Timeouts por carril (segundos). Los valores de imp_config tienen prioridad.
 # deep=90s → cada fase (texto/visión) dispone de 45s; aumentado desde 40s porque
@@ -152,9 +155,13 @@ def decide_processing_strategy(
     tipo = str(tipo_archivo or "").upper()
 
     # Timeouts configurables desde BD (imp_config), con fallback a los defaults
-    t_fast = float(cfg.get("strategy_timeout_structured_fast") or _STRATEGY_TIMEOUTS["structured_fast"])
+    t_fast = float(
+        cfg.get("strategy_timeout_structured_fast") or _STRATEGY_TIMEOUTS["structured_fast"]
+    )
     t_text = float(cfg.get("strategy_timeout_text_doc") or _STRATEGY_TIMEOUTS["text_doc"])
-    t_visual = float(cfg.get("strategy_timeout_visual_complex") or _STRATEGY_TIMEOUTS["visual_complex"])
+    t_visual = float(
+        cfg.get("strategy_timeout_visual_complex") or _STRATEGY_TIMEOUTS["visual_complex"]
+    )
 
     # 1. Documentos estructurados: nunca necesitan LLM pesado
     if has_structured_rows or tipo in {"XLSX", "XLS", "CSV", "XML", "JSON"}:
@@ -176,10 +183,11 @@ def decide_processing_strategy(
 @dataclass(slots=True)
 class LaneDecision:
     """Resultado de la decisión de carril para un documento."""
-    lane: str             # "fast" | "deep"
-    timeout_secs: float   # timeout por fase LLM (mitad del budget total para deep con 2 fases)
+
+    lane: str  # "fast" | "deep"
+    timeout_secs: float  # timeout por fase LLM (mitad del budget total para deep con 2 fases)
     force_vision: bool
-    vision_first: bool    # deep only: True=visión antes de texto, False=texto antes de visión
+    vision_first: bool  # deep only: True=visión antes de texto, False=texto antes de visión
     reasons: list[str]
 
 
@@ -226,9 +234,7 @@ def decide_processing_lane(
     t_deep_phase = t_deep / 2.0
 
     # Umbral de calidad OCR a partir del cual se prefiere texto-primero en deep.
-    _ocr_quality_threshold = float(
-        processing_cfg.get("ocr_quality_vision_threshold") or 0.45
-    )
+    _ocr_quality_threshold = float(processing_cfg.get("ocr_quality_vision_threshold") or 0.45)
 
     def _vision_first_from_quality() -> bool:
         """True si la calidad OCR es insuficiente (visión rinde más)."""
@@ -253,10 +259,7 @@ def decide_processing_lane(
         _pdf_vision_threshold = float(
             processing_cfg.get("ocr_pdf_vision_primary_threshold") or 0.25
         )
-        _ocr_very_bad = (
-            ocr_quality_score is None
-            or ocr_quality_score < _pdf_vision_threshold
-        )
+        _ocr_very_bad = ocr_quality_score is None or ocr_quality_score < _pdf_vision_threshold
         _pdf_reasons = ["pdf_ocr_scanned"]
         if ocr_quality_score is not None:
             _pdf_reasons.append(f"ocr_quality={ocr_quality_score:.2f}")
@@ -309,16 +312,28 @@ def decide_processing_lane(
 
 
 # Tipos documentales "fuertes" que requieren evidencia mínima para ser aceptados tras fallback.
-_FALLBACK_STRONG_TYPES: frozenset[str] = frozenset({
-    "INVOICE", "RECEIPT", "PAYROLL", "CREDIT_NOTE", "DEBIT_NOTE",
-})
+_FALLBACK_STRONG_TYPES: frozenset[str] = frozenset(
+    {
+        "INVOICE",
+        "RECEIPT",
+        "PAYROLL",
+        "CREDIT_NOTE",
+        "DEBIT_NOTE",
+    }
+)
 # Campos de evidencia genéricos para tipos no-INVOICE (RECEIPT, PAYROLL, etc.).
 _GENERIC_EVIDENCE_FIELDS: tuple[str, ...] = (
-    "vendor", "doc_number", "total_amount", "subtotal", "issue_date", "line_items",
+    "vendor",
+    "doc_number",
+    "total_amount",
+    "subtotal",
+    "issue_date",
+    "line_items",
 )
 
 
 # ── Cambio 4: helpers de saneamiento de evidencia ─────────────────────────────
+
 
 def _vendor_is_valid_evidence(vendor_value: Any) -> bool:
     """Vendor válido como evidencia: parece razón social, no narrativa ni frase larga.
@@ -353,23 +368,36 @@ def _line_items_are_valid_evidence(line_items_value: Any) -> bool:
         if not isinstance(item, dict):
             continue
         has_desc = bool(
-            item.get("description") or item.get("descripcion")
-            or item.get("name") or item.get("nombre")
+            item.get("description")
+            or item.get("descripcion")
+            or item.get("name")
+            or item.get("nombre")
         )
         has_numeric = any(
             item.get(k) is not None
-            for k in ("quantity", "cantidad", "unit_price", "precio_unitario",
-                      "total", "total_price", "precio_total")
+            for k in (
+                "quantity",
+                "cantidad",
+                "unit_price",
+                "precio_unitario",
+                "total",
+                "total_price",
+                "precio_total",
+            )
         )
         if has_desc or has_numeric:
             coherent += 1
     if coherent == 0:
-        logger.info("pdf_line_items_rejected reason=incoherent_columns items_checked=%d", len(line_items_value[:5]))
+        logger.info(
+            "pdf_line_items_rejected reason=incoherent_columns items_checked=%d",
+            len(line_items_value[:5]),
+        )
         return False
     return True
 
 
 # ── Cambio 3: guard con evidencia fuerte para INVOICE ─────────────────────────
+
 
 def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> dict[str, Any]:
     """Bloquea promoción fuerte de doc_type cuando el camino final fue fallback/fallback_error.
@@ -416,8 +444,13 @@ def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> 
             logger.info(
                 "fallback_doc_type_accepted candidate=INVOICE "
                 "doc_number=%s vendor_tax=%s vendor=%s issue_date=%s line_items=%s total=%s path=%s",
-                has_doc_number, has_vendor_tax, has_vendor, has_issue_date, has_line_items,
-                has_total, path,
+                has_doc_number,
+                has_vendor_tax,
+                has_vendor,
+                has_issue_date,
+                has_line_items,
+                has_total,
+                path,
             )
             return analysis
 
@@ -425,8 +458,13 @@ def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> 
             "fallback_doc_type_promotion_blocked candidate=INVOICE "
             "reason=missing_strong_invoice_evidence "
             "doc_number=%s vendor_tax=%s vendor=%s issue_date=%s line_items=%s total=%s path=%s",
-            has_doc_number, has_vendor_tax, has_vendor, has_issue_date, has_line_items,
-            has_total, path,
+            has_doc_number,
+            has_vendor_tax,
+            has_vendor,
+            has_issue_date,
+            has_line_items,
+            has_total,
+            path,
         )
         degraded = {**analysis}
         degraded["doc_type"] = "OTHER"
@@ -442,22 +480,23 @@ def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> 
         return degraded
 
     # Para RECEIPT, PAYROLL, CREDIT_NOTE, DEBIT_NOTE: mantener check de 2 campos genéricos.
-    present = sum(
-        1 for f in _GENERIC_EVIDENCE_FIELDS
-        if fields.get(f) not in (None, "", [], {})
-    )
+    present = sum(1 for f in _GENERIC_EVIDENCE_FIELDS if fields.get(f) not in (None, "", [], {}))
 
     if present >= 2:
         logger.info(
             "fallback_doc_type_accepted candidate=%s fields_present=%d path=%s",
-            doc_type, present, path,
+            doc_type,
+            present,
+            path,
         )
         return analysis
 
     logger.info(
         "fallback_doc_type_promotion_blocked candidate=%s reason=missing_minimum_evidence "
         "fields_present=%d required=2 path=%s",
-        doc_type, present, path,
+        doc_type,
+        present,
+        path,
     )
     degraded = {**analysis}
     degraded["doc_type"] = "OTHER"
@@ -469,7 +508,8 @@ def _guard_fallback_doc_type(analysis: dict[str, Any], *, content: str = "") -> 
     logger.info(
         "fallback_doc_type_degraded from=%s to=OTHER reason=insufficient_evidence_after_timeout "
         "fields_present=%d",
-        doc_type, present,
+        doc_type,
+        present,
     )
     return degraded
 
@@ -490,7 +530,12 @@ def _fast_lane_result_is_sufficient(
     Returns: (is_sufficient, reason_if_not)
     """
     # Bypass/cache: no hubo LLM → aceptar siempre
-    if analysis_path in ("ok_structured", "ok_snapshot_cache", "structured_direct", "ok_pre_extract"):
+    if analysis_path in (
+        "ok_structured",
+        "ok_snapshot_cache",
+        "structured_direct",
+        "ok_pre_extract",
+    ):
         return True, ""
 
     # Fallback = LLM falló (timeout, JSON inválido, excepción)
@@ -521,9 +566,7 @@ def _pre_extract_route_decision(
     has_tax_id = bool(pre_fields.get("vendor_tax_id"))
     strong_count = sum([has_total, has_date, has_doc, has_vendor, has_tax_id])
 
-    min_strong_fields = max(
-        1, int(processing_cfg.get("pre_extract_min_strong_fields") or 3)
-    )
+    min_strong_fields = max(1, int(processing_cfg.get("pre_extract_min_strong_fields") or 3))
     min_confidence = float(processing_cfg.get("pre_extract_min_confidence") or 0.62)
     confidence = min(0.62 + max(strong_count - 3, 0) * 0.08, 0.82)
 
@@ -719,9 +762,9 @@ def _build_ai_attempt_fingerprint(
     normalized_model = str(model_used or "").strip().lower()
     return {
         "model": normalized_model,
-        "content_sha1": sha1(normalized_content.encode("utf-8")).hexdigest()
-        if normalized_content
-        else "",
+        "content_sha1": (
+            sha1(normalized_content.encode("utf-8")).hexdigest() if normalized_content else ""
+        ),
         "timeout": round(float(timeout_override or 0.0), 3),
         "strategy": str(strategy or "").strip().lower(),
         "force_vision": bool(force_vision),
@@ -735,18 +778,16 @@ def _should_skip_useless_retry(
     next_attempt: dict[str, Any],
 ) -> tuple[bool, str]:
     error_text = " ".join(
-        str(previous_analysis.get(key) or "")
-        for key in ("error", "raw_response", "reasoning")
+        str(previous_analysis.get(key) or "") for key in ("error", "raw_response", "reasoning")
     ).lower()
     if "timeout" not in error_text:
         return False, ""
 
     same_model = previous_attempt.get("model") == next_attempt.get("model")
     same_input = previous_attempt.get("content_sha1") == next_attempt.get("content_sha1")
-    same_strategy = (
-        previous_attempt.get("timeout") == next_attempt.get("timeout")
-        and previous_attempt.get("strategy") == next_attempt.get("strategy")
-    )
+    same_strategy = previous_attempt.get("timeout") == next_attempt.get(
+        "timeout"
+    ) and previous_attempt.get("strategy") == next_attempt.get("strategy")
     if same_model and same_input and same_strategy:
         return True, "timeout_same_model_input_strategy"
     return False, ""
@@ -909,7 +950,9 @@ def _sanitize_text_fallback_fields(
             maxsplit=1,
             flags=re.I,
         )[0].strip()
-        raw = re.split(r"\b(?:ambiente|emision|fecha|ruc)\b", raw, maxsplit=1, flags=re.I)[0].strip()
+        raw = re.split(r"\b(?:ambiente|emision|fecha|ruc)\b", raw, maxsplit=1, flags=re.I)[
+            0
+        ].strip()
         if not raw:
             continue
         alpha = sum(1 for ch in raw if ch.isalpha())
@@ -1140,7 +1183,9 @@ async def _analyze_with_context(
                 "chars": quality["chars"],
                 "text_is_sufficient": text_is_sufficient,
                 "structured_is_usable": structured_is_usable,
-                "degraded_to_review": text_is_sufficient or structured_is_usable or reprocess_mode == "fast",
+                "degraded_to_review": text_is_sufficient
+                or structured_is_usable
+                or reprocess_mode == "fast",
                 "rejected_for_quality": False,
             }
 
@@ -1176,10 +1221,9 @@ async def _analyze_with_context(
 
     _prev_was_good = _prev_confidence_for_skip is None or _prev_confidence_for_skip >= 0.75
 
-    is_first_import = (
-        not isinstance(deep_reprocess_context, dict)
-        or not deep_reprocess_context.get("previous_result")
-    )
+    is_first_import = not isinstance(
+        deep_reprocess_context, dict
+    ) or not deep_reprocess_context.get("previous_result")
 
     logger.info(
         "DBG[C] ai_routing filename=%s mode=%s ai_invoked=%s is_first_import=%s "
@@ -1388,9 +1432,6 @@ async def process_import_document(
     )
 
 
-
-
-
 async def _process_run_document(
     *,
     db: Session,
@@ -1434,9 +1475,7 @@ async def _process_run_document(
 
     headers_norm: list[str] = []
     headers_display: list[str] = []
-    structured_output_limit = max(
-        1, int(processing_cfg.get("structured_output_rows_limit") or 200)
-    )
+    structured_output_limit = max(1, int(processing_cfg.get("structured_output_rows_limit") or 200))
 
     if has_structured:
         sheet_names = list(sheet_profiles.keys()) if sheet_profiles else []
@@ -1579,9 +1618,7 @@ async def _process_run_document(
     _set_stage_timing(stage_timings, "runtime_config_load", runtime_config_started_at)
 
     _rc_for_run = dict(local_recipe_config or {})
-    doc_type_hint_min_confidence = float(
-        processing_cfg.get("doc_type_hint_min_confidence") or 0.65
-    )
+    doc_type_hint_min_confidence = float(processing_cfg.get("doc_type_hint_min_confidence") or 0.65)
     table_only_doc_types = _runtime_doc_type_set(processing_cfg, "table_only_doc_types")
 
     if text_cached_analysis_run and not _rc_for_run.get("doc_type_hint"):
@@ -1600,10 +1637,9 @@ async def _process_run_document(
     # "STRUCTURED" and "OTHER" are placeholders, not semantic types: they mean the LLM
     # never classified this document properly, so we must still run it to get line_items,
     # kv_pairs, column_profiles and a meaningful doc_type.
-    _has_semantic_hint = (
-        bool(_rc_for_run.get("doc_type_hint"))
-        and str(_rc_for_run.get("doc_type_hint", "")).upper() not in ("", "STRUCTURED", "OTHER")
-    )
+    _has_semantic_hint = bool(_rc_for_run.get("doc_type_hint")) and str(
+        _rc_for_run.get("doc_type_hint", "")
+    ).upper() not in ("", "STRUCTURED", "OTHER")
     # Los formatos XML de factura electrónica llevan su propio tipo de documento en el
     # header parseado, por lo que no necesitan un hint semántico externo para saltar el LLM.
     _is_xml_invoice_format = _doc_format in _XML_INVOICE_FORMATS
@@ -1629,7 +1665,13 @@ async def _process_run_document(
         1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 500)
     )
     _has_vision_for_lane = bool(vision_image_bytes) or tipo_archivo in (
-        "JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR",
+        "JPG",
+        "JPEG",
+        "PNG",
+        "IMG",
+        "HEIC",
+        "WEBP",
+        "IMAGE_OCR",
     )
 
     _ocr_quality_score: float | None = extraction.get("ocr_quality_score")
@@ -1671,7 +1713,10 @@ async def _process_run_document(
         )
 
     # Log específico para CSV/XML resueltos sin deep
-    if _doc_format in {"CSV", "JSON", "XML", "XML_UBL", "XML_FACTURAE"} and lane_decision.lane == "fast":
+    if (
+        _doc_format in {"CSV", "JSON", "XML", "XML_UBL", "XML_FACTURAE"}
+        and lane_decision.lane == "fast"
+    ):
         logger.info(
             "structured_or_parser_skip_deep doc_id=%s filename=%s format=%s reason=%s",
             doc.id,
@@ -1707,7 +1752,10 @@ async def _process_run_document(
             _xml_fields: dict[str, Any] = {}
             for _xml_key, _canonical_key in _XML_HEADER_TO_CANONICAL.items():
                 _xml_val = _xml_meta_kv.get(_xml_key)
-                if _xml_val not in (None, "", "0", "0.00", "0.0") and _canonical_key not in _xml_fields:
+                if (
+                    _xml_val not in (None, "", "0", "0.00", "0.0")
+                    and _canonical_key not in _xml_fields
+                ):
                     _xml_fields[_canonical_key] = _xml_val
             _xml_confidence = 0.90 if _xml_fields else 0.72
         else:
@@ -1744,16 +1792,13 @@ async def _process_run_document(
         _pre_skipped_ai = False
         _PRE_EXTRACT_FORMATS = {"PDF", "PDF_OCR", "TXT", "IMAGE_OCR"}
 
-        if (
-            text
-            and text.strip()
-            and _doc_format in _PRE_EXTRACT_FORMATS
-            and not deep_reprocess
-        ):
+        if text and text.strip() and _doc_format in _PRE_EXTRACT_FORMATS and not deep_reprocess:
             try:
                 _rescue = invoice_rescue_from_ocr(text, existing_fields=_pre_fields)
                 if isinstance(_rescue, dict):
-                    _pre_fields.update({k: v for k, v in _rescue.items() if v not in (None, "", [], {})})
+                    _pre_fields.update(
+                        {k: v for k, v in _rescue.items() if v not in (None, "", [], {})}
+                    )
             except Exception as _exc:
                 logger.debug("pre_extract rescue error (non-fatal): %s", _exc)
             try:
@@ -1789,7 +1834,9 @@ async def _process_run_document(
             _has_tax_id = bool(_pre_decision["has_tax_id"])
             _strong_count = int(_pre_decision["strong_count"])
 
-            def _resolve_native_doc_type(base_doc_type: str, base_confidence: float) -> tuple[str, float, str, str | None]:
+            def _resolve_native_doc_type(
+                base_doc_type: str, base_confidence: float
+            ) -> tuple[str, float, str, str | None]:
                 return promote_doc_type_from_text_fallback(
                     current_doc_type=base_doc_type,
                     current_confidence=base_confidence,
@@ -1805,18 +1852,17 @@ async def _process_run_document(
             if not _native_doc_type:
                 _native_doc_type = "STRUCTURED" if has_structured else "OTHER"
             _native_confidence = float(_pre_decision["confidence"] if _pre_fields else 0.35)
-            _native_doc_type, _native_confidence, _native_reasoning, _native_reason_tag = _resolve_native_doc_type(
-                _native_doc_type,
-                _native_confidence,
+            _native_doc_type, _native_confidence, _native_reasoning, _native_reason_tag = (
+                _resolve_native_doc_type(
+                    _native_doc_type,
+                    _native_confidence,
+                )
             )
 
             # Corrección conservadora por nombre de fichero (solo para razones débiles o
             # keyword genérico). No toca tipos fuertes (invoice_like_line_items, payroll_*).
             # Garantiza requires_review=True al bajar la confianza por debajo del umbral.
-            _fn_stem_norm = re.sub(
-                r"[_\-\.\s]+", " ",
-                filename.rsplit(".", 1)[0].lower()
-            ).strip()
+            _fn_stem_norm = re.sub(r"[_\-\.\s]+", " ", filename.rsplit(".", 1)[0].lower()).strip()
             if (
                 _native_doc_type == "INVOICE"
                 and _native_reason_tag in ("invoice_keyword", "invoice_like_fields")
@@ -1831,16 +1877,14 @@ async def _process_run_document(
                 _native_reason_tag = "filename_receipt_correction"
                 logger.info(
                     "ocr_filename_correction filename=%s corrected=RECEIPT was=INVOICE reason=%s",
-                    filename, "invoice_keyword",
+                    filename,
+                    "invoice_keyword",
                 )
             elif (
                 _native_doc_type == "RECEIPT"
-                and _native_reason_tag in (
-                    "receipt_like_fields", "receipt_keyword", "minimal_receipt_fields"
-                )
-                and re.search(
-                    r"(?:^|(?<=\s))(?:sales|ventas|venta)(?=\s|$)", _fn_stem_norm
-                )
+                and _native_reason_tag
+                in ("receipt_like_fields", "receipt_keyword", "minimal_receipt_fields")
+                and re.search(r"(?:^|(?<=\s))(?:sales|ventas|venta)(?=\s|$)", _fn_stem_norm)
             ):
                 _native_doc_type = "SALES"
                 _native_confidence = min(_native_confidence, 0.55)
@@ -1851,7 +1895,8 @@ async def _process_run_document(
                 _native_reason_tag = "filename_sales_correction"
                 logger.info(
                     "ocr_filename_correction filename=%s corrected=SALES was=RECEIPT reason=%s",
-                    filename, _native_reason_tag,
+                    filename,
+                    _native_reason_tag,
                 )
 
             if _native_reason_tag:
@@ -1904,11 +1949,13 @@ async def _process_run_document(
                 analysis = {
                     "doc_type": _pre_doc_type,
                     "confidence": _pre_confidence,
-                    "reasoning": _native_reasoning
-                    if _native_reason_tag
-                    else (
-                        f"Pre-extracción determinista: {_strong_count} campos clave "
-                        "extraídos sin LLM."
+                    "reasoning": (
+                        _native_reasoning
+                        if _native_reason_tag
+                        else (
+                            f"Pre-extracción determinista: {_strong_count} campos clave "
+                            "extraídos sin LLM."
+                        )
                     ),
                     "is_table": False,
                     "columns": [],
@@ -1923,9 +1970,15 @@ async def _process_run_document(
                     "pre_extract_skip_ai filename=%s format=%s doc_type=%s "
                     "fields=%s total=%s date=%s doc=%s vendor=%s tax_id=%s "
                     "strong_count=%s min_strong=%s min_confidence=%.2f confidence=%.2f",
-                    filename, _doc_format, _pre_doc_type,
+                    filename,
+                    _doc_format,
+                    _pre_doc_type,
                     sorted(_pre_fields.keys()),
-                    _has_total, _has_date, _has_doc, _has_vendor, _has_tax_id,
+                    _has_total,
+                    _has_date,
+                    _has_doc,
+                    _has_vendor,
+                    _has_tax_id,
                     _strong_count,
                     _pre_decision["min_strong_fields"],
                     float(_pre_decision["min_confidence"]),
@@ -1983,7 +2036,9 @@ async def _process_run_document(
                 bypass_cache=deep_reprocess,
                 deep_reprocess_context=recipe_context.reprocess_context,
                 deep_focus_fields=(
-                    _reprocess_context_summary(recipe_context.reprocess_context).get("missing_fields")
+                    _reprocess_context_summary(recipe_context.reprocess_context).get(
+                        "missing_fields"
+                    )
                     if deep_reprocess
                     else None
                 ),
@@ -2032,7 +2087,11 @@ async def _process_run_document(
                     logger.info(
                         "text_fallback_rescue doc_id=%s fields=%s",
                         doc.id,
-                        sorted(k for k in _sanitized if k not in {"line_items", "line_item_page_groups"}),
+                        sorted(
+                            k
+                            for k in _sanitized
+                            if k not in {"line_items", "line_item_page_groups"}
+                        ),
                     )
         except Exception as _exc:
             logger.warning("text_fallback_rescue error (non-fatal): %s", _exc)
@@ -2071,10 +2130,7 @@ async def _process_run_document(
     # (los estructurados usan _structured_direct_analysis, bypass sin HTTP, y
     # no se benefician de más timeout).
     _used_real_llm = (
-        ai_enabled
-        and not cached_analysis
-        and not _skip_ai_for_structured
-        and not has_structured
+        ai_enabled and not cached_analysis and not _skip_ai_for_structured and not has_structured
     )
     if ai_enabled and lane_decision.lane == "fast" and _used_real_llm:
         _current_analysis_path = str(analysis.get("analysis_path") or "")
@@ -2379,7 +2435,12 @@ async def _process_run_document(
         _extraction_status = "failed"
     elif not datos_extraidos:
         _extraction_status = "partial_empty"
-    elif _analysis_path in {"structured_direct", "ok_structured", "ok_snapshot_cache", "ok_pre_extract"}:
+    elif _analysis_path in {
+        "structured_direct",
+        "ok_structured",
+        "ok_snapshot_cache",
+        "ok_pre_extract",
+    }:
         _extraction_status = "ok_structured"
     elif _analysis_path in {"fallback", "fallback_error"}:
         _extraction_status = "ok_ocr_rescue" if _has_useful_data else "partial_timeout_fallback"

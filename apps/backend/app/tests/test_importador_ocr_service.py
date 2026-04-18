@@ -6,9 +6,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from app.modules.importador import ocr_service
-from app.modules.importador.services.document_routing_agent import (
-    build_document_routing_decision,
-)
+from app.modules.importador.services.document_routing_agent import build_document_routing_decision
 
 
 def test_ocr_image_skips_easyocr_fallback_when_tesseract_is_weak(monkeypatch):
@@ -106,7 +104,7 @@ def test_sales_csv_routes_without_review():
 
 
 def test_extract_xml_ubl_builds_virtual_sheet_context():
-    xml_bytes = b'''<?xml version="1.0" encoding="UTF-8"?>
+    xml_bytes = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
          xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
          xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
@@ -124,7 +122,7 @@ def test_extract_xml_ubl_builds_virtual_sheet_context():
     <cbc:TaxExclusiveAmount>10.00</cbc:TaxExclusiveAmount>
     <cbc:PayableAmount>11.50</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
-</Invoice>'''
+</Invoice>"""
 
     result = ocr_service._extract_xml(xml_bytes)
 
@@ -145,7 +143,7 @@ def test_extract_xml_ubl_builds_virtual_sheet_context():
 
 
 def test_extract_xml_facturae_builds_structured_context():
-    xml_bytes = b'''<?xml version="1.0" encoding="UTF-8"?>
+    xml_bytes = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Facturae xmlns="http://www.facturae.gob.es/formato">
   <Invoices>
     <Invoice>
@@ -178,7 +176,7 @@ def test_extract_xml_facturae_builds_structured_context():
 </Facturae>
 <Signature>
   <SignedInfo>MockSignatureInfo</SignedInfo>
-</Signature>'''
+</Signature>"""
 
     result = ocr_service._extract_xml(xml_bytes)
 

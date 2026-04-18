@@ -3,14 +3,14 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from app.services.ai.base import AIModel
 from app.modules.importador.ai_classifier import (
-    _fallback_classify,
     _extract_invoice_doc_number_from_ocr,
+    _fallback_classify,
     _normalize_invoice_ocr_line,
     _sanitize_extraction_model_override,
     analyze_document,
 )
+from app.services.ai.base import AIModel
 
 
 def test_analyze_document_uses_runtime_prompt_config_and_canonical_fields(monkeypatch):

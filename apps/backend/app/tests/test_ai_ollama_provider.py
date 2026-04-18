@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 
 from app.services.ai.base import AIModel, AIRequest, AITask
-from app.services.ai.factory import AIProviderFactory
 from app.services.ai.providers.ollama import OllamaProvider
 
 _MODEL = AIModel.QWEN3_8B.value
@@ -390,7 +389,9 @@ def test_ollama_factory_caps_legacy_timeout_and_model(monkeypatch):
 
     # Re-importar las constantes del módulo para que lean los nuevos env vars
     import importlib
+
     import app.services.ai.factory as factory_mod
+
     importlib.reload(factory_mod)
 
     config = factory_mod.AIProviderFactory._get_provider_config("ollama")

@@ -81,11 +81,11 @@ class DocumentoOut(BaseModel):
     estado: str
     error_detalle: str | None = None
     # Dimensiones de estado separadas
-    extraction_status: str | None = None   # ok | partial | failed
-    reprocess_status: str | None = None    # available | unavailable | failed
+    extraction_status: str | None = None  # ok | partial | failed
+    reprocess_status: str | None = None  # available | unavailable | failed
     # Campos calculados (no en BD, derivados al serializar)
     classification_level: str | None = None  # high | medium | low
-    save_readiness: str | None = None        # ready | needs_review | missing_required
+    save_readiness: str | None = None  # ready | needs_review | missing_required
     proveedor_detectado: str | None = None
     ruc_detectado: str | None = None
     monto_total: float | None = None
@@ -112,7 +112,7 @@ class DocumentoOut(BaseModel):
     model_config = {"from_attributes": True}
 
     @model_validator(mode="after")
-    def _compute_derived_fields(self) -> "DocumentoOut":
+    def _compute_derived_fields(self) -> DocumentoOut:
         if self.classification_level is None:
             self.classification_level = _derive_classification_level(self.confianza_clasificacion)
         if self.save_readiness is None:
@@ -157,8 +157,8 @@ class DocumentoListOut(BaseModel):
     confianza_clasificacion: float | None = None
     requiere_revision: bool = False
     estado: str
-    extraction_status: str | None = None   # ok | partial | failed
-    reprocess_status: str | None = None    # available | unavailable | failed
+    extraction_status: str | None = None  # ok | partial | failed
+    reprocess_status: str | None = None  # available | unavailable | failed
     classification_level: str | None = None
     proveedor_detectado: str | None = None
     monto_total: float | None = None
@@ -177,7 +177,7 @@ class DocumentoListOut(BaseModel):
     model_config = {"from_attributes": True}
 
     @model_validator(mode="after")
-    def _compute_classification_level(self) -> "DocumentoListOut":
+    def _compute_classification_level(self) -> DocumentoListOut:
         if self.classification_level is None:
             self.classification_level = _derive_classification_level(self.confianza_clasificacion)
         return self

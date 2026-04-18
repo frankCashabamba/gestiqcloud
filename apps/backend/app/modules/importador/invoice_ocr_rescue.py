@@ -64,6 +64,7 @@ _COMPANY_EVIDENCE_PATTERNS = (
     r"(?i)\b(?:www\.|https?://|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b",
 )
 
+
 def _is_blocked_vendor_text(text: str) -> bool:
     raw = " ".join(str(text or "").split()).strip(" -:|")
     if not raw:
@@ -128,6 +129,8 @@ def _looks_like_address_only(text: str) -> bool:
         if token in norm
     )
     return address_hits >= 2
+
+
 def _normalize_text(text: str) -> str:
     normalized = unicodedata.normalize("NFD", str(text or ""))
     normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
@@ -242,7 +245,10 @@ def _rescue_vendor(text: str) -> str | None:
             continue
         if _looks_like_generic_header(raw):
             continue
-        if re.search(r"(?i)\b(ruc|nit|cedula|cliente|fecha|subtotal|iva|total|autorizacion|ambiente|emision)\b", raw):
+        if re.search(
+            r"(?i)\b(ruc|nit|cedula|cliente|fecha|subtotal|iva|total|autorizacion|ambiente|emision)\b",
+            raw,
+        ):
             continue
         if _looks_like_address_only(raw):
             continue

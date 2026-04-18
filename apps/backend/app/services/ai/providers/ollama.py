@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 _logged_configs: set[tuple[str, str, int, float, str]] = set()
 _tags_cache: dict[tuple[str, str], tuple[float, list[str]]] = {}
 _health_cache: dict[tuple[str, str], tuple[float, bool]] = {}
-_DEFAULT_ALLOWED_EXTRACTION_MODELS: tuple[str, ...] = (
-    AIModel.QWEN3_8B.value,
-)
+_DEFAULT_ALLOWED_EXTRACTION_MODELS: tuple[str, ...] = (AIModel.QWEN3_8B.value,)
 
 
 @dataclass(frozen=True)
@@ -122,11 +120,7 @@ class OllamaProvider(BaseAIProvider):
         current_loop = asyncio.get_running_loop()
         client = self._client
         loop_changed = self._client_loop is not current_loop
-        if (
-            client is None
-            or loop_changed
-            or float(client.timeout.read) != float(effective_timeout)
-        ):
+        if client is None or loop_changed or float(client.timeout.read) != float(effective_timeout):
             if client is not None:
                 # El cliente antiguo puede pertenecer a un event loop ya cerrado
                 # (ocurre en Celery cuando cada tarea crea su propio asyncio.run()).
@@ -255,7 +249,10 @@ class OllamaProvider(BaseAIProvider):
                     explicit=explicit,
                     configured=configured,
                     available_models=available_models,
-                    detail=("reason=no_allowed_extraction_model " f"Modelo no permitido para extracción: {explicit}"),
+                    detail=(
+                        "reason=no_allowed_extraction_model "
+                        f"Modelo no permitido para extracción: {explicit}"
+                    ),
                 )
             if explicit in available_set:
                 return ModelResolution(explicit, SelectionReason.EXPLICIT_REQUEST)
@@ -265,7 +262,11 @@ class OllamaProvider(BaseAIProvider):
                 error=f"Modelo Ollama no disponible: {explicit}",
             )
 
-        if configured and not self._is_non_extraction_model(configured) and configured in available_set:
+        if (
+            configured
+            and not self._is_non_extraction_model(configured)
+            and configured in available_set
+        ):
             return ModelResolution(configured, SelectionReason.CONFIGURED_DEFAULT)
 
         for candidate in self.allowed_extraction_models:
@@ -347,7 +348,9 @@ class OllamaProvider(BaseAIProvider):
                 else None
             )
             # timeout efectivo para logging y mensajes de error
-            _effective_timeout = _call_timeout if _call_timeout is not None else self.request_timeout
+            _effective_timeout = (
+                _call_timeout if _call_timeout is not None else self.request_timeout
+            )
             if _call_timeout and _call_timeout != self.request_timeout:
                 logger.info(
                     "Ollama timeout_override=%.1fs (default=%.1fs) task=%s model=%s",
@@ -365,12 +368,14 @@ class OllamaProvider(BaseAIProvider):
             # tardar minutos. Envolver solo _read_stream_response no cubre ese tiempo.
             async with self._semaphore:
                 # Cliente sin ReadTimeout propio: asyncio.wait_for controla el total.
-                stream_client = httpx.AsyncClient(timeout=httpx.Timeout(
-                    connect=10.0,
-                    read=None,    # sin read-timeout: asyncio.wait_for lo controla
-                    write=10.0,
-                    pool=5.0,
-                ))
+                stream_client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(
+                        connect=10.0,
+                        read=None,  # sin read-timeout: asyncio.wait_for lo controla
+                        write=10.0,
+                        pool=5.0,
+                    )
+                )
 
                 async def _do_streaming_call() -> tuple[str, int | None, int | None]:
                     async with stream_client.stream(
@@ -384,7 +389,7 @@ class OllamaProvider(BaseAIProvider):
                         _do_streaming_call(),
                         timeout=_effective_timeout,
                     )
-                except (asyncio.TimeoutError, asyncio.CancelledError):
+                except (TimeoutError, asyncio.CancelledError):
                     # Re-lanzar después de cerrar el cliente limpiamente.
                     # Si aclose() falla (loop ya cerrado) lo ignoramos: es best-effort.
                     try:
@@ -424,7 +429,8 @@ class OllamaProvider(BaseAIProvider):
                     "selection_reason": resolution.reason,
                     "timeout_seconds": _effective_timeout,
                     "timeout_source": (
-                        "override" if _call_timeout is not None
+                        "override"
+                        if _call_timeout is not None
                         else self.config.get("timeout_source") or "default"
                     ),
                     "eval_duration_ns": eval_duration,
@@ -440,7 +446,7 @@ class OllamaProvider(BaseAIProvider):
                 error=f"No se puede conectar a Ollama: {exc}",
                 processing_time_ms=int((time.perf_counter() - start_time) * 1000),
             )
-        except (asyncio.TimeoutError, httpx.ReadTimeout):
+        except (TimeoutError, httpx.ReadTimeout):
             # asyncio.TimeoutError: wall-clock budget de asyncio.wait_for agotado
             # httpx.ReadTimeout: timeout de conexión inicial (connect/write, no read)
             logger.error(
@@ -613,7 +619,9 @@ class OllamaProvider(BaseAIProvider):
                 return normalized
         return None
 
-    def _build_payload(self, request: AIRequest, prompt: str, selected_model: str) -> dict[str, Any]:
+    def _build_payload(
+        self, request: AIRequest, prompt: str, selected_model: str
+    ) -> dict[str, Any]:
         if self.use_chat_api:
             options: dict[str, Any] = {"temperature": request.temperature}
             if request.max_tokens:
@@ -661,9 +669,8 @@ class OllamaProvider(BaseAIProvider):
 
             # /api/chat emite {"message": {"content": "..."}}
             # /api/generate emite {"response": "..."}
-            token = (
-                ((chunk.get("message") or {}).get("content") or "")
-                or (chunk.get("response") or "")
+            token = ((chunk.get("message") or {}).get("content") or "") or (
+                chunk.get("response") or ""
             )
             if token:
                 content_parts.append(token)
@@ -678,7 +685,9 @@ class OllamaProvider(BaseAIProvider):
     def _parse_response(self, data: dict[str, Any]) -> tuple[str, int | None, Any]:
         """Parsea una respuesta NO-streaming (fallback legacy, no se usa en el flujo normal)."""
         if self.use_chat_api:
-            content = ((data.get("message") or {}).get("content") or data.get("response") or "").strip()
+            content = (
+                (data.get("message") or {}).get("content") or data.get("response") or ""
+            ).strip()
             tokens_used = data.get("eval_count") or data.get("total_tokens")
             eval_duration = data.get("eval_duration") or data.get("total_duration")
             return content, tokens_used, eval_duration
@@ -698,4 +707,3 @@ def model_parameter_size_b(model: str) -> float | None:
     size = float(match.group(1))
     unit = match.group(2)
     return size / 1000.0 if unit == "m" else size
-

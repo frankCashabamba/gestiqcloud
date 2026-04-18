@@ -11,44 +11,44 @@ El módulo importador es un sistema universal de importación y procesamiento de
    ├─ Upload de archivos (batch async)
    ├─ Validación de tipo y tamaño
    └─ Deduplicación por hash SHA256
-   
+
 2. OCR / EXTRACCIÓN DE TEXTO
    ├─ PDF → render a imágenes (300 DPI)
    ├─ Imágenes → Tesseract + EasyOCR
    ├─ Excel → lectura estructurada
    ├─ Caching de resultados OCR
    └─ Estimación de calidad de texto
-   
+
 3. PRE-CLASIFICACIÓN (5 CAPAS)
    ├─ L1: Snapshot cache (recetas aprend.) → skip AI
    ├─ L2: Filename pattern matching
    ├─ L3: Header mapping (campos canónicos)
    ├─ L4: Vendor/RUC + snapshot
    └─ L5: Template extraction (regex/labels) → skip AI si confianza >= threshold
-   
+
 4. LLAMADA A IA (si pre-clasificación no skipea)
    ├─ Prompting dinámico con contexto temporal
    ├─ Extracción de campos canónicos
    ├─ Detección de tablas/líneas
    └─ Enriquecimiento con OCR repairs
-   
+
 5. EXTRACCIÓN DE CAMPOS
    ├─ Normalización de datos extraídos
    ├─ Mapeo de columnas a campos canónicos
    ├─ Canonicalización de valores
    └─ Detección de tipos (factura, nota, recibo, etc.)
-   
+
 6. ROUTING / DECISIÓN DE REVISIÓN
    ├─ Matching de reglas de routing
    ├─ Validación de campos requeridos
    ├─ Cálculo de confianza
    └─ Determinación si requiere revisión humana
-   
+
 7. GUARDADO EN BD
    ├─ Documento en estado REVIEW o CONFIRMED
    ├─ Líneas de staging (para tablas)
    └─ Logs de auditoría
-   
+
 8. STAGING LINES (para líneas de tabla)
    ├─ Una fila por línea extraída
    ├─ Estado: PENDING, VALID, IMPORTED, INVALID, REVIEW, SKIPPED, REPROCESS
@@ -86,7 +86,7 @@ El módulo importador es un sistema universal de importación y procesamiento de
 
 **Índices**: tenant_id, estado, hash_sha256, created_at
 
-**Relaciones**: 
+**Relaciones**:
 - 1:N `ImpLogCambios` (logs)
 - 1:N `ImpRoutingSignal` (routing events)
 - 1:N `ImpBatchItem` (batch tracking)
@@ -700,7 +700,7 @@ enqueue_async_batch(
 6. ¿Mismo hash + CONFIRMED + learning updates pendientes? → Reprocess (learning_update)
 7. ¿Mismo hash + no force? → Skip (documento ya existe)
 
-**Resultado**: 
+**Resultado**:
 - Crea `ImpBatchImport` en estado PENDING
 - Crea `ImpBatchItem` por archivo (orden preservado)
 - Para nuevos: crea `ImpDocumento` con estado PENDING
@@ -1055,7 +1055,7 @@ Trigger documento_model_learning_service si hay mejora
   4. Re-OCR si archivo disponible (reutiliza caché si existe)
   5. Re-learns desde cero
 
-- **Cuándo se usa**: 
+- **Cuándo se usa**:
   - Usuario hace click "Reprocess from scratch"
   - batch_service detecta reprocess_mode="deep"
 
@@ -1473,7 +1473,7 @@ Todos almacenados en tabla `imp_config` (module, key, value_text|value_list).
    INSERT INTO imp_config (module, key, value_text)
    VALUES ('ocr', 'pdf_render_dpi', '600');
    ```
-   
+
 3. **Hardcoded defaults** (prioridad 3):
    ```python
    _DEFAULT_OCR_CONFIG = { "pdf_render_dpi": 300, ... }

@@ -61,9 +61,7 @@ def test_enqueue_async_batch_auto_creates_missing_tracking_tables(db, tenant_min
     assert db.query(ImpBatchItem).filter_by(tenant_id=tenant_minimal["tenant_id"]).count() == 1
 
 
-def test_enqueue_async_batch_expands_zip_entries_before_queueing(
-    db, tenant_minimal, monkeypatch
-):
+def test_enqueue_async_batch_expands_zip_entries_before_queueing(db, tenant_minimal, monkeypatch):
     queued: list[dict] = []
 
     class FakeTask:
@@ -101,9 +99,7 @@ def test_enqueue_async_batch_expands_zip_entries_before_queueing(
     assert db.query(ImpBatchItem).filter_by(tenant_id=tenant_minimal["tenant_id"]).count() == 2
 
 
-def test_enqueue_async_batch_reuses_same_hash_once_per_request(
-    db, tenant_minimal, monkeypatch
-):
+def test_enqueue_async_batch_reuses_same_hash_once_per_request(db, tenant_minimal, monkeypatch):
     queued: list[dict] = []
 
     class FakeTask:

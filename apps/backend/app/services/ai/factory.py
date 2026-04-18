@@ -15,9 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Leídos del .env al arrancar — sin valores hardcodeados en código
 _OLLAMA_BLOCKED_MODEL_PREFIXES: tuple[str, ...] = tuple(
-    p.strip()
-    for p in os.getenv("OLLAMA_BLOCKED_PREFIXES", "").split(",")
-    if p.strip()
+    p.strip() for p in os.getenv("OLLAMA_BLOCKED_PREFIXES", "").split(",") if p.strip()
 )
 _OLLAMA_MAX_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_MAX_TIMEOUT", "30"))
 
@@ -27,7 +25,9 @@ def _sanitize_ollama_model(raw_model: Any) -> tuple[str, str, str | None]:
     if not requested:
         return AIModel.QWEN3_8B.value, "default", None
 
-    if _OLLAMA_BLOCKED_MODEL_PREFIXES and requested.lower().startswith(_OLLAMA_BLOCKED_MODEL_PREFIXES):
+    if _OLLAMA_BLOCKED_MODEL_PREFIXES and requested.lower().startswith(
+        _OLLAMA_BLOCKED_MODEL_PREFIXES
+    ):
         return AIModel.QWEN3_8B.value, "legacy_blocked", requested
 
     return requested, "env", requested

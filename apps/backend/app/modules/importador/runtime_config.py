@@ -492,7 +492,9 @@ def load_structured_filename_patterns(db: Any) -> dict[str, list[str]]:
             if patterns:
                 return _cache_set("structured_filename_patterns", patterns)  # type: ignore[return-value]
         except Exception as exc:
-            logger.warning("No se pudo cargar structured_filename_patterns desde imp_config: %s", exc)
+            logger.warning(
+                "No se pudo cargar structured_filename_patterns desde imp_config: %s", exc
+            )
 
     seed = _seed_module_payload("structured_filename_patterns")
     return {

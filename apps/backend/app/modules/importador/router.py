@@ -2300,6 +2300,7 @@ def edit_document_fields(
     # Merge with existing extracted data and rebuild the document projection so
     # edited scalar fields affect both the detail payload and the summary fields.
     import copy
+
     current = copy.deepcopy(doc.datos_extraidos or {})
     previous: dict[str, object | None] = {}
     tenant_id = _tenant_id(request)
@@ -2738,7 +2739,6 @@ def _sync_batch_projection(
     ):
         crud.refresh_batch_status(db, batch_id)
         publish_batch_update(db, batch_id)
-
 
 
 @router.post(

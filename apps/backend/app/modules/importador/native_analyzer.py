@@ -80,9 +80,7 @@ async def analyze_document(
             fields["total_amount"] = derived_total
 
     confidence = 0.25
-    field_count = len(
-        [key for key, value in fields.items() if value not in (None, "", [], {})]
-    )
+    field_count = len([key for key, value in fields.items() if value not in (None, "", [], {})])
     if field_count:
         confidence = min(0.95, 0.35 + (field_count * 0.08))
 

@@ -32,6 +32,7 @@ _MIN_CONFIDENCE_DELTA_FOR_TYPE_CHANGE = 0.20
 
 # ── Carga de imagen desde caché OCR ───────────────────────────────────────────
 
+
 def _load_vision_image_from_cache(hash_sha256: str | None) -> bytes | None:
     """Devuelve los bytes JPEG del caché OCR sin reejecutar Tesseract.
 
@@ -68,6 +69,7 @@ def _load_vision_image_from_cache(hash_sha256: str | None) -> bytes | None:
 
 
 # ── Resultado estructurado ─────────────────────────────────────────────────────
+
 
 def _build_comparison(
     det: dict[str, Any],
@@ -108,6 +110,7 @@ def _build_comparison(
 
 
 # ── Persistencia de resultados IA ──────────────────────────────────────────────
+
 
 def _apply_ai_result_to_doc(
     *,
@@ -158,7 +161,9 @@ def _apply_ai_result_to_doc(
         applied["datos_extraidos"] = merged_fields
         logger.info(
             "ai_agent.apply.type_override doc_id=%s OTHER→%s confidence=%.3f fields_added=%s",
-            doc.id, ai_type, ai_confidence,
+            doc.id,
+            ai_type,
+            ai_confidence,
             sorted(set(merged_fields) - set(current_fields)),
         )
 
@@ -175,7 +180,9 @@ def _apply_ai_result_to_doc(
             applied["datos_extraidos"] = merged_fields
             logger.info(
                 "ai_agent.apply.new_fields doc_id=%s type=%s new_fields=%s",
-                doc.id, det_type, new_fields,
+                doc.id,
+                det_type,
+                new_fields,
             )
 
     # ── Siempre: guardar resultado IA en raw_ai_json para auditoría ─────────────
@@ -187,7 +194,9 @@ def _apply_ai_result_to_doc(
         "det_type": det_type,
         "det_confidence": det_confidence,
         "type_overridden": override_type,
-        "new_fields_applied": new_fields if "datos_extraidos" in applied and not override_type else [],
+        "new_fields_applied": (
+            new_fields if "datos_extraidos" in applied and not override_type else []
+        ),
         "model_used": ai_summary.get("model_used", ""),
         "elapsed_ms": ai_summary.get("elapsed_ms", 0),
     }
@@ -207,6 +216,7 @@ def _apply_ai_result_to_doc(
 
 
 # ── Análisis de un documento ───────────────────────────────────────────────────
+
 
 async def analyze_document_with_ai(
     *,
@@ -235,10 +245,7 @@ async def analyze_document_with_ai(
     from app.models.importador import ImpDocumento
     from app.modules.importador.ai_classifier import analyze_document as _ai_analyze
     from app.modules.importador.field_alias_loader import get_canonical_fields
-    from app.modules.importador.runtime_config import (
-        load_doc_type_patterns,
-        load_prompt_config,
-    )
+    from app.modules.importador.runtime_config import load_doc_type_patterns, load_prompt_config
 
     doc: ImpDocumento | None = db.get(ImpDocumento, doc_id)
     if doc is None:
@@ -258,13 +265,13 @@ async def analyze_document_with_ai(
 
     # Intentar cargar imagen del caché OCR para enviar al LLM en modo visión.
     # Reutiliza lo que Tesseract ya procesó — no vuelve a ejecutar OCR.
-    vision_image_bytes = _load_vision_image_from_cache(
-        getattr(doc, "hash_sha256", None)
-    )
+    vision_image_bytes = _load_vision_image_from_cache(getattr(doc, "hash_sha256", None))
     _image_source = "ocr_cache" if vision_image_bytes else "none"
     logger.debug(
         "ai_agent doc_id=%s vision_image=%s hash=%s",
-        doc_id, _image_source, getattr(doc, "hash_sha256", None)
+        doc_id,
+        _image_source,
+        getattr(doc, "hash_sha256", None),
     )
 
     # ── Resultado determinístico actual ────────────────────────────────────────
@@ -288,8 +295,12 @@ async def analyze_document_with_ai(
     # ── Llamada al LLM ─────────────────────────────────────────────────────────
     logger.info(
         "ai_agent.start doc_id=%s filename=%s format=%s chars=%s det_type=%s vision=%s",
-        doc_id, filename, tipo_archivo, len(ocr_text),
-        deterministic["doc_type"], _image_source,
+        doc_id,
+        filename,
+        tipo_archivo,
+        len(ocr_text),
+        deterministic["doc_type"],
+        _image_source,
     )
 
     ai_result: dict[str, Any] = {}
@@ -298,7 +309,13 @@ async def analyze_document_with_ai(
 
     _use_vision = vision_image_bytes is not None
     _is_image_format = tipo_archivo.upper() in (
-        "JPG", "JPEG", "PNG", "HEIC", "WEBP", "PDF_OCR", "IMAGE_OCR"
+        "JPG",
+        "JPEG",
+        "PNG",
+        "HEIC",
+        "WEBP",
+        "PDF_OCR",
+        "IMAGE_OCR",
     )
 
     t0 = time.perf_counter()
@@ -370,9 +387,7 @@ async def analyze_document_with_ai(
                 db=db,
             )
         except Exception as exc:
-            logger.error(
-                "ai_agent.apply_error doc_id=%s: %s", doc_id, exc, exc_info=True
-            )
+            logger.error("ai_agent.apply_error doc_id=%s: %s", doc_id, exc, exc_info=True)
 
     return {
         "doc_id": str(doc_id),
@@ -387,6 +402,7 @@ async def analyze_document_with_ai(
 
 
 # ── Análisis en lote ───────────────────────────────────────────────────────────
+
 
 async def analyze_batch_with_ai(
     *,
@@ -409,22 +425,18 @@ async def analyze_batch_with_ai(
         bypass_cache:     Forzar LLM sin caché.
         apply_result:     Si True, persiste mejoras en BD.
     """
-    from app.models.importador import ImpDocumento
     from sqlalchemy import select
 
-    stmt = (
-        select(ImpDocumento.id)
-        .where(
-            ImpDocumento.tenant_id == tenant_id,
-            ImpDocumento.estado == estado,
-            ImpDocumento.texto_ocr.isnot(None),
-            ImpDocumento.texto_ocr != "",
-        )
+    from app.models.importador import ImpDocumento
+
+    stmt = select(ImpDocumento.id).where(
+        ImpDocumento.tenant_id == tenant_id,
+        ImpDocumento.estado == estado,
+        ImpDocumento.texto_ocr.isnot(None),
+        ImpDocumento.texto_ocr != "",
     )
     if doc_type_filter:
-        stmt = stmt.where(
-            ImpDocumento.tipo_documento_detectado == doc_type_filter.upper()
-        )
+        stmt = stmt.where(ImpDocumento.tipo_documento_detectado == doc_type_filter.upper())
 
     stmt = stmt.order_by(ImpDocumento.created_at.desc()).limit(limit)
     rows = db.execute(stmt).all()
@@ -432,7 +444,11 @@ async def analyze_batch_with_ai(
 
     logger.info(
         "ai_agent.batch_start tenant=%s estado=%s doc_type=%s limit=%s found=%s",
-        tenant_id, estado, doc_type_filter or "*", limit, len(doc_ids),
+        tenant_id,
+        estado,
+        doc_type_filter or "*",
+        limit,
+        len(doc_ids),
     )
 
     results: list[dict[str, Any]] = []
@@ -452,9 +468,7 @@ async def analyze_batch_with_ai(
     # ── Resumen del lote ───────────────────────────────────────────────────────
     successful = [r for r in results if "error" not in r]
     type_matches = sum(1 for r in successful if r.get("comparison", {}).get("type_match"))
-    new_fields_total = sum(
-        len(r.get("comparison", {}).get("new_fields", [])) for r in successful
-    )
+    new_fields_total = sum(len(r.get("comparison", {}).get("new_fields", [])) for r in successful)
     type_changes = [
         {
             "doc_id": r["doc_id"],
@@ -481,7 +495,9 @@ async def analyze_batch_with_ai(
     logger.info(
         "ai_agent.batch_done tenant=%s analyzed=%s errors=%s match_rate=%.2f "
         "type_changes=%s applied=%s",
-        tenant_id, n, errors,
+        tenant_id,
+        n,
+        errors,
         summary["type_match_rate"],
         len(type_changes),
         applied_count,

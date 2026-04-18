@@ -4,21 +4,21 @@ import asyncio
 
 import pytest
 
+from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
 from app.modules.importador.processing_service import (
+    _STRUCTURED_SKIP_FORMATS,
     _XML_HEADER_TO_CANONICAL,
     _XML_INVOICE_FORMATS,
     _XML_TIPO_DOCUMENTO_MAP,
-    _STRUCTURED_SKIP_FORMATS,
     _analysis_indicates_ai_failure,
     _analyze_with_context,
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
     _pre_extract_route_decision,
-    _should_skip_useless_retry,
     _sanitize_text_fallback_fields,
+    _should_skip_useless_retry,
 )
-from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
 from app.modules.importador.text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
 )
@@ -166,7 +166,12 @@ def test_analyze_with_context_fast_mode_image_calls_ai_when_ocr_is_sufficient(mo
     async def fake_analyze_document_fn(*args, **kwargs):
         del args, kwargs
         called["count"] += 1
-        return {"doc_type": "INVOICE", "confidence": 0.82, "reasoning": "ai", "fields": {"total_amount": 10}}
+        return {
+            "doc_type": "INVOICE",
+            "confidence": 0.82,
+            "reasoning": "ai",
+            "fields": {"total_amount": 10},
+        }
 
     monkeypatch.setattr(
         "app.modules.importador.processing_service.load_processing_runtime_config",
@@ -626,6 +631,7 @@ $ 147.00
 
 # ── Regresión: bypass determinista para XML_FACTURAE / XML_UBL ────────────────
 
+
 class TestXmlInvoiceBypassConstants:
     """
     Verifica que los formatos XML de factura electrónica estén correctamente
@@ -682,15 +688,16 @@ class TestXmlInvoiceBypassFieldMapping:
     def test_all_canonical_keys_are_strings(self):
         """Todos los valores de _XML_HEADER_TO_CANONICAL deben ser strings no vacíos."""
         for xml_key, canonical_key in _XML_HEADER_TO_CANONICAL.items():
-            assert isinstance(canonical_key, str) and canonical_key, (
-                f"La clave canónica para '{xml_key}' debe ser un string no vacío"
-            )
+            assert (
+                isinstance(canonical_key, str) and canonical_key
+            ), f"La clave canónica para '{xml_key}' debe ser un string no vacío"
 
     def test_duplicates_only_in_tax_amount(self):
         """igv e impuesto mapean ambos a tax_amount (alternativas de idioma).
         El código previene sobreescritura con 'if canonical_key not in _xml_fields'.
         No debe haber otros duplicados."""
         from collections import Counter
+
         counts = Counter(_XML_HEADER_TO_CANONICAL.values())
         allowed_duplicates = {"tax_amount"}
         unexpected = {k for k, v in counts.items() if v > 1 and k not in allowed_duplicates}
@@ -708,9 +715,9 @@ class TestXmlInvoiceBypassFieldMapping:
             "tipo_documento": "FACTURA",
             "fecha": "2025-07-25",
             "documento": "2024-001 A",
-            "monto": "0.00",       # debe excluirse
-            "subtotal": "0.00",    # debe excluirse
-            "proveedor": None,     # debe excluirse (None)
+            "monto": "0.00",  # debe excluirse
+            "subtotal": "0.00",  # debe excluirse
+            "proveedor": None,  # debe excluirse (None)
         }
         _EXCLUDES = (None, "", "0", "0.00", "0.0")
 

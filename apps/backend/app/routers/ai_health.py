@@ -27,7 +27,9 @@ async def _serialize_provider(name: str, provider: Any, *, available: bool) -> d
 
     configured_models = []
     try:
-        configured_models = [str(m.value if hasattr(m, "value") else m) for m in provider.get_supported_models()]
+        configured_models = [
+            str(m.value if hasattr(m, "value") else m) for m in provider.get_supported_models()
+        ]
     except Exception:
         configured_models = []
 
