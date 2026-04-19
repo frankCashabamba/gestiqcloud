@@ -1,0 +1,40 @@
+[Unit]
+Description=GestiQ Celery Worker — Critical (critical, notifications, einvoicing)
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+Documentation=file:///opt/gestiq/ops/systemd/README_ENV_CONFIG.md
+
+[Service]
+Type=simple
+User=gestiq
+Group=gestiq
+WorkingDirectory=/opt/gestiq/apps/backend
+
+# IMPORTANT: Load environment variables from secure config file
+# See README_ENV_CONFIG.md for setup instructions
+EnvironmentFile=/etc/gestiq/worker-critical.env
+
+# Set Python path (safe to hardcode)
+Environment="PYTHONPATH=/opt/gestiq/apps/backend:/opt/gestiq/apps"
+
+# Note: DB_DSN, REDIS_URL, ENVIRONMENT
+# must be defined in /etc/gestiq/worker-critical.env (permissions: 600)
+
+ExecStart=/opt/gestiq/venv/bin/celery -A app.config.celery_config worker \
+    --queues=critical,notifications,einvoicing \
+    --concurrency=2 \
+    --hostname=celery-critical@%h \
+    --loglevel=info \
+    --max-tasks-per-child=1000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gestiq-celery-critical
+
+# Security: Restrict file access
+PrivateTmp=yes
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

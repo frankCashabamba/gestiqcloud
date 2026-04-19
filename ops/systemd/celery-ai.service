@@ -1,0 +1,40 @@
+[Unit]
+Description=GestiQ Celery Worker — AI (ai)
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+Documentation=file:///opt/gestiq/ops/systemd/README_ENV_CONFIG.md
+
+[Service]
+Type=simple
+User=gestiq
+Group=gestiq
+WorkingDirectory=/opt/gestiq/apps/backend
+
+# IMPORTANT: Load environment variables from secure config file
+# See README_ENV_CONFIG.md for setup instructions
+EnvironmentFile=/etc/gestiq/worker-ai.env
+
+# Set Python path (safe to hardcode)
+Environment="PYTHONPATH=/opt/gestiq/apps/backend:/opt/gestiq/apps"
+
+# Note: DB_DSN, REDIS_URL, ENVIRONMENT, OPENAI_API_KEY (or equivalent)
+# must be defined in /etc/gestiq/worker-ai.env (permissions: 600)
+
+ExecStart=/opt/gestiq/venv/bin/celery -A app.config.celery_config worker \
+    --queues=ai \
+    --concurrency=4 \
+    --hostname=celery-ai@%h \
+    --loglevel=info \
+    --max-tasks-per-child=50
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gestiq-celery-ai
+
+# Security: Restrict file access
+PrivateTmp=yes
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
