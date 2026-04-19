@@ -281,7 +281,7 @@ _DEFAULT_PROCESSING_RUNTIME_CONFIG: dict[str, int | float] = {
     "doc_type_hint_min_confidence": 0.65,
     "pre_extract_min_strong_fields": 3,
     "pre_extract_min_confidence": 0.62,
-    "pre_extract_image_force_ai": True,
+    "pre_extract_image_force_ai": False,
     "structured_output_rows_limit": 200,
     "persist_text_ocr_max_chars": 50000,
     "ai_failure_tokens": ["timeout", "timed out", "unavailable", "connection", "refused", "failed"],

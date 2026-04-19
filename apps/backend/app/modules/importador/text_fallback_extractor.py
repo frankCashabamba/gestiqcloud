@@ -1201,6 +1201,20 @@ def _infer_total_amount_from_lines(lines: list[str]) -> float | None:
     if not lines:
         return None
 
+    reject_total_patterns = (
+        r"\bnum(?:ero)?\.?\s+total\b",
+        r"\bnum(?:ero)?\s+total\s+art",
+        r"\bart(?:\.|iculos?)?\s+vendid",
+        r"\btotal\s+art",
+        r"\bnumero\s+operacion\b",
+        r"\bnumero\s+autorizacion\b",
+        r"\bnumero\s+tarjeta\b",
+        r"\bcodigo\s+respuesta\b",
+        r"\breferencia\b",
+        r"\baid\b",
+        r"\bverificacion\s+usuario\b",
+    )
+
     amount_markers = (
         "total",
         "importe",
@@ -1223,6 +1237,8 @@ def _infer_total_amount_from_lines(lines: list[str]) -> float | None:
     for idx, line in enumerate(lines):
         norm = _normalize_label(line)
         if not norm:
+            continue
+        if any(re.search(pattern, norm) for pattern in reject_total_patterns):
             continue
         amounts = _find_amounts(line)
         if not amounts:
@@ -1589,11 +1605,213 @@ def _looks_like_ticket_document(lines: list[str]) -> bool:
 
     joined = " ".join(_normalize_label(line) for line in lines[:40])
     markers = ("ticket de venta", "productos", "subtotal", "total", "pagos", "cash")
+    simplified_markers = (
+        "factura simplificada",
+        "factura simplif",
+        "nota de venta",
+        "para el cliente",
+        "establecimiento",
+        "localidad",
+        "numero operacion",
+        "importe / moneda",
+        "importe moneda",
+    )
     if "ticket" in joined and any(
         marker in joined for marker in ("total", "subtotal", "pagos", "cash", "productos")
     ):
         return True
+    if (
+        sum(1 for marker in simplified_markers if marker in joined) >= 3
+        and any(marker in joined for marker in ("tarjeta", "efectivo", "cambio", "importe"))
+    ):
+        return True
     return sum(1 for marker in markers if marker in joined) >= 3
+
+
+def _extract_pos_receipt_metadata(lines: list[str]) -> dict[str, Any]:
+    if not _looks_like_ticket_document(lines):
+        return {}
+
+    result: dict[str, Any] = {}
+    stop_prefixes = (
+        "factura simplif",
+        "factura simplificada",
+        "nota de venta",
+        "para el cliente",
+        "localidad",
+        "fecha",
+        "numero tarjeta",
+        "numero operacion",
+        "tipo de transaccion",
+        "codigo respuesta",
+        "importe / moneda",
+        "importe moneda",
+        "numero autorizacion",
+        "etiqueta apli",
+        "verificacion usuario",
+        "entidad",
+        "imp.",
+        "iva",
+        "cambio",
+        "tarjeta",
+        "subtotal",
+        "total",
+    )
+
+    for line in lines[:25]:
+        raw = " ".join(str(line or "").split()).strip()
+        if not raw:
+            continue
+        norm = _normalize_label(raw)
+        if norm.startswith("establecimiento"):
+            vendor = _parse_text(raw.split(":", 1)[-1]) if ":" in raw else _parse_text(raw)
+            if vendor:
+                result["vendor"] = _clean_pos_receipt_vendor(vendor.strip(" -:|'\""))
+                break
+
+    if "vendor" not in result:
+        for line in lines[:8]:
+            raw = " ".join(str(line or "").split()).strip()
+            if not raw:
+                continue
+            norm = _normalize_label(raw)
+            if any(norm.startswith(prefix) for prefix in stop_prefixes):
+                continue
+            if re.search(r"\d", raw):
+                continue
+            candidate = _parse_text(raw) or raw
+            if candidate and 1 <= len(candidate.split()) <= 5:
+                result["vendor"] = _clean_pos_receipt_vendor(candidate.strip(" -:|'\""))
+                break
+
+    for line in lines:
+        raw = " ".join(str(line or "").split()).strip()
+        norm = _normalize_label(raw)
+        if "fecha" in norm:
+            parsed_date = _find_first_date(raw)
+            if parsed_date is not None:
+                result["issue_date"] = parsed_date
+                break
+
+    for line in lines:
+        raw = " ".join(str(line or "").split()).strip()
+        norm = _normalize_label(raw)
+        if "numero operacion" in norm:
+            match = re.search(r"(\d{3,})", raw)
+            if match:
+                result["doc_number"] = match.group(1)
+                break
+
+    total_candidates: list[float] = []
+    for line in lines:
+        raw = " ".join(str(line or "").split()).strip()
+        norm = _normalize_label(raw)
+        if not raw or any(
+            token in norm
+            for token in (
+                "num. total",
+                "num total",
+                "iva",
+                "imp.",
+                "base",
+                "cuota",
+                "numero tarjeta",
+                "numero operacion",
+                "numero autorizacion",
+                "referencia",
+                "aid",
+                "verificacion usuario",
+            )
+        ):
+            continue
+        if any(
+            token in norm
+            for token in ("importe / moneda", "importe moneda", "tarjeta", "efectivo", "cambio", "total")
+        ):
+            amounts = _find_amounts(raw)
+            if amounts:
+                total_candidates.append(float(amounts[-1]))
+    if total_candidates:
+        result["total_amount"] = round(max(total_candidates), 2)
+
+    for line in lines:
+        norm = _normalize_label(line)
+        if "tarjeta" in norm:
+            result["payment_method"] = "Tarjeta"
+            break
+        if "efectivo" in norm:
+            result["payment_method"] = "Efectivo"
+            break
+
+    header_done = False
+    for line in lines[:20]:
+        raw = " ".join(str(line or "").split()).strip()
+        if not raw:
+            continue
+        norm = _normalize_label(raw)
+        if "simplif" in norm or norm.startswith("nota de venta"):
+            header_done = True
+            continue
+        if not header_done:
+            continue
+        if any(norm.startswith(prefix) for prefix in stop_prefixes):
+            continue
+        if len(re.findall(r"[A-Za-zÀ-ÿ]{3,}", raw)) < 2:
+            continue
+        candidate = _parse_text(re.sub(r"\s+\d+[.,]\d{2}\s*[A-Z]?$", "", raw)) or _parse_text(raw)
+        if candidate and 1 <= len(candidate.split()) <= 6:
+            result["concept"] = _clean_pos_receipt_concept(candidate.strip(" -:|'\""))
+            break
+
+    return result
+
+
+def _clean_pos_receipt_vendor(value: str) -> str:
+    raw = " ".join(str(value or "").split()).strip()
+    raw = re.sub(r"^[=|:>`'~.,;_\-\s]+", "", raw)
+    raw = re.sub(r"[=|:>`'~.,;_\-\s]+$", "", raw)
+    return raw.strip()
+
+
+def _clean_pos_receipt_concept(value: str) -> str:
+    raw = " ".join(str(value or "").split()).strip()
+    raw = re.sub(r"\s+[><=|:`'~._-]+\s*[A-Za-z]{0,3}$", "", raw)
+    raw = re.sub(r"\s+[A-Za-z]{1,2}$", "", raw)
+    raw = re.sub(r"^[=|:>`'~.,;_\-\s]+", "", raw)
+    raw = re.sub(r"[=|:>`'~.,;_\-\s]+$", "", raw)
+    return raw.strip()
+
+
+def _is_pos_receipt_vendor_noise(value: Any) -> bool:
+    raw = " ".join(str(value or "").split()).strip()
+    if not raw:
+        return True
+    norm = _normalize_label(raw)
+    return (
+        "simplif" in norm
+        or norm.startswith("establecimiento")
+        or norm.startswith("localidad")
+        or "para el cliente" in norm
+        or len(re.findall(r"[A-Za-zÀ-ÿ]{3,}", raw)) < 2
+    )
+
+
+def _is_pos_receipt_concept_noise(value: Any) -> bool:
+    raw = " ".join(str(value or "").split()).strip()
+    if not raw:
+        return True
+    norm = _normalize_label(raw)
+    return (
+        ("base" in norm and "cuota" in norm)
+        or norm.startswith("imp.")
+        or norm.startswith("imp ")
+        or "tarjeta" in norm
+        or "cambio" in norm
+        or "para el cliente" in norm
+        or "establecimiento" in norm
+        or "localidad" in norm
+        or "simplif" in norm
+    )
 
 
 def _extract_ticket_items(lines: list[str]) -> list[dict[str, Any]]:
@@ -1784,6 +2002,20 @@ def extract_fields_from_text(
         result["line_items"] = line_items
     if line_item_page_groups:
         result["line_item_page_groups"] = line_item_page_groups
+
+    pos_metadata = _extract_pos_receipt_metadata(lines)
+    for key, value in pos_metadata.items():
+        if key == "vendor":
+            current_vendor = result.get("vendor")
+            if current_vendor in (None, "", [], {}) or _is_pos_receipt_vendor_noise(current_vendor):
+                result["vendor"] = value
+            continue
+        if key == "concept":
+            current_concept = result.get("concept")
+            if current_concept in (None, "", [], {}) or _is_pos_receipt_concept_noise(current_concept):
+                result["concept"] = value
+            continue
+        result.setdefault(key, value)
 
     payroll_metadata = _infer_payroll_metadata(lines, payroll_items if payroll_document else [])
     for key, value in payroll_metadata.items():

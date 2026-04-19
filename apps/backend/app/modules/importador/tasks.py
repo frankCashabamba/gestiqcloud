@@ -118,6 +118,18 @@ def store_payload(doc_id: str | UUID, file_bytes: bytes) -> None:
     tmp_path.replace(payload_path)
 
 
+def _should_run_inline_ai(*, tipo_archivo: str, estado: str, doc_tipo: str) -> bool:
+    """Decide if the inline AI follow-up should run after deterministic import.
+
+    Visual uploads already have a dedicated manual deep-reprocess path.
+    Running inline vision on them after the deterministic pass adds latency
+    without materially improving the stable import result in the common case.
+    """
+    if str(tipo_archivo or "").upper() in _INITIAL_VISUAL_FORMATS:
+        return False
+    return str(estado or "") == "REVIEW" and str(doc_tipo or "").upper() in ("OTHER", "")
+
+
 def load_payload(doc_id: str) -> bytes | None:
     """Load file bytes from disk."""
     payload_path = _payload_path(doc_id)
@@ -255,7 +267,11 @@ async def _run_processing(
             _doc_tipo = str(getattr(doc, "tipo_documento_detectado", "") or "").upper()
             _doc_conf = float(getattr(doc, "confianza_clasificacion", 0.0) or 0.0)
 
-            if _doc_estado == "REVIEW" and _doc_tipo in ("OTHER", ""):
+            if _should_run_inline_ai(
+                tipo_archivo=tipo_archivo,
+                estado=_doc_estado,
+                doc_tipo=_doc_tipo,
+            ):
                 try:
                     from app.modules.importador.services.ai_analysis_agent import (
                         analyze_document_with_ai as _ai_analyze_inline,
@@ -282,6 +298,12 @@ async def _run_processing(
                 except Exception as _ai_exc:
                     # No propagar: si falla la IA el doc queda con el resultado determinístico
                     logger.warning("ai_agent.inline_failed doc_id=%s: %s", doc_id, _ai_exc)
+            elif _doc_estado == "REVIEW" and _doc_tipo in ("OTHER", ""):
+                logger.info(
+                    "ai_agent.inline_skipped doc_id=%s reason=visual_doc tipo=%s",
+                    doc_id,
+                    tipo_archivo,
+                )
 
         except Exception as exc:
             logger.error("Error procesando documento %s: %s", doc_id, exc, exc_info=True)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+import unicodedata
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from hashlib import sha1
@@ -13,6 +14,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from . import crud, recipe_crud
+from .ai_classifier import _apply_high_evidence_ocr_repairs, _extract_vendor_name_from_ocr
 from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
     _snapshot_recipe_config,
@@ -112,7 +114,8 @@ _XML_HEADER_TO_CANONICAL: dict[str, str] = {
     "moneda": "currency",
 }
 
-# Formatos puramente visuales: no tienen extracción de texto, siempre deep con visión primero.
+# Formatos puramente visuales: suelen entrar por deep; si el OCR ya es suficiente,
+# se prefieren texto-primero y la visión queda como rescate.
 # PDF_OCR se excluye aquí: tiene texto OCR y se enruta por calidad (bloque pdf_ocr en decide_processing_lane).
 _VISUAL_FORMATS: frozenset[str] = frozenset(
     {
@@ -248,9 +251,9 @@ def decide_processing_lane(
         return LaneDecision("deep", t_deep_phase, False, _vf, ["deep_reprocess_mode"])
 
     if has_vision or fmt in _VISUAL_FORMATS:
-        # Documentos puramente visuales (JPG/PNG/IMAGE_OCR): solo fase de visión,
-        # presupuesto completo porque no hay fase de texto que rescatar.
-        return LaneDecision("deep", t_deep, True, True, ["visual_or_scan_doc"])
+        if text_is_sufficient:
+            return LaneDecision("deep", t_deep_phase, False, False, ["visual_or_scan_doc", "text_first"])
+        return LaneDecision("deep", t_deep, True, True, ["visual_or_scan_doc", "vision_first"])
 
     if fmt == "PDF_OCR":
         # PDF escaneado: deep siempre, pero visión-primero solo si OCR es muy malo.
@@ -559,7 +562,8 @@ def _pre_extract_route_decision(
     The decision is intentionally explicit and configurable so the import flow can
     skip AI only when native parsers already produced enough signal.
     """
-    has_total = safe_floatish(pre_fields.get("total_amount")) != 0.0
+    total_amount = safe_floatish(pre_fields.get("total_amount"))
+    has_total = total_amount is not None and abs(float(total_amount)) > 0.0
     has_date = bool(pre_fields.get("issue_date"))
     has_doc = bool(pre_fields.get("doc_number"))
     has_vendor = bool(pre_fields.get("vendor"))
@@ -955,11 +959,33 @@ def _sanitize_text_fallback_fields(
         ].strip()
         if not raw:
             continue
+        normalized_raw = unicodedata.normalize("NFD", raw)
+        normalized_raw = "".join(
+            ch for ch in normalized_raw if unicodedata.category(ch) != "Mn"
+        ).lower()
+        normalized_raw = " ".join(normalized_raw.split())
+        strong_alpha_tokens = re.findall(r"[A-Za-zÀ-ÿ]{3,}", raw)
+        company_suffix = re.search(
+            r"\b(?:s\.?\s*a\.?|ltda\.?|cia\.?|compania|company|corp\.?|inc\.?|s\.?\s*r\.?\s*l\.?|sas)\b",
+            raw,
+            flags=re.I,
+        )
         alpha = sum(1 for ch in raw if ch.isalpha())
         weird = sum(1 for ch in raw if not (ch.isalnum() or ch.isspace() or ch in ".,&-/()"))
         alpha_ratio = alpha / max(len(raw), 1)
         weird_ratio = weird / max(len(raw), 1)
-        if alpha < 4 or alpha_ratio < 0.3 or weird_ratio > 0.12:
+        if (
+            alpha < 4
+            or alpha_ratio < 0.3
+            or weird_ratio > 0.12
+            or (len(strong_alpha_tokens) < 2 and not company_suffix)
+            or (
+                "factura" in normalized_raw
+                and ("simplificada" in normalized_raw or "simplif" in normalized_raw)
+            )
+            or "ticket" in normalized_raw
+            or "para el cliente" in normalized_raw
+        ):
             cleaned.pop(key, None)
             removed.append(key)
             continue
@@ -976,6 +1002,291 @@ def _sanitize_text_fallback_fields(
         logger.info("text_fallback_sanitized removed_fields=%s", sorted(set(removed)))
 
     return cleaned
+
+
+def _repair_pre_extracted_fields(
+    pre_fields: dict[str, Any],
+    *,
+    content: str,
+    format_hint: str,
+    prompt_config: dict[str, Any] | None,
+    ocr_runtime: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Apply the same OCR evidence repairs to pre-extract fields used in fallback paths.
+
+    This keeps the deterministic fast path consistent with the repaired fallback path:
+    if OCR clearly contains a date, tax ID or stronger invoice evidence, those fields
+    must be available before deciding whether AI can be skipped.
+    """
+    cleaned = _sanitize_text_fallback_fields(
+        pre_fields,
+        content=content,
+        format_hint=format_hint,
+        prompt_config=prompt_config,
+        ocr_runtime=ocr_runtime,
+    )
+    if not cleaned:
+        return {}
+
+    parsed = {"doc_type": "OTHER", "fields": dict(cleaned)}
+    _apply_high_evidence_ocr_repairs(
+        parsed,
+        content=content,
+        format_hint=format_hint,
+        prompt_config=prompt_config,
+        ai_runtime=None,
+        ocr_runtime=ocr_runtime,
+    )
+    repaired_fields = parsed.get("fields")
+    if not isinstance(repaired_fields, dict):
+        return cleaned
+
+    final_cleaned = _sanitize_text_fallback_fields(
+        repaired_fields,
+        content=content,
+        format_hint=format_hint,
+        prompt_config=prompt_config,
+        ocr_runtime=ocr_runtime,
+    )
+    if not final_cleaned:
+        return {}
+
+    vendor_tax_id = str(final_cleaned.get("vendor_tax_id") or "").strip()
+    customer_tax_id = str(final_cleaned.get("customer_tax_id") or "").strip()
+    if vendor_tax_id and customer_tax_id and vendor_tax_id == customer_tax_id:
+        final_cleaned.pop("customer_tax_id", None)
+
+    line_items = final_cleaned.get("line_items")
+    line_items_list = line_items if isinstance(line_items, list) else []
+    current_concept = str(final_cleaned.get("concept") or "").strip()
+    if _looks_like_noisy_scalar_text(current_concept, field_name="concept"):
+        for item in line_items_list:
+            if not isinstance(item, dict):
+                continue
+            description = str(item.get("description") or item.get("concept") or "").strip()
+            if description and not _looks_like_noisy_scalar_text(description, field_name="concept"):
+                final_cleaned["concept"] = description[:140]
+                break
+        else:
+            final_cleaned.pop("concept", None)
+
+    current_vendor = str(final_cleaned.get("vendor") or "").strip()
+    if not current_vendor or _looks_like_noisy_scalar_text(current_vendor, field_name="vendor"):
+        ocr_vendor = _extract_vendor_name_from_ocr(content, ocr_runtime=ocr_runtime)
+        if ocr_vendor and not _looks_like_noisy_scalar_text(ocr_vendor, field_name="vendor"):
+            final_cleaned["vendor"] = ocr_vendor[:140]
+
+    total_amount = safe_floatish(final_cleaned.get("total_amount"))
+    subtotal = safe_floatish(final_cleaned.get("subtotal"))
+    tax_amount = safe_floatish(final_cleaned.get("tax_amount"))
+    line_items_total = 0.0
+    line_items_with_amount = 0
+    for item in line_items_list:
+        if not isinstance(item, dict):
+            continue
+        item_total = safe_floatish(item.get("total_price"))
+        if item_total is None:
+            item_total = safe_floatish(item.get("amount"))
+        if item_total is None:
+            continue
+        line_items_total += float(item_total)
+        line_items_with_amount += 1
+
+    if total_amount is None and not str(final_cleaned.get("issue_date") or "").strip() and not line_items_list:
+        final_cleaned.pop("subtotal", None)
+        final_cleaned.pop("tax_amount", None)
+    elif total_amount is not None:
+        if tax_amount is not None and (tax_amount < 0 or tax_amount > total_amount + 0.01):
+            final_cleaned.pop("tax_amount", None)
+            tax_amount = None
+        if subtotal is not None and (subtotal <= 0 or subtotal > total_amount + 0.01):
+            final_cleaned.pop("subtotal", None)
+            subtotal = None
+        if subtotal is not None and tax_amount is not None:
+            combined = subtotal + tax_amount
+            if abs(combined - total_amount) > max(1.0, total_amount * 0.05):
+                final_cleaned.pop("tax_amount", None)
+                tax_amount = None
+        if (
+            subtotal is not None
+            and line_items_with_amount > 0
+            and abs(line_items_total - total_amount) <= max(1.0, total_amount * 0.02)
+            and subtotal < (total_amount * 0.75)
+        ):
+            final_cleaned.pop("subtotal", None)
+
+    return final_cleaned
+
+
+def _looks_like_noisy_scalar_text(value: Any, *, field_name: str) -> bool:
+    raw = " ".join(str(value or "").split()).strip()
+    if not raw:
+        return True
+
+    normalized = unicodedata.normalize("NFD", raw)
+    normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn").lower()
+    normalized = " ".join(normalized.split())
+
+    alpha = sum(1 for ch in raw if ch.isalpha())
+    weird = sum(1 for ch in raw if not (ch.isalnum() or ch.isspace() or ch in ".,&-/()"))
+    alpha_ratio = alpha / max(len(raw), 1)
+    weird_ratio = weird / max(len(raw), 1)
+    strong_alpha_tokens = re.findall(r"[A-Za-z\u00C0-\u017F]{3,}", raw)
+    short_tokens = [
+        token for token in re.findall(r"[A-Za-z\u00C0-\u017F]+", raw) if len(token) <= 2
+    ]
+
+    if field_name == "vendor":
+        if (
+            alpha < 6
+            or alpha_ratio < 0.45
+            or weird_ratio > 0.10
+            or len(strong_alpha_tokens) < 2
+            or len(short_tokens) >= max(3, len(strong_alpha_tokens))
+        ):
+            return True
+        if (
+            "factura" in normalized
+            or "simplif" in normalized
+            or "para el cliente" in normalized
+            or normalized.startswith("establecimiento")
+            or normalized.startswith("localidad")
+            or "resolucion" in normalized
+            or "contribuyente" in normalized
+            or "obligado" in normalized
+        ):
+            return True
+        return False
+
+    if field_name == "concept":
+        if alpha < 5 or alpha_ratio < 0.40 or weird_ratio > 0.12:
+            return True
+        all_tokens = re.findall(r"[A-Za-z\u00C0-\u017F]+", raw)
+        if len(strong_alpha_tokens) < 2 or len(short_tokens) >= max(2, len(strong_alpha_tokens)):
+            return True
+        if len(all_tokens) <= 3 and max((len(token) for token in all_tokens), default=0) <= 3:
+            return True
+        if any(ch in raw for ch in "*~_|="):
+            return True
+        if (
+            "base" in normalized and "cuota" in normalized
+        ) or normalized.startswith("imp.") or normalized.startswith("imp "):
+            return True
+        if "tarjeta" in normalized or "cambio" in normalized or "simplif" in normalized:
+            return True
+        return False
+
+    return False
+
+
+def _prefer_text_candidate_over_existing(*, field_name: str, existing: Any, candidate: Any) -> bool:
+    if candidate in (None, "", [], {}):
+        return False
+    if existing in (None, "", [], {}):
+        return True
+
+    existing_raw = " ".join(str(existing).split()).strip()
+    candidate_raw = " ".join(str(candidate).split()).strip()
+    if not candidate_raw:
+        return False
+
+    existing_norm = unicodedata.normalize("NFD", existing_raw)
+    existing_norm = "".join(
+        ch for ch in existing_norm if unicodedata.category(ch) != "Mn"
+    ).lower()
+    existing_norm = " ".join(existing_norm.split())
+    candidate_norm = unicodedata.normalize("NFD", candidate_raw)
+    candidate_norm = "".join(
+        ch for ch in candidate_norm if unicodedata.category(ch) != "Mn"
+    ).lower()
+    candidate_norm = " ".join(candidate_norm.split())
+
+    if field_name == "vendor":
+        if _looks_like_noisy_scalar_text(existing_raw, field_name="vendor") and not _looks_like_noisy_scalar_text(
+            candidate_raw, field_name="vendor"
+        ):
+            return True
+        existing_bad = (
+            "simplif" in existing_norm
+            or existing_norm.startswith("establecimiento")
+            or existing_norm.startswith("localidad")
+            or "para el cliente" in existing_norm
+        )
+        candidate_good = not (
+            "simplif" in candidate_norm
+            or candidate_norm.startswith("establecimiento")
+            or candidate_norm.startswith("localidad")
+            or "para el cliente" in candidate_norm
+        )
+        return existing_bad and candidate_good
+
+    if field_name == "concept":
+        if _looks_like_noisy_scalar_text(existing_raw, field_name="concept") and not _looks_like_noisy_scalar_text(
+            candidate_raw, field_name="concept"
+        ):
+            return True
+        existing_bad = (
+            ("base" in existing_norm and "cuota" in existing_norm)
+            or existing_norm.startswith("imp.")
+            or existing_norm.startswith("imp ")
+            or "tarjeta" in existing_norm
+            or "cambio" in existing_norm
+            or "simplif" in existing_norm
+        )
+        candidate_good = not (
+            ("base" in candidate_norm and "cuota" in candidate_norm)
+            or candidate_norm.startswith("imp.")
+            or candidate_norm.startswith("imp ")
+            or "tarjeta" in candidate_norm
+            or "cambio" in candidate_norm
+            or "simplif" in candidate_norm
+        )
+        return existing_bad and candidate_good
+
+    return False
+
+
+def _build_low_evidence_visual_review_analysis(
+    *,
+    filename: str,
+    format_hint: str,
+    pre_fields: dict[str, Any],
+    ocr_quality_score: float | None,
+    processing_cfg: dict[str, Any],
+) -> dict[str, Any]:
+    min_chars = max(1, int(processing_cfg.get("ocr_text_sufficient_min_chars") or 500))
+    quality_threshold = float(processing_cfg.get("ocr_quality_vision_threshold") or 0.45)
+    user_message = (
+        "La imagen no tiene evidencia suficiente para una extracción fiable. "
+        "Saca una foto mas nitida o completa los datos manualmente antes de guardar."
+    )
+    return {
+        "doc_type": "OTHER",
+        "confidence": 0.2,
+        "reasoning": (
+            "OCR sin evidencia mínima fiable para extracción automática. "
+            "Se evita IA pesada porque no hay campos fuertes para rescatar."
+        ),
+        "is_table": False,
+        "columns": [],
+        "fields": pre_fields,
+        "raw_response": "reason=low_evidence_visual_review",
+        "model_used": "deterministic-low-evidence",
+        "analysis_path": "low_evidence_review",
+        "requires_review": True,
+        "warnings": [
+            {
+                "quality_gate": "rejected_for_extraction",
+                "quality_score": ocr_quality_score,
+                "quality_threshold": quality_threshold,
+                "chars_threshold": min_chars,
+                "user_message": user_message,
+            }
+        ],
+        "user_message": user_message,
+        "filename": filename,
+        "format_hint": format_hint,
+    }
 
 
 def _field_keys_for_reprocess(data: dict[str, Any] | None) -> list[str]:
@@ -1609,6 +1920,7 @@ async def _process_run_document(
     field_aliases_early = get_field_aliases(db, tenant_id=tenant_id)
     amount_label_cfg = load_amount_label_config(db)
     prompt_config = load_prompt_config(db)
+    ocr_runtime = load_ocr_runtime_config(db)
     fallback_patterns = load_doc_type_patterns(db)
     doc_type_resolution_cfg = load_doc_type_resolution_config(db)
     classification_threshold = load_classification_threshold(db)
@@ -1812,21 +2124,29 @@ async def _process_run_document(
                 )
                 if isinstance(_tf, dict):
                     for _k, _v in _tf.items():
-                        if _v not in (None, "", [], {}) and _k not in _pre_fields:
+                        if _v in (None, "", [], {}):
+                            continue
+                        if _k not in _pre_fields or _prefer_text_candidate_over_existing(
+                            field_name=_k,
+                            existing=_pre_fields.get(_k),
+                            candidate=_v,
+                        ):
                             _pre_fields[_k] = _v
             except Exception as _exc:
                 logger.debug("pre_extract text error (non-fatal): %s", _exc)
+
+            _pre_fields = _repair_pre_extracted_fields(
+                _pre_fields,
+                content=text,
+                format_hint=_doc_format,
+                prompt_config=prompt_config,
+                ocr_runtime=ocr_runtime,
+            )
 
             _pre_decision = _pre_extract_route_decision(
                 pre_fields=_pre_fields,
                 processing_cfg=processing_cfg,
             )
-            # Para documentos imagen el OCR es inherentemente ruidoso (logos, manuscrito,
-            # sangrado). Forzar AI aunque la pre-extracción parezca suficiente.
-            if _doc_format in _VISUAL_FORMATS and bool(
-                processing_cfg.get("pre_extract_image_force_ai", True)
-            ):
-                _pre_decision = {**_pre_decision, "skip_ai": False}
             _has_total = bool(_pre_decision["has_total"])
             _has_date = bool(_pre_decision["has_date"])
             _has_doc = bool(_pre_decision["has_doc"])
@@ -1909,7 +2229,51 @@ async def _process_run_document(
                     sorted(_pre_fields.keys()),
                 )
 
-            if not ai_enabled:
+            _line_items_present = bool(
+                _pre_fields.get("line_items") if isinstance(_pre_fields.get("line_items"), list) else []
+            )
+            _has_primary_saveable_evidence = (
+                safe_floatish(_pre_fields.get("total_amount")) is not None
+                or bool(str(_pre_fields.get("issue_date") or "").strip())
+                or _line_items_present
+            )
+
+            _low_evidence_visual = (
+                _doc_format in (_VISUAL_FORMATS | {"PDF_OCR"})
+                and not has_structured
+                and not _pre_decision["skip_ai"]
+                and (
+                    (
+                        _strong_count == 0
+                        and not _line_items_present
+                        and (
+                            _ocr_quality_score is None
+                            or _ocr_quality_score
+                            < float(processing_cfg.get("ocr_quality_vision_threshold") or 0.45)
+                        )
+                    )
+                    or (_strong_count < 3 and not _has_primary_saveable_evidence)
+                )
+            )
+
+            if _low_evidence_visual:
+                analysis = _build_low_evidence_visual_review_analysis(
+                    filename=filename,
+                    format_hint=_doc_format,
+                    pre_fields=_pre_fields,
+                    ocr_quality_score=_ocr_quality_score,
+                    processing_cfg=processing_cfg,
+                )
+                _pre_skipped_ai = True
+                logger.info(
+                    "low_evidence_visual_review filename=%s format=%s fields=%s strong_count=%s ocr_quality=%s",
+                    filename,
+                    _doc_format,
+                    sorted(_pre_fields.keys()),
+                    _strong_count,
+                    f"{_ocr_quality_score:.2f}" if _ocr_quality_score is not None else "unknown",
+                )
+            elif not ai_enabled:
                 _pre_doc_type = _native_doc_type
                 _pre_confidence = _native_confidence
                 analysis = {
@@ -2071,7 +2435,7 @@ async def _process_run_document(
                 page_texts=extraction.get("page_texts"),
             )
             if _ocr_fallback_fields:
-                _sanitized = _sanitize_text_fallback_fields(
+                _sanitized = _repair_pre_extracted_fields(
                     _ocr_fallback_fields,
                     content=text,
                     format_hint=extraction.get("format", tipo_archivo),
@@ -2509,6 +2873,11 @@ async def _process_run_document(
         if isinstance(datos_extraidos, (dict, list))
         else datos_extraidos
     )
+    error_detalle = None
+    if isinstance(analysis, dict):
+        _analysis_user_message = analysis.get("user_message")
+        if isinstance(_analysis_user_message, str) and _analysis_user_message.strip():
+            error_detalle = _analysis_user_message.strip()
     sheet_profiles = (
         _json_safe(sheet_profiles) if isinstance(sheet_profiles, (dict, list)) else sheet_profiles
     )
@@ -2527,6 +2896,7 @@ async def _process_run_document(
             "requiere_revision": requiere_revision,
             "datos_extraidos": datos_extraidos,
             "estado": "REVIEW",
+            "error_detalle": error_detalle,
             "extraction_status": _extraction_status,
             "reprocess_status": "available",
             **projection,

@@ -5,6 +5,10 @@ import asyncio
 import pytest
 
 from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
+from app.modules.importador.ai_classifier import (
+    _extract_labeled_amount,
+    _extract_vendor_name_from_ocr,
+)
 from app.modules.importador.processing_service import (
     _STRUCTURED_SKIP_FORMATS,
     _XML_HEADER_TO_CANONICAL,
@@ -15,12 +19,19 @@ from app.modules.importador.processing_service import (
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
+    _prefer_text_candidate_over_existing,
+    _repair_pre_extracted_fields,
+    decide_processing_lane,
+    process_import_document,
+    RecipeContext,
     _pre_extract_route_decision,
     _sanitize_text_fallback_fields,
     _should_skip_useless_retry,
 )
 from app.modules.importador.text_fallback_extractor import (
     extract_line_items_table_preview_from_text,
+    _infer_total_amount_from_lines,
+    extract_fields_from_text,
 )
 
 
@@ -47,22 +58,6 @@ def test_analyze_with_context_uses_processing_runtime_threshold(monkeypatch):
             "persist_text_ocr_max_chars": 50000,
         },
     )
-    monkeypatch.setattr(
-        "app.modules.importador.processing_service.load_ai_runtime_config",
-        lambda _db=None: {
-            "ocr_min_quality": 0.1,
-            "openai_fallback_ocr_quality_threshold": 0.1,
-            "ocr_length_target_chars": 1200,
-            "ocr_word_target": 180,
-            "ocr_alpha_ratio_target": 0.6,
-            "ocr_noise_ratio_limit": 0.2,
-            "ocr_score_weight_length": 0.35,
-            "ocr_score_weight_words": 0.35,
-            "ocr_score_weight_alpha": 0.2,
-            "ocr_score_weight_clean": 0.1,
-        },
-    )
-
     asyncio.run(
         _analyze_with_context(
             analyze_document_fn=fake_analyze_document_fn,
@@ -114,6 +109,21 @@ def test_pre_extract_route_decision_uses_configured_threshold():
 
 
 @pytest.mark.no_db
+def test_pre_extract_route_decision_does_not_count_missing_total_as_strong_field():
+    decision = _pre_extract_route_decision(
+        pre_fields={"concept": "NOTA DE VENTA RE"},
+        processing_cfg={
+            "pre_extract_min_strong_fields": 3,
+            "pre_extract_min_confidence": 0.62,
+        },
+    )
+
+    assert decision["has_total"] is False
+    assert decision["strong_count"] == 0
+    assert decision["skip_ai"] is False
+
+
+@pytest.mark.no_db
 def test_analyze_with_context_calls_ai_in_fast_mode_when_text_is_sufficient(monkeypatch):
     called = {"count": 0}
 
@@ -158,9 +168,35 @@ def test_analyze_with_context_calls_ai_in_fast_mode_when_text_is_sufficient(monk
 
 
 @pytest.mark.no_db
-def test_analyze_with_context_fast_mode_image_calls_ai_when_ocr_is_sufficient(monkeypatch):
-    """Imágenes (vision_image_bytes set) SIEMPRE llaman a la IA, incluso en fast mode.
-    El OCR extrae texto pero pierde layout, logos y sellos que el modelo de visión sí ve."""
+def test_decide_processing_lane_routes_sufficient_images_text_first():
+    decision = decide_processing_lane(
+        doc_format="IMAGE_OCR",
+        has_structured=False,
+        has_vision=True,
+        text_is_sufficient=True,
+        has_semantic_hint=False,
+        has_cached_analysis=False,
+        is_first_import=True,
+        previous_confidence=None,
+        deep_reprocess=False,
+        processing_cfg={
+            "lane_timeout_fast": 12.0,
+            "lane_timeout_deep": 90.0,
+            "ocr_quality_vision_threshold": 0.45,
+        },
+        ocr_quality_score=0.80,
+    )
+
+    assert decision.lane == "deep"
+    assert decision.timeout_secs == 45.0
+    assert decision.force_vision is False
+    assert decision.vision_first is False
+    assert "text_first" in decision.reasons
+
+
+@pytest.mark.no_db
+def test_analyze_with_context_image_pre_extract_can_skip_ai(monkeypatch):
+    """Si el pre-extract ya cubre suficiente señal, la IA no debe ejecutarse en imágenes."""
     called = {"count": 0}
 
     async def fake_analyze_document_fn(*args, **kwargs):
@@ -186,42 +222,594 @@ def test_analyze_with_context_fast_mode_image_calls_ai_when_ocr_is_sufficient(mo
         },
     )
     monkeypatch.setattr(
-        "app.modules.importador.processing_service.load_ai_runtime_config",
-        lambda _db=None: {
-            "ocr_min_quality": 0.1,
-            "openai_fallback_ocr_quality_threshold": 0.1,
-            "ocr_length_target_chars": 1200,
-            "ocr_word_target": 180,
-            "ocr_alpha_ratio_target": 0.6,
-            "ocr_noise_ratio_limit": 0.2,
-            "ocr_score_weight_length": 0.35,
-            "ocr_score_weight_words": 0.35,
-            "ocr_score_weight_alpha": 0.2,
-            "ocr_score_weight_clean": 0.1,
+        "app.modules.importador.processing_service.invoice_rescue_from_ocr",
+        lambda text, existing_fields=None: {
+            "vendor": "ACME S.A.",
+            "issue_date": "2026-04-18",
+            "total_amount": 42.0,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.extract_fields_from_text",
+        lambda **_kwargs: {
+            "vendor": "ACME S.A.",
+            "issue_date": "2026-04-18",
+            "total_amount": 42.0,
+            "doc_number": "F-001",
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service._pre_extract_route_decision",
+        lambda **_kwargs: {
+            "skip_ai": True,
+            "confidence": 0.91,
+            "strong_count": 3,
+            "min_strong_fields": 3,
+            "min_confidence": 0.62,
+            "has_total": True,
+            "has_date": True,
+            "has_doc": True,
+            "has_vendor": True,
+            "has_tax_id": False,
         },
     )
 
-    analysis = asyncio.run(
-        _analyze_with_context(
-            analyze_document_fn=fake_analyze_document_fn,
-            content="texto OCR suficientemente largo y limpio para resolver el documento",
-            filename="doc.jpg",
-            format_hint="IMAGE_OCR",
-            has_structured_rows=False,
-            recipe_config=None,
-            vision_image_bytes=b"fake-image",
-            fallback_patterns={},
-            canonical_fields={},
-            prompt_config={},
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.update_documento",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.add_log",
+        lambda *args, **kwargs: None,
+    )
+
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
+        del file_bytes, filename, bypass_cache
+        return {
+            "text": "texto OCR suficientemente largo y limpio para resolver el documento",
+            "format": "IMAGE_OCR",
+            "vision_image_bytes": b"fake-image",
+            "ocr_quality_score": 0.8,
+        }
+
+    result = asyncio.run(
+        process_import_document(
             db=None,
-            reprocess_mode="fast",
+            doc=type("Doc", (), {"id": 1})(),
+            tenant_id=None,
+            user_id=None,
+            file_bytes=b"fake-image",
+            filename="doc.jpg",
+            tipo_archivo="IMAGE_OCR",
+            force=False,
+            extract_text_fn=fake_extract_text_fn,
+            analyze_document_fn=fake_analyze_document_fn,
+            recipe_context=RecipeContext(explicit_recipe_context=True),
         )
     )
 
-    # Las imágenes siempre llaman a la IA, incluso en fast mode con texto suficiente
-    assert called["count"] == 1
-    assert analysis["doc_type"] == "INVOICE"
-    assert analysis["confidence"] == 0.82
+    assert called["count"] == 0
+    assert result.raw_ai_json["analysis"]["raw_response"] == "reason=pre_extract_skip_ai"
+    assert result.datos_extraidos["total_amount"] == 42.0
+
+
+@pytest.mark.no_db
+def test_pre_extract_skip_ai_applies_ocr_repairs_before_persist(monkeypatch):
+    called = {"count": 0}
+    updates: list[dict[str, object]] = []
+
+    async def fake_analyze_document_fn(*args, **kwargs):
+        del args, kwargs
+        called["count"] += 1
+        return {"doc_type": "OTHER", "confidence": 0.0, "reasoning": "unexpected", "fields": {}}
+
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_processing_runtime_config",
+        lambda _db=None: {
+            "ocr_text_sufficient_min_chars": 20,
+            "llm_text_preview_chars": 6000,
+            "structured_preview_rows": 5,
+            "structured_preview_fields": 8,
+            "doc_type_hint_min_confidence": 0.65,
+            "structured_output_rows_limit": 200,
+            "persist_text_ocr_max_chars": 50000,
+            "pre_extract_min_strong_fields": 3,
+            "pre_extract_min_confidence": 0.62,
+            "ocr_quality_vision_threshold": 0.45,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.invoice_rescue_from_ocr",
+        lambda text, existing_fields=None: {
+            "vendor": "tribuy Special Resolucién 04519 sg or ie",
+            "doc_number": "001-001-000120085",
+            "subtotal": 1145.0,
+            "tax_amount": 1145.0,
+            "total_amount": 2145.0,
+            "line_items": [
+                {
+                    "description": "IHARINA TRADICION PREMIUM 50 KG F/",
+                    "quantity": 50.0,
+                    "unit_price": 42.9,
+                    "total_price": 2145.0,
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.extract_fields_from_text",
+        lambda **_kwargs: {
+            "concept": "Hul - w._. U",
+            "payment_method": "Credito",
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.update_documento",
+        lambda _db, _doc, payload: updates.append(payload),
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.add_log",
+        lambda *args, **kwargs: None,
+    )
+
+    ocr_text = """
+    FACTURA : 001-001-000120085
+    FECHA Y HORA AUTORIZACION : 2026-01-16T08:56:16-05:00
+    RUC :1890004195001
+    Fecha de Emisión : viernes, 16 de enero de 2026
+    T-HARINA-00006 0788115386881 50.00 IHARINA TRADICION PREMIUM 50 KG F/ 42.90 2,145.00
+    VALOR TOTAL 2,145.00
+    """.strip()
+
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
+        del file_bytes, filename, bypass_cache
+        return {
+            "text": ocr_text,
+            "format": "IMAGE_OCR",
+            "vision_image_bytes": b"fake-image",
+            "ocr_quality_score": 0.98,
+        }
+
+    result = asyncio.run(
+        process_import_document(
+            db=None,
+            doc=type("Doc", (), {"id": 1, "tenant_id": None})(),
+            tenant_id=None,
+            user_id=None,
+            file_bytes=b"fake-image",
+            filename="doc.jpg",
+            tipo_archivo="IMAGE_OCR",
+            force=False,
+            extract_text_fn=fake_extract_text_fn,
+            analyze_document_fn=fake_analyze_document_fn,
+            recipe_context=RecipeContext(explicit_recipe_context=True),
+        )
+    )
+
+    assert called["count"] == 0
+    assert result.raw_ai_json["analysis"]["raw_response"] == "reason=pre_extract_skip_ai"
+    assert result.datos_extraidos["issue_date"] == "2026-01-16"
+    assert result.datos_extraidos["vendor_tax_id"] == "1890004195001"
+    assert any(payload.get("error_detalle") is None for payload in updates if isinstance(payload, dict))
+
+
+@pytest.mark.no_db
+def test_low_evidence_visual_doc_skips_ai_and_marks_review_message(monkeypatch):
+    called = {"count": 0}
+    updates: list[dict[str, object]] = []
+
+    async def fake_analyze_document_fn(*args, **kwargs):
+        del args, kwargs
+        called["count"] += 1
+        return {"doc_type": "OTHER", "confidence": 0.0, "reasoning": "unexpected", "fields": {}}
+
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_processing_runtime_config",
+        lambda _db=None: {
+            "ocr_text_sufficient_min_chars": 20,
+            "llm_text_preview_chars": 6000,
+            "structured_preview_rows": 5,
+            "structured_preview_fields": 8,
+            "doc_type_hint_min_confidence": 0.65,
+            "structured_output_rows_limit": 200,
+            "persist_text_ocr_max_chars": 50000,
+            "pre_extract_min_strong_fields": 3,
+            "pre_extract_min_confidence": 0.62,
+            "ocr_quality_vision_threshold": 0.45,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.invoice_rescue_from_ocr",
+        lambda text, existing_fields=None: {},
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.extract_fields_from_text",
+        lambda **_kwargs: {"concept": "NOTA DE VENTA RE"},
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.update_documento",
+        lambda _db, _doc, payload: updates.append(payload),
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.add_log",
+        lambda *args, **kwargs: None,
+    )
+
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
+        del file_bytes, filename, bypass_cache
+        return {
+            "text": "NOTA DE VENTA RE\nDIRECCION\nCIUDAD\nR.U.C\nTELEFONO\nF. DE PAGO\nCANT.\nDESCRIPCION\nVUNIT\nVTOTAL\n",
+            "format": "IMAGE_OCR",
+            "vision_image_bytes": b"fake-image",
+            "ocr_quality_score": 0.42,
+        }
+
+    result = asyncio.run(
+        process_import_document(
+            db=None,
+            doc=type("Doc", (), {"id": 1, "tenant_id": None})(),
+            tenant_id=None,
+            user_id=None,
+            file_bytes=b"fake-image",
+            filename="doc.jpg",
+            tipo_archivo="IMAGE_OCR",
+            force=False,
+            extract_text_fn=fake_extract_text_fn,
+            analyze_document_fn=fake_analyze_document_fn,
+            recipe_context=RecipeContext(explicit_recipe_context=True),
+        )
+    )
+
+    assert called["count"] == 0
+    assert result.raw_ai_json["analysis"]["raw_response"] == "reason=low_evidence_visual_review"
+    assert result.tipo_documento_detectado == "OTHER"
+    assert any(
+        isinstance(payload.get("error_detalle"), str)
+        and "foto mas nitida" in str(payload.get("error_detalle"))
+        for payload in updates
+        if isinstance(payload, dict)
+    )
+
+
+@pytest.mark.no_db
+def test_low_evidence_visual_doc_skips_ai_when_only_secondary_fields_exist(monkeypatch):
+    called = {"count": 0}
+
+    async def fake_analyze_document_fn(*args, **kwargs):
+        del args, kwargs
+        called["count"] += 1
+        return {"doc_type": "OTHER", "confidence": 0.0, "reasoning": "unexpected", "fields": {}}
+
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_processing_runtime_config",
+        lambda _db=None: {
+            "ocr_text_sufficient_min_chars": 20,
+            "llm_text_preview_chars": 6000,
+            "structured_preview_rows": 5,
+            "structured_preview_fields": 8,
+            "doc_type_hint_min_confidence": 0.65,
+            "structured_output_rows_limit": 200,
+            "persist_text_ocr_max_chars": 50000,
+            "pre_extract_min_strong_fields": 3,
+            "pre_extract_min_confidence": 0.62,
+            "ocr_quality_vision_threshold": 0.45,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.invoice_rescue_from_ocr",
+        lambda text, existing_fields=None: {},
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.extract_fields_from_text",
+        lambda **_kwargs: {
+            "vendor": "ARCAMPO LOSHMANZANOS",
+            "doc_number": "00230",
+            "payment_method": "Tarjeta",
+            "concept": "icafix*frfi~ufi 5,34",
+            "total_amount": 10.0,
+            "tax_amount": 23.0,
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.update_documento",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.crud.add_log",
+        lambda *args, **kwargs: None,
+    )
+
+    async def fake_extract_text_fn(file_bytes, filename, bypass_cache=False):
+        del file_bytes, filename, bypass_cache
+        return {
+            "text": (
+                "FACTURA SIMPLIFICADA\n"
+                "ESTABLECIMIENTO: ARCAMPO LOSHMANZANOS\n"
+                "NUMERO OPERACION: 00230\n"
+                "NUM. TOTAL ART. VENDIDOS = 10\n"
+                "B IVA 10,00 2,27 ,23\n"
+                "TARJETA\n"
+            ),
+            "format": "IMAGE_OCR",
+            "vision_image_bytes": b"fake-image",
+            "ocr_quality_score": 0.61,
+        }
+
+    result = asyncio.run(
+        process_import_document(
+            db=None,
+            doc=type("Doc", (), {"id": 1, "tenant_id": None})(),
+            tenant_id=None,
+            user_id=None,
+            file_bytes=b"fake-image",
+            filename="doc.jpg",
+            tipo_archivo="IMAGE_OCR",
+            force=False,
+            extract_text_fn=fake_extract_text_fn,
+            analyze_document_fn=fake_analyze_document_fn,
+            recipe_context=RecipeContext(explicit_recipe_context=True),
+        )
+    )
+
+    assert called["count"] == 0
+    assert result.raw_ai_json["analysis"]["raw_response"] == "reason=low_evidence_visual_review"
+    assert result.datos_extraidos == {
+        "vendor": "ARCAMPO LOSHMANZANOS",
+        "doc_number": "00230",
+        "payment_method": "Tarjeta",
+    }
+
+
+@pytest.mark.no_db
+def test_infer_total_amount_ignores_item_count_totals():
+    lines = [
+        "NUM. TOTAL ART. VENDIDOS = 10",
+        "NUMERO OPERACION: 00230",
+        "IMPORTE MONEDA: 14,33 / eur",
+    ]
+
+    assert _infer_total_amount_from_lines(lines) == 14.33
+
+
+@pytest.mark.no_db
+def test_extract_labeled_amount_ignores_total_article_count_context():
+    content = """
+    NUM. TOTAL ART. VENDIDOS = 10
+    TOTAL 14,33
+    """.strip()
+
+    assert _extract_labeled_amount(
+        content,
+        "total_amount",
+        prompt_config={"amount_labels": {"total_amount": ["total"]}},
+    ) == 14.33
+
+
+@pytest.mark.no_db
+def test_extract_labeled_amount_ignores_tax_lookahead_into_credit_terms():
+    content = """
+    IVA 15%
+    PLAZO: CREDITO 30 DIAS
+    VALOR TOTAL 2145.00
+    """.strip()
+
+    assert _extract_labeled_amount(
+        content,
+        "tax_amount",
+        prompt_config={"amount_labels": {"tax_amount": ["iva"]}},
+    ) is None
+
+
+@pytest.mark.no_db
+def test_extract_vendor_name_from_ocr_rejects_simplified_invoice_header():
+    content = """
+    FACTURA SIMPLIFICADA
+    PARA EL CLIENTE
+    ESTABLECIMIENTO: ALCAMPO LOS MANZANOS
+    """.strip()
+
+    assert _extract_vendor_name_from_ocr(content) is None
+
+
+@pytest.mark.no_db
+def test_repair_pre_extracted_fields_drops_count_total_and_header_vendor_noise():
+    content = """
+    FACTURA SIMPLIFICADA
+    NUM. TOTAL ART. VENDIDOS = 10
+    B IVA 10,00 2,27 ,23
+    PARA EL CLIENTE
+    """.strip()
+
+    repaired = _repair_pre_extracted_fields(
+        {
+            "vendor": "FACTURA SIMPLIF eh",
+            "total_amount": 10.0,
+            "tax_amount": 23.0,
+            "concept": "FACTURA SIMPLIF eh",
+            "payment_method": "Tarjeta",
+        },
+        content=content,
+        format_hint="IMAGE_OCR",
+        prompt_config={},
+        ocr_runtime={},
+    )
+
+    assert repaired.get("vendor") in (None, "")
+    assert repaired.get("total_amount") in (None, "")
+
+
+@pytest.mark.no_db
+def test_repair_pre_extracted_fields_recovers_invoice_vendor_and_concept_from_line_items():
+    content = """
+    MOLINOS MIRAFLORES S.A
+    RUC: 1890004195001
+    FACTURA: 001-001-000120085
+    FECHA Y HORA AUTORIZACION: 2026-01-16T08:56:16-05:00
+    T-HARINA-00006 0788115386881 50.00 HARINA TRADICION PREMIUM 50 KG F/ 42.90 2145.00
+    SUB TOTAL SIN IMPUESTOS 1145
+    PLAZO: CREDITO 30 DIAS
+    VALOR TOTAL 2145.00
+    """.strip()
+
+    repaired = _repair_pre_extracted_fields(
+        {
+            "line_items": [
+                {
+                    "description": "HARINA TRADICION PREMIUM 50 KG F/",
+                    "quantity": 50.0,
+                    "unit_price": 42.9,
+                    "total_price": 2145.0,
+                }
+            ],
+            "total_amount": 2145.0,
+            "concept": "Hul - w._. U",
+            "payment_method": "Credito",
+            "customer_tax_id": "1890004195001",
+        },
+        content=content,
+        format_hint="IMAGE_OCR",
+        prompt_config={},
+        ocr_runtime={},
+    )
+
+    assert repaired["vendor"] == "MOLINOS MIRAFLORES S.A"
+    assert repaired["concept"] == "HARINA TRADICION PREMIUM 50 KG F/"
+    assert repaired["issue_date"] == "2026-01-16"
+    assert repaired["vendor_tax_id"] == "1890004195001"
+    assert "customer_tax_id" not in repaired
+    assert "subtotal" not in repaired
+    assert "tax_amount" not in repaired
+
+
+@pytest.mark.no_db
+def test_repair_pre_extracted_fields_strips_secondary_amounts_when_doc_is_not_saveable():
+    content = """
+    FACTURA SIMPLIFICADA
+    ESTABLECIMIENTO: ARCAMPO LOSHMANZANOS
+    NUMERO OPERACION: 00230
+    NUM. TOTAL ART. VENDIDOS = 10
+    B IVA 10,00 2,27 ,23
+    TARJETA
+    """.strip()
+
+    repaired = _repair_pre_extracted_fields(
+        {
+            "vendor": "ARCAMPO LOSHMANZANOS",
+            "doc_number": "00230",
+            "payment_method": "Tarjeta",
+            "concept": "icafix*frfi~ufi 5,34",
+            "total_amount": 10.0,
+            "tax_amount": 23.0,
+        },
+        content=content,
+        format_hint="IMAGE_OCR",
+        prompt_config={},
+        ocr_runtime={},
+    )
+
+    assert repaired == {
+        "vendor": "ARCAMPO LOSHMANZANOS",
+        "doc_number": "00230",
+        "payment_method": "Tarjeta",
+    }
+
+
+@pytest.mark.no_db
+def test_prefer_text_candidate_over_existing_replaces_simplified_header_vendor():
+    assert _prefer_text_candidate_over_existing(
+        field_name="vendor",
+        existing="FAGTURA SIMPLIFTOADA : Z",
+        candidate="ALCAMPO LOGRONO",
+    ) is True
+
+
+@pytest.mark.no_db
+def test_extract_fields_from_text_recovers_pos_receipt_metadata():
+    text = """
+    ALCAMPO LOGRONO
+    FACTURA SIMPLIFICADA
+    NUECES MONDADAS 2,54 A
+    ANACARDOS AUCHAN 2,68 C
+    TARJETA 19,39
+    CAMBIO 0,00
+    PARA EL CLIENTE
+    ESTABLECIMIENTO: ALCAMPO LOGRONO
+    LOCALIDAD: 26006 LOGRONO
+    FECHA - HORA: 27/03/26 - 19:00
+    NUMERO OPERACION: 00143
+    IMPORTE / MONEDA: 19,39 / eur
+    """.strip()
+
+    fields = extract_fields_from_text(
+        ocr_text=text,
+        canonical_fields={},
+        field_aliases={},
+        amount_labels={},
+        pdf_config={},
+        page_texts=None,
+    )
+
+    assert fields["vendor"] == "ALCAMPO LOGRONO"
+    assert fields["issue_date"] == "2026-03-27"
+    assert fields["doc_number"] == "00143"
+    assert fields["total_amount"] == 19.39
+    assert fields["payment_method"] == "Tarjeta"
+    assert fields["concept"] == "NUECES MONDADAS"
+
+
+@pytest.mark.no_db
+def test_extract_fields_from_text_pos_metadata_overrides_header_noise():
+    text = """
+    ALCAMPO LOGRONO
+    FAGTURA SIMPLIFTOADA : Z
+    NUECES MONDADAS 2,54 A
+    TARJETA 19,39
+    PARA EL CLIENTE
+    ESTABLECIMIENTO: ALCAMPO LOGRONO
+    LOCALTDAD: 26006 LOGRONO
+    FECHA - HORA: 27/03/26 - 19:00
+    NUMERO OPERACION: 00143
+    IMPORTE / MONEDA: 19,39 / eur
+    """.strip()
+
+    fields = extract_fields_from_text(
+        ocr_text=text,
+        canonical_fields={},
+        field_aliases={},
+        amount_labels={},
+        pdf_config={},
+        page_texts=None,
+    )
+
+    assert fields["vendor"] == "ALCAMPO LOGRONO"
+    assert fields["concept"] == "NUECES MONDADAS"
+
+
+@pytest.mark.no_db
+def test_decide_processing_lane_routes_insufficient_text_images_vision_first():
+    decision = decide_processing_lane(
+        doc_format="IMAGE_OCR",
+        has_structured=False,
+        has_vision=True,
+        text_is_sufficient=False,
+        has_semantic_hint=False,
+        has_cached_analysis=False,
+        is_first_import=True,
+        previous_confidence=None,
+        deep_reprocess=False,
+        processing_cfg={
+            "lane_timeout_fast": 12.0,
+            "lane_timeout_deep": 90.0,
+            "ocr_quality_vision_threshold": 0.45,
+        },
+        ocr_quality_score=0.20,
+    )
+
+    assert decision.lane == "deep"
+    assert decision.timeout_secs == 90.0
+    assert decision.force_vision is True
+    assert decision.vision_first is True
+    assert "vision_first" in decision.reasons
 
 
 @pytest.mark.no_db
@@ -245,22 +833,6 @@ def test_analyze_with_context_fast_mode_image_low_quality_still_calls_ai(monkeyp
             "persist_text_ocr_max_chars": 50000,
         },
     )
-    monkeypatch.setattr(
-        "app.modules.importador.processing_service.load_ai_runtime_config",
-        lambda _db=None: {
-            "ocr_min_quality": 0.95,
-            "openai_fallback_ocr_quality_threshold": 0.95,
-            "ocr_length_target_chars": 1200,
-            "ocr_word_target": 180,
-            "ocr_alpha_ratio_target": 0.6,
-            "ocr_noise_ratio_limit": 0.2,
-            "ocr_score_weight_length": 0.35,
-            "ocr_score_weight_words": 0.35,
-            "ocr_score_weight_alpha": 0.2,
-            "ocr_score_weight_clean": 0.1,
-        },
-    )
-
     analysis = asyncio.run(
         _analyze_with_context(
             analyze_document_fn=fake_analyze_document_fn,
@@ -305,22 +877,6 @@ def test_analyze_with_context_rejects_low_quality_image_ocr(monkeypatch):
             "persist_text_ocr_max_chars": 50000,
         },
     )
-    monkeypatch.setattr(
-        "app.modules.importador.processing_service.load_ai_runtime_config",
-        lambda _db=None: {
-            "ocr_min_quality": 0.9,
-            "openai_fallback_ocr_quality_threshold": 0.9,
-            "ocr_length_target_chars": 1200,
-            "ocr_word_target": 180,
-            "ocr_alpha_ratio_target": 0.6,
-            "ocr_noise_ratio_limit": 0.2,
-            "ocr_score_weight_length": 0.35,
-            "ocr_score_weight_words": 0.35,
-            "ocr_score_weight_alpha": 0.2,
-            "ocr_score_weight_clean": 0.1,
-        },
-    )
-
     with pytest.raises(ValueError, match="Imagen de mala calidad"):
         asyncio.run(
             _analyze_with_context(
@@ -433,7 +989,6 @@ def test_sanitize_text_fallback_fields_drops_noisy_tax_ids_and_keeps_clean_value
         content="texto OCR",
         format_hint="IMAGE_OCR",
         prompt_config={},
-        ai_runtime={"ocr_evidence_formats": ["IMAGE_OCR"]},
         ocr_runtime={},
     )
 
@@ -445,19 +1000,12 @@ def test_sanitize_text_fallback_fields_drops_noisy_tax_ids_and_keeps_clean_value
 
 @pytest.mark.no_db
 def test_sanitize_text_fallback_fields_preserves_rescued_numeric_values_when_repairs_null_them(
-    monkeypatch,
 ):
-    monkeypatch.setattr(
-        "app.modules.importador.processing_service._apply_high_evidence_ocr_repairs",
-        lambda parsed, **kwargs: parsed["fields"].update({"subtotal": None, "tax_amount": None}),
-    )
-
     cleaned = _sanitize_text_fallback_fields(
         {"subtotal": 2145.0, "tax_amount": 0.0, "vendor": "Proveedor Demo S.A."},
         content="texto OCR",
         format_hint="IMAGE_OCR",
         prompt_config={},
-        ai_runtime={"ocr_evidence_formats": ["IMAGE_OCR"]},
         ocr_runtime={},
     )
 
@@ -475,7 +1023,6 @@ def test_sanitize_text_fallback_fields_trims_vendor_timestamp_noise():
         content="texto OCR",
         format_hint="IMAGE_OCR",
         prompt_config={},
-        ai_runtime={"ocr_evidence_formats": ["IMAGE_OCR"]},
         ocr_runtime={},
     )
 

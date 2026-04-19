@@ -253,6 +253,69 @@ def _numeric_evidence(text_digits: str, value: Any, *, min_len: int = 3) -> bool
     return bool(digits and len(digits) >= min_len and digits in text_digits)
 
 
+def _amount_has_monetary_context(content: str, value: Any, *, field_name: str) -> bool:
+    amount = safe_floatish(value)
+    if amount is None:
+        return False
+
+    total_cents = str(int(round(float(amount) * 100)))
+    total_units = str(int(round(float(amount)))) if float(amount).is_integer() else None
+    positive_patterns = {
+        "total_amount": (
+            r"\bvalor\s+total\b",
+            r"\bimporte\s+total\b",
+            r"\bmonto\s+total\b",
+            r"\bimporte\s+moneda\b",
+            r"\btotal\b",
+            r"\bimporte\b",
+            r"\bmonto\b",
+            r"\btarjeta\b",
+            r"\befectivo\b",
+            r"\bcambio\b",
+            r"\bpagado\b",
+            r"\bpago\b",
+        ),
+    }
+    reject_patterns = {
+        "total_amount": (
+            r"\bnum(?:ero)?\.?\s+total\b",
+            r"\bsubtotal\b",
+            r"\bsub total\b",
+            r"\biva\b",
+            r"\bvat\b",
+            r"\bigv\b",
+            r"\bimpuesto\b",
+            r"\bnum(?:ero)?\s+total\s+art",
+            r"\bart(?:\.|iculos?)?\s+vendid",
+            r"\btotal\s+art",
+            r"\bnumero\s+operacion\b",
+            r"\bnumero\s+autorizacion\b",
+            r"\bnumero\s+tarjeta\b",
+            r"\bcodigo\s+respuesta\b",
+            r"\breferencia\b",
+            r"\baid\b",
+            r"\bverificacion\s+usuario\b",
+        ),
+    }
+
+    for raw_line in str(content or "").splitlines():
+        line = " ".join(str(raw_line or "").split()).strip()
+        if not line:
+            continue
+        line_digits = _digits_only(line)
+        if total_cents not in line_digits and (total_units is None or total_units not in line_digits):
+            continue
+        normalized = _normalize_evidence_text(line)
+        if any(re.search(pattern, normalized) for pattern in reject_patterns.get(field_name, ())):
+            continue
+        if "$" in line or "€" in line or "eur" in normalized or "usd" in normalized:
+            return True
+        if any(re.search(pattern, normalized) for pattern in positive_patterns.get(field_name, ())):
+            return True
+
+    return False
+
+
 def _currency_evidence(
     text_normalized: str,
     value: Any,
@@ -995,6 +1058,19 @@ def _extract_labeled_amount(
         return None
 
     candidates: list[float] = []
+    reject_total_patterns = (
+        r"\bnum(?:ero)?\.?\s+total\b",
+        r"\bnum(?:ero)?\s+total\s+art",
+        r"\bart(?:\.|iculos?)?\s+vendid",
+        r"\btotal\s+art",
+        r"\bnumero\s+operacion\b",
+        r"\bnumero\s+autorizacion\b",
+        r"\bnumero\s+tarjeta\b",
+        r"\bcodigo\s+respuesta\b",
+        r"\breferencia\b",
+        r"\baid\b",
+        r"\bverificacion\s+usuario\b",
+    )
     label_patterns = [(label, re.compile(rf"\b{re.escape(label)}\b")) for label in labels]
     lines = [str(line).strip() for line in str(content or "").splitlines()]
     for idx, raw_line in enumerate(lines):
@@ -1019,6 +1095,10 @@ def _extract_labeled_amount(
             for reject in ("subtotal", "sub total", "tax exclusive", "sin impuestos")
         ):
             continue
+        if field_name == "total_amount" and any(
+            re.search(pattern, line_lower) for pattern in reject_total_patterns
+        ):
+            continue
         if field_name == "total_amount" and matched_label == "total" and "%" in line_lower:
             continue
 
@@ -1030,6 +1110,27 @@ def _extract_labeled_amount(
                 if not lookahead:
                     continue
                 if _looks_like_date_context(lookahead):
+                    continue
+                lookahead_lower = lookahead.lower()
+                if field_name == "tax_amount" and not any(
+                    token in lookahead_lower
+                    for token in ("iva", "igv", "gst", "vat", "tax", "impuesto", "ice")
+                ):
+                    continue
+                if any(
+                    token in lookahead_lower
+                    for token in (
+                        "plazo",
+                        "credito",
+                        "dias",
+                        "numero operacion",
+                        "numero autorizacion",
+                        "numero tarjeta",
+                        "referencia",
+                        "tarjeta",
+                        "cambio",
+                    )
+                ):
                     continue
                 amount_candidates = _extract_amount_candidates_from_line(lookahead)
                 if amount_candidates:
@@ -1053,13 +1154,34 @@ def _extract_labeled_amount(
 
 def _extract_contextual_max_amount(content: str) -> float | None:
     keywords = (
+        re.compile(r"\bvalor\s+total\b"),
+        re.compile(r"\bimporte\s+total\b"),
+        re.compile(r"\bmonto\s+total\b"),
+        re.compile(r"\bimporte\s+moneda\b"),
         re.compile(r"\btotal\b"),
+        re.compile(r"\bimporte\b"),
+        re.compile(r"\bmonto\b"),
+        re.compile(r"\btarjeta\b"),
+        re.compile(r"\befectivo\b"),
+        re.compile(r"\bcambio\b"),
+    )
+    reject_total_patterns = (
         re.compile(r"\bsubtotal\b"),
         re.compile(r"\bsub total\b"),
         re.compile(r"\biva\b"),
         re.compile(r"\bvat\b"),
         re.compile(r"\bigv\b"),
         re.compile(r"\bimpuesto\b"),
+        re.compile(r"\bnum(?:ero)?\s+total\s+art"),
+        re.compile(r"\bart(?:\.|iculos?)?\s+vendid"),
+        re.compile(r"\btotal\s+art"),
+        re.compile(r"\bnumero\s+operacion\b"),
+        re.compile(r"\bnumero\s+autorizacion\b"),
+        re.compile(r"\bnumero\s+tarjeta\b"),
+        re.compile(r"\bcodigo\s+respuesta\b"),
+        re.compile(r"\breferencia\b"),
+        re.compile(r"\baid\b"),
+        re.compile(r"\bverificacion\s+usuario\b"),
     )
     candidates: list[float] = []
     for raw_line in str(content or "").splitlines():
@@ -1068,6 +1190,8 @@ def _extract_contextual_max_amount(content: str) -> float | None:
             continue
         line_lower = line.lower()
         if not any(pattern.search(line_lower) for pattern in keywords):
+            continue
+        if any(pattern.search(line_lower) for pattern in reject_total_patterns):
             continue
         for amount in _extract_money_like_amounts_from_line(line):
             if amount > 0:
@@ -1417,6 +1541,13 @@ def _extract_vendor_name_from_ocr(
         )
         normalized = _normalize_evidence_text(working)
         if any(stop in normalized for stop in stop_norms):
+            continue
+        if (
+            "factura" in normalized
+            and ("simplificada" in normalized or "simplif" in normalized)
+        ) or "ticket" in normalized or "para el cliente" in normalized:
+            continue
+        if normalized.startswith("establecimiento") or normalized.startswith("localidad"):
             continue
 
         alpha_words = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}", working)
@@ -1776,6 +1907,13 @@ def _apply_high_evidence_ocr_repairs(
         if current_total not in (None, "") and current_total != labeled_total:
             _repairs.append(f"total_amount: {current_total!r} → {labeled_total!r}")
         fields["total_amount"] = labeled_total
+    elif current_total not in (None, "") and not _amount_has_monetary_context(
+        content, current_total, field_name="total_amount"
+    ):
+        _repairs.append(
+            f"total_amount: {current_total!r} → None (sin evidencia monetaria suficiente)"
+        )
+        fields["total_amount"] = None
 
     current_subtotal = fields.get("subtotal")
     total_ceiling = fields.get("total_amount")

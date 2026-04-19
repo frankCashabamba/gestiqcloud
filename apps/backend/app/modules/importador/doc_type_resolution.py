@@ -136,11 +136,33 @@ def promote_doc_type_from_text_fallback(
     # "factura" dentro de "factura simplificada" no dispare INVOICE incorrectamente.
     _simplified_receipt_markers = (
         "factura simplificada",
+        "factura simplif",
         "simplified invoice",
         "nota de venta",
         "ticket simplificado",
     )
-    _is_simplified_receipt = any(marker in text_context for marker in _simplified_receipt_markers)
+    _pos_receipt_score = sum(
+        1
+        for token in (
+            "establecimiento",
+            "localidad",
+            "localtdad",
+            "para el cliente",
+            "numero operacion",
+            "fecha",
+            "tarjeta",
+            "efectivo",
+            "importe moneda",
+            "importe / moneda",
+            "cambio",
+        )
+        if token in text_context
+    )
+    _pos_receipt_shape = (
+        "establecimiento" in text_context
+        and _pos_receipt_score >= 4
+    )
+    _is_simplified_receipt = any(marker in text_context for marker in _simplified_receipt_markers) or _pos_receipt_shape
 
     if _is_simplified_receipt:
         # Tratar como recibo con confianza media; siempre marca para revisión
