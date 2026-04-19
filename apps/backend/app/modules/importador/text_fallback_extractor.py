@@ -838,15 +838,6 @@ def _extract_payroll_items_relaxed(lines: list[str]) -> list[dict[str, Any]]:
             end_idx = idx
             break
 
-    deduction_start = next(
-        (
-            idx
-            for idx in range(max(0, start_idx - 5), end_idx)
-            if "deducciones" in _normalize_label(lines[idx])
-        ),
-        end_idx,
-    )
-
     items: list[dict[str, Any]] = []
     deduction_markers = (
         "cotizacion",
@@ -1620,9 +1611,8 @@ def _looks_like_ticket_document(lines: list[str]) -> bool:
         marker in joined for marker in ("total", "subtotal", "pagos", "cash", "productos")
     ):
         return True
-    if (
-        sum(1 for marker in simplified_markers if marker in joined) >= 3
-        and any(marker in joined for marker in ("tarjeta", "efectivo", "cambio", "importe"))
+    if sum(1 for marker in simplified_markers if marker in joined) >= 3 and any(
+        marker in joined for marker in ("tarjeta", "efectivo", "cambio", "importe")
     ):
         return True
     return sum(1 for marker in markers if marker in joined) >= 3
@@ -1726,7 +1716,14 @@ def _extract_pos_receipt_metadata(lines: list[str]) -> dict[str, Any]:
             continue
         if any(
             token in norm
-            for token in ("importe / moneda", "importe moneda", "tarjeta", "efectivo", "cambio", "total")
+            for token in (
+                "importe / moneda",
+                "importe moneda",
+                "tarjeta",
+                "efectivo",
+                "cambio",
+                "total",
+            )
         ):
             amounts = _find_amounts(raw)
             if amounts:
@@ -2012,7 +2009,9 @@ def extract_fields_from_text(
             continue
         if key == "concept":
             current_concept = result.get("concept")
-            if current_concept in (None, "", [], {}) or _is_pos_receipt_concept_noise(current_concept):
+            if current_concept in (None, "", [], {}) or _is_pos_receipt_concept_noise(
+                current_concept
+            ):
                 result["concept"] = value
             continue
         result.setdefault(key, value)

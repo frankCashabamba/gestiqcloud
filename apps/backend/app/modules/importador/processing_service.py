@@ -27,9 +27,7 @@ from .auto_recipe import (
 from .canonical_document import build_document_projection
 from .category_loader import get_doc_categories
 from .classifier_learning import learn_column_candidates as _learn_column_candidates
-from .doc_type_resolution import (
-    promote_doc_type_from_text_fallback,
-)
+from .doc_type_resolution import promote_doc_type_from_text_fallback
 from .document_fields import safe_floatish
 from .field_alias_loader import get_canonical_fields, get_field_aliases
 from .invoice_ocr_rescue import invoice_rescue_from_ocr
@@ -49,14 +47,10 @@ from .runtime_config import (
     load_structured_filename_patterns,
 )
 from .schemas import DocumentReviewHintOut, DocumentRoutingDecision
-from .services.document_model_learning_service import (
-    should_run_learning_rerun,
-)
+from .services.document_model_learning_service import should_run_learning_rerun
 from .services.document_routing_agent import build_document_routing_decision
 from .snapshot_learning import build_snapshot_review_hints
-from .text_fallback_extractor import (
-    extract_fields_from_text,
-)
+from .text_fallback_extractor import extract_fields_from_text
 from .utils import json_safe as _json_safe
 
 logger = logging.getLogger("importador.processing")
@@ -252,7 +246,9 @@ def decide_processing_lane(
 
     if has_vision or fmt in _VISUAL_FORMATS:
         if text_is_sufficient:
-            return LaneDecision("deep", t_deep_phase, False, False, ["visual_or_scan_doc", "text_first"])
+            return LaneDecision(
+                "deep", t_deep_phase, False, False, ["visual_or_scan_doc", "text_first"]
+            )
         return LaneDecision("deep", t_deep, True, True, ["visual_or_scan_doc", "vision_first"])
 
     if fmt == "PDF_OCR":
@@ -767,7 +763,7 @@ def _build_ai_attempt_fingerprint(
     return {
         "model": normalized_model,
         "content_sha1": (
-            sha1(normalized_content.encode("utf-8")).hexdigest() if normalized_content else ""
+            sha1(normalized_content.encode("utf-8"), usedforsecurity=False).hexdigest() if normalized_content else ""
         ),
         "timeout": round(float(timeout_override or 0.0), 3),
         "strategy": str(strategy or "").strip().lower(),
@@ -1092,7 +1088,11 @@ def _repair_pre_extracted_fields(
         line_items_total += float(item_total)
         line_items_with_amount += 1
 
-    if total_amount is None and not str(final_cleaned.get("issue_date") or "").strip() and not line_items_list:
+    if (
+        total_amount is None
+        and not str(final_cleaned.get("issue_date") or "").strip()
+        and not line_items_list
+    ):
         final_cleaned.pop("subtotal", None)
         final_cleaned.pop("tax_amount", None)
     elif total_amount is not None:
@@ -1169,8 +1169,10 @@ def _looks_like_noisy_scalar_text(value: Any, *, field_name: str) -> bool:
         if any(ch in raw for ch in "*~_|="):
             return True
         if (
-            "base" in normalized and "cuota" in normalized
-        ) or normalized.startswith("imp.") or normalized.startswith("imp "):
+            ("base" in normalized and "cuota" in normalized)
+            or normalized.startswith("imp.")
+            or normalized.startswith("imp ")
+        ):
             return True
         if "tarjeta" in normalized or "cambio" in normalized or "simplif" in normalized:
             return True
@@ -1191,9 +1193,7 @@ def _prefer_text_candidate_over_existing(*, field_name: str, existing: Any, cand
         return False
 
     existing_norm = unicodedata.normalize("NFD", existing_raw)
-    existing_norm = "".join(
-        ch for ch in existing_norm if unicodedata.category(ch) != "Mn"
-    ).lower()
+    existing_norm = "".join(ch for ch in existing_norm if unicodedata.category(ch) != "Mn").lower()
     existing_norm = " ".join(existing_norm.split())
     candidate_norm = unicodedata.normalize("NFD", candidate_raw)
     candidate_norm = "".join(
@@ -1202,9 +1202,9 @@ def _prefer_text_candidate_over_existing(*, field_name: str, existing: Any, cand
     candidate_norm = " ".join(candidate_norm.split())
 
     if field_name == "vendor":
-        if _looks_like_noisy_scalar_text(existing_raw, field_name="vendor") and not _looks_like_noisy_scalar_text(
-            candidate_raw, field_name="vendor"
-        ):
+        if _looks_like_noisy_scalar_text(
+            existing_raw, field_name="vendor"
+        ) and not _looks_like_noisy_scalar_text(candidate_raw, field_name="vendor"):
             return True
         existing_bad = (
             "simplif" in existing_norm
@@ -1221,9 +1221,9 @@ def _prefer_text_candidate_over_existing(*, field_name: str, existing: Any, cand
         return existing_bad and candidate_good
 
     if field_name == "concept":
-        if _looks_like_noisy_scalar_text(existing_raw, field_name="concept") and not _looks_like_noisy_scalar_text(
-            candidate_raw, field_name="concept"
-        ):
+        if _looks_like_noisy_scalar_text(
+            existing_raw, field_name="concept"
+        ) and not _looks_like_noisy_scalar_text(candidate_raw, field_name="concept"):
             return True
         existing_bad = (
             ("base" in existing_norm and "cuota" in existing_norm)
@@ -2230,7 +2230,9 @@ async def _process_run_document(
                 )
 
             _line_items_present = bool(
-                _pre_fields.get("line_items") if isinstance(_pre_fields.get("line_items"), list) else []
+                _pre_fields.get("line_items")
+                if isinstance(_pre_fields.get("line_items"), list)
+                else []
             )
             _has_primary_saveable_evidence = (
                 safe_floatish(_pre_fields.get("total_amount")) is not None

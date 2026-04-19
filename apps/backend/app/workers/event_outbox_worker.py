@@ -2,6 +2,7 @@
 
 import logging
 import time
+from datetime import UTC
 
 from app.config.database import session_scope
 from app.models.core.event_outbox import EventOutbox
@@ -125,9 +126,9 @@ def _handle_pos_receipt_completed(event: EventOutbox):
         sale_date = date_type.fromisoformat(sale_date_str)
     else:
         # paid_at is NOW() on the DB side; fall back to today in UTC
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        sale_date = datetime.now(timezone.utc).date()
+        sale_date = datetime.now(UTC).date()
 
     with session_scope() as db:
         svc = RecalculationService(db)
