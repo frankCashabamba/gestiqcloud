@@ -23,6 +23,7 @@ from app.models.core.audit_event import AuditEvent
 
 from . import crud, recipe_crud
 from .canonical_document import build_document_projection
+from .destination_registry import list_destination_registry
 from .document_fields import (
     detect_document_date,
     detect_document_payment_method,
@@ -50,6 +51,7 @@ from .schemas import (
     CanonicalFieldOut,
     ConfirmRequest,
     DashboardStats,
+    DestinationRegistryItemOut,
     DocumentLineMatchesResponse,
     DocumentoDetailOut,
     DocumentoListOut,
@@ -2535,6 +2537,15 @@ def get_canonical_fields_for_ui(db: Session = Depends(get_db)):
         for row in rows
         if str(row[0] or "").strip()
     ]
+
+
+@router.get(
+    "/destination-registry",
+    response_model=list[DestinationRegistryItemOut],
+    dependencies=protected,
+)
+def get_destination_registry_for_ui(db: Session = Depends(get_db)):
+    return list_destination_registry(db)
 
 
 @router.get("/line-item-slots", response_model=list[LineItemSlotOut], dependencies=protected)

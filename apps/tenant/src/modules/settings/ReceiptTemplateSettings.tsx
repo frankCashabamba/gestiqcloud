@@ -1,16 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../shared/toast'
-import api from '../../services/api/client'
-
-interface ReceiptConfig {
-  footer_message: string
-  show_tax_breakdown: boolean
-  show_cashier: boolean
-  show_customer: boolean
-  custom_header: string
-  custom_footer: string
-}
+import {
+  getReceiptSettings,
+  saveReceiptSettings,
+  getReceiptPreview,
+  type ReceiptConfig,
+} from '../../services/api/printing'
+import { getCompanySettings, updateCompanySettings } from '../../services/companySettings'
 
 export default function ReceiptTemplateSettings() {
   const { t } = useTranslation(['settings', 'common'])
@@ -32,12 +29,12 @@ export default function ReceiptTemplateSettings() {
   useEffect(() => {
     let cancelled = false
     Promise.all([
-      api.get('/api/v1/tenant/printing/receipt-settings').catch(() => null),
-      api.get('/api/v1/company/settings').catch(() => null),
-    ]).then(([receiptRes, settingsRes]) => {
+      getReceiptSettings().catch(() => null),
+      getCompanySettings({ force: true }).catch(() => null),
+    ]).then(([receiptData, settingsData]) => {
       if (cancelled) return
-      if (receiptRes) setConfig((prev) => ({ ...prev, ...receiptRes.data }))
-      const w = settingsRes?.data?.pos_config?.receipt?.width_mm
+      if (receiptData) setConfig((prev) => ({ ...prev, ...receiptData }))
+      const w = settingsData?.pos_config?.receipt?.width_mm
       if (w != null && Number.isFinite(Number(w))) setPaperWidthMm(Number(w))
     })
     return () => { cancelled = true }
@@ -46,8 +43,8 @@ export default function ReceiptTemplateSettings() {
   const refreshPreview = useCallback(() => {
     let cancelled = false
     setLoadingPreview(true)
-    api.get('/api/v1/tenant/printing/receipt-preview')
-      .then((res) => { if (!cancelled) setPreview(res.data.preview || '') })
+    getReceiptPreview()
+      .then((data) => { if (!cancelled) setPreview(data.preview || '') })
       .catch(() => { if (!cancelled) setPreview('') })
       .finally(() => { if (!cancelled) setLoadingPreview(false) })
     return () => { cancelled = true }
@@ -66,9 +63,9 @@ export default function ReceiptTemplateSettings() {
     setSaving(true)
     try {
       await Promise.all([
-        api.post('/api/v1/tenant/printing/receipt-settings', config),
+        saveReceiptSettings(config),
         paperWidthMm !== ''
-          ? api.put('/api/v1/company/settings', {
+          ? updateCompanySettings({
               pos_config: { receipt: { width_mm: Number(paperWidthMm) } },
             })
           : Promise.resolve(),

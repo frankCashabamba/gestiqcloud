@@ -28,7 +28,12 @@ export const STORAGE_KEYS = {
 
 /**
  * Convenience exports para acceso simple
+ *
+ * - TOKEN_KEY: clave usada en sessionStorage (fuente de verdad runtime)
+ * - AUTH_TOKEN_KEY: alias histórico de TOKEN_KEY; mantenido por compatibilidad
+ * - AUTH_FALLBACK_TOKEN_KEY: clave usada en localStorage como recovery fallback
  */
 export const TOKEN_KEY = STORAGE_KEYS.AUTH.TOKEN
 export const POS_DRAFT_KEY = STORAGE_KEYS.POS.DRAFT_STATE
 export const AUTH_TOKEN_KEY = STORAGE_KEYS.AUTH.TOKEN
+export const AUTH_FALLBACK_TOKEN_KEY = STORAGE_KEYS.AUTH.FALLBACK_TOKEN

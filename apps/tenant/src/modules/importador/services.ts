@@ -40,6 +40,45 @@ export type Documento = {
   version_links?: DocumentoVersionLink[]
 }
 
+export type DocumentSaveDestination = 'recipe' | 'expense' | 'supplier_invoice'
+export type DestinationSaveApi = 'save_document' | 'save_products' | 'save_as_daily_log' | string
+
+export type DestinationCapabilities = {
+  supports_update_stock: boolean
+  supports_line_matching: boolean
+  supports_partial_payment: boolean
+  supports_multi_record_save: boolean
+}
+
+export type DocumentCandidateDestination = {
+  code: string
+  label: string
+  target: string
+  target_tables: string[]
+  save_api: DestinationSaveApi
+  score: number
+  save_ready: boolean
+  required_fields_ok: boolean
+  missing_fields: string[]
+  needs_human_review: boolean
+  reason: string
+  confirmation_required: boolean
+  capabilities: DestinationCapabilities
+}
+
+export type DestinationRegistryItem = {
+  code: string
+  label: string
+  target: string
+  target_tables: string[]
+  save_api: DestinationSaveApi
+  enabled: boolean
+  confirmation_required: boolean
+  include_in_candidates: boolean
+  save_order: number
+  capabilities: DestinationCapabilities
+}
+
 // Campos alineados con RoutingDecisionPreview (admin/importador-routing.ts).
 // Diferencia intencional: suggested_destination es opcional (?) aqui porque el
 // campo llega bajo routing_decision.suggested_destination y puede ausentarse en
@@ -52,6 +91,8 @@ export type DocumentRoutingDecision = {
   missing_fields: string[]
   // TODO: verificar si suggested_destination se usa como undefined (vs null) en algun componente
   suggested_destination?: DocumentSaveDestination | null
+  primary_destination?: string | null
+  candidate_destinations: DocumentCandidateDestination[]
   reason: string
   needs_human_review: boolean
   source_doc_type?: string | null
@@ -90,6 +131,7 @@ export type CanonicalField = {
 }
 
 let canonicalFieldsRequest: Promise<CanonicalField[]> | null = null
+let destinationRegistryRequest: Promise<DestinationRegistryItem[]> | null = null
 let _canonicalFieldsCache: CanonicalField[] | null = null
 let _canonicalFieldLabelCache: Record<string, string> = {}
 let _canonicalLineItemFieldNamesCache = new Set<string>()
@@ -285,6 +327,15 @@ function normalizeRoutingDecision(raw: unknown): DocumentRoutingDecision | null 
     && ['recipe', 'expense', 'supplier_invoice'].includes(data.suggested_destination)
     ? data.suggested_destination as DocumentSaveDestination
     : null
+  const primaryDestination = typeof data.primary_destination === 'string'
+    ? data.primary_destination
+    : null
+  const candidateDestinations = Array.isArray(data.candidate_destinations)
+    ? data.candidate_destinations
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map((item) => normalizeCandidateDestination(item))
+      .filter(Boolean) as DocumentCandidateDestination[]
+    : []
 
   return {
     document_type: String(data.document_type ?? ''),
@@ -292,10 +343,59 @@ function normalizeRoutingDecision(raw: unknown): DocumentRoutingDecision | null 
     required_fields_ok: Boolean(data.required_fields_ok),
     missing_fields: Array.isArray(data.missing_fields) ? data.missing_fields.map(String).filter(Boolean) : [],
     suggested_destination: suggestedDestination,
+    primary_destination: primaryDestination,
+    candidate_destinations: candidateDestinations,
     reason: String(data.reason ?? ''),
     needs_human_review: Boolean(data.needs_human_review),
     source_doc_type: typeof data.source_doc_type === 'string' ? data.source_doc_type : null,
     source_category: typeof data.source_category === 'string' ? data.source_category : null,
+  }
+}
+
+function normalizeDestinationCapabilities(raw: unknown): DestinationCapabilities {
+  const data = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+  return {
+    supports_update_stock: Boolean(data.supports_update_stock),
+    supports_line_matching: Boolean(data.supports_line_matching),
+    supports_partial_payment: Boolean(data.supports_partial_payment),
+    supports_multi_record_save: Boolean(data.supports_multi_record_save),
+  }
+}
+
+function normalizeCandidateDestination(raw: Record<string, unknown>): DocumentCandidateDestination | null {
+  const code = String(raw.code ?? '').trim()
+  if (!code) return null
+  return {
+    code,
+    label: String(raw.label ?? code).trim() || code,
+    target: String(raw.target ?? '').trim(),
+    target_tables: Array.isArray(raw.target_tables) ? raw.target_tables.map(String).filter(Boolean) : [],
+    save_api: String(raw.save_api ?? 'save_document').trim() || 'save_document',
+    score: Number(raw.score ?? 0),
+    save_ready: Boolean(raw.save_ready),
+    required_fields_ok: Boolean(raw.required_fields_ok),
+    missing_fields: Array.isArray(raw.missing_fields) ? raw.missing_fields.map(String).filter(Boolean) : [],
+    needs_human_review: Boolean(raw.needs_human_review),
+    reason: String(raw.reason ?? ''),
+    confirmation_required: Boolean(raw.confirmation_required ?? true),
+    capabilities: normalizeDestinationCapabilities(raw.capabilities),
+  }
+}
+
+function normalizeRegistryItem(raw: Record<string, unknown>): DestinationRegistryItem | null {
+  const code = String(raw.code ?? '').trim()
+  if (!code) return null
+  return {
+    code,
+    label: String(raw.label ?? code).trim() || code,
+    target: String(raw.target ?? '').trim(),
+    target_tables: Array.isArray(raw.target_tables) ? raw.target_tables.map(String).filter(Boolean) : [],
+    save_api: String(raw.save_api ?? 'save_document').trim() || 'save_document',
+    enabled: Boolean(raw.enabled ?? true),
+    confirmation_required: Boolean(raw.confirmation_required ?? true),
+    include_in_candidates: Boolean(raw.include_in_candidates ?? true),
+    save_order: Number(raw.save_order ?? 100),
+    capabilities: normalizeDestinationCapabilities(raw.capabilities),
   }
 }
 
@@ -426,7 +526,6 @@ export type SyncRecipesResult = {
   results: SyncRecipeSheetResult[]
 }
 
-export type DocumentSaveDestination = 'recipe' | 'expense' | 'supplier_invoice'
 export type DocumentPaymentStatus = 'pending' | 'partial' | 'paid'
 
 export type SaveDocumentPayload = {
@@ -520,7 +619,26 @@ function mapSuggestedDestination(destination?: DocumentSaveDestination | null): 
   }
 }
 
+function toDocumentSaveDestination(code?: string | null): DocumentSaveDestination | null {
+  if (code === 'recipe' || code === 'expense' || code === 'supplier_invoice') return code
+  return null
+}
+
+export function getCandidateSaveDestinations(
+  doc: Pick<Documento, 'routing_decision'>,
+): DocumentCandidateDestination[] {
+  const candidates = doc.routing_decision?.candidate_destinations || []
+  return candidates
+    .filter((candidate) => candidate.save_api === 'save_document')
+    .filter((candidate) => toDocumentSaveDestination(candidate.code) != null)
+}
+
 export function suggestSaveDestination(doc: Pick<Documento, 'tipo_documento_detectado' | 'proveedor_detectado' | 'monto_total' | 'routing_decision'>): DocumentSaveDestination {
+  const primaryDestination = toDocumentSaveDestination(doc.routing_decision?.primary_destination)
+  if (primaryDestination) return primaryDestination
+  const candidateDestination = getCandidateSaveDestinations(doc).find((candidate) => candidate.save_ready)
+  const candidateCode = toDocumentSaveDestination(candidateDestination?.code)
+  if (candidateCode) return candidateCode
   if (doc.routing_decision?.suggested_destination) return doc.routing_decision.suggested_destination
   const category = getDocCategory(doc, [])
   if (category === 'recipe') return 'recipe'
@@ -1111,6 +1229,24 @@ export async function purgeFullImportador(): Promise<{ deleted_total: number; ta
 export async function fetchSaveCapabilities(): Promise<Record<string, boolean>> {
   const { data } = await api.get(TENANT_IMPORTADOR.saveCapabilities)
   return data
+}
+
+export async function fetchDestinationRegistry(): Promise<DestinationRegistryItem[]> {
+  if (!destinationRegistryRequest) {
+    destinationRegistryRequest = api.get(TENANT_IMPORTADOR.destinationRegistry)
+      .then(({ data }) => (
+        Array.isArray(data)
+          ? data
+            .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+            .map((item) => normalizeRegistryItem(item))
+            .filter(Boolean) as DestinationRegistryItem[]
+          : []
+      ))
+      .finally(() => {
+        destinationRegistryRequest = null
+      })
+  }
+  return destinationRegistryRequest
 }
 
 // ─── Iterative Reprocessing Types ──────────────────────────────────────────

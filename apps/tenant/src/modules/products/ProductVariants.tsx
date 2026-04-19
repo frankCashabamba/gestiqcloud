@@ -1,32 +1,26 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import api from '../../services/api/client'
+import {
+  listProductVariants,
+  listProductAttributes,
+  createProductAttribute,
+  deleteProductAttribute,
+  createProductVariant,
+  updateProductVariant,
+  deleteProductVariant,
+  type ProductAttribute,
+  type ProductVariant,
+} from '../../services/api/products'
 import { useToast, getErrorMessage } from '../../shared/toast'
 
-interface Attribute {
-  id: string
-  name: string
-  values: string[]
-}
-
-interface Variant {
-  id: string
-  product_id: string
-  sku: string | null
-  attributes: Record<string, string>
-  price: number | null
-  cost: number | null
-  barcode: string | null
-  is_active: boolean
-}
+type Attribute = ProductAttribute
+type Variant = ProductVariant
 
 interface ProductVariantsProps {
   productId: string
   basePrice?: number
   currencySymbol?: string
 }
-
-const BASE = '/api/v1/tenant/products/variants'
 
 export default function ProductVariants({ productId, basePrice, currencySymbol = '' }: ProductVariantsProps) {
   const { t } = useTranslation('products')
@@ -50,13 +44,12 @@ export default function ProductVariants({ productId, basePrice, currencySymbol =
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [varsRes, attrsRes] = await Promise.all([
-        api.get(`${BASE}/${productId}`),
-        // Scoped to this product so attributes from other tenants are never exposed
-        api.get(`${BASE}/attributes?product_id=${encodeURIComponent(productId)}`),
+      const [vars, attrs] = await Promise.all([
+        listProductVariants(productId),
+        listProductAttributes(productId),
       ])
-      setVariants(varsRes.data)
-      setAttributes(attrsRes.data)
+      setVariants(vars)
+      setAttributes(attrs)
     } catch (e) {
       toastError(getErrorMessage(e))
     } finally {
@@ -70,7 +63,7 @@ export default function ProductVariants({ productId, basePrice, currencySymbol =
     if (!attrForm.name.trim()) return
     setSaving(true)
     try {
-      await api.post(`${BASE}/attributes`, {
+      await createProductAttribute({
         product_id: productId,
         name: attrForm.name.trim(),
         values: attrForm.values.split(',').map((v) => v.trim()).filter(Boolean),
@@ -87,7 +80,7 @@ export default function ProductVariants({ productId, basePrice, currencySymbol =
 
   const handleDeleteAttribute = async (id: string) => {
     try {
-      await api.delete(`${BASE}/attributes/${id}`)
+      await deleteProductAttribute(id)
       load()
     } catch (e) {
       toastError(getErrorMessage(e))
@@ -97,7 +90,7 @@ export default function ProductVariants({ productId, basePrice, currencySymbol =
   const handleCreateVariant = async () => {
     setSaving(true)
     try {
-      await api.post(BASE, {
+      await createProductVariant({
         product_id: productId,
         sku: form.sku || null,
         attributes: form.attributes,
@@ -117,7 +110,7 @@ export default function ProductVariants({ productId, basePrice, currencySymbol =
 
   const handleToggleVariant = async (v: Variant) => {
     try {
-      await api.put(`${BASE}/${v.id}`, { is_active: !v.is_active })
+      await updateProductVariant(v.id, { is_active: !v.is_active })
       load()
     } catch (e) {
       toastError(getErrorMessage(e))
@@ -131,7 +124,7 @@ export default function ProductVariants({ productId, basePrice, currencySymbol =
   const doDeleteVariant = async () => {
     if (!deleteVariantTarget) return
     try {
-      await api.delete(`${BASE}/${deleteVariantTarget}`)
+      await deleteProductVariant(deleteVariantTarget)
       setDeleteVariantTarget(null)
       load()
     } catch (e) {

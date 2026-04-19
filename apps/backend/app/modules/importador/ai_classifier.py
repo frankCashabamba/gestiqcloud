@@ -284,7 +284,9 @@ def _amount_has_monetary_context(
     )
     currency_symbols = {
         str(item).strip()
-        for item in (cfg.get("money_currency_symbols") or _DEFAULT_OCR_CONFIG["money_currency_symbols"])
+        for item in (
+            cfg.get("money_currency_symbols") or _DEFAULT_OCR_CONFIG["money_currency_symbols"]
+        )
         if str(item).strip()
     }
 
@@ -1108,9 +1110,7 @@ def _extract_labeled_amount(
                     token in lookahead_lower for token in tax_amount_lookahead_required_tokens
                 ):
                     continue
-                if any(
-                    token in lookahead_lower for token in amount_lookahead_reject_tokens
-                ):
+                if any(token in lookahead_lower for token in amount_lookahead_reject_tokens):
                     continue
                 amount_candidates = _extract_amount_candidates_from_line(lookahead)
                 if amount_candidates:

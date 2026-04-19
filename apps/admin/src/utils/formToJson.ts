@@ -1,14 +1,27 @@
 // Normaliza el formulario de creación de empresa a payload JSON
 // para el backend (ajusta campos según tu API real)
-import type { FormularioEmpresa } from '../typesall/empresa'
+import type { EmpresaPayload, FormularioEmpresa } from '../typesall/empresa'
 
 // Mapea el formulario del FE al esquema esperado por el backend (EmpresaInSchema)
-export function buildEmpresaPayload(f: FormularioEmpresa) {
-  let cfg: any = undefined
-  if (f.config_json && f.config_json.trim()) {
-    try { cfg = JSON.parse(f.config_json) } catch { cfg = undefined }
+//
+// Nota: el backend (CompanyInSchema) exige `config_json` como objeto (dict),
+// no como string JSON. Este helper SIEMPRE devuelve un objeto, incluso si el
+// raw del textarea estaba vacío o era inválido. Nunca pases `f.config_json`
+// (string) directo al cliente HTTP.
+export function buildEmpresaPayload(f: FormularioEmpresa): EmpresaPayload {
+  let cfg: Record<string, unknown> | undefined
+  const raw = typeof f.config_json === 'string' ? f.config_json.trim() : ''
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        cfg = parsed as Record<string, unknown>
+      }
+    } catch {
+      cfg = undefined
+    }
   }
-  const config_json = { ...(cfg || {}) }
+  const config_json: Record<string, unknown> = { ...(cfg || {}) }
   return {
     name: f.nombre_empresa?.trim(),
     initial_template: f.plantilla_inicio || undefined,

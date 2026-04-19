@@ -23,6 +23,12 @@ export interface FormularioEmpresa {
   color_primario: string;
   color_secundario: string;
   plantilla_inicio: string;
+  /**
+   * Raw textarea content. Must be parsed to an object before sending to the
+   * backend. The wire payload uses {@link EmpresaPayload.config_json}, which
+   * is a `Record<string, unknown>` (the backend rejects strings). See
+   * `buildEmpresaPayload` in `utils/formToJson.ts`.
+   */
   config_json: string;
   default_language?: string;
   timezone?: string;
@@ -34,6 +40,31 @@ export interface FormularioEmpresa {
   username: string;
   password?: string;
   modulos: string[];
+}
+
+/**
+ * Payload sent to POST/PUT /v1/admin/companies/...
+ *
+ * IMPORTANT: `config_json` MUST be an object, not a JSON-serialized string.
+ * The backend (CompanyInSchema) validates with Pydantic and rejects strings:
+ *   ValueError("config_json debe ser un objeto JSON (dict)")
+ */
+export interface EmpresaPayload {
+  name?: string;
+  initial_template?: string;
+  tax_id?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  cp?: string;
+  country?: string;
+  country_code?: string;
+  website?: string;
+  config_json: Record<string, unknown>;
+  default_language?: string;
+  timezone?: string;
+  currency?: string;
 }
 
 export type BillingCycle = 'monthly' | 'yearly'

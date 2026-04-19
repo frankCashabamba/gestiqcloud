@@ -378,9 +378,9 @@ export default function DocumentList() {
           className="importador-list__stats"
           style={{
             marginTop: '1rem',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-            gap: '0.8rem',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.65rem',
           }}
         >
           {[
@@ -392,21 +392,21 @@ export default function DocumentList() {
             <div
               key={item.label}
               style={{
-                padding: '0.95rem 1rem 1rem',
-                borderRadius: 20,
-                background: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '0.55rem 0.8rem',
+                borderRadius: 999,
+                background: '#fff',
                 border: '1px solid rgba(148, 163, 184, 0.16)',
-                boxShadow: '0 10px 22px rgba(15, 23, 42, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
+                boxShadow: '0 4px 10px rgba(15, 23, 42, 0.03)',
               }}
             >
-              <div style={{ position: 'absolute', inset: '0 auto auto 0', width: '100%', height: 3, background: item.bg }} />
               <div style={{ display: 'inline-flex', padding: '0.22rem 0.55rem', borderRadius: 999, background: item.bg, color: item.tone, fontSize: 11, fontWeight: 800 }}>
                 {item.label}
               </div>
-              <div style={{ marginTop: 10, fontSize: 28, fontWeight: 800, color: '#0f172a' }}>{item.value}</div>
-              <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>{item.note}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', minWidth: 16 }}>{item.value}</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>{item.note}</div>
             </div>
           ))}
         </div>

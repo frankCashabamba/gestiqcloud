@@ -50,8 +50,8 @@ export interface CompanySettings {
 
 let cachedSettings: CompanySettings | null = null
 
-export async function getCompanySettings(): Promise<CompanySettings> {
-  if (cachedSettings) {
+export async function getCompanySettings(options?: { force?: boolean }): Promise<CompanySettings> {
+  if (cachedSettings && !options?.force) {
     return cachedSettings
   }
 

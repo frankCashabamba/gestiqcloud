@@ -59,10 +59,62 @@ class BranchUpdateIn(BaseModel):
     is_active: bool | None = None
 
 
+# --- Response Schemas ---
+
+
+class BranchListItemOut(BaseModel):
+    """Item de la lista de sucursales del tenant."""
+
+    id: str
+    name: str
+    code: str
+    address: str | None = None
+    city: str | None = None
+    phone: str | None = None
+    is_main: bool
+    is_active: bool
+    created_at: str | None = None
+
+
+class BranchWarehouseOut(BaseModel):
+    id: str
+    name: str
+    code: str | None = None
+
+
+class BranchRegisterOut(BaseModel):
+    id: str
+    name: str
+
+
+class BranchDetailOut(BranchListItemOut):
+    """Detalle de una sucursal, incluye warehouses y registers vinculados."""
+
+    warehouses: list[BranchWarehouseOut] = []
+    registers: list[BranchRegisterOut] = []
+
+
+class BranchCreatedOut(BaseModel):
+    """Respuesta tras crear una sucursal."""
+
+    id: str
+    name: str
+    code: str
+    is_main: bool
+    created_at: str | None = None
+
+
+class BranchUpdateStatusOut(BaseModel):
+    """Respuesta tras actualizar una sucursal."""
+
+    id: str
+    status: str
+
+
 # --- Endpoints ---
 
 
-@router.get("", response_model=list[dict[str, Any]])
+@router.get("", response_model=list[BranchListItemOut])
 def list_branches(request: Request, db: Session = Depends(get_db)):
     """Lista todas las sucursales del tenant."""
     ensure_guc_from_request(request, db, persist=True)
@@ -90,7 +142,7 @@ def list_branches(request: Request, db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/{branch_id}", response_model=dict[str, Any])
+@router.get("/{branch_id}", response_model=BranchDetailOut)
 def get_branch(branch_id: str, request: Request, db: Session = Depends(get_db)):
     """Obtiene detalle de una sucursal con sus warehouses y registers vinculados."""
     ensure_guc_from_request(request, db, persist=True)
@@ -134,7 +186,7 @@ def get_branch(branch_id: str, request: Request, db: Session = Depends(get_db)):
     }
 
 
-@router.post("", response_model=dict[str, Any], status_code=201)
+@router.post("", response_model=BranchCreatedOut, status_code=201)
 def create_branch(payload: BranchCreateIn, request: Request, db: Session = Depends(get_db)):
     """Crea una nueva sucursal."""
     ensure_guc_from_request(request, db, persist=True)
@@ -185,7 +237,7 @@ def create_branch(payload: BranchCreateIn, request: Request, db: Session = Depen
     }
 
 
-@router.patch("/{branch_id}", response_model=dict[str, Any])
+@router.patch("/{branch_id}", response_model=BranchUpdateStatusOut)
 def update_branch(
     branch_id: str, payload: BranchUpdateIn, request: Request, db: Session = Depends(get_db)
 ):

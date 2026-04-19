@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import api from '../../services/api/client'
-
-const BASE = '/api/v1/tenant/auth/mfa'
+import { getMFAStatus, setupMFA, verifyMFA, disableMFA } from '../../services/api/mfa'
 
 type Step = 'idle' | 'setup' | 'verify' | 'enabled' | 'recovery'
 
@@ -23,8 +21,8 @@ export default function MFASettings() {
   const loadStatus = async () => {
     setLoading(true)
     try {
-      const res = await api.get(`${BASE}/status`)
-      const enabled = res.data?.mfa_enabled ?? false
+      const data = await getMFAStatus()
+      const enabled = data?.mfa_enabled ?? false
       setMfaEnabled(enabled)
       setStep(enabled ? 'enabled' : 'idle')
     } catch {
@@ -50,9 +48,9 @@ export default function MFASettings() {
     setBusy(true)
     setErrorMsg('')
     try {
-      const res = await api.post(`${BASE}/setup`)
-      setTotpUri(res.data.totp_uri)
-      setRecoveryCodes(res.data.recovery_codes)
+      const data = await setupMFA()
+      setTotpUri(data.totp_uri)
+      setRecoveryCodes(data.recovery_codes)
       setStep('setup')
     } catch (e: any) {
       setErrorMsg(e?.response?.data?.detail || t('settings:mfa.errorSetup'))
@@ -66,7 +64,7 @@ export default function MFASettings() {
     setBusy(true)
     setErrorMsg('')
     try {
-      await api.post(`${BASE}/verify`, { code })
+      await verifyMFA({ code })
       setMfaEnabled(true)
       setStep('recovery')
     } catch (e: any) {
@@ -85,7 +83,7 @@ export default function MFASettings() {
     setBusy(true)
     setErrorMsg('')
     try {
-      await api.delete(`${BASE}/disable`)
+      await disableMFA()
       setMfaEnabled(false)
       setStep('idle')
       setTotpUri('')

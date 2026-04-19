@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,58 @@ from app.modules.billing.interface.http.tenant import (
     SubscribeIn,
     SubscriptionOut,
 )
+
+# --- Response Schemas ---
+
+
+class SubscribeOut(BaseModel):
+    """Resultado de POST /subscribe.
+
+    Cubre las dos ramas: Stripe Checkout (modo ``stripe_checkout``) y prueba local
+    (modo ``local_trial``). Los campos no aplicables a una rama son ``None``.
+    """
+
+    mode: str
+    plan: str
+    billing_cycle: str
+    # Stripe checkout fields
+    checkout_url: str | None = None
+    session_id: str | None = None
+    customer_id: str | None = None
+    # Local trial fields
+    subscription_id: str | None = None
+    status: str | None = None
+    trial_ends_at: str | None = None
+
+
+class ChangePlanOut(BaseModel):
+    """Resultado de POST /change-plan (rama Stripe o local)."""
+
+    subscription_id: str
+    new_plan: str
+    billing_cycle: str
+    status: str
+    mode: str
+    stripe_subscription_id: str | None = None
+
+
+class CancelSubscriptionOut(BaseModel):
+    """Resultado de POST /cancel (rama Stripe o local)."""
+
+    subscription_id: str
+    status: str
+    mode: str
+    access_until: str | None = None
+    cancel_at_period_end: bool | None = None
+
+
+class BillingPortalOut(BaseModel):
+    """Resultado de POST /portal: URL al portal de facturación de Stripe."""
+
+    portal_url: str | None = None
+    customer_id: str
+
+
 from app.modules.billing.service import (
     ensure_stripe_customer,
     get_price_id_for_cycle,
@@ -143,7 +196,7 @@ def get_current_subscription_admin(tenant_id: str, db: Session = Depends(get_db)
     return _get_subscription(db, tenant_id)
 
 
-@router.post("/subscribe", response_model=dict[str, Any], status_code=201)
+@router.post("/subscribe", response_model=SubscribeOut, status_code=201)
 def subscribe_admin(
     tenant_id: str,
     payload: SubscribeIn,
@@ -243,7 +296,7 @@ def subscribe_admin(
     }
 
 
-@router.post("/change-plan", response_model=dict[str, Any])
+@router.post("/change-plan", response_model=ChangePlanOut)
 def change_plan_admin(tenant_id: str, payload: ChangePlanIn, db: Session = Depends(get_db)):
     tenant_id = _validate_tenant_id(tenant_id)
     set_tenant_guc(db, tenant_id, persist=True)
@@ -320,7 +373,7 @@ def change_plan_admin(tenant_id: str, payload: ChangePlanIn, db: Session = Depen
     }
 
 
-@router.post("/cancel", response_model=dict[str, Any])
+@router.post("/cancel", response_model=CancelSubscriptionOut)
 def cancel_subscription_admin(tenant_id: str, db: Session = Depends(get_db)):
     tenant_id = _validate_tenant_id(tenant_id)
     set_tenant_guc(db, tenant_id, persist=True)
@@ -383,7 +436,7 @@ def cancel_subscription_admin(tenant_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/portal", response_model=dict[str, Any])
+@router.post("/portal", response_model=BillingPortalOut)
 def create_billing_portal_admin(
     tenant_id: str,
     payload: BillingPortalIn,

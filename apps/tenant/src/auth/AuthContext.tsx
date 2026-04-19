@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/http'
-import { TOKEN_KEY } from '../constants/storage'
+import { AUTH_FALLBACK_TOKEN_KEY, TOKEN_KEY } from '../constants/storage'
 import { PermissionsProvider } from '../contexts/PermissionsContext'
 import {
   saveCredentialsForOffline,
@@ -13,6 +13,36 @@ import {
   markOfflineSession,
   markOnlineSession,
 } from '../lib/offlineAuth'
+
+/**
+ * setAuthToken — Single point of truth for writing the access token to browser storage.
+ *
+ * Hierarchy:
+ *  - sessionStorage (TOKEN_KEY)               => runtime source of truth (cleared on tab close)
+ *  - localStorage  (AUTH_FALLBACK_TOKEN_KEY)  => recovery fallback (kept in sync with sessionStorage)
+ *  - IndexedDB (offline snapshot)             => only refreshed via saveOfflineSessionSnapshot when
+ *                                         the caller has a valid online profile or an explicit
+ *                                         offline login result. NOT written here.
+ *
+ * Passing `null` clears BOTH storages atomically, preventing 401-loops where one storage
+ * still has a stale token after refresh/expiry.
+ */
+function setAuthToken(token: string | null): void {
+  try {
+    if (token) {
+      sessionStorage.setItem(TOKEN_KEY, token)
+    } else {
+      sessionStorage.removeItem(TOKEN_KEY)
+    }
+  } catch {}
+  try {
+    if (token) {
+      localStorage.setItem(AUTH_FALLBACK_TOKEN_KEY, token)
+    } else {
+      localStorage.removeItem(AUTH_FALLBACK_TOKEN_KEY)
+    }
+  } catch {}
+}
 
 type LoginBody = { identificador: string; password: string }
 type LoginScope = 'tenant' | 'admin'
@@ -58,7 +88,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     if (!offlineProfile || !offlineToken) return false
 
     setToken(offlineToken)
-    sessionStorage.setItem(TOKEN_KEY, offlineToken)
+    setAuthToken(offlineToken)
     setProfile(offlineProfile as MeCompany)
     markOfflineSession()
     setOfflineMode(true)
@@ -92,8 +122,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             const match = hash.match(/[#&]access_token=([^&]+)/)
             if (match?.[1]) {
               const hashToken = decodeURIComponent(match[1])
-              sessionStorage.setItem(TOKEN_KEY, hashToken)
-              try { localStorage.setItem('authToken', hashToken) } catch {}
+              setAuthToken(hashToken)
               try {
                 history.replaceState(null, document.title, window.location.pathname + window.location.search)
               } catch {}
@@ -114,7 +143,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           }
 
           setToken(currentToken)
-          sessionStorage.setItem(TOKEN_KEY, currentToken)
+          setAuthToken(currentToken)
           const me = await apiFetch<MeCompany>('/api/v1/me/tenant', {
             headers: { Authorization: `Bearer ${currentToken}` },
             retryOn401: false,
@@ -193,8 +222,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setProfile(null)
     setOfflineMode(false)
     markOnlineSession()
-    sessionStorage.removeItem(TOKEN_KEY)
-    try { localStorage.removeItem('authToken') } catch {}
+    setAuthToken(null)
   }
 
   const ensureTokenStillValid = async () => {
@@ -220,8 +248,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
 
       setToken(data.access_token)
-      sessionStorage.setItem(TOKEN_KEY, data.access_token)
-      try { localStorage.setItem('authToken', data.access_token) } catch {}
+      setAuthToken(data.access_token)
       const me = await loadMe(data.access_token)
       markOnlineSession()
       setOfflineMode(false)
@@ -232,7 +259,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const offlineResult = await verifyOfflineCredentials(body.identificador, body.password)
         if (offlineResult) {
           setToken(offlineResult.token)
-          sessionStorage.setItem(TOKEN_KEY, offlineResult.token)
+          setAuthToken(offlineResult.token)
           setProfile(offlineResult.profile as MeCompany)
           markOfflineSession()
           setOfflineMode(true)
@@ -254,8 +281,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const refreshedToken = await refreshOnce()
     if (refreshedToken) {
       setToken(refreshedToken)
-      sessionStorage.setItem(TOKEN_KEY, refreshedToken)
-      try { localStorage.setItem('authToken', refreshedToken) } catch {}
+      setAuthToken(refreshedToken)
       if (profile) saveOfflineSessionSnapshot(refreshedToken, profile).catch(() => {})
       return true
     }

@@ -70,3 +70,91 @@ export async function updateProduct(id: string, payload: Partial<ProductCreatePa
   const { data } = await api.put<Product>(`/api/v1/tenant/products/${id}`, payload)
   return data
 }
+
+// === VARIANTES DE PRODUCTO ===
+
+const VARIANTS_BASE = '/api/v1/tenant/products/variants'
+
+export interface ProductAttribute {
+  id: string
+  name: string
+  values: string[]
+}
+
+export interface ProductVariant {
+  id: string
+  product_id: string
+  sku: string | null
+  attributes: Record<string, string>
+  price: number | null
+  cost: number | null
+  barcode: string | null
+  is_active: boolean
+}
+
+export interface ProductAttributeCreatePayload {
+  product_id: string
+  name: string
+  values: string[]
+}
+
+export interface ProductVariantCreatePayload {
+  product_id: string
+  sku: string | null
+  attributes: Record<string, string>
+  price: number | null
+  cost: number | null
+  barcode: string | null
+}
+
+export type ProductVariantUpdatePayload = Partial<{
+  sku: string | null
+  attributes: Record<string, string>
+  price: number | null
+  cost: number | null
+  barcode: string | null
+  is_active: boolean
+}>
+
+export async function listProductVariants(productId: string): Promise<ProductVariant[]> {
+  const { data } = await api.get<ProductVariant[]>(`${VARIANTS_BASE}/${productId}`)
+  return data
+}
+
+export async function listProductAttributes(productId: string): Promise<ProductAttribute[]> {
+  // Scoped to this product so attributes from other tenants are never exposed
+  const { data } = await api.get<ProductAttribute[]>(
+    `${VARIANTS_BASE}/attributes?product_id=${encodeURIComponent(productId)}`,
+  )
+  return data
+}
+
+export async function createProductAttribute(
+  payload: ProductAttributeCreatePayload,
+): Promise<ProductAttribute> {
+  const { data } = await api.post<ProductAttribute>(`${VARIANTS_BASE}/attributes`, payload)
+  return data
+}
+
+export async function deleteProductAttribute(attributeId: string): Promise<void> {
+  await api.delete(`${VARIANTS_BASE}/attributes/${attributeId}`)
+}
+
+export async function createProductVariant(
+  payload: ProductVariantCreatePayload,
+): Promise<ProductVariant> {
+  const { data } = await api.post<ProductVariant>(VARIANTS_BASE, payload)
+  return data
+}
+
+export async function updateProductVariant(
+  variantId: string,
+  payload: ProductVariantUpdatePayload,
+): Promise<ProductVariant> {
+  const { data } = await api.put<ProductVariant>(`${VARIANTS_BASE}/${variantId}`, payload)
+  return data
+}
+
+export async function deleteProductVariant(variantId: string): Promise<void> {
+  await api.delete(`${VARIANTS_BASE}/${variantId}`)
+}

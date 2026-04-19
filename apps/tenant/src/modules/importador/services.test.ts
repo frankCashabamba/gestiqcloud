@@ -31,6 +31,29 @@ describe('importador routing decision helpers', () => {
         required_fields_ok: true,
         missing_fields: [],
         suggested_destination: 'supplier_invoice',
+        primary_destination: 'supplier_invoice',
+        candidate_destinations: [
+          {
+            code: 'supplier_invoice',
+            label: 'Supplier invoice',
+            target: 'purchases',
+            target_tables: ['purchases', 'expenses'],
+            save_api: 'save_document',
+            score: 0.92,
+            save_ready: true,
+            required_fields_ok: true,
+            missing_fields: [],
+            needs_human_review: false,
+            reason: 'Contiene proveedor, fecha y total.',
+            confirmation_required: true,
+            capabilities: {
+              supports_update_stock: true,
+              supports_line_matching: true,
+              supports_partial_payment: true,
+              supports_multi_record_save: true,
+            },
+          },
+        ],
         reason: 'Contiene proveedor, fecha y total.',
         needs_human_review: false,
         source_doc_type: 'INVOICE',
@@ -40,6 +63,51 @@ describe('importador routing decision helpers', () => {
 
     expect(suggestSaveDestination(doc)).toBe('supplier_invoice')
     expect(getDocCategory(doc, [])).toBe('supplier_invoice')
+  })
+
+  it('uses primary_destination when suggested_destination is missing', async () => {
+    const { suggestSaveDestination } = await import('./services')
+    const doc = {
+      tipo_documento_detectado: 'INVOICE',
+      proveedor_detectado: 'Proveedor demo',
+      monto_total: 112,
+      routing_decision: {
+        document_type: 'supplier_invoice',
+        confidence: 0.92,
+        required_fields_ok: true,
+        missing_fields: [],
+        suggested_destination: null,
+        primary_destination: 'supplier_invoice',
+        candidate_destinations: [
+          {
+            code: 'supplier_invoice',
+            label: 'Supplier invoice',
+            target: 'purchases',
+            target_tables: ['purchases', 'expenses'],
+            save_api: 'save_document',
+            score: 0.92,
+            save_ready: true,
+            required_fields_ok: true,
+            missing_fields: [],
+            needs_human_review: false,
+            reason: 'Contiene proveedor, fecha y total.',
+            confirmation_required: true,
+            capabilities: {
+              supports_update_stock: true,
+              supports_line_matching: true,
+              supports_partial_payment: true,
+              supports_multi_record_save: true,
+            },
+          },
+        ],
+        reason: 'Contiene proveedor, fecha y total.',
+        needs_human_review: false,
+        source_doc_type: 'INVOICE',
+        source_category: 'invoice',
+      },
+    }
+
+    expect(suggestSaveDestination(doc)).toBe('supplier_invoice')
   })
 
   it('blocks save for routing decisions classified as inventory', async () => {
@@ -54,6 +122,8 @@ describe('importador routing decision helpers', () => {
         required_fields_ok: true,
         missing_fields: [],
         suggested_destination: null,
+        primary_destination: null,
+        candidate_destinations: [],
         reason: 'Documento detectado fuera del guardado automatico.',
         needs_human_review: true,
         source_doc_type: 'INVENTORY',

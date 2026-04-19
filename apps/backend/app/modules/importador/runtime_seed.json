@@ -161,6 +161,103 @@
     "category.other": ["source_kind=category", "source_key=other", "profile_code=other", "priority=100"],
     "doc_type.other": ["source_kind=doc_type", "source_key=OTHER", "profile_code=other", "priority=100"]
   },
+  "destination_registry": {
+    "supplier_invoice": {
+      "code": "supplier_invoice",
+      "label": "Supplier invoice",
+      "target": "purchases",
+      "target_tables": ["purchases", "expenses"],
+      "save_api": "save_document",
+      "enabled": true,
+      "confirmation_required": true,
+      "include_in_candidates": true,
+      "save_order": 10,
+      "compatible_document_types": ["supplier_invoice", "sales_report", "expense"],
+      "compatible_source_categories": ["invoice", "receipt", "other"],
+      "capabilities": {
+        "supports_update_stock": true,
+        "supports_line_matching": true,
+        "supports_partial_payment": true,
+        "supports_multi_record_save": true
+      }
+    },
+    "expense": {
+      "code": "expense",
+      "label": "Expense",
+      "target": "expenses",
+      "target_tables": ["expenses"],
+      "save_api": "save_document",
+      "enabled": true,
+      "confirmation_required": true,
+      "include_in_candidates": true,
+      "save_order": 20,
+      "compatible_document_types": ["expense", "supplier_invoice", "sales_report"],
+      "compatible_source_categories": ["receipt", "invoice", "other"],
+      "capabilities": {
+        "supports_update_stock": false,
+        "supports_line_matching": false,
+        "supports_partial_payment": true,
+        "supports_multi_record_save": false
+      }
+    },
+    "recipe": {
+      "code": "recipe",
+      "label": "Recipe",
+      "target": "recipes",
+      "target_tables": ["recipes"],
+      "save_api": "save_document",
+      "enabled": true,
+      "confirmation_required": false,
+      "include_in_candidates": true,
+      "save_order": 30,
+      "compatible_document_types": ["recipe"],
+      "compatible_source_categories": ["recipe"],
+      "capabilities": {
+        "supports_update_stock": false,
+        "supports_line_matching": false,
+        "supports_partial_payment": false,
+        "supports_multi_record_save": true
+      }
+    },
+    "products": {
+      "code": "products",
+      "label": "Products",
+      "target": "products",
+      "target_tables": ["products"],
+      "save_api": "save_products",
+      "enabled": true,
+      "confirmation_required": true,
+      "include_in_candidates": false,
+      "save_order": 40,
+      "compatible_document_types": ["inventory"],
+      "compatible_source_categories": ["inventory"],
+      "capabilities": {
+        "supports_update_stock": false,
+        "supports_line_matching": false,
+        "supports_partial_payment": false,
+        "supports_multi_record_save": true
+      }
+    },
+    "daily_log": {
+      "code": "daily_log",
+      "label": "Daily log",
+      "target": "daily_production_logs",
+      "target_tables": ["daily_production_logs"],
+      "save_api": "save_as_daily_log",
+      "enabled": true,
+      "confirmation_required": false,
+      "include_in_candidates": false,
+      "save_order": 50,
+      "compatible_document_types": ["recipe", "sales_report"],
+      "compatible_source_categories": ["recipe", "other"],
+      "capabilities": {
+        "supports_update_stock": false,
+        "supports_line_matching": false,
+        "supports_partial_payment": false,
+        "supports_multi_record_save": false
+      }
+    }
+  },
   "prompt_config": {
     "extraction_system": "You are a universal accounting document analyzer. Always respond with valid JSON using the configured canonical fields.",
     "vision_system_fallback": "You are a universal accounting document analyzer with vision capabilities. You can read documents in ANY language. Extract all visible information accurately.",
@@ -595,5 +692,15 @@
     "max_stem_len": "35",
     "min_alias_len": "2",
     "max_alias_len": "50"
+  },
+  "processing": {
+    "strategy_timeout_structured_fast": "10",
+    "strategy_timeout_text_doc": "15",
+    "strategy_timeout_visual_complex": "25",
+    "lane_timeout_fast": "12",
+    "lane_timeout_deep": "90",
+    "structured_skip_formats": ["CSV", "XML", "XML_FACTURAE", "XML_UBL", "JSON", "XLS", "XLSX", "EXCEL"],
+    "xml_invoice_formats": ["XML_FACTURAE", "XML_UBL"],
+    "visual_formats": ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR"]
   }
 }

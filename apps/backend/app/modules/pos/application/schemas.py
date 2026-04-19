@@ -13,7 +13,16 @@ from pydantic import BaseModel, Field
 class PaymentMethodModel(BaseModel):
     """Método de pago en recibo."""
 
-    method: Literal["cash", "card", "check", "transfer", "mixed"]
+    method: Literal[
+        "cash",
+        "card",
+        "check",
+        "transfer",
+        "mixed",
+        "store_credit",
+        "link",
+        "other",
+    ]
     amount: Decimal = Field(gt=0, decimal_places=2)
     ref: str | None = Field(None, max_length=200)
 

@@ -125,6 +125,33 @@ class PaymentMethodPayload(BaseModel):
     is_active: bool = True
 
 
+class AccountingPOSSettingsOut(BaseModel):
+    """Configuración contable del POS para un tenant.
+
+    Devuelve los IDs de las cuentas contables vinculadas a operaciones POS.
+    Si el tenant no tiene configuración persistida todos los campos son ``None``.
+    """
+
+    cash_account_id: UUID | None = None
+    bank_account_id: UUID | None = None
+    sales_bakery_account_id: UUID | None = None
+    vat_output_account_id: UUID | None = None
+    loss_account_id: UUID | None = None
+    ap_account_id: UUID | None = None
+    vat_input_account_id: UUID | None = None
+    default_expense_account_id: UUID | None = None
+
+
+class PaymentMethodOut(BaseModel):
+    """Medio de pago configurado por el tenant (o plantilla por defecto)."""
+
+    id: str
+    name: str
+    description: str | None = None
+    account_id: str
+    is_active: bool = True
+
+
 def _serialize_cuenta(c: PlanCuentas) -> dict:
     type_map_rev = {
         "ASSET": "ACTIVO",
@@ -535,7 +562,7 @@ async def delete_cuenta(
 # ===========================================
 
 
-@router.get("/pos/settings", response_model=dict)
+@router.get("/pos/settings", response_model=AccountingPOSSettingsOut)
 async def get_pos_accounting_settings(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
@@ -583,7 +610,7 @@ async def get_pos_accounting_settings(
     }
 
 
-@router.put("/pos/settings", response_model=dict, status_code=200)
+@router.put("/pos/settings", response_model=AccountingPOSSettingsOut, status_code=200)
 async def upsert_pos_accounting_settings(
     payload: AccountingSettingsPayload,
     db: Session = Depends(get_db),
@@ -629,7 +656,7 @@ async def upsert_pos_accounting_settings(
     }
 
 
-@router.get("/pos/payment-methods", response_model=list[dict])
+@router.get("/pos/payment-methods", response_model=list[PaymentMethodOut])
 async def list_payment_methods(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
@@ -669,7 +696,7 @@ async def list_payment_methods(
     ]
 
 
-@router.post("/pos/payment-methods", response_model=dict, status_code=201)
+@router.post("/pos/payment-methods", response_model=PaymentMethodOut, status_code=201)
 async def create_payment_method(
     payload: PaymentMethodPayload,
     db: Session = Depends(get_db),
@@ -699,7 +726,7 @@ async def create_payment_method(
     }
 
 
-@router.put("/pos/payment-methods/{method_id}", response_model=dict)
+@router.put("/pos/payment-methods/{method_id}", response_model=PaymentMethodOut)
 async def update_payment_method(
     method_id: UUID,
     payload: PaymentMethodPayload,

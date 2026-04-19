@@ -4,17 +4,20 @@ import {
   canSaveDocument,
   fetchDocumentLineMatchCandidates,
   fetchSaveCapabilities,
+  getCandidateSaveDestinations,
   getDocumentData,
   getDocumentValue,
   saveDocument,
   suggestSaveDestination,
+  type DocumentCandidateDestination,
   type DocumentLineMatch,
   type DocumentPaymentStatus,
+  type DocumentSaveDestination,
   type Documento,
   type SaveDocumentPayload,
   type SaveDocumentResult,
 } from '../services'
-import { IMPORTADOR_DESTINATION_LABELS, getImportadorSaveActionLabel } from '../constants'
+import { getImportadorSaveActionLabel } from '../constants'
 
 type SaveDocumentModalProps = {
   doc: Documento | null
@@ -285,7 +288,7 @@ function getMatchReasonLabel(reason: string | null | undefined): string {
 }
 
 export default function SaveDocumentModal({ doc, open, resumeMode = false, onClose, onSaved }: SaveDocumentModalProps) {
-  const [destination, setDestination] = useState<'recipe' | 'expense' | 'supplier_invoice'>('expense')
+  const [destination, setDestination] = useState<DocumentSaveDestination>('expense')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<DocumentPaymentStatus>('pending')
   const [paymentMethodId, setPaymentMethodId] = useState('')
@@ -336,9 +339,97 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   }, [lineItems])
 
   const hasStockItems = lineItems.length > 0
-  const canSaveInvoice = Boolean(capabilities.purchases || capabilities.invoicing)
+  const hasLoadedCapabilities = Object.keys(capabilities).length > 0
+  const canSaveInvoice = hasLoadedCapabilities
+    ? Boolean(capabilities.purchases || capabilities.invoicing)
+    : true
   const canSaveExpense = capabilities.expenses !== false
   const canUpdateStock = hasStockItems && Boolean(capabilities.inventory)
+  const saveDestinationChoices = useMemo(() => {
+    const fallbackChoices: Array<DocumentCandidateDestination & { code: DocumentSaveDestination }> = []
+    if (canSaveInvoice) {
+      fallbackChoices.push({
+        code: 'supplier_invoice',
+        label: 'Supplier invoice',
+        target: 'purchases',
+        target_tables: ['purchases', 'expenses'],
+        save_api: 'save_document',
+        score: 0,
+        save_ready: true,
+        required_fields_ok: true,
+        missing_fields: [],
+        needs_human_review: false,
+        reason: '',
+        confirmation_required: true,
+        capabilities: {
+          supports_update_stock: true,
+          supports_line_matching: true,
+          supports_partial_payment: true,
+          supports_multi_record_save: true,
+        },
+      })
+    }
+    if (canSaveExpense) {
+      fallbackChoices.push({
+        code: 'expense',
+        label: 'Expense',
+        target: 'expenses',
+        target_tables: ['expenses'],
+        save_api: 'save_document',
+        score: 0,
+        save_ready: true,
+        required_fields_ok: true,
+        missing_fields: [],
+        needs_human_review: false,
+        reason: '',
+        confirmation_required: true,
+        capabilities: {
+          supports_update_stock: false,
+          supports_line_matching: false,
+          supports_partial_payment: true,
+          supports_multi_record_save: false,
+        },
+      })
+    }
+    fallbackChoices.push({
+      code: 'recipe',
+      label: 'Recipe',
+      target: 'recipes',
+      target_tables: ['recipes'],
+      save_api: 'save_document',
+      score: 0,
+      save_ready: true,
+      required_fields_ok: true,
+      missing_fields: [],
+      needs_human_review: false,
+      reason: '',
+      confirmation_required: false,
+      capabilities: {
+        supports_update_stock: false,
+        supports_line_matching: false,
+        supports_partial_payment: false,
+        supports_multi_record_save: true,
+      },
+    })
+
+    const rawChoices = doc ? getCandidateSaveDestinations(doc) : []
+    const typedChoices = rawChoices
+      .map((choice) => {
+        if (choice.code === 'recipe' || choice.code === 'expense' || choice.code === 'supplier_invoice') {
+          return choice as DocumentCandidateDestination & { code: DocumentSaveDestination }
+        }
+        return null
+      })
+      .filter((choice): choice is DocumentCandidateDestination & { code: DocumentSaveDestination } => Boolean(choice))
+      .filter((choice) => {
+        if (choice.code === 'supplier_invoice') return canSaveInvoice
+        if (choice.code === 'expense') return canSaveExpense
+        return true
+      })
+
+    return typedChoices.length > 0 ? typedChoices : fallbackChoices
+  }, [doc, canSaveExpense, canSaveInvoice])
+  const activeDestinationMeta = saveDestinationChoices.find((choice) => choice.code === destination) || null
 
   const totalAmount = useMemo(() => {
     if (!doc) return null
@@ -389,6 +480,12 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     setPaidAmount(initialDefaults.paidAmount)
     setPendingAmount(initialDefaults.pendingAmount)
   }, [open, doc?.id])
+
+  useEffect(() => {
+    if (!open || saveDestinationChoices.length === 0) return
+    if (saveDestinationChoices.some((choice) => choice.code === destination)) return
+    setDestination(saveDestinationChoices[0].code)
+  }, [open, destination, saveDestinationChoices])
 
   useEffect(() => {
     if (!open || !doc || activePaymentMethods.length === 0) return
@@ -443,16 +540,20 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     ? 'The purchase already exists. This step only appears if there are still unlinked lines to update stock.'
     : (routingDecision?.reason
       || 'Review the result and use advanced options only if you need to change the destination or complete data.')
-  const destinationTitle = destination === 'supplier_invoice'
+  const destinationTitle = activeDestinationMeta?.label || (
+    destination === 'supplier_invoice'
       ? 'Supplier invoice'
       : destination === 'recipe'
       ? 'Recipe'
       : 'Expense'
-  const destinationSummary = destination === 'supplier_invoice'
-    ? 'It will be saved in purchases or accounts payable.'
-    : destination === 'recipe'
-      ? 'It will be saved as a recipe ready for production.'
-      : 'It will be recorded in the expenses module.'
+  )
+  const destinationSummary = activeDestinationMeta?.target_tables?.length
+    ? `It will be saved in ${activeDestinationMeta.target_tables.join(', ')}.`
+    : destination === 'supplier_invoice'
+      ? 'It will be saved in purchases or accounts payable.'
+      : destination === 'recipe'
+        ? 'It will be saved as a recipe ready for production.'
+        : 'It will be recorded in the expenses module.'
   const effectiveLineMatches = lineMatches.length > 0
     ? lineMatches
     : lineItems.map((item, index) => ({
@@ -665,35 +766,23 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
             <div style={advancedSection}>
               <div style={advancedCard}>
                 <div style={label}>Save as</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-                  {canSaveInvoice && (
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(saveDestinationChoices.length, 1)}, minmax(0, 1fr))`, gap: 8 }}>
+                  {saveDestinationChoices.map((choice) => (
                     <button
                       type="button"
-                      onClick={() => handleDestinationChange('supplier_invoice')}
-                      style={{ ...choiceBtn, ...(destination === 'supplier_invoice' ? choiceBtnActive : null) }}
+                      key={choice.code}
+                      onClick={() => handleDestinationChange(choice.code)}
+                      style={{ ...choiceBtn, ...(destination === choice.code ? choiceBtnActive : null) }}
                       disabled={saving}
                     >
-                      {IMPORTADOR_DESTINATION_LABELS.supplier_invoice}
+                      <div>{choice.label}</div>
+                      {choice.target_tables.length > 0 && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: destination === choice.code ? '#0f172a' : '#64748b' }}>
+                          {choice.target_tables.join(' + ')}
+                        </div>
+                      )}
                     </button>
-                  )}
-                  {canSaveExpense && (
-                    <button
-                      type="button"
-                      onClick={() => handleDestinationChange('expense')}
-                      style={{ ...choiceBtn, ...(destination === 'expense' ? choiceBtnActive : null) }}
-                      disabled={saving}
-                    >
-                      {IMPORTADOR_DESTINATION_LABELS.expense}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleDestinationChange('recipe')}
-                    style={{ ...choiceBtn, ...(destination === 'recipe' ? choiceBtnActive : null) }}
-                    disabled={saving}
-                  >
-                    {IMPORTADOR_DESTINATION_LABELS.recipe}
-                  </button>
+                  ))}
                 </div>
               </div>
 

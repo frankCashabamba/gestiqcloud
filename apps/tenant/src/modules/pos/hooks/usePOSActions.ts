@@ -50,6 +50,7 @@ import {
     sanitizeBulkPricingItem,
     type BulkPricingItem,
 } from '../bakeryShortcuts'
+import { computeLineTotal, roundMoney } from '../utils/money'
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -129,22 +130,30 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     )
 
     // Cálculo local determinista — item.price ya incluye bulk pricing blended
+    // Todos los cálculos pasan por roundMoney() para evitar arrastre de error
+    // de IEEE 754 al sumar muchas líneas / pagos.
     useEffect(() => {
         if (cart.length === 0) {
             setTotals({ subtotal: 0, line_discounts: 0, global_discount: 0, base_after_discounts: 0, tax: 0, total: 0 })
             return
         }
-        const r2 = (v: number) => Math.round(v * 100) / 100
-        const subtotal = cart.reduce((sum, item) => sum + r2(item.price * item.qty), 0)
-        const lineDiscounts = cart.reduce((sum, item) => sum + r2(item.price * item.qty * (item.discount_pct / 100)), 0)
-        const baseAfterLineDisc = r2(subtotal - lineDiscounts)
-        const globalDisc = r2(baseAfterLineDisc * (globalDiscountPct / 100))
-        const base = r2(baseAfterLineDisc - globalDisc)
-        const tax = r2(cart.reduce((sum, item) => {
-            const lineBase = r2(item.price * item.qty * (1 - item.discount_pct / 100))
-            return sum + r2(lineBase * (item.iva_tasa / 100))
+        const subtotal = cart.reduce((sum, item) => sum + roundMoney(item.price * item.qty), 0)
+        const lineDiscounts = cart.reduce((sum, item) => sum + roundMoney(item.price * item.qty * (item.discount_pct / 100)), 0)
+        const baseAfterLineDisc = roundMoney(subtotal - lineDiscounts)
+        const globalDisc = roundMoney(baseAfterLineDisc * (globalDiscountPct / 100))
+        const base = roundMoney(baseAfterLineDisc - globalDisc)
+        const tax = roundMoney(cart.reduce((sum, item) => {
+            const lineBase = roundMoney(item.price * item.qty * (1 - item.discount_pct / 100))
+            return sum + roundMoney(lineBase * (item.iva_tasa / 100))
         }, 0))
-        setTotals({ subtotal, line_discounts: lineDiscounts, global_discount: globalDisc, base_after_discounts: base, tax, total: r2(base + tax) })
+        setTotals({
+            subtotal: roundMoney(subtotal),
+            line_discounts: roundMoney(lineDiscounts),
+            global_discount: globalDisc,
+            base_after_discounts: base,
+            tax,
+            total: roundMoney(base + tax),
+        })
     }, [cart, globalDiscountPct])
 
     // ------------------------------------------------------------------
@@ -241,7 +250,9 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
     const normalizeText = (value?: string | null) =>
         (value || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '').trim().toUpperCase()
 
-    const round2 = (value: number) => Math.round(value * 100) / 100
+    // Mantenido como alias local para compatibilidad con llamadas existentes.
+    // Nuevos cálculos deben usar roundMoney() de utils/money directamente.
+    const round2 = roundMoney
 
     const normalizeCurrencyCode = (raw?: string): string => {
         const code = (raw || '').trim().toUpperCase()
@@ -944,7 +955,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
         tax_rate: item.iva_tasa / 100,
         discount_pct: item.discount_pct,
         uom: 'unit',
-        line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
+        line_total: computeLineTotal(item.qty, item.price, item.discount_pct),
     }))
 
     const createClientRequestId = () => createOfflineTempId('receipt-request')
@@ -970,7 +981,7 @@ export function usePOSActions(state: POSState, isCompanyAdmin: boolean) {
             unit_price: item.price,
             tax_rate: item.iva_tasa / 100,
             discount_pct: item.discount_pct,
-            line_total: Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100,
+            line_total: computeLineTotal(item.qty, item.price, item.discount_pct),
         })),
         createPayload: buildReceiptPayload(clientRequestId),
     })

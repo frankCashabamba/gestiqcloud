@@ -14,7 +14,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from . import crud, recipe_crud
-from .ai_classifier import _apply_high_evidence_ocr_repairs, _extract_vendor_name_from_ocr
+from .ai_classifier import (
+    _apply_high_evidence_ocr_repairs,
+    _extract_vendor_name_from_ocr,
+    _normalize_invoice_description_strict,
+)
 from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
     _snapshot_recipe_config,
@@ -41,6 +45,7 @@ from .runtime_config import (
     load_learning_control,
     load_ocr_runtime_config,
     load_pdf_table_parse_config,
+    load_processing_config,
     load_processing_runtime_config,
     load_product_sheet_detection_config,
     load_prompt_config,
@@ -130,6 +135,70 @@ _LANE_TIMEOUTS: dict[str, float] = {
     "fast": 12.0,
     "deep": 90.0,
 }
+
+
+def _resolve_processing_config(db: Any | None = None) -> dict[str, Any]:
+    """Load the runtime processing config, swallowing any backend error.
+
+    The hardcoded constants above act as the safe fallback so callers that
+    cannot reach the runtime store keep working with the same behaviour.
+    """
+    try:
+        return load_processing_config(db)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("processing runtime config unavailable: %s", exc)
+        return {}
+
+
+def _get_strategy_timeouts(db: Any | None = None) -> dict[str, float]:
+    cfg = _resolve_processing_config(db)
+    return {
+        "structured_fast": float(
+            cfg.get("strategy_timeout_structured_fast") or _STRATEGY_TIMEOUTS["structured_fast"]
+        ),
+        "text_doc": float(cfg.get("strategy_timeout_text_doc") or _STRATEGY_TIMEOUTS["text_doc"]),
+        "visual_complex": float(
+            cfg.get("strategy_timeout_visual_complex") or _STRATEGY_TIMEOUTS["visual_complex"]
+        ),
+    }
+
+
+def _get_lane_timeouts(db: Any | None = None) -> dict[str, float]:
+    cfg = _resolve_processing_config(db)
+    return {
+        "fast": float(cfg.get("lane_timeout_fast") or _LANE_TIMEOUTS["fast"]),
+        "deep": float(cfg.get("lane_timeout_deep") or _LANE_TIMEOUTS["deep"]),
+    }
+
+
+def _get_structured_skip_formats(db: Any | None = None) -> frozenset[str]:
+    cfg = _resolve_processing_config(db)
+    formats = cfg.get("structured_skip_formats")
+    if isinstance(formats, (frozenset, set)) and formats:
+        return frozenset(str(item).strip().upper() for item in formats if str(item).strip())
+    if isinstance(formats, list) and formats:
+        return frozenset(str(item).strip().upper() for item in formats if str(item).strip())
+    return _STRUCTURED_SKIP_FORMATS
+
+
+def _get_xml_invoice_formats(db: Any | None = None) -> frozenset[str]:
+    cfg = _resolve_processing_config(db)
+    formats = cfg.get("xml_invoice_formats")
+    if isinstance(formats, (frozenset, set)) and formats:
+        return frozenset(str(item).strip().upper() for item in formats if str(item).strip())
+    if isinstance(formats, list) and formats:
+        return frozenset(str(item).strip().upper() for item in formats if str(item).strip())
+    return _XML_INVOICE_FORMATS
+
+
+def _get_visual_formats(db: Any | None = None) -> frozenset[str]:
+    cfg = _resolve_processing_config(db)
+    formats = cfg.get("visual_formats")
+    if isinstance(formats, (frozenset, set)) and formats:
+        return frozenset(str(item).strip().upper() for item in formats if str(item).strip())
+    if isinstance(formats, list) and formats:
+        return frozenset(str(item).strip().upper() for item in formats if str(item).strip())
+    return _VISUAL_FORMATS
 
 
 def decide_processing_strategy(
@@ -244,7 +313,10 @@ def decide_processing_lane(
         _vf = _vision_first_from_quality()
         return LaneDecision("deep", t_deep_phase, False, _vf, ["deep_reprocess_mode"])
 
-    if has_vision or fmt in _VISUAL_FORMATS:
+    visual_formats = processing_cfg.get("visual_formats")
+    if not isinstance(visual_formats, (frozenset, set)) or not visual_formats:
+        visual_formats = _get_visual_formats(None)
+    if has_vision or fmt in visual_formats:
         if text_is_sufficient:
             return LaneDecision(
                 "deep", t_deep_phase, False, False, ["visual_or_scan_doc", "text_first"]
@@ -880,6 +952,86 @@ def _normalize_line_item_extra_columns(
     return unmapped
 
 
+def _normalize_line_item_identity_value(value: Any) -> str:
+    raw = " ".join(str(value or "").split()).strip().lower()
+    if not raw:
+        return ""
+    return re.sub(r"[^a-z0-9]+", " ", raw).strip()
+
+
+def _line_item_identity(item: dict[str, Any]) -> tuple[str, str, str]:
+    barcode = re.sub(r"[^0-9]", "", str(item.get("barcode") or ""))
+    product_code = _normalize_line_item_identity_value(item.get("product_code"))
+    description = _normalize_line_item_identity_value(
+        item.get("description") or item.get("concept")
+    )
+    return barcode, product_code, description
+
+
+def _normalize_visual_line_item_text(value: Any) -> str | None:
+    raw = " ".join(str(value or "").split()).strip()
+    if not raw:
+        return None
+    normalized = _normalize_invoice_description_strict(raw) or raw
+    if raw.endswith("/") and normalized and not normalized.endswith("/"):
+        normalized = f"{normalized}/"
+    return normalized
+
+
+def _line_item_has_positive_amount(item: dict[str, Any]) -> bool:
+    total_price = safe_floatish(item.get("total_price"))
+    unit_price = safe_floatish(item.get("unit_price"))
+    amount = safe_floatish(item.get("amount"))
+    return any(
+        value is not None and float(value) > 0.0 for value in (total_price, unit_price, amount)
+    )
+
+
+def _line_item_is_degraded_duplicate(candidate: dict[str, Any], existing: dict[str, Any]) -> bool:
+    return not _line_item_has_positive_amount(candidate) and _line_item_has_positive_amount(existing)
+
+
+def _sanitize_visual_line_items(line_items_value: Any, *, format_hint: str) -> list[dict[str, Any]]:
+    items = line_items_value if isinstance(line_items_value, list) else []
+    if not items:
+        return []
+
+    normalized_format = str(format_hint or "").strip().upper()
+    should_normalize_invoice_text = normalized_format in {"IMAGE_OCR", "PDF_OCR"}
+
+    cleaned: list[dict[str, Any]] = []
+    seen_index_by_identity: dict[tuple[str, str, str], int] = {}
+
+    for raw_item in items:
+        if not isinstance(raw_item, dict):
+            continue
+        item = dict(raw_item)
+
+        if should_normalize_invoice_text:
+            for key in ("description", "concept"):
+                normalized_value = _normalize_visual_line_item_text(item.get(key))
+                if normalized_value:
+                    item[key] = normalized_value
+            if not item.get("concept") and item.get("description"):
+                item["concept"] = item["description"]
+
+        identity = _line_item_identity(item)
+        if any(identity):
+            existing_index = seen_index_by_identity.get(identity)
+            if existing_index is not None:
+                existing_item = cleaned[existing_index]
+                if _line_item_is_degraded_duplicate(item, existing_item):
+                    continue
+                if _line_item_is_degraded_duplicate(existing_item, item):
+                    cleaned[existing_index] = item
+                continue
+            seen_index_by_identity[identity] = len(cleaned)
+
+        cleaned.append(item)
+
+    return cleaned
+
+
 def _merge_text_fallback_fields(
     datos_extraidos: dict[str, Any],
     fallback_fields: dict[str, Any],
@@ -1054,8 +1206,15 @@ def _repair_pre_extracted_fields(
     if vendor_tax_id and customer_tax_id and vendor_tax_id == customer_tax_id:
         final_cleaned.pop("customer_tax_id", None)
 
-    line_items = final_cleaned.get("line_items")
-    line_items_list = line_items if isinstance(line_items, list) else []
+    line_items_list = _sanitize_visual_line_items(
+        final_cleaned.get("line_items"),
+        format_hint=format_hint,
+    )
+    if line_items_list:
+        final_cleaned["line_items"] = line_items_list
+    else:
+        final_cleaned.pop("line_items", None)
+
     current_concept = str(final_cleaned.get("concept") or "").strip()
     if _looks_like_noisy_scalar_text(current_concept, field_name="concept"):
         for item in line_items_list:
@@ -1073,6 +1232,8 @@ def _repair_pre_extracted_fields(
         ocr_vendor = _extract_vendor_name_from_ocr(content, ocr_runtime=ocr_runtime)
         if ocr_vendor and not _looks_like_noisy_scalar_text(ocr_vendor, field_name="vendor"):
             final_cleaned["vendor"] = ocr_vendor[:140]
+        else:
+            final_cleaned.pop("vendor", None)
 
     total_amount = safe_floatish(final_cleaned.get("total_amount"))
     subtotal = safe_floatish(final_cleaned.get("subtotal"))
@@ -1203,9 +1364,10 @@ def _looks_like_noisy_scalar_text(value: Any, *, field_name: str) -> bool:
             2, int(len(strong_alpha_tokens) * max_short_tokens_factor)
         ):
             return True
-        if len(all_tokens) <= small_token_max_count and max(
-            (len(token) for token in all_tokens), default=0
-        ) <= small_token_max_len:
+        if (
+            len(all_tokens) <= small_token_max_count
+            and max((len(token) for token in all_tokens), default=0) <= small_token_max_len
+        ):
             return True
         if any(ch in raw for ch in reject_chars):
             return True
@@ -1887,7 +2049,7 @@ async def _process_run_document(
         llm_preview_chars = max(1, int(processing_cfg.get("llm_text_preview_chars") or 6000))
         llm_content = text[:llm_preview_chars] if text else ""
 
-    is_image_doc = tipo_archivo.upper() in _VISUAL_FORMATS
+    is_image_doc = tipo_archivo.upper() in _get_visual_formats(db)
     is_scanned_pdf = tipo_archivo == "PDF" and extraction.get("format") == "PDF_OCR"
     vision_image_bytes = extraction.get("vision_image_bytes")
     if not isinstance(vision_image_bytes, (bytes, bytearray)):
@@ -1956,10 +2118,10 @@ async def _process_run_document(
     ).upper() not in ("", "STRUCTURED", "OTHER")
     # Los formatos XML de factura electrónica llevan su propio tipo de documento en el
     # header parseado, por lo que no necesitan un hint semántico externo para saltar el LLM.
-    _is_xml_invoice_format = _doc_format in _XML_INVOICE_FORMATS
+    _is_xml_invoice_format = _doc_format in _get_xml_invoice_formats(db)
     _skip_ai_for_structured = (
         has_structured
-        and _doc_format in _STRUCTURED_SKIP_FORMATS
+        and _doc_format in _get_structured_skip_formats(db)
         and not force_clean_reimport
         and (_has_semantic_hint or _is_xml_invoice_format or not ai_enabled)
     )
@@ -2243,7 +2405,7 @@ async def _process_run_document(
             )
 
             _low_evidence_visual = (
-                _doc_format in (_VISUAL_FORMATS | {"PDF_OCR"})
+                _doc_format in (_get_visual_formats(db) | {"PDF_OCR"})
                 and not has_structured
                 and not _pre_decision["skip_ai"]
                 and (

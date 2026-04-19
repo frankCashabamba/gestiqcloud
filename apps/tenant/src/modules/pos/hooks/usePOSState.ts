@@ -5,7 +5,7 @@
  * persistence effects asociadas (localStorage, reloj). Las acciones
  * de negocio (checkout, load, etc.) viven en usePOSActions.
  */
-import { useRef, useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import type { ShiftManagerHandle } from '../components/ShiftManager'
 import type { Usuario } from '../../users/types'
 import type { Cliente as Customer } from '../../customers/services'
@@ -258,11 +258,17 @@ export function usePOSState() {
         } catch { }
     }, [])
 
-    // Restaurar draft del ticket activo al montar
-    useEffect(() => {
+    // Carga el draft del ticket activo desde localStorage hacia React state.
+    //
+    // IMPORTANTE: localStorage es la única fuente de verdad persistente para el
+    // draft del carrito. IndexedDB (storeEntity('receipt', ...)) sólo se usa
+    // para encolar mutations offline (recibos creados / pendientes de checkout),
+    // no para drafts en edición. Mantenemos React state como fuente de verdad
+    // en memoria — todos los useEffect de persistencia espejan React → localStorage.
+    const loadDraft = useCallback(() => {
         try {
             const raw = localStorage.getItem(POS_DRAFT_KEY)
-            if (!raw) return
+            if (!raw) return false
             const draft = JSON.parse(raw) as Partial<PosDraftState>
             if (draft.cart && Array.isArray(draft.cart)) setCart(draft.cart)
             if (typeof draft.globalDiscountPct === 'number') setGlobalDiscountPct(draft.globalDiscountPct)
@@ -284,9 +290,31 @@ export function usePOSState() {
                     is_wholesale: !!draft.isWholesaleCustomer,
                 } as Customer)
             }
+            return true
         } catch {
             // ignorar draft corrupto
+            return false
         }
+    }, [])
+
+    // Limpia el draft persistido y resetea el carrito en memoria. Se invoca
+    // tras un checkout exitoso o cuando el usuario descarta el ticket.
+    const clearDraft = useCallback(() => {
+        try {
+            localStorage.removeItem(POS_DRAFT_KEY)
+        } catch { }
+        setCart([])
+        setGlobalDiscountPct(0)
+        setTicketNotes('')
+    }, [])
+
+    // Restaurar draft del ticket activo al montar.
+    // Se ejecuta antes de cualquier llamada a IndexedDB para evitar que el
+    // estado en memoria diverja del draft persistido cuando el usuario vuelve
+    // de offline.
+    useEffect(() => {
+        loadDraft()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     // Persistir tickets retenidos
@@ -513,6 +541,10 @@ export function usePOSState() {
         categories,
         filteredProducts,
         filteredClients,
+
+        // Draft persistence (localStorage)
+        loadDraft,
+        clearDraft,
     }
 }
 

@@ -463,6 +463,30 @@ _DEFAULT_ROUTING_SCORING_CONFIG: dict[str, float] = {
     "blocked_confidence_cap": 0.58,
 }
 
+# ── Processing strategy / lane defaults ───────────────────────────────────────
+# These mirror the constants previously hardcoded in processing_service.py.
+# They expose the timeouts and the format-classification frozensets so admins
+# can tune the import behaviour without touching the codebase.
+_DEFAULT_PROCESSING_CONFIG: dict[str, Any] = {
+    "strategy_timeout_structured_fast": 10.0,
+    "strategy_timeout_text_doc": 15.0,
+    "strategy_timeout_visual_complex": 25.0,
+    "lane_timeout_fast": 12.0,
+    "lane_timeout_deep": 90.0,
+    "structured_skip_formats": [
+        "CSV",
+        "XML",
+        "XML_FACTURAE",
+        "XML_UBL",
+        "JSON",
+        "XLS",
+        "XLSX",
+        "EXCEL",
+    ],
+    "xml_invoice_formats": ["XML_FACTURAE", "XML_UBL"],
+    "visual_formats": ["JPG", "JPEG", "PNG", "IMG", "HEIC", "WEBP", "IMAGE_OCR"],
+}
+
 
 def _cache_get(key: str) -> dict | None:
     entry = _cache.get(key)
@@ -861,6 +885,41 @@ def load_routing_fallback_rules_config(db: Any | None = None) -> list[dict[str, 
     return defaults
 
 
+def load_destination_registry_config(db: Any | None = None) -> dict[str, dict[str, Any]]:
+    cached = _cache_get("destination_registry")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    defaults = {
+        str(key).strip().lower(): value
+        for key, value in _seed_module_payload("destination_registry").items()
+        if isinstance(value, dict)
+    }
+
+    if db is None:
+        return _cache_set("destination_registry", defaults)  # type: ignore[return-value]
+
+    try:
+        rows = _load_module_rows(db, "destination_registry")
+        config = dict(defaults)
+        for row in rows:
+            key = str(row.key or "").strip().lower()
+            raw = str(row.value_text or "").strip()
+            if not key or not raw:
+                continue
+            try:
+                payload = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                config[key] = payload
+        return _cache_set("destination_registry", config)  # type: ignore[return-value]
+    except Exception as exc:
+        logger.warning("No se pudo cargar destination_registry desde imp_config: %s", exc)
+
+    return defaults
+
+
 def load_file_support_config(db: Any | None = None) -> dict[str, Any]:
     cached = _cache_get("file_support")
     if cached is not None:
@@ -952,7 +1011,9 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
             _DEFAULT_OCR_CONFIG["invoice_vendor_suffix_patterns"]
         ),
         "invoice_line_skip_markers": list(_DEFAULT_OCR_CONFIG["invoice_line_skip_markers"]),
-        "total_amount_positive_patterns": list(_DEFAULT_OCR_CONFIG["total_amount_positive_patterns"]),
+        "total_amount_positive_patterns": list(
+            _DEFAULT_OCR_CONFIG["total_amount_positive_patterns"]
+        ),
         "total_amount_reject_patterns": list(_DEFAULT_OCR_CONFIG["total_amount_reject_patterns"]),
         "total_inference_markers": list(_DEFAULT_OCR_CONFIG["total_inference_markers"]),
         "tax_amount_lookahead_required_tokens": list(
@@ -966,23 +1027,37 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
         "vendor_noise_min_alpha": int(_DEFAULT_OCR_CONFIG["vendor_noise_min_alpha"]),
         "vendor_noise_min_alpha_ratio": float(_DEFAULT_OCR_CONFIG["vendor_noise_min_alpha_ratio"]),
         "vendor_noise_max_weird_ratio": float(_DEFAULT_OCR_CONFIG["vendor_noise_max_weird_ratio"]),
-        "vendor_noise_min_strong_tokens": int(_DEFAULT_OCR_CONFIG["vendor_noise_min_strong_tokens"]),
+        "vendor_noise_min_strong_tokens": int(
+            _DEFAULT_OCR_CONFIG["vendor_noise_min_strong_tokens"]
+        ),
         "vendor_noise_max_short_tokens": int(_DEFAULT_OCR_CONFIG["vendor_noise_max_short_tokens"]),
         "vendor_noise_reject_tokens": list(_DEFAULT_OCR_CONFIG["vendor_noise_reject_tokens"]),
         "vendor_noise_reject_prefixes": list(_DEFAULT_OCR_CONFIG["vendor_noise_reject_prefixes"]),
         "concept_noise_min_alpha": int(_DEFAULT_OCR_CONFIG["concept_noise_min_alpha"]),
-        "concept_noise_min_alpha_ratio": float(_DEFAULT_OCR_CONFIG["concept_noise_min_alpha_ratio"]),
-        "concept_noise_max_weird_ratio": float(_DEFAULT_OCR_CONFIG["concept_noise_max_weird_ratio"]),
-        "concept_noise_min_strong_tokens": int(_DEFAULT_OCR_CONFIG["concept_noise_min_strong_tokens"]),
+        "concept_noise_min_alpha_ratio": float(
+            _DEFAULT_OCR_CONFIG["concept_noise_min_alpha_ratio"]
+        ),
+        "concept_noise_max_weird_ratio": float(
+            _DEFAULT_OCR_CONFIG["concept_noise_max_weird_ratio"]
+        ),
+        "concept_noise_min_strong_tokens": int(
+            _DEFAULT_OCR_CONFIG["concept_noise_min_strong_tokens"]
+        ),
         "concept_noise_max_short_tokens_factor": float(
             _DEFAULT_OCR_CONFIG["concept_noise_max_short_tokens_factor"]
         ),
-        "concept_noise_small_token_max_len": int(_DEFAULT_OCR_CONFIG["concept_noise_small_token_max_len"]),
-        "concept_noise_small_token_max_count": int(_DEFAULT_OCR_CONFIG["concept_noise_small_token_max_count"]),
+        "concept_noise_small_token_max_len": int(
+            _DEFAULT_OCR_CONFIG["concept_noise_small_token_max_len"]
+        ),
+        "concept_noise_small_token_max_count": int(
+            _DEFAULT_OCR_CONFIG["concept_noise_small_token_max_count"]
+        ),
         "concept_noise_reject_chars": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_chars"]),
         "concept_noise_reject_tokens": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_tokens"]),
         "concept_noise_reject_prefixes": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_prefixes"]),
-        "concept_noise_reject_token_pairs": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_token_pairs"]),
+        "concept_noise_reject_token_pairs": list(
+            _DEFAULT_OCR_CONFIG["concept_noise_reject_token_pairs"]
+        ),
         "excel_max_header_scan_rows": int(_DEFAULT_OCR_CONFIG["excel_max_header_scan_rows"]),
         "excel_max_preview_rows_per_sheet": int(
             _DEFAULT_OCR_CONFIG["excel_max_preview_rows_per_sheet"]
@@ -1703,6 +1778,110 @@ def load_routing_scoring_config(db: Any | None = None) -> dict[str, float]:
             logger.warning("No se pudo cargar routing_scoring desde imp_config: %s", exc)
 
     return _cache_set("routing_scoring", config)  # type: ignore[return-value]
+
+
+def load_processing_config(db: Any | None = None) -> dict[str, Any]:
+    """Return the processing-strategy timeouts and format frozensets.
+
+    These are the values that drove the ``_STRATEGY_TIMEOUTS``,
+    ``_LANE_TIMEOUTS``, ``_STRUCTURED_SKIP_FORMATS``, ``_XML_INVOICE_FORMATS``
+    and ``_VISUAL_FORMATS`` constants in ``processing_service.py``. They are
+    centralized here so admin tooling can tune them at runtime via
+    ``imp_config(module='processing')``.
+
+    The returned dict always contains:
+        - strategy_timeout_structured_fast (float, seconds)
+        - strategy_timeout_text_doc (float, seconds)
+        - strategy_timeout_visual_complex (float, seconds)
+        - lane_timeout_fast (float, seconds)
+        - lane_timeout_deep (float, seconds)
+        - structured_skip_formats (frozenset[str], uppercase)
+        - xml_invoice_formats (frozenset[str], uppercase)
+        - visual_formats (frozenset[str], uppercase)
+
+    Missing values fall back to the hardcoded defaults so existing call-sites
+    keep working even if the runtime seed is unavailable.
+    """
+    cached = _cache_get("processing")
+    if cached is not None:
+        return cached
+
+    def _float_value(value: Any, default: float, *, minimum: float = 0.0) -> float:
+        try:
+            return max(minimum, float(str(value).strip()))
+        except (TypeError, ValueError):
+            return default
+
+    def _format_set(value: Any, defaults: list[str]) -> frozenset[str]:
+        if not isinstance(value, list):
+            return frozenset(str(item).strip().upper() for item in defaults if str(item).strip())
+        parsed = [str(item).strip().upper() for item in value if str(item).strip()]
+        return (
+            frozenset(parsed)
+            if parsed
+            else frozenset(str(item).strip().upper() for item in defaults if str(item).strip())
+        )
+
+    config: dict[str, Any] = {
+        "strategy_timeout_structured_fast": float(
+            _DEFAULT_PROCESSING_CONFIG["strategy_timeout_structured_fast"]
+        ),
+        "strategy_timeout_text_doc": float(_DEFAULT_PROCESSING_CONFIG["strategy_timeout_text_doc"]),
+        "strategy_timeout_visual_complex": float(
+            _DEFAULT_PROCESSING_CONFIG["strategy_timeout_visual_complex"]
+        ),
+        "lane_timeout_fast": float(_DEFAULT_PROCESSING_CONFIG["lane_timeout_fast"]),
+        "lane_timeout_deep": float(_DEFAULT_PROCESSING_CONFIG["lane_timeout_deep"]),
+        "structured_skip_formats": frozenset(_DEFAULT_PROCESSING_CONFIG["structured_skip_formats"]),
+        "xml_invoice_formats": frozenset(_DEFAULT_PROCESSING_CONFIG["xml_invoice_formats"]),
+        "visual_formats": frozenset(_DEFAULT_PROCESSING_CONFIG["visual_formats"]),
+    }
+
+    seed = _seed_module_payload("processing")
+    if isinstance(seed, dict):
+        for key, value in seed.items():
+            if key in {
+                "strategy_timeout_structured_fast",
+                "strategy_timeout_text_doc",
+                "strategy_timeout_visual_complex",
+                "lane_timeout_fast",
+                "lane_timeout_deep",
+            }:
+                config[key] = _float_value(value, float(config[key]), minimum=0.1)
+            elif key in {
+                "structured_skip_formats",
+                "xml_invoice_formats",
+                "visual_formats",
+            }:
+                config[key] = _format_set(value, list(_DEFAULT_PROCESSING_CONFIG[key]))
+
+    if db is not None:
+        try:
+            rows = _ensure_module_seeded(db, "processing")
+            for row in rows:
+                key = str(row.key or "").strip()
+                if (
+                    key
+                    in {
+                        "strategy_timeout_structured_fast",
+                        "strategy_timeout_text_doc",
+                        "strategy_timeout_visual_complex",
+                        "lane_timeout_fast",
+                        "lane_timeout_deep",
+                    }
+                    and row.value_text is not None
+                ):
+                    config[key] = _float_value(row.value_text, float(config[key]), minimum=0.1)
+                elif key in {
+                    "structured_skip_formats",
+                    "xml_invoice_formats",
+                    "visual_formats",
+                }:
+                    config[key] = _format_set(row.value_list, list(_DEFAULT_PROCESSING_CONFIG[key]))
+        except Exception as exc:
+            logger.warning("No se pudo cargar processing desde imp_config: %s", exc)
+
+    return _cache_set("processing", config)
 
 
 def load_prompt_config(db: Any | None = None) -> dict[str, Any]:

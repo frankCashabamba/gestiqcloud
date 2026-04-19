@@ -9,12 +9,50 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 
+class DestinationCapabilitiesOut(BaseModel):
+    supports_update_stock: bool = False
+    supports_line_matching: bool = False
+    supports_partial_payment: bool = False
+    supports_multi_record_save: bool = False
+
+
+class DestinationRegistryItemOut(BaseModel):
+    code: str
+    label: str
+    target: str
+    target_tables: list[str] = Field(default_factory=list)
+    save_api: str
+    enabled: bool = True
+    confirmation_required: bool = True
+    include_in_candidates: bool = True
+    save_order: int = Field(default=100, ge=0)
+    capabilities: DestinationCapabilitiesOut = Field(default_factory=DestinationCapabilitiesOut)
+
+
+class DocumentCandidateDestinationOut(BaseModel):
+    code: str
+    label: str
+    target: str
+    target_tables: list[str] = Field(default_factory=list)
+    save_api: str
+    score: float = Field(ge=0, le=1)
+    save_ready: bool = False
+    required_fields_ok: bool = False
+    missing_fields: list[str] = Field(default_factory=list)
+    needs_human_review: bool = False
+    reason: str = ""
+    confirmation_required: bool = True
+    capabilities: DestinationCapabilitiesOut = Field(default_factory=DestinationCapabilitiesOut)
+
+
 class DocumentRoutingDecision(BaseModel):
     document_type: str
     confidence: float = Field(ge=0, le=1)
     required_fields_ok: bool = False
     missing_fields: list[str] = Field(default_factory=list)
     suggested_destination: Literal["recipe", "expense", "supplier_invoice"] | None = None
+    primary_destination: str | None = None
+    candidate_destinations: list[DocumentCandidateDestinationOut] = Field(default_factory=list)
     reason: str = ""
     needs_human_review: bool = False
     source_doc_type: str | None = None

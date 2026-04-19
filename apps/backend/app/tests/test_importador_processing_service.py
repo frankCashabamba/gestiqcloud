@@ -20,8 +20,8 @@ from app.modules.importador.processing_service import (
     _analyze_with_context,
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
-    _merge_text_fallback_fields,
     _looks_like_noisy_scalar_text,
+    _merge_text_fallback_fields,
     _pre_extract_route_decision,
     _prefer_text_candidate_over_existing,
     _repair_pre_extracted_fields,
@@ -390,8 +390,12 @@ def test_pre_extract_skip_ai_applies_ocr_repairs_before_persist(monkeypatch):
 
     assert called["count"] == 0
     assert result.raw_ai_json["analysis"]["raw_response"] == "reason=pre_extract_skip_ai"
+    assert "vendor" not in result.datos_extraidos
+    assert result.datos_extraidos["concept"] == "HARINA TRADICION PREMIUM 50 KG F/"
     assert result.datos_extraidos["issue_date"] == "2026-01-16"
     assert result.datos_extraidos["vendor_tax_id"] == "1890004195001"
+    assert len(result.datos_extraidos["line_items"]) == 1
+    assert result.datos_extraidos["line_items"][0]["description"] == "HARINA TRADICION PREMIUM 50 KG F/"
     assert any(
         payload.get("error_detalle") is None for payload in updates if isinstance(payload, dict)
     )
@@ -726,11 +730,14 @@ def test_prefer_text_candidate_over_existing_uses_runtime_noise_rules(monkeypatc
         },
     )
 
-    assert _prefer_text_candidate_over_existing(
-        field_name="vendor",
-        existing="Proveedor bloqueado real",
-        candidate="Proveedor bueno SA",
-    ) is True
+    assert (
+        _prefer_text_candidate_over_existing(
+            field_name="vendor",
+            existing="Proveedor bloqueado real",
+            candidate="Proveedor bueno SA",
+        )
+        is True
+    )
 
 
 @pytest.mark.no_db
@@ -788,10 +795,16 @@ def test_repair_pre_extracted_fields_recovers_invoice_vendor_and_concept_from_li
         {
             "line_items": [
                 {
-                    "description": "HARINA TRADICION PREMIUM 50 KG F/",
+                    "description": "IHARINA TRADICION PREMIUM 50 KG F/",
                     "quantity": 50.0,
                     "unit_price": 42.9,
                     "total_price": 2145.0,
+                },
+                {
+                    "description": "HARINA TRADICION PREMIUM 50 KG F/",
+                    "quantity": 5.0,
+                    "unit_price": 0.0,
+                    "total_price": 0.0,
                 }
             ],
             "total_amount": 2145.0,
@@ -809,6 +822,8 @@ def test_repair_pre_extracted_fields_recovers_invoice_vendor_and_concept_from_li
     assert repaired["concept"] == "HARINA TRADICION PREMIUM 50 KG F/"
     assert repaired["issue_date"] == "2026-01-16"
     assert repaired["vendor_tax_id"] == "1890004195001"
+    assert len(repaired["line_items"]) == 1
+    assert repaired["line_items"][0]["description"] == "HARINA TRADICION PREMIUM 50 KG F/"
     assert "customer_tax_id" not in repaired
     assert "subtotal" not in repaired
     assert "tax_amount" not in repaired

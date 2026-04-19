@@ -1202,7 +1202,9 @@ def _infer_total_amount_from_lines(lines: list[str]) -> float | None:
         try:
             reject_total_patterns.append(re.compile(pattern))
         except re.error as exc:
-            logger.warning("Ignoring invalid OCR regex for total_amount_reject_patterns: %s (%s)", pattern, exc)
+            logger.warning(
+                "Ignoring invalid OCR regex for total_amount_reject_patterns: %s (%s)", pattern, exc
+            )
     amount_markers = {
         _normalize_label(str(marker))
         for marker in (cfg.get("total_inference_markers") or [])

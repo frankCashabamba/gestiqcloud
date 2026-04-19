@@ -76,10 +76,25 @@ export interface POSReceipt {
   payments?: POSPayment[]
 }
 
+/**
+ * Métodos de pago aceptados por el backend (`pos_payments.method`).
+ * Mantener sincronizado con `PaymentMethodModel.method` en
+ * `apps/backend/app/modules/pos/application/schemas.py`.
+ */
+export type POSPaymentMethod =
+  | 'cash'
+  | 'card'
+  | 'check'
+  | 'transfer'
+  | 'mixed'
+  | 'store_credit'
+  | 'link'
+  | 'other'
+
 export interface POSPayment {
   id?: string
   receipt_id: string
-  method: 'cash' | 'card' | 'store_credit' | 'link' | 'other'
+  method: POSPaymentMethod
   amount: number
   ref?: string
   paid_at?: string

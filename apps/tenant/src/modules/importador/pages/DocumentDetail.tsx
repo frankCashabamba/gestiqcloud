@@ -1,8 +1,8 @@
 ﻿import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, fetchLineItemSlots, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type LineItemSlot, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
-import { IMPORTADOR_FLOW_STEPS, getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS } from '../constants'
+import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, fetchLineItemSlots, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getCandidateSaveDestinations, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type LineItemSlot, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
+import { getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS } from '../constants'
 import { fetchCanonicalFields, formatFieldLabel, type CanonicalField } from '../services'
 
 const SaveDocumentModal = lazy(() => import('../components/SaveDocumentModal'))
@@ -385,6 +385,7 @@ export default function DocumentDetail() {
   const [rawSyncResult, setSyncResult] = useState<SyncRecipeResult | null>(null)
   const [batchSyncResult, setBatchSyncResult] = useState<SyncRecipesResult | null>(null)
   const [rejectPending, setRejectPending] = useState(false)
+  const [showAdvancedReview, setShowAdvancedReview] = useState(false)
   const syncResult = rawSyncResult
     ? {
         ...rawSyncResult,
@@ -691,6 +692,32 @@ export default function DocumentDetail() {
   const needsHumanReview = routingDecision?.needs_human_review ?? doc.requiere_revision
   const missingFieldLabels = (routingDecision?.missing_fields || []).map(formatFieldLabel)
   const reviewHints = Array.isArray(doc.review_hints) ? doc.review_hints : []
+  const candidateDestinations = getCandidateSaveDestinations(doc)
+  const primaryCandidate = candidateDestinations.find((candidate) => candidate.code === routingDecision?.primary_destination)
+    || candidateDestinations[0]
+    || null
+  const alternativeCandidates = primaryCandidate
+    ? candidateDestinations.filter((candidate) => candidate.code !== primaryCandidate.code)
+    : candidateDestinations
+  const summaryFacts = [
+    doc.proveedor_detectado ? { label: 'Proveedor', value: doc.proveedor_detectado } : null,
+    doc.fecha_documento ? { label: 'Fecha', value: doc.fecha_documento } : null,
+    doc.monto_total != null ? {
+      label: 'Monto',
+      value: (() => {
+        const currency = [
+          doc.moneda,
+          typeof datos.currency === 'string' ? datos.currency : null,
+          typeof datos.moneda === 'string' ? datos.moneda : null,
+        ].find((value) => typeof value === 'string' && value.trim())
+        return `${currency ? `${String(currency).trim()} ` : ''}${doc.monto_total.toFixed(2)}`
+      })(),
+    } : null,
+    doc.ruc_detectado ? { label: 'RUC', value: doc.ruc_detectado } : null,
+  ].filter((entry): entry is { label: string; value: string } => Boolean(entry))
+  const reviewPriorityItems = !isAssistedLines
+    ? reviewHints.slice(0, routingReadyForSave ? 2 : 3)
+    : []
   const reviewHintMap = reviewHints.reduce<Record<string, typeof reviewHints[number]>>((acc, hint) => {
     if (hint?.field) acc[hint.field] = hint
     return acc
@@ -721,33 +748,6 @@ export default function DocumentDetail() {
   const advancedActionsVisible = !simpleFlowEnabled
   const canEditScalars = !Array.isArray((doc.datos_extraidos as Record<string, unknown> | undefined)?.filas)
   const isProcessingDocument = doc.estado === 'PENDING' || doc.estado === 'PROCESSING'
-  const flowCurrentStep = isSaved
-    ? 4
-    : isProcessingDocument
-      ? 2
-    : saveEnabled
-        ? 4
-        : 3
-  const flowTitle = isSaved
-    ? 'Step 4. Saved'
-    : isProcessingDocument
-      ? 'Step 2. Wait'
-      : saveEnabled || canResumeSavedInvoice
-        ? 'Step 4. Save'
-        : 'Step 3. Confirm or reprocess'
-  const flowDescription = isSaved
-    ? (canResumeSavedInvoice
-        ? 'The document is already saved. If stock or products still need completion, you can save it again.'
-        : 'The document is already saved.')
-    : isProcessingDocument
-      ? 'You do not need to do anything now. Wait for the automatic analysis to finish.'
-      : isAssistedLines && doc.estado === 'REVIEW'
-        ? (assistedReview?.message || 'Fix only what is needed, confirm if it is correct, or reprocess if it is not useful.')
-      : saveEnabled || canResumeSavedInvoice
-        ? 'If it is correct, save it. If not, reprocess it.'
-        : !routingReadyForSave
-          ? 'Fix the required data before saving or reprocess if the result is not useful.'
-          : 'Confirm if the result is correct. If not, reprocess it.'
   const flowBlockingSummary = missingFieldLabels.length === 1
     ? `1 required field is missing: ${missingFieldLabels[0]}.`
     : missingFieldLabels.length > 1
@@ -755,9 +755,7 @@ export default function DocumentDetail() {
       : isAssistedLines
         ? 'Prioritize the detected lines and leave empty the data that does not appear in the document.'
       : 'Fix the required data before the final save.'
-  const flowSupportLabel = confPct != null
-    ? `Confidence ${confPct}%`
-    : 'Provisional result'
+  const shouldShowAdvancedReview = !isProcessingDocument && (!simpleFlowEnabled || showAdvancedReview)
   const flowPrimaryAction = canResumeSavedInvoice
     ? {
         label: 'Save',
@@ -1083,71 +1081,44 @@ export default function DocumentDetail() {
 
       {simpleFlowEnabled && (
         <div style={flowCard}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ minWidth: 260, flex: '1 1 320px' }}>
-              <div style={flowEyebrow}>Simple flow</div>
-              <h3 style={{ margin: '0.35rem 0 0', fontSize: 22, lineHeight: 1.15 }}>{flowTitle}</h3>
-              <p style={{ margin: '0.5rem 0 0', fontSize: 14, color: '#334155' }}>
+              <div style={flowEyebrow}>Next action</div>
+              <div style={{ marginTop: 6, fontSize: 14, color: '#334155', fontWeight: 600 }}>
                 {!routingReadyForSave
                   ? flowBlockingSummary
-                  : ((saveEnabled || !routingReadyForSave) && routingDecision?.reason ? routingDecision.reason : flowDescription)}
-              </p>
-              {!isSaved && doc.estado !== 'PENDING' && doc.estado !== 'PROCESSING' && (
-                <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', fontWeight: 600 }}>
-                  {flowSupportLabel}
-                </div>
-              )}
-              {!isAssistedLines && !routingReadyForSave && reviewHints.length > 0 && (
-                <div style={{ marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid #FDE68A', background: '#FFFBEB' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
-                    Fix only this to be able to save
-                  </div>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    {reviewHints.slice(0, 3).map((hint) => (
-                      <div key={hint.field} style={{ fontSize: 13, color: '#78350f' }}>
-                        <strong>{hint.priority}. {formatFieldLabel(hint.field)}</strong>
-                        {hint.confirmed_examples.length > 0 && (
-                          <span> · Examples: {hint.confirmed_examples.join(', ')}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {flowPrimaryAction && (
-                  <button
-                    onClick={flowPrimaryAction.onClick}
-                    disabled={flowPrimaryAction.disabled}
-                    style={flowPrimaryAction.style}
-                  >
-                    {flowPrimaryAction.label}
-                  </button>
-                )}
+                  : (primaryCandidate?.label ? `${primaryCandidate.label} ready.` : 'Result ready to save.')}
               </div>
+              {!isAssistedLines && !routingReadyForSave && reviewHints.length > 0 && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#92400e' }}>
+                  Check {reviewHints.slice(0, 2).map((hint) => formatFieldLabel(hint.field)).join(', ')}.
+                </div>
+              )}
             </div>
-          </div>
-          <div style={flowStepsWrap}>
-            {IMPORTADOR_FLOW_STEPS.map((item) => {
-              const isActive = item.step === flowCurrentStep
-              const isDone = item.step < flowCurrentStep || (isSaved && item.step <= flowCurrentStep)
-              return (
-                <div
-                  key={item.step}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {flowPrimaryAction && (
+                <button
+                  onClick={flowPrimaryAction.onClick}
+                  disabled={flowPrimaryAction.disabled}
+                  style={flowPrimaryAction.style}
+                >
+                  {flowPrimaryAction.label}
+                </button>
+              )}
+              {!isSaved && !isProcessingDocument && (
+                <button
+                  onClick={() => setShowAdvancedReview((current) => !current)}
                   style={{
-                    ...flowStepChip,
-                    borderColor: isActive ? '#2563eb' : isDone ? '#86efac' : '#cbd5e1',
-                    background: isActive ? '#dbeafe' : isDone ? '#f0fdf4' : '#fff',
-                    color: isActive ? '#1d4ed8' : isDone ? '#166534' : '#475569',
+                    ...secondaryActionBtn,
+                    borderColor: showAdvancedReview ? '#93c5fd' : '#cbd5e1',
+                    background: showAdvancedReview ? '#eff6ff' : '#fff',
+                    color: showAdvancedReview ? '#1d4ed8' : '#475569',
                   }}
                 >
-                  <span style={flowStepIndex}>{item.step}</span>
-                  {item.label}
-                </div>
-              )
-            })}
+                  {showAdvancedReview ? 'Hide advanced options' : 'Advanced options'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1183,6 +1154,7 @@ export default function DocumentDetail() {
       )}
 
       {/* Status badge */}
+      {(!simpleFlowEnabled || showAdvancedReview) && (
       <div style={{ marginBottom: '1rem' }}>
         <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>{STATUS_LABELS[displayStatus] || displayStatus}</span>
         {isSaved && (
@@ -1193,8 +1165,9 @@ export default function DocumentDetail() {
         {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }}>{doc.tipo_documento_detectado}</span>}
         {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Confianza: {confPct}%</span>}
       </div>
+      )}
 
-      {!isProcessingDocument && (
+      {shouldShowAdvancedReview && (
         <ReprocessActions
           onFast={() => openReimport('fast')}
           onDeep={() => openReimport('deep')}
@@ -1210,21 +1183,60 @@ export default function DocumentDetail() {
         {/* Left: Document info */}
         <div style={{ flex: 1, minWidth: 300 }}>
           <div style={section}>
-            <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Assisted review' : 'Document summary'}</h3>
+            <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Assisted review' : 'What matters now'}</h3>
             {routingDecision && (
-              <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: `1px solid ${routingDecision.required_fields_ok ? '#BBF7D0' : '#FDE68A'}`, background: routingDecision.required_fields_ok ? '#F0FDF4' : '#FFFBEB' }}>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 999, padding: '2px 8px' }}>
-                    Tipo interno: {routingDecision.document_type}
-                  </span>
-                  {routingDecision.suggested_destination && (
-                    <span style={{ fontSize: 12, color: '#0f172a' }}>
-                      Destino sugerido: <strong>{routingDecision.suggested_destination}</strong>
-                    </span>
+              <div style={{
+                ...decisionCard,
+                borderColor: routingDecision.required_fields_ok ? '#BBF7D0' : '#FDE68A',
+                background: routingDecision.required_fields_ok ? '#F0FDF4' : '#FFFBEB',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={decisionEyebrow}>
+                      {routingDecision.required_fields_ok ? 'Ready to save' : 'Needs attention'}
+                    </div>
+                    <div style={decisionTitle}>
+                      {primaryCandidate?.label || getImportadorSaveActionLabel(saveDestination)}
+                    </div>
+                    {primaryCandidate?.target_tables?.length ? (
+                      <div style={decisionSubcopy}>
+                        Saved in {primaryCandidate.target_tables.join(' + ')}
+                      </div>
+                    ) : (
+                      <div style={decisionSubcopy}>
+                        {routingDecision.reason || 'Review the key data and continue.'}
+                      </div>
+                    )}
+                  </div>
+                  {confPct != null && (
+                    <div style={{
+                      ...confidencePill,
+                      color: confPct >= 85 ? '#166534' : '#92400e',
+                      background: confPct >= 85 ? '#DCFCE7' : '#FEF3C7',
+                    }}>
+                      {confPct}% confidence
+                    </div>
                   )}
                 </div>
-                {routingDecision.reason && routingReadyForSave && (
-                  <div style={{ fontSize: 13, color: '#334155' }}>{routingDecision.reason}</div>
+                {missingFieldLabels.length > 0 && (
+                  <div style={decisionWarning}>
+                    Missing: {missingFieldLabels.join(', ')}
+                  </div>
+                )}
+                {alternativeCandidates.length > 0 && (
+                  <div style={decisionMetaRow}>
+                    <span style={decisionMetaLabel}>Other valid destinations</span>
+                    <div style={decisionMetaChips}>
+                      {alternativeCandidates.map((candidate) => (
+                        <span key={candidate.code} style={decisionChip}>
+                          {candidate.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {routingDecision.reason && (
+                  <div style={decisionReasonText}>{routingDecision.reason}</div>
                 )}
                 {isAssistedLines && (
                   <div style={{ marginTop: 6, fontSize: 13, color: '#334155' }}>
@@ -1233,42 +1245,34 @@ export default function DocumentDetail() {
                 )}
               </div>
             )}
-            {!isAssistedLines && reviewHints.length > 0 && (
-              <div style={{ marginBottom: '0.9rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>
-                  Suggested priority review
+            {!isAssistedLines && reviewPriorityItems.length > 0 && (
+              <div style={focusListCard}>
+                <div style={focusListTitle}>
+                  {routingReadyForSave ? 'Quick checks before saving' : 'Fix these first'}
                 </div>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  {reviewHints.slice(0, 3).map((hint) => (
-                    <div key={hint.field} style={{ fontSize: 13, color: '#334155' }}>
-                      <strong>{hint.priority}. {formatFieldLabel(hint.field)}</strong>
-                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Missing</span>}
+                  {reviewPriorityItems.map((hint) => (
+                    <div key={hint.field} style={focusListRow}>
+                      <strong>{formatFieldLabel(hint.field)}</strong>
+                      {hint.is_missing && <span style={focusListBadge}>Missing</span>}
                       {hint.confirmed_examples.length > 0 && (
-                        <div style={{ marginTop: 2, color: '#475569' }}>
-                          Confirmed examples: {hint.confirmed_examples.join(', ')}
-                        </div>
+                        <div style={focusListHelp}>Examples: {hint.confirmed_examples.join(', ')}</div>
                       )}
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            {doc.proveedor_detectado && <p><strong>Proveedor:</strong> {doc.proveedor_detectado}</p>}
-            {doc.ruc_detectado && <p><strong>RUC:</strong> {doc.ruc_detectado}</p>}
-            {doc.monto_total != null && (
-              <p>
-                <strong>Monto:</strong>{' '}
-                {(() => {
-                  const currency = [
-                    doc.moneda,
-                    typeof datos.currency === 'string' ? datos.currency : null,
-                    typeof datos.moneda === 'string' ? datos.moneda : null,
-                  ].find((value) => typeof value === 'string' && value.trim())
-                  return `${currency ? `${String(currency).trim()} ` : ''}${doc.monto_total.toFixed(2)}`
-                })()}
-              </p>
+            {summaryFacts.length > 0 && (
+              <div style={factsGrid}>
+                {summaryFacts.map((item) => (
+                  <div key={item.label} style={factCard}>
+                    <div style={factLabel}>{item.label}</div>
+                    <div style={factValue}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
             )}
-            {doc.fecha_documento && <p><strong>Date:</strong> {doc.fecha_documento}</p>}
           </div>
           {doc.error_detalle && (
             <div style={{ ...section, background: '#FEF2F2', border: '1px solid #FECACA' }}>
@@ -1636,11 +1640,9 @@ export default function DocumentDetail() {
 
 const section: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', background: '#fff' }
 const actionBtn: React.CSSProperties = { padding: '0.5rem 1rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }
+const secondaryActionBtn: React.CSSProperties = { padding: '0.5rem 0.9rem', border: '1px solid #cbd5e1', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700 }
 const flowCard: React.CSSProperties = { marginBottom: '1rem', border: '1px solid #bfdbfe', borderRadius: 14, padding: '1rem 1.1rem', background: 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)' }
 const flowEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }
-const flowStepsWrap: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '0.9rem' }
-const flowStepChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.45rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: 999, fontSize: 13, fontWeight: 700 }
-const flowStepIndex: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 999, background: '#fff', fontSize: 12, color: '#0f172a' }
 const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 13, fontWeight: 600 }
 const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444', INVALID: '#EF4444', REPROCESS: '#8B5CF6', VALID: '#10B981', IMPORTED: '#0EA5E9' }
 const reprocessCard: React.CSSProperties = {
@@ -1682,3 +1684,23 @@ const reprocessDeepButton: React.CSSProperties = {
   background: '#fff',
   color: '#1d4ed8',
 }
+const decisionCard: React.CSSProperties = { marginBottom: '0.9rem', padding: '0.9rem', borderRadius: 14, border: '1px solid #e5e7eb' }
+const decisionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }
+const decisionTitle: React.CSSProperties = { marginTop: 6, fontSize: 22, lineHeight: 1.1, fontWeight: 800, color: '#0f172a' }
+const decisionSubcopy: React.CSSProperties = { marginTop: 6, fontSize: 13, color: '#475569' }
+const confidencePill: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.45rem 0.7rem', borderRadius: 999, fontSize: 12, fontWeight: 800 }
+const decisionWarning: React.CSSProperties = { marginTop: 12, padding: '0.65rem 0.75rem', borderRadius: 10, background: 'rgba(255,255,255,0.72)', color: '#92400e', fontSize: 13, fontWeight: 700 }
+const decisionMetaRow: React.CSSProperties = { marginTop: 12, display: 'grid', gap: 8 }
+const decisionMetaLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }
+const decisionMetaChips: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap' }
+const decisionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '0.35rem 0.65rem', borderRadius: 999, background: '#fff', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, color: '#334155' }
+const decisionReasonText: React.CSSProperties = { marginTop: 12, fontSize: 13, color: '#334155' }
+const focusListCard: React.CSSProperties = { marginBottom: '0.9rem', padding: '0.85rem 0.9rem', borderRadius: 12, border: '1px solid #dbeafe', background: '#f8fbff' }
+const focusListTitle: React.CSSProperties = { fontSize: 13, fontWeight: 800, color: '#1d4ed8', marginBottom: 8 }
+const focusListRow: React.CSSProperties = { fontSize: 13, color: '#334155' }
+const focusListBadge: React.CSSProperties = { marginLeft: 8, fontSize: 11, fontWeight: 800, color: '#92400e', background: '#FEF3C7', borderRadius: 999, padding: '2px 7px' }
+const focusListHelp: React.CSSProperties = { marginTop: 3, color: '#64748b', fontSize: 12 }
+const factsGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }
+const factCard: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 12, padding: '0.8rem 0.85rem', background: '#fcfcfd' }
+const factLabel: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }
+const factValue: React.CSSProperties = { marginTop: 6, fontSize: 15, lineHeight: 1.35, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }

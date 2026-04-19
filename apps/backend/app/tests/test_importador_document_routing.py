@@ -38,10 +38,16 @@ def test_document_routing_agent_returns_ready_supplier_invoice():
 
     assert decision.document_type == "supplier_invoice"
     assert decision.suggested_destination == "supplier_invoice"
+    assert decision.primary_destination == "supplier_invoice"
     assert decision.required_fields_ok is True
     assert decision.needs_human_review is False
     assert decision.confidence >= 0.9
     assert "proveedor" in decision.reason.lower()
+    assert [candidate.code for candidate in decision.candidate_destinations[:2]] == [
+        "supplier_invoice",
+        "expense",
+    ]
+    assert decision.candidate_destinations[0].target_tables == ["purchases", "expenses"]
 
 
 @pytest.mark.no_db
