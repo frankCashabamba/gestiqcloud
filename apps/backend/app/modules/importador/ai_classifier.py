@@ -303,7 +303,9 @@ def _amount_has_monetary_context(content: str, value: Any, *, field_name: str) -
         if not line:
             continue
         line_digits = _digits_only(line)
-        if total_cents not in line_digits and (total_units is None or total_units not in line_digits):
+        if total_cents not in line_digits and (
+            total_units is None or total_units not in line_digits
+        ):
             continue
         normalized = _normalize_evidence_text(line)
         if any(re.search(pattern, normalized) for pattern in reject_patterns.get(field_name, ())):
@@ -1543,9 +1545,10 @@ def _extract_vendor_name_from_ocr(
         if any(stop in normalized for stop in stop_norms):
             continue
         if (
-            "factura" in normalized
-            and ("simplificada" in normalized or "simplif" in normalized)
-        ) or "ticket" in normalized or "para el cliente" in normalized:
+            ("factura" in normalized and ("simplificada" in normalized or "simplif" in normalized))
+            or "ticket" in normalized
+            or "para el cliente" in normalized
+        ):
             continue
         if normalized.startswith("establecimiento") or normalized.startswith("localidad"):
             continue

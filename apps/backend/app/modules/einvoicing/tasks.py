@@ -70,8 +70,7 @@ def _is_sri_available(
     network_failures = sum(
         1
         for row in rows
-        if row[0] == "ERROR"
-        and (row[1] or "").upper() in _SRI_NETWORK_ERROR_CODES
+        if row[0] == "ERROR" and (row[1] or "").upper() in _SRI_NETWORK_ERROR_CODES
     )
     failure_ratio = network_failures / len(rows)
 
@@ -92,6 +91,7 @@ def _is_sri_available(
 # ---------------------------------------------------------------------------
 # Exponential backoff helpers
 # ---------------------------------------------------------------------------
+
 
 def _compute_next_retry(retry_count: int) -> datetime:
     """Return the earliest UTC datetime at which a submission may be retried.
@@ -287,17 +287,14 @@ def scheduled_retry() -> dict:
             new_count = retry_count + 1
             next_retry = _compute_next_retry(new_count)
             logger.info(
-                "SRI retry failed for invoice %s (attempt %d). "
-                "Next retry scheduled at %s.",
+                "SRI retry failed for invoice %s (attempt %d). " "Next retry scheduled at %s.",
                 invoice_id,
                 new_count,
                 next_retry.isoformat(),
             )
             try:
                 with SessionLocal() as db:
-                    db.execute(
-                        text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)}
-                    )
+                    db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
                     db.execute(
                         text(
                             """
@@ -318,9 +315,7 @@ def scheduled_retry() -> dict:
                     )
                     db.commit()
             except Exception:  # noqa: BLE001
-                logger.exception(
-                    "Could not persist backoff state for invoice %s", invoice_id
-                )
+                logger.exception("Could not persist backoff state for invoice %s", invoice_id)
 
     # ------------------------------------------------------------------
     # SII: rebuild batch for current period (idempotent stub).

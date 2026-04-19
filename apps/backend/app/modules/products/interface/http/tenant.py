@@ -11,8 +11,6 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.shared.jsonb_schemas import ProductMetadataJSON
-
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -25,6 +23,7 @@ from app.services.product_raw_materials import (
     ensure_products_raw_material_column,
     validate_raw_material_unit,
 )
+from app.shared.jsonb_schemas import ProductMetadataJSON
 
 router = APIRouter(
     prefix="/products",

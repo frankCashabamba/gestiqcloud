@@ -14,8 +14,7 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     """Retorna resumen del estado actual de RRHH para el contexto del copilot."""
     employees = db.execute(
         text(
-            "SELECT count(*) AS total FROM employees "
-            "WHERE tenant_id = :tid AND is_active = true"
+            "SELECT count(*) AS total FROM employees " "WHERE tenant_id = :tid AND is_active = true"
         ),
         {"tid": tenant_id},
     ).fetchone()

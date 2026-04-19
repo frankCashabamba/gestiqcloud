@@ -763,7 +763,9 @@ def _build_ai_attempt_fingerprint(
     return {
         "model": normalized_model,
         "content_sha1": (
-            sha1(normalized_content.encode("utf-8"), usedforsecurity=False).hexdigest() if normalized_content else ""
+            sha1(normalized_content.encode("utf-8"), usedforsecurity=False).hexdigest()
+            if normalized_content
+            else ""
         ),
         "timeout": round(float(timeout_override or 0.0), 3),
         "strategy": str(strategy or "").strip().lower(),

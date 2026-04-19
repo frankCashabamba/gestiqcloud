@@ -16,9 +16,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.modules.production.internal_api import (
-    save_daily_log_from_import as _save_daily_log_impl,
-)
+from app.modules.production.internal_api import save_daily_log_from_import as _save_daily_log_impl
 
 
 def _norm(value: Any) -> str:
@@ -121,6 +119,7 @@ def _to_float(value: Any) -> float | None:
 def _match_recipe(db: Session, tenant_id: UUID, product_name: str):
     """Delegate to production.internal_api to avoid direct Recipe model import."""
     from app.modules.production.internal_api import _match_recipe as _impl
+
     return _impl(db, tenant_id, product_name)
 
 

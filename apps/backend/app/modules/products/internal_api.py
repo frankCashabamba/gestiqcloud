@@ -22,10 +22,10 @@ from app.models.core.products import Product
 from app.models.inventory.stock import StockItem
 from app.models.inventory.warehouse import Warehouse
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers (not exported)
 # ---------------------------------------------------------------------------
+
 
 def _norm(value: Any) -> str:
     text_val = unicodedata.normalize("NFKD", str(value or ""))
@@ -89,6 +89,7 @@ def _generate_next_sku(db: Session, tenant_id: str, categoria: str | None) -> st
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def get_product_by_sku(db: Session, tenant_id: str, sku: str) -> dict | None:
     """Return a product dict for the given tenant+SKU, or None if not found."""
@@ -235,9 +236,7 @@ def save_product_candidates_from_import(
     )
     existing_names = {_norm(p.name): p for p in existing_products if p.name}
     used_skus = {
-        str(p.sku).strip().upper()
-        for p in existing_products
-        if p.sku and str(p.sku).strip()
+        str(p.sku).strip().upper() for p in existing_products if p.sku and str(p.sku).strip()
     }
 
     created_ids: list[str] = []

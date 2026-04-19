@@ -25,16 +25,24 @@ from app.modules.finance.application.context import get_context_summary as get_f
 from app.modules.hr.application.context import get_context_summary as get_hr_context
 from app.modules.inventory.application.context import get_context_summary as get_inventory_context
 from app.modules.invoicing.application.context import get_context_summary as get_invoicing_context
-from app.modules.notifications.application.context import get_context_summary as get_notifications_context
+from app.modules.notifications.application.context import (
+    get_context_summary as get_notifications_context,
+)
 from app.modules.pos.application.context import get_context_summary as get_pos_context
 from app.modules.production.context import get_context_summary as get_production_context
 from app.modules.products.application.context import get_context_summary as get_products_context
-from app.modules.purchases.infrastructure.context import get_context_summary as get_purchases_context
-from app.modules.reconciliation.application.context import get_context_summary as get_reconciliation_context
+from app.modules.purchases.infrastructure.context import (
+    get_context_summary as get_purchases_context,
+)
+from app.modules.reconciliation.application.context import (
+    get_context_summary as get_reconciliation_context,
+)
 from app.modules.reports.application.context import get_context_summary as get_reports_context
 from app.modules.sales.application.context import get_context_summary as get_sales_context
 from app.modules.settings.application.context import get_context_summary as get_settings_context
-from app.modules.suppliers.infrastructure.context import get_context_summary as get_suppliers_context
+from app.modules.suppliers.infrastructure.context import (
+    get_context_summary as get_suppliers_context,
+)
 from app.modules.users.application.context import get_context_summary as get_users_context
 
 logger = logging.getLogger(__name__)

@@ -158,11 +158,10 @@ def promote_doc_type_from_text_fallback(
         )
         if token in text_context
     )
-    _pos_receipt_shape = (
-        "establecimiento" in text_context
-        and _pos_receipt_score >= 4
+    _pos_receipt_shape = "establecimiento" in text_context and _pos_receipt_score >= 4
+    _is_simplified_receipt = (
+        any(marker in text_context for marker in _simplified_receipt_markers) or _pos_receipt_shape
     )
-    _is_simplified_receipt = any(marker in text_context for marker in _simplified_receipt_markers) or _pos_receipt_shape
 
     if _is_simplified_receipt:
         # Tratar como recibo con confianza media; siempre marca para revisión

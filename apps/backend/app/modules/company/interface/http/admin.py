@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from app.api.email.email_utils import enviar_correo_bienvenida
 from app.config.database import get_db
-from app.shared.jsonb_schemas import TenantConfigJSON
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -34,6 +33,7 @@ from app.modules.company.infrastructure.repositories import SqlCompanyRepo
 from app.modules.company.interface.http.schemas import CompanyInSchema, CompanyOutSchema
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.schemas.sector_plantilla import SectorConfigJSON
+from app.shared.jsonb_schemas import TenantConfigJSON
 from app.shared.utils import slugify
 
 router = APIRouter(

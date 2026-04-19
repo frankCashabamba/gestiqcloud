@@ -4,34 +4,34 @@ import asyncio
 
 import pytest
 
-from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
 from app.modules.importador.ai_classifier import (
     _extract_labeled_amount,
     _extract_vendor_name_from_ocr,
 )
+from app.modules.importador.invoice_ocr_rescue import invoice_rescue_from_ocr
 from app.modules.importador.processing_service import (
     _STRUCTURED_SKIP_FORMATS,
     _XML_HEADER_TO_CANONICAL,
     _XML_INVOICE_FORMATS,
     _XML_TIPO_DOCUMENTO_MAP,
+    RecipeContext,
     _analysis_indicates_ai_failure,
     _analyze_with_context,
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
+    _pre_extract_route_decision,
     _prefer_text_candidate_over_existing,
     _repair_pre_extracted_fields,
-    decide_processing_lane,
-    process_import_document,
-    RecipeContext,
-    _pre_extract_route_decision,
     _sanitize_text_fallback_fields,
     _should_skip_useless_retry,
+    decide_processing_lane,
+    process_import_document,
 )
 from app.modules.importador.text_fallback_extractor import (
-    extract_line_items_table_preview_from_text,
     _infer_total_amount_from_lines,
     extract_fields_from_text,
+    extract_line_items_table_preview_from_text,
 )
 
 
@@ -390,7 +390,9 @@ def test_pre_extract_skip_ai_applies_ocr_repairs_before_persist(monkeypatch):
     assert result.raw_ai_json["analysis"]["raw_response"] == "reason=pre_extract_skip_ai"
     assert result.datos_extraidos["issue_date"] == "2026-01-16"
     assert result.datos_extraidos["vendor_tax_id"] == "1890004195001"
-    assert any(payload.get("error_detalle") is None for payload in updates if isinstance(payload, dict))
+    assert any(
+        payload.get("error_detalle") is None for payload in updates if isinstance(payload, dict)
+    )
 
 
 @pytest.mark.no_db
@@ -578,11 +580,14 @@ def test_extract_labeled_amount_ignores_total_article_count_context():
     TOTAL 14,33
     """.strip()
 
-    assert _extract_labeled_amount(
-        content,
-        "total_amount",
-        prompt_config={"amount_labels": {"total_amount": ["total"]}},
-    ) == 14.33
+    assert (
+        _extract_labeled_amount(
+            content,
+            "total_amount",
+            prompt_config={"amount_labels": {"total_amount": ["total"]}},
+        )
+        == 14.33
+    )
 
 
 @pytest.mark.no_db
@@ -593,11 +598,14 @@ def test_extract_labeled_amount_ignores_tax_lookahead_into_credit_terms():
     VALOR TOTAL 2145.00
     """.strip()
 
-    assert _extract_labeled_amount(
-        content,
-        "tax_amount",
-        prompt_config={"amount_labels": {"tax_amount": ["iva"]}},
-    ) is None
+    assert (
+        _extract_labeled_amount(
+            content,
+            "tax_amount",
+            prompt_config={"amount_labels": {"tax_amount": ["iva"]}},
+        )
+        is None
+    )
 
 
 @pytest.mark.no_db
@@ -716,11 +724,14 @@ def test_repair_pre_extracted_fields_strips_secondary_amounts_when_doc_is_not_sa
 
 @pytest.mark.no_db
 def test_prefer_text_candidate_over_existing_replaces_simplified_header_vendor():
-    assert _prefer_text_candidate_over_existing(
-        field_name="vendor",
-        existing="FAGTURA SIMPLIFTOADA : Z",
-        candidate="ALCAMPO LOGRONO",
-    ) is True
+    assert (
+        _prefer_text_candidate_over_existing(
+            field_name="vendor",
+            existing="FAGTURA SIMPLIFTOADA : Z",
+            candidate="ALCAMPO LOGRONO",
+        )
+        is True
+    )
 
 
 @pytest.mark.no_db
@@ -999,8 +1010,7 @@ def test_sanitize_text_fallback_fields_drops_noisy_tax_ids_and_keeps_clean_value
 
 
 @pytest.mark.no_db
-def test_sanitize_text_fallback_fields_preserves_rescued_numeric_values_when_repairs_null_them(
-):
+def test_sanitize_text_fallback_fields_preserves_rescued_numeric_values_when_repairs_null_them():
     cleaned = _sanitize_text_fallback_fields(
         {"subtotal": 2145.0, "tax_amount": 0.0, "vendor": "Proveedor Demo S.A."},
         content="texto OCR",

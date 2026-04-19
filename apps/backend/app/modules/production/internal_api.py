@@ -27,10 +27,10 @@ from app.models.recipes import Recipe, RecipeIngredient
 from app.services.unit_catalog_service import normalize_operational_unit
 from app.shared.utils import safe_decimal as _as_decimal
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers (not exported)
 # ---------------------------------------------------------------------------
+
 
 def _norm(value: Any) -> str:
     text_val = unicodedata.normalize("NFKD", str(value or ""))
@@ -82,9 +82,7 @@ def _compute_ingredient_cost(
 
 def _match_recipe(db: Session, tenant_id: UUID, product_name: str) -> Recipe | None:
     name_clean = _norm(product_name)
-    results = (
-        db.execute(select(Recipe).where(Recipe.tenant_id == str(tenant_id))).scalars().all()
-    )
+    results = db.execute(select(Recipe).where(Recipe.tenant_id == str(tenant_id))).scalars().all()
     for recipe in results:
         if _norm(recipe.name) == name_clean:
             return recipe
@@ -250,6 +248,7 @@ def _enrich_data_from_doc(data: dict, doc: ImpDocumento) -> dict:
 # Public API – recipes
 # ---------------------------------------------------------------------------
 
+
 def upsert_recipe_from_import(
     doc: ImpDocumento,
     db: Session,
@@ -402,6 +401,7 @@ def upsert_recipe_from_import(
 # ---------------------------------------------------------------------------
 # Public API – daily production logs
 # ---------------------------------------------------------------------------
+
 
 def save_daily_log_from_import(
     db: Session,

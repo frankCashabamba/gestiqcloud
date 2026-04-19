@@ -7,9 +7,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.importador import ImpDocumento
-from app.modules.production.internal_api import (
-    upsert_recipe_from_import as _upsert_recipe_impl,
-)
+from app.modules.production.internal_api import upsert_recipe_from_import as _upsert_recipe_impl
 
 # Public constants kept for backward compatibility with callers that import them.
 RECIPE_NAME_KEYS = (
