@@ -102,7 +102,7 @@ export default function RecetaOptimizerDialog({
         )}
 
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               label="Precio de venta"
               type="number"
@@ -114,7 +114,7 @@ export default function RecetaOptimizerDialog({
               helperText="Opcional, para recalcular margen"
             />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               label="Margen objetivo %"
               type="number"
@@ -126,7 +126,7 @@ export default function RecetaOptimizerDialog({
               helperText="Opcional"
             />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               label="Max. ingredientes a cambiar"
               type="number"
@@ -137,7 +137,7 @@ export default function RecetaOptimizerDialog({
               inputProps={{ min: 1, max: 20, step: 1 }}
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               label="Restricciones"
               fullWidth
@@ -157,7 +157,7 @@ export default function RecetaOptimizerDialog({
           </Typography>
           <Grid container spacing={0.5}>
             {ingredientsDraft.length === 0 ? (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography variant="body2" color="text.secondary">No hay ingredientes cargados.</Typography>
               </Grid>
             ) : (
@@ -165,7 +165,7 @@ export default function RecetaOptimizerDialog({
                 const product = products.find((p) => p.id === item.product_id)
                 const label = product?.name || item.product_id
                 return (
-                  <Grid item xs={12} sm={6} key={item.product_id}>
+                  <Grid size={{ xs: 12, sm: 6 }} key={item.product_id}>
                     <FormControlLabel
                       control={(
                         <Checkbox
@@ -193,7 +193,7 @@ export default function RecetaOptimizerDialog({
             </Typography>
 
             <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box sx={metricCardSx}>
                   <Typography variant="caption" color="text.secondary">Costo actual / u</Typography>
                   <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
@@ -204,7 +204,7 @@ export default function RecetaOptimizerDialog({
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box sx={metricCardSx}>
                   <Typography variant="caption" color="text.secondary">Costo optimizado / u</Typography>
                   <Typography variant="h6" color="success.main" sx={{ mt: 0.5, fontWeight: 700 }}>
@@ -215,7 +215,7 @@ export default function RecetaOptimizerDialog({
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box sx={metricCardSx}>
                   <Typography variant="caption" color="text.secondary">Ahorro estimado</Typography>
                   <Typography variant="h6" color={optimizerResult.savings_total >= 0 ? 'success.main' : 'error.main'} sx={{ mt: 0.5, fontWeight: 700 }}>

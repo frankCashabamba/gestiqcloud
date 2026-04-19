@@ -62,7 +62,7 @@ export default function RecetaIngredientInsightDialog({
               Uso en esta receta
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" color="text.secondary">Cantidad</Typography>
                 <Typography variant="body1" sx={{ fontWeight: 700 }}>
                   {meta.recipeQtyLabel}
@@ -73,7 +73,7 @@ export default function RecetaIngredientInsightDialog({
                   </Typography>
                 )}
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" color="text.secondary">Costo estimado en el lote</Typography>
                 <Typography variant="body1" sx={{ fontWeight: 700 }}>
                   ${meta.estimatedCost.toFixed(2)}
@@ -109,25 +109,25 @@ export default function RecetaIngredientInsightDialog({
             </Box>
 
             <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" color="text.secondary">Empaque</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {row.purchase_packaging || '-'}
                 </Typography>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" color="text.secondary">Contenido</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {row.qty_per_package} {row.package_unit || row.unit || ''}
                 </Typography>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" color="text.secondary">Costo del pack</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   ${Number(row.package_cost || 0).toFixed(2)}
                 </Typography>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" color="text.secondary">Costo por unidad base</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   $
