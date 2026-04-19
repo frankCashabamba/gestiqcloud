@@ -14,11 +14,11 @@ from statistics import median
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
-from app.models.production._daily_log import DailyProductionLog
-from app.models.recipes import Recipe
+from app.modules.production.internal_api import (
+    save_daily_log_from_import as _save_daily_log_impl,
+)
 
 
 def _norm(value: Any) -> str:
@@ -118,20 +118,10 @@ def _to_float(value: Any) -> float | None:
         return None
 
 
-def _match_recipe(db: Session, tenant_id: UUID, product_name: str) -> Recipe | None:
-    name_clean = _norm(product_name)
-    results = db.execute(select(Recipe).where(Recipe.tenant_id == str(tenant_id))).scalars().all()
-
-    for recipe in results:
-        if _norm(recipe.name) == name_clean:
-            return recipe
-
-    for recipe in results:
-        recipe_name = _norm(recipe.name)
-        if name_clean and (name_clean in recipe_name or recipe_name in name_clean):
-            return recipe
-
-    return None
+def _match_recipe(db: Session, tenant_id: UUID, product_name: str):
+    """Delegate to production.internal_api to avoid direct Recipe model import."""
+    from app.modules.production.internal_api import _match_recipe as _impl
+    return _impl(db, tenant_id, product_name)
 
 
 def _row_has_data(row: dict[str, Any]) -> bool:
@@ -726,55 +716,16 @@ def save_daily_log(
     rows: list[dict],
     replace_existing: bool = True,
 ) -> dict:
-    if replace_existing:
-        existing = (
-            db.execute(
-                select(DailyProductionLog).where(
-                    and_(
-                        DailyProductionLog.tenant_id == str(tenant_id),
-                        DailyProductionLog.log_date == log_date,
-                        DailyProductionLog.source_document_id == str(document_id),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        for entry in existing:
-            db.delete(entry)
+    """Persist daily production log rows.
 
-    inserted = 0
-    matched = 0
-    unmatched: list[str] = []
-
-    for row in rows:
-        recipe = _match_recipe(db, tenant_id, row["product_name"])
-        product_id = str(recipe.product_id) if recipe and recipe.product_id else None
-        recipe_id = str(recipe.id) if recipe else None
-
-        if recipe:
-            matched += 1
-        else:
-            unmatched.append(row["product_name"])
-
-        log = DailyProductionLog(
-            tenant_id=str(tenant_id),
-            log_date=log_date,
-            product_name=row["product_name"],
-            recipe_id=recipe_id,
-            product_id=product_id,
-            qty_produced=row["qty_produced"],
-            unit_price=row["unit_price"],
-            qty_sold=row["qty_sold"],
-            source_document_id=str(document_id),
-        )
-        db.add(log)
-        inserted += 1
-
-    db.commit()
-    return {
-        "inserted": inserted,
-        "matched_recipes": matched,
-        "unmatched_products": unmatched,
-        "log_date": log_date.isoformat(),
-    }
+    Delegates to production.internal_api to avoid direct DailyProductionLog /
+    Recipe model imports in the importador module.
+    """
+    return _save_daily_log_impl(
+        db,
+        tenant_id,
+        document_id,
+        log_date,
+        rows,
+        replace_existing=replace_existing,
+    )
