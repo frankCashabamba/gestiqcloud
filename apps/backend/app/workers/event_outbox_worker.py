@@ -107,8 +107,36 @@ def _handle_expense_posted(event: EventOutbox):
         svc.recalculate_daily(event.tenant_id, expense_date)
 
 
+def _handle_pos_receipt_completed(event: EventOutbox):
+    """Trigger profit recalculation when a POS receipt is completed.
+
+    Uses today's date because pos_receipts.paid_at is set to NOW() at checkout
+    time and is not forwarded in the payload (the receipt_id is available for
+    future handlers that need finer-grained processing).
+    """
+    from datetime import date as date_type
+
+    from app.config.database import session_scope
+    from app.modules.reports.application.recalculation_service import RecalculationService
+
+    payload = event.payload or {}
+    sale_date_str = payload.get("date")
+    if sale_date_str:
+        sale_date = date_type.fromisoformat(sale_date_str)
+    else:
+        # paid_at is NOW() on the DB side; fall back to today in UTC
+        from datetime import datetime, timezone
+
+        sale_date = datetime.now(timezone.utc).date()
+
+    with session_scope() as db:
+        svc = RecalculationService(db)
+        svc.recalculate_daily(event.tenant_id, sale_date)
+
+
 # Register handlers
 register_handler("sale.posted", _handle_sale_posted)
 register_handler("sale.updated", _handle_sale_posted)
 register_handler("expense.posted", _handle_expense_posted)
 register_handler("expense.updated", _handle_expense_posted)
+register_handler("pos.receipt.completed", _handle_pos_receipt_completed)

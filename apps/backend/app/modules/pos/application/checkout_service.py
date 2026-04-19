@@ -23,6 +23,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
+from app.services.event_service import EventService
 from app.services.inventory_costing import InventoryCostingService
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,27 @@ class CheckoutService:
         warehouse_id = self._resolve_warehouse(req.tenant_id, req.warehouse_id)
         self._process_stock_lines(req.receipt_id, req.tenant_id, warehouse_id, req.stock_selections)
         self._mark_paid(req.receipt_id, req.tenant_id, subtotal, tax, warehouse_id)
-        self.db.commit()
+
+        # Publish event atomically within the same transaction so the receipt
+        # and its outbox entry are always consistent (no lost-event window).
+        EventService.publish(
+            self.db,
+            tenant_id=req.tenant_id,
+            event_type="pos.receipt.completed",
+            aggregate_type="pos_receipt",
+            aggregate_id=req.receipt_id,
+            payload={
+                "receipt_id": str(req.receipt_id),
+                "tenant_id": str(req.tenant_id),
+                "warehouse_id": str(warehouse_id),
+                "subtotal": str(subtotal),
+                "tax": str(tax),
+                "total": str(subtotal + tax),
+                "paid": str(sum(p.amount for p in req.payments)),
+            },
+        )
+
+        self.db.commit()  # receipt + payments + stock_moves + outbox in one transaction
 
         documents = self._create_documents(req.receipt_id, req.tenant_id, req.invoice_series)
 
