@@ -14,6 +14,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.db.rls import set_tenant_guc
 
@@ -48,10 +49,8 @@ def ensure_tenant(request: Request, db: Session = Depends(get_db)) -> str:
 
     DEV MODE: Si no hay token válido, usa el primer tenant de la BD
     """
-    import os
-
-    dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
-    logger.debug(f"ensure_tenant: dev_mode={dev_mode}, env={os.getenv('ENVIRONMENT')}")
+    dev_mode = settings.ENVIRONMENT in ("development", "local")
+    logger.debug(f"ensure_tenant: dev_mode={dev_mode}, env={settings.ENVIRONMENT}")
 
     try:
         claims = with_access_claims(request)
