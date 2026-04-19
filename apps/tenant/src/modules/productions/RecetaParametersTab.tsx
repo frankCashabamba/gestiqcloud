@@ -53,7 +53,7 @@ export default function RecetaParametersTab({
             </Typography>
           </Box>
           <Grid container spacing={2}>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label={t('productions:recipe.prepTime')}
                 type="number"
@@ -64,7 +64,7 @@ export default function RecetaParametersTab({
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label={t('productions:recipe.bakingTime')}
                 type="number"
@@ -75,7 +75,7 @@ export default function RecetaParametersTab({
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label={t('productions:recipe.ovenTemp')}
                 type="number"
@@ -86,7 +86,7 @@ export default function RecetaParametersTab({
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label={t('productions:recipe.restTime')}
                 type="number"
@@ -97,12 +97,12 @@ export default function RecetaParametersTab({
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Alert severity="info" sx={infoAlertSx}>
                 Touch = {t('productions:recipe.touchDescription')} | {t('productions:recipe.processDescription')}
               </Alert>
             </Grid>
-            <Grid item xs={6} sm={6}>
+            <Grid size={{ xs: 6, sm: 6 }}>
               <TextField
                 label={t('productions:recipe.activeWorkMin')}
                 type="number"
@@ -114,7 +114,7 @@ export default function RecetaParametersTab({
                 helperText={t('productions:recipe.activeWorkHelper')}
               />
             </Grid>
-            <Grid item xs={6} sm={6}>
+            <Grid size={{ xs: 6, sm: 6 }}>
               <TextField
                 label={t('productions:recipe.passiveProcess')}
                 type="number"
@@ -126,7 +126,7 @@ export default function RecetaParametersTab({
                 helperText={t('productions:recipe.passiveProcessHelper')}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label={t('productions:recipe.wastePct')}
                 type="number"
@@ -138,7 +138,7 @@ export default function RecetaParametersTab({
                 helperText="Perdida de materiales"
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label="% Depreciacion"
                 type="number"
@@ -150,7 +150,7 @@ export default function RecetaParametersTab({
                 helperText="Amort. maquinaria (default 5%)"
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label={t('productions:recipe.traysPerBatch')}
                 type="number"
@@ -161,7 +161,7 @@ export default function RecetaParametersTab({
                 inputProps={{ min: 1 }}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
                 label={t('productions:recipe.unitsPerTray')}
                 type="number"
@@ -172,7 +172,7 @@ export default function RecetaParametersTab({
                 inputProps={{ min: 1 }}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 label={t('productions:recipe.instructions')}
                 size="small"
