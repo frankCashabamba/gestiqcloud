@@ -3,12 +3,15 @@ from __future__ import annotations
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
+
+from app.shared.jsonb_schemas import ProductMetadataJSON
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -107,6 +110,23 @@ def _empresa_id_from_request(request: Request) -> str | None:
         return None
 
 
+def _validate_product_metadata(v: Any) -> Any:
+    """Valida product_metadata: debe ser dict o None.
+
+    No fuerza keys específicas (el campo es escrito también por el importador
+    con keys variables), pero garantiza que el valor sea un objeto JSON y que
+    supplier_refs sea lista cuando está presente.
+    """
+    if v is None:
+        return v
+    if not isinstance(v, dict):
+        raise ValueError("product_metadata debe ser un objeto JSON (dict)")
+    supplier_refs = v.get("supplier_refs")
+    if supplier_refs is not None and not isinstance(supplier_refs, list):
+        raise ValueError("product_metadata.supplier_refs debe ser una lista")
+    return v
+
+
 class ProductCreate(BaseModel):
     name: str = Field(min_length=1)
     price: float = Field(ge=0)
@@ -122,8 +142,13 @@ class ProductCreate(BaseModel):
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool = False
     is_raw_material: bool = False
-    product_metadata: dict | None = None
+    product_metadata: ProductMetadataJSON | None = None
     import_aliases: list | None = None
+
+    @field_validator("product_metadata", mode="before")
+    @classmethod
+    def validate_product_metadata(cls, v: Any) -> Any:
+        return _validate_product_metadata(v)
 
 
 class ProductUpdate(BaseModel):
@@ -141,8 +166,13 @@ class ProductUpdate(BaseModel):
     suggested_price: float | None = Field(default=None, ge=0)
     use_suggested_price: bool | None = None
     is_raw_material: bool | None = None
-    product_metadata: dict | None = None
+    product_metadata: ProductMetadataJSON | None = None
     import_aliases: list | None = None
+
+    @field_validator("product_metadata", mode="before")
+    @classmethod
+    def validate_product_metadata(cls, v: Any) -> Any:
+        return _validate_product_metadata(v)
 
 
 class ProductOut(BaseModel):
@@ -161,7 +191,7 @@ class ProductOut(BaseModel):
     suggested_price: float | None = None
     use_suggested_price: bool = False
     is_raw_material: bool = False
-    product_metadata: dict | None = None
+    product_metadata: ProductMetadataJSON | None = None
     import_aliases: list | None = None
 
     model_config = {"from_attributes": True}

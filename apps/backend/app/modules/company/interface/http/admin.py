@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.email.email_utils import enviar_correo_bienvenida
 from app.config.database import get_db
+from app.shared.jsonb_schemas import TenantConfigJSON
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -810,7 +811,7 @@ class CompanyPayload(BaseModel):
     active: bool | None = True
     deactivation_reason: str | None = None
     website: str | None = None
-    config_json: dict | None = None
+    config_json: TenantConfigJSON | None = None
     default_language: str | None = None
     timezone: str | None = None
     currency: str | None = None
