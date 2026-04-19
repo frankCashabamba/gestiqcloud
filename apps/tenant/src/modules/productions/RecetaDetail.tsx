@@ -874,7 +874,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         {activeTab === 0 && (
           <Box>
             <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Box sx={metricCardSx}>
                   <Typography variant="caption" color="text.secondary">Rendimiento</Typography>
                   {isEditing ? (
@@ -893,7 +893,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                   )}
                 </Box>
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Box sx={metricCardSx}>
                   <Typography variant="caption" color="text.secondary">Materiales (lote)</Typography>
                   <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>${correctedMaterials.toFixed(2)}</Typography>
@@ -902,13 +902,13 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
               </Grid>
               {hasIndirect ? (
                 <>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={metricCardSx}>
                       <Typography variant="caption" color="text.secondary">Costo total (lote)</Typography>
                       <Typography variant="h6" color="error.main" sx={{ mt: 0.5, fontWeight: 700 }}>${correctedFullTotal.toFixed(2)}</Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={metricCardSx}>
                       <Typography variant="caption" color="text.secondary">Costo / unidad</Typography>
                       <Typography variant="h6" color="error.main" sx={{ mt: 0.5, fontWeight: 700 }}>${correctedFullUnit.toFixed(4)}</Typography>
@@ -917,13 +917,13 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                 </>
               ) : (
                 <>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={metricCardSx}>
                       <Typography variant="caption" color="text.secondary">Costo / unidad</Typography>
                       <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>${unitCost.toFixed(4)}</Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={metricCardSx}>
                       <Typography variant="caption" color="text.secondary">Ingredientes</Typography>
                       <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>{ingredientsCount}</Typography>
