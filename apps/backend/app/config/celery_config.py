@@ -155,6 +155,7 @@ celery_app.conf.task_routes = {
     "app.workers.expiry_tasks.*": {"queue": "notifications"},
     "app.workers.backup_tasks.*": {"queue": "default"},
     "app.workers.reports.*": {"queue": "reports"},
+    "app.workers.event_outbox_worker.*": {"queue": "critical"},
     # El importador usa dos colas separadas por carril de procesamiento.
     # batch_service.py elige la cola con decide_initial_lane() y apply_async(queue=...).
     # Workers:
