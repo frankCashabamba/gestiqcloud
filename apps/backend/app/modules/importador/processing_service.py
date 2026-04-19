@@ -1121,6 +1121,7 @@ def _repair_pre_extracted_fields(
 
 
 def _looks_like_noisy_scalar_text(value: Any, *, field_name: str) -> bool:
+    cfg = load_ocr_runtime_config(None)
     raw = " ".join(str(value or "").split()).strip()
     if not raw:
         return True
@@ -1139,44 +1140,80 @@ def _looks_like_noisy_scalar_text(value: Any, *, field_name: str) -> bool:
     ]
 
     if field_name == "vendor":
+        min_alpha = int(cfg.get("vendor_noise_min_alpha") or 0)
+        min_alpha_ratio = float(cfg.get("vendor_noise_min_alpha_ratio") or 0.0)
+        max_weird_ratio = float(cfg.get("vendor_noise_max_weird_ratio") or 1.0)
+        min_strong_tokens = int(cfg.get("vendor_noise_min_strong_tokens") or 0)
+        max_short_tokens = int(cfg.get("vendor_noise_max_short_tokens") or 0)
+        reject_tokens = {
+            str(token).strip().lower()
+            for token in (cfg.get("vendor_noise_reject_tokens") or [])
+            if str(token).strip()
+        }
+        reject_prefixes = {
+            str(token).strip().lower()
+            for token in (cfg.get("vendor_noise_reject_prefixes") or [])
+            if str(token).strip()
+        }
         if (
-            alpha < 6
-            or alpha_ratio < 0.45
-            or weird_ratio > 0.10
-            or len(strong_alpha_tokens) < 2
-            or len(short_tokens) >= max(3, len(strong_alpha_tokens))
+            alpha < min_alpha
+            or alpha_ratio < min_alpha_ratio
+            or weird_ratio > max_weird_ratio
+            or len(strong_alpha_tokens) < min_strong_tokens
+            or len(short_tokens) >= max(max_short_tokens, len(strong_alpha_tokens))
         ):
             return True
-        if (
-            "factura" in normalized
-            or "simplif" in normalized
-            or "para el cliente" in normalized
-            or normalized.startswith("establecimiento")
-            or normalized.startswith("localidad")
-            or "resolucion" in normalized
-            or "contribuyente" in normalized
-            or "obligado" in normalized
-        ):
+        if any(token in normalized for token in reject_tokens):
+            return True
+        if any(normalized.startswith(prefix) for prefix in reject_prefixes):
             return True
         return False
 
     if field_name == "concept":
-        if alpha < 5 or alpha_ratio < 0.40 or weird_ratio > 0.12:
+        min_alpha = int(cfg.get("concept_noise_min_alpha") or 0)
+        min_alpha_ratio = float(cfg.get("concept_noise_min_alpha_ratio") or 0.0)
+        max_weird_ratio = float(cfg.get("concept_noise_max_weird_ratio") or 1.0)
+        min_strong_tokens = int(cfg.get("concept_noise_min_strong_tokens") or 0)
+        max_short_tokens_factor = float(cfg.get("concept_noise_max_short_tokens_factor") or 1.0)
+        small_token_max_len = int(cfg.get("concept_noise_small_token_max_len") or 0)
+        small_token_max_count = int(cfg.get("concept_noise_small_token_max_count") or 0)
+        reject_chars = {
+            str(char) for char in (cfg.get("concept_noise_reject_chars") or []) if str(char)
+        }
+        reject_tokens = {
+            str(token).strip().lower()
+            for token in (cfg.get("concept_noise_reject_tokens") or [])
+            if str(token).strip()
+        }
+        reject_prefixes = [
+            str(token).strip().lower()
+            for token in (cfg.get("concept_noise_reject_prefixes") or [])
+            if str(token).strip()
+        ]
+        reject_token_pairs = [
+            [str(item).strip().lower() for item in pair[:2]]
+            for pair in (cfg.get("concept_noise_reject_token_pairs") or [])
+            if isinstance(pair, list) and len(pair) >= 2
+        ]
+
+        if alpha < min_alpha or alpha_ratio < min_alpha_ratio or weird_ratio > max_weird_ratio:
             return True
         all_tokens = re.findall(r"[A-Za-z\u00C0-\u017F]+", raw)
-        if len(strong_alpha_tokens) < 2 or len(short_tokens) >= max(2, len(strong_alpha_tokens)):
-            return True
-        if len(all_tokens) <= 3 and max((len(token) for token in all_tokens), default=0) <= 3:
-            return True
-        if any(ch in raw for ch in "*~_|="):
-            return True
-        if (
-            ("base" in normalized and "cuota" in normalized)
-            or normalized.startswith("imp.")
-            or normalized.startswith("imp ")
+        if len(strong_alpha_tokens) < min_strong_tokens or len(short_tokens) >= max(
+            2, int(len(strong_alpha_tokens) * max_short_tokens_factor)
         ):
             return True
-        if "tarjeta" in normalized or "cambio" in normalized or "simplif" in normalized:
+        if len(all_tokens) <= small_token_max_count and max(
+            (len(token) for token in all_tokens), default=0
+        ) <= small_token_max_len:
+            return True
+        if any(ch in raw for ch in reject_chars):
+            return True
+        if any(token in normalized for token in reject_tokens):
+            return True
+        if any(normalized.startswith(prefix) for prefix in reject_prefixes):
+            return True
+        if any(all(token in normalized for token in pair) for pair in reject_token_pairs):
             return True
         return False
 
@@ -1194,56 +1231,19 @@ def _prefer_text_candidate_over_existing(*, field_name: str, existing: Any, cand
     if not candidate_raw:
         return False
 
-    existing_norm = unicodedata.normalize("NFD", existing_raw)
-    existing_norm = "".join(ch for ch in existing_norm if unicodedata.category(ch) != "Mn").lower()
-    existing_norm = " ".join(existing_norm.split())
-    candidate_norm = unicodedata.normalize("NFD", candidate_raw)
-    candidate_norm = "".join(
-        ch for ch in candidate_norm if unicodedata.category(ch) != "Mn"
-    ).lower()
-    candidate_norm = " ".join(candidate_norm.split())
-
     if field_name == "vendor":
         if _looks_like_noisy_scalar_text(
             existing_raw, field_name="vendor"
         ) and not _looks_like_noisy_scalar_text(candidate_raw, field_name="vendor"):
             return True
-        existing_bad = (
-            "simplif" in existing_norm
-            or existing_norm.startswith("establecimiento")
-            or existing_norm.startswith("localidad")
-            or "para el cliente" in existing_norm
-        )
-        candidate_good = not (
-            "simplif" in candidate_norm
-            or candidate_norm.startswith("establecimiento")
-            or candidate_norm.startswith("localidad")
-            or "para el cliente" in candidate_norm
-        )
-        return existing_bad and candidate_good
+        return False
 
     if field_name == "concept":
         if _looks_like_noisy_scalar_text(
             existing_raw, field_name="concept"
         ) and not _looks_like_noisy_scalar_text(candidate_raw, field_name="concept"):
             return True
-        existing_bad = (
-            ("base" in existing_norm and "cuota" in existing_norm)
-            or existing_norm.startswith("imp.")
-            or existing_norm.startswith("imp ")
-            or "tarjeta" in existing_norm
-            or "cambio" in existing_norm
-            or "simplif" in existing_norm
-        )
-        candidate_good = not (
-            ("base" in candidate_norm and "cuota" in candidate_norm)
-            or candidate_norm.startswith("imp.")
-            or candidate_norm.startswith("imp ")
-            or "tarjeta" in candidate_norm
-            or "cambio" in candidate_norm
-            or "simplif" in candidate_norm
-        )
-        return existing_bad and candidate_good
+        return False
 
     return False
 

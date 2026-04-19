@@ -13,6 +13,7 @@ import unicodedata
 from typing import Any
 
 from .document_fields import detect_document_total, safe_floatish
+from .runtime_config import load_ocr_runtime_config
 
 logger = logging.getLogger("importador.text_fallback")
 
@@ -1192,51 +1193,35 @@ def _infer_total_amount_from_lines(lines: list[str]) -> float | None:
     if not lines:
         return None
 
-    reject_total_patterns = (
-        r"\bnum(?:ero)?\.?\s+total\b",
-        r"\bnum(?:ero)?\s+total\s+art",
-        r"\bart(?:\.|iculos?)?\s+vendid",
-        r"\btotal\s+art",
-        r"\bnumero\s+operacion\b",
-        r"\bnumero\s+autorizacion\b",
-        r"\bnumero\s+tarjeta\b",
-        r"\bcodigo\s+respuesta\b",
-        r"\breferencia\b",
-        r"\baid\b",
-        r"\bverificacion\s+usuario\b",
-    )
-
-    amount_markers = (
-        "total",
-        "importe",
-        "monto",
-        "cuota",
-        "saldo",
-        "compra",
-        "pagado",
-        "pago",
-        "valor",
-        "movimiento",
-        "cargo",
-        "abono",
-        "debe",
-        "haber",
-        "tarjeta",
-    )
+    cfg = load_ocr_runtime_config(None)
+    reject_total_patterns: list[re.Pattern[str]] = []
+    for raw in cfg.get("total_amount_reject_patterns") or []:
+        pattern = str(raw or "").strip()
+        if not pattern:
+            continue
+        try:
+            reject_total_patterns.append(re.compile(pattern))
+        except re.error as exc:
+            logger.warning("Ignoring invalid OCR regex for total_amount_reject_patterns: %s (%s)", pattern, exc)
+    amount_markers = {
+        _normalize_label(str(marker))
+        for marker in (cfg.get("total_inference_markers") or [])
+        if str(marker).strip()
+    }
 
     scored: list[tuple[int, int, float]] = []
     for idx, line in enumerate(lines):
         norm = _normalize_label(line)
         if not norm:
             continue
-        if any(re.search(pattern, norm) for pattern in reject_total_patterns):
+        if any(pattern.search(norm) for pattern in reject_total_patterns):
             continue
         amounts = _find_amounts(line)
         if not amounts:
             continue
 
         score = 0
-        if any(marker in norm for marker in amount_markers):
+        if any(marker and marker in norm for marker in amount_markers):
             score += 20
         if re.search(r"\b(total|importe|monto|cuota)\b", norm):
             score += 10

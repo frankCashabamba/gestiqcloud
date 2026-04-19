@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from app.modules.importador.ai_classifier import (
+    _amount_has_monetary_context,
     _extract_labeled_amount,
     _extract_vendor_name_from_ocr,
 )
@@ -20,6 +21,7 @@ from app.modules.importador.processing_service import (
     _build_ai_attempt_fingerprint,
     _build_table_prompt_preview,
     _merge_text_fallback_fields,
+    _looks_like_noisy_scalar_text,
     _pre_extract_route_decision,
     _prefer_text_candidate_over_existing,
     _repair_pre_extracted_fields,
@@ -606,6 +608,129 @@ def test_extract_labeled_amount_ignores_tax_lookahead_into_credit_terms():
         )
         is None
     )
+
+
+@pytest.mark.no_db
+def test_amount_has_monetary_context_uses_runtime_config(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.ai_classifier.load_ocr_runtime_config",
+        lambda _db=None: {
+            "total_amount_positive_patterns": [r"\bcustomtotal\b"],
+            "total_amount_reject_patterns": [],
+            "money_currency_tokens": [],
+            "money_currency_symbols": [],
+        },
+    )
+
+    assert (
+        _amount_has_monetary_context(
+            "CUSTOMTOTAL 14,33",
+            14.33,
+            field_name="total_amount",
+        )
+        is True
+    )
+
+
+@pytest.mark.no_db
+def test_extract_labeled_amount_uses_runtime_lookahead_tokens(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.ai_classifier.load_ocr_runtime_config",
+        lambda _db=None: {
+            "total_amount_reject_patterns": [],
+            "tax_amount_lookahead_required_tokens": ["tributo"],
+            "amount_lookahead_reject_tokens": [],
+        },
+    )
+
+    content = """
+    IVA
+    tributo 2,46
+    """.strip()
+
+    assert (
+        _extract_labeled_amount(
+            content,
+            "tax_amount",
+            prompt_config={"amount_labels": {"tax_amount": ["iva"]}},
+        )
+        == 2.46
+    )
+
+
+@pytest.mark.no_db
+def test_infer_total_amount_from_lines_uses_runtime_markers(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.text_fallback_extractor.load_ocr_runtime_config",
+        lambda _db=None: {
+            "total_amount_reject_patterns": [r"\bblock\b"],
+            "total_inference_markers": ["customamount"],
+        },
+    )
+
+    assert _infer_total_amount_from_lines(["block 99,99", "customamount 12,34"]) == 12.34
+
+
+@pytest.mark.no_db
+def test_noisy_vendor_detection_uses_runtime_config(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_ocr_runtime_config",
+        lambda _db=None: {
+            "vendor_noise_min_alpha": 1,
+            "vendor_noise_min_alpha_ratio": 0.0,
+            "vendor_noise_max_weird_ratio": 1.0,
+            "vendor_noise_min_strong_tokens": 1,
+            "vendor_noise_max_short_tokens": 99,
+            "vendor_noise_reject_tokens": ["bloqueado"],
+            "vendor_noise_reject_prefixes": [],
+            "concept_noise_min_alpha": 5,
+            "concept_noise_min_alpha_ratio": 0.40,
+            "concept_noise_max_weird_ratio": 0.12,
+            "concept_noise_min_strong_tokens": 2,
+            "concept_noise_max_short_tokens_factor": 1.0,
+            "concept_noise_small_token_max_len": 3,
+            "concept_noise_small_token_max_count": 3,
+            "concept_noise_reject_chars": ["*", "~", "_", "|", "="],
+            "concept_noise_reject_tokens": ["tarjeta", "cambio", "simplif"],
+            "concept_noise_reject_prefixes": ["imp.", "imp "],
+            "concept_noise_reject_token_pairs": [["base", "cuota"]],
+        },
+    )
+
+    assert _looks_like_noisy_scalar_text("Proveedor bloqueado real", field_name="vendor") is True
+
+
+@pytest.mark.no_db
+def test_prefer_text_candidate_over_existing_uses_runtime_noise_rules(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.importador.processing_service.load_ocr_runtime_config",
+        lambda _db=None: {
+            "vendor_noise_min_alpha": 1,
+            "vendor_noise_min_alpha_ratio": 0.0,
+            "vendor_noise_max_weird_ratio": 1.0,
+            "vendor_noise_min_strong_tokens": 1,
+            "vendor_noise_max_short_tokens": 99,
+            "vendor_noise_reject_tokens": ["bloqueado"],
+            "vendor_noise_reject_prefixes": [],
+            "concept_noise_min_alpha": 5,
+            "concept_noise_min_alpha_ratio": 0.40,
+            "concept_noise_max_weird_ratio": 0.12,
+            "concept_noise_min_strong_tokens": 2,
+            "concept_noise_max_short_tokens_factor": 1.0,
+            "concept_noise_small_token_max_len": 3,
+            "concept_noise_small_token_max_count": 3,
+            "concept_noise_reject_chars": ["*", "~", "_", "|", "="],
+            "concept_noise_reject_tokens": ["tarjeta", "cambio", "simplif"],
+            "concept_noise_reject_prefixes": ["imp.", "imp "],
+            "concept_noise_reject_token_pairs": [["base", "cuota"]],
+        },
+    )
+
+    assert _prefer_text_candidate_over_existing(
+        field_name="vendor",
+        existing="Proveedor bloqueado real",
+        candidate="Proveedor bueno SA",
+    ) is True
 
 
 @pytest.mark.no_db

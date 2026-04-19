@@ -253,49 +253,39 @@ def _numeric_evidence(text_digits: str, value: Any, *, min_len: int = 3) -> bool
     return bool(digits and len(digits) >= min_len and digits in text_digits)
 
 
-def _amount_has_monetary_context(content: str, value: Any, *, field_name: str) -> bool:
+def _amount_has_monetary_context(
+    content: str,
+    value: Any,
+    *,
+    field_name: str,
+    ocr_runtime: dict[str, Any] | None = None,
+) -> bool:
     amount = safe_floatish(value)
     if amount is None:
         return False
 
+    cfg = ocr_runtime or load_ocr_runtime_config(None)
     total_cents = str(int(round(float(amount) * 100)))
     total_units = str(int(round(float(amount)))) if float(amount).is_integer() else None
-    positive_patterns = {
-        "total_amount": (
-            r"\bvalor\s+total\b",
-            r"\bimporte\s+total\b",
-            r"\bmonto\s+total\b",
-            r"\bimporte\s+moneda\b",
-            r"\btotal\b",
-            r"\bimporte\b",
-            r"\bmonto\b",
-            r"\btarjeta\b",
-            r"\befectivo\b",
-            r"\bcambio\b",
-            r"\bpagado\b",
-            r"\bpago\b",
-        ),
-    }
-    reject_patterns = {
-        "total_amount": (
-            r"\bnum(?:ero)?\.?\s+total\b",
-            r"\bsubtotal\b",
-            r"\bsub total\b",
-            r"\biva\b",
-            r"\bvat\b",
-            r"\bigv\b",
-            r"\bimpuesto\b",
-            r"\bnum(?:ero)?\s+total\s+art",
-            r"\bart(?:\.|iculos?)?\s+vendid",
-            r"\btotal\s+art",
-            r"\bnumero\s+operacion\b",
-            r"\bnumero\s+autorizacion\b",
-            r"\bnumero\s+tarjeta\b",
-            r"\bcodigo\s+respuesta\b",
-            r"\breferencia\b",
-            r"\baid\b",
-            r"\bverificacion\s+usuario\b",
-        ),
+    positive_patterns = _runtime_regex_patterns(
+        cfg,
+        f"{field_name}_positive_patterns",
+        list(_DEFAULT_OCR_CONFIG.get(f"{field_name}_positive_patterns") or []),
+    )
+    reject_patterns = _runtime_regex_patterns(
+        cfg,
+        f"{field_name}_reject_patterns",
+        list(_DEFAULT_OCR_CONFIG.get(f"{field_name}_reject_patterns") or []),
+    )
+    currency_tokens = _runtime_normalized_text_set(
+        cfg,
+        "money_currency_tokens",
+        list(_DEFAULT_OCR_CONFIG["money_currency_tokens"]),
+    )
+    currency_symbols = {
+        str(item).strip()
+        for item in (cfg.get("money_currency_symbols") or _DEFAULT_OCR_CONFIG["money_currency_symbols"])
+        if str(item).strip()
     }
 
     for raw_line in str(content or "").splitlines():
@@ -308,11 +298,13 @@ def _amount_has_monetary_context(content: str, value: Any, *, field_name: str) -
         ):
             continue
         normalized = _normalize_evidence_text(line)
-        if any(re.search(pattern, normalized) for pattern in reject_patterns.get(field_name, ())):
+        if any(pattern.search(normalized) for pattern in reject_patterns):
             continue
-        if "$" in line or "€" in line or "eur" in normalized or "usd" in normalized:
+        if any(symbol in line for symbol in currency_symbols) or any(
+            token in normalized for token in currency_tokens
+        ):
             return True
-        if any(re.search(pattern, normalized) for pattern in positive_patterns.get(field_name, ())):
+        if any(pattern.search(normalized) for pattern in positive_patterns):
             return True
 
     return False
@@ -1055,23 +1047,26 @@ def _extract_labeled_amount(
     *,
     prompt_config: dict[str, Any] | None = None,
 ) -> float | None:
+    cfg = load_ocr_runtime_config(None)
     labels = _amount_labels(prompt_config).get(field_name) or ()
     if not labels:
         return None
 
     candidates: list[float] = []
-    reject_total_patterns = (
-        r"\bnum(?:ero)?\.?\s+total\b",
-        r"\bnum(?:ero)?\s+total\s+art",
-        r"\bart(?:\.|iculos?)?\s+vendid",
-        r"\btotal\s+art",
-        r"\bnumero\s+operacion\b",
-        r"\bnumero\s+autorizacion\b",
-        r"\bnumero\s+tarjeta\b",
-        r"\bcodigo\s+respuesta\b",
-        r"\breferencia\b",
-        r"\baid\b",
-        r"\bverificacion\s+usuario\b",
+    reject_total_patterns = _runtime_regex_patterns(
+        cfg,
+        "total_amount_reject_patterns",
+        list(_DEFAULT_OCR_CONFIG["total_amount_reject_patterns"]),
+    )
+    tax_amount_lookahead_required_tokens = _runtime_normalized_text_set(
+        cfg,
+        "tax_amount_lookahead_required_tokens",
+        list(_DEFAULT_OCR_CONFIG["tax_amount_lookahead_required_tokens"]),
+    )
+    amount_lookahead_reject_tokens = _runtime_normalized_text_set(
+        cfg,
+        "amount_lookahead_reject_tokens",
+        list(_DEFAULT_OCR_CONFIG["amount_lookahead_reject_tokens"]),
     )
     label_patterns = [(label, re.compile(rf"\b{re.escape(label)}\b")) for label in labels]
     lines = [str(line).strip() for line in str(content or "").splitlines()]
@@ -1093,12 +1088,7 @@ def _extract_labeled_amount(
         matched_label, matched = match_info
         assert matched is not None
         if field_name == "total_amount" and any(
-            reject in line_lower
-            for reject in ("subtotal", "sub total", "tax exclusive", "sin impuestos")
-        ):
-            continue
-        if field_name == "total_amount" and any(
-            re.search(pattern, line_lower) for pattern in reject_total_patterns
+            pattern.search(line_lower) for pattern in reject_total_patterns
         ):
             continue
         if field_name == "total_amount" and matched_label == "total" and "%" in line_lower:
@@ -1113,25 +1103,13 @@ def _extract_labeled_amount(
                     continue
                 if _looks_like_date_context(lookahead):
                     continue
-                lookahead_lower = lookahead.lower()
+                lookahead_lower = _normalize_evidence_text(lookahead)
                 if field_name == "tax_amount" and not any(
-                    token in lookahead_lower
-                    for token in ("iva", "igv", "gst", "vat", "tax", "impuesto", "ice")
+                    token in lookahead_lower for token in tax_amount_lookahead_required_tokens
                 ):
                     continue
                 if any(
-                    token in lookahead_lower
-                    for token in (
-                        "plazo",
-                        "credito",
-                        "dias",
-                        "numero operacion",
-                        "numero autorizacion",
-                        "numero tarjeta",
-                        "referencia",
-                        "tarjeta",
-                        "cambio",
-                    )
+                    token in lookahead_lower for token in amount_lookahead_reject_tokens
                 ):
                     continue
                 amount_candidates = _extract_amount_candidates_from_line(lookahead)
@@ -1911,7 +1889,7 @@ def _apply_high_evidence_ocr_repairs(
             _repairs.append(f"total_amount: {current_total!r} → {labeled_total!r}")
         fields["total_amount"] = labeled_total
     elif current_total not in (None, "") and not _amount_has_monetary_context(
-        content, current_total, field_name="total_amount"
+        content, current_total, field_name="total_amount", ocr_runtime=ocr_runtime
     ):
         _repairs.append(
             f"total_amount: {current_total!r} → None (sin evidencia monetaria suficiente)"

@@ -180,6 +180,105 @@ _DEFAULT_OCR_CONFIG: dict[str, Any] = {
         "ambiente",
         "emision",
     ],
+    "total_amount_positive_patterns": [
+        r"\bvalor\s+total\b",
+        r"\bimporte\s+total\b",
+        r"\bmonto\s+total\b",
+        r"\bimporte\s+moneda\b",
+        r"\btotal\b",
+        r"\bimporte\b",
+        r"\bmonto\b",
+        r"\btarjeta\b",
+        r"\befectivo\b",
+        r"\bcambio\b",
+        r"\bpagado\b",
+        r"\bpago\b",
+    ],
+    "total_amount_reject_patterns": [
+        r"\bnum(?:ero)?\.?\s+total\b",
+        r"\bsubtotal\b",
+        r"\bsub\s+total\b",
+        r"\biva\b",
+        r"\bvat\b",
+        r"\bigv\b",
+        r"\bimpuesto\b",
+        r"\btax\s+exclusive\b",
+        r"\bsin\s+impuestos\b",
+        r"\bnum(?:ero)?\s+total\s+art",
+        r"\bart(?:\.|iculos?)?\s+vendid",
+        r"\btotal\s+art",
+        r"\bnumero\s+operacion\b",
+        r"\bnumero\s+autorizacion\b",
+        r"\bnumero\s+tarjeta\b",
+        r"\bcodigo\s+respuesta\b",
+        r"\breferencia\b",
+        r"\baid\b",
+        r"\bverificacion\s+usuario\b",
+    ],
+    "total_inference_markers": [
+        "total",
+        "importe",
+        "monto",
+        "cuota",
+        "saldo",
+        "compra",
+        "pagado",
+        "pago",
+        "valor",
+        "movimiento",
+        "cargo",
+        "abono",
+        "debe",
+        "haber",
+        "tarjeta",
+    ],
+    "tax_amount_lookahead_required_tokens": [
+        "iva",
+        "igv",
+        "gst",
+        "vat",
+        "tax",
+        "impuesto",
+        "ice",
+    ],
+    "amount_lookahead_reject_tokens": [
+        "plazo",
+        "credito",
+        "dias",
+        "numero operacion",
+        "numero autorizacion",
+        "numero tarjeta",
+        "referencia",
+        "tarjeta",
+        "cambio",
+    ],
+    "money_currency_tokens": ["eur", "usd"],
+    "money_currency_symbols": ["$", "€"],
+    "vendor_noise_min_alpha": 6,
+    "vendor_noise_min_alpha_ratio": 0.45,
+    "vendor_noise_max_weird_ratio": 0.10,
+    "vendor_noise_min_strong_tokens": 2,
+    "vendor_noise_max_short_tokens": 3,
+    "vendor_noise_reject_tokens": [
+        "factura",
+        "simplif",
+        "para el cliente",
+        "resolucion",
+        "contribuyente",
+        "obligado",
+    ],
+    "vendor_noise_reject_prefixes": ["establecimiento", "localidad"],
+    "concept_noise_min_alpha": 5,
+    "concept_noise_min_alpha_ratio": 0.40,
+    "concept_noise_max_weird_ratio": 0.12,
+    "concept_noise_min_strong_tokens": 2,
+    "concept_noise_max_short_tokens_factor": 1.0,
+    "concept_noise_small_token_max_len": 3,
+    "concept_noise_small_token_max_count": 3,
+    "concept_noise_reject_chars": ["*", "~", "_", "|", "="],
+    "concept_noise_reject_tokens": ["tarjeta", "cambio", "simplif"],
+    "concept_noise_reject_prefixes": ["imp.", "imp "],
+    "concept_noise_reject_token_pairs": [["base", "cuota"]],
     "excel_max_header_scan_rows": 25,
     "excel_max_preview_rows_per_sheet": 120,
     "excel_scan_rows_multiplier": 4,
@@ -853,6 +952,37 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
             _DEFAULT_OCR_CONFIG["invoice_vendor_suffix_patterns"]
         ),
         "invoice_line_skip_markers": list(_DEFAULT_OCR_CONFIG["invoice_line_skip_markers"]),
+        "total_amount_positive_patterns": list(_DEFAULT_OCR_CONFIG["total_amount_positive_patterns"]),
+        "total_amount_reject_patterns": list(_DEFAULT_OCR_CONFIG["total_amount_reject_patterns"]),
+        "total_inference_markers": list(_DEFAULT_OCR_CONFIG["total_inference_markers"]),
+        "tax_amount_lookahead_required_tokens": list(
+            _DEFAULT_OCR_CONFIG["tax_amount_lookahead_required_tokens"]
+        ),
+        "amount_lookahead_reject_tokens": list(
+            _DEFAULT_OCR_CONFIG["amount_lookahead_reject_tokens"]
+        ),
+        "money_currency_tokens": list(_DEFAULT_OCR_CONFIG["money_currency_tokens"]),
+        "money_currency_symbols": list(_DEFAULT_OCR_CONFIG["money_currency_symbols"]),
+        "vendor_noise_min_alpha": int(_DEFAULT_OCR_CONFIG["vendor_noise_min_alpha"]),
+        "vendor_noise_min_alpha_ratio": float(_DEFAULT_OCR_CONFIG["vendor_noise_min_alpha_ratio"]),
+        "vendor_noise_max_weird_ratio": float(_DEFAULT_OCR_CONFIG["vendor_noise_max_weird_ratio"]),
+        "vendor_noise_min_strong_tokens": int(_DEFAULT_OCR_CONFIG["vendor_noise_min_strong_tokens"]),
+        "vendor_noise_max_short_tokens": int(_DEFAULT_OCR_CONFIG["vendor_noise_max_short_tokens"]),
+        "vendor_noise_reject_tokens": list(_DEFAULT_OCR_CONFIG["vendor_noise_reject_tokens"]),
+        "vendor_noise_reject_prefixes": list(_DEFAULT_OCR_CONFIG["vendor_noise_reject_prefixes"]),
+        "concept_noise_min_alpha": int(_DEFAULT_OCR_CONFIG["concept_noise_min_alpha"]),
+        "concept_noise_min_alpha_ratio": float(_DEFAULT_OCR_CONFIG["concept_noise_min_alpha_ratio"]),
+        "concept_noise_max_weird_ratio": float(_DEFAULT_OCR_CONFIG["concept_noise_max_weird_ratio"]),
+        "concept_noise_min_strong_tokens": int(_DEFAULT_OCR_CONFIG["concept_noise_min_strong_tokens"]),
+        "concept_noise_max_short_tokens_factor": float(
+            _DEFAULT_OCR_CONFIG["concept_noise_max_short_tokens_factor"]
+        ),
+        "concept_noise_small_token_max_len": int(_DEFAULT_OCR_CONFIG["concept_noise_small_token_max_len"]),
+        "concept_noise_small_token_max_count": int(_DEFAULT_OCR_CONFIG["concept_noise_small_token_max_count"]),
+        "concept_noise_reject_chars": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_chars"]),
+        "concept_noise_reject_tokens": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_tokens"]),
+        "concept_noise_reject_prefixes": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_prefixes"]),
+        "concept_noise_reject_token_pairs": list(_DEFAULT_OCR_CONFIG["concept_noise_reject_token_pairs"]),
         "excel_max_header_scan_rows": int(_DEFAULT_OCR_CONFIG["excel_max_header_scan_rows"]),
         "excel_max_preview_rows_per_sheet": int(
             _DEFAULT_OCR_CONFIG["excel_max_preview_rows_per_sheet"]
@@ -925,6 +1055,11 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 "trim_padding_ratio",
                 "perspective_min_area_ratio",
                 "perspective_min_output_ratio",
+                "vendor_noise_min_alpha_ratio",
+                "vendor_noise_max_weird_ratio",
+                "concept_noise_min_alpha_ratio",
+                "concept_noise_max_weird_ratio",
+                "concept_noise_max_short_tokens_factor",
             }:
                 config[key] = _float_value(value, config[key], minimum=0.0)
             elif key in {
@@ -941,8 +1076,30 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 "invoice_vendor_stop_tokens",
                 "invoice_vendor_suffix_patterns",
                 "invoice_line_skip_markers",
+                "total_amount_positive_patterns",
+                "total_amount_reject_patterns",
+                "total_inference_markers",
+                "tax_amount_lookahead_required_tokens",
+                "amount_lookahead_reject_tokens",
+                "money_currency_tokens",
+                "money_currency_symbols",
+                "vendor_noise_reject_tokens",
+                "vendor_noise_reject_prefixes",
+                "concept_noise_reject_chars",
+                "concept_noise_reject_tokens",
+                "concept_noise_reject_prefixes",
             }:
                 config[key] = _list_value(value, config[key])
+            elif key == "concept_noise_reject_token_pairs":
+                if isinstance(value, list):
+                    parsed_pairs = []
+                    for pair in value:
+                        if isinstance(pair, list):
+                            tokens = [str(item).strip() for item in pair if str(item).strip()]
+                            if len(tokens) >= 2:
+                                parsed_pairs.append(tokens[:2])
+                    if parsed_pairs:
+                        config[key] = parsed_pairs
             elif key in {"easyocr_enabled", "easyocr_gpu"}:
                 config[key] = _bool_value(value, config[key])
             elif key == "easyocr_variant_label":
@@ -953,6 +1110,16 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                 config[key] = _int_value(value, config[key], minimum=1)
             elif key == "image_source_formats":
                 config[key] = _list_value(value, config[key])
+            elif key in {
+                "vendor_noise_min_alpha",
+                "vendor_noise_min_strong_tokens",
+                "vendor_noise_max_short_tokens",
+                "concept_noise_min_alpha",
+                "concept_noise_min_strong_tokens",
+                "concept_noise_small_token_max_len",
+                "concept_noise_small_token_max_count",
+            }:
+                config[key] = _int_value(value, config[key], minimum=0)
 
     if db is not None:
         try:
@@ -996,6 +1163,11 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                         "trim_padding_ratio",
                         "perspective_min_area_ratio",
                         "perspective_min_output_ratio",
+                        "vendor_noise_min_alpha_ratio",
+                        "vendor_noise_max_weird_ratio",
+                        "concept_noise_min_alpha_ratio",
+                        "concept_noise_max_weird_ratio",
+                        "concept_noise_max_short_tokens_factor",
                     }
                     and row.value_text is not None
                 ):
@@ -1007,8 +1179,38 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                     "small_rotation_angles",
                     "primary_variant_labels",
                     "easyocr_languages",
+                    "line_cleanup_patterns",
+                    "invoice_doc_number_context_tokens",
+                    "invoice_doc_number_keyword_patterns",
+                    "invoice_doc_number_fallback_patterns",
+                    "invoice_vendor_stop_tokens",
+                    "invoice_vendor_suffix_patterns",
+                    "invoice_line_skip_markers",
+                    "total_amount_positive_patterns",
+                    "total_amount_reject_patterns",
+                    "total_inference_markers",
+                    "tax_amount_lookahead_required_tokens",
+                    "amount_lookahead_reject_tokens",
+                    "money_currency_tokens",
+                    "money_currency_symbols",
+                    "vendor_noise_reject_tokens",
+                    "vendor_noise_reject_prefixes",
+                    "concept_noise_reject_chars",
+                    "concept_noise_reject_tokens",
+                    "concept_noise_reject_prefixes",
                 }:
                     config[key] = _list_value(row.value_list, config[key])
+                elif key == "concept_noise_reject_token_pairs":
+                    value_json = getattr(row, "value_json", None)
+                    if isinstance(value_json, list):
+                        parsed_pairs = []
+                        for pair in value_json:
+                            if isinstance(pair, list):
+                                tokens = [str(item).strip() for item in pair if str(item).strip()]
+                                if len(tokens) >= 2:
+                                    parsed_pairs.append(tokens[:2])
+                        if parsed_pairs:
+                            config[key] = parsed_pairs
                 elif key in {"easyocr_enabled", "easyocr_gpu"} and row.value_text is not None:
                     config[key] = _bool_value(row.value_text, config[key])
                 elif key == "easyocr_variant_label" and row.value_text is not None:
@@ -1019,6 +1221,20 @@ def load_ocr_runtime_config(db: Any | None = None) -> dict[str, Any]:
                     config[key] = _int_value(row.value_text, config[key], minimum=1)
                 elif key == "image_source_formats":
                     config[key] = _list_value(row.value_list, config[key])
+                elif (
+                    key
+                    in {
+                        "vendor_noise_min_alpha",
+                        "vendor_noise_min_strong_tokens",
+                        "vendor_noise_max_short_tokens",
+                        "concept_noise_min_alpha",
+                        "concept_noise_min_strong_tokens",
+                        "concept_noise_small_token_max_len",
+                        "concept_noise_small_token_max_count",
+                    }
+                    and row.value_text is not None
+                ):
+                    config[key] = _int_value(row.value_text, config[key], minimum=0)
         except Exception as exc:
             logger.warning("No se pudo cargar ocr_config desde imp_config: %s", exc)
 
