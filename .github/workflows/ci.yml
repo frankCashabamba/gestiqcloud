@@ -19,7 +19,7 @@ jobs:
       tenant: ${{ steps.filter.outputs.tenant }}
       ops: ${{ steps.filter.outputs.ops }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -47,16 +47,16 @@ jobs:
     env:
       TEST_MINIMAL: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: 'apps/backend/requirements.txt'
 
       - name: Cache testmon data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/backend/.testmondata
           key: testmon-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
@@ -154,9 +154,9 @@ jobs:
             -q --ignore=tests/modules/imports/ --testmon app/tests/
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
-          file: ./apps/backend/coverage.xml
+          files: ./apps/backend/coverage.xml
           flags: backend
           fail_ci_if_error: false
 
@@ -169,9 +169,9 @@ jobs:
       run:
         working-directory: apps/admin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -199,9 +199,9 @@ jobs:
       run:
         working-directory: apps/tenant
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
