@@ -6,8 +6,8 @@ Documentation=file:///opt/gestiqcloud/ops/systemd/README_ENV_CONFIG.md
 
 [Service]
 Type=simple
-User=gestiq
-Group=gestiq
+User=debian
+Group=debian
 WorkingDirectory=/opt/gestiqcloud/apps/backend
 
 # IMPORTANT: Load environment variables from secure config file
@@ -23,7 +23,7 @@ Environment="PYTHONPATH=/opt/gestiqcloud/apps/backend:/opt/gestiqcloud/apps"
 #   UPLOADS_DIR, IMPORTADOR_PAYLOAD_DIR, CORS_ORIGINS, COOKIE_DOMAIN,
 #   OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
 
-ExecStart=/opt/gestiqcloud/venv/bin/celery -A app.config.celery_config worker \
+ExecStart=/opt/gestiqcloud/.venv/bin/celery -A app.config.celery_config worker \
     --queues=importador_deep \
     --concurrency=2 \
     --hostname=gestiq-importador-deep@%h \

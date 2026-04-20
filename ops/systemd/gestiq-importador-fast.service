@@ -6,8 +6,8 @@ Documentation=file:///opt/gestiqcloud/ops/systemd/README_ENV_CONFIG.md
 
 [Service]
 Type=simple
-User=gestiq
-Group=gestiq
+User=debian
+Group=debian
 WorkingDirectory=/opt/gestiqcloud/apps/backend
 
 # IMPORTANT: Load environment variables from secure config file
@@ -22,7 +22,7 @@ Environment="PYTHONPATH=/opt/gestiqcloud/apps/backend:/opt/gestiqcloud/apps"
 # Recommended:
 #   UPLOADS_DIR, IMPORTADOR_PAYLOAD_DIR, CORS_ORIGINS, COOKIE_DOMAIN
 
-ExecStart=/opt/gestiqcloud/venv/bin/celery -A app.config.celery_config worker \
+ExecStart=/opt/gestiqcloud/.venv/bin/celery -A app.config.celery_config worker \
     --queues=importador_fast \
     --concurrency=8 \
     --hostname=gestiq-importador-fast@%h \
