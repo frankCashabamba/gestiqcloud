@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 import re
 from collections.abc import Generator, Iterator
 from contextlib import asynccontextmanager, contextmanager
@@ -54,11 +55,8 @@ def make_db_url() -> str:
 # ---------------------------------------------------------------------------
 STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mínimo 1s
 
-import platform as _platform
-
 _pg_options = f"-c statement_timeout={STATEMENT_TIMEOUT_MS}"
-if _platform.system() == "Windows":
-    # lc_messages=C evita UnicodeDecodeError en Windows; Render y Linux no lo permiten
+if platform.system() == "Windows":
     _pg_options += " -c lc_messages=C"
 
 CONNECT_ARGS = {
