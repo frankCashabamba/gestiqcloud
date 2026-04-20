@@ -38,7 +38,9 @@ jobs:
               - 'apps/tenant/**'
               - 'apps/packages/**'
             ops:
-              - 'ops/**'
+              - 'ops/scripts/**'
+              - 'ops/migrations/**'
+              - 'ops/alembic/**'
 
   backend-smoke:
     name: Backend Smoke
