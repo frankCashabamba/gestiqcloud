@@ -394,7 +394,7 @@ def sign_facturae_xml(xml_content: str, cert_data: dict[str, Any]) -> str:
 # ============================================================================
 
 try:  # pragma: no cover
-    from app.celery_app import celery_app  # type: ignore
+    from celery_app import celery_app  # type: ignore
 except Exception:  # Provide no-op task decorator in tests when minimal
     if _MINIMAL:
 
