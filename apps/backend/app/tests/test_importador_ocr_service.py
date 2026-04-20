@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 from app.modules.importador import ocr_service
 from app.modules.importador.services.document_routing_agent import build_document_routing_decision
 
-_IMPORT_DIR = Path(__file__).resolve().parents[4] / "importacion"
+_SALES_SUMMARY_CSV_BYTES = (
+    b"Fecha,Pedidos,Items,Total\n"
+    b"2026-03-22,11,268.000,$79.24\n"
+    b"2026-03-21,36,410.000,$56.46\n"
+    b"2026-03-20,3,169.000,$22.34\n"
+    b"\n"
+    b"RESUMEN\n"
+    b"total_sales,158.04000\n"
+    b"total_items,847.000\n"
+    b"order_count,3\n"
+    b"average_order_value,52.68000\n"
+)
 
 
 def test_ocr_image_skips_easyocr_fallback_when_tesseract_is_weak(monkeypatch):
@@ -72,8 +82,7 @@ def test_extract_csv_builds_virtual_sheet_context():
 
 
 def test_extract_csv_sales_summary_promotes_routing_fields():
-    path = _IMPORT_DIR / "Ventas_2026-02-21_2026-03-23.csv"
-    result = ocr_service._extract_csv(path.read_bytes())
+    result = ocr_service._extract_csv(_SALES_SUMMARY_CSV_BYTES)
 
     assert result["format"] == "CSV"
     assert result["sheet_used"] == "CSV"
@@ -85,8 +94,7 @@ def test_extract_csv_sales_summary_promotes_routing_fields():
 
 
 def test_sales_csv_routes_without_review():
-    path = _IMPORT_DIR / "Ventas_2026-02-21_2026-03-23.csv"
-    result = ocr_service._extract_csv(path.read_bytes())
+    result = ocr_service._extract_csv(_SALES_SUMMARY_CSV_BYTES)
     metadata = result["sheet_metadata"]["CSV"]
 
     decision = build_document_routing_decision(
