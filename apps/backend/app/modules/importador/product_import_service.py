@@ -9,7 +9,9 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.modules.products.internal_api import (
+    _generate_next_sku,
     _normalize_category_name,
+    _resolve_category_id,
     save_product_candidates_from_import,
 )
 
@@ -290,4 +292,6 @@ def save_product_candidates(
         tenant_id,
         candidates,
         source_document_id=source_document_id,
+        resolve_category_id_fn=_resolve_category_id,
+        generate_next_sku_fn=_generate_next_sku,
     )

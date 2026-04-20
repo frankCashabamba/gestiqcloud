@@ -223,6 +223,8 @@ def save_product_candidates_from_import(
     tenant_id: UUID,
     candidates: list,  # list[ProductCandidate] — imported locally to avoid circular
     source_document_id: UUID | None = None,
+    resolve_category_id_fn=None,
+    generate_next_sku_fn=None,
 ) -> dict[str, Any]:
     """Persist a list of ProductCandidate objects for a tenant.
 
@@ -242,6 +244,8 @@ def save_product_candidates_from_import(
     created_ids: list[str] = []
     updated_ids: list[str] = []
     skipped_invalid: list[str] = []
+    resolve_category_id_fn = resolve_category_id_fn or _resolve_category_id
+    generate_next_sku_fn = generate_next_sku_fn or _generate_next_sku
 
     for candidate in candidates:
         normalized_name = _norm(candidate.name)
@@ -264,13 +268,15 @@ def save_product_candidates_from_import(
             continue
 
         category_name = _normalize_category_name(candidate.category_name)
-        category_id = _resolve_category_id(db, tenant_id, category_name) if category_name else None
+        category_id = (
+            resolve_category_id_fn(db, tenant_id, category_name) if category_name else None
+        )
 
         sku = candidate.sku.strip() if candidate.sku else None
         if sku and sku.upper() in used_skus:
             sku = None
         if not sku:
-            sku = _generate_next_sku(db, tenant_id, category_name)
+            sku = generate_next_sku_fn(db, tenant_id, category_name)
 
         metadata = dict(candidate.product_metadata or {})
         if source_document_id:

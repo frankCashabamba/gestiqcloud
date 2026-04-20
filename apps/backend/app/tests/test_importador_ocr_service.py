@@ -8,6 +8,8 @@ from PIL import Image, ImageDraw
 from app.modules.importador import ocr_service
 from app.modules.importador.services.document_routing_agent import build_document_routing_decision
 
+_IMPORT_DIR = Path(__file__).resolve().parents[4] / "importacion"
+
 
 def test_ocr_image_skips_easyocr_fallback_when_tesseract_is_weak(monkeypatch):
     constructor_calls = {"count": 0}
@@ -70,7 +72,7 @@ def test_extract_csv_builds_virtual_sheet_context():
 
 
 def test_extract_csv_sales_summary_promotes_routing_fields():
-    path = Path(r"C:\gestiqcloud\importacion\Ventas_2026-02-21_2026-03-23.csv")
+    path = _IMPORT_DIR / "Ventas_2026-02-21_2026-03-23.csv"
     result = ocr_service._extract_csv(path.read_bytes())
 
     assert result["format"] == "CSV"
@@ -83,7 +85,7 @@ def test_extract_csv_sales_summary_promotes_routing_fields():
 
 
 def test_sales_csv_routes_without_review():
-    path = Path(r"C:\gestiqcloud\importacion\Ventas_2026-02-21_2026-03-23.csv")
+    path = _IMPORT_DIR / "Ventas_2026-02-21_2026-03-23.csv"
     result = ocr_service._extract_csv(path.read_bytes())
     metadata = result["sheet_metadata"]["CSV"]
 

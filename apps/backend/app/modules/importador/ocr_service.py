@@ -757,10 +757,14 @@ def _reconstruct_page_text_by_words(page: Any, *, y_tolerance: int = 3) -> str:
     permite reconstruir filas horizontales correctamente.
     """
     words = page.get_text("words")  # (x0, y0, x1, y1, text, block_no, line_no, word_no)
+    if isinstance(words, str):
+        return ""
     if not words:
         return ""
     rows: dict[float, list[tuple[float, str]]] = {}
     for w in words:
+        if not isinstance(w, (list, tuple)) or len(w) < 5:
+            return ""
         x0, y0, text = float(w[0]), float(w[1]), str(w[4])
         matched: float | None = None
         for ry in rows:

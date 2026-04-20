@@ -25,6 +25,7 @@ from ..analysis_normalizer import _normalize_analysis_output
 from ..canonical_document import build_document_projection
 from ..document_fields import detect_document_total
 from ..field_alias_loader import get_field_aliases
+from ..native_analyzer import analyze_document
 from ..runtime_config import (
     load_amount_label_config,
     load_doc_type_patterns,
@@ -55,11 +56,22 @@ def _insert_staging_line_idempotent(
 
     Retorna 1 si se insertó, 0 si ya existía.
     """
+    existing = db.scalar(
+        select(ImpStagingLine.id).where(
+            ImpStagingLine.tenant_id == tenant_id,
+            ImpStagingLine.documento_id == doc_id,
+            ImpStagingLine.line_number == line_number,
+            ImpStagingLine.sheet_name == sheet_name,
+        )
+    )
+    if existing is not None:
+        return 0
+
     stmt = (
         pg_insert(ImpStagingLine)
         .values(
-            tenant_id=str(tenant_id),
-            documento_id=str(doc_id),
+            tenant_id=tenant_id,
+            documento_id=doc_id,
             line_number=line_number,
             sheet_name=sheet_name,
             raw_data=raw_data,
@@ -245,8 +257,6 @@ def _reextract_document_scope_fields(
     analysis_fields = (
         canonical_meta if requires_full_document_rerun and canonical_meta else narrowed_fields
     )
-
-    from ..native_analyzer import analyze_document
 
     analysis = asyncio.run(
         analyze_document(

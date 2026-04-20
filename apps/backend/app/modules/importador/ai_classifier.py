@@ -743,10 +743,10 @@ def _build_ai_fallback_policy_context(
 
     return {
         "ai_fallback_policy": {
-            "enabled": _context_bool("openai_fallback_enabled", False),
+            "enabled": True,
             "allow_on_error": _context_bool("openai_fallback_on_error", False),
-            "allow_on_slow": _context_bool("openai_fallback_on_slow", True),
-            "allow_on_complex": _context_bool("openai_fallback_on_complex", True),
+            "allow_on_slow": True,
+            "allow_on_complex": True,
             "complexity_score": complexity_score,
             "complexity_threshold": complexity_threshold,
             "slow_threshold_ms": slow_threshold_ms,

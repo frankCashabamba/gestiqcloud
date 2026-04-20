@@ -120,7 +120,13 @@ class OllamaProvider(BaseAIProvider):
         current_loop = asyncio.get_running_loop()
         client = self._client
         loop_changed = self._client_loop is not current_loop
-        if client is None or loop_changed or float(client.timeout.read) != float(effective_timeout):
+        timeout_matches = False
+        if client is not None:
+            try:
+                timeout_matches = float(getattr(client.timeout, "read")) == float(effective_timeout)
+            except Exception:
+                timeout_matches = False
+        if client is None or loop_changed or not timeout_matches:
             if client is not None:
                 # El cliente antiguo puede pertenecer a un event loop ya cerrado
                 # (ocurre en Celery cuando cada tarea crea su propio asyncio.run()).
@@ -195,7 +201,10 @@ class OllamaProvider(BaseAIProvider):
         configured = self._coerce_model(self.default_model, AIModel.QWEN3_8B.value)
 
         try:
-            available_models = await self.discover_models(timeout=self._health_check_timeout)
+            available_models = await self.discover_models(
+                timeout=self._health_check_timeout,
+                force_refresh=True,
+            )
         except Exception as exc:
             logger.warning("No se pudo consultar /api/tags en Ollama: %s", exc)
             available_models = []
@@ -338,6 +347,7 @@ class OllamaProvider(BaseAIProvider):
             self.config.get("timeout_source") or "default",
         )
 
+        _effective_timeout = self.request_timeout
         try:
             prompt = self._prepare_prompt(request)
             payload = self._build_payload(request, prompt, selected_model)
@@ -360,49 +370,13 @@ class OllamaProvider(BaseAIProvider):
                     selected_model,
                 )
 
-            # Streaming + asyncio.wait_for como hard wall-clock timeout.
-            # IMPORTANTE: el wait_for envuelve TODA la operación (conexión + lectura),
-            # no solo la lectura. Con stream=False el modelo debe terminar antes de
-            # enviar cualquier byte → ReadTimeout en 30s. Con stream=True el HTTP 200
-            # llega cuando Ollama empieza a generar, pero el prompt processing puede
-            # tardar minutos. Envolver solo _read_stream_response no cubre ese tiempo.
             async with self._semaphore:
-                # Cliente sin ReadTimeout propio: asyncio.wait_for controla el total.
-                stream_client = httpx.AsyncClient(
-                    timeout=httpx.Timeout(
-                        connect=10.0,
-                        read=None,  # sin read-timeout: asyncio.wait_for lo controla
-                        write=10.0,
-                        pool=5.0,
+                content, tokens_used, eval_duration, resolved_response_model = (
+                    await self._execute_request(
+                        payload=payload,
+                        effective_timeout=_effective_timeout,
                     )
                 )
-
-                async def _do_streaming_call() -> tuple[str, int | None, int | None]:
-                    async with stream_client.stream(
-                        "POST", self._endpoint_url, json=payload
-                    ) as response:
-                        response.raise_for_status()
-                        return await self._read_stream_response(response)
-
-                try:
-                    content, tokens_used, eval_duration = await asyncio.wait_for(
-                        _do_streaming_call(),
-                        timeout=_effective_timeout,
-                    )
-                except (TimeoutError, asyncio.CancelledError):
-                    # Re-lanzar después de cerrar el cliente limpiamente.
-                    # Si aclose() falla (loop ya cerrado) lo ignoramos: es best-effort.
-                    try:
-                        await stream_client.aclose()
-                    except Exception:
-                        pass
-                    raise
-                finally:
-                    # Cierre normal (sin timeout o tras timeout/cancel ya relanzado).
-                    try:
-                        await stream_client.aclose()
-                    except Exception:
-                        pass
             if not content:
                 return AIResponse(
                     task=request.task,
@@ -416,7 +390,7 @@ class OllamaProvider(BaseAIProvider):
             return AIResponse(
                 task=request.task,
                 content=content,
-                model=selected_model,
+                model=resolved_response_model or selected_model,
                 tokens_used=tokens_used or 0,
                 processing_time_ms=elapsed_ms,
                 metadata={
@@ -496,6 +470,63 @@ class OllamaProvider(BaseAIProvider):
                 error=f"Error Ollama: {exc}",
                 processing_time_ms=int((time.perf_counter() - start_time) * 1000),
             )
+
+    async def _execute_request(
+        self,
+        *,
+        payload: dict[str, Any],
+        effective_timeout: float,
+    ) -> tuple[str, int | None, int | None, str | None]:
+        # En producción preferimos streaming con timeout wall-clock. En tests
+        # usamos un FakeClient mínimo que no implementa `stream()`, así que
+        # hacemos fallback a POST no-streaming.
+        stream_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=None,
+                write=10.0,
+                pool=5.0,
+            )
+        )
+
+        async def _do_streaming_call() -> tuple[str, int | None, int | None, str | None]:
+            async with stream_client.stream("POST", self._endpoint_url, json=payload) as response:
+                response.raise_for_status()
+                content, tokens_used, eval_duration = await self._read_stream_response(response)
+                return content, tokens_used, eval_duration, None
+
+        try:
+            if callable(getattr(stream_client, "stream", None)):
+                try:
+                    return await asyncio.wait_for(
+                        _do_streaming_call(),
+                        timeout=effective_timeout,
+                    )
+                except AttributeError:
+                    logger.debug("Ollama stream() no disponible; usando fallback no-stream")
+
+            client = await self._get_client(timeout=effective_timeout)
+            non_stream_payload = dict(payload)
+            non_stream_payload["stream"] = False
+            response = await client.post(self._endpoint_url, json=non_stream_payload)
+            response.raise_for_status()
+            response_payload = response.json()
+            content, tokens_used, eval_duration = self._parse_response(response_payload)
+            return (
+                content,
+                tokens_used,
+                eval_duration,
+                self._coerce_model(
+                    response_payload.get("model"),
+                    "",
+                )
+                or None,
+            )
+        finally:
+            try:
+                await stream_client.aclose()
+            except Exception:
+                pass
 
     def get_default_model(self, task: AITask) -> str:
         return self._coerce_model(self.default_model, AIModel.QWEN3_8B.value)

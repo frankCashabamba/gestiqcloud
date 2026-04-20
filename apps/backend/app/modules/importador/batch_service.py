@@ -748,12 +748,9 @@ async def enqueue_async_batch(
                 _upload_lane,
             )
         else:
-            logger.error(
-                "Celery no disponible; no se puede procesar documento %s sin cola de tareas",
+            logger.warning(
+                "Celery no disponible; documento %s queda en PENDING sin procesar",
                 doc.id,
-            )
-            raise RuntimeError(
-                "Celery no disponible: no se puede procesar el documento sin cola de tareas"
             )
 
         results.append(

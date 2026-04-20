@@ -2311,8 +2311,11 @@ def edit_document_fields(
 
     # Validar keys de body.campos contra campos canónicos permitidos
     allowed_keys = set(canonical_fields.keys())
-    unknown_keys = set(body.campos.keys()) - allowed_keys
-    if unknown_keys:
+    always_allowed_keys = {"line_items", "lineas", "items"}
+    if allowed_keys:
+        allowed_keys.update(always_allowed_keys)
+    unknown_keys = set(body.campos.keys()) - allowed_keys if allowed_keys else set()
+    if allowed_keys and unknown_keys:
         logger.warning(
             "[edit_document_fields] doc=%s: keys no canónicas ignoradas: %s",
             doc_id,
