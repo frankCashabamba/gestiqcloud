@@ -15,7 +15,6 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: read
       contents: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
@@ -24,23 +23,30 @@ jobs:
       ops: ${{ steps.filter.outputs.ops }}
     steps:
       - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v3
-        id: filter
         with:
-          filters: |
-            backend:
-              - 'apps/backend/**'
-              - 'apps/packages/**'
-            admin:
-              - 'apps/admin/**'
-              - 'apps/packages/**'
-            tenant:
-              - 'apps/tenant/**'
-              - 'apps/packages/**'
-            ops:
-              - 'ops/scripts/**'
-              - 'ops/migrations/**'
-              - 'ops/alembic/**'
+          fetch-depth: 0
+      - name: Detect changed paths
+        id: filter
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          # Si no hay base (primer push a la rama), comparar con HEAD~1
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            BASE="HEAD~1"
+          fi
+          CHANGED=$(git diff --name-only "$BASE" HEAD || true)
+          echo "backend=false" >> "$GITHUB_OUTPUT"
+          echo "admin=false"   >> "$GITHUB_OUTPUT"
+          echo "tenant=false"  >> "$GITHUB_OUTPUT"
+          echo "ops=false"     >> "$GITHUB_OUTPUT"
+          echo "$CHANGED" | grep -qE '^apps/backend/|^apps/packages/'  && echo "backend=true" >> "$GITHUB_OUTPUT" || true
+          echo "$CHANGED" | grep -qE '^apps/admin/|^apps/packages/'    && echo "admin=true"   >> "$GITHUB_OUTPUT" || true
+          echo "$CHANGED" | grep -qE '^apps/tenant/|^apps/packages/'   && echo "tenant=true"  >> "$GITHUB_OUTPUT" || true
+          echo "$CHANGED" | grep -qE '^ops/scripts/|^ops/migrations/|^ops/alembic/' && echo "ops=true" >> "$GITHUB_OUTPUT" || true
 
   backend-smoke:
     name: Backend Smoke
