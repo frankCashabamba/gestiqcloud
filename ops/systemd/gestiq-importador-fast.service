@@ -1,0 +1,41 @@
+[Unit]
+Description=GestiQ Importador Worker - Fast lane (importador_fast)
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+Documentation=file:///opt/gestiqcloud/ops/systemd/README_ENV_CONFIG.md
+
+[Service]
+Type=simple
+User=gestiq
+Group=gestiq
+WorkingDirectory=/opt/gestiqcloud/apps/backend
+
+# IMPORTANT: Load environment variables from secure config file
+EnvironmentFile=/etc/gestiq/importador-fast.env
+
+# Set Python path (safe to hardcode)
+Environment="PYTHONPATH=/opt/gestiqcloud/apps/backend:/opt/gestiqcloud/apps"
+
+# Required in /etc/gestiq/importador-fast.env:
+#   ENVIRONMENT, DATABASE_URL (or DB_DSN), REDIS_URL, SECRET_KEY,
+#   FRONTEND_URL, TENANT_NAMESPACE_UUID, IMPORTS_ENABLED
+# Recommended:
+#   UPLOADS_DIR, IMPORTADOR_PAYLOAD_DIR, CORS_ORIGINS, COOKIE_DOMAIN
+
+ExecStart=/opt/gestiqcloud/venv/bin/celery -A app.config.celery_config worker \
+    --queues=importador_fast \
+    --concurrency=8 \
+    --hostname=gestiq-importador-fast@%h \
+    --loglevel=info \
+    --max-tasks-per-child=200
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gestiq-importador-fast
+
+PrivateTmp=yes
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

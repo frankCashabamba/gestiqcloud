@@ -1,0 +1,42 @@
+[Unit]
+Description=GestiQ Importador Worker - Deep lane (importador_deep)
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+Documentation=file:///opt/gestiqcloud/ops/systemd/README_ENV_CONFIG.md
+
+[Service]
+Type=simple
+User=gestiq
+Group=gestiq
+WorkingDirectory=/opt/gestiqcloud/apps/backend
+
+# IMPORTANT: Load environment variables from secure config file
+EnvironmentFile=/etc/gestiq/importador-deep.env
+
+# Set Python path (safe to hardcode)
+Environment="PYTHONPATH=/opt/gestiqcloud/apps/backend:/opt/gestiqcloud/apps"
+
+# Required in /etc/gestiq/importador-deep.env:
+#   ENVIRONMENT, DATABASE_URL (or DB_DSN), REDIS_URL, SECRET_KEY,
+#   FRONTEND_URL, TENANT_NAMESPACE_UUID, IMPORTS_ENABLED
+# Recommended for OCR/AI:
+#   UPLOADS_DIR, IMPORTADOR_PAYLOAD_DIR, CORS_ORIGINS, COOKIE_DOMAIN,
+#   OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+
+ExecStart=/opt/gestiqcloud/venv/bin/celery -A app.config.celery_config worker \
+    --queues=importador_deep \
+    --concurrency=2 \
+    --hostname=gestiq-importador-deep@%h \
+    --loglevel=info \
+    --max-tasks-per-child=50
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gestiq-importador-deep
+
+PrivateTmp=yes
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
