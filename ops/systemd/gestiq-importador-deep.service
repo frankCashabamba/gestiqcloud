@@ -11,7 +11,7 @@ Group=debian
 WorkingDirectory=/opt/gestiqcloud/apps/backend
 
 # IMPORTANT: Load environment variables from secure config file
-EnvironmentFile=/etc/gestiq/importador-deep.env
+EnvironmentFile=/etc/gestiqcloud/importador-deep.env
 
 # Set Python path (safe to hardcode)
 Environment="PYTHONPATH=/opt/gestiqcloud/apps/backend:/opt/gestiqcloud/apps"
