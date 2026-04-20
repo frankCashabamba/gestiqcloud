@@ -1,13 +1,23 @@
 /**
  * Storage keys centralizados
  * Todas las claves de localStorage/sessionStorage en un único lugar
+ *
+ * Token storage hierarchy (see AuthContext.setAuthToken):
+ *  - sessionStorage[AUTH.TOKEN]          => runtime source of truth (cleared on tab close).
+ *  - localStorage [AUTH.FALLBACK_TOKEN]  => recovery fallback, kept in sync with sessionStorage.
+ *  - IndexedDB    (offlineAuth snapshot) => offline-mode snapshot, refreshed only via
+ *                                           saveOfflineSessionSnapshot when an online
+ *                                           profile load succeeds.
  */
+
+const AUTH_TOKEN_SESSION_KEY = 'access_token_tenant'
+const AUTH_TOKEN_FALLBACK_KEY = 'authToken'
 
 export const STORAGE_KEYS = {
   // Authentication
   AUTH: {
-    TOKEN: 'access_token_tenant',
-    FALLBACK_TOKEN: 'authToken',
+    TOKEN: AUTH_TOKEN_SESSION_KEY,
+    FALLBACK_TOKEN: AUTH_TOKEN_FALLBACK_KEY,
   },
 
   // POS Module
@@ -17,12 +27,13 @@ export const STORAGE_KEYS = {
 
   // Importador Module
   IMPORTADOR: {
-    SESSION_TOKEN: 'access_token_tenant', // mismo que AUTH.TOKEN
+    // Reuse the constant so we cannot drift from AUTH.TOKEN.
+    SESSION_TOKEN: AUTH_TOKEN_SESSION_KEY,
   },
 
   // Auth Context
   AUTH_CONTEXT: {
-    TOKEN: 'access_token_tenant',
+    TOKEN: AUTH_TOKEN_SESSION_KEY,
   },
 } as const
 

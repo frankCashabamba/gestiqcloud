@@ -2028,8 +2028,17 @@ def extract_fields_from_text(
                 result["issue_date"] = issue_date
                 break
 
+    # Unified extractors live in field_extractors and combine the AI-classifier
+    # logic with the text-line inference. They are imported lazily because
+    # field_extractors itself imports back into this module.
+    from .field_extractors import (
+        extract_issue_date as _unified_extract_issue_date,
+        extract_total_amount as _unified_extract_total_amount,
+        extract_vendor_name as _unified_extract_vendor_name,
+    )
+
     if "issue_date" not in result:
-        inferred_date = _infer_issue_date_from_lines(lines)
+        inferred_date = _unified_extract_issue_date(lines=lines)
         if inferred_date is not None:
             result["issue_date"] = inferred_date
 
@@ -2041,7 +2050,7 @@ def extract_fields_from_text(
         if inferred_total is not None:
             result["total_amount"] = inferred_total
     if "total_amount" not in result:
-        inferred_total = _infer_total_amount_from_lines(lines)
+        inferred_total = _unified_extract_total_amount(lines=lines)
         if inferred_total is not None:
             result["total_amount"] = inferred_total
 
@@ -2055,7 +2064,7 @@ def extract_fields_from_text(
             result["total_amount"] = bank_total
 
     if "concept" not in result:
-        inferred_concept = _infer_concept_from_lines(lines)
+        inferred_concept = _unified_extract_vendor_name(lines=lines)
         if inferred_concept is not None:
             result["concept"] = inferred_concept
 

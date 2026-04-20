@@ -18,7 +18,12 @@ async function* streamChatMessage(
   currentModule?: string,
 ): AsyncGenerator<{ chunk: string; done: boolean; suggestions?: string[]; message_id?: string }> {
   const baseURL = (api.defaults.baseURL || '').replace(/\/+$/, '')
-  const token = localStorage.getItem('access_token_tenant') || ''
+  // sessionStorage is the runtime source of truth for the tenant token; fall back to
+  // localStorage('authToken') in case sessionStorage was cleared (e.g. tab restore).
+  const token =
+    sessionStorage.getItem('access_token_tenant') ||
+    localStorage.getItem('authToken') ||
+    ''
 
   const res = await fetch(`${baseURL}${TENANT_AI.chatStream}`, {
     method: 'POST',

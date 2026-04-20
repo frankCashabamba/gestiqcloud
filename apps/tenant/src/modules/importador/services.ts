@@ -944,8 +944,12 @@ export type ImportBatch = {
 }
 
 function getImportadorStreamToken(): string {
+  // Order matches the shared HTTP client (httpTenant.ts):
+  //   1) sessionStorage('access_token_tenant') = runtime source of truth
+  //   2) localStorage('authToken')             = recovery fallback
+  // Note: 'authToken' is NEVER stored in sessionStorage, so reading it from there
+  //   was a leftover that could read a stale value on iOS Safari and trigger 401 loops.
   return sessionStorage.getItem('access_token_tenant')
-    || sessionStorage.getItem('authToken')
     || localStorage.getItem('authToken')
     || ''
 }

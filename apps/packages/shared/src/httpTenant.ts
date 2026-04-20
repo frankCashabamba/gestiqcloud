@@ -62,12 +62,24 @@ function getStoredToken(): string | null {
 }
 
 function persistToken(token: string | null) {
+  // Hierarchy:
+  //   - sessionStorage('access_token_tenant') => runtime source of truth
+  //   - localStorage ('authToken')            => recovery fallback
+  // Each storage is wrapped independently so a quota/policy error on one
+  // does not desync the other. Passing null clears BOTH atomically — this is
+  // critical to avoid 401-loops where one storage still has a stale token
+  // after refresh/expiry (especially in offline mode + iOS Safari).
   try {
     if (token) {
       sessionStorage.setItem('access_token_tenant', token)
-      localStorage.setItem('authToken', token)
     } else {
       sessionStorage.removeItem('access_token_tenant')
+    }
+  } catch {}
+  try {
+    if (token) {
+      localStorage.setItem('authToken', token)
+    } else {
       localStorage.removeItem('authToken')
     }
   } catch {}

@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from . import crud, recipe_crud
 from .ai_classifier import (
     _apply_high_evidence_ocr_repairs,
-    _extract_vendor_name_from_ocr,
     _normalize_invoice_description_strict,
 )
 from .analysis_normalizer import _normalize_analysis_output
@@ -1231,7 +1230,11 @@ def _repair_pre_extracted_fields(
 
     current_vendor = str(final_cleaned.get("vendor") or "").strip()
     if not current_vendor or _looks_like_noisy_scalar_text(current_vendor, field_name="vendor"):
-        ocr_vendor = _extract_vendor_name_from_ocr(content, ocr_runtime=ocr_runtime)
+        # Use the unified vendor extractor so the AI repair path, the OCR text
+        # fallback and this post-processing step share the same inference.
+        from .field_extractors import extract_vendor_name as _unified_extract_vendor_name
+
+        ocr_vendor = _unified_extract_vendor_name(text=content, ocr_runtime=ocr_runtime)
         if ocr_vendor and not _looks_like_noisy_scalar_text(ocr_vendor, field_name="vendor"):
             final_cleaned["vendor"] = ocr_vendor[:140]
         else:

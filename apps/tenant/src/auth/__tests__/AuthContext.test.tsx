@@ -34,6 +34,7 @@ vi.mock('../../contexts/PermissionsContext', () => ({
 // Mock constants/storage
 vi.mock('../../constants/storage', () => ({
   TOKEN_KEY: 'access_token_tenant',
+  AUTH_FALLBACK_TOKEN_KEY: 'authToken',
 }))
 
 import React from 'react'

@@ -1793,7 +1793,11 @@ def _apply_invoice_ocr_rescue(
 
     repaired_fields: list[str] = []
 
-    ocr_vendor = _extract_vendor_name_from_ocr(content, ocr_runtime=ocr_runtime)
+    # Use the unified vendor extractor so the AI repair path and the OCR text
+    # fallback agree on the vendor inference logic.
+    from .field_extractors import extract_vendor_name as _unified_extract_vendor_name
+
+    ocr_vendor = _unified_extract_vendor_name(text=content, ocr_runtime=ocr_runtime)
     current_vendor = fields.get("vendor")
     if ocr_vendor and (
         current_vendor in (None, "") or not _value_token_evidence(text_normalized, current_vendor)
@@ -1852,11 +1856,20 @@ def _apply_high_evidence_ocr_repairs(
     if not isinstance(fields, dict):
         return
 
+    # Unified field extractors live in field_extractors. They combine the
+    # labelled-amount logic from this module with the line-inference fallback
+    # from text_fallback_extractor so that the AI repair path and the OCR
+    # fallback path produce consistent values for the same OCR text.
+    from .field_extractors import (
+        extract_issue_date as _unified_extract_issue_date,
+        extract_total_amount as _unified_extract_total_amount,
+    )
+
     quality = _estimate_text_quality(content, ai_runtime=cfg)
-    labeled_total = _extract_labeled_amount(content, "total_amount", prompt_config=prompt_config)
+    labeled_total = _unified_extract_total_amount(text=content, prompt_config=prompt_config)
     labeled_subtotal = _extract_labeled_amount(content, "subtotal", prompt_config=prompt_config)
     labeled_tax = _extract_labeled_amount(content, "tax_amount", prompt_config=prompt_config)
-    ocr_issue_date = _extract_issue_date_from_ocr(content)
+    ocr_issue_date = _unified_extract_issue_date(text=content)
 
     if labeled_tax is not None and ocr_issue_date:
         try:
@@ -1875,8 +1888,9 @@ def _apply_high_evidence_ocr_repairs(
 
     text_digits = _digits_only(content)
 
-    if labeled_total is None:
-        labeled_total = _extract_contextual_max_amount(content)
+    # Note: the legacy contextual-max fallback is already chained inside
+    # ``extract_total_amount`` (step 2) so we no longer call
+    # ``_extract_contextual_max_amount`` here directly.
     _repairs: list[str] = []
 
     current_total = fields.get("total_amount")
