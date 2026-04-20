@@ -31,9 +31,9 @@ def messages_to_prompt(messages: list[dict[str, Any]] | None) -> str:
 
 
 class AIModel(str, Enum):
-    """Modelos disponibles — requiere AI_MODEL_QWEN3_8B en .env (falla si no está definida)"""
+    """Modelos disponibles — configurable vía AI_MODEL_QWEN3_8B en .env"""
 
-    QWEN3_8B = os.environ["AI_MODEL_QWEN3_8B"]
+    QWEN3_8B = os.environ.get("AI_MODEL_QWEN3_8B", "qwen3:8b")
 
 
 def model_name(model: AIModel | str | None) -> str:
