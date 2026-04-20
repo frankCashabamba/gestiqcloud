@@ -12,14 +12,6 @@ type ImportedField = {
 
 type TableOption = { table: string; module: string }
 
-const MODULE_OPTIONS = [
-  { value: 'imports_products', label: 'Imports - Products' },
-  { value: 'imports_invoices', label: 'Imports - Invoices' },
-  { value: 'imports_expenses', label: 'Imports - Expenses' },
-  { value: 'imports_bank_transactions', label: 'Imports - Bank' },
-  { value: 'imports_generic', label: 'Imports - Generic' },
-]
-
 export default function ImportCatalog() {
   const [sector, setSector] = useState('global')
   const [tableOptions, setTableOptions] = useState<TableOption[]>([])
@@ -47,7 +39,7 @@ export default function ImportCatalog() {
         setLoadError(e?.message || 'No se pudieron cargar las tablas disponibles.')
       }
     }
-    loadTables()
+    void loadTables()
   }, [])
 
   useEffect(() => {
@@ -87,8 +79,8 @@ export default function ImportCatalog() {
       </p>
       <div style={{ display: 'flex', gap: 12, alignItems: 'end', marginBottom: 12, flexWrap: 'wrap' }}>
         <div>
-          <label>Sector</label>
-          <select className="input" value={sector} onChange={(e) => setSector(e.target.value)}>
+          <label htmlFor="import-sector-select">Sector</label>
+          <select id="import-sector-select" className="input" value={sector} onChange={(e) => setSector(e.target.value)}>
             <option value="global">Global (plantillas base)</option>
             <option value="retail">Retail</option>
             <option value="panaderia">Panadería</option>
@@ -98,8 +90,8 @@ export default function ImportCatalog() {
           </select>
         </div>
         <div>
-          <label>Tabla origen (whitelist)</label>
-          <select className="input" value={tableName} onChange={(e) => setTableName(e.target.value)}>
+          <label htmlFor="import-table-select">Tabla origen (whitelist)</label>
+          <select id="import-table-select" className="input" value={tableName} onChange={(e) => setTableName(e.target.value)}>
             {tableOptions.map((t) => (
               <option key={t.table} value={t.table}>{t.table}</option>
             ))}
@@ -109,7 +101,7 @@ export default function ImportCatalog() {
           <label>Módulo destino</label>
           <input className="input" value={moduleName} readOnly disabled />
         </div>
-        <button className="gc-button gc-button--primary" onClick={doImport} disabled={loading}>
+        <button className="gc-button gc-button--primary" onClick={() => { void doImport() }} disabled={loading}>
           {loading ? 'Importando…' : 'Importar'}
         </button>
       </div>

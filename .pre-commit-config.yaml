@@ -19,7 +19,7 @@ repos:
 
   # Ruff runs after isort so that both tools settle on the same import order.
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.5.7
+    rev: v0.14.4
     hooks:
       - id: ruff
         args: ["--line-length=100", "--fix"]

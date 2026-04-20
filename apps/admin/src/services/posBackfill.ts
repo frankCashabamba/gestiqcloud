@@ -25,7 +25,7 @@ export type POSBackfillCandidatesResponse = {
   ok: boolean;
   tenant_id: string;
   tenant_currency?: string | null;
-  missing: 'any' | 'invoice' | 'sale' | string;
+  missing: string;
   limit: number;
   offset: number;
   items: POSBackfillCandidate[];

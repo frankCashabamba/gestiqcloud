@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { createPermiso, getPermiso, updatePermiso, type GlobalPermission } from '../../../services/configuracion/permisos'
+import { createPermiso, getPermiso, updatePermiso } from '../../../services/configuracion/permisos'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 
 type FormT = { key: string; module: string; description: string }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 
 import { useSearchParams } from 'react-router-dom'
 
@@ -16,7 +16,7 @@ export default function FieldConfigManager() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
-  async function load() {
+  const load = useCallback(async () => {
     setMsg(null)
     setLoading(true)
     try {
@@ -33,7 +33,7 @@ export default function FieldConfigManager() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [empresa, moduleKey, sector])
 
   async function save() {
     setMsg(null)
@@ -61,10 +61,10 @@ export default function FieldConfigManager() {
     if (empresa) sp.set('empresa', empresa)
     if (formMode) sp.set('mode', formMode)
     setSearchParams(sp, { replace: true })
-  }, [sector, moduleKey, empresa, formMode])
+  }, [sector, moduleKey, empresa, formMode, setSearchParams])
 
   // Auto-load when selection changes
-  useEffect(() => { load() }, [sector, moduleKey, empresa])
+  useEffect(() => { void load() }, [load])
 
   return (
     <div style={{ padding: 16 }}>
@@ -111,7 +111,7 @@ export default function FieldConfigManager() {
             <option value="basic">Básico</option>
           </select>
         </div>
-        <button className="gc-button gc-button--primary" onClick={save} disabled={loading}>Guardar</button>
+        <button className="gc-button gc-button--primary" onClick={() => { void save() }} disabled={loading}>Guardar</button>
       </div>
 
       {msg && <div className="notice">{msg}</div>}

@@ -1,8 +1,8 @@
 // src/pages/CompanyUsuarios.tsx
 
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 
 import { Container } from './Container'
 import {
@@ -32,7 +32,6 @@ const ROLES_DISPONIBLES = [
 
 export const CompanyUsuarios: React.FC = () => {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const { show: showToast } = useToast()
 
   const [empresa, setEmpresa] = useState<any>(null)
@@ -64,13 +63,7 @@ export const CompanyUsuarios: React.FC = () => {
     active: true,
   })
 
-  // Cargar empresa y usuarios
-  useEffect(() => {
-    if (!id) return
-    loadData()
-  }, [id])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!id) return
     setLoading(true)
     try {
@@ -86,7 +79,12 @@ export const CompanyUsuarios: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, showToast])
+
+  // Cargar empresa y usuarios
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
 
   // Filtrado
   const usuariosFiltrados = usuarios.filter((u) => {
@@ -116,7 +114,7 @@ export const CompanyUsuarios: React.FC = () => {
     }
 
     try {
-      const result = await createCompanyUser(id, formData)
+      await createCompanyUser(id, formData)
       showToast('User created successfully. Credentials sent via email.', 'success')
       setShowCreateModal(false)
       resetFormData()

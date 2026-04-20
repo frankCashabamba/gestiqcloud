@@ -1197,8 +1197,8 @@ def _extract_excel(file_bytes: bytes, ext: str = ".xlsx") -> dict[str, Any]:
 
         preview_rows_sheet: list[dict[str, Any]] = []
         total_rows_counted = 0
-        col_sums: dict[str, float] = {h: 0.0 for h in headers}
-        col_non_null: dict[str, int] = {h: 0 for h in headers}
+        col_sums: dict[str, float] = dict.fromkeys(headers, 0.0)
+        col_non_null: dict[str, int] = dict.fromkeys(headers, 0)
 
         for row in rows_iter:
             total_rows_counted += 1

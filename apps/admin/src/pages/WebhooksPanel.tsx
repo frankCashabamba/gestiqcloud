@@ -6,14 +6,12 @@
 import React, { useState } from 'react';
 
 import { WebhookForm } from '../features/webhooks/WebhookForm';
-import { WebhookLogs } from '../features/webhooks/WebhookLogs';
 import { WebhooksList } from '../features/webhooks/WebhooksList';
-import { Webhook } from '../services/webhooks';
+import type { Webhook } from '../services/webhooks';
 import '../features/webhooks/styles.css';
 import '../features/webhooks/webhooks-page.css';
 
 export const WebhooksPanel: React.FC = () => {
-  const [selectedWebhook, setSelectedWebhook] = useState<Webhook | undefined>(undefined);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingWebhook, setEditingWebhook] = useState<Webhook | undefined>(undefined);
@@ -59,12 +57,6 @@ export const WebhooksPanel: React.FC = () => {
           onRefresh={handleFormSuccess}
           key={refreshTrigger}
         />
-
-        {selectedWebhook && (
-          <div className="webhooks-panel__logs">
-            <WebhookLogs webhookId={selectedWebhook.id} />
-          </div>
-        )}
       </div>
 
       {showForm && (

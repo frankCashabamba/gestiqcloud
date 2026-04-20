@@ -37,7 +37,7 @@ export interface AuditEntry {
   tenant_name: string | null
   user_id: string | null
   actor_type: string
-  action: 'create' | 'update' | 'delete' | string
+  action: string
   entity_type: string
   entity_id: string | null
   source: string

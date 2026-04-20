@@ -314,8 +314,7 @@ export function usePOSState() {
     // de offline.
     useEffect(() => {
         loadDraft()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [loadDraft])
 
     // Persistir tickets retenidos
     useEffect(() => {

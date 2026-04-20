@@ -4,7 +4,7 @@ export type MigrationRecord = {
   id: number
   version: string
   name: string | null
-  status: 'pending' | 'running' | 'success' | 'failed' | 'ignored' | string
+  status: string
   mode: string | null
   started_at: string | null
   completed_at: string | null
@@ -54,7 +54,7 @@ export type MigrationConfig = {
 
 export type MigrationState = {
   running: boolean
-  mode: 'inline' | 'inline_async' | 'render_job' | 'sql_idempotent' | 'sql_idempotent_async' | string | null
+  mode: string | null
   started_at: string | null
   finished_at: string | null
   ok: boolean | null

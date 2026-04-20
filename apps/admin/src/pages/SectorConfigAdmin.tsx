@@ -3,9 +3,9 @@
  * FASE 6: Admin UI
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 
-import { sectorAdminConfigService, type SectorConfig, type UpdateSectorConfigRequest } from "../services/sectorAdminConfig"
+import { sectorAdminConfigService, type SectorConfig } from "../services/sectorAdminConfig"
 
 export function SectorConfigAdmin() {
   const [sectors, setSectors] = useState<Array<{ code: string; name: string }>>([])
@@ -16,12 +16,12 @@ export function SectorConfigAdmin() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
 
-  // Cargar lista de sectores al montar
-  useEffect(() => {
-    loadSectors()
+  const showMessage = useCallback((type: "success" | "error", text: string) => {
+    setMessage({ type, text })
+    setTimeout(() => setMessage(null), 5000)
   }, [])
 
-  const loadSectors = async () => {
+  const loadSectors = useCallback(async () => {
     try {
       setLoading(true)
       const data = await sectorAdminConfigService.listSectors()
@@ -31,7 +31,12 @@ export function SectorConfigAdmin() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [showMessage])
+
+  // Cargar lista de sectores al montar
+  useEffect(() => {
+    void loadSectors()
+  }, [loadSectors])
 
   const handleSectorChange = async (code: string) => {
     if (hasChanges) {
@@ -113,11 +118,6 @@ export function SectorConfigAdmin() {
     })
   }
 
-  const showMessage = (type: "success" | "error", text: string) => {
-    setMessage({ type, text })
-    setTimeout(() => setMessage(null), 5000)
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
@@ -146,7 +146,9 @@ export function SectorConfigAdmin() {
         <div className="mb-6 flex gap-3">
           <select
             value={selectedSector}
-            onChange={(e) => handleSectorChange(e.target.value)}
+            onChange={(e) => {
+              void handleSectorChange(e.target.value)
+            }}
             className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 font-medium hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select a sector...</option>
@@ -158,7 +160,9 @@ export function SectorConfigAdmin() {
           </select>
 
           <button
-            onClick={loadSectors}
+            onClick={() => {
+              void loadSectors()
+            }}
             className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 font-medium transition"
           >
             Reload Sectors
@@ -223,8 +227,9 @@ export function SectorConfigAdmin() {
             {/* JSON Editor */}
             <div className="p-6">
               <div className="mb-4">
-                <label className="block text-sm font-bold text-gray-900 mb-2">Configuration JSON</label>
+                <label htmlFor="sector-config-json" className="block text-sm font-bold text-gray-900 mb-2">Configuration JSON</label>
                 <textarea
+                  id="sector-config-json"
                   value={JSON.stringify(editedConfig, null, 2)}
                   onChange={(e) => {
                     try {
@@ -249,7 +254,9 @@ export function SectorConfigAdmin() {
               {/* Action buttons */}
               <div className="flex gap-3">
                 <button
-                  onClick={handleSave}
+                  onClick={() => {
+                    void handleSave()
+                  }}
                   disabled={!hasChanges || loading}
                   className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
                 >

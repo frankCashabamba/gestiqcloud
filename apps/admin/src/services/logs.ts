@@ -105,8 +105,13 @@ export async function exportLogs(filters: LogFilters): Promise<Blob> {
   const headers = ['Date', 'Type', 'Status', 'Canal', 'Destinatario', 'Asunto', 'Referencia', 'Error']
   const escape = (value: unknown) => {
     if (value === null || value === undefined) return ''
-    const str = String(value).replace(/"/g, '""')
-    return `"${str}"`
+    const str =
+      typeof value === 'string'
+        ? value
+        : typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint'
+          ? String(value)
+          : JSON.stringify(value)
+    return `"${(str ?? '').replace(/"/g, '""')}"`
   }
 
   const rows = logs.map((log) => [
