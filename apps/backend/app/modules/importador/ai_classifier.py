@@ -1860,10 +1860,8 @@ def _apply_high_evidence_ocr_repairs(
     # labelled-amount logic from this module with the line-inference fallback
     # from text_fallback_extractor so that the AI repair path and the OCR
     # fallback path produce consistent values for the same OCR text.
-    from .field_extractors import (
-        extract_issue_date as _unified_extract_issue_date,
-        extract_total_amount as _unified_extract_total_amount,
-    )
+    from .field_extractors import extract_issue_date as _unified_extract_issue_date
+    from .field_extractors import extract_total_amount as _unified_extract_total_amount
 
     quality = _estimate_text_quality(content, ai_runtime=cfg)
     labeled_total = _unified_extract_total_amount(text=content, prompt_config=prompt_config)

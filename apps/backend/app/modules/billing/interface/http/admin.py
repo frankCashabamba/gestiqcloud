@@ -22,6 +22,21 @@ from app.modules.billing.interface.http.tenant import (
     SubscribeIn,
     SubscriptionOut,
 )
+from app.modules.billing.service import (
+    ensure_stripe_customer,
+    get_price_id_for_cycle,
+    get_stripe_module,
+    load_billing_contact,
+    load_existing_customer_id,
+    load_plan,
+    normalize_plan_features,
+    normalize_plan_modules,
+    resolve_return_url,
+    stripe_is_configured,
+    stripe_status_to_local,
+    sync_subscription_from_stripe,
+    unix_to_dt,
+)
 
 # --- Response Schemas ---
 
@@ -73,22 +88,6 @@ class BillingPortalOut(BaseModel):
     portal_url: str | None = None
     customer_id: str
 
-
-from app.modules.billing.service import (
-    ensure_stripe_customer,
-    get_price_id_for_cycle,
-    get_stripe_module,
-    load_billing_contact,
-    load_existing_customer_id,
-    load_plan,
-    normalize_plan_features,
-    normalize_plan_modules,
-    resolve_return_url,
-    stripe_is_configured,
-    stripe_status_to_local,
-    sync_subscription_from_stripe,
-    unix_to_dt,
-)
 
 router = APIRouter(
     prefix="/companies/{tenant_id}/billing",

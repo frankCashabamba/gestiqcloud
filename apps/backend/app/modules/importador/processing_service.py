@@ -14,10 +14,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from . import crud, recipe_crud
-from .ai_classifier import (
-    _apply_high_evidence_ocr_repairs,
-    _normalize_invoice_description_strict,
-)
+from .ai_classifier import _apply_high_evidence_ocr_repairs, _normalize_invoice_description_strict
 from .analysis_normalizer import _normalize_analysis_output
 from .auto_recipe import (
     _snapshot_recipe_config,

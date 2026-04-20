@@ -2031,11 +2031,9 @@ def extract_fields_from_text(
     # Unified extractors live in field_extractors and combine the AI-classifier
     # logic with the text-line inference. They are imported lazily because
     # field_extractors itself imports back into this module.
-    from .field_extractors import (
-        extract_issue_date as _unified_extract_issue_date,
-        extract_total_amount as _unified_extract_total_amount,
-        extract_vendor_name as _unified_extract_vendor_name,
-    )
+    from .field_extractors import extract_issue_date as _unified_extract_issue_date
+    from .field_extractors import extract_total_amount as _unified_extract_total_amount
+    from .field_extractors import extract_vendor_name as _unified_extract_vendor_name
 
     if "issue_date" not in result:
         inferred_date = _unified_extract_issue_date(lines=lines)
