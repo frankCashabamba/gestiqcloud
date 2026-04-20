@@ -93,9 +93,9 @@ function createEmptyEditableLineItem(slots: LineItemSlot[]): EditableLineItem {
 }
 
 function formatLineCellValue(value: unknown): string {
-  if (value == null) return 'â€”'
+  if (value == null) return '-'
   const text = String(value).trim()
-  if (!text || text.toLowerCase() === 'nan') return 'â€”'
+  if (!text || text.toLowerCase() === 'nan') return '-'
   return text
 }
 
@@ -198,10 +198,10 @@ function GroupedLineItemsPreview({ group }: { group: LineItemPageGroup }) {
   return (
     <div style={{ marginTop: '0.75rem' }}>
       <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 6 }}>
-        PÃ¡gina {group.source_page} Â· Detalle ({group.line_items.length})
+        Pagina {group.source_page} - Detalle ({group.line_items.length})
       </div>
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
-        Encabezados: {group.headers.join(' Â· ')}
+        Encabezados: {group.headers.join(' | ')}
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
@@ -311,7 +311,7 @@ function summarizeLogDetail(action: string, detail: Record<string, unknown> | nu
     const reason = typeof detail.reason === 'string' ? detail.reason : null
     if (reason === 'learning_update') return 'Reanalyzed to apply recent confirmed learning.'
     const mode = typeof detail.mode === 'string' ? detail.mode : null
-    return mode === 'async' || mode === 'in_place' ? 'Se volviÃ³ a procesar el documento.' : undefined
+    return mode === 'async' || mode === 'in_place' ? 'Se reproceso el documento.' : undefined
   }
   if (action === 'EDIT') {
     const fields = Array.isArray(detail.changed_fields) ? detail.changed_fields.map(String).filter(Boolean) : []
@@ -320,7 +320,7 @@ function summarizeLogDetail(action: string, detail: Record<string, unknown> | nu
   if (action === 'SAVE_DESTINATION') {
     const target = typeof detail.target === 'string' ? detail.target : null
     const status = typeof detail.status === 'string' ? detail.status : null
-    if (target && status === 'created') return `Se guardÃ³ en ${target}.`
+    if (target && status === 'created') return `Se guardo en ${target}.`
     if (target) return `Destino: ${target}.`
   }
   return undefined
@@ -346,7 +346,7 @@ function buildUserActivity(logs: LogCambio[] | undefined): ActivityItem[] {
         if (log.accion === 'EDIT') return 'Datos editados'
         if (log.accion === 'CONFIRM') return 'Document confirmed'
         if (log.accion === 'REJECT') return 'Document rejected'
-        if (log.accion === 'REPROCESS') return 'Reprocesado solicitado'
+        if (log.accion === 'REPROCESS') return 'Reproceso solicitado'
         return 'Document saved'
       })(),
       when: new Date(log.created_at).toLocaleString(),
@@ -635,7 +635,7 @@ export default function DocumentDetail() {
     const data = (doc?.datos_extraidos || {}) as Record<string, unknown>
     // No editar tablas (tipo inventario/nomina) â€” solo campos escalares
     if (data.filas && Array.isArray(data.filas)) {
-      setError('This type of document cannot be edited manually. Use "Re-import" to redo the analysis.')
+      setError('Este tipo de documento no se puede editar manualmente. Usa "Reprocesar" para rehacer el analisis.')
       return
     }
     const flat: Record<string, string> = {}
@@ -872,6 +872,35 @@ export default function DocumentDetail() {
 
   return (
     <div style={pageShell}>
+      <style>{`
+        .doc-detail__hero,
+        .doc-detail__flow,
+        .doc-detail__flow-actions,
+        .doc-detail__edit-actions {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+        .doc-detail__edit-grid {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .doc-detail__line-grid {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        }
+        @media (max-width: 840px) {
+          .doc-detail__hero,
+          .doc-detail__flow {
+            flex-direction: column;
+          }
+          .doc-detail__edit-actions {
+            flex-direction: column-reverse;
+          }
+        }
+      `}</style>
       <div style={pageContent}>
         <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f9fafb', paddingBottom: '0.75rem' }}>
         <button
@@ -897,17 +926,17 @@ export default function DocumentDetail() {
           background: '#fef2f2', color: '#991b1b', fontSize: 13, marginBottom: '0.75rem',
         }}>
           <span>{error}</span>
-          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, lineHeight: 1, padding: 0 }} aria-label="Cerrar">Ã—</button>
+          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, lineHeight: 1, padding: 0 }} aria-label="Cerrar">x</button>
         </div>
       )}
 
       {syncResult && (
         <div style={{ padding: '0.75rem', background: syncResult.was_new ? '#F0FDF4' : '#EFF6FF', border: '1px solid ' + (syncResult.was_new ? '#BBF7D0' : '#BFDBFE'), borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>
-            {syncResult.was_new ? 'âœ…' : 'ðŸ”„'} <strong>{syncResult.recipe_name}</strong>
-            {' Â· '}{t('docDetail.recipeSynced', { name: '', count: syncResult.ingredients_count, cost: syncResult.total_cost.toFixed(4) })}
+            {syncResult.was_new ? 'Nueva receta:' : 'Receta actualizada:'} <strong>{syncResult.recipe_name}</strong>
+            {' - '}{t('docDetail.recipeSynced', { name: '', count: syncResult.ingredients_count, cost: syncResult.total_cost.toFixed(4) })}
           </span>
-          <button onClick={() => setSyncResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>Ã—</button>
+          <button onClick={() => setSyncResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>x</button>
         </div>
       )}
 
@@ -938,7 +967,7 @@ export default function DocumentDetail() {
       {dailyLogResult && (
         <div style={{ padding: '0.75rem', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <strong style={{ color: '#5b21b6' }}>âœ… {t('docDetail.dailyLogSaved', { date: dailyLogResult.log_date })}</strong>
+            <strong style={{ color: '#5b21b6' }}>{t('docDetail.dailyLogSaved', { date: dailyLogResult.log_date })}</strong>
             <span style={{ marginLeft: 12, color: '#374151' }}>
               {t('docDetail.dailyLogStats', { inserted: dailyLogResult.inserted, matched: dailyLogResult.matched_recipes })}
             </span>
@@ -948,21 +977,21 @@ export default function DocumentDetail() {
               </div>
             )}
           </div>
-          <button onClick={() => setDailyLogResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>Ã—</button>
+          <button onClick={() => setDailyLogResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}>x</button>
         </div>
       )}
 
       {saveProductsResult && (
         <div style={{ padding: '0.75rem', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <strong style={{ color: '#047857' }}>Saved products</strong>
+            <strong style={{ color: '#047857' }}>Productos guardados</strong>
             <span style={{ marginLeft: 12, color: '#374151' }}>
-              {saveProductsResult.created} creados Â· {saveProductsResult.updated ?? 0} actualizados Â· {saveProductsResult.skipped_invalid} omitidos por invÃ¡lidos
+              {saveProductsResult.created} creados - {saveProductsResult.updated ?? 0} actualizados - {saveProductsResult.skipped_invalid} omitidos por invalidos
             </span>
             {(saveProductsResult.sheet_name || saveProductsResult.category_name) && (
               <div style={{ marginTop: 4, fontSize: 12, color: '#065f46' }}>
                 {saveProductsResult.sheet_name ? `Sheet: ${saveProductsResult.sheet_name}` : ''}
-                {saveProductsResult.sheet_name && saveProductsResult.category_name ? ' Â· ' : ''}
+                {saveProductsResult.sheet_name && saveProductsResult.category_name ? ' - ' : ''}
                 {saveProductsResult.category_name ? `Category: ${saveProductsResult.category_name}` : ''}
               </div>
             )}
@@ -985,14 +1014,14 @@ export default function DocumentDetail() {
       {isSaved && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.9rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#166534' }}>
           <span>
-            âœ… {getImportadorSavedAsLabel(inferredSavedAs)}
-            {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>Â· {new Date(doc.saved_at).toLocaleString()}</span>}
+            Guardado como {getImportadorSavedAsLabel(inferredSavedAs)}
+            {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>- {new Date(doc.saved_at).toLocaleString()}</span>}
           </span>
         </div>
       )}
 
       {/* Header */}
-      <div style={pageHeader}>
+      <div className="doc-detail__hero" style={pageHeader}>
         <div style={{ minWidth: 0, flex: '1 1 560px' }}>
           <div style={pageEyebrow}>{documentCategoryLabel}</div>
           <h2 style={pageTitle}>{doc.nombre_archivo}</h2>
@@ -1019,11 +1048,21 @@ export default function DocumentDetail() {
               </span>
             )}
           </div>
+          {summaryFacts.length > 0 && (
+            <div style={headerFactsRow}>
+              {summaryFacts.map((item) => (
+                <div key={item.label} style={headerFactCard}>
+                  <div style={headerFactLabel}>{item.label}</div>
+                  <div style={headerFactValue}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+        <div style={pageActionPanel}>
           {canSaveProducts && (
             <button onClick={() => setSaveProductsOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
-              Save products
+              Guardar productos
             </button>
           )}
 
@@ -1106,7 +1145,7 @@ export default function DocumentDetail() {
                     <button onClick={startEdit} style={{ ...actionBtn, background: '#F59E0B' }}>{t('docDetail.buttons.edit')}</button>
                   )}
                   <button onClick={handleConfirm} disabled={saving} style={{ ...actionBtn, background: '#10B981' }}>
-                    {saving ? t('docDetail.buttons.confirming') : 'Use this result'}
+                    {saving ? t('docDetail.buttons.confirming') : 'Usar este resultado'}
                   </button>
                 </>
               )}
@@ -1118,7 +1157,7 @@ export default function DocumentDetail() {
 
       {simpleFlowEnabled && (
         <div style={flowCard}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div className="doc-detail__flow" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ minWidth: 260, flex: '1 1 320px' }}>
               <div style={flowEyebrow}>{t('docDetail.review.nextAction')}</div>
               <div style={flowTitle}>
@@ -1144,7 +1183,7 @@ export default function DocumentDetail() {
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <div className="doc-detail__flow-actions" style={{ justifyContent: 'flex-end' }}>
               {flowPrimaryAction && (
                 <button
                   onClick={flowPrimaryAction.onClick}
@@ -1197,7 +1236,7 @@ export default function DocumentDetail() {
       {/* Confidence warning */}
       {!simpleFlowEnabled && needsHumanReview && confPct != null && confPct < 85 && (
         <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, marginBottom: '1rem', fontSize: 14 }}>
-          Warning: <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
+          Atencion: <strong>{t('docDetail.confidenceWarning', { pct: confPct })}</strong>
           {routingDecision?.reason && <span style={{ display: 'block', marginTop: 6, fontWeight: 400 }}>{routingDecision.reason}</span>}
         </div>
       )}
@@ -1222,8 +1261,8 @@ export default function DocumentDetail() {
           onDeep={() => openReimport('deep')}
           fastLabel={t('reprocessPage.fastTitle')}
           deepLabel={t('reprocessPage.deepTitle')}
-          title="Choose the reprocess level"
-          copy="Fast keeps the current flow. Deep ignores OCR and AI caches and starts over to improve extraction."
+          title="Elegir nivel de reproceso"
+          copy="Rapido mantiene el flujo actual. Profundo ignora las caches de OCR e IA y vuelve a empezar para mejorar la extraccion."
         />
       )}
 
@@ -1257,7 +1296,7 @@ export default function DocumentDetail() {
                       </div>
                       {primaryCandidate?.target_tables?.length ? (
                         <div style={decisionSubcopy}>
-                          Saved in {primaryCandidate.target_tables.join(' + ')}
+                          Se guarda en {primaryCandidate.target_tables.join(' + ')}
                         </div>
                       ) : (
                         <div style={decisionSubcopy}>
@@ -1313,7 +1352,7 @@ export default function DocumentDetail() {
                         <strong>{formatFieldLabel(hint.field)}</strong>
                         {hint.is_missing && <span style={focusListBadge}>{t('docDetail.review.missing')}</span>}
                         {hint.confirmed_examples.length > 0 && (
-                          <div style={focusListHelp}>Examples: {hint.confirmed_examples.join(', ')}</div>
+                          <div style={focusListHelp}>Ejemplos: {hint.confirmed_examples.join(', ')}</div>
                         )}
                       </div>
                     ))}
@@ -1334,7 +1373,7 @@ export default function DocumentDetail() {
           )}
           {doc.error_detalle && (
             <div style={{ ...section, background: '#FEF2F2', border: '1px solid #FECACA' }}>
-              <h3 style={{ marginTop: 0, color: '#991B1B' }}>Detected issue</h3>
+              <h3 style={{ marginTop: 0, color: '#991B1B' }}>Problema detectado</h3>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{doc.error_detalle}</pre>
             </div>
           )}
@@ -1388,7 +1427,7 @@ export default function DocumentDetail() {
                           </div>
                         )}
                       </div>
-                      <span style={{ fontSize: 12, color: '#6b7280' }}>{totalFilasSheet} filas Â· {visibleIdxs.length} columnas visibles</span>
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>{totalFilasSheet} filas - {visibleIdxs.length} columnas visibles</span>
                     </div>
                     <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 10 }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -1431,7 +1470,7 @@ export default function DocumentDetail() {
                         <strong style={{ color: '#0f172a' }}>{t('docDetail.review.additionalInfo')}</strong>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px 12px', marginTop: 8 }}>
                           {Object.entries(datos.metadata as Record<string, unknown>).map(([k, v]) => (
-                            <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? 'â€”')}</div>
+                          <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? '-')}</div>
                           ))}
                         </div>
                       </div>
@@ -1452,78 +1491,85 @@ export default function DocumentDetail() {
                   </div>
                 </div>
                 {editMode ? (
-                  <div>
+                  <div style={{ display: 'grid', gap: '1rem' }}>
                     {!isAssistedLines && reviewHints.length > 0 && (
-                      <div style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF', fontSize: 13, color: '#334155' }}>
-                        Edita primero los campos prioritarios sugeridos por documentos similares confirmados.
+                      <div style={editNoticeCard}>
+                        Edita primero los campos prioritarios sugeridos por documentos similares ya confirmados.
                       </div>
                     )}
                     {isAssistedLines && (
-                      <div style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: 10, border: '1px solid #DBEAFE', background: '#EFF6FF', fontSize: 13, color: '#334155' }}>
-                        Fix the lines and the total first. The upper fields are optional if they do not appear in the image.
+                      <div style={editNoticeCard}>
+                        Corrige primero las lineas y el total. Los campos superiores son opcionales si no aparecen en la imagen.
                       </div>
                     )}
-                    {orderedEditEntries.map(([key, val]) => {
-                      const hint = reviewHintMap[key]
-                      const inputType = getReviewInputType(hint?.field_type)
-                      return (
-                      <label key={key} style={{ display: 'flex', flexDirection: 'column', marginBottom: '0.5rem', fontSize: 13 }}>
-                        <span style={{ color: '#6b7280', fontWeight: 600 }}>
-                          {formatFieldLabel(key)}
-                          {hint?.priority ? <span style={{ marginLeft: 6, color: '#2563eb' }}>Prioridad {hint.priority}</span> : null}
-                        </span>
-                        <input
-                          type={inputType}
-                          step={inputType === 'number' ? '0.01' : undefined}
-                          value={val}
-                          onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))}
-                          style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6 }}
-                        />
-                        {hint?.reason && (
-                          <span style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{hint.reason}</span>
-                        )}
-                        {hint?.confirmed_examples?.length ? (
-                          <span style={{ marginTop: 2, color: '#64748b', fontSize: 12 }}>
-                            Examples: {hint.confirmed_examples.join(', ')}
-                          </span>
-                        ) : null}
-                      </label>
-                      )
-                    })}
-                    <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e5e7eb' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    {orderedEditEntries.length > 0 && (
+                      <div className="doc-detail__edit-grid">
+                        {orderedEditEntries.map(([key, val]) => {
+                          const hint = reviewHintMap[key]
+                          const inputType = getReviewInputType(hint?.field_type)
+                          return (
+                            <label key={key} style={editFieldCard}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                <span style={{ color: '#334155', fontWeight: 700 }}>{formatFieldLabel(key)}</span>
+                                {hint?.priority ? <span style={editPriorityPill}>Prioridad {hint.priority}</span> : null}
+                              </div>
+                              <input
+                                type={inputType}
+                                step={inputType === 'number' ? '0.01' : undefined}
+                                value={val}
+                                onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))}
+                                style={editInput}
+                              />
+                              {hint?.reason && (
+                                <span style={{ color: '#64748b', fontSize: 12 }}>{hint.reason}</span>
+                              )}
+                              {hint?.confirmed_examples?.length ? (
+                                <span style={{ color: '#64748b', fontSize: 12 }}>
+                                  Ejemplos: {hint.confirmed_examples.join(', ')}
+                                </span>
+                              ) : null}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <div style={{ paddingTop: '0.25rem', borderTop: '1px solid #e5e7eb' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                         <div>
-                          <div style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>Line details</div>
-                          <div style={{ color: '#6b7280', fontSize: 12 }}>Add or fix the detected products.</div>
+                          <div style={{ color: '#111827', fontWeight: 700, fontSize: 15 }}>Detalle de lineas</div>
+                          <div style={{ color: '#6b7280', fontSize: 12 }}>Agrega o corrige los productos detectados sin perder el contexto del documento.</div>
                         </div>
-                        <button onClick={addEditLineItem} type="button" style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>
-                          Add line
+                        <button onClick={addEditLineItem} type="button" style={{ ...actionBtn, background: '#fff', color: '#374151', border: '1px solid #cbd5e1' }}>
+                          Agregar linea
                         </button>
                       </div>
                       {editLineItems.length === 0 ? (
-                        <div style={{ padding: '0.75rem', border: '1px dashed #d1d5db', borderRadius: 8, color: '#6b7280', fontSize: 13 }}>
-                          There are no loaded lines. You can add them manually.
+                        <div style={{ padding: '0.85rem', border: '1px dashed #d1d5db', borderRadius: 8, color: '#6b7280', fontSize: 13, background: '#f8fafc' }}>
+                          No hay lineas cargadas. Puedes agregarlas manualmente.
                         </div>
                       ) : (
                         <div style={{ display: 'grid', gap: '0.75rem' }}>
                           {editLineItems.map((item, index) => (
-                            <div key={`line-${index}`} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '0.75rem', background: '#f9fafb' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                <strong style={{ fontSize: 13, color: '#111827' }}>Linea {index + 1}</strong>
-                                <button onClick={() => removeEditLineItem(index)} type="button" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                                  Remove
+                            <div key={`line-${index}`} style={editLineCard}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'grid', gap: 2 }}>
+                                  <strong style={{ fontSize: 14, color: '#111827' }}>Linea {index + 1}</strong>
+                                  <span style={{ fontSize: 12, color: '#64748b' }}>Edita cantidades, precios y referencias en un solo lugar.</span>
+                                </div>
+                                <button onClick={() => removeEditLineItem(index)} type="button" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                                  Quitar
                                 </button>
                               </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${lineItemSlots.length}, minmax(110px,1fr))`, gap: '0.5rem' }}>
+                              <div className="doc-detail__line-grid">
                                 {lineItemSlots.map(s => (
-                                  <label key={s.slot} style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                                    <span style={{ color: '#6b7280', fontWeight: 600 }}>{s.label}</span>
+                                  <label key={s.slot} style={editLineFieldCard}>
+                                    <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12 }}>{s.label}</span>
                                     <input
                                       type={_NUMERIC_SLOTS.has(s.slot) ? 'number' : 'text'}
                                       step={_NUMERIC_SLOTS.has(s.slot) ? '0.01' : undefined}
                                       value={item[s.slot] ?? ''}
                                       onChange={(e) => updateEditLineItem(index, s.slot, e.target.value)}
-                                      style={{ padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: _MONO_SLOTS.has(s.slot) ? 'monospace' : undefined }}
+                                      style={{ ...editInput, fontFamily: _MONO_SLOTS.has(s.slot) ? 'monospace' : undefined }}
                                     />
                                   </label>
                                 ))}
@@ -1533,9 +1579,14 @@ export default function DocumentDetail() {
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                      <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#6366F1' }}>{t('docDetail.buttons.saveEdit')}</button>
-                      <button onClick={() => { setEditMode(false); setEditLineItems([]) }} style={{ ...actionBtn, background: '#e5e7eb', color: '#374151' }}>{t('docDetail.buttons.cancelEdit')}</button>
+                    <div className="doc-detail__edit-actions" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Revisa primero lo prioritario y guarda solo cuando el resultado sea claro.
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button onClick={() => { setEditMode(false); setEditLineItems([]) }} style={{ ...actionBtn, background: '#fff', color: '#374151', border: '1px solid #cbd5e1' }}>{t('docDetail.buttons.cancelEdit')}</button>
+                        <button onClick={saveEdit} disabled={saving} style={{ ...actionBtn, background: '#0f766e' }}>{t('docDetail.buttons.saveEdit')}</button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1545,14 +1596,14 @@ export default function DocumentDetail() {
                         {Object.entries(datos).filter(([k, v]) => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof v !== 'object' || v === null)).map(([key, val]) => (
                           <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
                             <td style={{ padding: '0.4rem 0.5rem', fontSize: 13, color: '#6b7280', fontWeight: 600 }}>{formatFieldLabel(key)}</td>
-                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? 'â€”')}</td>
+                            <td style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}>{String(val ?? '-')}</td>
                           </tr>
                         ))}
                         {Object.keys(datos).filter(k => !k.startsWith('_') && !lineItemFieldNames.has(k) && (typeof datos[k] !== 'object' || datos[k] === null)).length === 0 && (
                           <tr><td colSpan={2} style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af' }}>
                             {doc.error_detalle
-                              ? 'Could not extract data. Use "Re-import" to try again.'
-                              : 'â€”'}
+                              ? 'No se pudieron extraer datos. Usa "Reprocesar" para intentarlo de nuevo.'
+                              : '-'}
                           </td></tr>
                         )}
                       </tbody>
@@ -1659,7 +1710,7 @@ export default function DocumentDetail() {
                   <div style={{ color: '#111827' }}>{link.nombre_archivo}</div>
                   <div style={{ fontSize: 12, color: '#6B7280' }}>
                     {new Date(link.created_at).toLocaleString()}
-                    {link.hash_sha256 ? ` Â· ${link.hash_sha256.slice(0, 12)}...` : ''}
+                    {link.hash_sha256 ? ` - ${link.hash_sha256.slice(0, 12)}...` : ''}
                   </div>
                 </div>
                 <span style={{ color: '#2563EB', fontWeight: 600 }}>{t('docDetail.review.openVersion')}</span>
@@ -1716,42 +1767,48 @@ export default function DocumentDetail() {
   )
 }
 
-const pageShell: React.CSSProperties = { padding: '1.5rem' }
-const pageContent: React.CSSProperties = { maxWidth: 1280, margin: '0 auto' }
+const pageShell: React.CSSProperties = { padding: '1.25rem', background: '#f8fafc' }
+const pageContent: React.CSSProperties = { maxWidth: 1360, margin: '0 auto' }
 const pageHeader: React.CSSProperties = {
-  display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'flex-start',
-  gap: 16,
-  flexWrap: 'wrap',
+  border: '1px solid #dbe2ea',
+  borderRadius: 8,
+  background: '#fff',
+  padding: '1rem',
   marginBottom: '1rem',
 }
-const pageEyebrow: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }
+const pageEyebrow: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#0f766e' }
 const pageTitle: React.CSSProperties = { margin: '0.3rem 0 0', fontSize: 24, lineHeight: 1.12, color: '#0f172a', wordBreak: 'break-word' }
 const pageMetaRow: React.CSSProperties = { display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }
 const pageMetaItem: React.CSSProperties = { fontSize: 13, color: '#64748b' }
 const pageBadgeRow: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }
-const savedBadge: React.CSSProperties = { background: '#dcfce7', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#166534', fontWeight: 700 }
-const neutralBadge: React.CSSProperties = { background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }
+const savedBadge: React.CSSProperties = { background: '#dcfce7', padding: '3px 10px', borderRadius: 6, fontSize: 13, color: '#166534', fontWeight: 700 }
+const neutralBadge: React.CSSProperties = { background: '#e0e7ff', padding: '3px 10px', borderRadius: 6, fontSize: 13, color: '#334155', fontWeight: 700 }
 const subtleMetaText: React.CSSProperties = { fontSize: 13, color: '#475569', fontWeight: 600 }
 const section: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', background: '#fff' }
-const actionBtn: React.CSSProperties = { padding: '0.5rem 1rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }
+const headerFactsRow: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginTop: 14 }
+const headerFactCard: React.CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.7rem 0.8rem', background: '#f8fafc', minWidth: 0 }
+const headerFactLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#64748b' }
+const headerFactValue: React.CSSProperties = { marginTop: 4, fontSize: 14, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }
+const pageActionPanel: React.CSSProperties = { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start', alignSelf: 'stretch', padding: '0.2rem', minWidth: 260, flex: '0 1 380px' }
+const actionBtn: React.CSSProperties = { padding: '0.58rem 0.95rem', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }
 const secondaryActionBtn: React.CSSProperties = { padding: '0.5rem 0.9rem', border: '1px solid #cbd5e1', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }
-const flowCard: React.CSSProperties = { marginBottom: '1rem', border: '1px solid #dbeafe', borderRadius: 8, padding: '0.85rem 1rem', background: '#f8fbff' }
-const flowEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' }
+const flowCard: React.CSSProperties = { marginBottom: '1rem', border: '1px solid #dbe2ea', borderRadius: 8, padding: '1rem', background: '#fff' }
+const flowEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#0f766e' }
 const flowTitle: React.CSSProperties = { marginTop: 4, fontSize: 16, color: '#0f172a', fontWeight: 700, lineHeight: 1.3 }
 const flowHelpText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#92400e' }
-const flowFactsRow: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginTop: 12, paddingTop: 12, borderTop: '1px solid #dbeafe' }
-const flowFactItem: React.CSSProperties = { minWidth: 0 }
+const flowFactsRow: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0' }
+const flowFactItem: React.CSSProperties = { minWidth: 0, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc', padding: '0.7rem 0.8rem' }
 const flowFactValue: React.CSSProperties = { marginTop: 4, fontSize: 14, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }
-const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 13, fontWeight: 600 }
+const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }
 const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444', INVALID: '#EF4444', REPROCESS: '#8B5CF6', VALID: '#10B981', IMPORTED: '#0EA5E9' }
 const reprocessCard: React.CSSProperties = {
   marginBottom: '1rem',
-  border: '1px solid #bfdbfe',
-  borderRadius: 14,
+  border: '1px solid #dbe2ea',
+  borderRadius: 8,
   padding: '0.95rem 1rem',
-  background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+  background: '#fff',
 }
 const reprocessHeaderLayout: React.CSSProperties = {
   display: 'flex',
@@ -1760,13 +1817,13 @@ const reprocessHeaderLayout: React.CSSProperties = {
   alignItems: 'flex-start',
   flexWrap: 'wrap',
 }
-const reprocessEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }
+const reprocessEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#0f766e' }
 const reprocessTitle: React.CSSProperties = { marginTop: 4, fontSize: 16, lineHeight: 1.2, fontWeight: 800, color: '#0f172a' }
 const reprocessCopy: React.CSSProperties = { marginTop: 6, fontSize: 13, color: '#475569', maxWidth: 620 }
 const reprocessButtonRow: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }
 const reprocessFastButton: React.CSSProperties = {
   padding: '0.5rem 0.95rem',
-  borderRadius: 10,
+  borderRadius: 8,
   border: '1px solid #0f766e',
   cursor: 'pointer',
   fontSize: 13,
@@ -1777,37 +1834,43 @@ const reprocessFastButton: React.CSSProperties = {
 }
 const reprocessDeepButton: React.CSSProperties = {
   padding: '0.5rem 0.95rem',
-  borderRadius: 10,
-  border: '1px solid #bfdbfe',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
   cursor: 'pointer',
   fontSize: 13,
   fontWeight: 700,
   background: '#fff',
-  color: '#1d4ed8',
+  color: '#334155',
 }
 const contentGridTwoColumns: React.CSSProperties = { display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))' }
 const contentGridOneColumn: React.CSSProperties = { display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(0, 1fr)' }
 const sectionHeader: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: '0.9rem' }
-const sectionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }
+const sectionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b' }
 const sectionTitle: React.CSSProperties = { margin: '0.25rem 0 0', fontSize: 16, lineHeight: 1.2, color: '#0f172a' }
 const sectionSubtitle: React.CSSProperties = { marginTop: 4, fontSize: 13, color: '#475569', maxWidth: 620 }
 const decisionCard: React.CSSProperties = { marginBottom: '1rem', padding: '0.85rem', borderRadius: 8, border: '1px solid #e5e7eb' }
-const decisionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' }
+const decisionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#0f766e' }
 const decisionTitle: React.CSSProperties = { marginTop: 4, fontSize: 16, lineHeight: 1.2, fontWeight: 800, color: '#0f172a' }
 const decisionSubcopy: React.CSSProperties = { marginTop: 6, fontSize: 13, color: '#475569' }
-const confidencePill: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.45rem 0.7rem', borderRadius: 999, fontSize: 12, fontWeight: 800 }
+const confidencePill: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.45rem 0.7rem', borderRadius: 6, fontSize: 12, fontWeight: 800 }
 const decisionWarning: React.CSSProperties = { marginTop: 12, padding: '0.65rem 0.75rem', borderRadius: 8, background: 'rgba(255,255,255,0.72)', color: '#92400e', fontSize: 13, fontWeight: 700 }
 const decisionMetaRow: React.CSSProperties = { marginTop: 12, display: 'grid', gap: 8 }
-const decisionMetaLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }
+const decisionMetaLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#64748b' }
 const decisionMetaChips: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap' }
-const decisionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '0.35rem 0.65rem', borderRadius: 999, background: '#fff', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, color: '#334155' }
+const decisionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '0.35rem 0.65rem', borderRadius: 6, background: '#fff', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, color: '#334155' }
 const decisionReasonText: React.CSSProperties = { marginTop: 12, fontSize: 13, color: '#334155' }
 const focusListCard: React.CSSProperties = { marginBottom: '0.6rem', paddingTop: '0.1rem' }
 const focusListTitle: React.CSSProperties = { fontSize: 13, fontWeight: 800, color: '#1d4ed8', marginBottom: 8 }
 const focusListRow: React.CSSProperties = { fontSize: 13, color: '#334155', padding: '0.7rem 0', borderTop: '1px solid #e2e8f0' }
-const focusListBadge: React.CSSProperties = { marginLeft: 8, fontSize: 11, fontWeight: 800, color: '#92400e', background: '#FEF3C7', borderRadius: 999, padding: '2px 7px' }
+const focusListBadge: React.CSSProperties = { marginLeft: 8, fontSize: 11, fontWeight: 800, color: '#92400e', background: '#FEF3C7', borderRadius: 6, padding: '2px 7px' }
 const focusListHelp: React.CSSProperties = { marginTop: 3, color: '#64748b', fontSize: 12 }
 const factsGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, paddingTop: 16, borderTop: '1px solid #e2e8f0' }
 const factCard: React.CSSProperties = { minWidth: 0 }
-const factLabel: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }
+const factLabel: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b' }
 const factValue: React.CSSProperties = { marginTop: 6, fontSize: 15, lineHeight: 1.35, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }
+const editNoticeCard: React.CSSProperties = { padding: '0.85rem 0.95rem', borderRadius: 8, border: '1px solid #DBEAFE', background: '#EFF6FF', fontSize: 13, color: '#334155' }
+const editFieldCard: React.CSSProperties = { display: 'grid', gap: 8, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc', padding: '0.8rem' }
+const editPriorityPill: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '0.18rem 0.5rem', borderRadius: 6, background: '#dbeafe', color: '#1d4ed8', fontSize: 11, fontWeight: 700 }
+const editInput: React.CSSProperties = { padding: '0.55rem 0.65rem', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', fontSize: 14, color: '#0f172a' }
+const editLineCard: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.9rem', background: '#f8fafc' }
+const editLineFieldCard: React.CSSProperties = { display: 'grid', gap: 6 }

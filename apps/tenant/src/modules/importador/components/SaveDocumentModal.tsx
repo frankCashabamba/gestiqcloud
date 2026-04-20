@@ -274,16 +274,16 @@ function buildInferredDefaults(
 
 function getMatchReasonLabel(reason: string | null | undefined): string {
   switch (reason) {
-    case 'create_new': return 'Create new product'
-    case 'manual': return 'Manual selection'
-    case 'alias_exact': return 'Exact alias'
-    case 'alias': return 'Suggested alias'
-    case 'name_exact': return 'Exact name'
-    case 'core_exact': return 'Base name'
-    case 'name_partial': return 'Partial name'
-    case 'core_partial': return 'Partial base'
-    case 'fuzzy': return 'Similar'
-    default: return 'No link'
+    case 'create_new': return 'Crear producto nuevo'
+    case 'manual': return 'Seleccion manual'
+    case 'alias_exact': return 'Alias exacto'
+    case 'alias': return 'Alias sugerido'
+    case 'name_exact': return 'Nombre exacto'
+    case 'core_exact': return 'Nombre base'
+    case 'name_partial': return 'Nombre parcial'
+    case 'core_partial': return 'Base parcial'
+    case 'fuzzy': return 'Coincidencia cercana'
+    default: return 'Sin vinculo'
   }
 }
 
@@ -350,7 +350,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     if (canSaveInvoice) {
       fallbackChoices.push({
         code: 'supplier_invoice',
-        label: 'Supplier invoice',
+        label: 'Factura de proveedor',
         target: 'purchases',
         target_tables: ['purchases', 'expenses'],
         save_api: 'save_document',
@@ -372,7 +372,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     if (canSaveExpense) {
       fallbackChoices.push({
         code: 'expense',
-        label: 'Expense',
+        label: 'Gasto',
         target: 'expenses',
         target_tables: ['expenses'],
         save_api: 'save_document',
@@ -391,9 +391,9 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
         },
       })
     }
-    fallbackChoices.push({
-      code: 'recipe',
-      label: 'Recipe',
+      fallbackChoices.push({
+        code: 'recipe',
+        label: 'Receta',
       target: 'recipes',
       target_tables: ['recipes'],
       save_api: 'save_document',
@@ -534,26 +534,26 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
   const reviewIsReady = routingDecision ? routingDecision.required_fields_ok : true
   const reviewTitle = resumeMode
-    ? 'Complete pending stock'
-    : (reviewIsReady ? 'Ready to save' : 'Review before saving')
+    ? 'Completar stock pendiente'
+    : (reviewIsReady ? 'Listo para guardar' : 'Revisar antes de guardar')
   const reviewSummary = resumeMode
-    ? 'The purchase already exists. This step only appears if there are still unlinked lines to update stock.'
+    ? 'La compra ya existe. Este paso solo aparece si todavia quedan lineas sin vincular para actualizar stock.'
     : (routingDecision?.reason
-      || 'Review the result and use advanced options only if you need to change the destination or complete data.')
+      || 'Revisa el resultado y usa las opciones avanzadas solo si necesitas cambiar el destino o completar datos.')
   const destinationTitle = activeDestinationMeta?.label || (
     destination === 'supplier_invoice'
-      ? 'Supplier invoice'
+      ? 'Factura de proveedor'
       : destination === 'recipe'
-      ? 'Recipe'
-      : 'Expense'
+      ? 'Receta'
+      : 'Gasto'
   )
   const destinationSummary = activeDestinationMeta?.target_tables?.length
-    ? `It will be saved in ${activeDestinationMeta.target_tables.join(', ')}.`
+    ? `Se guardara en ${activeDestinationMeta.target_tables.join(', ')}.`
     : destination === 'supplier_invoice'
-      ? 'It will be saved in purchases or accounts payable.'
+      ? 'Se guardara en compras o cuentas por pagar.'
       : destination === 'recipe'
-        ? 'It will be saved as a recipe ready for production.'
-        : 'It will be recorded in the expenses module.'
+        ? 'Se guardara como una receta lista para produccion.'
+        : 'Se registrara en el modulo de gastos.'
   const effectiveLineMatches = lineMatches.length > 0
     ? lineMatches
     : lineItems.map((item, index) => ({
@@ -578,6 +578,22 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   }).length
   const unmatchedLines = Math.max(effectiveLineMatches.length - matchedLines, 0)
   const hiddenStockPreview = Math.max(lineItems.length - stockPreviewLines.length, 0)
+  const paymentStatusLabel =
+    paymentStatus === 'paid' ? 'Pagado' : paymentStatus === 'partial' ? 'Parcial' : 'Pendiente'
+  const modalSummaryItems = [
+    { label: 'Destino', value: destinationTitle },
+    { label: 'Total', value: totalAmount != null ? `${doc.moneda || '$'} ${totalAmount.toFixed(2)}` : 'No detectado' },
+    destination !== 'recipe' ? { label: 'Pago', value: paymentStatusLabel } : null,
+    hasStockItems
+      ? {
+          label: destination === 'supplier_invoice' ? 'Lineas de producto' : 'Lineas',
+          value:
+            destination === 'supplier_invoice'
+              ? `${matchedLines}/${effectiveLineMatches.length} vinculadas`
+              : `${lineItems.length}`,
+        }
+      : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item))
 
   const handlePaymentStatusChange = (nextStatus: DocumentPaymentStatus) => {
     setPaymentStatus(nextStatus)
@@ -661,7 +677,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
         if (paymentStatus === 'partial') {
           if (!paidAmount.trim() && !pendingAmount.trim()) {
-            throw new Error('You must indicate how much is paid or how much is left.')
+            throw new Error('Debes indicar cuanto esta pagado o cuanto queda pendiente.')
           }
           payload.paid_amount = paidAmount.trim() ? Number(paidAmount) : undefined
           payload.pending_amount = pendingAmount.trim() ? Number(pendingAmount) : undefined
@@ -697,27 +713,55 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   return (
     <div style={overlay}>
       <div style={modal}>
+        <style>{`
+          .save-doc-modal__hero-grid,
+          .save-doc-modal__summary-grid,
+          .save-doc-modal__choice-grid,
+          .save-doc-modal__payment-grid,
+          .save-doc-modal__amount-grid {
+            display: grid;
+            gap: 12px;
+          }
+          .save-doc-modal__summary-grid {
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          }
+          .save-doc-modal__choice-grid {
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          }
+          .save-doc-modal__payment-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+          .save-doc-modal__amount-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          @media (max-width: 760px) {
+            .save-doc-modal__payment-grid,
+            .save-doc-modal__amount-grid {
+              grid-template-columns: minmax(0, 1fr);
+            }
+          }
+        `}</style>
         <div style={header}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>{resumeMode ? 'Complete pending stock' : 'Save document'}</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{resumeMode ? 'Completar stock pendiente' : 'Guardar documento'}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{doc.nombre_archivo}</div>
           </div>
-          <button onClick={onClose} style={closeBtn} disabled={saving} aria-label="Close modal">Ã—</button>
+          <button onClick={onClose} style={closeBtn} disabled={saving} aria-label="Cerrar modal">x</button>
         </div>
 
         <div style={body}>
-          <div>
+          <div className="save-doc-modal__hero-grid">
             <div style={{ ...heroBox, ...(reviewIsReady ? heroBoxReady : heroBoxReview) }}>
               <div>
-                <div style={heroEyebrow}>Final review</div>
+                <div style={heroEyebrow}>Revision final</div>
                 <div style={heroTitle}>{reviewTitle}</div>
                 <div style={heroCopy}>{reviewSummary}</div>
                 <div style={heroMetaRow}>
                   <span style={heroPill}>{destinationTitle}</span>
-                  {!canSubmit && <span style={heroPillWarn}>Missing required fields</span>}
+                  {!canSubmit && <span style={heroPillWarn}>Faltan campos obligatorios</span>}
                   {destination === 'supplier_invoice' && hasStockItems && (
                     <span style={heroPillMuted}>
-                      {matchedLines}/{effectiveLineMatches.length} lines linked
+                      {matchedLines}/{effectiveLineMatches.length} lineas vinculadas
                     </span>
                   )}
                 </div>
@@ -729,30 +773,38 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                 style={secondaryBtn}
                 disabled={saving}
               >
-                {showAdvanced ? 'Hide advanced options' : 'Change destination or options'}
+                {showAdvanced ? 'Ocultar opciones avanzadas' : 'Cambiar destino u opciones'}
               </button>
+            </div>
+            <div className="save-doc-modal__summary-grid">
+              {modalSummaryItems.map((item) => (
+                <div key={item.label} style={summaryFactCard}>
+                  <div style={summaryFactLabel}>{item.label}</div>
+                  <div style={summaryFactValue}>{item.value}</div>
+                </div>
+              ))}
             </div>
             {routingDecision && (
               <div style={routingDecision.required_fields_ok ? infoBox : warnBox}>
-                {routingDecision.reason || 'Routing decision available.'}
+                {routingDecision.reason || 'Hay una decision de destino disponible.'}
                 {!routingDecision.required_fields_ok && routingDecision.missing_fields.length > 0 && (
                   <div style={{ marginTop: 6 }}>
-                    Missing: {routingDecision.missing_fields.join(', ')}
+                    Faltan: {routingDecision.missing_fields.join(', ')}
                   </div>
                 )}
               </div>
             )}
             {reviewHints.length > 0 && (
               <div style={{ ...infoBox, marginTop: 10 }}>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>Priority fields before saving</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Campos prioritarios antes de guardar</div>
                 <div style={{ display: 'grid', gap: 6 }}>
                   {reviewHints.slice(0, 3).map((hint) => (
                     <div key={hint.field} style={{ fontSize: 13, color: '#334155' }}>
                       <strong>{hint.priority}. {hint.field}</strong>
-                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Missing</span>}
+                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Falta</span>}
                       {hint.confirmed_examples.length > 0 && (
                         <div style={{ marginTop: 2, color: '#64748b' }}>
-                          Examples: {hint.confirmed_examples.join(', ')}
+                          Ejemplos: {hint.confirmed_examples.join(', ')}
                         </div>
                       )}
                     </div>
@@ -765,8 +817,8 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
           {showAdvanced && (
             <div style={advancedSection}>
               <div style={advancedCard}>
-                <div style={label}>Save as</div>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(saveDestinationChoices.length, 1)}, minmax(0, 1fr))`, gap: 8 }}>
+                <div style={label}>Guardar como</div>
+                <div className="save-doc-modal__choice-grid">
                   {saveDestinationChoices.map((choice) => (
                     <button
                       type="button"
@@ -818,13 +870,13 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
             <div style={matchPanel}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Link lines to products</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Vincular lineas con productos</div>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                    Choose the right product for each line. If you link it manually, it will be saved as an alias for future invoices.
+                    Elige el producto correcto para cada linea. Si lo vinculas manualmente, se guardara como alias para futuras facturas.
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: unmatchedLines > 0 ? '#92400e' : '#166534', fontWeight: 600 }}>
-                  {matchedLines}/{effectiveLineMatches.length} lines resolved
+                  {matchedLines}/{effectiveLineMatches.length} lineas resueltas
                 </div>
               </div>
 
@@ -836,7 +888,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                     <thead>
                       <tr>
                         <th style={matchTh}>Linea</th>
-                        <th style={matchTh}>Detected product</th>
+                        <th style={matchTh}>Producto detectado</th>
                         <th style={matchTh}>Candidatos</th>
                       </tr>
                     </thead>
@@ -875,7 +927,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                             <td style={matchTd}>
                               <div style={{ fontWeight: 600, color: '#0f172a' }}>{rowDescription}</div>
                               <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                                {selectedReason ? getMatchReasonLabel(selectedReason) : 'No link'} - factor {Number(selectedCandidate?.inferred_factor ?? row.inferred_factor ?? 1).toFixed(2)}
+                                {selectedReason ? getMatchReasonLabel(selectedReason) : 'Sin vinculo'} - factor {Number(selectedCandidate?.inferred_factor ?? row.inferred_factor ?? 1).toFixed(2)}
                               </div>
                             </td>
                             <td style={matchTd}>
@@ -906,7 +958,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                                       onChange={(e) => setCreateNewByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
                                       disabled={saving}
                                     />
-                                    Create new product (+{formatCompactNumber(rowQuantity, { maxDecimals: 3 })}{rowUnit ? ` ${rowUnit}` : ''} - {rowDescription.slice(0, 28)})
+                                    Crear producto nuevo (+{formatCompactNumber(rowQuantity, { maxDecimals: 3 })}{rowUnit ? ` ${rowUnit}` : ''} - {rowDescription.slice(0, 28)})
                                   </label>
                                 ) : (
                                   <div style={{ fontSize: 12, color: '#64748b' }}>
@@ -921,7 +973,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                                       onChange={(e) => setPersistAliasByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
                                       disabled={saving}
                                     />
-                                    Save alias
+                                    Guardar alias
                                   </label>
                                 )}
                               </div>
@@ -936,7 +988,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
               {updateStock && unmatchedLines > 0 && (
                 <div style={warnBox}>
-                  There are {unmatchedLines} unlinked line(s). The purchase and expense will be saved, but those lines will not enter stock until you choose a product.
+                  Hay {unmatchedLines} linea(s) sin vincular. La compra y el gasto se guardaran, pero esas lineas no entraran en stock hasta que elijas un producto.
                 </div>
               )}
             </div>
@@ -944,23 +996,23 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
           {destination !== 'recipe' && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+              <div className="save-doc-modal__payment-grid">
                 <label style={field}>
-                  <span style={label}>Payment status</span>
+                  <span style={label}>Estado del pago</span>
                   <select
                     value={paymentStatus}
                     onChange={(e) => handlePaymentStatusChange(e.target.value as DocumentPaymentStatus)}
                     style={input}
                     disabled={saving}
                   >
-                    <option value="pending">Pending</option>
-                    <option value="partial">Partial</option>
-                    <option value="paid">Paid</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="partial">Parcial</option>
+                    <option value="paid">Pagado</option>
                   </select>
                 </label>
 
                 <label style={field}>
-                  <span style={label}>Method</span>
+                  <span style={label}>Metodo</span>
                   <select
                     value={paymentMethodId}
                     onChange={(e) => setPaymentMethodId(e.target.value)}
@@ -968,7 +1020,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                     disabled={saving}
                   >
                     {activePaymentMethods.length === 0 ? (
-                      <option value="">No payment methods configured</option>
+                      <option value="">No hay metodos de pago configurados</option>
                     ) : (
                       activePaymentMethods.map((method) => (
                         <option key={method.id} value={method.id}>
@@ -981,7 +1033,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
                 {paymentStatus === 'paid' && (
                   <label style={field}>
-                    <span style={label}>Payment date</span>
+                    <span style={label}>Fecha de pago</span>
                     <input
                       type="date"
                       value={paidAt}
@@ -993,9 +1045,9 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                 )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              <div className="save-doc-modal__amount-grid">
                 <label style={field}>
-                  <span style={label}>Paid</span>
+                  <span style={label}>Pagado</span>
                   <input
                     type="number"
                     min="0"
@@ -1009,7 +1061,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                 </label>
 
                 <label style={field}>
-                  <span style={label}>Remaining</span>
+                  <span style={label}>Pendiente</span>
                   <input
                     type="number"
                     min="0"
@@ -1046,7 +1098,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
           {error && <div style={errorBox}>{error}</div>}
           {saveMessage && (
-            <div style={saveMessage.includes('âš ï¸') ? warnBox : infoBox}>
+            <div style={saveMessage.includes('Warning') || saveMessage.includes('Advertencia') ? warnBox : infoBox}>
               {saveMessage}
             </div>
           )}
@@ -1054,13 +1106,13 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
         <div style={footer}>
           <button onClick={onClose} style={secondaryBtn} disabled={saving}>
-            {saveMessage ? 'Close' : 'Cancel'}
+            {saveMessage ? 'Cerrar' : 'Cancelar'}
           </button>
           {!saveMessage && (
             <button onClick={submit} style={primaryBtn} disabled={saving || !canSubmit}>
-              {saving ? 'Saving...' : (
+              {saving ? 'Guardando...' : (
                 resumeMode && destination === 'supplier_invoice'
-                  ? 'Complete stock'
+                  ? 'Completar stock'
                   : getImportadorSaveActionLabel(destination)
               )}
             </button>
@@ -1085,10 +1137,10 @@ const overlay: React.CSSProperties = {
 
 const modal: React.CSSProperties = {
   width: '100%',
-  maxWidth: 720,
+  maxWidth: 960,
   maxHeight: 'calc(100vh - 2rem)',
   background: '#fff',
-  borderRadius: 14,
+  borderRadius: 8,
   boxShadow: '0 22px 48px rgba(15, 23, 42, 0.22)',
   overflow: 'hidden',
   display: 'flex',
@@ -1132,8 +1184,8 @@ const heroBox: React.CSSProperties = {
   alignItems: 'flex-start',
   gap: 12,
   flexWrap: 'wrap',
-  padding: '0.95rem 1rem',
-  borderRadius: 12,
+  padding: '1rem',
+  borderRadius: 8,
 }
 
 const heroBoxReady: React.CSSProperties = {
@@ -1150,8 +1202,6 @@ const heroEyebrow: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 800,
   color: '#1d4ed8',
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
 }
 
 const heroTitle: React.CSSProperties = {
@@ -1176,14 +1226,12 @@ const heroMetaRow: React.CSSProperties = {
 }
 
 const heroPill: React.CSSProperties = {
-  borderRadius: 999,
+  borderRadius: 6,
   padding: '0.2rem 0.55rem',
   background: '#dbeafe',
   color: '#1e40af',
   fontSize: 11,
   fontWeight: 700,
-  textTransform: 'uppercase',
-  letterSpacing: '0.03em',
 }
 
 const heroPillWarn: React.CSSProperties = {
@@ -1213,7 +1261,7 @@ const advancedSection: React.CSSProperties = {
 
 const advancedCard: React.CSSProperties = {
   border: '1px solid #e2e8f0',
-  borderRadius: 12,
+  borderRadius: 8,
   padding: '0.8rem',
   background: '#ffffff',
 }
@@ -1228,13 +1276,11 @@ const label: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
   color: '#475569',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
 }
 
 const input: React.CSSProperties = {
   border: '1px solid #cbd5e1',
-  borderRadius: 10,
+  borderRadius: 8,
   padding: '0.7rem 0.8rem',
   fontSize: 14,
   color: '#0f172a',
@@ -1243,7 +1289,7 @@ const input: React.CSSProperties = {
 
 const choiceBtn: React.CSSProperties = {
   border: '1px solid #cbd5e1',
-  borderRadius: 10,
+  borderRadius: 8,
   padding: '0.75rem 0.7rem',
   fontSize: 13,
   fontWeight: 600,
@@ -1261,7 +1307,7 @@ const choiceBtnActive: React.CSSProperties = {
 const hintBox: React.CSSProperties = {
   marginTop: 8,
   padding: '0.65rem 0.8rem',
-  borderRadius: 10,
+  borderRadius: 8,
   background: '#f8fafc',
   border: '1px solid #e2e8f0',
   fontSize: 12,
@@ -1270,18 +1316,39 @@ const hintBox: React.CSSProperties = {
 
 const summaryBox: React.CSSProperties = {
   padding: '0.8rem 0.9rem',
-  borderRadius: 10,
+  borderRadius: 8,
   background: '#eff6ff',
   border: '1px solid #bfdbfe',
   color: '#1e3a8a',
   fontSize: 13,
 }
 
+const summaryFactCard: React.CSSProperties = {
+  border: '1px solid #e2e8f0',
+  borderRadius: 8,
+  background: '#fff',
+  padding: '0.75rem 0.8rem',
+}
+
+const summaryFactLabel: React.CSSProperties = {
+  fontSize: 12,
+  color: '#64748b',
+  fontWeight: 700,
+}
+
+const summaryFactValue: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 15,
+  fontWeight: 700,
+  color: '#0f172a',
+  wordBreak: 'break-word',
+}
+
 const matchPanel: React.CSSProperties = {
   display: 'grid',
   gap: 12,
   padding: '0.9rem',
-  borderRadius: 12,
+  borderRadius: 8,
   border: '1px solid #dbeafe',
   background: '#ffffff',
 }
@@ -1302,8 +1369,6 @@ const matchTh: React.CSSProperties = {
   fontWeight: 700,
   padding: '0.55rem 0.5rem',
   borderBottom: '1px solid #dbeafe',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
 }
 
 const matchTd: React.CSSProperties = {
@@ -1320,7 +1385,7 @@ const matchTdCompact: React.CSSProperties = {
 
 const errorBox: React.CSSProperties = {
   padding: '0.75rem 0.85rem',
-  borderRadius: 10,
+  borderRadius: 8,
   background: '#fef2f2',
   border: '1px solid #fecaca',
   color: '#b91c1c',
@@ -1329,7 +1394,7 @@ const errorBox: React.CSSProperties = {
 
 const warnBox: React.CSSProperties = {
   padding: '0.75rem 0.85rem',
-  borderRadius: 10,
+  borderRadius: 8,
   background: '#fffbeb',
   border: '1px solid #fcd34d',
   color: '#92400e',
@@ -1338,7 +1403,7 @@ const warnBox: React.CSSProperties = {
 
 const infoBox: React.CSSProperties = {
   padding: '0.75rem 0.85rem',
-  borderRadius: 10,
+  borderRadius: 8,
   background: '#f0fdf4',
   border: '1px solid #86efac',
   color: '#166534',
@@ -1347,9 +1412,9 @@ const infoBox: React.CSSProperties = {
 
 const primaryBtn: React.CSSProperties = {
   border: 'none',
-  borderRadius: 10,
+  borderRadius: 8,
   padding: '0.7rem 1rem',
-  background: '#2563eb',
+  background: '#0f766e',
   color: '#fff',
   fontSize: 14,
   fontWeight: 700,
@@ -1358,7 +1423,7 @@ const primaryBtn: React.CSSProperties = {
 
 const secondaryBtn: React.CSSProperties = {
   border: '1px solid #cbd5e1',
-  borderRadius: 10,
+  borderRadius: 8,
   padding: '0.7rem 1rem',
   background: '#fff',
   color: '#334155',
@@ -1376,7 +1441,7 @@ const stockChipWrap: React.CSSProperties = {
 
 const stockChip: React.CSSProperties = {
   border: '1px solid #dbeafe',
-  borderRadius: 999,
+  borderRadius: 6,
   background: '#f8fbff',
   color: '#334155',
   fontSize: 11,
@@ -1398,7 +1463,7 @@ const closeBtn: React.CSSProperties = {
   width: 30,
   height: 30,
   lineHeight: '26px',
-  borderRadius: 999,
+  borderRadius: 8,
   textAlign: 'center',
   fontSize: 18,
   cursor: 'pointer',
