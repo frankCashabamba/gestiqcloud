@@ -395,7 +395,10 @@ def test_pre_extract_skip_ai_applies_ocr_repairs_before_persist(monkeypatch):
     assert result.datos_extraidos["issue_date"] == "2026-01-16"
     assert result.datos_extraidos["vendor_tax_id"] == "1890004195001"
     assert len(result.datos_extraidos["line_items"]) == 1
-    assert result.datos_extraidos["line_items"][0]["description"] == "HARINA TRADICION PREMIUM 50 KG F/"
+    assert (
+        result.datos_extraidos["line_items"][0]["description"]
+        == "HARINA TRADICION PREMIUM 50 KG F/"
+    )
     assert any(
         payload.get("error_detalle") is None for payload in updates if isinstance(payload, dict)
     )
@@ -805,7 +808,7 @@ def test_repair_pre_extracted_fields_recovers_invoice_vendor_and_concept_from_li
                     "quantity": 5.0,
                     "unit_price": 0.0,
                     "total_price": 0.0,
-                }
+                },
             ],
             "total_amount": 2145.0,
             "concept": "Hul - w._. U",

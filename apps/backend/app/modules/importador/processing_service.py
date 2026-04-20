@@ -988,7 +988,9 @@ def _line_item_has_positive_amount(item: dict[str, Any]) -> bool:
 
 
 def _line_item_is_degraded_duplicate(candidate: dict[str, Any], existing: dict[str, Any]) -> bool:
-    return not _line_item_has_positive_amount(candidate) and _line_item_has_positive_amount(existing)
+    return not _line_item_has_positive_amount(candidate) and _line_item_has_positive_amount(
+        existing
+    )
 
 
 def _sanitize_visual_line_items(line_items_value: Any, *, format_hint: str) -> list[dict[str, Any]]:

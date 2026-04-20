@@ -821,6 +821,23 @@ export default function DocumentDetail() {
     && activeSheetRows.length > 0
     && canSaveProductsSheet(docCategory, activeSheet, activeNormKeys)
   const activityItems = buildUserActivity(doc?.logs)
+  const documentCategoryLabel = t(`docDetail.categoryLabels.${docCategory}`, { defaultValue: docCategory })
+  const reviewSectionTitle = isAssistedLines
+    ? t('docDetail.review.assistedTitle')
+    : t('docDetail.review.title')
+  const reviewSectionSubtitle = isAssistedLines
+    ? t('docDetail.review.assistedSubtitle')
+    : routingReadyForSave
+      ? t('docDetail.review.readySubtitle')
+      : t('docDetail.review.blockedSubtitle')
+  const showReviewSummaryPanel = Boolean(
+    !simpleFlowEnabled
+    || isAssistedLines
+    || !routingReadyForSave
+    || alternativeCandidates.length > 0
+  )
+  const showLeftColumn = showReviewSummaryPanel || Boolean(doc.error_detalle)
+  const contentGridStyle: React.CSSProperties = showLeftColumn ? contentGridTwoColumns : contentGridOneColumn
   const orderedEditEntries = Object.entries(editFields).sort(([leftKey], [rightKey]) => {
     const leftHint = reviewHintMap[leftKey]
     const rightHint = reviewHintMap[rightKey]
@@ -854,8 +871,9 @@ export default function DocumentDetail() {
   }
 
   return (
-    <div style={{ padding: '1.5rem' }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f9fafb', paddingBottom: '0.75rem' }}>
+    <div style={pageShell}>
+      <div style={pageContent}>
+        <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f9fafb', paddingBottom: '0.75rem' }}>
         <button
           onClick={() => navigate('../documents')}
           style={{
@@ -871,8 +889,8 @@ export default function DocumentDetail() {
         >
           {t('docDetail.back')}
         </button>
-      </div>
-      {error && (
+        </div>
+        {error && (
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem',
           padding: '0.75rem 1rem', borderRadius: 10, border: '1px solid #fecaca',
@@ -974,16 +992,35 @@ export default function DocumentDetail() {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-        <div>
-          <h2 style={{ marginBottom: 4, fontSize: 28, lineHeight: 1.1 }}>{doc.nombre_archivo}</h2>
-          <div style={{ display: 'flex', gap: '0.75rem', fontSize: 13, color: '#6b7280' }}>
-            <span>{doc.tipo_archivo}</span>
-            <span>{Math.round(Number(doc.tamanio_bytes ?? 0) / 1024)} KB</span>
-            <span>{new Date(doc.created_at).toLocaleString()}</span>
+      <div style={pageHeader}>
+        <div style={{ minWidth: 0, flex: '1 1 560px' }}>
+          <div style={pageEyebrow}>{documentCategoryLabel}</div>
+          <h2 style={pageTitle}>{doc.nombre_archivo}</h2>
+          <div style={pageMetaRow}>
+            <span style={pageMetaItem}>{doc.tipo_archivo}</span>
+            <span style={pageMetaItem}>{Math.round(Number(doc.tamanio_bytes ?? 0) / 1024)} KB</span>
+            <span style={pageMetaItem}>{new Date(doc.created_at).toLocaleString()}</span>
+          </div>
+          <div style={pageBadgeRow}>
+            <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>
+              {STATUS_LABELS[displayStatus] || displayStatus}
+            </span>
+            {isSaved && (
+              <span style={savedBadge}>
+                {getImportadorSavedAsLabel(inferredSavedAs)}
+              </span>
+            )}
+            {doc.tipo_documento_detectado && (
+              <span style={neutralBadge}>{doc.tipo_documento_detectado}</span>
+            )}
+            {confPct != null && (
+              <span style={subtleMetaText}>
+                {t('docDetail.review.confidence', { pct: confPct })}
+              </span>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
           {canSaveProducts && (
             <button onClick={() => setSaveProductsOpen(true)} style={{ ...actionBtn, background: '#0f766e' }}>
               Save products
@@ -1081,17 +1118,29 @@ export default function DocumentDetail() {
 
       {simpleFlowEnabled && (
         <div style={flowCard}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div style={{ minWidth: 260, flex: '1 1 320px' }}>
-              <div style={flowEyebrow}>Next action</div>
-              <div style={{ marginTop: 6, fontSize: 14, color: '#334155', fontWeight: 600 }}>
+              <div style={flowEyebrow}>{t('docDetail.review.nextAction')}</div>
+              <div style={flowTitle}>
                 {!routingReadyForSave
                   ? flowBlockingSummary
-                  : (primaryCandidate?.label ? `${primaryCandidate.label} ready.` : 'Result ready to save.')}
+                  : (primaryCandidate?.label ? t('docDetail.review.readyForDestination', { destination: primaryCandidate.label }) : t('docDetail.review.readyToSave'))}
               </div>
               {!isAssistedLines && !routingReadyForSave && reviewHints.length > 0 && (
-                <div style={{ marginTop: 8, fontSize: 12, color: '#92400e' }}>
-                  Check {reviewHints.slice(0, 2).map((hint) => formatFieldLabel(hint.field)).join(', ')}.
+                <div style={flowHelpText}>
+                  {t('docDetail.review.checkFields', {
+                    fields: reviewHints.slice(0, 2).map((hint) => formatFieldLabel(hint.field)).join(', '),
+                  })}
+                </div>
+              )}
+              {summaryFacts.length > 0 && (
+                <div style={flowFactsRow}>
+                  {summaryFacts.map((item) => (
+                    <div key={item.label} style={flowFactItem}>
+                      <div style={factLabel}>{item.label}</div>
+                      <div style={flowFactValue}>{item.value}</div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -1115,7 +1164,7 @@ export default function DocumentDetail() {
                     color: showAdvancedReview ? '#1d4ed8' : '#475569',
                   }}
                 >
-                  {showAdvancedReview ? 'Hide advanced options' : 'Advanced options'}
+                  {showAdvancedReview ? t('docDetail.review.hideAdvancedOptions') : t('docDetail.review.advancedOptions')}
                 </button>
               )}
             </div>
@@ -1158,11 +1207,11 @@ export default function DocumentDetail() {
       <div style={{ marginBottom: '1rem' }}>
         <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>{STATUS_LABELS[displayStatus] || displayStatus}</span>
         {isSaved && (
-          <span style={{ marginLeft: 8, background: '#dcfce7', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#166534', fontWeight: 700 }}>
+          <span style={{ ...savedBadge, marginLeft: 8 }}>
             Saved
           </span>
         )}
-        {doc.tipo_documento_detectado && <span style={{ marginLeft: 8, background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }}>{doc.tipo_documento_detectado}</span>}
+        {doc.tipo_documento_detectado && <span style={{ ...neutralBadge, marginLeft: 8 }}>{doc.tipo_documento_detectado}</span>}
         {confPct != null && <span style={{ marginLeft: 8, fontSize: 13, color: confPct >= 85 ? '#10B981' : '#F59E0B' }}>Confianza: {confPct}%</span>}
       </div>
       )}
@@ -1179,101 +1228,110 @@ export default function DocumentDetail() {
       )}
 
       {/* Split view */}
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+      <div style={contentGridStyle}>
         {/* Left: Document info */}
-        <div style={{ flex: 1, minWidth: 300 }}>
-          <div style={section}>
-            <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Assisted review' : 'What matters now'}</h3>
-            {routingDecision && (
-              <div style={{
-                ...decisionCard,
-                borderColor: routingDecision.required_fields_ok ? '#BBF7D0' : '#FDE68A',
-                background: routingDecision.required_fields_ok ? '#F0FDF4' : '#FFFBEB',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={decisionEyebrow}>
-                      {routingDecision.required_fields_ok ? 'Ready to save' : 'Needs attention'}
-                    </div>
-                    <div style={decisionTitle}>
-                      {primaryCandidate?.label || getImportadorSaveActionLabel(saveDestination)}
-                    </div>
-                    {primaryCandidate?.target_tables?.length ? (
-                      <div style={decisionSubcopy}>
-                        Saved in {primaryCandidate.target_tables.join(' + ')}
+        {showLeftColumn && (
+        <div style={{ minWidth: 0 }}>
+          {showReviewSummaryPanel && (
+            <div style={section}>
+              <div style={sectionHeader}>
+                <div>
+                  <div style={sectionEyebrow}>{t('docDetail.review.sectionEyebrow')}</div>
+                  <h3 style={sectionTitle}>{reviewSectionTitle}</h3>
+                  <div style={sectionSubtitle}>{reviewSectionSubtitle}</div>
+                </div>
+              </div>
+              {routingDecision && (
+                <div style={{
+                  ...decisionCard,
+                  borderColor: routingDecision.required_fields_ok ? '#BBF7D0' : '#FDE68A',
+                  background: routingDecision.required_fields_ok ? '#F0FDF4' : '#FFFBEB',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={decisionEyebrow}>
+                        {routingDecision.required_fields_ok ? t('docDetail.review.readyState') : t('docDetail.review.needsAttention')}
                       </div>
-                    ) : (
-                      <div style={decisionSubcopy}>
-                        {routingDecision.reason || 'Review the key data and continue.'}
+                      <div style={decisionTitle}>
+                        {primaryCandidate?.label || getImportadorSaveActionLabel(saveDestination)}
+                      </div>
+                      {primaryCandidate?.target_tables?.length ? (
+                        <div style={decisionSubcopy}>
+                          Saved in {primaryCandidate.target_tables.join(' + ')}
+                        </div>
+                      ) : (
+                        <div style={decisionSubcopy}>
+                          {routingDecision.reason || 'Review the key data and continue.'}
+                        </div>
+                      )}
+                    </div>
+                    {confPct != null && (
+                      <div style={{
+                        ...confidencePill,
+                        color: confPct >= 85 ? '#166534' : '#92400e',
+                        background: confPct >= 85 ? '#DCFCE7' : '#FEF3C7',
+                      }}>
+                        {t('docDetail.review.confidence', { pct: confPct })}
                       </div>
                     )}
                   </div>
-                  {confPct != null && (
-                    <div style={{
-                      ...confidencePill,
-                      color: confPct >= 85 ? '#166534' : '#92400e',
-                      background: confPct >= 85 ? '#DCFCE7' : '#FEF3C7',
-                    }}>
-                      {confPct}% confidence
+                  {missingFieldLabels.length > 0 && (
+                    <div style={decisionWarning}>
+                      {t('docDetail.review.missingFields', { fields: missingFieldLabels.join(', ') })}
+                    </div>
+                  )}
+                  {alternativeCandidates.length > 0 && (
+                    <div style={decisionMetaRow}>
+                      <span style={decisionMetaLabel}>{t('docDetail.review.otherDestinations')}</span>
+                      <div style={decisionMetaChips}>
+                        {alternativeCandidates.map((candidate) => (
+                          <span key={candidate.code} style={decisionChip}>
+                            {candidate.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {routingDecision.reason && (
+                    <div style={decisionReasonText}>{routingDecision.reason}</div>
+                  )}
+                  {isAssistedLines && (
+                    <div style={{ marginTop: 6, fontSize: 13, color: '#334155' }}>
+                      Prioritize products, quantities, and the total. The other fields can stay empty if they do not appear.
                     </div>
                   )}
                 </div>
-                {missingFieldLabels.length > 0 && (
-                  <div style={decisionWarning}>
-                    Missing: {missingFieldLabels.join(', ')}
+              )}
+              {!isAssistedLines && reviewPriorityItems.length > 0 && (
+                <div style={focusListCard}>
+                  <div style={focusListTitle}>
+                    {routingReadyForSave ? t('docDetail.review.quickChecks') : t('docDetail.review.fixFirst')}
                   </div>
-                )}
-                {alternativeCandidates.length > 0 && (
-                  <div style={decisionMetaRow}>
-                    <span style={decisionMetaLabel}>Other valid destinations</span>
-                    <div style={decisionMetaChips}>
-                      {alternativeCandidates.map((candidate) => (
-                        <span key={candidate.code} style={decisionChip}>
-                          {candidate.label}
-                        </span>
-                      ))}
-                    </div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {reviewPriorityItems.map((hint) => (
+                      <div key={hint.field} style={focusListRow}>
+                        <strong>{formatFieldLabel(hint.field)}</strong>
+                        {hint.is_missing && <span style={focusListBadge}>{t('docDetail.review.missing')}</span>}
+                        {hint.confirmed_examples.length > 0 && (
+                          <div style={focusListHelp}>Examples: {hint.confirmed_examples.join(', ')}</div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
-                {routingDecision.reason && (
-                  <div style={decisionReasonText}>{routingDecision.reason}</div>
-                )}
-                {isAssistedLines && (
-                  <div style={{ marginTop: 6, fontSize: 13, color: '#334155' }}>
-                    Prioritize products, quantities, and the total. The other fields can stay empty if they do not appear.
-                  </div>
-                )}
-              </div>
-            )}
-            {!isAssistedLines && reviewPriorityItems.length > 0 && (
-              <div style={focusListCard}>
-                <div style={focusListTitle}>
-                  {routingReadyForSave ? 'Quick checks before saving' : 'Fix these first'}
                 </div>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {reviewPriorityItems.map((hint) => (
-                    <div key={hint.field} style={focusListRow}>
-                      <strong>{formatFieldLabel(hint.field)}</strong>
-                      {hint.is_missing && <span style={focusListBadge}>Missing</span>}
-                      {hint.confirmed_examples.length > 0 && (
-                        <div style={focusListHelp}>Examples: {hint.confirmed_examples.join(', ')}</div>
-                      )}
+              )}
+              {!simpleFlowEnabled && summaryFacts.length > 0 && (
+                <div style={factsGrid}>
+                  {summaryFacts.map((item) => (
+                    <div key={item.label} style={factCard}>
+                      <div style={factLabel}>{item.label}</div>
+                      <div style={factValue}>{item.value}</div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-            {summaryFacts.length > 0 && (
-              <div style={factsGrid}>
-                {summaryFacts.map((item) => (
-                  <div key={item.label} style={factCard}>
-                    <div style={factLabel}>{item.label}</div>
-                    <div style={factValue}>{item.value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
           {doc.error_detalle && (
             <div style={{ ...section, background: '#FEF2F2', border: '1px solid #FECACA' }}>
               <h3 style={{ marginTop: 0, color: '#991B1B' }}>Detected issue</h3>
@@ -1281,9 +1339,10 @@ export default function DocumentDetail() {
             </div>
           )}
         </div>
+        )}
 
         {/* Right: Extracted fields / Table rows */}
-        <div style={{ flex: 1, minWidth: 300 }}>
+        <div style={{ minWidth: 0 }}>
           <div style={section}>
             {datos.filas && Array.isArray(datos.filas) ? (
               // Vista de tabla para INVENTARIO, NOMINA, COSTEO, etc.
@@ -1302,7 +1361,7 @@ export default function DocumentDetail() {
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <h3 style={{ margin: 0 }}>Contenido detectado</h3>
+                        <h3 style={{ margin: 0 }}>{t('docDetail.review.detectedContent')}</h3>
                         {sheets.length > 0 && (
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {sheets.map(s => {
@@ -1368,8 +1427,8 @@ export default function DocumentDetail() {
                       </p>
                     )}
                     {datos.metadata && typeof datos.metadata === 'object' && (!activeSheet || activeSheet === (datos.sheet_usada as string)) && (
-                      <div style={{ marginTop: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.75rem', fontSize: 13 }}>
-                        <strong style={{ color: '#0f172a' }}>Additional information</strong>
+                      <div style={{ marginTop: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem', fontSize: 13 }}>
+                        <strong style={{ color: '#0f172a' }}>{t('docDetail.review.additionalInfo')}</strong>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '6px 12px', marginTop: 8 }}>
                           {Object.entries(datos.metadata as Record<string, unknown>).map(([k, v]) => (
                             <div key={k} style={{ color: '#475569' }}><span style={{ fontWeight: 600 }}>{k}:</span> {String(v ?? 'â€”')}</div>
@@ -1383,7 +1442,15 @@ export default function DocumentDetail() {
             ) : (
               // Vista de campos para FACTURA, RECIBO, etc.
               <>
-                <h3 style={{ marginTop: 0 }}>{isAssistedLines ? 'Optional document data' : 'Document data'}</h3>
+                <div style={sectionHeader}>
+                  <div>
+                    <div style={sectionEyebrow}>{t('docDetail.review.dataEyebrow')}</div>
+                    <h3 style={sectionTitle}>
+                      {isAssistedLines ? t('docDetail.review.optionalDocumentData') : t('docDetail.review.documentData')}
+                    </h3>
+                    <div style={sectionSubtitle}>{t('docDetail.review.dataSubtitle')}</div>
+                  </div>
+                </div>
                 {editMode ? (
                   <div>
                     {!isAssistedLines && reviewHints.length > 0 && (
@@ -1526,7 +1593,12 @@ export default function DocumentDetail() {
 
       {activityItems.length > 0 && (
         <div style={{ ...section, marginTop: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Recent activity</h3>
+          <div style={sectionHeader}>
+            <div>
+              <div style={sectionEyebrow}>{t('docDetail.review.activityEyebrow')}</div>
+              <h3 style={sectionTitle}>{t('docDetail.review.activityTitle')}</h3>
+            </div>
+          </div>
           <div style={{ display: 'grid', gap: 10 }}>
             {activityItems.map((item) => (
               <div
@@ -1554,7 +1626,12 @@ export default function DocumentDetail() {
 
       {doc.version_links && doc.version_links.length > 0 && (
         <div style={{ ...section, marginTop: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Related versions</h3>
+          <div style={sectionHeader}>
+            <div>
+              <div style={sectionEyebrow}>{t('docDetail.review.relatedEyebrow')}</div>
+              <h3 style={sectionTitle}>{t('docDetail.review.relatedTitle')}</h3>
+            </div>
+          </div>
           <div style={{ display: 'grid', gap: 8 }}>
             {doc.version_links.map(link => (
               <button
@@ -1575,7 +1652,7 @@ export default function DocumentDetail() {
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                    <strong>{link.relation_direction === 'predecessor' ? 'Previous' : 'Next'}</strong>
+                    <strong>{link.relation_direction === 'predecessor' ? t('docDetail.review.previousVersion') : t('docDetail.review.nextVersion')}</strong>
                     <span style={{ color: '#6B7280' }}>{link.estado}</span>
                     {link.relation_reason && <span style={{ color: '#6B7280' }}>{link.relation_reason}</span>}
                   </div>
@@ -1585,7 +1662,7 @@ export default function DocumentDetail() {
                     {link.hash_sha256 ? ` Â· ${link.hash_sha256.slice(0, 12)}...` : ''}
                   </div>
                 </div>
-                <span style={{ color: '#2563EB', fontWeight: 600 }}>Open</span>
+                <span style={{ color: '#2563EB', fontWeight: 600 }}>{t('docDetail.review.openVersion')}</span>
               </button>
             ))}
           </div>
@@ -1634,15 +1711,39 @@ export default function DocumentDetail() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
 
+const pageShell: React.CSSProperties = { padding: '1.5rem' }
+const pageContent: React.CSSProperties = { maxWidth: 1280, margin: '0 auto' }
+const pageHeader: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  gap: 16,
+  flexWrap: 'wrap',
+  marginBottom: '1rem',
+}
+const pageEyebrow: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }
+const pageTitle: React.CSSProperties = { margin: '0.3rem 0 0', fontSize: 24, lineHeight: 1.12, color: '#0f172a', wordBreak: 'break-word' }
+const pageMetaRow: React.CSSProperties = { display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }
+const pageMetaItem: React.CSSProperties = { fontSize: 13, color: '#64748b' }
+const pageBadgeRow: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }
+const savedBadge: React.CSSProperties = { background: '#dcfce7', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#166534', fontWeight: 700 }
+const neutralBadge: React.CSSProperties = { background: '#e0e7ff', padding: '3px 10px', borderRadius: 999, fontSize: 13, color: '#334155', fontWeight: 700 }
+const subtleMetaText: React.CSSProperties = { fontSize: 13, color: '#475569', fontWeight: 600 }
 const section: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', background: '#fff' }
 const actionBtn: React.CSSProperties = { padding: '0.5rem 1rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }
-const secondaryActionBtn: React.CSSProperties = { padding: '0.5rem 0.9rem', border: '1px solid #cbd5e1', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700 }
-const flowCard: React.CSSProperties = { marginBottom: '1rem', border: '1px solid #bfdbfe', borderRadius: 14, padding: '1rem 1.1rem', background: 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)' }
-const flowEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }
+const secondaryActionBtn: React.CSSProperties = { padding: '0.5rem 0.9rem', border: '1px solid #cbd5e1', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }
+const flowCard: React.CSSProperties = { marginBottom: '1rem', border: '1px solid #dbeafe', borderRadius: 8, padding: '0.85rem 1rem', background: '#f8fbff' }
+const flowEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' }
+const flowTitle: React.CSSProperties = { marginTop: 4, fontSize: 16, color: '#0f172a', fontWeight: 700, lineHeight: 1.3 }
+const flowHelpText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#92400e' }
+const flowFactsRow: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginTop: 12, paddingTop: 12, borderTop: '1px solid #dbeafe' }
+const flowFactItem: React.CSSProperties = { minWidth: 0 }
+const flowFactValue: React.CSSProperties = { marginTop: 4, fontSize: 14, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }
 const statusBadge: React.CSSProperties = { color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 13, fontWeight: 600 }
 const statusColor: Record<string, string> = { CONFIRMED: '#10B981', REVIEW: '#3B82F6', PROCESSING: '#F59E0B', PENDING: '#9CA3AF', FAILED: '#EF4444', INVALID: '#EF4444', REPROCESS: '#8B5CF6', VALID: '#10B981', IMPORTED: '#0EA5E9' }
 const reprocessCard: React.CSSProperties = {
@@ -1684,23 +1785,29 @@ const reprocessDeepButton: React.CSSProperties = {
   background: '#fff',
   color: '#1d4ed8',
 }
-const decisionCard: React.CSSProperties = { marginBottom: '0.9rem', padding: '0.9rem', borderRadius: 14, border: '1px solid #e5e7eb' }
-const decisionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }
-const decisionTitle: React.CSSProperties = { marginTop: 6, fontSize: 22, lineHeight: 1.1, fontWeight: 800, color: '#0f172a' }
+const contentGridTwoColumns: React.CSSProperties = { display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))' }
+const contentGridOneColumn: React.CSSProperties = { display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(0, 1fr)' }
+const sectionHeader: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: '0.9rem' }
+const sectionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }
+const sectionTitle: React.CSSProperties = { margin: '0.25rem 0 0', fontSize: 16, lineHeight: 1.2, color: '#0f172a' }
+const sectionSubtitle: React.CSSProperties = { marginTop: 4, fontSize: 13, color: '#475569', maxWidth: 620 }
+const decisionCard: React.CSSProperties = { marginBottom: '1rem', padding: '0.85rem', borderRadius: 8, border: '1px solid #e5e7eb' }
+const decisionEyebrow: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' }
+const decisionTitle: React.CSSProperties = { marginTop: 4, fontSize: 16, lineHeight: 1.2, fontWeight: 800, color: '#0f172a' }
 const decisionSubcopy: React.CSSProperties = { marginTop: 6, fontSize: 13, color: '#475569' }
 const confidencePill: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.45rem 0.7rem', borderRadius: 999, fontSize: 12, fontWeight: 800 }
-const decisionWarning: React.CSSProperties = { marginTop: 12, padding: '0.65rem 0.75rem', borderRadius: 10, background: 'rgba(255,255,255,0.72)', color: '#92400e', fontSize: 13, fontWeight: 700 }
+const decisionWarning: React.CSSProperties = { marginTop: 12, padding: '0.65rem 0.75rem', borderRadius: 8, background: 'rgba(255,255,255,0.72)', color: '#92400e', fontSize: 13, fontWeight: 700 }
 const decisionMetaRow: React.CSSProperties = { marginTop: 12, display: 'grid', gap: 8 }
-const decisionMetaLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }
+const decisionMetaLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }
 const decisionMetaChips: React.CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap' }
 const decisionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '0.35rem 0.65rem', borderRadius: 999, background: '#fff', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, color: '#334155' }
 const decisionReasonText: React.CSSProperties = { marginTop: 12, fontSize: 13, color: '#334155' }
-const focusListCard: React.CSSProperties = { marginBottom: '0.9rem', padding: '0.85rem 0.9rem', borderRadius: 12, border: '1px solid #dbeafe', background: '#f8fbff' }
+const focusListCard: React.CSSProperties = { marginBottom: '0.6rem', paddingTop: '0.1rem' }
 const focusListTitle: React.CSSProperties = { fontSize: 13, fontWeight: 800, color: '#1d4ed8', marginBottom: 8 }
-const focusListRow: React.CSSProperties = { fontSize: 13, color: '#334155' }
+const focusListRow: React.CSSProperties = { fontSize: 13, color: '#334155', padding: '0.7rem 0', borderTop: '1px solid #e2e8f0' }
 const focusListBadge: React.CSSProperties = { marginLeft: 8, fontSize: 11, fontWeight: 800, color: '#92400e', background: '#FEF3C7', borderRadius: 999, padding: '2px 7px' }
 const focusListHelp: React.CSSProperties = { marginTop: 3, color: '#64748b', fontSize: 12 }
-const factsGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }
-const factCard: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 12, padding: '0.8rem 0.85rem', background: '#fcfcfd' }
-const factLabel: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }
+const factsGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, paddingTop: 16, borderTop: '1px solid #e2e8f0' }
+const factCard: React.CSSProperties = { minWidth: 0 }
+const factLabel: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }
 const factValue: React.CSSProperties = { marginTop: 6, fontSize: 15, lineHeight: 1.35, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }

@@ -12,7 +12,7 @@
   "removeFromQueue": "Eliminar de la cola",
   "pendingImports": "Importaciones pendientes",
   "reviewContinueBatches": "Revisar y continuar con lotes creados",
-"uploadFailed": "Error al subir {{file}}: {{message}}",
+  "uploadFailed": "Error al subir {{file}}: {{message}}",
   "cleanupStuckFailed": "Error al limpiar lotes atascados",
   "new": "Nueva Importacion",
   "search": "Buscar importaciones",
@@ -300,7 +300,7 @@
       "next": "Siguiente"
     }
   },
-"feedback": {
+  "feedback": {
     "question": "¿La clasificación automática fue correcta?",
     "close": "Cerrar",
     "confidence": "Confianza:",
@@ -466,6 +466,41 @@
       "payroll": "Nomina",
       "other": "Otro"
     },
-    "extractedFields": "Campos Extraídos"
+    "extractedFields": "Campos Extraídos",
+    "review": {
+      "title": "Resumen de revision",
+      "assistedTitle": "Revision asistida",
+      "sectionEyebrow": "Revision",
+      "readySubtitle": "La decision y los datos principales estan listos para revisar y guardar.",
+      "blockedSubtitle": "Primero corrige los datos clave y luego continua con el guardado.",
+      "assistedSubtitle": "Revisa lineas, cantidades y total antes de guardar el documento.",
+      "confidence": "{{pct}}% confianza",
+      "nextAction": "Siguiente paso",
+      "readyForDestination": "{{destination}} listo para guardar.",
+      "readyToSave": "Resultado listo para guardar.",
+      "checkFields": "Revisa {{fields}}.",
+      "advancedOptions": "Opciones avanzadas",
+      "hideAdvancedOptions": "Ocultar opciones avanzadas",
+      "readyState": "Listo para guardar",
+      "needsAttention": "Requiere revision",
+      "missingFields": "Faltan: {{fields}}",
+      "otherDestinations": "Otros destinos validos",
+      "quickChecks": "Revision final antes de guardar",
+      "fixFirst": "Corrige esto primero",
+      "missing": "Falta",
+      "dataEyebrow": "Datos",
+      "documentData": "Datos del documento",
+      "optionalDocumentData": "Datos opcionales del documento",
+      "dataSubtitle": "Confirma el contenido detectado antes de guardar.",
+      "detectedContent": "Contenido detectado",
+      "additionalInfo": "Informacion adicional",
+      "activityEyebrow": "Seguimiento",
+      "activityTitle": "Actividad reciente",
+      "relatedEyebrow": "Historial",
+      "relatedTitle": "Versiones relacionadas",
+      "previousVersion": "Anterior",
+      "nextVersion": "Siguiente",
+      "openVersion": "Abrir"
+    }
   }
 }

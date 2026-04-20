@@ -85,9 +85,7 @@ def extract_total_amount(
     if not content:
         return None
 
-    labeled = _extract_labeled_amount(
-        content, "total_amount", prompt_config=prompt_config
-    )
+    labeled = _extract_labeled_amount(content, "total_amount", prompt_config=prompt_config)
     if labeled is not None:
         return labeled
 
