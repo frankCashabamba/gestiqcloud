@@ -35,6 +35,7 @@ const NS = [
   'templates',
   'productions',
   'dashboard',
+  'historical',
 ] as const
 
 function parseSupportedLangs(raw?: string | null): BuiltInLang[] {

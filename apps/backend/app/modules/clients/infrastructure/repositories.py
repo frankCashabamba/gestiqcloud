@@ -103,11 +103,13 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
         )
         return self._to_entity(m) if m else None
 
-    def list(self, *, tenant_id: int) -> Sequence[Cliente]:
+    def list(self, *, tenant_id: int, limit: int = 200, offset: int = 0) -> Sequence[Cliente]:
         ms = (
             self.db.query(ClienteORM)
             .filter(ClienteORM.tenant_id == tenant_id)
             .order_by(ClienteORM.id.desc())
+            .offset(offset)
+            .limit(limit)
             .all()
         )
         return [self._to_entity(m) for m in ms]

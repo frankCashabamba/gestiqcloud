@@ -2,6 +2,8 @@
   "title": "Clientes",
   "new": "Nuevo Cliente",
   "empty": "Sin registros",
+  "countSingular": "cliente",
+  "countPlural": "clientes",
   "searchPlaceholder": "Buscar por nombre o email...",
   "table": {
     "name": "Nombre",
@@ -21,13 +23,21 @@
     "wholesale": "Mayorista",
     "saved": "Cliente guardado",
     "edit": "Editar cliente",
+    "editSubtitle": "Modifica los datos del cliente",
     "new": "Nuevo cliente",
+    "newSubtitle": "Completa los datos para registrar un nuevo cliente",
     "save": "Guardar",
     "cancel": "Cancelar",
     "loadingFields": "Cargando campos…",
     "required": "Obligatorio",
     "optional": "opcional",
     "fieldRequired": "El campo \"{{field}}\" es obligatorio",
-    "invalidEmail": "Email inválido"
+    "invalidEmail": "Email inválido",
+    "sectionId": "Identificación",
+    "idType": "Tipo de identificación",
+    "identification": "Número de identificación",
+    "sectionContact": "Datos de contacto",
+    "sectionExtra": "Información adicional",
+    "sectionCommercial": "Opciones comerciales"
   }
 }

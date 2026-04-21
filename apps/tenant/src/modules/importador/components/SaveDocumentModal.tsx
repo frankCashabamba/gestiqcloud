@@ -1,4 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { listPaymentMethods, type PaymentMethod } from '../../accounting/services'
 import {
   canSaveDocument,
@@ -17,7 +19,6 @@ import {
   type SaveDocumentPayload,
   type SaveDocumentResult,
 } from '../services'
-import { getImportadorSaveActionLabel } from '../constants'
 
 type SaveDocumentModalProps = {
   doc: Documento | null
@@ -100,7 +101,7 @@ function getLineItemDescription(item: Record<string, unknown>): string {
   )
   if (description) return description
   const reference = getLineItemText(item, 'supplier_ref', 'codigo', 'code', 'sku')
-  return reference || 'Producto sin nombre'
+  return reference || ''
 }
 
 function getLineItemUnit(item: Record<string, unknown>): string {
@@ -272,22 +273,23 @@ function buildInferredDefaults(
   }
 }
 
-function getMatchReasonLabel(reason: string | null | undefined): string {
+function getMatchReasonLabel(reason: string | null | undefined, t: TFunction): string {
   switch (reason) {
-    case 'create_new': return 'Crear producto nuevo'
-    case 'manual': return 'Seleccion manual'
-    case 'alias_exact': return 'Alias exacto'
-    case 'alias': return 'Alias sugerido'
-    case 'name_exact': return 'Nombre exacto'
-    case 'core_exact': return 'Nombre base'
-    case 'name_partial': return 'Nombre parcial'
-    case 'core_partial': return 'Base parcial'
-    case 'fuzzy': return 'Coincidencia cercana'
-    default: return 'Sin vinculo'
+    case 'create_new': return t('saveModal.matchReasons.create_new')
+    case 'manual': return t('saveModal.matchReasons.manual')
+    case 'alias_exact': return t('saveModal.matchReasons.alias_exact')
+    case 'alias': return t('saveModal.matchReasons.alias')
+    case 'name_exact': return t('saveModal.matchReasons.name_exact')
+    case 'core_exact': return t('saveModal.matchReasons.core_exact')
+    case 'name_partial': return t('saveModal.matchReasons.name_partial')
+    case 'core_partial': return t('saveModal.matchReasons.core_partial')
+    case 'fuzzy': return t('saveModal.matchReasons.fuzzy')
+    default: return t('saveModal.matchReasons.none')
   }
 }
 
 export default function SaveDocumentModal({ doc, open, resumeMode = false, onClose, onSaved }: SaveDocumentModalProps) {
+  const { t } = useTranslation('importer')
   const [destination, setDestination] = useState<DocumentSaveDestination>('expense')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<DocumentPaymentStatus>('pending')
@@ -307,6 +309,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   const [persistAliasByLine, setPersistAliasByLine] = useState<Record<number, boolean>>({})
   const [createNewByLine, setCreateNewByLine] = useState<Record<number, boolean>>({})
   const [loadingLineMatches, setLoadingLineMatches] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(50)
   const lineItems = useMemo(() => {
     const data = getDocumentData(doc)
     const items = data.line_items as Array<Record<string, unknown>> | undefined
@@ -334,9 +337,9 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     return lineItems.slice(0, 6).map((item) => ({
       quantity: item.quantity ?? 0,
       unit: item.unit || '',
-      description: String(item.description ?? 'Item').trim() || 'Item',
+      description: String(item.description ?? '').trim() || t('saveModal.productWithoutName'),
     }))
-  }, [lineItems])
+  }, [lineItems, t])
 
   const hasStockItems = lineItems.length > 0
   const hasLoadedCapabilities = Object.keys(capabilities).length > 0
@@ -460,6 +463,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     setUpdateStock(false)
     setShowAdvanced(false)
     setSaveMessage('')
+    setVisibleCount(50)
     setLineMatches([])
     setLineMatchSelection({})
     setPersistAliasByLine({})
@@ -497,6 +501,23 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
     })
   }, [open, doc?.id, totalAmount, activePaymentMethods])
 
+  const effectiveLineMatches = useMemo(
+    () =>
+      lineMatches.length > 0
+        ? lineMatches
+        : lineItems.map((item, index) => ({
+            line_index: index,
+            description: String(item.description ?? ''),
+            quantity: item.quantity ?? 0,
+            unit_price: item.unitPrice ?? 0,
+            selected_product_id: null,
+            selected_reason: null,
+            inferred_factor: 1,
+            candidates: [],
+          })),
+    [lineMatches, lineItems],
+  )
+
   useEffect(() => {
     if (!open || !doc?.id || !hasStockItems) return
     let cancelled = false
@@ -533,39 +554,31 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   const reviewHints = Array.isArray(doc.review_hints) ? doc.review_hints : []
   const canSubmit = routingDecision ? routingDecision.required_fields_ok : true
   const reviewIsReady = routingDecision ? routingDecision.required_fields_ok : true
+  const destinationLabel = (code: DocumentSaveDestination) =>
+    t(`saveModal.destinations.${code}.label`, {
+      defaultValue:
+        code === 'supplier_invoice'
+          ? 'Supplier invoice'
+          : code === 'recipe'
+            ? 'Recipe'
+            : 'Expense',
+    })
+  const targetTableLabel = (target: string) =>
+    t(`saveModal.targets.${target}`, {
+      defaultValue: target.replace(/_/g, ' '),
+    })
+  const targetTablesLabel = (targets: string[]) => targets.map(targetTableLabel).join(' + ')
   const reviewTitle = resumeMode
-    ? 'Completar stock pendiente'
-    : (reviewIsReady ? 'Listo para guardar' : 'Revisar antes de guardar')
+    ? t('saveModal.resumeTitle')
+    : (reviewIsReady ? t('saveModal.readyToSave') : t('saveModal.reviewBeforeSaving'))
   const reviewSummary = resumeMode
-    ? 'La compra ya existe. Este paso solo aparece si todavia quedan lineas sin vincular para actualizar stock.'
+    ? t('saveModal.resumeSummary')
     : (routingDecision?.reason
-      || 'Revisa el resultado y usa las opciones avanzadas solo si necesitas cambiar el destino o completar datos.')
-  const destinationTitle = activeDestinationMeta?.label || (
-    destination === 'supplier_invoice'
-      ? 'Factura de proveedor'
-      : destination === 'recipe'
-      ? 'Receta'
-      : 'Gasto'
-  )
+      || t('saveModal.defaultSummary'))
+  const destinationTitle = destinationLabel(destination)
   const destinationSummary = activeDestinationMeta?.target_tables?.length
-    ? `Se guardara en ${activeDestinationMeta.target_tables.join(', ')}.`
-    : destination === 'supplier_invoice'
-      ? 'Se guardara en compras o cuentas por pagar.'
-      : destination === 'recipe'
-        ? 'Se guardara como una receta lista para produccion.'
-        : 'Se registrara en el modulo de gastos.'
-  const effectiveLineMatches = lineMatches.length > 0
-    ? lineMatches
-    : lineItems.map((item, index) => ({
-        line_index: index,
-        description: String(item.description ?? ''),
-        quantity: item.quantity ?? 0,
-        unit_price: item.unitPrice ?? 0,
-        selected_product_id: null,
-        selected_reason: null,
-        inferred_factor: 1,
-        candidates: [],
-      }))
+    ? t('saveModal.savedIn', { targets: targetTablesLabel(activeDestinationMeta.target_tables) })
+    : t(`saveModal.destinations.${destination}.summary`)
   const isLineResolved = (lineIndex: number) => {
     const selectedId = lineMatchSelection[lineIndex]
     return (
@@ -579,17 +592,17 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
   const unmatchedLines = Math.max(effectiveLineMatches.length - matchedLines, 0)
   const hiddenStockPreview = Math.max(lineItems.length - stockPreviewLines.length, 0)
   const paymentStatusLabel =
-    paymentStatus === 'paid' ? 'Pagado' : paymentStatus === 'partial' ? 'Parcial' : 'Pendiente'
+    paymentStatus === 'paid' ? t('saveModal.paid') : paymentStatus === 'partial' ? t('saveModal.partial') : t('saveModal.pending')
   const modalSummaryItems = [
-    { label: 'Destino', value: destinationTitle },
-    { label: 'Total', value: totalAmount != null ? `${doc.moneda || '$'} ${totalAmount.toFixed(2)}` : 'No detectado' },
-    destination !== 'recipe' ? { label: 'Pago', value: paymentStatusLabel } : null,
+    { label: t('saveModal.summary.destination'), value: destinationTitle },
+    { label: t('saveModal.summary.total'), value: totalAmount != null ? `${doc.moneda || '$'} ${totalAmount.toFixed(2)}` : t('saveModal.summary.notDetected') },
+    destination !== 'recipe' ? { label: t('saveModal.summary.payment'), value: paymentStatusLabel } : null,
     hasStockItems
       ? {
-          label: destination === 'supplier_invoice' ? 'Lineas de producto' : 'Lineas',
+          label: destination === 'supplier_invoice' ? t('saveModal.summary.productLines') : t('saveModal.summary.lines'),
           value:
             destination === 'supplier_invoice'
-              ? `${matchedLines}/${effectiveLineMatches.length} vinculadas`
+              ? t('saveModal.summary.linked', { matched: matchedLines, total: effectiveLineMatches.length })
               : `${lineItems.length}`,
         }
       : null,
@@ -677,7 +690,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
         if (paymentStatus === 'partial') {
           if (!paidAmount.trim() && !pendingAmount.trim()) {
-            throw new Error('Debes indicar cuanto esta pagado o cuanto queda pendiente.')
+            throw new Error(t('saveModal.partialPaymentRequired'))
           }
           payload.paid_amount = paidAmount.trim() ? Number(paidAmount) : undefined
           payload.pending_amount = pendingAmount.trim() ? Number(pendingAmount) : undefined
@@ -704,7 +717,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
       const detail = Array.isArray(raw)
         ? raw.map((e: any) => e.msg ?? JSON.stringify(e)).join(' | ')
         : typeof raw === 'string' ? raw : null
-      setError(detail || err?.message || 'Could not save the document.')
+      setError(detail || err?.message || t('saveModal.saveError'))
     } finally {
       setSaving(false)
     }
@@ -743,25 +756,25 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
         `}</style>
         <div style={header}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>{resumeMode ? 'Completar stock pendiente' : 'Guardar documento'}</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{resumeMode ? t('saveModal.resumeTitle') : t('saveModal.title')}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{doc.nombre_archivo}</div>
           </div>
-          <button onClick={onClose} style={closeBtn} disabled={saving} aria-label="Cerrar modal">x</button>
+          <button onClick={onClose} style={closeBtn} disabled={saving} aria-label={t('saveModal.closeModal')}>x</button>
         </div>
 
         <div style={body}>
           <div className="save-doc-modal__hero-grid">
             <div style={{ ...heroBox, ...(reviewIsReady ? heroBoxReady : heroBoxReview) }}>
               <div>
-                <div style={heroEyebrow}>Revision final</div>
+                <div style={heroEyebrow}>{t('saveModal.finalReview')}</div>
                 <div style={heroTitle}>{reviewTitle}</div>
                 <div style={heroCopy}>{reviewSummary}</div>
                 <div style={heroMetaRow}>
                   <span style={heroPill}>{destinationTitle}</span>
-                  {!canSubmit && <span style={heroPillWarn}>Faltan campos obligatorios</span>}
+                  {!canSubmit && <span style={heroPillWarn}>{t('saveModal.missingRequiredFields')}</span>}
                   {destination === 'supplier_invoice' && hasStockItems && (
                     <span style={heroPillMuted}>
-                      {matchedLines}/{effectiveLineMatches.length} lineas vinculadas
+                      {t('saveModal.summary.linked', { matched: matchedLines, total: effectiveLineMatches.length })}
                     </span>
                   )}
                 </div>
@@ -773,7 +786,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                 style={secondaryBtn}
                 disabled={saving}
               >
-                {showAdvanced ? 'Ocultar opciones avanzadas' : 'Cambiar destino u opciones'}
+                {showAdvanced ? t('saveModal.hideAdvancedOptions') : t('saveModal.changeDestinationOptions')}
               </button>
             </div>
             <div className="save-doc-modal__summary-grid">
@@ -786,25 +799,25 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
             </div>
             {routingDecision && (
               <div style={routingDecision.required_fields_ok ? infoBox : warnBox}>
-                {routingDecision.reason || 'Hay una decision de destino disponible.'}
+                {routingDecision.reason || t('saveModal.routingAvailable')}
                 {!routingDecision.required_fields_ok && routingDecision.missing_fields.length > 0 && (
                   <div style={{ marginTop: 6 }}>
-                    Faltan: {routingDecision.missing_fields.join(', ')}
+                    {t('saveModal.missingFieldsPrefix', { fields: routingDecision.missing_fields.join(', ') })}
                   </div>
                 )}
               </div>
             )}
             {reviewHints.length > 0 && (
               <div style={{ ...infoBox, marginTop: 10 }}>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>Campos prioritarios antes de guardar</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>{t('saveModal.priorityFieldsBeforeSaving')}</div>
                 <div style={{ display: 'grid', gap: 6 }}>
                   {reviewHints.slice(0, 3).map((hint) => (
                     <div key={hint.field} style={{ fontSize: 13, color: '#334155' }}>
                       <strong>{hint.priority}. {hint.field}</strong>
-                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>Falta</span>}
+                      {hint.is_missing && <span style={{ marginLeft: 6, color: '#b45309' }}>{t('saveModal.missing')}</span>}
                       {hint.confirmed_examples.length > 0 && (
                         <div style={{ marginTop: 2, color: '#64748b' }}>
-                          Ejemplos: {hint.confirmed_examples.join(', ')}
+                          {t('saveModal.examples', { items: hint.confirmed_examples.join(', ') })}
                         </div>
                       )}
                     </div>
@@ -817,7 +830,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
           {showAdvanced && (
             <div style={advancedSection}>
               <div style={advancedCard}>
-                <div style={label}>Guardar como</div>
+                <div style={label}>{t('saveModal.saveAs')}</div>
                 <div className="save-doc-modal__choice-grid">
                   {saveDestinationChoices.map((choice) => (
                     <button
@@ -827,10 +840,10 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                       style={{ ...choiceBtn, ...(destination === choice.code ? choiceBtnActive : null) }}
                       disabled={saving}
                     >
-                      <div>{choice.label}</div>
+                      <div>{destinationLabel(choice.code)}</div>
                       {choice.target_tables.length > 0 && (
                         <div style={{ marginTop: 4, fontSize: 11, color: destination === choice.code ? '#0f172a' : '#64748b' }}>
-                          {choice.target_tables.join(' + ')}
+                          {targetTablesLabel(choice.target_tables)}
                         </div>
                       )}
                     </button>
@@ -849,7 +862,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
               />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
-                  Actualizar stock ({lineItems.length} producto{lineItems.length > 1 ? 's' : ''})
+                  {t('saveModal.updateStock', { count: lineItems.length })}
                 </div>
                 <div style={stockChipWrap}>
                   {stockPreviewLines.map((line, i) => (
@@ -859,7 +872,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                     </span>
                   ))}
                   {hiddenStockPreview > 0 && (
-                    <span style={stockChipMore}>+{hiddenStockPreview} more lines</span>
+                    <span style={stockChipMore}>{t('saveModal.moreLines', { count: hiddenStockPreview })}</span>
                   )}
                 </div>
               </div>
@@ -870,34 +883,33 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
             <div style={matchPanel}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Vincular lineas con productos</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{t('saveModal.linkLinesTitle')}</div>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                    Elige el producto correcto para cada linea. Si lo vinculas manualmente, se guardara como alias para futuras facturas.
+                    {t('saveModal.linkLinesDescription')}
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: unmatchedLines > 0 ? '#92400e' : '#166534', fontWeight: 600 }}>
-                  {matchedLines}/{effectiveLineMatches.length} lineas resueltas
+                  {t('saveModal.linesResolved', { matched: matchedLines, total: effectiveLineMatches.length })}
                 </div>
               </div>
 
               {loadingLineMatches ? (
-                <div style={hintBox}>Buscando productos parecidos...</div>
+                <div style={hintBox}>{t('saveModal.loadingLineMatches')}</div>
               ) : (
                 <div style={matchTableWrap}>
                   <table style={matchTable}>
                     <thead>
                       <tr>
-                        <th style={matchTh}>Linea</th>
-                        <th style={matchTh}>Producto detectado</th>
-                        <th style={matchTh}>Candidatos</th>
+                        <th style={matchTh}>{t('saveModal.line')}</th>
+                        <th style={matchTh}>{t('saveModal.detectedProduct')}</th>
+                        <th style={matchTh}>{t('saveModal.candidates')}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {effectiveLineMatches.map((row) => {
+                      {effectiveLineMatches.slice(0, visibleCount).map((row) => {
                         const fallbackLine = lineItems[row.line_index]
-                        const rowDescription = String(
-                          row.description || fallbackLine?.description || `Línea ${row.line_index + 1}`,
-                        ).trim()
+                        const rawDescription = String(row.description || fallbackLine?.description || '').trim()
+                        const rowDescription = rawDescription || t('saveModal.lineDescription', { number: row.line_index + 1 })
                         const rowQuantityRaw = Number(row.quantity)
                         const rowQuantity = Number.isFinite(rowQuantityRaw)
                           ? rowQuantityRaw
@@ -927,7 +939,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                             <td style={matchTd}>
                               <div style={{ fontWeight: 600, color: '#0f172a' }}>{rowDescription}</div>
                               <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                                {selectedReason ? getMatchReasonLabel(selectedReason) : 'Sin vinculo'} - factor {Number(selectedCandidate?.inferred_factor ?? row.inferred_factor ?? 1).toFixed(2)}
+                                {(selectedReason ? getMatchReasonLabel(selectedReason, t) : t('saveModal.noLink'))} - {t('saveModal.factor', { value: Number(selectedCandidate?.inferred_factor ?? row.inferred_factor ?? 1).toFixed(2) })}
                               </div>
                             </td>
                             <td style={matchTd}>
@@ -942,7 +954,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                                 style={{ ...input, minWidth: 260 }}
                                 disabled={saving}
                               >
-                                <option value="">Sin vincular</option>
+                                <option value="">{t('saveModal.unlinked')}</option>
                                 {row.candidates.map((candidate) => (
                                   <option key={candidate.product_id} value={candidate.product_id}>
                                     {candidate.name}{candidate.sku ? ` (${candidate.sku})` : ''} - {candidate.unit} - {Math.round(candidate.score * 100)}%
@@ -958,7 +970,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                                       onChange={(e) => setCreateNewByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
                                       disabled={saving}
                                     />
-                                    Crear producto nuevo (+{formatCompactNumber(rowQuantity, { maxDecimals: 3 })}{rowUnit ? ` ${rowUnit}` : ''} - {rowDescription.slice(0, 28)})
+                                    {t('saveModal.createNewProduct', { quantity: formatCompactNumber(rowQuantity, { maxDecimals: 3 }), unit: rowUnit ? ` ${rowUnit}` : '', description: rowDescription.slice(0, 28) })}
                                   </label>
                                 ) : (
                                   <div style={{ fontSize: 12, color: '#64748b' }}>
@@ -973,7 +985,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                                       onChange={(e) => setPersistAliasByLine((prev) => ({ ...prev, [row.line_index]: e.target.checked }))}
                                       disabled={saving}
                                     />
-                                    Guardar alias
+                                    {t('saveModal.saveAlias')}
                                   </label>
                                 )}
                               </div>
@@ -983,12 +995,24 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                       })}
                     </tbody>
                   </table>
+                  {effectiveLineMatches.length > visibleCount && (
+                    <div style={{ textAlign: 'center', marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => setVisibleCount((c) => c + 50)}
+                        style={secondaryBtn}
+                        disabled={saving}
+                      >
+                        {t('saveModal.loadMore', { count: Math.min(50, effectiveLineMatches.length - visibleCount) })}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
               {updateStock && unmatchedLines > 0 && (
                 <div style={warnBox}>
-                  Hay {unmatchedLines} linea(s) sin vincular. La compra y el gasto se guardaran, pero esas lineas no entraran en stock hasta que elijas un producto.
+                  {t('saveModal.unlinkedLinesWarning', { count: unmatchedLines })}
                 </div>
               )}
             </div>
@@ -998,21 +1022,21 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
             <>
               <div className="save-doc-modal__payment-grid">
                 <label style={field}>
-                  <span style={label}>Estado del pago</span>
+                  <span style={label}>{t('saveModal.paymentStatus')}</span>
                   <select
                     value={paymentStatus}
                     onChange={(e) => handlePaymentStatusChange(e.target.value as DocumentPaymentStatus)}
                     style={input}
                     disabled={saving}
                   >
-                    <option value="pending">Pendiente</option>
-                    <option value="partial">Parcial</option>
-                    <option value="paid">Pagado</option>
+                    <option value="pending">{t('saveModal.pending')}</option>
+                    <option value="partial">{t('saveModal.partial')}</option>
+                    <option value="paid">{t('saveModal.paid')}</option>
                   </select>
                 </label>
 
                 <label style={field}>
-                  <span style={label}>Metodo</span>
+                  <span style={label}>{t('saveModal.method')}</span>
                   <select
                     value={paymentMethodId}
                     onChange={(e) => setPaymentMethodId(e.target.value)}
@@ -1020,7 +1044,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                     disabled={saving}
                   >
                     {activePaymentMethods.length === 0 ? (
-                      <option value="">No hay metodos de pago configurados</option>
+                      <option value="">{t('saveModal.noPaymentMethodsConfigured')}</option>
                     ) : (
                       activePaymentMethods.map((method) => (
                         <option key={method.id} value={method.id}>
@@ -1033,7 +1057,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
                 {paymentStatus === 'paid' && (
                   <label style={field}>
-                    <span style={label}>Fecha de pago</span>
+                    <span style={label}>{t('saveModal.paymentDate')}</span>
                     <input
                       type="date"
                       value={paidAt}
@@ -1047,7 +1071,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
               <div className="save-doc-modal__amount-grid">
                 <label style={field}>
-                  <span style={label}>Pagado</span>
+                  <span style={label}>{t('saveModal.paidAmount')}</span>
                   <input
                     type="number"
                     min="0"
@@ -1061,7 +1085,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
                 </label>
 
                 <label style={field}>
-                  <span style={label}>Pendiente</span>
+                  <span style={label}>{t('saveModal.remainingAmount')}</span>
                   <input
                     type="number"
                     min="0"
@@ -1076,13 +1100,13 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
               </div>
 
               <label style={field}>
-                <span style={label}>Notas</span>
+                <span style={label}>{t('saveModal.notes')}</span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   style={{ ...input, minHeight: 88, resize: 'vertical' as const }}
                   disabled={saving}
-                  placeholder="Ej: proveedor harina, vence el lunes, pago parcial..."
+                  placeholder={t('saveModal.notesPlaceholder')}
                 />
               </label>
             </>
@@ -1092,7 +1116,7 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
           {totalAmount != null && (
             <div style={summaryBox}>
-              Total detectado: <strong>{doc.moneda || '$'} {totalAmount.toFixed(2)}</strong>
+              {t('saveModal.totalDetected', { currency: doc.moneda || '$', amount: totalAmount.toFixed(2) })}
             </div>
           )}
 
@@ -1106,14 +1130,18 @@ export default function SaveDocumentModal({ doc, open, resumeMode = false, onClo
 
         <div style={footer}>
           <button onClick={onClose} style={secondaryBtn} disabled={saving}>
-            {saveMessage ? 'Cerrar' : 'Cancelar'}
+            {saveMessage ? t('saveModal.close') : t('saveModal.cancel')}
           </button>
           {!saveMessage && (
             <button onClick={submit} style={primaryBtn} disabled={saving || !canSubmit}>
-              {saving ? 'Guardando...' : (
+              {saving ? t('saveModal.saving') : (
                 resumeMode && destination === 'supplier_invoice'
-                  ? 'Completar stock'
-                  : getImportadorSaveActionLabel(destination)
+                  ? t('saveModal.completeStock')
+                  : destination === 'supplier_invoice'
+                  ? t('docDetail.buttons.saveInvoice')
+                    : destination === 'recipe'
+                      ? t('saveModal.saveRecipe')
+                      : t('docDetail.buttons.saveExpense')
               )}
             </button>
           )}

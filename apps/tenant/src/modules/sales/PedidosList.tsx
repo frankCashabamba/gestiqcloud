@@ -8,17 +8,21 @@ import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { getCompanySettings, formatCurrency, type CompanySettings } from '../../services/companySettings'
 
+let _ventasCache: { data: Venta[], ts: number } | null = null
+const VENTAS_CACHE_TTL = 2 * 60 * 1000
+
 function ConfirmBadge({ estado }: { estado?: string }) {
+  const { t } = useTranslation()
   if (estado === 'confirmed' || estado === 'emitida') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-        ✓ Confirmado
+        ✓ {t('sales.statusConfirmed')}
       </span>
     )
   }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
-      ⏳ PDT confirmar
+      ⏳ {t('sales.statusPendingConfirm')}
     </span>
   )
 }
@@ -49,7 +53,11 @@ export default function PedidosList() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([listVentas(), getCompanySettings().catch(() => null)])
+    const ventasPromise =
+      _ventasCache && Date.now() - _ventasCache.ts < VENTAS_CACHE_TTL
+        ? Promise.resolve(_ventasCache.data)
+        : listVentas().then(data => { _ventasCache = { data, ts: Date.now() }; return data })
+    Promise.all([ventasPromise, getCompanySettings().catch(() => null)])
       .then(([ventas, settings]) => {
         // Solo mostrar ventas con fecha de entrega (pedidos especiales)
         setItems(ventas.filter(v => !!v.delivery_date))
@@ -80,16 +88,17 @@ export default function PedidosList() {
   async function handleConfirm(v: Venta) {
     try {
       await updateVenta(v.id, { ...v, estado: 'emitida' } as any)
+      _ventasCache = null
       setItems(prev => prev.map(x => x.id === v.id ? { ...x, estado: 'emitida' } : x))
-      success('Pedido confirmado')
+      success(t('sales.orderConfirmed'))
     } catch (e: any) {
       toastError(getErrorMessage(e))
     }
   }
 
-  const title = isTaller ? 'Trabajos / Cotizaciones' : 'Pedidos especiales'
-  const newLabel = isTaller ? '+ Nuevo trabajo' : '+ Nuevo pedido'
-  const deliveryLabel = isTaller ? 'Entrega estimada' : 'Fecha evento'
+  const title = isTaller ? t('sales.pedidos.titleTaller') : t('sales.pedidos.titlePanaderia')
+  const newLabel = isTaller ? t('sales.pedidos.newTaller') : t('sales.pedidos.newPanaderia')
+  const deliveryLabel = isTaller ? t('sales.deliveryLabelTaller') : t('sales.deliveryLabelPanaderia')
 
   return (
     <div className="p-4">
@@ -108,7 +117,7 @@ export default function PedidosList() {
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder="Buscar cliente, número, notas..."
+          placeholder={t('sales.ordersSearchPlaceholder')}
           className="border px-3 py-1.5 rounded text-sm flex-1 min-w-48"
         />
         <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -117,7 +126,7 @@ export default function PedidosList() {
             checked={onlyPending}
             onChange={e => setOnlyPending(e.target.checked)}
           />
-          Solo PDT confirmar
+          {t('sales.pendingConfirmFilter')}
         </label>
       </div>
 
@@ -127,12 +136,12 @@ export default function PedidosList() {
         <thead>
           <tr className="text-left border-b bg-gray-50">
             <th className="py-2 px-2">#</th>
-            <th className="py-2 px-2">Cliente</th>
+            <th className="py-2 px-2">{t('sales.customer')}</th>
             <th className="py-2 px-2">{deliveryLabel}</th>
-            <th className="py-2 px-2">Total</th>
-            <th className="py-2 px-2">Anticipo</th>
-            <th className="py-2 px-2">Estado</th>
-            <th className="py-2 px-2">Acciones</th>
+            <th className="py-2 px-2">{t('common.total')}</th>
+            <th className="py-2 px-2">{t('sales.colDeposit')}</th>
+            <th className="py-2 px-2">{t('common.status')}</th>
+            <th className="py-2 px-2">{t('common.actions')}</th>
           </tr>
         </thead>
         <tbody>

@@ -136,12 +136,14 @@ def _order_out(
 ) -> OrderOut:
     items: list[OrderItemOut] = []
     if db is not None:
-        rows = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == o.id).all()
-        for it in rows:
-            prod_name = None
-            if it.product_id:
-                prod = db.query(Product.name).filter(Product.id == it.product_id).scalar()
-                prod_name = prod
+        # Batch-load items + product names in 2 queries (avoid N+1 per product)
+        rows = (
+            db.query(SalesOrderItem, Product.name)
+            .outerjoin(Product, Product.id == SalesOrderItem.product_id)
+            .filter(SalesOrderItem.order_id == o.id)
+            .all()
+        )
+        for it, prod_name in rows:
             items.append(
                 OrderItemOut(
                     product_id=str(it.product_id),

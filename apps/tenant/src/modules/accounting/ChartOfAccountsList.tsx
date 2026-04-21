@@ -1,9 +1,13 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listCuentas, removeCuenta, seedCuentas, type PlanCuenta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { BackButton } from '@ui'
+
+let _cuentasCache: PlanCuenta[] | null = null
+let _cuentasCacheTs = 0
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
 
 export default function PlanCuentasList() {
     const { t } = useTranslation()
@@ -19,7 +23,13 @@ export default function PlanCuentasList() {
     const load = async () => {
         try {
             setLoading(true)
+            if (_cuentasCache && Date.now() - _cuentasCacheTs < CACHE_TTL) {
+                setItems(_cuentasCache)
+                return
+            }
             const data = await listCuentas()
+            _cuentasCache = data
+            _cuentasCacheTs = Date.now()
             setItems(data)
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -41,6 +51,7 @@ export default function PlanCuentasList() {
             setSeeding(true)
             const res = await seedCuentas(force)
             success(res.message)
+            _cuentasCache = null
             load()
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -54,6 +65,7 @@ export default function PlanCuentasList() {
         try {
             await removeCuenta(deleteTarget.id)
             success(t('accounting.chartOfAccounts.deleted'))
+            _cuentasCache = null
             load()
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -62,10 +74,14 @@ export default function PlanCuentasList() {
         }
     }
 
-    const filtered = items.filter(
-        (c) =>
-            c.codigo.toLowerCase().includes(filter.toLowerCase()) ||
-            c.nombre.toLowerCase().includes(filter.toLowerCase())
+    const filtered = useMemo(
+        () =>
+            items.filter(
+                (c) =>
+                    c.codigo.toLowerCase().includes(filter.toLowerCase()) ||
+                    c.nombre.toLowerCase().includes(filter.toLowerCase())
+            ),
+        [items, filter]
     )
 
     return (
@@ -80,16 +96,16 @@ export default function PlanCuentasList() {
                             disabled={seeding}
                             className="bg-green-600 text-white px-3 py-2 rounded font-medium"
                         >
-                            {seeding ? 'Generando...' : '⚡ Generar plan de cuentas'}
+                            {seeding ? t('common.loading') : t('accounting.chartOfAccounts.seedGenerate')}
                         </button>
                     ) : (
                         <button
                             onClick={() => onSeed(true)}
                             disabled={seeding}
                             className="bg-gray-100 text-gray-700 border px-3 py-2 rounded text-sm"
-                            title="Añade las cuentas estándar que falten sin borrar las existentes"
+                            title={t('accounting.chartOfAccounts.seedCompleteHint')}
                         >
-                            {seeding ? '...' : '+ Completar con estándar'}
+                            {seeding ? '...' : t('accounting.chartOfAccounts.seedComplete')}
                         </button>
                     )}
                     <button

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { createStockMove, listWarehouses, listStockItems, adjustStock, type Warehouse } from './services'
+import { createStockMove, listWarehouses, listStockItems, adjustStock, type Warehouse, type StockItem } from './services'
 import { listProductos, type Producto } from '../products/productsApi'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useCompanySector } from '../../contexts/CompanyConfigContext'
@@ -35,6 +35,9 @@ export default function MovimientoForm() {
     const [applyAll, setApplyAll] = useState(false)
     const [bulkQty, setBulkQty] = useState<number>(0)
 
+    // Caché por warehouse_id — evita refetch si ya cargamos los items para ese almacén
+    const warehouseDataRef = useRef<Record<string, StockItem[]>>({})
+
     // Combobox de producto
     const [productSearch, setProductSearch] = useState('')
     const [productDropdownOpen, setProductDropdownOpen] = useState(false)
@@ -64,7 +67,13 @@ export default function MovimientoForm() {
         (async () => {
             if (!form.warehouse_id) { setWarehouseEmpty(false); setApplyAll(false); return }
             try {
-                const items = await listStockItems({ warehouse_id: form.warehouse_id })
+                let items: StockItem[]
+                if (warehouseDataRef.current[form.warehouse_id]) {
+                    items = warehouseDataRef.current[form.warehouse_id]
+                } else {
+                    items = await listStockItems({ warehouse_id: form.warehouse_id })
+                    warehouseDataRef.current[form.warehouse_id] = items
+                }
                 const isEmpty = (items || []).length === 0
                 setWarehouseEmpty(isEmpty)
                 if (!isEmpty) setApplyAll(false)
@@ -90,15 +99,22 @@ export default function MovimientoForm() {
                 setLoading(true)
                 const qtyVal = Number(bulkQty)
                 if (Number.isNaN(qtyVal)) throw new Error(t('inventory:errors.invalidQty'))
+                const BATCH_SIZE = 50
                 const activeProducts = productos.filter((p) => (p as any).active !== false)
-                const results = await Promise.allSettled(
-                    activeProducts.map((p) => adjustStock({
-                        warehouse_id: form.warehouse_id,
-                        product_id: p.id,
-                        delta: qtyVal,
-                        reason: 'init_all',
-                    }))
-                )
+                const allResults: PromiseSettledResult<unknown>[] = []
+                for (let i = 0; i < activeProducts.length; i += BATCH_SIZE) {
+                    const batch = activeProducts.slice(i, i + BATCH_SIZE)
+                    const batchResults = await Promise.allSettled(
+                        batch.map((p) => adjustStock({
+                            warehouse_id: form.warehouse_id,
+                            product_id: p.id,
+                            delta: qtyVal,
+                            reason: 'init_all',
+                        }))
+                    )
+                    allResults.push(...batchResults)
+                }
+                const results = allResults
                 const ok = results.filter((r) => r.status === 'fulfilled').length
                 const ko = results.length - ok
                 success(t('inventory:messages.warehouseInit', { ok, ko: ko > 0 ? `, ${ko} ${t('inventory:messages.withErrors')}` : '' }))
@@ -183,7 +199,7 @@ export default function MovimientoForm() {
 
                 {!applyAll && (
                     <div className="relative">
-                        <label className="block mb-2 font-medium">{t('common.product')} <span className="text-red-600">*</span></label>
+                        <label className="block mb-2 font-medium">{t('common:product')} <span className="text-red-600">*</span></label>
                         <div className="relative">
                             <input
                                 ref={productInputRef}
@@ -222,7 +238,7 @@ export default function MovimientoForm() {
                         {productDropdownOpen && (
                             <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
                                 {filteredProductos.length === 0 ? (
-                                    <div className="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                                    <div className="px-3 py-2 text-sm text-gray-400">{t('inventory:stock.noResults')}</div>
                                 ) : (
                                     filteredProductos.map((p) => (
                                         <button
@@ -313,7 +329,7 @@ export default function MovimientoForm() {
                         {applyAll ? t('inventory:form.initWarehouse') : t('inventory:form.registerMovement')}
                     </button>
                     <button type="button" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium" onClick={() => nav('..')}>
-                        {t('common.cancel')}
+                        {t('common:cancel')}
                     </button>
                 </div>
             </form>

@@ -1,8 +1,8 @@
 ﻿import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { canSaveDocument, canSaveProductsSheet, fetchDocument, fetchDocumentLineMatchCandidates, fetchSaveCapabilities, fetchLineItemSlots, confirmDocument, editDocumentFields, rejectDocument, suggestSaveDestination, syncAllRecipes, syncRecipe, saveDailyLog, getCandidateSaveDestinations, getDocCategory, getDocumentData, getDocumentDisplayStatus, hasConfirmedDocumentData, isDocumentSaved, type Documento, type LogCambio, type LineItemSlot, type SaveDocumentResult, type SaveDailyLogResult, type SaveProductsFromDocumentResult, type SyncRecipeResult, type SyncRecipesResult } from '../services'
-import { getImportadorSaveActionLabel, getImportadorSavedAsLabel, STATUS_LABELS } from '../constants'
 import { fetchCanonicalFields, formatFieldLabel, type CanonicalField } from '../services'
 
 const SaveDocumentModal = lazy(() => import('../components/SaveDocumentModal'))
@@ -20,6 +20,7 @@ function ReprocessActions({
   deepLabel,
   title,
   copy,
+  t,
 }: {
   onFast: () => void
   onDeep: () => void
@@ -27,12 +28,13 @@ function ReprocessActions({
   deepLabel: string
   title: string
   copy: string
+  t: TFunction
 }) {
   return (
     <div style={reprocessCard}>
       <div style={reprocessHeaderLayout}>
         <div style={{ minWidth: 0 }}>
-          <div style={reprocessEyebrow}>Reprocesado</div>
+          <div style={reprocessEyebrow}>{t('docDetail.reprocessEyebrow')}</div>
           <div style={reprocessTitle}>{title}</div>
           <div style={reprocessCopy}>{copy}</div>
         </div>
@@ -187,7 +189,7 @@ function isGroupedNumericColumn(rawHeader: string, canonicalHeader: string): boo
     || /(?:cantidad|precio|importe|total|unitario)/i.test(String(rawHeader || ''))
 }
 
-function GroupedLineItemsPreview({ group }: { group: LineItemPageGroup }) {
+function GroupedLineItemsPreview({ group, t }: { group: LineItemPageGroup; t: TFunction }) {
   const columns = group.headers.map((header, index) => ({
     label: header,
     canonical: group.headers_norm[index] || '',
@@ -198,10 +200,10 @@ function GroupedLineItemsPreview({ group }: { group: LineItemPageGroup }) {
   return (
     <div style={{ marginTop: '0.75rem' }}>
       <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 600, marginBottom: 6 }}>
-        Pagina {group.source_page} - Detalle ({group.line_items.length})
+        {t('docDetail.groupedPageTitle', { page: group.source_page, count: group.line_items.length })}
       </div>
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
-        Encabezados: {group.headers.join(' | ')}
+        {t('docDetail.groupedPageHeaders', { headers: group.headers.join(' | ') })}
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
@@ -295,38 +297,40 @@ export function normalizeLineItemPageGroups(data: Record<string, unknown>): Line
   ]
 }
 
-function summarizeLogDetail(action: string, detail: Record<string, unknown> | null | undefined): string | undefined {
+function summarizeLogDetail(action: string, detail: Record<string, unknown> | null | undefined, t: TFunction): string | undefined {
   if (!detail || typeof detail !== 'object') return undefined
   if (action === 'UPLOAD') {
     const filename = typeof detail.filename === 'string' ? detail.filename : null
-    return filename ? `File: ${filename}` : undefined
+    return filename ? t('docDetail.activity.uploadFile', { filename }) : undefined
   }
   if (action === 'CONFIRM') {
     const mode = typeof detail.confirmation_mode === 'string' ? detail.confirmation_mode : null
-    if (mode === 'corrected_by_user') return 'Confirmed with user changes.'
-    if (mode === 'accepted_as_detected') return 'Confirmed as detected.'
-    return 'The document data was confirmed.'
+    if (mode === 'corrected_by_user') return t('docDetail.activity.confirmedWithChanges')
+    if (mode === 'accepted_as_detected') return t('docDetail.activity.confirmedAsDetected')
+    return t('docDetail.activity.confirmedData')
   }
   if (action === 'REPROCESS') {
     const reason = typeof detail.reason === 'string' ? detail.reason : null
-    if (reason === 'learning_update') return 'Reanalyzed to apply recent confirmed learning.'
+    if (reason === 'learning_update') return t('docDetail.activity.reprocessedLearning')
     const mode = typeof detail.mode === 'string' ? detail.mode : null
-    return mode === 'async' || mode === 'in_place' ? 'Se reproceso el documento.' : undefined
+    return mode === 'async' || mode === 'in_place' ? t('docDetail.activity.reprocessed') : undefined
   }
   if (action === 'EDIT') {
     const fields = Array.isArray(detail.changed_fields) ? detail.changed_fields.map(String).filter(Boolean) : []
-    return fields.length ? `Campos actualizados: ${fields.join(', ')}` : 'Se actualizaron los datos del documento.'
+    return fields.length
+      ? t('docDetail.activity.fieldsUpdated', { fields: fields.join(', ') })
+      : t('docDetail.activity.dataUpdated')
   }
   if (action === 'SAVE_DESTINATION') {
     const target = typeof detail.target === 'string' ? detail.target : null
     const status = typeof detail.status === 'string' ? detail.status : null
-    if (target && status === 'created') return `Se guardo en ${target}.`
-    if (target) return `Destino: ${target}.`
+    if (target && status === 'created') return t('docDetail.activity.savedIn', { target })
+    if (target) return t('docDetail.activity.destination', { target })
   }
   return undefined
 }
 
-function buildUserActivity(logs: LogCambio[] | undefined): ActivityItem[] {
+function buildUserActivity(logs: LogCambio[] | undefined, t: TFunction): ActivityItem[] {
   if (!logs?.length) return []
   return logs
     .filter((log) => ['UPLOAD', 'EDIT', 'CONFIRM', 'REJECT', 'REPROCESS', 'SAVE_DESTINATION'].includes(log.accion))
@@ -339,18 +343,18 @@ function buildUserActivity(logs: LogCambio[] | undefined): ActivityItem[] {
             ? log.detalle as Record<string, unknown>
             : null
           const mode = typeof detail?.confirmation_mode === 'string' ? detail.confirmation_mode : null
-          if (mode === 'corrected_by_user') return 'Document confirmed with corrections'
-          if (mode === 'accepted_as_detected') return 'Document confirmed as detected'
+          if (mode === 'corrected_by_user') return t('docDetail.activity.confirmedWithCorrectionsTitle')
+          if (mode === 'accepted_as_detected') return t('docDetail.activity.confirmedAsDetectedTitle')
         }
-        if (log.accion === 'UPLOAD') return 'Document uploaded'
-        if (log.accion === 'EDIT') return 'Datos editados'
-        if (log.accion === 'CONFIRM') return 'Document confirmed'
-        if (log.accion === 'REJECT') return 'Document rejected'
-        if (log.accion === 'REPROCESS') return 'Reproceso solicitado'
-        return 'Document saved'
+        if (log.accion === 'UPLOAD') return t('docDetail.activity.uploadTitle')
+        if (log.accion === 'EDIT') return t('docDetail.activity.editTitle')
+        if (log.accion === 'CONFIRM') return t('docDetail.activity.confirmTitle')
+        if (log.accion === 'REJECT') return t('docDetail.activity.rejectTitle')
+        if (log.accion === 'REPROCESS') return t('docDetail.activity.reprocessTitle')
+        return t('docDetail.activity.saveTitle')
       })(),
       when: new Date(log.created_at).toLocaleString(),
-      note: summarizeLogDetail(log.accion, log.detalle as Record<string, unknown> | null | undefined),
+      note: summarizeLogDetail(log.accion, log.detalle as Record<string, unknown> | null | undefined, t),
     }))
 }
 
@@ -696,6 +700,26 @@ export default function DocumentDetail() {
   const primaryCandidate = candidateDestinations.find((candidate) => candidate.code === routingDecision?.primary_destination)
     || candidateDestinations[0]
     || null
+  const destinationLabel = (code?: string | null) =>
+    code
+      ? t(`saveModal.destinations.${code}.label`, { defaultValue: code.replace(/_/g, ' ') })
+      : ''
+  const targetTableLabel = (target: string) =>
+    t(`saveModal.targets.${target}`, { defaultValue: target.replace(/_/g, ' ') })
+  const targetTablesLabel = (targets: string[]) => targets.map(targetTableLabel).join(' + ')
+  const savedAsLabel = (savedAs?: string | null) =>
+    savedAs
+      ? t(`docDetail.savedAs.${savedAs}`, { defaultValue: t('docDetail.savedAs.default') })
+      : t('docDetail.savedAs.default')
+  const statusLabel = (status?: string | null) =>
+    status
+      ? t(`docDetail.statusLabels.${status}`, { defaultValue: status })
+      : ''
+  const saveDestinationActionLabel = (code?: string | null) => {
+    if (code === 'supplier_invoice') return t('docDetail.buttons.saveInvoice')
+    if (code === 'recipe') return t('saveModal.saveRecipe')
+    return t('docDetail.buttons.saveExpense')
+  }
   const alternativeCandidates = primaryCandidate
     ? candidateDestinations.filter((candidate) => candidate.code !== primaryCandidate.code)
     : candidateDestinations
@@ -820,7 +844,7 @@ export default function DocumentDetail() {
   const canSaveProducts = !isSaved
     && activeSheetRows.length > 0
     && canSaveProductsSheet(docCategory, activeSheet, activeNormKeys)
-  const activityItems = buildUserActivity(doc?.logs)
+  const activityItems = buildUserActivity(doc?.logs, t)
   const documentCategoryLabel = t(`docDetail.categoryLabels.${docCategory}`, { defaultValue: docCategory })
   const reviewSectionTitle = isAssistedLines
     ? t('docDetail.review.assistedTitle')
@@ -1014,7 +1038,7 @@ export default function DocumentDetail() {
       {isSaved && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.9rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginBottom: '0.75rem', fontSize: 13, color: '#166534' }}>
           <span>
-            Guardado como {getImportadorSavedAsLabel(inferredSavedAs)}
+            {t('docDetail.savedAsBanner', { label: savedAsLabel(inferredSavedAs) })}
             {doc.saved_at && <span style={{ marginLeft: 8, opacity: 0.75 }}>- {new Date(doc.saved_at).toLocaleString()}</span>}
           </span>
         </div>
@@ -1032,11 +1056,11 @@ export default function DocumentDetail() {
           </div>
           <div style={pageBadgeRow}>
             <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>
-              {STATUS_LABELS[displayStatus] || displayStatus}
+              {statusLabel(displayStatus)}
             </span>
             {isSaved && (
               <span style={savedBadge}>
-                {getImportadorSavedAsLabel(inferredSavedAs)}
+                {savedAsLabel(inferredSavedAs)}
               </span>
             )}
             {doc.tipo_documento_detectado && (
@@ -1215,20 +1239,20 @@ export default function DocumentDetail() {
         <div style={{ ...section, marginTop: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
             <div>
-              <h3 style={{ margin: 0 }}>Lineas detectadas</h3>
+              <h3 style={{ margin: 0 }}>{t('docDetail.review.detectedLinesTitle')}</h3>
               <div style={{ marginTop: 4, fontSize: 13, color: '#64748B' }}>
-                This document is better reviewed by lines than by general fields.
+                {t('docDetail.review.assistedDescription')}
               </div>
             </div>
             <div style={{ fontSize: 12, color: '#0F766E', fontWeight: 700 }}>
-              {assistedReview?.line_items_count ?? detectedLineItems.length} suggested lines
+              {t('docDetail.review.suggestedLines', { count: assistedReview?.line_items_count ?? detectedLineItems.length })}
             </div>
           </div>
           <LineItemsPreview
             items={detectedLineItems}
             slots={lineItemSlots}
-            title="Detalle detectado"
-            subtitle={assistedReview?.can_derive_total ? 'The total can be derived from these lines.' : 'Review quantities, prices, and the total before saving.'}
+            title={t('docDetail.review.detectedLineItemsTitle')}
+            subtitle={assistedReview?.can_derive_total ? t('docDetail.review.derivedTotalFromLines') : t('docDetail.review.reviewLinesBeforeSaving')}
           />
         </div>
       )}
@@ -1244,10 +1268,10 @@ export default function DocumentDetail() {
       {/* Status badge */}
       {(!simpleFlowEnabled || showAdvancedReview) && (
       <div style={{ marginBottom: '1rem' }}>
-        <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>{STATUS_LABELS[displayStatus] || displayStatus}</span>
+        <span style={{ ...statusBadge, background: statusColor[displayStatus] || '#9CA3AF' }}>{statusLabel(displayStatus)}</span>
         {isSaved && (
           <span style={{ ...savedBadge, marginLeft: 8 }}>
-            Saved
+            {t('statuses.saved')}
           </span>
         )}
         {doc.tipo_documento_detectado && <span style={{ ...neutralBadge, marginLeft: 8 }}>{doc.tipo_documento_detectado}</span>}
@@ -1261,8 +1285,9 @@ export default function DocumentDetail() {
           onDeep={() => openReimport('deep')}
           fastLabel={t('reprocessPage.fastTitle')}
           deepLabel={t('reprocessPage.deepTitle')}
-          title="Elegir nivel de reproceso"
-          copy="Rapido mantiene el flujo actual. Profundo ignora las caches de OCR e IA y vuelve a empezar para mejorar la extraccion."
+          title={t('docDetail.reprocessChooseLevel')}
+          copy={t('docDetail.reprocessChooseCopy')}
+          t={t}
         />
       )}
 
@@ -1292,11 +1317,11 @@ export default function DocumentDetail() {
                         {routingDecision.required_fields_ok ? t('docDetail.review.readyState') : t('docDetail.review.needsAttention')}
                       </div>
                       <div style={decisionTitle}>
-                        {primaryCandidate?.label || getImportadorSaveActionLabel(saveDestination)}
+                        {destinationLabel(primaryCandidate?.code) || saveDestinationActionLabel(saveDestination)}
                       </div>
                       {primaryCandidate?.target_tables?.length ? (
                         <div style={decisionSubcopy}>
-                          Se guarda en {primaryCandidate.target_tables.join(' + ')}
+                          {t('docDetail.review.savedIn', { targets: targetTablesLabel(primaryCandidate.target_tables) })}
                         </div>
                       ) : (
                         <div style={decisionSubcopy}>
@@ -1352,7 +1377,7 @@ export default function DocumentDetail() {
                         <strong>{formatFieldLabel(hint.field)}</strong>
                         {hint.is_missing && <span style={focusListBadge}>{t('docDetail.review.missing')}</span>}
                         {hint.confirmed_examples.length > 0 && (
-                          <div style={focusListHelp}>Ejemplos: {hint.confirmed_examples.join(', ')}</div>
+                          <div style={focusListHelp}>{t('docDetail.review.examples', { items: hint.confirmed_examples.join(', ') })}</div>
                         )}
                       </div>
                     ))}
@@ -1525,7 +1550,7 @@ export default function DocumentDetail() {
                               )}
                               {hint?.confirmed_examples?.length ? (
                                 <span style={{ color: '#64748b', fontSize: 12 }}>
-                                  Ejemplos: {hint.confirmed_examples.join(', ')}
+                                  {t('docDetail.review.examples', { items: hint.confirmed_examples.join(', ') })}
                                 </span>
                               ) : null}
                             </label>
@@ -1629,6 +1654,7 @@ export default function DocumentDetail() {
                             <GroupedLineItemsPreview
                               key={`page-${group.source_page}`}
                               group={group}
+                              t={t}
                             />
                           ))}
                         </div>

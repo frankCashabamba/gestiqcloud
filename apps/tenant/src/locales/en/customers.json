@@ -2,6 +2,8 @@
   "title": "Customers",
   "new": "New Customer",
   "empty": "No records",
+  "countSingular": "customer",
+  "countPlural": "customers",
   "searchPlaceholder": "Search by name or email...",
   "table": {
     "name": "Name",
@@ -21,13 +23,21 @@
     "wholesale": "Wholesale",
     "saved": "Customer saved",
     "edit": "Edit customer",
+    "editSubtitle": "Update the customer's details",
     "new": "New customer",
+    "newSubtitle": "Fill in the details to register a new customer",
     "save": "Save",
     "cancel": "Cancel",
     "loadingFields": "Loading fields…",
     "required": "Required",
     "optional": "optional",
     "fieldRequired": "The field \"{{field}}\" is required",
-    "invalidEmail": "Invalid email"
+    "invalidEmail": "Invalid email",
+    "sectionId": "Identification",
+    "idType": "ID type",
+    "identification": "ID number",
+    "sectionContact": "Contact details",
+    "sectionExtra": "Additional information",
+    "sectionCommercial": "Commercial options"
   }
 }

@@ -16,6 +16,11 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import { getDefaultReorderPoint, getCompanySettings } from '../../services/companySettings'
 import { isStandardUnitCode } from '../../services/unitService'
 
+// ─── Caché de módulo (persiste entre navegaciones, TTL 3 min) ─────────────────
+let _stockCache: { items: StockItem[]; warehouses: Warehouse[]; ts: number } | null = null
+const STOCK_CACHE_TTL = 3 * 60 * 1000
+function invalidateStockCache() { _stockCache = null }
+
 type QuickAdjustState = {
   open: boolean
   productId: string
@@ -71,12 +76,20 @@ export default function StockList() {
         setLoading(true)
         const settings = await getCompanySettings()
         setDefaultReorderPoint(getDefaultReorderPoint(settings))
-        const [stockData, warehousesData] = await Promise.all([
-          listStockItems(),
-          listWarehouses(),
-        ])
-        setItems(stockData)
-        setWarehouses(warehousesData)
+
+        const now = Date.now()
+        if (_stockCache && now - _stockCache.ts < STOCK_CACHE_TTL) {
+          setItems(_stockCache.items)
+          setWarehouses(_stockCache.warehouses)
+        } else {
+          const [stockData, warehousesData] = await Promise.all([
+            listStockItems(),
+            listWarehouses(),
+          ])
+          _stockCache = { items: stockData, warehouses: warehousesData, ts: Date.now() }
+          setItems(stockData)
+          setWarehouses(warehousesData)
+        }
       } catch (e: any) {
         const m = getErrorMessage(e)
         setErrMsg(m)
@@ -132,6 +145,7 @@ export default function StockList() {
     try {
       setQuickAdjusting(true)
       await adjustStock({ warehouse_id: String(wh.id), product_id: quickAdjust.productId, delta })
+      invalidateStockCache()
       const refreshed = await listStockItems()
       setItems(refreshed)
       setQuickAdjust(EMPTY_QUICK)
@@ -148,6 +162,7 @@ export default function StockList() {
       setSyncing(true)
       const res = await syncFromProducts()
       success(t('inventory:stock.syncSuccess', { created: res.created, updated: res.updated, warehouse: res.warehouse }))
+      invalidateStockCache()
       const refreshed = await listStockItems()
       setItems(refreshed)
     } catch (e: any) {
@@ -257,6 +272,19 @@ export default function StockList() {
     return set.size
   }, [items])
 
+  const totalLowStockAlerts = useMemo(() => {
+    return items.filter((i) => {
+      const min = getReorderPoint(i)
+      return min > 0 && i.qty <= min
+    }).length
+  }, [items, defaultReorderPoint])
+
+  const totalOverstockAlerts = useMemo(() => {
+    return items.filter(
+      (i) => i.product?.product_metadata?.max_stock && i.qty > i.product.product_metadata.max_stock,
+    ).length
+  }, [items])
+
   return (
     <>
     {quickAdjust.open && (
@@ -267,7 +295,7 @@ export default function StockList() {
 
             {/* Combobox producto */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Producto</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('inventory:product')}</label>
               <div className="relative">
                 <input
                   ref={quickProductInputRef}
@@ -276,7 +304,7 @@ export default function StockList() {
                   onChange={(e) => setQuickAdjust((s) => ({ ...s, productSearch: e.target.value, dropdownOpen: true, productId: '', productLabel: '' }))}
                   onFocus={() => setQuickAdjust((s) => ({ ...s, productSearch: '', dropdownOpen: true }))}
                   onBlur={() => setTimeout(() => setQuickAdjust((s) => ({ ...s, dropdownOpen: false })), 150)}
-                  placeholder="Buscar por nombre o SKU…"
+                  placeholder={t('inventory:stock.searchPlaceholder')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm pr-7"
                   autoComplete="off"
                 />
@@ -290,7 +318,7 @@ export default function StockList() {
                 {quickAdjust.dropdownOpen && (
                   <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                     {filteredQuickProducts.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                      <div className="px-3 py-2 text-sm text-gray-400">{t('inventory:stock.noResults')}</div>
                     ) : filteredQuickProducts.map((p) => (
                       <button
                         key={p.id}
@@ -362,17 +390,17 @@ export default function StockList() {
             className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors font-medium disabled:opacity-50"
             onClick={handleSync}
             disabled={syncing}
-            title="Sincronizar stock desde productos"
+            title={t('inventory:stock.syncFromProducts')}
           >
             🔄 {syncing ? t('inventory:stock.syncing') : t('inventory:stock.syncFromProducts')}
           </button>
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={exportCSV}>
             {t('inventory:stock.exportCsv')}
           </button>
-          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={crearAlmacenDefecto} title="Create warehouse ALM-1">
+          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={crearAlmacenDefecto} title={t('inventory:stock.createWarehouse')}>
             {t('inventory:stock.createWarehouse')}
           </button>
-          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={openQuickAdjust} title="Quick adjust de stock">
+          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={openQuickAdjust} title={t('inventory:stock.quickAdjust')}>
             {t('inventory:stock.quickAdjust')}
           </button>
           <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium" onClick={() => nav('movimientos/nuevo')}>
@@ -387,7 +415,7 @@ export default function StockList() {
           <div className="text-sm text-gray-600">{t('inventory:stock.totalProducts')}</div>
           <div className="text-2xl font-bold text-gray-900">{totalProductosUnicos}</div>
           {totalProductosConStock0 > 0 && (
-            <div className="text-xs text-red-500 mt-1">+{totalProductosConStock0} sin stock</div>
+            <div className="text-xs text-red-500 mt-1">+{totalProductosConStock0} {t('inventory:stock.withoutStock')}</div>
           )}
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
@@ -397,15 +425,12 @@ export default function StockList() {
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="text-sm text-gray-600">{t('inventory:stock.lowStockAlerts')}</div>
           <div className="text-2xl font-bold text-red-600">
-            {items.filter((i) => {
-              const min = getReorderPoint(i)
-              return min > 0 && i.qty <= min
-            }).length}
+            {totalLowStockAlerts}
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="text-sm text-gray-600">{t('inventory:stock.overstock')}</div>
-          <div className="text-2xl font-bold text-orange-600">{items.filter((i) => i.product?.product_metadata?.max_stock && i.qty > i.product.product_metadata.max_stock).length}</div>
+          <div className="text-2xl font-bold text-orange-600">{totalOverstockAlerts}</div>
         </div>
       </div>
 
@@ -448,7 +473,7 @@ export default function StockList() {
             onChange={(e) => setShowZeroStock(e.target.checked)}
             className="rounded"
           />
-          Mostrar productos sin stock (qty ≤ 0)
+          {t('inventory:stock.showZeroStock')}
         </label>
       </div>
 
@@ -505,7 +530,7 @@ export default function StockList() {
                         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
                       }}
                     >
-                      Stock {sortKey === 'qty' && (sortDir === 'asc' ? '▲' : '▼')}
+                      {t('inventory:stock.stock')} {sortKey === 'qty' && (sortDir === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('inventory:stock.location')}</th>
@@ -572,7 +597,7 @@ export default function StockList() {
                             {alerta.texto}
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-500">OK</span>
+                          <span className="text-xs text-gray-500">{t('inventory:stock.ok')}</span>
                         )}
                       </td>
                     </tr>

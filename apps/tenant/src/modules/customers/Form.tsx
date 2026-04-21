@@ -7,6 +7,9 @@ import { apiFetch } from '../../lib/http'
 import { type FieldCfg, mergeFieldConfig, getFieldType, renderDynamicField } from '../../hooks/useFieldConfig'
 import { useDocumentIDTypes } from '../../hooks/useDocumentIDTypes'
 
+const _fieldsCache: Record<string, { data: FieldCfg[], ts: number }> = {}
+const FIELDS_CACHE_TTL = 10 * 60 * 1000
+
 const FIELD_ALIASES: Record<string, string> = {
   nombre: 'name',
   telefono: 'phone',
@@ -20,6 +23,8 @@ const normalizeFieldId = (field: string) => FIELD_ALIASES[field] || field
 const CONTACT_FIELDS = new Set(['name', 'email', 'phone'])
 // Campos que van en opciones comerciales
 const COMMERCIAL_FIELDS = new Set(['is_wholesale', 'payment_terms_days', 'credit_limit', 'descuento_pct'])
+// Campos manejados manualmente (no delegados a renderDynamicField)
+const MANUAL_FIELDS = new Set(['identificacion', 'identificacion_tipo', 'tax_id', 'tax_id_type'])
 
 export default function ClienteForm() {
   const { t } = useTranslation(['customers', 'common'])
@@ -41,10 +46,18 @@ export default function ClienteForm() {
     let cancelled = false
     ;(async () => {
       try {
+        const cacheKey = empresa || '__default__'
+        const cached = _fieldsCache[cacheKey]
+        if (cached && Date.now() - cached.ts < FIELDS_CACHE_TTL) {
+          if (!cancelled) setFields(cached.data)
+          return
+        }
         setLoadingCfg(true)
         const q = new URLSearchParams({ module: 'customers', ...(empresa ? { empresa } : {}) }).toString()
         const data = await apiFetch<{ items?: FieldCfg[] }>(`/api/v1/company/settings/fields?${q}`)
-        if (!cancelled) setFields((data?.items || []).filter(it => it.visible !== false))
+        const items = (data?.items || []).filter(it => it.visible !== false)
+        _fieldsCache[cacheKey] = { data: items, ts: Date.now() }
+        if (!cancelled) setFields(items)
       } catch {
         if (!cancelled) setFields(null)
       } finally {
@@ -58,8 +71,6 @@ export default function ClienteForm() {
     (fields || []).map((cfg) => ({ ...cfg, field: normalizeFieldId(cfg.field) })),
     [fields]
   )
-
-  const MANUAL_FIELDS = new Set(['identificacion', 'identificacion_tipo', 'tax_id', 'tax_id_type'])
 
   const fieldList = useMemo(() => {
     const base: FieldCfg[] = [
@@ -84,10 +95,10 @@ export default function ClienteForm() {
     try {
       setBusy(true)
       if (!((form as any).identificacion_tipo || '').trim()) {
-        throw new Error(t('customers:form.fieldRequired', { field: t('customers:form.idType', { defaultValue: 'Tipo de identificación' }) }))
+        throw new Error(t('customers:form.fieldRequired', { field: t('customers:form.idType') }))
       }
       if (!((form as any).identificacion || '').trim()) {
-        throw new Error(t('customers:form.fieldRequired', { field: t('customers:form.identification', { defaultValue: 'Identificación' }) }))
+        throw new Error(t('customers:form.fieldRequired', { field: t('customers:form.identification') }))
       }
       for (const f of fieldList) {
         if (f.required && f.visible !== false) {
@@ -131,7 +142,7 @@ export default function ClienteForm() {
             {id ? t('customers:form.edit') : t('customers:form.new')}
           </h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            {id ? t('customers:form.editSubtitle', 'Modifica los datos del cliente') : t('customers:form.newSubtitle', 'Completa los datos para registrar un nuevo cliente')}
+            {id ? t('customers:form.editSubtitle') : t('customers:form.newSubtitle')}
           </p>
         </div>
       </div>
@@ -151,12 +162,12 @@ export default function ClienteForm() {
             <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
             </svg>
-            {t('customers:form.sectionId', 'Identificación')}
+            {t('customers:form.sectionId')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1.5">
-                {t('customers:form.idType', { defaultValue: 'Tipo de identificación' })}
+                {t('customers:form.idType')}
                 <span className="text-rose-500 ml-1">*</span>
               </label>
               <select
@@ -166,7 +177,7 @@ export default function ClienteForm() {
                 required
                 disabled={busy}
               >
-                <option value="">{t('common:select', { defaultValue: 'Seleccionar...' })}</option>
+                <option value="">{t('common:select')}</option>
                 {idTypes.map((it) => (
                   <option key={it.code} value={it.code}>{it.name_es || it.name_en} ({it.code})</option>
                 ))}
@@ -174,7 +185,7 @@ export default function ClienteForm() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1.5">
-                {t('customers:form.identification', { defaultValue: 'Número de identificación' })}
+                {t('customers:form.identification')}
                 <span className="text-rose-500 ml-1">*</span>
               </label>
               <input
@@ -197,7 +208,7 @@ export default function ClienteForm() {
               <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              {t('customers:form.sectionContact', 'Datos de contacto')}
+              {t('customers:form.sectionContact')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {contactFields.map((f) => {
@@ -230,7 +241,7 @@ export default function ClienteForm() {
               <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              {t('customers:form.sectionExtra', 'Información adicional')}
+              {t('customers:form.sectionExtra')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {otherFields.map((f) => {
@@ -266,7 +277,7 @@ export default function ClienteForm() {
               <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
-              {t('customers:form.sectionCommercial', 'Opciones comerciales')}
+              {t('customers:form.sectionCommercial')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {commercialFields.map((f) => {
@@ -312,7 +323,7 @@ export default function ClienteForm() {
             disabled={busy}
           >
             {busy && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-            {busy ? t('common:saving', 'Guardando…') : t('customers:form.save')}
+            {busy ? t('common:saving') : t('customers:form.save')}
           </button>
           <button
             type="button"

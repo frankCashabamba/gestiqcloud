@@ -106,7 +106,7 @@ export default function ClientesList() {
         <div>
           <h2 className="text-xl font-bold text-slate-900">{t('customers:title')}</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            {filtered.length} {filtered.length === 1 ? t('customers:countSingular', 'cliente') : t('customers:countPlural', 'clientes')}
+            {filtered.length} {filtered.length === 1 ? t('customers:countSingular') : t('customers:countPlural')}
             {q && ` · "${q}"`}
           </p>
         </div>

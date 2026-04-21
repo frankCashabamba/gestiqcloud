@@ -110,5 +110,16 @@ export default defineConfig({
       }
     })
   ],
-  build: { outDir: 'dist' }
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['@mui/material', '@mui/icons-material'],
+          'vendor-utils': ['axios'],
+        },
+      },
+    },
+  }
 })

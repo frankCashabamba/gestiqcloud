@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod, listCuentas } from '../services'
 import type { PaymentMethod, PlanCuenta } from '../services'
@@ -18,6 +18,11 @@ export default function PaymentMethods() {
     account_id: '',
     is_active: true,
   })
+
+  const accountMap = useMemo(
+    () => new Map(accounts.map((a) => [a.id, a])),
+    [accounts]
+  )
 
   const load = async () => {
     setLoading(true)
@@ -117,7 +122,7 @@ export default function PaymentMethods() {
               value={form.account_id}
               onChange={(e) => setForm((f) => ({ ...f, account_id: e.target.value }))}
             >
-              <option value="">— Select —</option>
+              <option value="">{t('common.select')}</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.codigo} - {a.nombre}
@@ -154,7 +159,7 @@ export default function PaymentMethods() {
             onClick={handleSave}
             disabled={!!savingId}
           >
-            {savingId ? 'Saving…' : form.id ? 'Update' : 'Create'}
+            {savingId ? t('common.saving') : form.id ? t('common.save') : t('common.create')}
           </button>
         </div>
       </div>
@@ -171,7 +176,7 @@ export default function PaymentMethods() {
           </thead>
           <tbody>
             {methods.map((m) => {
-              const cuenta = accounts.find((a) => a.id === m.account_id)
+              const cuenta = accountMap.get(m.account_id)
               return (
                 <tr key={m.id} className="border-t">
                   <td className="p-2 font-medium">{m.name}</td>

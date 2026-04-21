@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getDashboard, type HistDashboard } from '../services'
 
 const EMPTY: HistDashboard = {
@@ -18,6 +19,7 @@ function fmt(n: number): string {
 }
 
 export default function DashboardPage() {
+  const { t } = useTranslation('historical')
   const navigate = useNavigate()
   const [stats, setStats] = useState<HistDashboard>(EMPTY)
   const [loading, setLoading] = useState(true)
@@ -29,27 +31,28 @@ export default function DashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const cards = [
-    { label: 'Total Importaciones', value: stats.total_imports, bg: '#e2e8f0', tone: '#334155' },
-    { label: 'Registros Ventas', value: stats.total_sales_records, bg: '#dbeafe', tone: '#1d4ed8' },
-    { label: 'Registros Compras', value: stats.total_purchase_records, bg: '#fef3c7', tone: '#92400e' },
-    { label: 'Registros Stock', value: stats.total_stock_records, bg: '#dcfce7', tone: '#166534' },
-    { label: 'Monto Total Ventas', value: `$${fmt(stats.sales_total)}`, bg: '#ede9fe', tone: '#7c3aed' },
-    { label: 'Monto Total Compras', value: `$${fmt(stats.purchases_total)}`, bg: '#fce7f3', tone: '#be185d' },
-  ]
+  const cards = useMemo(() => [
+    { label: t('cards.totalImports'), value: stats.total_imports, bg: '#e2e8f0', tone: '#334155' },
+    { label: t('cards.salesRecords'), value: stats.total_sales_records, bg: '#dbeafe', tone: '#1d4ed8' },
+    { label: t('cards.purchasesRecords'), value: stats.total_purchase_records, bg: '#fef3c7', tone: '#92400e' },
+    { label: t('cards.stockRecords'), value: stats.total_stock_records, bg: '#dcfce7', tone: '#166534' },
+    { label: t('cards.salesTotalAmount'), value: `$${fmt(stats.sales_total)}`, bg: '#ede9fe', tone: '#7c3aed' },
+    { label: t('cards.purchasesTotalAmount'), value: `$${fmt(stats.purchases_total)}`, bg: '#fce7f3', tone: '#be185d' },
+  ], [stats, t])
 
-  const dateRange =
+  const dateRange = useMemo(() =>
     stats.date_range_from && stats.date_range_to
       ? `${stats.date_range_from} — ${stats.date_range_to}`
-      : 'Sin datos'
+      : t('noData'),
+  [stats.date_range_from, stats.date_range_to, t])
 
-  const links = [
-    { label: 'Ventas', path: 'sales' },
-    { label: 'Compras', path: 'purchases' },
-    { label: 'Stock', path: 'stock' },
-    { label: 'Importaciones', path: 'imports' },
-    { label: 'Subir archivo', path: 'upload' },
-  ]
+  const links = useMemo(() => [
+    { label: t('links.sales'), path: 'sales' },
+    { label: t('links.purchases'), path: 'purchases' },
+    { label: t('links.stock'), path: 'stock' },
+    { label: t('links.imports'), path: 'imports' },
+    { label: t('links.upload'), path: 'upload' },
+  ], [t])
 
   return (
     <div style={{ padding: '1.5rem', display: 'grid', gap: '1rem', maxWidth: 1100, margin: '0 auto' }}>
@@ -63,16 +66,16 @@ export default function DashboardPage() {
         }}
       >
         <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7c3aed', marginBottom: 6 }}>
-          Módulo Histórico
+          {t('moduleLabel')}
         </div>
         <h1 style={{ margin: 0, fontSize: 32, lineHeight: 1.05, color: '#0f172a' }}>
-          Panel de datos históricos
+          {t('title')}
         </h1>
         <p style={{ margin: '0.6rem 0 0', fontSize: 15, color: '#475569', maxWidth: 700 }}>
-          Consulta ventas, compras y stock importados desde archivos. Estos datos no afectan la contabilidad real.
+          {t('subtitle')}
         </p>
         <div style={{ marginTop: 8, fontSize: 13, color: '#64748b' }}>
-          Rango de fechas: <strong style={{ color: '#0f172a' }}>{dateRange}</strong>
+          {t('dateRange')}: <strong style={{ color: '#0f172a' }}>{dateRange}</strong>
         </div>
       </section>
 
@@ -115,7 +118,7 @@ export default function DashboardPage() {
         }}
       >
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Accesos rápidos</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{t('quickAccess')}</div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.8rem' }}>
           {links.map((l) => (

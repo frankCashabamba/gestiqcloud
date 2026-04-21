@@ -1,5 +1,6 @@
 /** AlertConfigManager — Gestión de configuraciones de alertas de inventario */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   listAlertConfigs,
   createAlertConfig,
@@ -126,9 +127,13 @@ export default function AlertConfigManager() {
   const handleToggleActive = async (config: AlertConfig) => {
     try {
       await updateAlertConfig(config.id, { is_active: !config.is_active })
-      setConfigs((prev) =>
-        prev.map((c) => (c.id === config.id ? { ...c, is_active: !c.is_active } : c)),
-      )
+      setConfigs((prev) => {
+        const idx = prev.findIndex((c) => c.id === config.id)
+        if (idx === -1) return prev
+        const next = [...prev]
+        next[idx] = { ...next[idx], is_active: !next[idx].is_active }
+        return next
+      })
     } catch (e) {
       toastError(getErrorMessage(e))
     }

@@ -36,7 +36,7 @@ async function* streamChatMessage(
   })
 
   if (!res.ok || !res.body) {
-    yield { chunk: 'Error al conectar con el asistente.', done: false }
+    yield { chunk: '__CONNECTION_ERROR__', done: false }
     yield { chunk: '', done: true, suggestions: [] }
     return
   }
@@ -177,7 +177,10 @@ export default function CopilotChatWidget() {
             const updated = [...prev]
             const last = updated[updated.length - 1]
             if (last.role === 'assistant') {
-              updated[updated.length - 1] = { ...last, content: last.content + event.chunk }
+              const chunk = event.chunk === '__CONNECTION_ERROR__'
+                ? t('copilot:connectionError')
+                : event.chunk
+              updated[updated.length - 1] = { ...last, content: last.content + chunk }
             }
             return updated
           })
@@ -207,7 +210,7 @@ export default function CopilotChatWidget() {
         if (last.role === 'assistant') {
           updated[updated.length - 1] = {
             ...last,
-            content: t('common:copilot.connectionError'),
+            content: t('copilot:connectionError'),
             streaming: false,
           }
         }
@@ -336,7 +339,7 @@ export default function CopilotChatWidget() {
                   justifyContent: 'center',
                   fontSize: '14px',
                 }}
-                title="Historial de conversaciones"
+                title={t('copilot:historyTitle')}
               >
                 📋
               </button>
@@ -374,7 +377,7 @@ export default function CopilotChatWidget() {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--gc-muted)' }}>Conversaciones anteriores</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--gc-muted)' }}>{t('copilot:previousConversations')}</span>
                 <button
                   onClick={() => { setMessages([]); setShowHistory(false) }}
                   style={{
@@ -386,11 +389,11 @@ export default function CopilotChatWidget() {
                     padding: 0,
                   }}
                 >
-                  + Nueva conversación
+                  {t('copilot:newConversation')}
                 </button>
               </div>
               {conversations.length === 0 && (
-                <p style={{ fontSize: '13px', color: 'var(--gc-muted)', textAlign: 'center', padding: '24px 0' }}>Sin conversaciones guardadas</p>
+                <p style={{ fontSize: '13px', color: 'var(--gc-muted)', textAlign: 'center', padding: '24px 0' }}>{t('copilot:noConversations')}</p>
               )}
               {conversations.map(conv => (
                 <div
@@ -409,7 +412,7 @@ export default function CopilotChatWidget() {
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{conv.title || 'Conversación'}</p>
+                    <p style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{conv.title || t('copilot:conversationFallback')}</p>
                     <p style={{ fontSize: '11px', color: 'var(--gc-muted)', margin: 0 }}>
                       {conv.current_module && `${conv.current_module} · `}
                       {conv.message_count} msgs · {new Date(conv.created_at).toLocaleDateString()}
@@ -426,7 +429,7 @@ export default function CopilotChatWidget() {
                       padding: '2px 4px',
                       marginLeft: '8px',
                     }}
-                    title="Eliminar"
+                    title={t('copilot:deleteConversation')}
                   >
                     🗑️
                   </button>
@@ -493,7 +496,7 @@ export default function CopilotChatWidget() {
                   <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
                     <button
                       onClick={() => handleFeedback(idx, 'thumbs_up')}
-                      title="Útil"
+                      title={t('copilot:feedbackUseful')}
                       style={{
                         background: 'none',
                         border: '1px solid var(--gc-border)',

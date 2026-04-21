@@ -187,7 +187,7 @@ export default function ProveedorForm() {
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Trade Name</span>
+              <span className="font-medium text-slate-600">{t('suppliers:form.tradeName')}</span>
               <input
                 className="gc-input"
                 value={form.nombre_comercial || ''}
@@ -195,7 +195,7 @@ export default function ProveedorForm() {
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">NIF / Tax ID</span>
+              <span className="font-medium text-slate-600">{t('suppliers:form.nif')}</span>
               <input
                 className="gc-input"
                 value={form.nif || ''}
@@ -203,7 +203,7 @@ export default function ProveedorForm() {
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Country</span>
+              <span className="font-medium text-slate-600">{t('suppliers:form.country')}</span>
               <select
                 className="gc-input"
                 value={form.pais || 'ES'}

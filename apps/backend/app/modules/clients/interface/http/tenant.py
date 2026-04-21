@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -71,11 +71,16 @@ router = APIRouter(
 
 @router.get("", response_model=list[ClienteOutSchema])
 @router.get("/", response_model=list[ClienteOutSchema])
-def listar_clientes(request: Request, db: Session = Depends(get_db)):
+def listar_clientes(
+    request: Request,
+    db: Session = Depends(get_db),
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
     claims = request.state.access_claims
     tenant_id = claims.get("tenant_id")
     use = ListarClientes(SqlAlchemyClienteRepo(db))
-    items: list[ClienteOut] = list(use.execute(tenant_id=tenant_id))
+    items: list[ClienteOut] = list(use.execute(tenant_id=tenant_id, limit=limit, offset=offset))
     return [_dto_to_schema(item) for item in items]
 
 

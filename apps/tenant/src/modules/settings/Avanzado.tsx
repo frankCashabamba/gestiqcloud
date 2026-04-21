@@ -273,7 +273,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                 parsedSettings.hr === null ||
                 parsedSettings.sales === null
             ) {
-                error('Revisa los JSON: hay un formato invalido')
+                error(t('settings:advanced.invalidJson'))
                 return
             }
         }
@@ -361,7 +361,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
             await tenantApi.put('/api/v1/company/settings', payload)
             clearCompanySettingsCache()
             await loadSettings()
-            success('Configuracion guardada')
+            success(t('settings:advanced.saved'))
         } catch (err: any) {
             error(getErrorMessage(err))
         } finally {
@@ -372,25 +372,25 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
     return (
         <div className="p-4" style={{ maxWidth: 980 }}>
             <h2 className="font-semibold text-lg mb-2">
-                {isAdminView ? 'Configuracion avanzada' : 'Operativo'}
+                {isAdminView ? t('settings:advanced.titleAdmin') : t('settings:advanced.titleOperative')}
             </h2>
             <p className="text-sm text-slate-600 mb-6">
                 {isAdminView
-                    ? 'Ajustes avanzados y configuracion tecnica del tenant.'
-                    : 'Ajustes operativos clave para POS e inventario.'}
+                    ? t('settings:advanced.subtitleAdmin')
+                    : t('settings:advanced.subtitleOperative')}
             </p>
             {!isCompanyAdmin && isAdminView && (
                 <div className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded">
-                    Solo administradores de empresa pueden editar esta seccion.
+                    {t('settings:advanced.adminOnly')}
                 </div>
             )}
 
-            {loading && <div className="text-sm text-slate-500 mb-4">Loading...</div>}
+            {loading && <div className="text-sm text-slate-500 mb-4">{t('common:loading')}</div>}
 
             {!isAdminView && (
                 <>
                     <section className="border rounded-lg p-4 mb-6">
-                        <h3 className="font-semibold mb-3">Regional</h3>
+                        <h3 className="font-semibold mb-3">{t('settings:advanced.regional')}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm mb-1">{t('settings:regional.locale')}</label>
@@ -432,7 +432,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         setInventory((prev) => ({ ...prev, track_lots: e.target.checked }))
                                     }
                                 />
-                                Rastrear lotes
+                                {t('settings:moduleConfig.trackLots')}
                             </label>
                             <label className="text-sm flex items-center gap-2">
                                 <input
@@ -442,7 +442,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         setInventory((prev) => ({ ...prev, track_expiry: e.target.checked }))
                                     }
                                 />
-                                Rastrear caducidad
+                                {t('settings:moduleConfig.trackExpiry')}
                             </label>
                             <label className="text-sm flex items-center gap-2">
                                 <input
@@ -452,10 +452,10 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         setInventory((prev) => ({ ...prev, allow_negative_stock: e.target.checked }))
                                     }
                                 />
-                                Permitir stock negativo
+                                {t('settings:moduleConfig.allowNegativeStock')}
                             </label>
                             <div>
-                                <label className="block text-sm mb-1">Minimo de stock</label>
+                                <label className="block text-sm mb-1">{t('settings:moduleConfig.minStockAlert')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     type="number"
@@ -475,7 +475,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                         <h3 className="font-semibold mb-3">POS</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm mb-1">Ventana devolucion (dias)</label>
+                                <label className="block text-sm mb-1">{t('settings:moduleConfig.returnWindowDays')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     type="number"
@@ -497,7 +497,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         setPos((prev) => ({ ...prev, price_includes_tax: e.target.checked }))
                                     }
                                 />
-                                Precios incluyen impuestos
+                                {t('settings:moduleConfig.priceIncludesTax')}
                             </label>
                             <label className="text-sm flex items-center gap-2">
                                 <input
@@ -507,7 +507,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         setPos((prev) => ({ ...prev, store_credit_enabled: e.target.checked }))
                                     }
                                 />
-                                Store credit habilitado
+                                {t('settings:advanced.storeCreditEnabled')}
                             </label>
                             <label className="text-sm flex items-center gap-2">
                                 <input
@@ -517,10 +517,10 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         setPos((prev) => ({ ...prev, store_credit_single_use: e.target.checked }))
                                     }
                                 />
-                                Store credit un solo uso
+                                {t('settings:advanced.storeCreditSingleUse')}
                             </label>
                             <div>
-                                <label className="block text-sm mb-1">Expiracion store credit (meses)</label>
+                                <label className="block text-sm mb-1">{t('settings:advanced.storeCreditExpiry')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     type="number"

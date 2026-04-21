@@ -247,6 +247,10 @@ async def list_cuentas(
     activo: bool | None = None,
     imputable: bool | None = None,
     buscar: str | None = Query(None, description="Buscar en código o nombre"),
+    # PERF: índice recomendado para búsqueda ILIKE:
+    # CREATE INDEX CONCURRENTLY idx_plan_cuentas_code_trgm ON plan_cuentas USING gin(code gin_trgm_ops);
+    limit: int = Query(500, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -267,7 +271,7 @@ async def list_cuentas(
         )
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = db.execute(count_stmt).scalar_one()
-    stmt = stmt.order_by(PlanCuentas.code)
+    stmt = stmt.order_by(PlanCuentas.code).offset(offset).limit(limit)
     result = db.execute(stmt)
     cuentas = result.scalars().all()
     return PlanCuentasList(items=[_serialize_cuenta(c) for c in cuentas], total=total)
@@ -658,12 +662,19 @@ async def upsert_pos_accounting_settings(
 
 @router.get("/pos/payment-methods", response_model=list[PaymentMethodOut])
 async def list_payment_methods(
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     tid = claims["tenant_id"]
     methods = (
-        db.query(PaymentMethod).filter_by(tenant_id=tid).order_by(PaymentMethod.name.asc()).all()
+        db.query(PaymentMethod)
+        .filter_by(tenant_id=tid)
+        .order_by(PaymentMethod.name.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
     )
     if methods:
         return [
@@ -682,6 +693,8 @@ async def list_payment_methods(
         db.query(PaymentMethodTemplate)
         .filter_by(active=True)
         .order_by(PaymentMethodTemplate.name.asc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return [
