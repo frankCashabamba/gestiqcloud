@@ -26,7 +26,7 @@ from app.models.base import BaseCatalogModel
 class BusinessType(BaseCatalogModel):
     __tablename__ = "business_types"
     __table_args__ = {"extend_existing": True}
-    # No need to define id, tenant_id, code, name, description, 
+    # No need to define id, tenant_id, code, name, description,
     # is_active, created_at, updated_at - inherited!
 ```
 
@@ -188,13 +188,13 @@ schemas = get_catalog_schemas("BusinessType")
 ### Importar desde @packages/api-types
 
 ```typescript
-import type { 
-  BusinessType, 
+import type {
+  BusinessType,
   BusinessCategory,
   CatalogCreateRequest,
   CatalogUpdateRequest,
   CatalogFilters,
-  PaginatedResponse 
+  PaginatedResponse
 } from '@packages/api-types'
 ```
 
@@ -249,12 +249,12 @@ function BusinessTypesPage() {
     <div>
       {catalog.loading && <div>Loading...</div>}
       {catalog.error && <div>Error: {catalog.error}</div>}
-      
+
       <button onClick={() => catalog.loadItems()}>Refresh</button>
       <button onClick={() => catalog.createItem({ name: 'New Type' })}>
         Create
       </button>
-      
+
       <ul>
         {catalog.items.map(item => (
           <li key={item.id}>
@@ -264,7 +264,7 @@ function BusinessTypesPage() {
           </li>
         ))}
       </ul>
-      
+
       <PaginationControls pagination={catalog.pagination} />
     </div>
   )
@@ -288,7 +288,7 @@ function BusinessTypesPage() {
 ```python
 # app/examples/catalog_endpoints.py
 from app.decorators.validation import (
-    tenant_required, validate_pagination_params, 
+    tenant_required, validate_pagination_params,
     validate_resource_exists, handle_not_found
 )
 from app.utils.schema_generator import create_catalog_schemas
@@ -310,11 +310,11 @@ def list_business_types(
 ):
     # Sin validación manual - decorators la hacen!
     query = db.query(BusinessType).filter(BusinessType.tenant_id == tenant_id)
-    
+
     total = query.count()
     offset = (page - 1) * per_page
     items = query.offset(offset).limit(per_page).all()
-    
+
     return {
         "items": items,
         "total": total,
@@ -336,12 +336,12 @@ const businessTypeService = createCatalogService<BusinessType>('business-types')
 // Usar en componentes
 function BusinessTypesComponent() {
   const [items, setItems] = useState<BusinessType[]>([])
-  
+
   useEffect(() => {
     businessTypeService.list(tenantId, { page: 1, per_page: 20 })
       .then(response => setItems(response.items))
   }, [])
-  
+
   return (
     <button onClick={() => businessTypeService.create(tenantId, { name: 'New' })}>
       Create
@@ -397,12 +397,12 @@ def get_business_type(business_type_id: str, request: Request):
         uuid = UUID(business_type_id)
     except ValueError:
         raise HTTPException(400, "Invalid ID")
-    
+
     claims = getattr(request.state, "access_claims", {})
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(400, "Tenant not found")
-    
+
     # ... lógica del endpoint
 
 # DESPUÉS:

@@ -19,12 +19,12 @@ export interface UseAsyncStateConfig<T> {
 }
 
 export function useAsyncState<T = any>(config: UseAsyncStateConfig<T> = {}) {
-  const { 
-    initialData = null, 
-    onSuccess, 
-    onError, 
+  const {
+    initialData = null,
+    onSuccess,
+    onError,
     resetOnSuccess = false,
-    resetOnError = false 
+    resetOnError = false
   } = config
 
   const [state, setState] = useState<AsyncState<T>>({
@@ -36,16 +36,16 @@ export function useAsyncState<T = any>(config: UseAsyncStateConfig<T> = {}) {
 
   const execute = useCallback(async <R>(
     asyncFn: () => Promise<R>,
-    options?: { 
+    options?: {
       onSuccess?: (data: R) => void
       onError?: (error: string) => void
       showLoading?: boolean
     }
   ): Promise<R | null> => {
-    const { 
-      onSuccess: localOnSuccess, 
-      onError: localOnError, 
-      showLoading = true 
+    const {
+      onSuccess: localOnSuccess,
+      onError: localOnError,
+      showLoading = true
     } = options || {}
 
     try {
@@ -54,7 +54,7 @@ export function useAsyncState<T = any>(config: UseAsyncStateConfig<T> = {}) {
       }
 
       const result = await asyncFn()
-      
+
       setState(prev => ({
         ...prev,
         data: result as T,
@@ -75,7 +75,7 @@ export function useAsyncState<T = any>(config: UseAsyncStateConfig<T> = {}) {
       return result as R
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
-      
+
       setState(prev => ({
         ...prev,
         loading: false,

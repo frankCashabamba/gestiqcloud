@@ -444,137 +444,142 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 
     from sqlalchemy import select
 
-    from app.config.database import SessionLocal
+    from app.config.database import tenant_session_scope
     from app.models.core.einvoicing import SRISubmission
     from app.models.core.facturacion import Invoice
     from app.modules.einvoicing.application.sri_service import SRIService
 
-    db = SessionLocal()
     try:
-        tid = _UUID(str(tenant_id))
-        iid = _UUID(str(invoice_id))
+        with tenant_session_scope(str(tenant_id)) as db:
+            tid = _UUID(str(tenant_id))
+            iid = _UUID(str(invoice_id))
 
-        # 1. Obtener configuración SRI (endpoint, environment)
-        sri_settings = SRIService.get_settings(db, tid, "EC")
+            # 1. Obtener configuración SRI (endpoint, environment)
+            sri_settings = SRIService.get_settings(db, tid, "EC")
 
-        # 2. Cargar invoice vía ORM
-        invoice = db.execute(
-            select(Invoice).where(Invoice.id == iid, Invoice.tenant_id == tid)
-        ).scalar_one_or_none()
-        if not invoice:
-            raise ValueError(f"Invoice {invoice_id} not found")
+            # 2. Cargar invoice vía ORM
+            invoice = db.execute(
+                select(Invoice).where(Invoice.id == iid, Invoice.tenant_id == tid)
+            ).scalar_one_or_none()
+            if not invoice:
+                raise ValueError(f"Invoice {invoice_id} not found")
 
-        tenant = invoice.tenant
-        customer = invoice.customer
+            tenant = invoice.tenant
+            customer = invoice.customer
 
-        invoice_data = {
-            "numero": invoice.numero,
-            "fecha": invoice.fecha or invoice.issue_date,
-            "subtotal": float(invoice.subtotal or 0),
-            "impuesto": float(invoice.iva or 0),
-            "total": float(invoice.total or 0),
-            "empresa": {
-                "nombre": getattr(tenant, "name", "") or "",
-                "ruc": getattr(tenant, "tax_id", "") or "",
-                "direccion": getattr(tenant, "address", "") or "",
-            },
-            "cliente": {
-                "nombre": getattr(customer, "name", "") or "",
-                "ruc": getattr(customer, "tax_id", getattr(customer, "identificacion", "")) or "",
-                "email": getattr(customer, "email", "") or "",
-            },
-            "lines": [
-                {
-                    "cantidad": float(getattr(line, "cantidad", getattr(line, "quantity", 1)) or 1),
-                    "precio_unitario": float(
-                        getattr(line, "precio_unitario", getattr(line, "unit_price", 0)) or 0
-                    ),
-                    "total": float(getattr(line, "total", 0) or 0),
-                    "descripcion": getattr(line, "descripcion", getattr(line, "description", ""))
+            # ... resto del código existente dentro del context manager
+
+            invoice_data = {
+                "numero": invoice.numero,
+                "fecha": invoice.fecha or invoice.issue_date,
+                "subtotal": float(invoice.subtotal or 0),
+                "impuesto": float(invoice.iva or 0),
+                "total": float(invoice.total or 0),
+                "empresa": {
+                    "nombre": getattr(tenant, "name", "") or "",
+                    "ruc": getattr(tenant, "tax_id", "") or "",
+                    "direccion": getattr(tenant, "address", "") or "",
+                },
+                "cliente": {
+                    "nombre": getattr(customer, "name", "") or "",
+                    "ruc": getattr(customer, "tax_id", getattr(customer, "identificacion", ""))
                     or "",
-                    "sku": getattr(line, "sku", None),
-                }
-                for line in (invoice.lines or [])
-            ],
-        }
+                    "email": getattr(customer, "email", "") or "",
+                },
+                "lines": [
+                    {
+                        "cantidad": float(
+                            getattr(line, "cantidad", getattr(line, "quantity", 1)) or 1
+                        ),
+                        "precio_unitario": float(
+                            getattr(line, "precio_unitario", getattr(line, "unit_price", 0)) or 0
+                        ),
+                        "total": float(getattr(line, "total", 0) or 0),
+                        "descripcion": getattr(
+                            line, "descripcion", getattr(line, "description", "")
+                        )
+                        or "",
+                        "sku": getattr(line, "sku", None),
+                    }
+                    for line in (invoice.lines or [])
+                ],
+            }
 
-        # 3. Pre-validar RUC antes de enviar
-        from app.modules.einvoicing.application.sri_service import validate_ruc_ec
+            # 3. Pre-validar RUC antes de enviar
+            from app.modules.einvoicing.application.sri_service import validate_ruc_ec
 
-        ruc = invoice_data["empresa"]["ruc"]
-        if not validate_ruc_ec(ruc):
-            raise ValueError(f"RUC de empresa inválido: {ruc!r}")
+            ruc = invoice_data["empresa"]["ruc"]
+            if not validate_ruc_ec(ruc):
+                raise ValueError(f"RUC de empresa inválido: {ruc!r}")
 
-        # 4. Generar XML RIDE
-        xml_content = generate_sri_xml(invoice_data)
-        clave_acceso = generate_clave_acceso(invoice_data)
+            # 4. Generar XML RIDE
+            xml_content = generate_sri_xml(invoice_data)
+            clave_acceso = generate_clave_acceso(invoice_data)
 
-        # 5. Cargar certificado digital
-        cert_data = _load_cert_sync(tenant_id, "EC")
+            # 5. Cargar certificado digital
+            cert_data = _load_cert_sync(tenant_id, "EC")
 
-        # 6. Firmar con XAdES-BES (SHA-256)
-        signed_xml = sign_xml_xades_bes(xml_content, cert_data)
+            # 6. Firmar con XAdES-BES (SHA-256)
+            signed_xml = sign_xml_xades_bes(xml_content, cert_data)
 
-        # 7. Enviar a RecepcionComprobantesOffline vía SRIService
-        reception = SRIService.send_reception(sri_settings, signed_xml)
+            # 7. Enviar a RecepcionComprobantesOffline vía SRIService
+            reception = SRIService.send_reception(sri_settings, signed_xml)
 
-        # Mapear estado de recepción a estado interno
-        reception_status = reception.get("status", "ERROR")
-        msgs = reception.get("messages") or []
-        error_msg: str | None = None
-        if msgs:
-            error_msg = (
-                " | ".join(m.get("mensaje", "") for m in msgs if m.get("tipo") == "ERROR") or None
+            # Mapear estado de recepción a estado interno
+            reception_status = reception.get("status", "ERROR")
+            msgs = reception.get("messages") or []
+            error_msg: str | None = None
+            if msgs:
+                error_msg = (
+                    " | ".join(m.get("mensaje", "") for m in msgs if m.get("tipo") == "ERROR")
+                    or None
+                )
+
+            if reception_status == "RECEIVED":
+                sri_status = "SENT"
+            elif reception_status == "REJECTED":
+                sri_status = "REJECTED"
+                error_msg = error_msg or "Comprobante devuelto por SRI"
+            else:
+                sri_status = "ERROR"
+                error_msg = error_msg or reception.get("message") or "Error en recepción"
+
+            # 8. Guardar SRISubmission
+            submission = SRISubmission(
+                tenant_id=tid,
+                invoice_id=iid,
+                status=sri_status,
+                receipt_number=clave_acceso,
+                payload=signed_xml,
+                error_message=error_msg,
             )
+            db.add(submission)
 
-        if reception_status == "RECEIVED":
-            sri_status = "SENT"
-        elif reception_status == "REJECTED":
-            sri_status = "REJECTED"
-            error_msg = error_msg or "Comprobante devuelto por SRI"
-        else:
-            sri_status = "ERROR"
-            error_msg = error_msg or reception.get("message") or "Error en recepción"
+            # 9. Si fue recibida, actualizar invoice y disparar polling
+            if sri_status == "SENT":
+                invoice.status = "einvoice_sent"
 
-        # 8. Guardar SRISubmission
-        submission = SRISubmission(
-            tenant_id=tid,
-            invoice_id=iid,
-            status=sri_status,
-            receipt_number=clave_acceso,
-            payload=signed_xml,
-            error_message=error_msg,
-        )
-        db.add(submission)
+            db.commit()
 
-        # 9. Si fue recibida, actualizar invoice y disparar polling
-        if sri_status == "SENT":
-            invoice.status = "einvoice_sent"
+            logger.info("SRI invoice %s → recepción=%s", invoice_id, sri_status)
 
-        db.commit()
+            # 10. Programar tarea de polling de autorización (5 min)
+            if sri_status == "SENT":
+                poll_sri_authorization_task.apply_async(
+                    args=[str(submission.id), tenant_id, clave_acceso],
+                    countdown=300,
+                )
 
-        logger.info("SRI invoice %s → recepción=%s", invoice_id, sri_status)
-
-        # 10. Programar tarea de polling de autorización (5 min)
-        if sri_status == "SENT":
-            poll_sri_authorization_task.apply_async(
-                args=[str(submission.id), tenant_id, clave_acceso],
-                countdown=300,
-            )
-
-        return {
-            "status": sri_status,
-            "clave_acceso": clave_acceso,
-            "message": error_msg,
-        }
+            return {
+                "status": sri_status,
+                "clave_acceso": clave_acceso,
+                "message": error_msg,
+            }
 
     except Exception as e:
-        db.rollback()
         logger.error("Error processing SRI invoice %s: %s", invoice_id, e)
         raise
-
-    finally:
-        db.close()
+    # rollback y close manejados por tenant_session_scope
 
 
 @celery_app.task(name="einvoicing.poll_sri_authorization", max_retries=12)

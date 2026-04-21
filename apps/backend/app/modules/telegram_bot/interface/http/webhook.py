@@ -49,9 +49,13 @@ router = APIRouter(prefix="/telegram", tags=["Telegram Bot"])
 
 
 def _get_bot_db(tenant_id: str) -> Session:
+    """Deprecated: usar bot_session_scope() en su lugar"""
+
+    # Para compatibilidad temporal, retornamos la sesión del context manager
+    # NOTA: El caller debe manejar el cleanup
     db = SessionLocal()
     db.info["tenant_id"] = tenant_id
-    db.info["bypass_rls"] = True  # el webhook no tiene sesión de usuario
+    db.info["bypass_rls"] = True
     return db
 
 

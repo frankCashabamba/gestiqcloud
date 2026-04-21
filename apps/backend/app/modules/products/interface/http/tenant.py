@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.core.dependencies import get_current_tenant_id
 from app.middleware.tenant import ensure_tenant
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
@@ -82,7 +83,12 @@ def _empresa_id_from_request(request: Request) -> str | None:
     Devuelve tenant_id como UUID string (no int).
     FALLBACK DEV: Si no hay token válido, usa el primer tenant.
     """
+    import logging
     import os
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    logger = logging.getLogger(__name__)
 
     try:
         tid = getattr(request.state, "tenant_id", None)
@@ -97,15 +103,26 @@ def _empresa_id_from_request(request: Request) -> str | None:
 
                 from app.config.database import SessionLocal
 
-                with SessionLocal() as db_temp:
-                    rows = db_temp.execute(
-                        text("SELECT id FROM tenants ORDER BY created_at LIMIT 2")
-                    ).fetchall()
-                    if len(rows) == 1:
-                        return str(rows[0][0])
+                try:
+                    with SessionLocal() as db_temp:
+                        rows = db_temp.execute(
+                            text("SELECT id FROM tenants ORDER BY created_at LIMIT 2")
+                        ).fetchall()
+                        if len(rows) == 1:
+                            return str(rows[0][0])
+                except SQLAlchemyError as db_error:
+                    logger.error(f"Database error getting tenant fallback: {db_error}")
+                    return None
+                except Exception as fallback_error:
+                    logger.error(f"Unexpected error in tenant fallback: {fallback_error}")
+                    return None
             return None
         return str(tid)
-    except Exception:
+    except (AttributeError, ValueError) as validation_error:
+        logger.warning(f"Tenant validation error: {validation_error}")
+        return None
+    except Exception as unexpected_error:
+        logger.error(f"Unexpected error in _empresa_id_from_request: {unexpected_error}")
         return None
 
 
@@ -254,13 +271,13 @@ def _is_similar_product_name(left: str | None, right: str | None, threshold: flo
     return min_side >= 0.8 and jaccard >= 0.55
 
 
-def _to_product_out_row(row: Product, real_stock: float | None = None) -> ProductOut:
-    """Normalize nullable DB values to satisfy ProductOut response contract."""
+def _to_product_out_row_optimized(row: Product, real_stock: float | None = None) -> ProductOut:
+    """Optimized conversion with minimal operations."""
     return ProductOut(
         id=row.id,
         name=row.name or "",
         price=float(row.price or 0),
-        stock=real_stock if real_stock is not None else float(row.stock or 0),
+        stock=float(real_stock or 0),
         unit=row.unit or "unit",
         sku=row.sku,
         category=row.category,
@@ -277,6 +294,9 @@ def _to_product_out_row(row: Product, real_stock: float | None = None) -> Produc
         product_metadata=row.product_metadata,
         import_aliases=row.import_aliases,
     )
+
+
+_to_product_out_row = _to_product_out_row_optimized
 
 
 # CATEGORÍAS - DEBEN IR ANTES DE LAS RUTAS DINÁMICAS /{product_id}
@@ -297,10 +317,10 @@ class CategoryOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-def get_categories_for_request(request: Request, db: Session) -> list[CategoryOut]:
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        return []
+def get_categories_for_request(
+    request: Request, db: Session, tenant_id: UUID = Depends(get_current_tenant_id)
+) -> list[CategoryOut]:
+    # tenant_id ya viene validado de la dependency
 
     categories = (
         db.query(ProductCategory)
@@ -346,8 +366,26 @@ def _resolve_category_id(db: Session, tenant_id: str, category_name: str | None)
 
 
 @router.get("/product-categories", response_model=list[CategoryOut], dependencies=protected)
-def list_categories(request: Request, db: Session = Depends(get_db)):
-    return get_categories_for_request(request, db)
+def list_categories(
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    categories = (
+        db.query(ProductCategory)
+        .filter(ProductCategory.tenant_id == tenant_id)
+        .order_by(ProductCategory.name.asc())
+        .all()
+    )
+    return [
+        CategoryOut(
+            id=str(c.id),
+            name=c.name,
+            description=c.description,
+            parent_id=str(c.parent_id) if c.parent_id else None,
+        )
+        for c in categories
+    ]
 
 
 @router.post(
@@ -356,10 +394,12 @@ def list_categories(request: Request, db: Session = Depends(get_db)):
     status_code=201,
     dependencies=protected,
 )
-def create_category(payload: CategoryIn, request: Request, db: Session = Depends(get_db)):
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=400, detail="missing_tenant")
+def create_category(
+    payload: CategoryIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
 
     obj = ProductCategory(
         tenant_id=tenant_id,
@@ -379,10 +419,12 @@ def create_category(payload: CategoryIn, request: Request, db: Session = Depends
 
 
 @router.delete("/product-categories/{category_id}", status_code=204, dependencies=protected)
-def delete_category(category_id: str, request: Request, db: Session = Depends(get_db)):
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=403, detail="missing_tenant")
+def delete_category(
+    category_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
 
     try:
         obj = (
@@ -416,16 +458,13 @@ def list_products(
     exclude_raw_material: bool | None = Query(default=None, description="exclude raw materials"),
     limit: int = Query(default=500, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
-    _tid: str = Depends(ensure_tenant),
+    tenant_id: UUID = Depends(get_current_tenant_id),
 ):
-    # Public GET, but tenant-scoped when a token is present.
-    tenant_id = _empresa_id_from_request(request)
-    if tenant_id is None:
-        return []
+    # Public GET, pero tenant-scoped con dependency validada
 
-    tid_uuid = UUID(tenant_id)
+    tid_uuid = tenant_id
 
-    # Subquery: stock real agregado por producto desde stock_items
+    # Subquery optimizada para stock aggregation
     stock_subq = (
         select(
             StockItem.product_id,
@@ -436,32 +475,74 @@ def list_products(
         .subquery()
     )
 
+    # Query principal con JOIN optimizado
     query = (
         select(Product, func.coalesce(stock_subq.c.real_stock, 0.0).label("real_stock"))
         .outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
         .where(Product.tenant_id == tid_uuid)
     )
 
+    # Aplicar filtros dinámicos
     if active is not None:
         query = query.where(Product.active == active)
 
     if q:
-        like = f"%{q}%"
-        query = query.where(Product.name.ilike(like))
-
-    if category:
-        categoria_name = _normalize_category_name(category)
-        if categoria_name:
-            query = query.join(ProductCategory, Product.category_id == ProductCategory.id).where(
-                ProductCategory.name == categoria_name
-            )
+        query = query.where(Product.name.ilike(f"%{q}%"))
 
     if exclude_raw_material:
         query = query.where(Product.is_raw_material.is_(False))
 
+    if category:
+        categoria_name = _normalize_category_name(category)
+        if categoria_name:
+            # JOIN directo para evitar N+1
+            query = query.join(ProductCategory, Product.category_id == ProductCategory.id).where(
+                ProductCategory.name == categoria_name
+            )
+
+    # Ordenamiento y paginación
     query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
+
+    # Ejecutar query optimizado
     rows = db.execute(query).all()
-    return [_to_product_out_row(row.Product, real_stock=float(row.real_stock)) for row in rows]
+
+    # Conversión directa sin abstracciones
+    return [
+        ProductOut(
+            id=str(row.Product.id),
+            name=row.Product.name or "",
+            price=float(row.Product.price or 0),
+            stock=float(row.real_stock or 0),
+            unit=row.Product.unit or "unit",
+            sku=row.Product.sku,
+            category=row.Product.category,
+            category_id=str(row.Product.category_id) if row.Product.category_id else None,
+            description=row.Product.description,
+            tax_rate=float(row.Product.tax_rate) if row.Product.tax_rate is not None else None,
+            cost_price=(
+                float(row.Product.cost_price) if row.Product.cost_price is not None else None
+            ),
+            active=bool(row.Product.active) if row.Product.active is not None else True,
+            suggested_price=(
+                float(row.Product.suggested_price)
+                if row.Product.suggested_price is not None
+                else None
+            ),
+            use_suggested_price=(
+                bool(row.Product.use_suggested_price)
+                if row.Product.use_suggested_price is not None
+                else False
+            ),
+            is_raw_material=(
+                bool(row.Product.is_raw_material)
+                if row.Product.is_raw_material is not None
+                else False
+            ),
+            product_metadata=row.Product.product_metadata,
+            import_aliases=row.Product.import_aliases,
+        )
+        for row in rows
+    ]
 
 
 @router.get("/raw-materials", response_model=list[ProductOut])

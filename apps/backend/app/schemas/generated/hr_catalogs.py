@@ -16,11 +16,14 @@ EmployeeDepartmentUpdate = EmployeeDepartmentSchemas["Update"]
 EmployeeDepartmentResponse = EmployeeDepartmentSchemas["Response"]
 
 # Payroll Concept schemas
-PayrollConceptSchemas = get_catalog_schemas("PayrollConcept", extra_fields={
-    "concept_type": ("EARNING" | "DEDUCTION", ...),
-    "amount": ("float | None", None),
-    "is_base": ("bool", True),
-})
+PayrollConceptSchemas = get_catalog_schemas(
+    "PayrollConcept",
+    extra_fields={
+        "concept_type": ("EARNING" | "DEDUCTION", ...),
+        "amount": ("float | None", None),
+        "is_base": ("bool", True),
+    },
+)
 PayrollConceptBase = PayrollConceptSchemas["Base"]
 PayrollConceptCreate = PayrollConceptSchemas["Create"]
 PayrollConceptUpdate = PayrollConceptSchemas["Update"]
@@ -30,14 +33,13 @@ PayrollConceptResponse = PayrollConceptSchemas["Response"]
 __all__ = [
     # Employee Department
     "EmployeeDepartmentBase",
-    "EmployeeDepartmentCreate", 
+    "EmployeeDepartmentCreate",
     "EmployeeDepartmentUpdate",
     "EmployeeDepartmentResponse",
-    
     # Payroll Concept
     "PayrollConceptBase",
     "PayrollConceptCreate",
-    "PayrollConceptUpdate", 
+    "PayrollConceptUpdate",
     "PayrollConceptResponse",
 ]
 

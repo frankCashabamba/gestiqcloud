@@ -3,7 +3,6 @@ Base models for common patterns in the application.
 """
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, String, Text, func
@@ -25,7 +24,7 @@ def _get_now():
 class BaseCatalogModel(Base):
     """
     Base model for catalog-like entities with common fields.
-    
+
     This model provides standard fields for entities that behave as catalogs:
     - UUID primary key with tenant isolation
     - Optional code field for external identifiers
@@ -33,14 +32,14 @@ class BaseCatalogModel(Base):
     - Optional description
     - Active/inactive status with backward compatibility
     - Automatic timestamps
-    
+
     Models that inherit from this should define:
     - __tablename__
     - Any additional specific fields
     """
-    
+
     __abstract__ = True
-    
+
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, nullable=False)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -67,15 +66,15 @@ class BaseCatalogModel(Base):
 class BaseCatalogModelWithoutTenant(Base):
     """
     Base model for system-wide catalogs (no tenant isolation).
-    
+
     Used for entities that are shared across all tenants like:
     - System reference data
     - Global configurations
     - Core catalogs
     """
-    
+
     __abstract__ = True
-    
+
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -101,20 +100,20 @@ class BaseCatalogModelWithoutTenant(Base):
 class BaseTransactionalModel(Base):
     """
     Base model for transactional entities (not catalogs).
-    
+
     Used for entities that represent business transactions, operations, or events:
     - Sales orders, invoices, payments
     - Production orders, inventory movements
     - User activities, logs
-    
+
     Provides:
     - UUID primary key with tenant isolation
     - Automatic timestamps
     - No catalog-specific fields (code, name, is_active)
     """
-    
+
     __abstract__ = True
-    
+
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -128,15 +127,15 @@ class BaseTransactionalModel(Base):
 class BaseTransactionalModelWithoutTenant(Base):
     """
     Base model for system-wide transactional entities (no tenant isolation).
-    
+
     Used for system-level transactions that affect all tenants:
     - System logs, audits
     - Global events
     - System configurations changes
     """
-    
+
     __abstract__ = True
-    
+
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     created_at: Mapped[datetime] = mapped_column(
         default=_get_now, server_default=func.now(), nullable=False

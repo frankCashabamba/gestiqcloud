@@ -42,7 +42,7 @@ export default function CategoriaGastoListSimple() {
   // Manejador de eliminación
   const handleDelete = async (item: CategoriaGasto) => {
     if (!confirm('¿Eliminar categoría de gasto?')) return
-    
+
     await crud.deleteItem(String(item.id))
   }
 
@@ -51,7 +51,7 @@ export default function CategoriaGastoListSimple() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Categorías de gasto</h2>
-        <button 
+        <button
           onClick={handleNewItem}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
@@ -71,7 +71,7 @@ export default function CategoriaGastoListSimple() {
       {crud.error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           <strong>Error:</strong> {crud.error}
-          <button 
+          <button
             onClick={crud.refreshItems}
             className="ml-4 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
           >
@@ -117,21 +117,21 @@ export default function CategoriaGastoListSimple() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      item.active 
-                        ? 'bg-green-100 text-green-800' 
+                      item.active
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
                       {item.active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <Link 
+                    <Link
                       to={`${item.id}/editar`}
                       className="text-blue-600 hover:text-blue-900 mr-4"
                     >
                       Editar
                     </Link>
-                    <button 
+                    <button
                       onClick={() => handleDelete(item)}
                       className="text-red-600 hover:text-red-900"
                     >

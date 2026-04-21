@@ -96,7 +96,7 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
   const fetchItems = useCallback(async (params: FetchParams = {}) => {
     try {
       updateState({ loading: true, error: null })
-      
+
       const queryParams = new URLSearchParams({
         page: String(params.page || state.pagination.page),
         per_page: String(params.perPage || state.pagination.perPage),
@@ -116,9 +116,9 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
       }
 
       const data = await response.json()
-      
+
       // Validar respuesta con schema
-      const validatedItems = Array.isArray(data.items) 
+      const validatedItems = Array.isArray(data.items)
         ? data.items.map(item => schema.parse(item))
         : []
 
@@ -143,7 +143,7 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
   const createItem = useCallback(async (item: Partial<T>): Promise<T | null> => {
     try {
       updateState({ loading: true, error: null })
-      
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,7 +156,7 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
 
       const createdItem = await response.json()
       const validatedItem = schema.parse(createdItem)
-      
+
       updateState(prev => ({
         items: [...prev.items, validatedItem],
         loading: false
@@ -174,7 +174,7 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
   const updateItem = useCallback(async (id: string, item: Partial<T>): Promise<T | null> => {
     try {
       updateState({ loading: true, error: null })
-      
+
       const response = await fetch(`${endpoint}/${id}`, {
         method: 'PUT' ,
         headers: { 'Content-Type': 'application/json' },
@@ -187,9 +187,9 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
 
       const updatedItem = await response.json()
       const validatedItem = schema.parse(updatedItem)
-      
+
       updateState(prev => ({
-        items: prev.items.map(i => 
+        items: prev.items.map(i =>
           (i as any).id === id ? validatedItem : i
         ),
         loading: false
@@ -207,7 +207,7 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
   const deleteItem = useCallback(async (id: string): Promise<boolean> => {
     try {
       updateState({ loading: true, error: null })
-      
+
       const response = await fetch(`${endpoint}/${id}`, {
         method: 'DELETE'
       })

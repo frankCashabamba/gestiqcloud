@@ -5,14 +5,14 @@
 export { GenericList } from './GenericList'
 export { TableListSimple } from './TableListSimple'
 
-export type { 
-  GenericListProps, 
-  ColumnConfig, 
+export type {
+  GenericListProps,
+  ColumnConfig,
   ActionConfig,
-  SortConfig 
+  SortConfig
 } from './GenericList'
 
-export type { 
+export type {
   TableListSimpleProps,
   ColumnConfig as TableColumnConfig,
   ActionConfig as TableActionConfig

@@ -15,7 +15,7 @@ EmployeeDepartmentResponse = EmployeeDepartmentSchemas["Response"]
 __all__ = [
     "EmployeeDepartmentBase",
     "EmployeeDepartmentCreate",
-    "EmployeeDepartmentUpdate", 
+    "EmployeeDepartmentUpdate",
     "EmployeeDepartmentResponse",
 ]
 

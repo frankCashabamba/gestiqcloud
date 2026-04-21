@@ -17,14 +17,14 @@ export const formValidations = {
   // Validador de formulario completo
   validateForm: (data: Record<string, any>, schema: Record<string, any[]>) => {
     const errors: Record<string, string> = {}
-    
+
     for (const [field, rules] of Object.entries(schema)) {
       const error = formValidations.validateField(data[field], rules)
       if (error) {
         errors[field] = error
       }
     }
-    
+
     return {
       isValid: Object.keys(errors).length === 0,
       errors

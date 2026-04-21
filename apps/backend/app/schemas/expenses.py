@@ -12,7 +12,7 @@ class ExpenseBase(BaseModel):
     number: str = Field(..., alias="numero", max_length=50, description="Expense number")
     supplier_id: UUID | None = Field(None, description="Supplier ID")
     expense_category_id: UUID | None = Field(None, description="Expense category ID")
-    date: date = Field(default_factory=date.today, alias="fecha")
+    date: date = Field(default_factory=lambda: date.today(), alias="fecha")
     concept: str = Field(..., alias="concepto", max_length=255, description="Expense concept")
     subtotal: float = Field(default=0, ge=0)
     taxes: float = Field(default=0, ge=0, alias="impuestos")

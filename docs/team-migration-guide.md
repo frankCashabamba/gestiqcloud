@@ -182,7 +182,7 @@ const MigrationDashboard = () => {
     codeReduction: 0,
     teamProgress: {}
   });
-  
+
   // Actualización en tiempo real
   useEffect(() => {
     const ws = new WebSocket('ws://metrics.gestiqcloud.com/metrics');
@@ -190,16 +190,16 @@ const MigrationDashboard = () => {
       setMetrics(JSON.parse(event.data));
     };
   }, []);
-  
+
   return (
     <div>
       <h1>Dashboard de Migración</h1>
-      <ProgressBar 
-        current={metrics.refactoredModels} 
+      <ProgressBar
+        current={metrics.refactoredModels}
         total={metrics.totalModels}
         label="Modelos Refactorizados"
       />
-      <MetricCard 
+      <MetricCard
         title="Reducción de Código"
         value={`${metrics.codeReduction}%`}
         trend={metrics.trend}

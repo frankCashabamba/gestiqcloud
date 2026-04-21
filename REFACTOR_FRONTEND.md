@@ -80,7 +80,7 @@ import { useCRUD } from '@ui-hooks'
 
 export function MiNuevaLista() {
   const crud = useCRUD<MiTipo>({ endpoint, schema })
-  
+
   return (
     <GenericList
       endpoint={endpoint}
@@ -104,7 +104,7 @@ const errors = [
 
 ## Estado Actual
 - ✅ **Estructura base** completa
-- ✅ **Hooks genéricos** implementados  
+- ✅ **Hooks genéricos** implementados
 - ✅ **Validaciones** centralizadas
 - ⚠️ **Dependencias** pendientes de instalar
 - ⚠️ **TypeScript** errores por resolver
@@ -114,7 +114,7 @@ const errors = [
 ```bash
 # En la raíz del proyecto
 cd apps/packages/ui-hooks && npm install
-cd ../crud-components && npm install  
+cd ../crud-components && npm install
 cd ../validation && npm install
 ```
 

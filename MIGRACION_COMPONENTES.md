@@ -122,7 +122,7 @@ const [loading, setLoading] = useState(false)
 ### **Inmediato (Alto Impacto, Bajo Riesgo)**
 1. **Migrar 5 componentes más críticos**:
    - Expenses List
-   - Customers List  
+   - Customers List
    - Sales List
    - Suppliers List
    - Billing List

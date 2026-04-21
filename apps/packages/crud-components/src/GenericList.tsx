@@ -34,43 +34,43 @@ export interface GenericListProps<T> {
   // Configuración de datos
   endpoint: string
   schema: any // ZodSchema<T>
-  
+
   // Configuración de columnas
   columns: ColumnConfig<T>[]
-  
+
   // Configuración de acciones
   actions?: ActionConfig<T>[]
   bulkActions?: ActionConfig<T>[]
-  
+
   // Configuración de visualización
   title?: string
   subtitle?: string
   emptyMessage?: string
   loadingMessage?: string
   errorMessage?: string
-  
+
   // Configuración de comportamiento
   searchable?: boolean
   filterable?: boolean
   sortable?: boolean
-  pagination?: true // Siempre true cuando se usa paginación interna
+  showPagination?: boolean
   selectable?: boolean
-  
+
   // Configuración de paginación
   defaultPerPage?: number
   perPageOptions?: number[]
-  
+
   // Callbacks
   onItemClick?: (item: T, index: number) => void
   onSelectionChange?: (selectedItems: T[]) => void
   onSuccess?: (action: string, data: any) => void
   onError?: (error: string) => void
-  
+
   // Estilos personalizados
   className?: string
   headerClassName?: string
   rowClassName?: (item: T, index: number) => string
-  
+
   // Estado inicial
   initialFilters?: Record<string, any>
   initialSort?: SortConfig
@@ -90,7 +90,7 @@ export function GenericList<T = any>({
   searchable = true,
   filterable = true,
   sortable = true,
-  pagination = true,
+  showPagination = true,
   selectable = false,
   defaultPerPage = 20,
   perPageOptions = [10, 20, 50, 100],
@@ -104,28 +104,28 @@ export function GenericList<T = any>({
   initialFilters = {},
   initialSort = {}
 }: GenericListProps<T>) {
-  
+
   // Hooks para gestión de estado
   const crud = useCRUD<T>({ endpoint, schema, onSuccess, onError })
   const pagination = usePagination({ initialPerPage: defaultPerPage })
   const filters = useFilters({ initialFilters })
-  
+
   // Estado local
   const [selectedItems, setSelectedItems] = React.useState<T[]>([])
   const [sortConfig, setSortConfig] = React.useState<SortConfig>(initialSort)
   const [searchTerm, setSearchTerm] = React.useState('')
-  
+
   // Debounce implementation con cleanup proper para evitar memory leaks
   React.useEffect(() => {
     const timer = setTimeout(() => {
       filters.setSearch(searchTerm)
     }, 300)
-    
+
     // Cleanup function para cancelar el timer si el componente se unmount
     // o si searchTerm cambia antes de que el timer se ejecute
     return () => clearTimeout(timer)
   }, [searchTerm, filters.setSearch])
-  
+
   // Cargar datos cuando cambian filtros, paginación u ordenamiento
   React.useEffect(() => {
     const params = {
@@ -137,21 +137,21 @@ export function GenericList<T = any>({
         ...filters.getFilterParams()
       }
     }
-    
+
     crud.fetchItems(params)
   }, [pagination.page, pagination.perPage, sortConfig.sortBy, sortConfig.order, filters.filters, filters.search])
-  
+
   // Manejadores
   const handleSort = (columnKey: keyof T) => {
     const column = columns.find(col => col.key === columnKey)
     if (!column?.sortable) return
-    
+
     setSortConfig(prev => ({
       sortBy: String(columnKey),
       order: prev.sortBy === String(columnKey) && prev.order === 'asc' ? 'desc' : 'asc'
     }))
   }
-  
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedItems(crud.items)
@@ -161,7 +161,7 @@ export function GenericList<T = any>({
       onSelectionChange?.([])
     }
   }
-  
+
   const handleSelectItem = (item: T, checked: boolean) => {
     if (checked) {
       const newSelected = [...selectedItems, item]
@@ -173,7 +173,7 @@ export function GenericList<T = any>({
       onSelectionChange?.(newSelected)
     }
   }
-  
+
   const handleAction = (action: ActionConfig<T>, item: T, index: number) => {
     if (action.href) {
       // Navegación via Link
@@ -181,41 +181,41 @@ export function GenericList<T = any>({
     }
     action.onClick(item, index)
   }
-  
+
   const handleBulkAction = (action: ActionConfig<T>) => {
     action.onClick(selectedItems, 0)
   }
-  
+
   // Render functions
   const renderCell = (item: T, column: ColumnConfig<T>, index: number) => {
     const value = item[column.key]
-    
+
     if (column.render) {
       return column.render(value, item, index)
     }
-    
+
     // Renderizado por defecto
     if (value === null || value === undefined) {
       return <span className="text-gray-400">-</span>
     }
-    
+
     return <span>{String(value)}</span>
   }
-  
+
   const renderActions = (item: T, index: number) => {
     if (actions.length === 0) return null
-    
+
     return (
       <div className="flex gap-2">
         {actions.map(action => {
           const isDisabled = action.disabled?.(item) ?? false
-          
+
           if (action.href) {
             return (
               <Link
                 key={action.key}
                 to={action.href(item)}
-                className={`btn btn-sm ${isDisabled ? 'btn-disabled' : `btn-${action.variant || 'secondary'}`}
+                className={`btn btn-sm ${isDisabled ? 'btn-disabled' : `btn-${action.variant || 'secondary'}`}`}
                 onClick={() => !isDisabled && handleAction(action, item, index)}
               >
                 {action.icon}
@@ -223,11 +223,11 @@ export function GenericList<T = any>({
               </Link>
             )
           }
-          
+
           return (
             <button
               key={action.key}
-              className={`btn btn-sm ${isDisabled ? 'btn-disabled' : `btn-${action.variant || 'secondary'}`}
+              className={`btn btn-sm ${isDisabled ? 'btn-disabled' : `btn-${action.variant || 'secondary'}`}`}
               onClick={() => !isDisabled && handleAction(action, item, index)}
               disabled={isDisabled}
             >
@@ -239,7 +239,7 @@ export function GenericList<T = any>({
       </div>
     )
   }
-  
+
   // Loading state
   if (crud.loading) {
     return (
@@ -251,7 +251,7 @@ export function GenericList<T = any>({
       </div>
     )
   }
-  
+
   // Error state
   if (crud.error) {
     return (
@@ -259,7 +259,7 @@ export function GenericList<T = any>({
         <div className="text-center p-8">
           <div className="error-icon">⚠️</div>
           <p className="mt-2 text-red-600">{errorMessage}</p>
-          <button 
+          <button
             className="btn btn-primary mt-4"
             onClick={() => crud.refreshItems()}
           >
@@ -269,7 +269,7 @@ export function GenericList<T = any>({
       </div>
     )
   }
-  
+
   // Empty state
   if (crud.items.length === 0) {
     return (
@@ -281,7 +281,7 @@ export function GenericList<T = any>({
       </div>
     )
   }
-  
+
   return (
     <div className={`generic-list ${className}`}>
       {/* Header */}
@@ -291,7 +291,7 @@ export function GenericList<T = any>({
           {subtitle && <p className="text-gray-600 mt-1">{subtitle}</p>}
         </div>
       )}
-      
+
       {/* Search and Filters */}
       {(searchable || filterable) && (
         <div className="generic-list-controls mb-4">
@@ -304,7 +304,7 @@ export function GenericList<T = any>({
               className="search-input"
             />
           )}
-          
+
           {filterable && filters.activeFilters.length > 0 && (
             <div className="active-filters">
               {filters.activeFilters.map(key => (
@@ -320,7 +320,7 @@ export function GenericList<T = any>({
           )}
         </div>
       )}
-      
+
       {/* Bulk Actions */}
       {selectable && bulkActions.length > 0 && selectedItems.length > 0 && (
         <div className="bulk-actions mb-4">
@@ -339,7 +339,7 @@ export function GenericList<T = any>({
           ))}
         </div>
       )}
-      
+
       {/* Table */}
       <div className="generic-list-table">
         <table className="w-full">
@@ -354,7 +354,7 @@ export function GenericList<T = any>({
                   />
                 </th>
               )}
-              
+
               {columns.map(column => (
                 <th
                   key={String(column.key)}
@@ -373,16 +373,16 @@ export function GenericList<T = any>({
                   )}
                 </th>
               ))}
-              
+
               {actions.length > 0 && <th className="w-32">Acciones</th>}
             </tr>
           </thead>
-          
+
           <tbody>
             {crud.items.map((item, index) => {
               const isSelected = selectedItems.includes(item)
               const rowClass = rowClassName?.(item, index) || ''
-              
+
               return (
                 <tr
                   key={(item as any).id || index}
@@ -402,7 +402,7 @@ export function GenericList<T = any>({
                       />
                     </td>
                   )}
-                  
+
                   {columns.map(column => (
                     <td
                       key={String(column.key)}
@@ -411,7 +411,7 @@ export function GenericList<T = any>({
                       {renderCell(item, column, index)}
                     </td>
                   ))}
-                  
+
                   {actions.length > 0 && (
                     <td>
                       {renderActions(item, index)}
@@ -423,14 +423,14 @@ export function GenericList<T = any>({
           </tbody>
         </table>
       </div>
-      
+
       {/* Pagination */}
-      {pagination && crud.pagination.pages > 1 && (
+      {showPagination && crud.pagination.pages > 1 && (
         <div className="generic-list-pagination mt-4">
           <div className="pagination-info">
             Mostrando {crud.items.length} de {crud.pagination.total} resultados
           </div>
-          
+
           <div className="pagination-controls">
             <button
               onClick={pagination.firstPage}
@@ -439,7 +439,7 @@ export function GenericList<T = any>({
             >
               Primera
             </button>
-            
+
             <button
               onClick={pagination.prevPage}
               disabled={pagination.page === 1}
@@ -447,11 +447,11 @@ export function GenericList<T = any>({
             >
               Anterior
             </button>
-            
+
             <span className="page-info">
               Página {pagination.page} de {pagination.pages}
             </span>
-            
+
             <button
               onClick={pagination.nextPage}
               disabled={pagination.page === pagination.pages}
@@ -459,7 +459,7 @@ export function GenericList<T = any>({
             >
               Siguiente
             </button>
-            
+
             <button
               onClick={pagination.lastPage}
               disabled={pagination.page === pagination.pages}
@@ -468,7 +468,7 @@ export function GenericList<T = any>({
               Última
             </button>
           </div>
-          
+
           <select
             value={pagination.perPage}
             onChange={(e) => pagination.setPerPage(Number(e.target.value))}

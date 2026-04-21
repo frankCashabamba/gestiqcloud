@@ -18,7 +18,7 @@ class DuplicateDetector:
         self.backend_root = self.project_root / "apps" / "backend" / "app"
         self.admin_root = self.project_root / "apps" / "admin" / "src"
         self.tenant_root = self.project_root / "apps" / "tenant" / "src"
-        
+
         self.findings = {
             "backend_models": [],
             "backend_schemas": [],
@@ -26,44 +26,44 @@ class DuplicateDetector:
             "frontend_components": [],
             "validation_patterns": [],
         }
-    
+
     def analyze(self) -> Dict:
         """Run complete analysis and return findings."""
         print("🔍 Analyzing code duplication patterns...")
-        
+
         self.analyze_backend_models()
         self.analyze_backend_schemas()
         self.analyze_frontend_types()
         self.analyze_validation_patterns()
-        
+
         return self.findings
-    
+
     def analyze_backend_models(self):
         """Analyze SQLAlchemy models for catalog patterns."""
         print("  📊 Analyzing backend models...")
-        
+
         model_files = list(self.backend_root.rglob("models/**/*.py"))
-        
+
         for file_path in model_files:
             if "__pycache__" in str(file_path):
                 continue
-                
+
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    
+
                 # Check for catalog-like patterns
                 patterns = self._detect_catalog_patterns(content, file_path)
                 if patterns:
                     self.findings["backend_models"].extend(patterns)
-                    
+
             except Exception as e:
                 print(f"    ⚠️  Error analyzing {file_path}: {e}")
-    
+
     def _detect_catalog_patterns(self, content: str, file_path: Path) -> List[Dict]:
         """Detect catalog model patterns in SQLAlchemy models."""
         patterns = []
-        
+
         # Pattern 1: Models with id, tenant_id, code, name, description, is_active
         if self._has_catalog_fields(content):
             class_matches = re.findall(r'class\s+(\w+)\s*\([^)]*\)\s*:', content)
@@ -75,7 +75,7 @@ class DuplicateDetector:
                         "class": class_name,
                         "suggestion": "Use BaseCatalogModel or BaseCatalogModelWithoutTenant"
                     })
-        
+
         # Pattern 2: Repetitive field definitions
         field_patterns = re.findall(
             r'(id:\s*Mapped\[.*?\]\s*=\s*mapped_column.*?primary_key.*?default=uuid4)',
@@ -88,7 +88,7 @@ class DuplicateDetector:
                 "count": len(field_patterns),
                 "suggestion": "Use BaseCatalogModel to inherit common fields"
             })
-        
+
         # Pattern 3: Repetitive timestamp fields
         timestamp_patterns = re.findall(
             r'(created_at:\s*Mapped\[datetime\]\s*=\s*mapped_column.*?default=_get_now.*?server_default=func\.now)',
@@ -101,9 +101,9 @@ class DuplicateDetector:
                 "count": len(timestamp_patterns),
                 "suggestion": "Use BaseCatalogModel for automatic timestamps"
             })
-        
+
         return patterns
-    
+
     def _has_catalog_fields(self, content: str) -> bool:
         """Check if content has catalog-like field patterns."""
         catalog_fields = [
@@ -116,40 +116,40 @@ class DuplicateDetector:
             r'created_at:\s*Mapped\[datetime\]\s*=.*mapped_column',
             r'updated_at:\s*Mapped\[datetime\]\s*=.*mapped_column.*onupdate'
         ]
-        
+
         return all(re.search(pattern, content) for pattern in catalog_fields)
-    
+
     def analyze_backend_schemas(self):
         """Analyze Pydantic schemas for duplication."""
         print("  📋 Analyzing backend schemas...")
-        
+
         schema_files = list(self.backend_root.rglob("schemas/**/*.py"))
-        
+
         for file_path in schema_files:
             if "__pycache__" in str(file_path):
                 continue
-                
+
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    
+
                 patterns = self._detect_schema_patterns(content, file_path)
                 if patterns:
                     self.findings["backend_schemas"].extend(patterns)
-                    
+
             except Exception as e:
                 print(f"    ⚠️  Error analyzing {file_path}: {e}")
-    
+
     def _detect_schema_patterns(self, content: str, file_path: Path) -> List[Dict]:
         """Detect schema duplication patterns."""
         patterns = []
-        
+
         # Pattern 1: Base/Create/Update/Response pattern
         base_classes = re.findall(r'class\s+(\w+Base)\s*\([^)]*\)\s*:', content)
         create_classes = re.findall(r'class\s+(\w+Create)\s*\([^)]*\)\s*:\s*pass', content)
         update_classes = re.findall(r'class\s+(\w+Update)\s*\([^)]*\)\s*:', content)
         response_classes = re.findall(r'class\s+(\w+Response)\s*\([^)]*\)\s*:', content)
-        
+
         if len(base_classes) >= 3:  # Multiple base classes suggest duplication
             patterns.append({
                 "type": "duplicate_schema_pattern",
@@ -160,27 +160,27 @@ class DuplicateDetector:
                 "response_count": len(response_classes),
                 "suggestion": "Use schema_generator.create_catalog_schemas()"
             })
-        
+
         return patterns
-    
+
     def analyze_frontend_types(self):
         """Analyze TypeScript types for duplication."""
         print("  🎨 Analyzing frontend types...")
-        
+
         admin_types = list(self.admin_root.rglob("types/**/*.ts"))
         tenant_types = list(self.tenant_root.rglob("types/**/*.ts"))
-        
+
         # Find duplicate type definitions
         type_definitions = defaultdict(list)
-        
+
         for file_path in admin_types + tenant_types:
             if "__tests__" in str(file_path):
                 continue
-                
+
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    
+
                 # Extract interface/type definitions
                 type_matches = re.findall(r'export\s+(interface|type)\s+(\w+)', content)
                 for kind, type_name in type_matches:
@@ -188,10 +188,10 @@ class DuplicateDetector:
                         "file": str(file_path.relative_to(self.project_root)),
                         "kind": kind
                     })
-                    
+
             except Exception as e:
                 print(f"    ⚠️  Error analyzing {file_path}: {e}")
-        
+
         # Find duplicates
         for type_name, definitions in type_definitions.items():
             if len(definitions) > 1:
@@ -201,25 +201,25 @@ class DuplicateDetector:
                     "locations": definitions,
                     "suggestion": "Move to @packages/api-types/src/catalogs.ts"
                 })
-    
+
     def analyze_validation_patterns(self):
         """Analyze validation patterns for duplication."""
         print("  ✅ Analyzing validation patterns...")
-        
+
         # Look for manual UUID validation patterns
         python_files = list(self.backend_root.rglob("**/*.py"))
-        
+
         uuid_validations = []
         tenant_extractions = []
-        
+
         for file_path in python_files:
             if "__pycache__" in str(file_path):
                 continue
-                
+
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    
+
                 # Pattern 1: Manual UUID validation
                 uuid_validation = re.findall(
                     r'UUID\(str\([^)]+\)\s*except\s+\(ValueError.*?TypeError\)',
@@ -230,7 +230,7 @@ class DuplicateDetector:
                         "file": str(file_path.relative_to(self.project_root)),
                         "count": len(uuid_validation)
                     })
-                
+
                 # Pattern 2: Manual tenant extraction
                 tenant_extraction = re.findall(
                     r'tenant_id\s*=\s*claims\.get\(["\']tenant_id["\']',
@@ -241,10 +241,10 @@ class DuplicateDetector:
                         "file": str(file_path.relative_to(self.project_root)),
                         "count": len(tenant_extraction)
                     })
-                    
+
             except Exception as e:
                 print(f"    ⚠️  Error analyzing {file_path}: {e}")
-        
+
         if uuid_validations:
             self.findings["validation_patterns"].append({
                 "type": "manual_uuid_validation",
@@ -252,7 +252,7 @@ class DuplicateDetector:
                 "files": uuid_validations,
                 "suggestion": "Use @validate_uuid decorator"
             })
-        
+
         if tenant_extractions:
             self.findings["validation_patterns"].append({
                 "type": "manual_tenant_extraction",
@@ -260,14 +260,14 @@ class DuplicateDetector:
                 "files": tenant_extractions,
                 "suggestion": "Use @tenant_required decorator"
             })
-    
+
     def generate_report(self) -> str:
         """Generate a detailed report of findings."""
         report = []
         report.append("# Code Duplication Analysis Report")
         report.append("=" * 50)
         report.append("")
-        
+
         # Summary
         total_issues = sum(len(findings) for findings in self.findings.values())
         report.append(f"## Summary")
@@ -277,7 +277,7 @@ class DuplicateDetector:
         report.append(f"- **Frontend Type Issues**: {len(self.findings['frontend_types'])}")
         report.append(f"- **Validation Pattern Issues**: {len(self.findings['validation_patterns'])}")
         report.append("")
-        
+
         # Backend Models
         if self.findings["backend_models"]:
             report.append("## Backend Models")
@@ -291,7 +291,7 @@ class DuplicateDetector:
                     report.append(f"- **Count**: {issue['count']}")
                 report.append(f"- **Suggestion**: {issue['suggestion']}")
                 report.append("")
-        
+
         # Backend Schemas
         if self.findings["backend_schemas"]:
             report.append("## Backend Schemas")
@@ -302,7 +302,7 @@ class DuplicateDetector:
                 report.append(f"- **Base Classes**: {issue.get('base_count', 0)}")
                 report.append(f"- **Suggestion**: {issue['suggestion']}")
                 report.append("")
-        
+
         # Frontend Types
         if self.findings["frontend_types"]:
             report.append("## Frontend Types")
@@ -315,7 +315,7 @@ class DuplicateDetector:
                     report.append(f"  - `{location['file']}` ({location['kind']})")
                 report.append(f"- **Suggestion**: {issue['suggestion']}")
                 report.append("")
-        
+
         # Validation Patterns
         if self.findings["validation_patterns"]:
             report.append("## Validation Patterns")
@@ -328,7 +328,7 @@ class DuplicateDetector:
                     report.append(f"  - `{file_info['file']}` ({file_info['count']} occurrences)")
                 report.append(f"- **Suggestion**: {issue['suggestion']}")
                 report.append("")
-        
+
         # Recommendations
         report.append("## Recommendations")
         report.append("")
@@ -338,36 +338,36 @@ class DuplicateDetector:
         report.append("4. **Medium Priority**: Centralize frontend types in @packages/api-types")
         report.append("5. **Low Priority**: Implement automated duplicate detection in CI")
         report.append("")
-        
+
         return "\n".join(report)
 
 
 def main():
     """Main function to run the duplicate detection."""
     project_root = Path(__file__).parent.parent
-    
+
     print("🚀 Starting Code Duplication Detection")
     print(f"📁 Project Root: {project_root}")
     print("")
-    
+
     detector = DuplicateDetector(str(project_root))
     findings = detector.analyze()
-    
+
     report = detector.generate_report()
-    
+
     # Save report
     report_path = project_root / "docs" / "duplication-report.md"
     report_path.parent.mkdir(exist_ok=True)
-    
+
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write(report)
-    
+
     print(f"✅ Report saved to: {report_path}")
     print("")
     print("📊 Summary:")
     for category, issues in findings.items():
         print(f"  {category}: {len(issues)} issues")
-    
+
     return findings
 
 

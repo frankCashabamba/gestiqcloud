@@ -4,11 +4,11 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { 
-  UUID, 
-  CatalogCreateRequest, 
+import type {
+  UUID,
+  CatalogCreateRequest,
   CatalogUpdateRequest,
-  PaginatedResponse 
+  PaginatedResponse
 } from '@packages/api-types'
 
 // Import existing hooks
@@ -22,12 +22,12 @@ export interface UseAdvancedCatalogCRUDOptions<T> {
   create: (tenantId: string, data: CatalogCreateRequest) => Promise<T>
   update: (tenantId: string, id: UUID, data: CatalogUpdateRequest) => Promise<T>
   delete: (tenantId: string, id: UUID) => Promise<void>
-  
+
   // Bulk operations
   bulkCreate?: (tenantId: string, items: CatalogCreateRequest[]) => Promise<T[]>
   bulkUpdate?: (tenantId: string, updates: { id: UUID; data: CatalogUpdateRequest }[]) => Promise<T[]>
   bulkDelete?: (tenantId: string, ids: UUID[]) => Promise<void>
-  
+
   // Configuration
   tenantId: string
   initialFilters?: any
@@ -42,7 +42,7 @@ export interface UseAdvancedCatalogCRUDResult<T> {
   selectedItem: T | null
   loading: boolean
   error: string | null
-  
+
   // Pagination
   pagination: {
     page: number
@@ -50,14 +50,14 @@ export interface UseAdvancedCatalogCRUDResult<T> {
     total: number
     pages: number
   }
-  
+
   // Basic actions
   loadItems: (filters?: any) => Promise<void>
   loadItem: (id: UUID) => Promise<void>
   createItem: (data: CatalogCreateRequest) => Promise<T>
   updateItem: (id: UUID, data: CatalogUpdateRequest) => Promise<T>
   deleteItem: (id: UUID) => Promise<void>
-  
+
   // Pagination actions
   setPage: (page: number) => void
   setPerPage: (perPage: number) => void
@@ -65,32 +65,32 @@ export interface UseAdvancedCatalogCRUDResult<T> {
   prevPage: () => void
   firstPage: () => void
   lastPage: () => void
-  
+
   // UI state
   isCreating: boolean
   isUpdating: boolean
   isDeleting: boolean
-  
+
   // Advanced features
   bulkCreate: (items: CatalogCreateRequest[]) => Promise<T[]>
   bulkUpdate: (updates: { id: UUID; data: CatalogUpdateRequest }[]) => Promise<T[]>
   bulkDelete: (ids: UUID[]) => Promise<void>
-  
+
   // Optimistic updates
   optimisticCreate: (data: CatalogCreateRequest) => T
   optimisticUpdate: (id: UUID, data: CatalogUpdateRequest) => T
   optimisticDelete: (id: UUID) => void
   rollbackOptimistic: (id: UUID) => void
-  
+
   // Caching
   clearCache: () => void
   refreshCache: () => Promise<void>
-  
+
   // Utility
   refresh: () => Promise<void>
   clearSelection: () => void
   setFilters: (filters: any) => void
-  
+
   // Selection
   selectedItems: T[]
   toggleSelection: (id: UUID) => void
@@ -124,16 +124,16 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
   const [selectedItems, setSelectedItems] = useState<T[]>([])
   const [filters, setFilters] = useState(initialFilters)
   const [optimisticUpdates, setOptimisticUpdates] = useState<Map<UUID, T>>(new Map())
-  
+
   // Cache
   const cacheRef = useRef<Map<string, { data: PaginatedResponse<T>; timestamp: number }>>(new Map())
-  
+
   // Pagination
   const pagination = usePagination({
     initialPage: initialFilters.page || 1,
     initialPerPage: initialFilters.per_page || 20
   })
-  
+
   // Async states
   const loadingState = useAsyncState()
   const createState = useAsyncState()
@@ -181,28 +181,28 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
       updated_at: new Date().toISOString(),
       ...data
     } as T
-    
+
     setOptimisticUpdates(prev => new Map(prev).set(optimisticId, optimisticItem))
     setItems(prev => [...prev, optimisticItem])
-    
+
     return optimisticItem
   }, [tenantId])
 
   const updateOptimisticItem = useCallback((id: UUID, data: CatalogUpdateRequest): T => {
     const existingItem = items.find(item => item.id === id)
     if (!existingItem) return existingItem as T
-    
+
     const optimisticItem: T = {
       ...existingItem,
       ...data,
       updated_at: new Date().toISOString()
     } as T
-    
+
     setOptimisticUpdates(prev => new Map(prev).set(id, optimisticItem))
-    setItems(prev => prev.map(item => 
+    setItems(prev => prev.map(item =>
       item.id === id ? optimisticItem : item
     ))
-    
+
     return optimisticItem
   }, [items])
 
@@ -213,7 +213,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
       return newMap
     })
     setItems(prev => prev.filter(item => item.id !== id))
-    
+
     if (selectedItem?.id === id) {
       setSelectedItem(null)
     }
@@ -237,7 +237,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
   const loadItems = useCallback(async (newFilters?: any) => {
     const finalFilters = { ...filters, ...newFilters }
     setFilters(finalFilters)
-    
+
     // Check cache first
     const cachedData = getCachedData(finalFilters)
     if (cachedData) {
@@ -247,7 +247,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
       pagination.setPerPage(cachedData.per_page)
       return
     }
-    
+
     loadingState.setLoading(true)
     try {
       const response = await list(tenantId, {
@@ -255,15 +255,15 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
         page: pagination.page,
         per_page: pagination.perPage
       })
-      
+
       setItems(response.items)
       pagination.setTotal(response.total)
       pagination.setPage(response.page)
       pagination.setPerPage(response.per_page)
-      
+
       // Cache the response
       setCachedData(finalFilters, response)
-      
+
       loadingState.setLoading(false)
     } catch (error) {
       loadingState.setError(error instanceof Error ? error.message : 'Failed to load items')
@@ -301,7 +301,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
     updateState.setLoading(true)
     try {
       const updatedItem = await update(tenantId, id, data)
-      setItems(prev => prev.map(item => 
+      setItems(prev => prev.map(item =>
         item.id === id ? updatedItem : item
       ))
       setSelectedItem(updatedItem)
@@ -336,7 +336,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
     if (!bulkCreate) {
       throw new Error('Bulk create not supported')
     }
-    
+
     bulkState.setLoading(true)
     try {
       const newItems = await bulkCreate(tenantId, itemsToCreate)
@@ -353,7 +353,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
     if (!bulkUpdate) {
       throw new Error('Bulk update not supported')
     }
-    
+
     bulkState.setLoading(true)
     try {
       const updatedItems = await bulkUpdate(tenantId, updates)
@@ -373,7 +373,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
     if (!bulkDelete) {
       throw new Error('Bulk delete not supported')
     }
-    
+
     bulkState.setLoading(true)
     try {
       await bulkDelete(tenantId, ids)
@@ -408,7 +408,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
 
   const deleteSelected = useCallback(async () => {
     if (selectedItems.length === 0) return
-    
+
     try {
       if (bulkDelete) {
         await bulkDeleteItems(selectedItems.map(item => item.id))
@@ -465,7 +465,7 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
     selectedItems,
     loading: loadingState.loading || bulkState.loading,
     error: loadingState.error || createState.error || updateState.error || deleteState.error || bulkState.error,
-    
+
     // Pagination
     pagination: {
       page: pagination.page,
@@ -473,14 +473,14 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
       total: pagination.total,
       pages: pagination.pages
     },
-    
+
     // Basic actions
     loadItems,
     loadItem,
     createItem,
     updateItem,
     deleteItem: deleteItemCallback,
-    
+
     // Pagination actions
     setPage: pagination.setPage,
     setPerPage: pagination.setPerPage,
@@ -488,32 +488,32 @@ export function useAdvancedCatalogCRUD<T extends { id: UUID }>(
     prevPage: pagination.prevPage,
     firstPage: pagination.firstPage,
     lastPage: pagination.lastPage,
-    
+
     // UI state
     isCreating: createState.loading,
     isUpdating: updateState.loading,
     isDeleting: deleteState.loading,
-    
+
     // Advanced features
     bulkCreate: bulkCreateItems,
     bulkUpdate: bulkUpdateItems,
     bulkDelete: bulkDeleteItems,
-    
+
     // Optimistic updates
     optimisticCreate: enableOptimisticUpdates ? createOptimisticItem : undefined,
     optimisticUpdate: enableOptimisticUpdates ? updateOptimisticItem : undefined,
     optimisticDelete: enableOptimisticUpdates ? deleteOptimisticItem : undefined,
     rollbackOptimistic: enableOptimisticUpdates ? rollbackOptimisticUpdate : undefined,
-    
+
     // Caching
     clearCache,
     refreshCache,
-    
+
     // Utility
     refresh,
     clearSelection,
     setFilters,
-    
+
     // Selection
     toggleSelection,
     selectAll,
@@ -547,7 +547,7 @@ function AdvancedBusinessTypesPage() {
       { name: 'Type B', code: 'TYPE_B' },
       { name: 'Type C', code: 'TYPE_C' }
     ]
-    
+
     try {
       await catalog.bulkCreate(newTypes)
       console.log('Bulk created successfully')
@@ -577,22 +577,22 @@ function AdvancedBusinessTypesPage() {
       <button onClick={handleBulkCreate}>Bulk Create</button>
       <button onClick={handleOptimisticCreate}>Optimistic Create</button>
       <button onClick={() => catalog.clearCache()}>Clear Cache</button>
-      
+
       <div>
         <h3>Items ({catalog.items.length})</h3>
         <div>
-          <input 
-            type="checkbox" 
+          <input
+            type="checkbox"
             onChange={catalog.selectAll}
             checked={catalog.selectedItems.length === catalog.items.length}
           />
           Select All ({catalog.selectedItems.length} selected)
         </div>
-        
+
         <ul>
           {catalog.items.map(item => (
             <li key={item.id}>
-              <input 
+              <input
                 type="checkbox"
                 checked={catalog.selectedItems.some(selected => selected.id === item.id)}
                 onChange={() => catalog.toggleSelection(item.id)}
@@ -603,14 +603,14 @@ function AdvancedBusinessTypesPage() {
             </li>
           ))}
         </ul>
-        
+
         {catalog.selectedItems.length > 0 && (
           <button onClick={handleDeleteSelected}>
             Delete Selected ({catalog.selectedItems.length})
           </button>
         )}
       </div>
-      
+
       <PaginationControls pagination={catalog.pagination} />
     </div>
   )

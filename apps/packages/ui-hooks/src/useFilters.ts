@@ -36,7 +36,7 @@ export function useFilters(config: UseFiltersConfig = {}): FilterState & FilterA
   const setFilter = useCallback((key: string, value: any) => {
     setState(prev => {
       const newFilters = { ...prev.filters, [key]: value }
-      const newActiveFilters = Object.keys(newFilters).filter(k => 
+      const newActiveFilters = Object.keys(newFilters).filter(k =>
         newFilters[k] !== undefined && newFilters[k] !== null && newFilters[k] !== ''
       )
       return {
@@ -51,7 +51,7 @@ export function useFilters(config: UseFiltersConfig = {}): FilterState & FilterA
     setState(prev => {
       const newFilters = { ...prev.filters }
       delete newFilters[key]
-      const newActiveFilters = Object.keys(newFilters).filter(k => 
+      const newActiveFilters = Object.keys(newFilters).filter(k =>
         newFilters[k] !== undefined && newFilters[k] !== null && newFilters[k] !== ''
       )
       return {
@@ -80,7 +80,7 @@ export function useFilters(config: UseFiltersConfig = {}): FilterState & FilterA
 
   const getFilterParams = useCallback(() => {
     const params: Record<string, any> = {}
-    
+
     // Agregar filtros activos
     Object.entries(state.filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {

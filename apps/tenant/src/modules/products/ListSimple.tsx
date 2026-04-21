@@ -73,8 +73,8 @@ export default function ProductsListSimple() {
     { key: 'category_name', label: t('Categoría'), render: (val) => val || t('Sin categoría') },
     { key: 'price', label: t('Precio'), align: 'right', render: (val) => formatCurrency(val) },
     { key: 'stock_quantity', label: t('Stock'), align: 'right' },
-    { 
-      key: 'active', 
+    {
+      key: 'active',
       label: t('Estado'),
       render: (val) => (
         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -89,7 +89,7 @@ export default function ProductsListSimple() {
   // Manejadores
   const handleDelete = async (item: Producto) => {
     if (!confirm(t('confirm_delete_product'))) return
-    
+
     try {
       const response = await fetch(`/api/v1/tenant/products/${item.id}`, {
         method: 'DELETE'
@@ -113,7 +113,7 @@ export default function ProductsListSimple() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">{t('products')}</h2>
-        <ProtectedButton 
+        <ProtectedButton
           permission="products.create"
           onClick={handleNewItem}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -134,7 +134,7 @@ export default function ProductsListSimple() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           <strong>Error:</strong> {error}
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="ml-4 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
           >
@@ -165,13 +165,13 @@ export default function ProductsListSimple() {
                     </td>
                   ))}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <Link 
+                    <Link
                       to={`${item.id}`}
                       className="text-blue-600 hover:text-blue-900 mr-4"
                     >
                       {t('edit')}
                     </Link>
-                    <button 
+                    <button
                       onClick={() => handleDelete(item)}
                       className="text-red-600 hover:text-red-900"
                     >

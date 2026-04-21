@@ -4,12 +4,12 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
-import type { 
-  UUID, 
-  CatalogFilters, 
-  CatalogCreateRequest, 
+import type {
+  UUID,
+  CatalogFilters,
+  CatalogCreateRequest,
   CatalogUpdateRequest,
-  PaginatedResponse 
+  PaginatedResponse
 } from '@packages/api-types'
 
 // Import existing hooks
@@ -23,7 +23,7 @@ export interface UseCatalogCRUDOptions<T> {
   create: (tenantId: string, data: CatalogCreateRequest) => Promise<T>
   update: (tenantId: string, id: UUID, data: CatalogUpdateRequest) => Promise<T>
   delete: (tenantId: string, id: UUID) => Promise<void>
-  
+
   // Configuration
   tenantId: string
   initialFilters?: CatalogFilters
@@ -36,7 +36,7 @@ export interface UseCatalogCRUDResult<T> {
   selectedItem: T | null
   loading: boolean
   error: string | null
-  
+
   // Pagination
   pagination: {
     page: number
@@ -44,14 +44,14 @@ export interface UseCatalogCRUDResult<T> {
     total: number
     pages: number
   }
-  
+
   // Actions
   loadItems: (filters?: CatalogFilters) => Promise<void>
   loadItem: (id: UUID) => Promise<void>
   createItem: (data: CatalogCreateRequest) => Promise<T>
   updateItem: (id: UUID, data: CatalogUpdateRequest) => Promise<T>
   deleteItem: (id: UUID) => Promise<void>
-  
+
   // Pagination actions
   setPage: (page: number) => void
   setPerPage: (perPage: number) => void
@@ -59,12 +59,12 @@ export interface UseCatalogCRUDResult<T> {
   prevPage: () => void
   firstPage: () => void
   lastPage: () => void
-  
+
   // UI state
   isCreating: boolean
   isUpdating: boolean
   isDeleting: boolean
-  
+
   // Utility
   refresh: () => Promise<void>
   clearSelection: () => void
@@ -89,13 +89,13 @@ export function useCatalogCRUD<T extends { id: UUID }>(
   const [items, setItems] = useState<T[]>([])
   const [selectedItem, setSelectedItem] = useState<T | null>(null)
   const [filters, setFilters] = useState<CatalogFilters>(initialFilters)
-  
+
   // Pagination
   const pagination = usePagination({
     initialPage: initialFilters.page || 1,
     initialPerPage: initialFilters.per_page || 20
   })
-  
+
   // Async states
   const loadingState = useAsyncState()
   const createState = useAsyncState()
@@ -106,7 +106,7 @@ export function useCatalogCRUD<T extends { id: UUID }>(
   const loadItems = useCallback(async (newFilters?: CatalogFilters) => {
     const finalFilters = { ...filters, ...newFilters }
     setFilters(finalFilters)
-    
+
     loadingState.setLoading(true)
     try {
       const response = await list(tenantId, {
@@ -114,12 +114,12 @@ export function useCatalogCRUD<T extends { id: UUID }>(
         page: pagination.page,
         per_page: pagination.perPage
       })
-      
+
       setItems(response.items)
       pagination.setTotal(response.total)
       pagination.setPage(response.page)
       pagination.setPerPage(response.per_page)
-      
+
       loadingState.setLoading(false)
     } catch (error) {
       loadingState.setError(error instanceof Error ? error.message : 'Failed to load items')
@@ -159,7 +159,7 @@ export function useCatalogCRUD<T extends { id: UUID }>(
     updateState.setLoading(true)
     try {
       const updatedItem = await update(tenantId, id, data)
-      setItems(prev => prev.map(item => 
+      setItems(prev => prev.map(item =>
         item.id === id ? updatedItem : item
       ))
       setSelectedItem(updatedItem)
@@ -220,7 +220,7 @@ export function useCatalogCRUD<T extends { id: UUID }>(
     selectedItem,
     loading: loadingState.loading,
     error: loadingState.error || createState.error || updateState.error || deleteState.error,
-    
+
     // Pagination
     pagination: {
       page: pagination.page,
@@ -228,14 +228,14 @@ export function useCatalogCRUD<T extends { id: UUID }>(
       total: pagination.total,
       pages: pagination.pages
     },
-    
+
     // Actions
     loadItems,
     loadItem,
     createItem,
     updateItem,
     deleteItem: deleteItemCallback,
-    
+
     // Pagination actions
     setPage: pagination.setPage,
     setPerPage: pagination.setPerPage,
@@ -243,12 +243,12 @@ export function useCatalogCRUD<T extends { id: UUID }>(
     prevPage: pagination.prevPage,
     firstPage: pagination.firstPage,
     lastPage: pagination.lastPage,
-    
+
     // UI state
     isCreating: createState.loading,
     isUpdating: updateState.loading,
     isDeleting: deleteState.loading,
-    
+
     // Utility
     refresh,
     clearSelection,
@@ -280,7 +280,7 @@ function BusinessTypesPage() {
     <div>
       <button onClick={() => catalog.loadItems()}>Refresh</button>
       <button onClick={() => catalog.setFilters({ search: 'test' })}>Search</button>
-      
+
       <ul>
         {catalog.items.map(item => (
           <li key={item.id}>
@@ -290,7 +290,7 @@ function BusinessTypesPage() {
           </li>
         ))}
       </ul>
-      
+
       <PaginationControls pagination={catalog.pagination} />
     </div>
   )

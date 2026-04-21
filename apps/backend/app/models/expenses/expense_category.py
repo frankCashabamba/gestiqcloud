@@ -1,9 +1,9 @@
-"""Expense Category Model - Catalog Pattern"""
+"""Expense Category Model - Entity Pattern"""
 
-from app.models.base import BaseCatalogModel
+from app.models.base import BaseTransactionalModel
 
 
-class ExpenseCategory(BaseCatalogModel):
+class ExpenseCategory(BaseTransactionalModel):
     """Expense Category model - follows catalog pattern"""
 
     __tablename__ = "expense_categories"

@@ -3,6 +3,8 @@
  */
 
 export { useCRUD } from './useCRUD'
+export { useSimpleFetch } from './useSimpleFetch'
+export { useSimpleList } from './useSimpleList'
 export { usePagination } from './usePagination'
 export { useFilters } from './useFilters'
 export { useAsyncState } from './useAsyncState'

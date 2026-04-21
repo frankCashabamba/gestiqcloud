@@ -4,7 +4,6 @@ This shows how to reduce code duplication in catalog CRUD operations.
 """
 
 from typing import Any
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -33,9 +32,7 @@ BusinessTypeResponse = schemas["Response"]
 
 # Generate filter and response schemas
 BusinessTypeFilters = create_filter_schema(
-    "BusinessType",
-    searchable_fields=["name", "code"],
-    filterable_fields={"is_active": bool}
+    "BusinessType", searchable_fields=["name", "code"], filterable_fields={"is_active": bool}
 )
 BusinessTypePaginatedResponse = create_paginated_response_schema(BusinessTypeResponse)
 
@@ -44,10 +41,11 @@ router = APIRouter(prefix="/business-types", tags=["business-types"])
 
 def get_business_type(db: Session, tenant_id: str, business_type_id: str) -> BusinessType | None:
     """Helper function to get a business type by ID."""
-    return db.query(BusinessType).filter(
-        BusinessType.tenant_id == tenant_id,
-        BusinessType.id == business_type_id
-    ).first()
+    return (
+        db.query(BusinessType)
+        .filter(BusinessType.tenant_id == tenant_id, BusinessType.id == business_type_id)
+        .first()
+    )
 
 
 @router.get("/", response_model=BusinessTypePaginatedResponse)
@@ -66,39 +64,38 @@ def list_business_types(
 ) -> Any:
     """
     List business types with filtering and pagination.
-    
+
     Notice how we don't need manual validation of page/per_page
     and tenant_id is automatically extracted.
     """
     query = db.query(BusinessType).filter(BusinessType.tenant_id == tenant_id)
-    
+
     # Apply filters
     if search:
         query = query.filter(
-            BusinessType.name.ilike(f"%{search}%") |
-            BusinessType.code.ilike(f"%{search}%")
+            BusinessType.name.ilike(f"%{search}%") | BusinessType.code.ilike(f"%{search}%")
         )
-    
+
     if name_contains:
         query = query.filter(BusinessType.name.ilike(f"%{name_contains}%"))
-    
+
     if code_contains:
         query = query.filter(BusinessType.code.ilike(f"%{code_contains}%"))
-    
+
     if is_active is not None:
         query = query.filter(BusinessType.is_active == is_active)
-    
+
     # Apply pagination
     total = query.count()
     offset = (page - 1) * per_page
     items = query.offset(offset).limit(per_page).all()
-    
+
     return BusinessTypePaginatedResponse(
         items=items,
         total=total,
         page=page,
         per_page=per_page,
-        pages=(total + per_page - 1) // per_page
+        pages=(total + per_page - 1) // per_page,
     )
 
 
@@ -114,7 +111,7 @@ def get_business_type(
 ) -> BusinessType:
     """
     Get a specific business type by ID.
-    
+
     Notice how we don't need manual UUID validation
     or existence checks - decorators handle it!
     """
@@ -131,12 +128,11 @@ def create_business_type(
 ) -> BusinessType:
     """
     Create a new business type.
-    
+
     The schema is automatically generated, so no manual schema definition needed.
     """
     business_type = BusinessType(
-        tenant_id=tenant_id,
-        **business_type_data.model_dump(exclude_unset=True)
+        tenant_id=tenant_id, **business_type_data.model_dump(exclude_unset=True)
     )
     db.add(business_type)
     db.commit()
@@ -156,22 +152,22 @@ def update_business_type(
 ) -> BusinessType:
     """
     Update a business type.
-    
+
     UUID validation and error handling are automatic.
     """
     # Validate UUID
     business_type_uuid = validate_uuid(business_type_id, "business_type_id")
-    
+
     # Get existing business type
     business_type = get_business_type(db, tenant_id, str(business_type_uuid))
     if not business_type:
         raise HTTPException(status_code=404, detail="Business Type not found")
-    
+
     # Update fields
     update_data = business_type_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(business_type, field, value)
-    
+
     db.commit()
     db.refresh(business_type)
     return business_type
@@ -188,17 +184,17 @@ def delete_business_type(
 ) -> None:
     """
     Delete a business type.
-    
+
     All validation is handled by decorators.
     """
     # Validate UUID
     business_type_uuid = validate_uuid(business_type_id, "business_type_id")
-    
+
     # Get and delete business type
     business_type = get_business_type(db, tenant_id, str(business_type_uuid))
     if not business_type:
         raise HTTPException(status_code=404, detail="Business Type not found")
-    
+
     db.delete(business_type)
     db.commit()
 

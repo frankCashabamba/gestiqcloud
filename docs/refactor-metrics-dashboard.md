@@ -47,7 +47,7 @@ class MetricsCollector:
             "generated_schemas": self.count_generated_schemas(),
             "reduction_percentage": self.calculate_reduction_percentage()
         }
-    
+
     def collect_quality_metrics(self):
         """Collect code quality metrics."""
         return {
@@ -56,7 +56,7 @@ class MetricsCollector:
             "technical_debt": self.calculate_technical_debt(),
             "duplication_issues": self.get_duplication_issues()
         }
-    
+
     def collect_productivity_metrics(self):
         """Collect team productivity metrics."""
         return {
@@ -92,17 +92,17 @@ interface MetricsData {
 
 const MetricsDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
-  
+
   useEffect(() => {
     fetchMetrics();
     const interval = setInterval(fetchMetrics, 60000); // Update every minute
     return () => clearInterval(interval);
   }, []);
-  
+
   return (
     <div className="metrics-dashboard">
       <h1>Dashboard de Refactorización</h1>
-      
+
       <div className="metrics-grid">
         <div className="metric-card">
           <h2>Reducción de Código</h2>
@@ -113,7 +113,7 @@ const MetricsDashboard: React.FC = () => {
             {metrics?.duplicationMetrics.refactoredModels} modelos refactorizados
           </div>
         </div>
-        
+
         <div className="metric-card">
           <h2>Calidad de Código</h2>
           <div className="metric-value">
@@ -123,7 +123,7 @@ const MetricsDashboard: React.FC = () => {
             {metrics?.qualityMetrics.duplicationIssues} issues detectados
           </div>
         </div>
-        
+
         <div className="metric-card">
           <h2>Productividad</h2>
           <div className="metric-value">
@@ -134,12 +134,12 @@ const MetricsDashboard: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       <div className="trends-section">
         <h2>Tendencias</h2>
         <TrendsChart data={metrics} />
       </div>
-      
+
       <div className="alerts-section">
         <h2>Alertas</h2>
         <AlertsList metrics={metrics} />
@@ -163,10 +163,10 @@ class RefactorMetricsTelemetry:
             "metrics": metrics,
             "source": "automated_refactor_script"
         }
-        
+
         # Send to telemetry service
         self.telemetry_client.log_event(event)
-    
+
     def track_pattern_adoption(self, pattern_name: str, team_id: str):
         """Track when a team adopts a new pattern."""
         self.send_metrics_to_dashboard({
@@ -230,12 +230,12 @@ alerts:
     enabled: true
     threshold_increase: 5  # percentage
     channels: ["slack", "email"]
-  
+
   quality:
     coverage_threshold: 80
     complexity_threshold: 15
     channels: ["slack"]
-  
+
   adoption:
     inactivity_days: 14
     reminder_frequency: 7  # days

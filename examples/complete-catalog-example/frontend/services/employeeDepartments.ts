@@ -26,14 +26,14 @@ const employeeDepartmentService = {
     filters: EmployeeDepartmentFilters = {}
   ): Promise<EmployeeDepartmentPaginatedResponse> => {
     const params = new URLSearchParams()
-    
+
     // Add pagination
     if (filters.page) params.append('page', filters.page.toString())
     if (filters.per_page) params.append('per_page', filters.per_page.toString())
-    
+
     // Add search
     if (filters.search) params.append('search', filters.search)
-    
+
     // Add specific filters
     if (filters.is_active !== undefined) {
       params.append('is_active', filters.is_active.toString())
@@ -44,7 +44,7 @@ const employeeDepartmentService = {
     if (filters.code_contains) {
       params.append('code_contains', filters.code_contains)
     }
-    
+
     const response = await api.get(
       `/api/v1/tenant/employee-departments?${params}`
     )
@@ -164,26 +164,26 @@ export function createCatalogService<T extends { id: UUID }>(
           params.append(key, value.toString())
         }
       })
-      
+
       const response = await api.get(`/api/v1/tenant/${endpoint}?${params}`)
       return response.data
     },
-    
+
     get: async (tenantId: string, id: UUID): Promise<T> => {
       const response = await api.get(`/api/v1/tenant/${endpoint}/${id}`)
       return response.data
     },
-    
+
     create: async (tenantId: string, data: any): Promise<T> => {
       const response = await api.post(`/api/v1/tenant/${endpoint}`, data)
       return response.data
     },
-    
+
     update: async (tenantId: string, id: UUID, data: any): Promise<T> => {
       const response = await api.put(`/api/v1/tenant/${endpoint}/${id}`, data)
       return response.data
     },
-    
+
     delete: async (tenantId: string, id: UUID): Promise<void> => {
       await api.delete(`/api/v1/tenant/${endpoint}/${id}`)
     }

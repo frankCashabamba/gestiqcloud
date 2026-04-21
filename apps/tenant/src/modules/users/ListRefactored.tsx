@@ -72,8 +72,8 @@ export default function UsuariosListRefactored() {
       filterable: true,
       render: (value) => (
         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-          value 
-            ? 'bg-green-100 text-green-800' 
+          value
+            ? 'bg-green-100 text-green-800'
             : 'bg-red-100 text-red-800'
         }`}>
           {value ? t('Activo') : t('Inactivo')}
@@ -110,7 +110,7 @@ export default function UsuariosListRefactored() {
       disabled: () => !isAdmin,
       onClick: async (item) => {
         if (!confirm(t('confirm_delete_user'))) return
-        
+
         try {
           await fetch(`/api/v1/tenant/users/${item.id}`, {
             method: 'DELETE'
@@ -148,7 +148,7 @@ export default function UsuariosListRefactored() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">{t('users')}</h2>
-        <ProtectedButton 
+        <ProtectedButton
           permission="users.create"
           onClick={handleNewItem}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -177,7 +177,7 @@ export default function UsuariosListRefactored() {
         onError={handleError}
         className="bg-white rounded-lg shadow"
         headerClassName="border-b border-gray-200 pb-4"
-        rowClassName={(item, index) => 
+        rowClassName={(item, index) =>
           index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
         }
       />

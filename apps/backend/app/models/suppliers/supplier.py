@@ -8,10 +8,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.base import BaseCatalogModel
+from app.models.base import BaseTransactionalModel
 
 
-class Supplier(BaseCatalogModel):
+class Supplier(BaseTransactionalModel):
     """Supplier"""
 
     __tablename__ = "suppliers"

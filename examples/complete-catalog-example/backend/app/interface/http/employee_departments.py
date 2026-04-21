@@ -63,11 +63,11 @@ def list_employee_departments(
 ) -> Any:
     """
     List employee departments with filtering and pagination.
-    
+
     Notice how validation is automatic - no manual checks needed!
     """
     service = EmployeeDepartmentService(db, tenant_id)
-    
+
     # Build filters
     filters = {}
     if search:
@@ -78,10 +78,10 @@ def list_employee_departments(
         filters["name_contains"] = name_contains
     if code_contains:
         filters["code_contains"] = code_contains
-    
+
     # Get paginated results
     result = service.list(filters, page, per_page)
-    
+
     return EmployeeDepartmentPaginatedResponse(
         items=result["items"],
         total=result["total"],
@@ -103,7 +103,7 @@ def get_employee_department(
 ) -> EmployeeDepartment:
     """
     Get a specific employee department by ID.
-    
+
     All validation is handled by decorators!
     """
     return validated_employee_department
@@ -119,7 +119,7 @@ def create_employee_department(
 ) -> EmployeeDepartment:
     """
     Create a new employee department.
-    
+
     Schema is auto-generated, validation is automatic.
     """
     service = EmployeeDepartmentService(db, tenant_id)
@@ -138,12 +138,12 @@ def update_employee_department(
 ) -> EmployeeDepartment:
     """
     Update an employee department.
-    
+
     UUID validation and error handling are automatic.
     """
     # Validate UUID (automatic error handling)
     dept_uuid = validate_uuid(department_id, "department_id")
-    
+
     service = EmployeeDepartmentService(db, tenant_id)
     return service.update(str(dept_uuid), department_data.model_dump(exclude_unset=True))
 
@@ -159,12 +159,12 @@ def delete_employee_department(
 ) -> None:
     """
     Delete an employee department.
-    
+
     All validation is handled by decorators!
     """
     # Validate UUID (automatic error handling)
     dept_uuid = validate_uuid(department_id, "department_id")
-    
+
     service = EmployeeDepartmentService(db, tenant_id)
     service.delete(str(dept_uuid))
 
@@ -177,18 +177,18 @@ def delete_employee_department(
 #         dept_uuid = UUID(department_id)
 #     except ValueError:
 #         raise HTTPException(status_code=400, detail="Invalid department_id")
-#     
+#
 #     claims = getattr(request.state, "access_claims", {})
 #     tenant_id = claims.get("tenant_id")
 #     if not tenant_id:
 #         raise HTTPException(status_code=400, detail="Tenant not found")
-#     
+#
 #     department = db.query(EmployeeDepartment).filter(
 #         EmployeeDepartment.tenant_id == tenant_id,
 #         EmployeeDepartment.id == str(dept_uuid)
 #     ).first()
-#     
+#
 #     if not department:
 #         raise HTTPException(status_code=404, detail="Employee Department not found")
-#     
+#
 #     return department

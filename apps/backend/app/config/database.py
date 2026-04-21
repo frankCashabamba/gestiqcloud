@@ -429,6 +429,51 @@ def session_scope() -> Iterator[Session]:
         db.close()
 
 
+@contextmanager
+def tenant_session_scope(tenant_id: str | None = None) -> Iterator[Session]:
+    """
+    Context manager con tenant context y rollback automático:
+        with tenant_session_scope(tenant_id) as db:
+            ...  # tenant_id seteado, commit/rollback automático
+    """
+    db = SessionLocal()
+    try:
+        if tenant_id:
+            db.info["tenant_id"] = str(tenant_id)
+            db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@contextmanager
+def bot_session_scope(tenant_id: str) -> Iterator[Session]:
+    """
+    Context manager para webhooks/bots sin user session:
+        with bot_session_scope(tenant_id) as db:
+            ...  # bypass_rls activado, tenant_id seteado
+    """
+    db = SessionLocal()
+    try:
+        db.info["tenant_id"] = tenant_id
+        db.info["bypass_rls"] = True
+        db.execute(text("SELECT set_config('app.bypass_rls', 'true', true)"))
+        db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.info["bypass_rls"] = False
+        db.execute(text("SELECT set_config('app.bypass_rls', 'false', true)"))
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Auditoría automática: registra en audit_events cada create/update/delete
 # Se activa al importar database.py (siempre que no sea SQLite de tests)

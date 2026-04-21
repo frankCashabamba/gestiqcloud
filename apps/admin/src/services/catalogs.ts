@@ -25,12 +25,12 @@ export async function listBusinessTypes(
   filters: CatalogFilters = {}
 ): Promise<PaginatedResponse<BusinessType>> {
   const params = new URLSearchParams()
-  
+
   if (filters.page) params.append('page', filters.page.toString())
   if (filters.per_page) params.append('per_page', filters.per_page.toString())
   if (filters.search) params.append('search', filters.search)
   if (filters.is_active !== undefined) params.append('is_active', filters.is_active.toString())
-  
+
   const response = await api.get(`/api/v1/tenant/business-types?${params}`)
   return response.data
 }
@@ -73,13 +73,13 @@ export async function listBusinessCategories(
   filters: CatalogFilters = {}
 ): Promise<PaginatedResponse<BusinessCategory>> {
   const params = new URLSearchParams()
-  
+
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
       params.append(key, value.toString())
     }
   })
-  
+
   const response = await api.get(`/api/v1/tenant/business-categories?${params}`)
   return response.data
 }
@@ -122,13 +122,13 @@ export async function listSectorTemplates(
   filters: CatalogFilters = {}
 ): Promise<PaginatedResponse<SectorTemplate>> {
   const params = new URLSearchParams()
-  
+
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
       params.append(key, value.toString())
     }
   })
-  
+
   const response = await api.get(`/api/v1/tenant/sector-templates?${params}`)
   return response.data
 }
@@ -171,19 +171,19 @@ export function createCatalogService<T extends { id: UUID }>(
       })
       return api.get(`/api/v1/tenant/${endpoint}?${params}`).then(r => r.data)
     },
-    
+
     get: (tenantId: string, id: UUID): Promise<T> => {
       return api.get(`/api/v1/tenant/${endpoint}/${id}`).then(r => r.data)
     },
-    
+
     create: (tenantId: string, data: CatalogCreateRequest): Promise<T> => {
       return api.post(`/api/v1/tenant/${endpoint}`, data).then(r => r.data)
     },
-    
+
     update: (tenantId: string, id: UUID, data: CatalogUpdateRequest): Promise<T> => {
       return api.put(`/api/v1/tenant/${endpoint}/${id}`, data).then(r => r.data)
     },
-    
+
     delete: (tenantId: string, id: UUID): Promise<void> => {
       return api.delete(`/api/v1/tenant/${endpoint}/${id}`)
     }

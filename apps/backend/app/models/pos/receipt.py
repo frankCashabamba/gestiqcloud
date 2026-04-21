@@ -8,13 +8,13 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.base import BaseCatalogModel
+from app.models.base import BaseTransactionalModel
 
 UUID_TYPE = PGUUID(as_uuid=True)
 TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 
-class POSReceipt(BaseCatalogModel):
+class POSReceipt(BaseTransactionalModel):
     """POS sales receipt"""
 
     __tablename__ = "pos_receipts"

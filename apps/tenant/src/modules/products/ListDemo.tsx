@@ -59,7 +59,7 @@ export default function ProductsListDemo() {
 
   const handleDelete = async (item: Producto) => {
     if (!confirm('¿Eliminar producto?')) return
-    
+
     try {
       const response = await fetch(`/api/v1/tenant/products/${item.id}`, {
         method: 'DELETE'
@@ -79,7 +79,7 @@ export default function ProductsListDemo() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Productos (Refactorizado)</h2>
-        <button 
+        <button
           onClick={() => nav('nuevo')}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
         >
@@ -99,7 +99,7 @@ export default function ProductsListDemo() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           <strong>Error:</strong> {error}
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="ml-4 bg-red-600 text-white px-3 py-1 rounded text-sm"
           >
@@ -131,21 +131,21 @@ export default function ProductsListDemo() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">{item.stock_quantity}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      item.active 
-                        ? 'bg-green-100 text-green-800' 
+                      item.active
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
                       {item.active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <Link 
+                    <Link
                       to={`${item.id}`}
                       className="text-blue-600 hover:text-blue-900 mr-4"
                     >
                       Editar
                     </Link>
-                    <button 
+                    <button
                       onClick={() => handleDelete(item)}
                       className="text-red-600 hover:text-red-900"
                     >

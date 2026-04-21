@@ -72,7 +72,7 @@ export default function CategoriaGastoListRefactored() {
       variant: 'danger',
       onClick: async (item) => {
         if (!confirm('¿Eliminar categoría de gasto?')) return
-        
+
         try {
           // Usar el método delete del hook CRUD
           await fetch(`/api/v1/admin/categorias-gasto/${item.id}`, {
@@ -105,7 +105,7 @@ export default function CategoriaGastoListRefactored() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Categorías de gasto</h2>
-        <button 
+        <button
           onClick={handleNewItem}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
@@ -133,7 +133,7 @@ export default function CategoriaGastoListRefactored() {
         onError={handleError}
         className="bg-white rounded-lg shadow"
         headerClassName="border-b border-gray-200 pb-4"
-        rowClassName={(item, index) => 
+        rowClassName={(item, index) =>
           index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
         }
       />

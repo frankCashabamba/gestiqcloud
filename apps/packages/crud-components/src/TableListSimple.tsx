@@ -28,19 +28,19 @@ export interface TableListSimpleProps<T> {
   items: T[]
   loading?: boolean
   error?: string | null
-  
+
   // Configuración de columnas
   columns: ColumnConfig<T>[]
-  
+
   // Configuración de acciones
   actions?: ActionConfig<T>[]
-  
+
   // Configuración de visualización
   title?: string
   emptyMessage?: string
   loadingMessage?: string
   errorMessage?: string
-  
+
   // Estilos personalizados
   className?: string
   headerClassName?: string
@@ -61,31 +61,31 @@ export function TableListSimple<T = any>({
   headerClassName = '',
   rowClassName,
 }: TableListSimpleProps<T>) {
-  
+
   // Render functions
   const renderCell = (item: T, column: ColumnConfig<T>, index: number) => {
     const value = item[column.key]
-    
+
     if (column.render) {
       return column.render(value, item, index)
     }
-    
+
     // Renderizado por defecto
     if (value === null || value === undefined) {
       return <span className="text-gray-400">-</span>
     }
-    
+
     return <span>{String(value)}</span>
   }
-  
+
   const renderActions = (item: T, index: number) => {
     if (actions.length === 0) return null
-    
+
     return (
       <div className="flex gap-2">
         {actions.map(action => {
           const isDisabled = action.disabled?.(item) ?? false
-          
+
           if (action.href) {
             return (
               <Link
@@ -97,13 +97,13 @@ export function TableListSimple<T = any>({
               </Link>
             )
           }
-          
+
           return (
             <button
               key={action.key}
               className={`text-sm ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${
-                action.variant === 'danger' ? 'text-red-600 hover:text-red-900' : 
-                action.variant === 'primary' ? 'text-blue-600 hover:text-blue-900' : 
+                action.variant === 'danger' ? 'text-red-600 hover:text-red-900' :
+                action.variant === 'primary' ? 'text-blue-600 hover:text-blue-900' :
                 'text-gray-600 hover:text-gray-900'
               }`}
               onClick={() => !isDisabled && action.onClick(item, index)}
@@ -116,7 +116,7 @@ export function TableListSimple<T = any>({
       </div>
     )
   }
-  
+
   // Loading state
   if (loading) {
     return (
@@ -128,7 +128,7 @@ export function TableListSimple<T = any>({
       </div>
     )
   }
-  
+
   // Error state
   if (error) {
     return (
@@ -140,7 +140,7 @@ export function TableListSimple<T = any>({
       </div>
     )
   }
-  
+
   // Empty state
   if (items.length === 0) {
     return (
@@ -152,7 +152,7 @@ export function TableListSimple<T = any>({
       </div>
     )
   }
-  
+
   return (
     <div className={`table-list-simple ${className}`}>
       {/* Header */}
@@ -161,7 +161,7 @@ export function TableListSimple<T = any>({
           <h2 className="text-xl font-semibold">{title}</h2>
         </div>
       )}
-      
+
       {/* Table */}
       <div className="table-list-simple-table bg-white rounded-lg shadow overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
@@ -180,7 +180,7 @@ export function TableListSimple<T = any>({
                   {column.label}
                 </th>
               ))}
-              
+
               {actions.length > 0 && (
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
                   Acciones
@@ -188,11 +188,11 @@ export function TableListSimple<T = any>({
               )}
             </tr>
           </thead>
-          
+
           <tbody className="bg-white divide-y divide-gray-200">
             {items.map((item, index) => {
               const rowClass = rowClassName?.(item, index) || ''
-              
+
               return (
                 <tr
                   key={(item as any).id || index}
@@ -210,7 +210,7 @@ export function TableListSimple<T = any>({
                       {renderCell(item, column, index)}
                     </td>
                   ))}
-                  
+
                   {actions.length > 0 && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       {renderActions(item, index)}
