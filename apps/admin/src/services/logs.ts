@@ -4,17 +4,10 @@
  */
 
 import { API_ENDPOINTS, API_BASE } from '../constants/api'
+import { apiFetch } from '../lib/http'
+import { authManager } from '../lib/auth'
 
 import type { LogEntry, LogFilters, LogStats, AuditEntry, AuditFilters, AuditStats } from '../types/logs'
-
-const getAdminToken = () =>
-  (typeof window !== 'undefined' ? sessionStorage.getItem('access_token_admin') : null)
-  || (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null)
-
-const AUTH_HEADER = () => ({
-  'Authorization': `Bearer ${getAdminToken()}`,
-  'Content-Type': 'application/json'
-})
 
 export async function listLogs(filters: LogFilters): Promise<LogEntry[]> {
   const params = new URLSearchParams()
@@ -40,30 +33,14 @@ export async function listLogs(filters: LogFilters): Promise<LogEntry[]> {
   const offset = (page - 1) * limit
   params.append('offset', offset.toString())
 
-  const response = await fetch(`${API_ENDPOINTS.LOGS.LIST}?${params}`, {
-    headers: AUTH_HEADER()
-  })
-
-  if (!response.ok) {
-    throw new Error('Error al cargar logs')
-  }
-
-  return response.json()
+  return apiFetch<LogEntry[]>(`${API_ENDPOINTS.LOGS.LIST}?${params}`)
 }
 
 export async function getLogStats(days: number = 30): Promise<LogStats> {
   const params = new URLSearchParams()
   params.append('days', days.toString())
 
-  const response = await fetch(`${API_BASE}/notifications/log/stats?${params}`, {
-    headers: AUTH_HEADER()
-  })
-
-  if (!response.ok) {
-    throw new Error('Error al obtener estadísticas')
-  }
-
-  return response.json()
+  return apiFetch<LogStats>(`${API_BASE}/notifications/log/stats?${params}`)
 }
 
 export async function listAuditEvents(filters: AuditFilters): Promise<AuditEntry[]> {
@@ -76,11 +53,7 @@ export async function listAuditEvents(filters: AuditFilters): Promise<AuditEntry
   params.append('limit', filters.limit.toString())
   params.append('offset', (Math.max(filters.page - 1, 0) * filters.limit).toString())
 
-  const response = await fetch(`${API_BASE}/admin/logs/audit?${params}`, {
-    headers: AUTH_HEADER()
-  })
-  if (!response.ok) throw new Error('Error al cargar auditoría')
-  return response.json()
+  return apiFetch<AuditEntry[]>(`${API_BASE}/admin/logs/audit?${params}`)
 }
 
 export async function getAuditStats(filters: Pick<AuditFilters, 'tenant_id' | 'days'>): Promise<AuditStats> {
@@ -88,11 +61,7 @@ export async function getAuditStats(filters: Pick<AuditFilters, 'tenant_id' | 'd
   if (filters.tenant_id) params.append('tenant_id', filters.tenant_id)
   params.append('days', filters.days.toString())
 
-  const response = await fetch(`${API_BASE}/admin/logs/audit/stats?${params}`, {
-    headers: AUTH_HEADER()
-  })
-  if (!response.ok) throw new Error('Error al obtener estadísticas de auditoría')
-  return response.json()
+  return apiFetch<AuditStats>(`${API_BASE}/admin/logs/audit/stats?${params}`)
 }
 
 export async function exportLogs(filters: LogFilters): Promise<Blob> {

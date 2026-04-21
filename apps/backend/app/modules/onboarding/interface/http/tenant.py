@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.access_guard import get_current_user_context
+from app.core.auth_dependencies import get_current_user_context
 from app.models.company.company_settings import CompanySettings
 from app.models.tenant import Tenant
 

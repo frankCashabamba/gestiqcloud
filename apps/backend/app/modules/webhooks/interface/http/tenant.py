@@ -9,7 +9,7 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.middleware.tenant import get_current_user
+from app.core.auth_dependencies import get_current_user
 from app.modules.webhooks.application.schemas import (
     CreateWebhookRequest,
     DeliveryListResponse,

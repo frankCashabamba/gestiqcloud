@@ -1,6 +1,8 @@
 // lib/http.ts
-// Deprecated: this local HTTP helper has been superseded by @shared client.
+// Unified HTTP client for frontend API requests.
+// Consolidates HTTP logic from multiple sources and integrates with authManager.
 import { env } from '../env'
+import { authManager } from './auth'
 
 export const API_URL = (env.apiUrl || '/api').replace(/\/+$/g, '')
 
@@ -98,18 +100,20 @@ export async function apiFetch<T = unknown>(
 
   const h = new Headers(headers || {});
 
-  // Accept siempre; Content-Type sólo si no es GET y no estás mandando FormData
+  // Accept siempre; Content-Type slo si no es GET y no ests mandando FormData
   if (!h.has("Accept")) h.set("Accept", "application/json");
   const isFormData = typeof FormData !== "undefined" && (init as any)?.body instanceof FormData;
   if (method !== "GET" && !isFormData && !h.has("Content-Type")) h.set("Content-Type", "application/json");
 
-  // Usa el token explícito o el global
+  // Usa el token explcito o el token unificado de authManager
   const skipAuthHeader = NO_AUTH_HEADER_SUFFIX.some((s) => path.endsWith(s));
   const tokenToUse = skipAuthHeader
-  ? null
-  : authToken ?? (getTokenHandler ? getTokenHandler() : null);
+    ? null
+    : authToken ?? authManager.getToken();
 
-if (tokenToUse && !h.has('Authorization')) {
+  if (tokenToUse && !h.has('Authorization')) {
+    h.set('Authorization', `Bearer ${tokenToUse}`);
+  }
   h.set('Authorization', `Bearer ${tokenToUse}`);
 }
 

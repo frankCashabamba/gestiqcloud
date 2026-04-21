@@ -4,6 +4,8 @@
  */
 
 import { API_BASE, API_ENDPOINTS } from '../constants/api'
+import { apiFetch } from '../lib/http'
+import { authManager } from '../lib/auth'
 
 import type { Incident, StockAlert } from '../types/incidents'
 
@@ -39,15 +41,6 @@ type RawStockAlert = {
   notified_at?: string | null
   resolved_at?: string | null
 }
-
-const getAdminToken = () =>
-  (typeof window !== 'undefined' ? sessionStorage.getItem('access_token_admin') : null)
-  || (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null)
-
-const getAuthHeaders = () => ({
-  Authorization: `Bearer ${getAdminToken()}`,
-  'Content-Type': 'application/json',
-})
 
 function normalizeIncident(raw: RawIncident): Incident {
   return {
@@ -90,13 +83,6 @@ function normalizeStockAlert(raw: RawStockAlert): StockAlert {
   }
 }
 
-async function readJson<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
-  return response.json() as Promise<T>
-}
-
 /**
  * Lista incidencias con filtros
  */
@@ -109,11 +95,7 @@ export async function listIncidents(filters: { estado?: string; tenant_id?: stri
     params.append('tenant_id', filters.tenant_id)
   }
 
-  const response = await fetch(`${API_ENDPOINTS.INCIDENTS.LIST}?${params.toString()}`, {
-    headers: getAuthHeaders(),
-  })
-
-  const data = await readJson<RawIncident[]>(response)
+  const data = await apiFetch<RawIncident[]>(`${API_ENDPOINTS.INCIDENTS.LIST}?${params.toString()}`)
   return data.map(normalizeIncident)
 }
 
@@ -121,11 +103,7 @@ export async function listIncidents(filters: { estado?: string; tenant_id?: stri
  * Obtiene detalle de una incidencia
  */
 export async function getIncident(id: string): Promise<Incident> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}`, {
-    headers: getAuthHeaders(),
-  })
-
-  const data = await readJson<RawIncident>(response)
+  const data = await apiFetch<RawIncident>(`${API_BASE}/admin/incidents/${id}`)
   return normalizeIncident(data)
 }
 
@@ -133,16 +111,13 @@ export async function getIncident(id: string): Promise<Incident> {
  * Trigger análisis IA de una incidencia y devuelve el detalle actualizado
  */
 export async function analyzeIncident(id: string): Promise<Incident> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}/analyze`, {
+  await apiFetch(`${API_BASE}/admin/incidents/${id}/analyze`, {
     method: 'POST',
-    headers: getAuthHeaders(),
     body: JSON.stringify({
       use_gpt4: false,
       include_code_suggestions: true,
     }),
   })
-
-  await readJson(response)
   return getIncident(id)
 }
 
@@ -150,12 +125,9 @@ export async function analyzeIncident(id: string): Promise<Incident> {
  * Auto-resolver incidencia con IA y devuelve el detalle actualizado
  */
 export async function autoResolveIncident(id: string): Promise<Incident> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}/resolve`, {
+  await apiFetch(`${API_BASE}/admin/incidents/${id}/resolve`, {
     method: 'POST',
-    headers: getAuthHeaders(),
   })
-
-  await readJson(response)
   return getIncident(id)
 }
 
@@ -163,13 +135,10 @@ export async function autoResolveIncident(id: string): Promise<Incident> {
  * Asignar incidencia a un usuario
  */
 export async function assignIncident(id: string, userId: string): Promise<Incident> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}`, {
+  const data = await apiFetch<RawIncident>(`${API_BASE}/admin/incidents/${id}`, {
     method: 'PUT',
-    headers: getAuthHeaders(),
     body: JSON.stringify({ assigned_to: userId, status: 'in_progress' }),
   })
-
-  const data = await readJson<RawIncident>(response)
   return normalizeIncident(data)
 }
 
@@ -177,13 +146,10 @@ export async function assignIncident(id: string, userId: string): Promise<Incide
  * Cerrar incidencia
  */
 export async function closeIncident(id: string): Promise<Incident> {
-  const response = await fetch(`${API_BASE}/admin/incidents/${id}`, {
+  const data = await apiFetch<RawIncident>(`${API_BASE}/admin/incidents/${id}`, {
     method: 'PUT',
-    headers: getAuthHeaders(),
     body: JSON.stringify({ status: 'closed' }),
   })
-
-  const data = await readJson<RawIncident>(response)
   return normalizeIncident(data)
 }
 
@@ -199,11 +165,7 @@ export async function listStockAlerts(filters: { estado?: string; tenant_id?: st
     params.append('tenant_id', filters.tenant_id)
   }
 
-  const response = await fetch(`${API_BASE}/admin/incidents/stock-alerts?${params.toString()}`, {
-    headers: getAuthHeaders(),
-  })
-
-  const data = await readJson<RawStockAlert[]>(response)
+  const data = await apiFetch<RawStockAlert[]>(`${API_BASE}/admin/incidents/stock-alerts?${params.toString()}`)
   return data.map(normalizeStockAlert)
 }
 
@@ -211,22 +173,16 @@ export async function listStockAlerts(filters: { estado?: string; tenant_id?: st
  * Notificar alerta de stock
  */
 export async function notifyStockAlert(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/admin/incidents/stock-alerts/${id}/notify`, {
+  await apiFetch(`${API_BASE}/admin/incidents/stock-alerts/${id}/notify`, {
     method: 'POST',
-    headers: getAuthHeaders(),
   })
-
-  await readJson(response)
 }
 
 /**
  * Resolver alerta de stock
  */
 export async function resolveStockAlert(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/admin/incidents/stock-alerts/${id}/resolve`, {
+  await apiFetch(`${API_BASE}/admin/incidents/stock-alerts/${id}/resolve`, {
     method: 'POST',
-    headers: getAuthHeaders(),
   })
-
-  await readJson(response)
 }

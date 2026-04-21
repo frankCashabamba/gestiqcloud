@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.middleware.tenant import ensure_tenant, get_current_user
+from app.core.auth_dependencies import get_current_user
+from app.core.auth_dependencies import ensure_tenant
 from app.modules.notifications.application.schemas import (
     CreateTemplateRequest,
     MarkReadRequest,

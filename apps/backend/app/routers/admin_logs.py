@@ -12,7 +12,7 @@ from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.middleware.tenant import get_current_user
+from app.core.auth_dependencies import get_current_user
 from app.models.ai.incident import NotificationChannel, NotificationLog
 from app.models.core.audit_event import AuditEvent
 from app.models.tenant import Tenant
