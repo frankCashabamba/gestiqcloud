@@ -31,12 +31,12 @@ export default function UserList() {
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await fetch('/api/v1/tenant/users')
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
-      
+
       const data = await response.json()
       setUsers(data.items || [])
     } catch (err) {
@@ -60,16 +60,16 @@ export default function UserList() {
 
   const handleDelete = async (user: Usuario) => {
     if (!confirm(t('confirm_delete_user'))) return
-    
+
     try {
       const response = await fetch(`/api/v1/tenant/users/${user.id}`, {
         method: 'DELETE'
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
-      
+
       success(t('user_deleted'))
       fetchUsers() // Refrescar lista
     } catch (err) {
@@ -94,7 +94,7 @@ export default function UserList() {
       <div className="text-center p-8">
         <div className="text-red-600 text-lg mb-4">Error</div>
         <p className="text-red-600 mb-4">{error}</p>
-        <button 
+        <button
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
           onClick={fetchUsers}
         >
@@ -151,8 +151,8 @@ export default function UserList() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    user.is_active 
-                      ? 'bg-green-100 text-green-800' 
+                    user.is_active
+                      ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                   }`}>
                     {user.is_active ? t('Activo') : t('Inactivo')}

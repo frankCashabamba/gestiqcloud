@@ -1,5 +1,11 @@
 """Bridge fixtures from app test suite for root-level backend tests."""
 
+import os
+
+# Debe estar antes de cualquier import de app para que celery_config
+# no intente conectar a Redis durante la recolección de tests.
+os.environ.setdefault("TEST_MINIMAL", "1")
+
 import pytest
 from sqlalchemy import inspect
 

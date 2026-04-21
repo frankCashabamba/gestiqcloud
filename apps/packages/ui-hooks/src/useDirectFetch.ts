@@ -14,12 +14,12 @@ export function useDirectFetch<T = any>(endpoint: string) {
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await fetch(endpoint)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       const items = Array.isArray(result) ? result : (result.items || [])
       setData(items)

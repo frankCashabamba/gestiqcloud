@@ -32,7 +32,7 @@ export default function ProductsListSimple() {
   const { formatCurrency } = useCurrency()
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  const { hasPermission } = usePermission()
+  const hasPermission = usePermission()
 
   // Estado local simplificado (sin useCRUD por ahora para evitar errores)
   const [items, setItems] = React.useState<Producto[]>([])
@@ -63,7 +63,7 @@ export default function ProductsListSimple() {
 
   // Verificar permisos
   if (!hasPermission('products.read')) {
-    return <PermissionDenied />
+    return <PermissionDenied permission="products.read" />
   }
 
   // Configuración de columnas
@@ -161,7 +161,7 @@ export default function ProductsListSimple() {
                 <tr key={item.id} className="hover:bg-gray-50">
                   {columns.map(col => (
                     <td key={col.key} className="px-6 py-4 whitespace-nowrap text-sm">
-                      {col.render ? col.render(item[col.key as keyof Producto], item) : item[col.key as keyof Producto]}
+                      {col.render ? col.render(item[col.key as keyof Producto]) : item[col.key as keyof Producto]}
                     </td>
                   ))}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

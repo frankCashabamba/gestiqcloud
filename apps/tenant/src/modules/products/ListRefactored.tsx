@@ -18,11 +18,11 @@ export default function ProductsListRefactored() {
   const { formatCurrency } = useCurrency()
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  const { hasPermission } = usePermission()
+  const hasPermission = usePermission()
 
   // Verificar permisos
   if (!hasPermission('products.read')) {
-    return <PermissionDenied />
+    return <PermissionDenied permission="products.read" />
   }
 
   // Configuración de columnas
@@ -159,7 +159,7 @@ export default function ProductsListRefactored() {
         searchable={true}
         filterable={true}
         sortable={true}
-        pagination={true}
+        showPagination={true}
         defaultPerPage={20}
         perPageOptions={[10, 20, 50, 100]}
         onSuccess={handleSuccess}

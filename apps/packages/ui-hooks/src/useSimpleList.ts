@@ -29,7 +29,7 @@ export function useSimpleList<T = any>(config: SimpleListConfig<T>) {
   const fetchItems = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }))
-      
+
       const response = await fetch(endpoint)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -37,7 +37,7 @@ export function useSimpleList<T = any>(config: SimpleListConfig<T>) {
 
       const data = await response.json()
       const items = Array.isArray(data) ? data : (data.items || [])
-      
+
       setState({ items, loading: false, error: null })
       onSuccess?.(items)
     } catch (err) {

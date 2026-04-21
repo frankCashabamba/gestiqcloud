@@ -22,7 +22,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
+        pip install -r apps/backend/requirements.txt
 
     - name: Run duplication detection
       run: |
@@ -59,10 +59,12 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
+        pip install -r apps/backend/requirements.txt
         pip install pytest pytest-cov
 
     - name: Run tests for new utilities
+      env:
+        TEST_MINIMAL: "1"
       run: |
         # Run tests for BaseCatalogModel
         pytest apps/backend/tests/test_base_catalog_model.py -v --cov=app.models.base
@@ -97,7 +99,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
+        pip install -r apps/backend/requirements.txt
 
     - name: Apply high-confidence refactors
       run: |

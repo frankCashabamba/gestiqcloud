@@ -114,8 +114,6 @@ export async function apiFetch<T = unknown>(
   if (tokenToUse && !h.has('Authorization')) {
     h.set('Authorization', `Bearer ${tokenToUse}`);
   }
-  h.set('Authorization', `Bearer ${tokenToUse}`);
-}
 
   // CSRF (para métodos no seguros, excepto exentos)
   if (needsCsrf(path, method)) {

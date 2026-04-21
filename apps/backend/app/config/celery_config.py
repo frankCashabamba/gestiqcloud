@@ -16,6 +16,10 @@ def _get_redis_url_for_celery() -> str:
     In production: REDIS_URL is required.
     In development: REDIS_URL or DEV_REDIS_URL is required.
     """
+    # En modo test mínimo no hay Redis disponible — usar URL ficticia
+    if str(os.getenv("TEST_MINIMAL", "0")).lower() in ("1", "true", "yes"):
+        return "redis://localhost:6379/0"
+
     redis_url = os.getenv("REDIS_URL", "").strip()
 
     if redis_url:

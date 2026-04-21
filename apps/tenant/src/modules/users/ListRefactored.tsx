@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth/AuthContext'
 import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
-import { UsuarioSchema, type Usuario } from '@api-types/schemas'
+import { type Usuario } from '@api-types/schemas'
 
 // Props para PermissionDenied
 interface PermissionDeniedProps {
@@ -159,7 +159,7 @@ export default function UsuariosListRefactored() {
 
       <GenericList<Usuario>
         endpoint="/api/v1/tenant/users"
-        schema={UsuarioSchema}
+        schema={{}}
         columns={columns}
         actions={actions}
         title={t('users')}
@@ -170,7 +170,7 @@ export default function UsuariosListRefactored() {
         searchable={true}
         filterable={true}
         sortable={true}
-        pagination={true}
+        showPagination={true}
         defaultPerPage={20}
         perPageOptions={[10, 20, 50, 100]}
         onSuccess={handleSuccess}

@@ -393,10 +393,30 @@ def sign_facturae_xml(xml_content: str, cert_data: dict[str, Any]) -> str:
 # Celery Tasks
 # ============================================================================
 
-try:  # pragma: no cover
-    from celery_app import celery_app  # type: ignore
-except Exception:  # Provide no-op task decorator in tests when minimal
+
+def _get_celery_app():
+    """Get the Celery app instance with proper fallback for testing."""
     if _MINIMAL:
+        # Minimal test environment - provide no-op decorator
+        class _DummyCeleryApp:
+            def task(self, *dargs, **dkwargs):
+                def _decorator(fn):
+                    return fn
+
+                return _decorator
+
+        return _DummyCeleryApp()
+
+    # Production/development - use lazy Celery app
+    try:
+        from celery_app import get_celery_app
+
+        return get_celery_app()
+    except Exception as e:
+        # Fallback for any import issues
+        import sys
+
+        print(f"Warning: Failed to import Celery app: {e}", file=sys.stderr)
 
         class _DummyCeleryApp:
             def task(self, *dargs, **dkwargs):
@@ -405,9 +425,11 @@ except Exception:  # Provide no-op task decorator in tests when minimal
 
                 return _decorator
 
-        celery_app = _DummyCeleryApp()  # type: ignore
-    else:
-        raise
+        return _DummyCeleryApp()
+
+
+# Get the celery app instance (lazy initialization)
+celery_app = _get_celery_app()
 
 
 def _load_cert_sync(tenant_id: str, country: str) -> dict[str, Any]:

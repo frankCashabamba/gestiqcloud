@@ -224,3 +224,7 @@ HorarioAtencion = BusinessHours
 TipoEmpresa = BusinessType
 # REMOVED: TipoNegocio = BusinessCategory (was CompanyCategory alias)
 SectorPlantilla = SectorTemplate
+
+# Backward compatibility for removed CompanyCategory model
+# Use BusinessCategory instead - this provides a smooth migration path
+CompanyCategory = BusinessCategory

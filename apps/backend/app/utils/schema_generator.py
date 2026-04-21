@@ -5,7 +5,7 @@ Utility for generating common Pydantic schemas to reduce duplication.
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
 
 def create_catalog_schemas(
@@ -30,31 +30,29 @@ def create_catalog_schemas(
     # Define base fields
     base_fields = {
         "name": (str, Field(..., min_length=1, max_length=100)),
-        "code": (str | None, Field(None, max_length=50)),
-        "description": (str | None, Field(None)),
+        "code": (str | None, Field(default=None, max_length=50)),
+        "description": (str | None, Field(default=None)),
         "is_active": (bool, Field(default=True)),
     }
 
     if include_tenant:
-        base_fields["tenant_id"] = (UUID | None, Field(None))
+        base_fields["tenant_id"] = (UUID | None, Field(default=None))
 
     # Add extra fields if provided
     if extra_fields:
         base_fields.update(extra_fields)
 
     # Create Base schema
-    class_dict = {"__annotations__": base_fields.copy()}
-
-    # Add model config
-    class_dict["model_config"] = ConfigDict(
-        from_attributes=True, extra="forbid" if not extra_fields else "allow"
+    BaseSchema = create_model(
+        f"{model_name}Base",
+        __config__=ConfigDict(
+            from_attributes=True, extra="forbid" if not extra_fields else "allow"
+        ),
+        **base_fields,
     )
 
-    # Create Base class
-    BaseSchema = type(f"{model_name}Base", (BaseModel,), class_dict)
-
     # Create Create schema (inherits from Base, no additional fields)
-    CreateSchema = type(f"{model_name}Create", (BaseSchema,), {})
+    CreateSchema = create_model(f"{model_name}Create", __base__=BaseSchema)
 
     # Create Update schema (all fields optional)
     update_fields = {}
@@ -68,10 +66,11 @@ def create_catalog_schemas(
             field_type = (field_type | None, Field(...))
         update_fields[field_name] = field_type
 
-    update_class_dict = {"__annotations__": update_fields}
-    update_class_dict["model_config"] = ConfigDict(from_attributes=True)
-
-    UpdateSchema = type(f"{model_name}Update", (BaseModel,), update_class_dict)
+    UpdateSchema = create_model(
+        f"{model_name}Update",
+        __config__=ConfigDict(from_attributes=True),
+        **update_fields,
+    )
 
     # Create Response schema (includes id and timestamps)
     response_fields = base_fields.copy()
@@ -86,10 +85,11 @@ def create_catalog_schemas(
     if include_tenant:
         response_fields["tenant_id"] = (UUID, Field(...))
 
-    response_class_dict = {"__annotations__": response_fields}
-    response_class_dict["model_config"] = ConfigDict(from_attributes=True)
-
-    ResponseSchema = type(f"{model_name}Response", (BaseModel,), response_class_dict)
+    ResponseSchema = create_model(
+        f"{model_name}Response",
+        __config__=ConfigDict(from_attributes=True),
+        **response_fields,
+    )
 
     return {
         "Base": BaseSchema,
@@ -154,10 +154,11 @@ def create_filter_schema(
     if filterable_fields:
         filter_fields.update(filterable_fields)
 
-    class_dict = {"__annotations__": filter_fields}
-    class_dict["model_config"] = ConfigDict(extra="forbid")
-
-    FilterSchema = type(f"{model_name}Filters", (BaseModel,), class_dict)
+    FilterSchema = create_model(
+        f"{model_name}Filters",
+        __config__=ConfigDict(extra="forbid"),
+        **filter_fields,
+    )
 
     return FilterSchema
 

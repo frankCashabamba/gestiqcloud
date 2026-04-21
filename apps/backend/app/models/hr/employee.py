@@ -79,6 +79,9 @@ class Employee(Base):
     __tablename__ = "employees"
     __table_args__ = schema_table_args()
 
+    # Primary key
+    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
+
     # Personal info
     first_name: Mapped[str] = mapped_column(
         String(100), nullable=False, comment="Employee first name"

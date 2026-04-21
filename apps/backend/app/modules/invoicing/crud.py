@@ -261,7 +261,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
             )
             db.commit()
             try:
-                from apps.backend.celery_app import celery_app  # type: ignore
+                from apps.backend.celery_app import get_celery_app  # type: ignore
 
                 rows = db.execute(
                     text(
@@ -269,7 +269,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
                     )
                 ).fetchall()
                 for r in rows:
-                    celery_app.send_task(
+                    get_celery_app().send_task(
                         "apps.backend.app.modules.webhooks.tasks.deliver",
                         args=[str(r[0])],
                     )

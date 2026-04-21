@@ -336,7 +336,9 @@ async def _run_processing(
 def _make_task():
     """Register the Celery task lazily to avoid startup failures."""
     try:
-        from celery_app import celery_app  # type: ignore
+        from celery_app import get_celery_app  # type: ignore
+
+        celery_app = get_celery_app()
     except Exception:
         return None
 
@@ -465,7 +467,9 @@ process_document_task = _make_task()
 def _make_ai_analysis_task():
     """Registra la tarea de análisis IA. Read-only: no modifica BD."""
     try:
-        from celery_app import celery_app  # type: ignore
+        from celery_app import get_celery_app  # type: ignore
+
+        celery_app = get_celery_app()
     except Exception:
         return None
 

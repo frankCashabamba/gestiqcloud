@@ -19,7 +19,7 @@ export interface ActionConfig<T> {
   key: string
   label: string
   icon?: React.ReactNode
-  onClick: (item: T, index: number) => void
+  onClick?: (item: T, index: number) => void
   disabled?: (item: T) => boolean
   variant?: 'primary' | 'secondary' | 'danger'
   href?: (item: T) => string
@@ -179,11 +179,11 @@ export function GenericList<T = any>({
       // Navegación via Link
       return
     }
-    action.onClick(item, index)
+    action.onClick?.(item, index)
   }
 
   const handleBulkAction = (action: ActionConfig<T>) => {
-    action.onClick(selectedItems, 0)
+    action.onClick?.(selectedItems as unknown as T, 0)
   }
 
   // Render functions

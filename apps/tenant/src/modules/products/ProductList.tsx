@@ -13,12 +13,12 @@ import PermissionDenied from '../../components/PermissionDenied'
 import type { Producto } from '@api-types/schemas'
 
 // Componente memoizado para acciones de producto - evita renders innecesarios
-const ProductActions = memo(({ 
-  product, 
-  onEdit, 
-  onDelete, 
-  deletingIds, 
-  t 
+const ProductActions = memo(({
+  product,
+  onEdit,
+  onDelete,
+  deletingIds,
+  t
 }: {
   product: Producto
   onEdit: (product: Producto) => void
@@ -29,13 +29,13 @@ const ProductActions = memo(({
   const handleEdit = useCallback(() => {
     onEdit(product)
   }, [product, onEdit])
-  
+
   const handleDelete = useCallback(() => {
     onDelete(product)
   }, [product, onDelete])
-  
+
   const isDeleting = deletingIds.has(product.id)
-  
+
   return (
     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
       <div className="flex gap-2">
@@ -74,10 +74,10 @@ export default function ProductList() {
   const [products, setProducts] = useState<Producto[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Loading states específicos para prevenir race conditions
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
-  
+
   // AbortController para cancelar peticiones pendientes
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -92,42 +92,42 @@ export default function ProductList() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
-    
+
     // Crear nuevo AbortController
     const abortController = new AbortController()
     abortControllerRef.current = abortController
-    
+
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await fetch('/api/v1/tenant/products', {
         signal: abortController.signal
       })
-      
+
       // Verificar si la petición fue cancelada
       if (abortController.signal.aborted) {
         return
       }
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
-      
+
       const data = await response.json()
-      
+
       // Verificar nuevamente si fue cancelada después del parse
       if (abortController.signal.aborted) {
         return
       }
-      
+
       setProducts(data.items || [])
     } catch (err) {
       // Ignorar errores de aborto (peticiones canceladas)
       if (err instanceof Error && err.name === 'AbortError') {
         return
       }
-      
+
       const errorMsg = err instanceof Error ? err.message : 'Error desconocido'
       setError(errorMsg)
       toastError(errorMsg)
@@ -143,7 +143,7 @@ export default function ProductList() {
   // Cargar datos al montar - dependencias correctas
   useEffect(() => {
     fetchProducts()
-    
+
     // Cleanup function para cancelar peticiones pendientes al unmount
     return () => {
       if (abortControllerRef.current) {
@@ -160,22 +160,22 @@ export default function ProductList() {
 
   const handleDelete = async (product: Producto) => {
     if (!confirm(t('confirm_delete_product'))) return
-    
+
     // Prevenir múltiples clicks
     if (deletingIds.has(product.id)) return
-    
+
     try {
       // Agregar ID a loading state
       setDeletingIds(prev => new Set(prev).add(product.id))
-      
+
       const response = await fetch(`/api/v1/tenant/products/${product.id}`, {
         method: 'DELETE'
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
-      
+
       success(t('product_deleted'))
       fetchProducts() // Refrescar lista
     } catch (err) {
@@ -207,7 +207,7 @@ export default function ProductList() {
       <div className="text-center p-8">
         <div className="text-red-600 text-lg mb-4">Error</div>
         <p className="text-red-600 mb-4">{error}</p>
-        <button 
+        <button
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
           onClick={fetchProducts}
         >
@@ -294,8 +294,8 @@ export default function ProductList() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    product.active 
-                      ? 'bg-green-100 text-green-800' 
+                    product.active
+                      ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                   }`}>
                     {product.active ? t('Activo') : t('Inactivo')}
