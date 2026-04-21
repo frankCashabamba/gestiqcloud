@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth/AuthContext'
 import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
+import { UsuarioSchema, type Usuario } from '@api-types/schemas'
 
 // Props para PermissionDenied
 interface PermissionDeniedProps {
@@ -26,17 +27,7 @@ const PermissionDeniedComponent: React.FC<PermissionDeniedProps> = ({ permission
   )
 }
 
-// Tipos básicos
-export interface Usuario {
-  id: number
-  email: string
-  first_name: string
-  last_name: string
-  is_active: boolean
-  roles?: string[]
-  created_at?: string
-  last_login?: string
-}
+// Usuario type importado desde @api-types/schemas
 
 export default function UsuariosListRefactored() {
   const { t } = useTranslation(['users', 'common'])
@@ -109,7 +100,8 @@ export default function UsuariosListRefactored() {
       key: 'edit',
       label: t('Editar'),
       variant: 'primary',
-      href: (item) => `${item.id}`
+      href: (item) => `${item.id}`,
+      onClick: () => {} // href es suficiente, onClick dummy para compatibilidad
     },
     {
       key: 'delete',
@@ -148,7 +140,7 @@ export default function UsuariosListRefactored() {
 
   // Verificar permisos de lectura
   if (!profile?.roles?.includes('admin') && !profile?.roles?.includes('users.read')) {
-    return <PermissionDenied />
+    return <PermissionDenied permission="users.read" />
   }
 
   return (
@@ -167,7 +159,7 @@ export default function UsuariosListRefactored() {
 
       <GenericList<Usuario>
         endpoint="/api/v1/tenant/users"
-        schema={{} as any} // Schema simplificado por ahora
+        schema={UsuarioSchema}
         columns={columns}
         actions={actions}
         title={t('users')}

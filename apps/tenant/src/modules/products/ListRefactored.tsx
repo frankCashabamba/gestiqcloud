@@ -11,22 +11,7 @@ import { useCurrency } from '../../hooks/useCurrency'
 import { usePermission } from '../../hooks/usePermission'
 import ProtectedButton from '../../components/ProtectedButton'
 import PermissionDenied from '../../components/PermissionDenied'
-
-// Tipos básicos (sin Zod por simplicidad)
-export interface Producto {
-  id: number
-  sku: string
-  name: string
-  description?: string
-  price: number
-  cost?: number
-  category_id?: number
-  category_name?: string
-  stock_quantity?: number
-  active: boolean
-  created_at?: string
-  updated_at?: string
-}
+import { ProductoSchema, type Producto } from '@api-types/schemas'
 
 export default function ProductsListRefactored() {
   const { t } = useTranslation(['products', 'common'])
@@ -163,7 +148,7 @@ export default function ProductsListRefactored() {
 
       <GenericList<Producto>
         endpoint="/api/v1/tenant/products"
-        schema={{} as any} // Schema simplificado por ahora
+        schema={ProductoSchema}
         columns={columns}
         actions={actions}
         title={t('products')}

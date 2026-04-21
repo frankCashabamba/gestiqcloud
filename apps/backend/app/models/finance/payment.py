@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
-from app.models.base import BaseCatalogModel
+from app.models.base import BaseTransactionalModel
 
 # Enums
 payment_status = SQLEnum(
@@ -36,7 +36,7 @@ payment_method = SQLEnum(
 )
 
 
-class Payment(BaseCatalogModel):
+class Payment(BaseTransactionalModel):
     """
     Registro de pago (entrada o salida).
 

@@ -96,3 +96,51 @@ class BaseCatalogModelWithoutTenant(Base):
     @active.setter
     def active(self, value: bool) -> None:
         self.is_active = value
+
+
+class BaseTransactionalModel(Base):
+    """
+    Base model for transactional entities (not catalogs).
+    
+    Used for entities that represent business transactions, operations, or events:
+    - Sales orders, invoices, payments
+    - Production orders, inventory movements
+    - User activities, logs
+    
+    Provides:
+    - UUID primary key with tenant isolation
+    - Automatic timestamps
+    - No catalog-specific fields (code, name, is_active)
+    """
+    
+    __abstract__ = True
+    
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
+    )
+
+
+class BaseTransactionalModelWithoutTenant(Base):
+    """
+    Base model for system-wide transactional entities (no tenant isolation).
+    
+    Used for system-level transactions that affect all tenants:
+    - System logs, audits
+    - Global events
+    - System configurations changes
+    """
+    
+    __abstract__ = True
+    
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
+    )

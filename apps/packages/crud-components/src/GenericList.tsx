@@ -53,7 +53,7 @@ export interface GenericListProps<T> {
   searchable?: boolean
   filterable?: boolean
   sortable?: boolean
-  pagination?: boolean
+  pagination?: true // Siempre true cuando se usa paginación interna
   selectable?: boolean
   
   // Configuración de paginación
@@ -115,17 +115,16 @@ export function GenericList<T = any>({
   const [sortConfig, setSortConfig] = React.useState<SortConfig>(initialSort)
   const [searchTerm, setSearchTerm] = React.useState('')
   
-  // Refs para debounce
-  const debouncedSearch = React.useMemo(() => {
+  // Debounce implementation con cleanup proper para evitar memory leaks
+  React.useEffect(() => {
     const timer = setTimeout(() => {
       filters.setSearch(searchTerm)
     }, 300)
+    
+    // Cleanup function para cancelar el timer si el componente se unmount
+    // o si searchTerm cambia antes de que el timer se ejecute
     return () => clearTimeout(timer)
-  }, [searchTerm, filters])
-  
-  React.useEffect(() => {
-    return debouncedSearch
-  }, [debouncedSearch])
+  }, [searchTerm, filters.setSearch])
   
   // Cargar datos cuando cambian filtros, paginación u ordenamiento
   React.useEffect(() => {

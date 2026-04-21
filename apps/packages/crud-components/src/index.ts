@@ -3,9 +3,7 @@
  */
 
 export { GenericList } from './GenericList'
-export { GenericForm } from './GenericForm'
-export { GenericTable } from './GenericTable'
-export { GenericModal } from './GenericModal'
+export { TableListSimple } from './TableListSimple'
 
 export type { 
   GenericListProps, 
@@ -15,17 +13,7 @@ export type {
 } from './GenericList'
 
 export type { 
-  GenericFormProps, 
-  FieldConfig,
-  FormFieldType 
-} from './GenericForm'
-
-export type { 
-  GenericTableProps,
-  TableColumn,
-  TableAction 
-} from './GenericTable'
-
-export type { 
-  GenericModalProps 
-} from './GenericModal'
+  TableListSimpleProps,
+  ColumnConfig as TableColumnConfig,
+  ActionConfig as TableActionConfig
+} from './TableListSimple'

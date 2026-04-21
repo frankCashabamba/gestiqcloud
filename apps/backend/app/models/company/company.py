@@ -52,48 +52,9 @@ class RolBase(Base):
     )
 
 
-class CompanyCategory(Base):
-    """
-    DEPRECATED: Use BusinessCategory instead.
-
-    This model is kept for backward compatibility only.
-
-    BusinessCategory provides:
-    - UUID primary key
-    - code field (unique identifier)
-    - is_active status
-    - timestamps (created_at, updated_at)
-    - Dedicated endpoint: GET /api/v1/business-categories/
-
-    Deprecation Timeline:
-    - Until Q1 2026: Backward compatible, warnings
-    - Q1 2026: Will be removed
-
-    Migration: Use BusinessCategory instead
-    """
-
-    __tablename__ = "company_categories"
-
-    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
-    )
-
-    # Backward compatibility alias for active -> is_active
-    @hybrid_property
-    def active(self) -> bool:
-        return self.is_active
-
-    @active.setter
-    def active(self, value: bool) -> None:
-        self.is_active = value
+# REMOVED: CompanyCategory - DEPRECATED
+# Use BusinessCategory instead
+# This model was removed to eliminate code duplication and maintenance overhead
 
 
 class GlobalActionPermission(Base):
@@ -127,8 +88,8 @@ class Language(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "languages"
 
-    # Override id to use int instead of UUID for system catalogs
-    id: Mapped[int] = mapped_column(primary_key=True)
+    # Estandarizado a UUID para consistencia across tenant models
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
 
 
@@ -137,8 +98,8 @@ class Currency(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "currencies"
 
-    # Override id to use int instead of UUID for system catalogs
-    id: Mapped[int] = mapped_column(primary_key=True)
+    # Estandarizado a UUID para consistencia across tenant models
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
     symbol: Mapped[str] = mapped_column(String(5), nullable=False)
 
@@ -148,8 +109,8 @@ class Country(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "countries"
 
-    # Override id to use int instead of UUID for system catalogs
-    id: Mapped[int] = mapped_column(primary_key=True)
+    # Estandarizado a UUID para consistencia across tenant models
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(2), unique=True, nullable=False)
 
 
@@ -173,8 +134,8 @@ class Weekday(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "weekdays"
 
-    # Override id to use int instead of UUID for system catalogs
-    id: Mapped[int] = mapped_column(primary_key=True)
+    # Estandarizado a UUID para consistencia across tenant models
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     key: Mapped[str] = mapped_column(String(20), unique=True)
     order: Mapped[int] = mapped_column(Integer)
 
@@ -261,5 +222,5 @@ Pais = Country
 DiaSemana = Weekday
 HorarioAtencion = BusinessHours
 TipoEmpresa = BusinessType
-TipoNegocio = BusinessCategory
+# REMOVED: TipoNegocio = BusinessCategory (was CompanyCategory alias)
 SectorPlantilla = SectorTemplate

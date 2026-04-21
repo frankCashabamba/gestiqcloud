@@ -2,7 +2,7 @@
  * Hook genérico para operaciones CRUD
  * Elimina duplicación de lógica de estado y operaciones básicas
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { ZodSchema } from 'zod'
 
 export interface CRUDState<T> {
@@ -58,6 +58,10 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
     }
   })
 
+  // Refs para race condition protection
+  const requestCounter = useRef(0)
+  const abortControllers = useRef<Map<number, AbortController>>(new Map())
+
   const updateState = useCallback((updates: Partial<CRUDState<T>>) => {
     setState(prev => ({ ...prev, ...updates }))
   }, [])
@@ -70,6 +74,24 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
     updateState({ error })
     onError?.(error)
   }, [updateState, onError])
+
+  // Cleanup function para cancelar requests pendientes
+  const cleanupRequest = useCallback((requestId: number) => {
+    const controller = abortControllers.current.get(requestId)
+    if (controller) {
+      controller.abort()
+      abortControllers.current.delete(requestId)
+    }
+  }, [])
+
+  // Cleanup en unmount
+  useEffect(() => {
+    return () => {
+      // Cancelar todos los requests pendientes
+      abortControllers.current.forEach(controller => controller.abort())
+      abortControllers.current.clear()
+    }
+  }, [])
 
   const fetchItems = useCallback(async (params: FetchParams = {}) => {
     try {

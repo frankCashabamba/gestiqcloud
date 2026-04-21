@@ -8,10 +8,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
-from app.models.base import BaseCatalogModel
+from app.models.base import BaseTransactionalModel
 
 
-class SalesOrder(BaseCatalogModel):
+class SalesOrder(BaseTransactionalModel):
     __tablename__ = "sales_orders"
     __table_args__ = {"extend_existing": True}
     number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
