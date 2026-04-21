@@ -1,0 +1,185 @@
+name: Refactor and Code Quality Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  detect-duplicates:
+    runs-on: ubuntu-latest
+    name: Detect Code Duplication
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+      
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+      
+    - name: Run duplication detection
+      run: |
+        python scripts/detect_duplicates.py > docs/duplication-report.md
+      
+    - name: Upload duplication report
+      uses: actions/upload-artifact@v3
+      with:
+        name: duplication-report
+        path: docs/duplication-report.md
+        retention-days: 30
+    
+    - name: Check for high duplication
+      run: |
+        # Check if report contains high priority issues
+        if grep -q "High Priority" docs/duplication-report.md; then
+          echo "::warning::High code duplication detected. Review the duplication report."
+          exit 1
+        fi
+
+  run-tests:
+    runs-on: ubuntu-latest
+    name: Run Tests for Refactored Code
+    needs: detect-duplicates
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+      
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+      
+    - name: Run tests for new utilities
+      run: |
+        # Run tests for BaseCatalogModel
+        pytest apps/backend/tests/test_base_catalog_model.py -v --cov=app.models.base
+        
+        # Run tests for validation decorators
+        pytest apps/backend/tests/test_validation_decorators.py -v --cov=app.decorators.validation
+        
+        # Run tests for schema generator
+        pytest apps/backend/tests/test_schema_generator.py -v --cov=app.utils.schema_generator
+      
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: htmlcov/
+        retention-days: 30
+
+  apply-refactors:
+    runs-on: ubuntu-latest
+    name: Apply Automatic Refactors
+    needs: detect-duplicates
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+      
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+      
+    - name: Apply high-confidence refactors
+      run: |
+        # Apply refactors with confidence >= 0.8
+        python scripts/apply_refactor_patterns.py --apply --confidence 0.8
+        
+    - name: Check for changes
+      id: changes
+      run: |
+        if git diff --quiet HEAD~1 HEAD; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+      
+    - name: Commit changes
+      if: steps.changes.outputs.has_changes == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "auto: Apply refactors for code duplication reduction"
+        
+    - name: Push changes
+      if: steps.changes.outputs.has_changes == 'true'
+      uses: actions/push@v3
+      with:
+        branch: ${{ github.ref }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  quality-gate:
+    runs-on: ubuntu-latest
+    name: Quality Gate
+    needs: [detect-duplicates, run-tests]
+    
+    steps:
+    - name: Download reports
+      uses: actions/download-artifact@v3
+      with:
+        name: duplication-report
+        path: docs/
+      
+    - name: Quality check
+      run: |
+        # Count issues in report
+        HIGH_ISSUES=$(grep -c "High Priority" duplication-report.md || echo "0")
+        TOTAL_ISSUES=$(grep -c "Priority" duplication-report.md || echo "0")
+        
+        echo "::set-output name=high_issues::$HIGH_ISSUES"
+        echo "::set-output name=total_issues::$TOTAL_ISSUES"
+        
+        # Fail if too many issues
+        if [ "$HIGH_ISSUES" -gt 5 ]; then
+          echo "::error::Too many high-priority duplication issues ($HIGH_ISSUES)"
+          exit 1
+        fi
+        
+        if [ "$TOTAL_ISSUES" -gt 20 ]; then
+          echo "::error::Too many total duplication issues ($TOTAL_ISSUES)"
+          exit 1
+        fi
+      
+    - name: Create quality badge
+      run: |
+        # Create a simple quality badge
+        HIGH_ISSUES=$(grep -c "High Priority" duplication-report.md || echo "0")
+        TOTAL_ISSUES=$(grep -c "Priority" duplication-report.md || echo "0")
+        
+        if [ "$HIGH_ISSUES" -eq 0 ]; then
+          COLOR="brightgreen"
+          STATUS="Excellent"
+        elif [ "$HIGH_ISSUES" -le 3 ]; then
+          COLOR="green"
+          STATUS="Good"
+        elif [ "$HIGH_ISSUES" -le 7 ]; then
+          COLOR="yellow"
+          STATUS="Fair"
+        else
+          COLOR="red"
+          STATUS="Poor"
+        fi
+        
+        echo "Code Quality: $STATUS ($HIGH_ISSUES high issues, $TOTAL_ISSUES total)"
+        
+        # Create badge (simplified version)
+        echo "![$STATUS](https://img.shields.io/badge/quality-$STATUS-$COLOR.svg)" > quality-badge.md

@@ -66,7 +66,7 @@ from app.models.core.ui_config import (
     UiTable,
     UiWidget,
 )
-from app.models.expenses import Expense
+from app.models.expenses import Expense, ExpenseCategory
 from app.models.finance import BankMovement, CashClosing, CashMovement, Payment
 from app.models.hr import Employee, TimeEntry, VacationRequest
 from app.models.hr.payroll import Payroll, PayrollDetail, PayrollTax
@@ -164,6 +164,7 @@ __all__ = [
     "Purchase",
     "PurchaseLine",
     "Expense",
+    "ExpenseCategory",
     "BankMovement",
     "CashMovement",
     "CashClosing",

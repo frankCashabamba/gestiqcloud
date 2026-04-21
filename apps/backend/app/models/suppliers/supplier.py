@@ -3,44 +3,29 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from app.models.base import BaseCatalogModel
 
 
-class Supplier(Base):
+class Supplier(BaseCatalogModel):
     """Supplier"""
 
     __tablename__ = "suppliers"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    # Additional fields specific to Supplier
     trade_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tax_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
-    updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
-    )
 
     # Relationships
-    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    tenant = relationship("Tenant", foreign_keys="[Supplier.tenant_id]")
     contacts: Mapped[list["SupplierContact"]] = relationship(
         "SupplierContact", back_populates="supplier", cascade="all, delete-orphan"
     )

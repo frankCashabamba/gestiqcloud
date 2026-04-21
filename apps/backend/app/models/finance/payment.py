@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from app.config.database import Base, schema_column, schema_table_args
+from app.models.base import BaseCatalogModel
 
 # Enums
 payment_status = SQLEnum(
@@ -35,7 +36,7 @@ payment_method = SQLEnum(
 )
 
 
-class Payment(Base):
+class Payment(BaseCatalogModel):
     """
     Registro de pago (entrada o salida).
 
@@ -51,16 +52,6 @@ class Payment(Base):
 
     __tablename__ = "payments"
     __table_args__ = schema_table_args()
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
 
     # Amount and currency
     amount: Mapped[Decimal] = mapped_column(

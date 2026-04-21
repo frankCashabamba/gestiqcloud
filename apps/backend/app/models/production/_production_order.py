@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_table_args
+from app.models.base import BaseCatalogModel
 
 production_order_status = SQLEnum(
     "DRAFT",
@@ -33,7 +34,7 @@ production_order_status = SQLEnum(
 )
 
 
-class ProductionOrder(Base):
+class ProductionOrder(BaseCatalogModel):
     """
     Production Order - Recipe-based manufacturing plan.
 
@@ -48,9 +49,6 @@ class ProductionOrder(Base):
         completed_at: Actual completion datetime
         status: Current status
         batch_number: Generated lot number
-        notes: Internal notes
-        waste_qty: Waste quantity
-        waste_reason: Waste reason
     """
 
     __tablename__ = "production_orders"

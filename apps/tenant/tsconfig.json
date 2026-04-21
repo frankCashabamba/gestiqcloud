@@ -49,6 +49,12 @@
       "@endpoints/*": ["../packages/endpoints/src/*"],
       "@api-types": ["../packages/api-types/src"],
       "@api-types/*": ["../packages/api-types/src/*"],
+      "@ui-hooks": ["../packages/ui-hooks/src"],
+      "@ui-hooks/*": ["../packages/ui-hooks/src/*"],
+      "@crud-components": ["../packages/crud-components/src"],
+      "@crud-components/*": ["../packages/crud-components/src/*"],
+      "@validation": ["../packages/validation/src"],
+      "@validation/*": ["../packages/validation/src/*"],
 
       "zod": ["../packages/zod/index.ts"],
 

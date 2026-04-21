@@ -3,46 +3,32 @@
 Product category model for organizing products."""
 
 import uuid
-from datetime import UTC, datetime
 from typing import Optional
 
-from sqlalchemy import JSON, TIMESTAMP, ForeignKey, String, Text
+from sqlalchemy import JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.config.database import Base
+from app.models.base import BaseCatalogModel
 from app.models.tenant import Tenant
 
 # JSONB with SQLite fallback
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
-class ProductCategory(Base):
+class ProductCategory(BaseCatalogModel):
     """Product category with multi-tenant isolation and hierarchical support."""
 
     __tablename__ = "product_categories"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
-    name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Additional fields specific to ProductCategory
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("product_categories.id", ondelete="SET NULL"),
         nullable=True,
     )
     category_metadata: Mapped[dict | None] = mapped_column(JSON_TYPE, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship()

@@ -69,40 +69,15 @@ class Employee(Base):
 
     Attributes:
         tenant_id: Tenant (company/organization)
-        first_name: Employee first name
-        last_name: Employee last name
-        national_id: National ID / Document (DNI, RUC, Passport, etc)
-        email: Employee email
-        phone: Contact phone number
-        birth_date: Date of birth
-        gender: Gender code (M/F/O/etc from employee_statuses table)
-        contract_type: Contract type code (PERMANENT, TEMPORARY, etc)
         status: Employment status (ACTIVE, INACTIVE, ON_LEAVE, TERMINATED, etc)
         hire_date: Hiring date
         termination_date: Optional termination date
         department: Department name/code
         job_title: Job title/position
-        bank_account: Bank account for salary deposits
-        bank_name: Bank name
-        country: Country code (ISO 3166-1 alpha-2: ES, EC, etc)
-        tax_id_secondary: Secondary tax identifier (varies by country)
-        notes: Additional notes about employee
-
-    Relations:
-        salaries: Historical salary configurations
-        deductions: Configured deductions/bonuses
     """
 
     __tablename__ = "employees"
     __table_args__ = schema_table_args()
-
-    id: Mapped[uuid.UUID] = mapped_column(MODULE_UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID,
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
 
     # Personal info
     first_name: Mapped[str] = mapped_column(

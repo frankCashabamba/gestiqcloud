@@ -3,42 +3,32 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String
+from sqlalchemy import ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from app.models.base import BaseCatalogModel
 
 UUID_TYPE = PGUUID(as_uuid=True)
 TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 
-class POSRegister(Base):
+class POSRegister(BaseCatalogModel):
     """Registro/Caja de punto de venta"""
 
     __tablename__ = "pos_registers"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID,
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    # Additional fields specific to POSRegister
     store_id: Mapped[uuid.UUID | None] = mapped_column(
         TENANT_UUID,
         nullable=True,
         # Para futuro multi-tienda
     )
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
-    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    tenant = relationship("Tenant", foreign_keys="[POSRegister.tenant_id]")
     shifts: Mapped[list["POSShift"]] = relationship(
         "POSShift", back_populates="register", cascade="all, delete-orphan"
     )

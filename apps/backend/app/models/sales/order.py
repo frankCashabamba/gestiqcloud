@@ -8,16 +8,12 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
+from app.models.base import BaseCatalogModel
 
 
-class SalesOrder(Base):
+class SalesOrder(BaseCatalogModel):
     __tablename__ = "sales_orders"
     __table_args__ = {"extend_existing": True}
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     customer_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     pos_receipt_id: Mapped[uuid.UUID | None] = mapped_column(

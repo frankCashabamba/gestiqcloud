@@ -8,26 +8,17 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from app.models.base import BaseCatalogModel
 
 UUID_TYPE = PGUUID(as_uuid=True)
 TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 
-class POSReceipt(Base):
+class POSReceipt(BaseCatalogModel):
     """POS sales receipt"""
 
     __tablename__ = "pos_receipts"
     __table_args__ = {"extend_existing": True}
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID,
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     register_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID, ForeignKey("pos_registers.id"), nullable=False, index=True
     )
@@ -68,7 +59,7 @@ class POSReceipt(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
     # Relationships
-    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    tenant = relationship("Tenant", foreign_keys="[POSReceipt.tenant_id]")
     register = relationship("POSRegister")
     shift: Mapped["POSShift"] = relationship("POSShift", back_populates="receipts")  # noqa: F821
     cashier = relationship("CompanyUser", foreign_keys=[cashier_id])

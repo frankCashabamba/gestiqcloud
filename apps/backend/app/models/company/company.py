@@ -2,7 +2,7 @@
 
 Auto-generated module docstring."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -13,76 +13,28 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from app.models.base import BaseCatalogModel, BaseCatalogModelWithoutTenant, _get_now
 
 UUID_TYPE = PGUUID(as_uuid=True)
 TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
-
-
-def _get_now():
-    """Get current UTC datetime for Python-side defaults."""
-    return datetime.now(UTC)
 
 
 if TYPE_CHECKING:
     from app.models.company.company_user import CompanyUser
 
 
-class BusinessType(Base):
+class BusinessType(BaseCatalogModel):
     """Business Type model - MODERN schema (English)"""
 
     __tablename__ = "business_types"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), nullable=False)
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
-    )
 
-    # Backward compatibility alias for active -> is_active
-    @hybrid_property
-    def active(self) -> bool:
-        return self.is_active
-
-    @active.setter
-    def active(self, value: bool) -> None:
-        self.is_active = value
-
-
-class BusinessCategory(Base):
+class BusinessCategory(BaseCatalogModel):
     """Business Category model - MODERN schema (English)"""
 
     __tablename__ = "business_categories"
     __table_args__ = {"extend_existing": True}
-
-    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
-
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
-    )
-
-    # Backward compatibility alias for active -> is_active
-    @hybrid_property
-    def active(self) -> bool:
-        return self.is_active
-
-    @active.setter
-    def active(self, value: bool) -> None:
-        self.is_active = value
 
 
 class RolBase(Base):
@@ -170,38 +122,35 @@ class UserProfile(Base):
     tenant: Mapped["Tenant"] = relationship("Tenant")  # noqa: F821
 
 
-class Language(Base):
+class Language(BaseCatalogModelWithoutTenant):
     """Language catalog model"""
 
     __tablename__ = "languages"
 
+    # Override id to use int instead of UUID for system catalogs
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class Currency(Base):
+class Currency(BaseCatalogModelWithoutTenant):
     """Currency model."""
 
     __tablename__ = "currencies"
 
+    # Override id to use int instead of UUID for system catalogs
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
     symbol: Mapped[str] = mapped_column(String(5), nullable=False)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class Country(Base):
+class Country(BaseCatalogModelWithoutTenant):
     """Country catalog (ISO 3166-1 alpha-2)."""
 
     __tablename__ = "countries"
 
+    # Override id to use int instead of UUID for system catalogs
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(2), unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class RefTimezone(Base):
@@ -219,13 +168,14 @@ class RefLocale(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class Weekday(Base):
+class Weekday(BaseCatalogModelWithoutTenant):
     """Weekday model."""
 
     __tablename__ = "weekdays"
+
+    # Override id to use int instead of UUID for system catalogs
     id: Mapped[int] = mapped_column(primary_key=True)
     key: Mapped[str] = mapped_column(String(20), unique=True)
-    name: Mapped[str] = mapped_column(String(50))
     order: Mapped[int] = mapped_column(Integer)
 
 
@@ -241,24 +191,14 @@ class BusinessHours(Base):
     weekday: Mapped["Weekday"] = relationship("Weekday")
 
 
-class SectorTemplate(Base):
+class SectorTemplate(BaseCatalogModel):
     """Sector Template model - MODERN schema (English)"""
 
     __tablename__ = "sector_templates"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Additional fields specific to SectorTemplate
     template_config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
-    )
 
     # Backward compatibility aliases
     @hybrid_property
@@ -268,14 +208,6 @@ class SectorTemplate(Base):
     @sector_name.setter
     def sector_name(self, value: str) -> None:
         self.name = value
-
-    @hybrid_property
-    def active(self) -> bool:
-        return self.is_active
-
-    @active.setter
-    def active(self, value: bool) -> None:
-        self.is_active = value
 
     # Legacy fields removed from modern schema; keep getters returning None to avoid AttributeError
     @property
