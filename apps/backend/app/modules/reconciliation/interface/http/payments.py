@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.auth_dependencies import get_current_user
+from app.core.auth_dependencies import ensure_tenant, get_current_user
 from app.modules.shared.services.statuses import PaymentLinkStatus
 from app.modules.shared.services.tax import resolve_tenant_default_tax_rate
 from app.services.payments import get_provider

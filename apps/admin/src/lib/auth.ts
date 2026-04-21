@@ -1,11 +1,11 @@
 /**
  * Unified authentication management for frontend.
- * 
+ *
  * Consolidates authentication logic from multiple sources:
  * - services/incidents.ts (getAdminToken, getAuthHeaders)
  * - services/logs.ts (getAdminToken, AUTH_HEADER)
  * - lib/http.ts (token handling)
- * 
+ *
  * Provides single source of truth for auth operations.
  */
 
@@ -17,12 +17,12 @@ export const authManager = {
   /**
    * Gets the admin authentication token from storage.
    * Checks sessionStorage first (admin), then localStorage (fallback).
-   * 
+   *
    * This replaces duplicate getAdminToken implementations.
    */
   getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    
+
     return (
       sessionStorage.getItem('access_token_admin') ||
       localStorage.getItem('access_token')
@@ -35,7 +35,7 @@ export const authManager = {
    */
   setToken(token: string, isAdmin: boolean = false): void {
     if (typeof window === 'undefined') return;
-    
+
     if (isAdmin) {
       sessionStorage.setItem('access_token_admin', token);
     } else {
@@ -48,7 +48,7 @@ export const authManager = {
    */
   clearTokens(): void {
     if (typeof window === 'undefined') return;
-    
+
     sessionStorage.removeItem('access_token_admin');
     localStorage.removeItem('access_token');
   },
@@ -63,21 +63,21 @@ export const authManager = {
   /**
    * Gets authentication headers for API requests.
    * Standardizes header format across all services.
-   * 
+   *
    * This replaces duplicate getAuthHeaders implementations.
    */
   getHeaders(contentType: string = 'application/json'): Record<string, string> {
     const token = this.getToken();
     const headers: Record<string, string> = {};
-    
+
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     if (contentType) {
       headers['Content-Type'] = contentType;
     }
-    
+
     return headers;
   },
 
@@ -87,18 +87,18 @@ export const authManager = {
    */
   getAdminHeaders(contentType: string = 'application/json'): Record<string, string> {
     if (typeof window === 'undefined') return {};
-    
+
     const adminToken = sessionStorage.getItem('access_token_admin');
     const headers: Record<string, string> = {};
-    
+
     if (adminToken) {
       headers['Authorization'] = `Bearer ${adminToken}`;
     }
-    
+
     if (contentType) {
       headers['Content-Type'] = contentType;
     }
-    
+
     return headers;
   },
 
@@ -138,7 +138,7 @@ export interface AuthContext {
 export const useAuth = (): AuthContext => {
   const token = authManager.getToken();
   const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('access_token_admin') !== null;
-  
+
   return {
     token,
     isAuthenticated: token !== null,

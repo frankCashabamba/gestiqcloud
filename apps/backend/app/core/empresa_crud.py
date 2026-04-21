@@ -21,7 +21,7 @@ UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 class EmpresaCRUD(TenantOperationsMixin[ModelType, CreateSchemaType, UpdateSchemaType]):
     """
     Empresa-specific CRUD operations using TenantOperationsMixin.
-    
+
     This class now inherits all tenant operations from the mixin,
     eliminating code duplication across the application.
     """

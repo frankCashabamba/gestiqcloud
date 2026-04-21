@@ -21,7 +21,6 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
-from app.core.types import IDType
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +45,15 @@ def _validate_tenant_uuid(claim_tid: str | None) -> str:
 
 class AuthManager:
     """Centralized authentication management."""
-    
+
     @staticmethod
     def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
         """
         Returns user dict from access claims for routers.
-        
+
         Expected keys: id, user_id, tenant_id (UUID), roles
         All values are from JWT claims - 100% UUID, no conversions.
-        
+
         This replaces the duplicate implementations in:
         - app/middleware/tenant.py
         - app/core/access_guard.py
@@ -82,7 +81,7 @@ class AuthManager:
     async def get_current_user_context(request: Request) -> dict[str, Any]:
         """
         Async version of get_current_user for contexts that don't need DB.
-        
+
         This replaces get_current_user_context from app/core/access_guard.py
         """
         return with_access_claims(request)
@@ -98,11 +97,12 @@ class AuthManager:
         - Returns the tenant UUID string
 
         DEV MODE: Si no hay token válido, usa el primer tenant de la BD
-        
+
         This replaces ensure_tenant from app/middleware/tenant.py
         """
-        from app.db.rls import set_tenant_guc
         from sqlalchemy import text
+
+        from app.db.rls import set_tenant_guc
 
         dev_mode = settings.ENVIRONMENT in ("development", "local")
         logger.debug(f"ensure_tenant: dev_mode={dev_mode}, env={settings.ENVIRONMENT}")
@@ -133,7 +133,7 @@ class AuthManager:
         except Exception:
             # Non-fatal: proceed without aborting request
             logger.exception("Failed to set RLS for tenant %s", tenant_uuid)
-        
+
         # Also expose on request for downstream use
         try:
             request.state.tenant_id = tenant_uuid
