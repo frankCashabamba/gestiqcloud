@@ -1,21 +1,21 @@
 import React from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { exportarFacturae } from './services'
+import { exportInvoiceE } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 
-export default function FacturaePage() {
+export default function InvoiceEPage() {
   const { id } = useParams()
   const { t } = useTranslation()
   const { success, error } = useToast()
   const descargar = async () => {
     try {
       if (!id) throw new Error(t('billing.facturae.errors.idRequired'))
-      const blob = await exportarFacturae(id)
+      const blob = await exportInvoiceE(id)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `factura-${id}.xml`
+      a.download = `invoice-${id}.xml`
       a.click()
       URL.revokeObjectURL(url)
       success(t('billing.facturae.exported'))

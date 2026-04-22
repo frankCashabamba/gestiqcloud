@@ -60,9 +60,8 @@ export const ExpensesAdapter: SyncAdapter = {
 
   detectConflict(local: any, remote: any): boolean {
     if (!remote) return false
-    return local.monto !== remote.monto ||
-           local.categoria !== remote.categoria ||
-           local.estado !== remote.estado ||
+    return local.amount !== remote.amount ||
+           local.category !== remote.category ||
            local.status !== remote.status
   }
 }

@@ -15,7 +15,7 @@ from app.models.tenant import Tenant
 
 router = APIRouter(
     prefix="/invoicing",
-    tags=["Facturacion"],
+    tags=["Invoicing"],
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
@@ -29,19 +29,19 @@ def send_invoice_email(factura_id: str, db: Session = Depends(get_db)):
     try:
         factura_uuid = UUID(str(factura_id))
     except Exception:
-        raise HTTPException(status_code=400, detail="factura_id_invalido")
+        raise HTTPException(status_code=400, detail="invoice_id_invalid")
     inv = db.query(Invoice).filter_by(id=factura_uuid).first()
     if not inv:
         raise HTTPException(status_code=404, detail="invoice_not_found")
-    # Placeholder: usa correo del cliente si existe; reutiliza util de bienvenida
+    # Placeholder: use the customer email if available; reuse the welcome email helper.
     try:
-        email = getattr(getattr(inv, "cliente", None), "email", None) or ""
+        email = getattr(getattr(inv, "customer", None), "email", None) or ""
         if not email:
             raise ValueError("missing_client_email")
-        # Get tenant name for email context (Empresa no longer exists)
+        # Get tenant name for email context.
         tenant = db.query(Tenant).filter(Tenant.id == inv.tenant_id).first()
         tenant_name = tenant.name if tenant else ""
-        _send(email, inv.numero or "Factura", tenant_name, None)
+        _send(email, inv.number or "Invoice", tenant_name, None)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

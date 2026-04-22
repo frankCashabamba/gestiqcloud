@@ -1,356 +1,332 @@
 /**
- * Facturación Services - API calls para facturas y e-invoicing
+ * Invoice services for the tenant app.
  */
 
 import tenantApi from '../../shared/api/client'
 import { TENANT_INVOICING } from '@shared/endpoints'
 import { ensureArray } from '../../shared/utils/array'
 import { queueInvoiceDeletion, queueInvoiceForSync } from './offlineQueue'
-import { createOfflineTempId, isNetworkIssue, isOfflineQueuedResponse, stripOfflineMeta } from '../../lib/offlineHttp'
+import {
+  createOfflineTempId,
+  isNetworkIssue,
+  isOfflineQueuedResponse,
+  stripOfflineMeta,
+} from '../../lib/offlineHttp'
 
-// ============================================================================
-// Cache para evitar rate limiting
-// ============================================================================
-
-const CACHE_TTL = 30000 // 30 segundos
+const CACHE_TTL = 30000
 let invoicesCache: {
-    data: Invoice[]
-    timestamp: number
+  data: Invoice[]
+  timestamp: number
 } | null = null
 
-// ============================================================================
-// Facturas
-// ============================================================================
+export type InvoiceStatus = 'draft' | 'issued' | 'pending_payment' | 'voided' | string
+
+export interface InvoiceLine {
+  sector?: 'bakery' | 'workshop' | 'pos' | string
+  description: string
+  quantity: number
+  unit_price: number
+  tax_rate?: number
+  amount?: number
+  bread_type?: string
+  grams?: number
+  spare_part?: string
+  labor_hours?: number
+  rate?: number
+  pos_receipt_line_id?: string
+}
 
 export interface Invoice {
-    id: number | string
-    numero?: string
-    fecha: string
-    subtotal?: number
-    iva?: number
-    total: number
-    estado?: string
-    cliente_id?: number
-    cliente_nombre?: string
-    descripcion?: string
-    lineas?: InvoiceLine[]
-    tenant_id?: string
+  id: number | string
+  number?: string
+  issue_date?: string
+  subtotal?: number
+  tax?: number
+  total: number
+  status?: InvoiceStatus
+  customer_id?: number | string
+  customer_name?: string
+  description?: string
+  lines?: InvoiceLine[]
+  tenant_id?: string
+  notes?: string
+  customer?: {
+    id?: string
+    name?: string
+    email?: string
+    tax_id?: string
+  }
 }
 
-/**
- * Normalize status values to consistent format
- */
-function normalizeEstado(raw: any): string | undefined {
-    const s = String(raw || '').trim().toLowerCase()
-    if (!s) return undefined
-    // Normalize common status values
-    if (s === 'draft' || s === 'borrador') return 'borrador'
-    if (s === 'issued' || s === 'emitida' || s === 'confirmed' || s === 'posted') return 'emitida'
-    if (s === 'voided' || s === 'anulada' || s === 'cancelled') return 'anulada'
-    return s
+function normalizeStatus(raw: any): InvoiceStatus | undefined {
+  const value = String(raw || '').trim().toLowerCase()
+  if (!value) return undefined
+  if (value === 'borrador') return 'draft'
+  if (value === 'emitida') return 'issued'
+  if (value === 'anulada' || value === 'cancelled') return 'voided'
+  if (value === 'paid') return 'paid'
+  if (value === 'pending_payment') return 'pending_payment'
+  if (value === 'posted' || value === 'confirmed') return 'issued'
+  return value
 }
 
-/**
- * Normalize invoice data from API to consistent format
- */
+function normalizeLine(raw: any): InvoiceLine {
+  return {
+    sector: raw?.sector,
+    description: String(raw?.description ?? raw?.descripcion ?? raw?.name ?? ''),
+    quantity: Number(raw?.quantity ?? raw?.cantidad ?? raw?.qty ?? 1),
+    unit_price: Number(raw?.unit_price ?? raw?.precio_unitario ?? raw?.price ?? 0),
+    tax_rate: Number(raw?.tax_rate ?? raw?.iva ?? raw?.vat ?? 0),
+    amount: Number(raw?.amount ?? raw?.total ?? 0),
+    bread_type: raw?.bread_type,
+    grams: raw?.grams !== undefined ? Number(raw.grams) : undefined,
+    spare_part: raw?.spare_part,
+    labor_hours: raw?.labor_hours !== undefined ? Number(raw.labor_hours) : undefined,
+    rate: raw?.rate !== undefined ? Number(raw.rate) : undefined,
+    pos_receipt_line_id: raw?.pos_receipt_line_id,
+  }
+}
+
 function normalizeInvoice(raw: any): Invoice {
-    const id = raw?.id ?? raw?.invoice_id
-    const numero = raw?.numero ?? raw?.number ?? raw?.invoice_number ?? raw?.sequential
-    const rawFecha = raw?.fecha ?? raw?.date ?? raw?.invoice_date ?? raw?.created_at ?? raw?.fecha_emision
-    const fecha = rawFecha ? String(rawFecha).slice(0, 10) : undefined
-    const total = raw?.total ?? raw?.grand_total ?? raw?.amount_total
-    const subtotal = raw?.subtotal ?? raw?.sub_total ?? raw?.amount_subtotal
-    const iva = raw?.iva ?? raw?.tax ?? raw?.impuesto ?? raw?.tax_total
-    const rawEstado = raw?.estado ?? raw?.status ?? raw?.state ?? raw?.estado
-    const lineas =
-      raw?.lineas ??
-      raw?.lines ??
-      raw?.invoice_lines ??
-      raw?.items ??
-      raw?.order_lines ??
-      raw?.orderLines ??
-      raw?.sale_lines ??
-      raw?.products ??
-      []
+  const id = raw?.id ?? raw?.invoice_id
+  const number = raw?.number ?? raw?.invoice_number ?? raw?.sequential ?? raw?.numero
+  const rawDate = raw?.issue_date ?? raw?.date ?? raw?.invoice_date ?? raw?.created_at ?? raw?.fecha_emision
+  const issueDate = rawDate ? String(rawDate).slice(0, 10) : undefined
+  const status = normalizeStatus(raw?.status ?? raw?.state ?? raw?.estado)
+  const total = raw?.total ?? raw?.grand_total ?? raw?.amount_total ?? raw?.amount ?? 0
+  const subtotal = raw?.subtotal ?? raw?.sub_total ?? raw?.amount_subtotal
+  const tax = raw?.tax ?? raw?.vat ?? raw?.iva ?? raw?.tax_total
+  const lines = raw?.lines ?? raw?.lineas ?? raw?.invoice_lines ?? raw?.items ?? raw?.products ?? []
+  const customer = raw?.customer ?? raw?.cliente ?? {}
 
-    // Normalize lineas - handle both InvoiceLine format and LineaFactura format
-    // Also handle POS lines from invoices created via POS receipts
-    const normalizedLineas = Array.isArray(lineas)
-      ? lineas.map((l: any) => {
-          const cantidad = Number(l?.cantidad ?? l?.quantity ?? 1)
-          const precio_unitario = Number(l?.precio_unitario ?? l?.unit_price ?? l?.price ?? 0)
-          const total_linea = Number(l?.total ?? cantidad * precio_unitario)
-          const description = l?.description ?? l?.descripcion ?? l?.product_name ?? l?.name ?? ''
-
-          return {
-            cantidad,
-            precio_unitario,
-            total: total_linea,
-            description,
-            sku: l?.sku,
-          }
-        })
-      : []
-    return {
-        id,
-        numero: numero ? String(numero) : undefined,
-        fecha: String(fecha || ''),
-        subtotal: subtotal !== undefined ? Number(subtotal) : undefined,
-        iva: iva !== undefined ? Number(iva) : undefined,
-        total: Number(total || 0),
-        estado: normalizeEstado(rawEstado),
-        cliente_id: raw?.cliente_id ?? raw?.customer_id ?? raw?.customerId,
-        cliente_nombre: raw?.cliente_nombre ?? raw?.customer_name ?? raw?.cliente?.name,
-        descripcion: raw?.descripcion ?? raw?.description,
-        lineas: normalizedLineas,
-        tenant_id: raw?.tenant_id ?? raw?.tenantId,
-    }
+  return {
+    id,
+    number: number ? String(number) : undefined,
+    issue_date: issueDate,
+    subtotal: subtotal !== undefined ? Number(subtotal) : undefined,
+    tax: tax !== undefined ? Number(tax) : undefined,
+    total: Number(total || 0),
+    status,
+    customer_id: raw?.customer_id ?? raw?.cliente_id ?? raw?.customerId,
+    customer_name: raw?.customer_name ?? raw?.cliente_nombre ?? customer?.name ?? raw?.supplier,
+    description: raw?.description ?? raw?.descripcion,
+    lines: Array.isArray(lines) ? lines.map(normalizeLine) : [],
+    tenant_id: raw?.tenant_id ?? raw?.tenantId,
+    notes: raw?.notes ?? raw?.notas,
+    customer: customer
+      ? {
+          id: customer.id ? String(customer.id) : undefined,
+          name: customer.name,
+          email: customer.email,
+          tax_id: customer.tax_id ?? customer.identification ?? customer.identificacion,
+        }
+      : undefined,
+  }
 }
 
 export interface InvoiceCreate {
-    numero?: string
-    fecha: string
-    subtotal?: number
-    iva?: number
-    total: number
-    estado?: string
-    cliente_id?: number
-    lineas?: Array<InvoiceLine | Record<string, any>>
+  number?: string
+  issue_date: string
+  subtotal?: number
+  tax?: number
+  total: number
+  status?: InvoiceStatus
+  customer_id?: number | string
+  customer_name?: string
+  description?: string
+  lines?: Array<InvoiceLine | Record<string, any>>
+  notes?: string
 }
 
-export interface InvoiceLine {
-    cantidad?: number
-    precio_unitario?: number
-    total?: number
-    description?: string
-    sku?: string
-    quantity?: number
-    unit_price?: number
+function buildInvoicePayload(invoice: Partial<InvoiceCreate | Invoice>): Record<string, any> {
+  const lines = (invoice.lines || []).map(serializeInvoiceLine)
+  return stripOfflineMeta({
+    number: invoice.number,
+    issue_date: invoice.issue_date,
+    subtotal: invoice.subtotal,
+    tax: invoice.tax,
+    total: invoice.total,
+    status: invoice.status,
+    customer_id: invoice.customer_id,
+    lines,
+  })
 }
 
 export async function listInvoices(params?: {
-    estado?: string
-    cliente_id?: number
-    desde?: string
-    hasta?: string
+  status?: string
+  customer_id?: number
+  date_from?: string
+  date_to?: string
+  q?: string
 }): Promise<Invoice[]> {
-    // Si no hay filtros y hay cache válido, retornar del cache
-    if (!params && invoicesCache && Date.now() - invoicesCache.timestamp < CACHE_TTL) {
-        return invoicesCache.data
+  if (!params && invoicesCache && Date.now() - invoicesCache.timestamp < CACHE_TTL) {
+    return invoicesCache.data
+  }
+
+  const { data } = await tenantApi.get(TENANT_INVOICING.base, { params })
+  const rawInvoices = ensureArray<any>(data)
+  const invoices = rawInvoices.map(normalizeInvoice)
+
+  if (!params) {
+    invoicesCache = {
+      data: invoices,
+      timestamp: Date.now(),
     }
+  }
 
-    try {
-        const { data } = await tenantApi.get(TENANT_INVOICING.base, { params })
-        const rawInvoices = ensureArray<any>(data)
-        const invoices = rawInvoices.map(normalizeInvoice)
-
-        // Cachear si no hay filtros
-        if (!params) {
-            invoicesCache = {
-                data: invoices,
-                timestamp: Date.now(),
-            }
-        }
-
-        return invoices
-    } catch (error) {
-        console.error('Error fetching invoices:', error)
-        throw error
-    }
+  return invoices
 }
 
-/**
- * Limpia el cache de facturas (llamar después de crear/editar)
- */
 export function clearInvoicesCache() {
-    invoicesCache = null
+  invoicesCache = null
 }
 
 export async function getInvoice(id: number | string): Promise<Invoice> {
-    const { data } = await tenantApi.get(TENANT_INVOICING.byId(String(id)))
-    return normalizeInvoice(data)
+  const { data } = await tenantApi.get(TENANT_INVOICING.byId(String(id)))
+  return normalizeInvoice(data)
+}
+
+function serializeInvoiceLine(line: any): Record<string, any> {
+  return {
+    sector: line.sector ?? 'pos',
+    description: line.description,
+    quantity: line.quantity ?? line.cantidad ?? 1,
+    unit_price: line.unit_price ?? line.precio_unitario ?? 0,
+    tax_rate: line.tax_rate ?? line.iva ?? line.vat ?? 0,
+    ...(line.bread_type ? { bread_type: line.bread_type } : {}),
+    ...(line.grams !== undefined ? { grams: line.grams } : {}),
+    ...(line.spare_part ? { spare_part: line.spare_part } : {}),
+    ...(line.labor_hours !== undefined ? { labor_hours: line.labor_hours } : {}),
+    ...(line.rate !== undefined ? { rate: line.rate } : {}),
+    ...(line.pos_receipt_line_id ? { pos_receipt_line_id: line.pos_receipt_line_id } : {}),
+    ...(line.amount !== undefined ? { amount: line.amount } : {}),
+  }
 }
 
 export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCreate>): Promise<Invoice> {
-    const payload = stripOfflineMeta({
-        ...invoice,
-        lineas: (invoice.lineas || []).map((l: any) => ({
-            sector: l.sector ?? 'pos',
-            description: l.description,
-            cantidad: l.cantidad ?? l.quantity ?? 1,
-            precio_unitario: l.precio_unitario ?? l.unit_price ?? 0,
-            iva: l.iva ?? 0,
-        })),
-        date: (invoice as any)?.fecha || (invoice as any)?.date,
-    })
+  const payload = buildInvoicePayload(invoice)
 
-    try {
-        const response = await tenantApi.post(TENANT_INVOICING.base, payload, { headers: { 'X-Offline-Managed': '1' } })
-        if (isOfflineQueuedResponse(response)) {
-            const tempId = createOfflineTempId('invoice')
-            return normalizeInvoice({ ...payload, id: tempId })
-        }
-        return normalizeInvoice(response.data)
-    } catch (error) {
-        if (isNetworkIssue(error)) {
-            const tempId = await queueInvoiceForSync(payload, 'create')
-            return normalizeInvoice({ ...payload, id: tempId })
-        }
-        throw error
+  try {
+    const response = await tenantApi.post(TENANT_INVOICING.base, payload, {
+      headers: { 'X-Offline-Managed': '1' },
+    })
+    if (isOfflineQueuedResponse(response)) {
+      const tempId = createOfflineTempId('invoice')
+      return normalizeInvoice({ ...payload, id: tempId })
     }
+    return normalizeInvoice(response.data)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = await queueInvoiceForSync(payload, 'create')
+      return normalizeInvoice({ ...payload, id: tempId })
+    }
+    throw error
+  }
 }
 
 export async function updateInvoice(id: number | string, invoice: Partial<Invoice>): Promise<Invoice> {
-    const payload = stripOfflineMeta({
-        ...invoice,
-        lineas: (invoice.lineas || []).map((l: any) => ({
-            sector: l.sector ?? 'pos',
-            description: l.description,
-            cantidad: l.cantidad ?? l.quantity ?? 1,
-            precio_unitario: l.precio_unitario ?? l.unit_price ?? 0,
-            iva: l.iva ?? 0,
-        })),
-        date: (invoice as any)?.fecha || (invoice as any)?.date,
-    })
+  const payload = buildInvoicePayload(invoice)
 
-    try {
-        const response = await tenantApi.put(TENANT_INVOICING.byId(String(id)), payload, { headers: { 'X-Offline-Managed': '1' } })
-        if (isOfflineQueuedResponse(response)) {
-            return normalizeInvoice({ ...payload, id })
-        }
-        return normalizeInvoice(response.data)
-    } catch (error) {
-        if (isNetworkIssue(error)) {
-            const tempId = await queueInvoiceForSync({ ...payload, id }, 'update')
-            console.warn('[offline] Invoice queued for sync (update):', tempId)
-            return normalizeInvoice({ ...payload, id: tempId })
-        }
-        throw error
+  try {
+    const response = await tenantApi.put(TENANT_INVOICING.byId(String(id)), payload, {
+      headers: { 'X-Offline-Managed': '1' },
+    })
+    if (isOfflineQueuedResponse(response)) {
+      return normalizeInvoice({ ...payload, id })
     }
+    return normalizeInvoice(response.data)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = await queueInvoiceForSync({ ...payload, id }, 'update')
+      return normalizeInvoice({ ...payload, id: tempId })
+    }
+    throw error
+  }
 }
 
 export async function deleteInvoice(id: number | string): Promise<void> {
-    try {
-        const response = await tenantApi.delete(TENANT_INVOICING.byId(String(id)), { headers: { 'X-Offline-Managed': '1' } })
-        if (isOfflineQueuedResponse(response)) {
-            await queueInvoiceDeletion(String(id))
-        }
-    } catch (error) {
-        if (isNetworkIssue(error)) {
-            await queueInvoiceDeletion(String(id))
-            return
-        }
-        throw error
+  try {
+    const response = await tenantApi.delete(TENANT_INVOICING.byId(String(id)), {
+      headers: { 'X-Offline-Managed': '1' },
+    })
+    if (isOfflineQueuedResponse(response)) {
+      await queueInvoiceDeletion(String(id))
     }
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await queueInvoiceDeletion(String(id))
+      return
+    }
+    throw error
+  }
 }
 
-// ============================================================================
-// E-invoicing
-// ============================================================================
-
 export interface EinvoiceSendRequest {
-    invoice_id: string
-    country: 'ES' | 'EC'
+  invoice_id: string
+  country: 'ES' | 'EC'
 }
 
 export interface EinvoiceStatus {
-    invoice_id: string
-    status: string
-    clave_acceso?: string
-    error_message?: string
-    submitted_at?: string
-    created_at: string
+  invoice_id: string
+  status: string
+  access_key?: string
+  error_message?: string
+  submitted_at?: string
+  created_at: string
 }
 
 export async function sendEinvoice(request: EinvoiceSendRequest): Promise<{ task_id: string }> {
-    const { data } = await tenantApi.post('/api/v1/tenant/einvoicing/send', request)
+  const { data } = await tenantApi.post('/api/v1/tenant/einvoicing/send', request)
+  return data
+}
+
+export async function getEinvoiceStatus(invoiceId: string): Promise<EinvoiceStatus | null> {
+  try {
+    const { data } = await tenantApi.get(`/api/v1/tenant/einvoicing/status/${invoiceId}`)
     return data
-}
-
-export async function getEinvoiceStatus(invoiceId: string): Promise<EinvoiceStatus> {
-    try {
-        const { data } = await tenantApi.get(`/api/v1/tenant/einvoicing/status/${invoiceId}`)
-        return data
-    } catch (err: any) {
-        if (err?.response?.status === 404) {
-            // No hay estado aún -> tratar como no enviado
-            return null as any
-        }
-        throw err
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      return null
     }
+    throw err
+  }
 }
 
-// ============================================================================
-// Re-export Spanish aliases expected by UI components
-// ============================================================================
-
-export type Factura = Invoice
-export type FacturaCreate = InvoiceCreate
-
-export async function listFacturas(params?: {
-    estado?: string
-    cliente_id?: number
-    desde?: string
-    hasta?: string
-}): Promise<Factura[]> {
-    return listInvoices(params)
+export async function markInvoiceAsPaid(id: number | string): Promise<void> {
+  await tenantApi.patch(TENANT_INVOICING.byId(String(id)) + '/mark-paid')
 }
 
-export async function getFactura(id: number | string): Promise<Factura> {
-    return getInvoice(id)
+export async function exportInvoiceE(id: string | number): Promise<Blob> {
+  const res = await tenantApi.get(`/einvoicing/facturae/${id}/export`, {
+    responseType: 'blob',
+  })
+  return res.data as Blob
 }
-
-export async function createFactura(invoice: FacturaCreate | Partial<FacturaCreate>): Promise<Factura> {
-    return createInvoice(invoice)
-}
-
-export async function updateFactura(id: number | string, invoice: Partial<Factura>): Promise<Factura> {
-    return updateInvoice(id, invoice)
-}
-
-export async function removeFactura(id: number | string): Promise<void> {
-    return deleteInvoice(id)
-}
-
-export async function marcarCobrada(id: number | string): Promise<void> {
-    await tenantApi.patch(TENANT_INVOICING.byId(String(id)) + '/marcar-cobrada')
-}
-
-export async function exportarFacturae(id: string | number): Promise<Blob> {
-    const res = await tenantApi.get(`/einvoicing/facturae/${id}/export`, {
-        responseType: 'blob'
-    })
-    return res.data as Blob
-}
-
-// ============================================================================
-// Utilidades
-// ============================================================================
 
 export function formatInvoiceNumber(invoice: Invoice): string {
-    return invoice.numero || `INV-${invoice.id}`
+  return invoice.number || `INV-${invoice.id}`
 }
 
 export function getInvoiceStatusColor(status: string): string {
-    const colors = {
-        'draft': 'gray',
-        'sent': 'blue',
-        'paid': 'green',
-        'overdue': 'red',
-        'cancelled': 'red'
-    }
-    return colors[status as keyof typeof colors] || 'gray'
+  const colors = {
+    draft: 'gray',
+    issued: 'blue',
+    pending_payment: 'amber',
+    paid: 'green',
+    voided: 'red',
+  }
+  return colors[status as keyof typeof colors] || 'gray'
 }
 
 export function getEinvoiceStatusColor(status: string): string {
-    const colors = {
-        'PENDING': 'yellow',
-        'SENT': 'blue',
-        'RECEIVED': 'blue',
-        'AUTHORIZED': 'green',
-        'ACCEPTED': 'green',
-        'REJECTED': 'red',
-        'ERROR': 'red'
-    }
-    return colors[status as keyof typeof colors] || 'gray'
+  const colors = {
+    PENDING: 'yellow',
+    SENT: 'blue',
+    RECEIVED: 'blue',
+    AUTHORIZED: 'green',
+    ACCEPTED: 'green',
+    REJECTED: 'red',
+    ERROR: 'red',
+  }
+  return colors[status as keyof typeof colors] || 'gray'
 }

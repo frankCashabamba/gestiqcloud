@@ -12,6 +12,5 @@
   "default_enabled": true,
   "dependencies": ["invoicing"],
   "countries": ["ES", "EC"],
-  "aliases": [],
   "implemented": true
 }

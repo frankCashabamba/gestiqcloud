@@ -1,6 +1,4 @@
-"""
-Contexto del módulo Compras para el copilot.
-"""
+"""Context summary for the Purchases module."""
 
 from __future__ import annotations
 
@@ -11,10 +9,10 @@ from sqlalchemy.orm import Session
 
 
 def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
-    """Retorna resumen del estado actual de compras para el contexto del copilot."""
+    """Return a summary of the current purchases state for the copilot context."""
     pending = db.execute(
         text(
-            "SELECT count(*) AS total, coalesce(sum(total_amount), 0) AS monto "
+            "SELECT count(*) AS total, coalesce(sum(total_amount), 0) AS amount "
             "FROM purchase_orders WHERE tenant_id = :tid AND status IN ('draft', 'sent', 'confirmed')"
         ),
         {"tid": tenant_id},
@@ -22,7 +20,7 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
 
     recent = db.execute(
         text(
-            "SELECT po.id, s.name AS proveedor, po.total_amount, po.status, po.created_at "
+            "SELECT po.id, s.name AS supplier_name, po.total_amount, po.status, po.created_at "
             "FROM purchase_orders po "
             "LEFT JOIN suppliers s ON s.id = po.supplier_id "
             "WHERE po.tenant_id = :tid "
@@ -32,7 +30,7 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     ).fetchall()
 
     return {
-        "modulo": "Compras",
-        "ordenes_pendientes": dict(pending._mapping) if pending else {},
-        "ultimas_ordenes": [dict(r._mapping) for r in recent],
+        "module": "Purchases",
+        "pending_orders": dict(pending._mapping) if pending else {},
+        "recent_orders": [dict(r._mapping) for r in recent],
     }

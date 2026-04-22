@@ -145,7 +145,15 @@ class ProductionOrder(BaseTransactionalModel):
         "ProductionOrderLine", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
     )
 
-    # Backward compatibility: keep Spanish attribute name
+    # Compatibility bridge for the production API migration.
+    @property
+    def number(self) -> str:
+        return self.order_number
+
+    @number.setter
+    def number(self, value: str) -> None:
+        self.order_number = value
+
     @property
     def numero(self) -> str:
         return self.order_number
@@ -153,6 +161,30 @@ class ProductionOrder(BaseTransactionalModel):
     @numero.setter
     def numero(self, value: str) -> None:
         self.order_number = value
+
+    @property
+    def quantity_planned(self) -> Decimal:
+        return self.qty_planned
+
+    @quantity_planned.setter
+    def quantity_planned(self, value: Decimal) -> None:
+        self.qty_planned = value
+
+    @property
+    def quantity_produced(self) -> Decimal:
+        return self.qty_produced
+
+    @quantity_produced.setter
+    def quantity_produced(self, value: Decimal) -> None:
+        self.qty_produced = value
+
+    @property
+    def waste_quantity(self) -> Decimal:
+        return self.waste_qty
+
+    @waste_quantity.setter
+    def waste_quantity(self, value: Decimal) -> None:
+        self.waste_qty = value
 
 
 class ProductionOrderLine(Base):
@@ -212,6 +244,30 @@ class ProductionOrderLine(Base):
     cost_total: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, default=0, comment="Line total cost"
     )
+
+    @property
+    def quantity_required(self) -> Decimal:
+        return self.qty_required
+
+    @quantity_required.setter
+    def quantity_required(self, value: Decimal) -> None:
+        self.qty_required = value
+
+    @property
+    def quantity_consumed(self) -> Decimal:
+        return self.qty_consumed
+
+    @quantity_consumed.setter
+    def quantity_consumed(self, value: Decimal) -> None:
+        self.qty_consumed = value
+
+    @property
+    def unit_cost(self) -> Decimal:
+        return self.cost_unit
+
+    @unit_cost.setter
+    def unit_cost(self, value: Decimal) -> None:
+        self.cost_unit = value
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(

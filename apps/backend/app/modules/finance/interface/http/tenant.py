@@ -213,26 +213,26 @@ async def get_cash_forecast(
 # ============================================================================
 
 
-class MovimientoOut(BaseModel):
+class CashMovementOut(BaseModel):
     id: str
-    fecha: str
-    concepto: str
-    tipo: str  # "ingreso" | "egreso"
-    monto: float
-    referencia: str | None = None
-    cuenta: str | None = None
-    conciliado: bool = True
+    date: str
+    description: str
+    type: str  # "income" | "expense"
+    amount: float
+    reference: str | None = None
+    account: str | None = None
+    reconciled: bool = True
     created_at: str | None = None
 
 
-@router.get("/cashbox/movements", response_model=list[MovimientoOut])
+@router.get("/cashbox/movements", response_model=list[CashMovementOut])
 def list_cashbox_movements(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-) -> list[MovimientoOut]:
-    """Lista movimientos de caja del tenant."""
+) -> list[CashMovementOut]:
+    """List tenant cash movements."""
     tenant_id = claims["tenant_id"]
     offset = (page - 1) * page_size
 
@@ -249,15 +249,15 @@ def list_cashbox_movements(
     )
 
     return [
-        MovimientoOut(
+        CashMovementOut(
             id=str(r.id),
-            fecha=r.date.isoformat(),
-            concepto=r.description,
-            tipo="ingreso" if r.type == "INCOME" else "egreso",
-            monto=float(r.amount),
-            referencia=str(r.ref_doc_id) if r.ref_doc_id else None,
-            cuenta=str(r.cash_box_id) if r.cash_box_id else None,
-            conciliado=True,
+            date=r.date.isoformat(),
+            description=r.description,
+            type="income" if r.type == "INCOME" else "expense",
+            amount=float(r.amount),
+            reference=str(r.ref_doc_id) if r.ref_doc_id else None,
+            account=str(r.cash_box_id) if r.cash_box_id else None,
+            reconciled=True,
             created_at=r.created_at.isoformat() if r.created_at else None,
         )
         for r in rows
@@ -269,19 +269,19 @@ def list_cashbox_movements(
 # ============================================================================
 
 
-class MovimientoBancoOut(MovimientoOut):
-    banco: str = ""
-    numero_cuenta: str = ""
+class BankMovementOut(CashMovementOut):
+    bank: str = ""
+    account_number: str = ""
 
 
-@router.get("/bank/movements", response_model=list[MovimientoBancoOut])
+@router.get("/bank/movements", response_model=list[BankMovementOut])
 def list_bank_movements(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-) -> list[MovimientoBancoOut]:
-    """Lista movimientos bancarios del tenant."""
+) -> list[BankMovementOut]:
+    """List tenant bank movements."""
     tenant_id = claims["tenant_id"]
     offset = (page - 1) * page_size
 
@@ -298,18 +298,18 @@ def list_bank_movements(
     )
 
     return [
-        MovimientoBancoOut(
+        BankMovementOut(
             id=str(r.id),
-            fecha=r.date.isoformat(),
-            concepto=r.concept,
-            tipo="ingreso" if r.type == "income" else "egreso",
-            monto=float(r.amount),
-            referencia=r.bank_reference,
-            cuenta=str(r.account_id) if r.account_id else None,
-            conciliado=r.reconciled,
+            date=r.date.isoformat(),
+            description=r.concept,
+            type="income" if r.type == "income" else "expense",
+            amount=float(r.amount),
+            reference=r.bank_reference,
+            account=str(r.account_id) if r.account_id else None,
+            reconciled=r.reconciled,
             created_at=r.created_at.isoformat() if r.created_at else None,
-            banco="",
-            numero_cuenta="",
+            bank="",
+            account_number="",
         )
         for r in rows
     ]
@@ -320,19 +320,19 @@ def list_bank_movements(
 # ============================================================================
 
 
-class SaldosResumenOut(BaseModel):
-    caja_total: float
-    bancos_total: float
-    total_disponible: float
-    pendiente_conciliar: float
-    ultimo_update: str
+class CashBalancesSummaryOut(BaseModel):
+    cash_total: float
+    bank_total: float
+    available_total: float
+    pending_reconciliation: float
+    last_update: str
 
 
-@router.get("/bank/balances", response_model=SaldosResumenOut)
+@router.get("/bank/balances", response_model=CashBalancesSummaryOut)
 def get_balances(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
-) -> SaldosResumenOut:
+) -> CashBalancesSummaryOut:
     """
     Resumen de saldos: caja efectivo + cuentas bancarias.
 
@@ -378,10 +378,10 @@ def get_balances(
     ).scalar()
     pendiente_conciliar = abs(float(pendiente_row or 0))
 
-    return SaldosResumenOut(
-        caja_total=max(caja_total, 0),
-        bancos_total=max(bancos_total, 0),
-        total_disponible=max(caja_total, 0) + max(bancos_total, 0),
-        pendiente_conciliar=pendiente_conciliar,
-        ultimo_update=datetime.now(UTC).isoformat(),
+    return CashBalancesSummaryOut(
+        cash_total=max(caja_total, 0),
+        bank_total=max(bancos_total, 0),
+        available_total=max(caja_total, 0) + max(bancos_total, 0),
+        pending_reconciliation=pendiente_conciliar,
+        last_update=datetime.now(UTC).isoformat(),
     )

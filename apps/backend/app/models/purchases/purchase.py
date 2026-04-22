@@ -40,7 +40,7 @@ class Purchase(Base):
         String(20),
         nullable=False,
         default="draft",
-        # draft, ordered, received, invoiced, cancelled
+        # draft, sent, received, cancelled
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivery_date: Mapped[date | None] = mapped_column(Date(), nullable=True)

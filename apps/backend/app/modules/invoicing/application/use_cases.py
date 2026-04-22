@@ -1,12 +1,12 @@
 """
-INVOICING MODULE: Use Cases para facturación.
+Invoicing module use cases.
 
-Implementa:
-- Creación de facturas (desde POS o manualmente)
-- Generación de PDFs (Jinja2 + WeasyPrint)
-- Envío por email (SMTP/SendGrid)
-- Tracking de pagos
-- Numeración secuencial
+Implements:
+- Invoice creation (from POS or manually)
+- PDF generation (Jinja2 + WeasyPrint)
+- Email delivery (SMTP/SendGrid)
+- Payment tracking
+- Sequential numbering
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class CreateInvoiceUseCase:
-    """Crea factura desde recibo POS o manualmente."""
+    """Create an invoice from a POS receipt or manually."""
 
     def execute(
         self,
@@ -53,7 +53,7 @@ class CreateInvoiceUseCase:
 
 
 class GenerateInvoicePDFUseCase:
-    """Genera PDF de factura usando Jinja2 + WeasyPrint."""
+    """Generate an invoice PDF using Jinja2 + WeasyPrint."""
 
     def execute(
         self,
@@ -69,7 +69,7 @@ class GenerateInvoicePDFUseCase:
         company_name: str,
         company_logo_url: str | None = None,
     ) -> bytes:
-        """Genera PDF de factura. Returns PDF bytes."""
+        """Generate an invoice PDF and return the bytes."""
         from jinja2 import Environment, FileSystemLoader, select_autoescape
         from weasyprint import HTML
 
@@ -94,16 +94,16 @@ class GenerateInvoicePDFUseCase:
             template = Template(
                 "<html><body>"
                 "<h1>{{ company_name }}</h1>"
-                "<h2>Factura {{ invoice_number }}</h2>"
-                "<p>Cliente: {{ customer_name or 'N/A' }}</p>"
-                "<p>Fecha: {{ issued_at }}</p>"
-                "<table border='1' cellpadding='5'><tr><th>Descripción</th><th>Cant</th>"
-                "<th>P.Unit</th><th>Total</th></tr>"
+                "<h2>Invoice {{ invoice_number }}</h2>"
+                "<p>Customer: {{ customer_name or 'N/A' }}</p>"
+                "<p>Date: {{ issued_at }}</p>"
+                "<table border='1' cellpadding='5'><tr><th>Description</th><th>Qty</th>"
+                "<th>Unit price</th><th>Total</th></tr>"
                 "{% for l in lines %}<tr><td>{{ l.description }}</td>"
                 "<td>{{ l.qty }}</td><td>{{ l.unit_price }}</td>"
                 "<td>{{ l.amount }}</td></tr>{% endfor %}</table>"
                 "<p>Subtotal: {{ subtotal }}</p>"
-                "<p>IVA: {{ tax }}</p>"
+                "<p>Tax: {{ tax }}</p>"
                 "<p><strong>Total: {{ total }}</strong></p>"
                 "</body></html>"
             )
@@ -126,7 +126,7 @@ class GenerateInvoicePDFUseCase:
 
 
 class SendInvoiceEmailUseCase:
-    """Envía factura por email con PDF adjunto."""
+    """Send an invoice by email with a PDF attachment."""
 
     def execute(
         self,
@@ -138,7 +138,7 @@ class SendInvoiceEmailUseCase:
         template: str = "default",
         company_name: str = "",
     ) -> dict[str, Any]:
-        """Envía factura por email usando el servicio de correo configurado."""
+        """Send an invoice by email using the configured mail service."""
         import smtplib
         from email.message import EmailMessage
 
@@ -159,19 +159,19 @@ class SendInvoiceEmailUseCase:
             }
 
         msg = EmailMessage()
-        msg["Subject"] = f"Factura {invoice_number} - {company_name}".strip()
+        msg["Subject"] = f"Invoice {invoice_number} - {company_name}".strip()
         msg["From"] = from_email
         msg["To"] = recipient_email
         msg.set_content(
-            f"Estimado cliente,\n\n"
-            f"Adjuntamos la factura {invoice_number}.\n\n"
-            f"Atentamente,\n{company_name}"
+            f"Dear customer,\n\n"
+            f"Attached is invoice {invoice_number}.\n\n"
+            f"Regards,\n{company_name}"
         )
         msg.add_attachment(
             pdf_bytes,
             maintype="application",
             subtype="pdf",
-            filename=f"factura_{invoice_number}.pdf",
+            filename=f"invoice_{invoice_number}.pdf",
         )
 
         try:
@@ -202,7 +202,7 @@ class SendInvoiceEmailUseCase:
 
 
 class MarkInvoiceAsPaidUseCase:
-    """Marca factura como pagada."""
+    """Mark an invoice as paid."""
 
     def execute(
         self,
@@ -224,7 +224,7 @@ class MarkInvoiceAsPaidUseCase:
 
 
 class CreateInvoiceFromPOSReceiptUseCase:
-    """Crea factura automáticamente desde recibo POS."""
+    """Automatically create an invoice from a POS receipt."""
 
     def execute(
         self,

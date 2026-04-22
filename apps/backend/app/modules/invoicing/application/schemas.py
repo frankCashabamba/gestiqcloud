@@ -1,4 +1,4 @@
-"""INVOICING Module: Pydantic schemas."""
+"""Invoicing module Pydantic schemas."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 
 class InvoiceLineModel(BaseModel):
-    """Línea de factura."""
+    """Invoice line."""
 
     description: str = Field(max_length=500)
     qty: Decimal = Field(gt=0, decimal_places=3)
@@ -21,7 +21,7 @@ class InvoiceLineModel(BaseModel):
 
 
 class CustomerModel(BaseModel):
-    """Datos del cliente en factura."""
+    """Invoice customer data."""
 
     id: UUID
     name: str = Field(max_length=255)
@@ -37,7 +37,7 @@ class CustomerModel(BaseModel):
 
 
 class CreateInvoiceRequest(BaseModel):
-    """Request: crear factura."""
+    """Request: create invoice."""
 
     customer_id: UUID | None = None
     lines: list[InvoiceLineModel] = Field(min_length=1)
@@ -46,14 +46,14 @@ class CreateInvoiceRequest(BaseModel):
 
 
 class CreateInvoiceFromReceiptRequest(BaseModel):
-    """Request: crear factura desde recibo POS."""
+    """Request: create invoice from a POS receipt."""
 
     receipt_id: UUID
     customer_id: UUID | None = None
 
 
 class SendInvoiceEmailRequest(BaseModel):
-    """Request: enviar factura por email."""
+    """Request: send invoice by email."""
 
     recipient_email: str = Field(max_length=255)
     template: Literal["default", "es", "en"] = "default"
@@ -61,7 +61,7 @@ class SendInvoiceEmailRequest(BaseModel):
 
 
 class MarkInvoiceAsPaidRequest(BaseModel):
-    """Request: marcar como pagada."""
+    """Request: mark invoice as paid."""
 
     paid_amount: Decimal = Field(gt=0, decimal_places=2)
     payment_method: Literal["cash", "card", "transfer", "check"]
@@ -74,7 +74,7 @@ class MarkInvoiceAsPaidRequest(BaseModel):
 
 
 class InvoiceResponse(BaseModel):
-    """Response: factura completa."""
+    """Response: full invoice."""
 
     id: UUID
     number: str
@@ -95,7 +95,7 @@ class InvoiceResponse(BaseModel):
 
 
 class InvoiceSummaryResponse(BaseModel):
-    """Response: resumen de factura."""
+    """Response: invoice summary."""
 
     id: UUID
     number: str
@@ -107,7 +107,7 @@ class InvoiceSummaryResponse(BaseModel):
 
 
 class InvoiceListResponse(BaseModel):
-    """Response: lista de facturas."""
+    """Response: invoice list."""
 
     invoices: list[InvoiceSummaryResponse]
     total_count: int
@@ -117,7 +117,7 @@ class InvoiceListResponse(BaseModel):
 
 
 class SendEmailResponse(BaseModel):
-    """Response: envío de email."""
+    """Response: email delivery."""
 
     invoice_id: UUID
     sent_at: datetime
@@ -126,7 +126,7 @@ class SendEmailResponse(BaseModel):
 
 
 class PaymentRecordResponse(BaseModel):
-    """Response: registro de pago."""
+    """Response: payment record."""
 
     id: UUID
     invoice_id: UUID

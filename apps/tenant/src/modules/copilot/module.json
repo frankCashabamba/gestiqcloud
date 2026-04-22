@@ -8,6 +8,5 @@
   "default_enabled": false,
   "dependencies": [],
   "countries": ["ES", "EC"],
-  "aliases": [],
   "implemented": false
 }

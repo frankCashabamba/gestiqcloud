@@ -1,7 +1,7 @@
 ﻿/**
  * Billing/Invoices Offline Sync Adapter
  *
- * Synchronizes invoices (facturas) with offline support.
+ * Synchronizes invoices with offline support.
  * - Create, update, soft-delete
  * - Conflict detection on total/status/line items
  */
@@ -60,10 +60,10 @@ export const InvoicesAdapter: SyncAdapter = {
 
   detectConflict(local: any, remote: any): boolean {
     if (!remote) return false
-    const itemsDiffer = JSON.stringify(local.items || local.lineas || []) !== JSON.stringify(remote.items || remote.lineas || [])
+    const itemsDiffer = JSON.stringify(local.items || local.lines || []) !== JSON.stringify(remote.items || remote.lines || [])
     return itemsDiffer ||
            local.total !== remote.total ||
-           local.estado !== remote.estado ||
+           local.status !== remote.status ||
            local.status !== remote.status
   }
 }

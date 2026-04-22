@@ -22,7 +22,7 @@ from app.modules.invoicing.crud import factura_crud
 
 router = APIRouter(
     prefix="/invoicing",
-    tags=["Facturacion"],
+    tags=["Invoicing"],
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
@@ -32,21 +32,21 @@ router = APIRouter(
 
 
 @router.get("")
-def listar_facturas_principales(
+def list_invoices(
     request: Request,
     db: Session = Depends(get_db),
-    estado: str | None = Query(None),
+    status: str | None = Query(None),
     q: str | None = Query(None),
-    desde: str | None = Query(None),
-    hasta: str | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
 ):
     from datetime import datetime
 
     tenant_id = get_tenant_uuid(request)
 
     # ── 1. Facturas del módulo clásico (Invoice) ──────────────────────────────
-    old_invoices = factura_crud.obtener_facturas_principales(
-        db=db, tenant_id=tenant_id, estado=estado, q=q, desde=desde, hasta=hasta
+    old_invoices = factura_crud.list_primary_invoices(
+        db=db, tenant_id=tenant_id, status=status, query=q, date_from=date_from, date_to=date_to
     )
 
     def _iso(d) -> str | None:
@@ -63,11 +63,11 @@ def listar_facturas_principales(
         result.append(
             {
                 "id": str(inv.id),
-                "numero": inv.number,
-                "fecha_emision": _iso(inv.issue_date),
-                "estado": inv.status,
+                "number": inv.number,
+                "issue_date": _iso(inv.issue_date),
+                "status": inv.status,
                 "subtotal": float(inv.subtotal) if inv.subtotal is not None else None,
-                "iva": float(inv.vat) if inv.vat is not None else None,
+                "tax": float(inv.vat) if inv.vat is not None else None,
                 "total": (
                     float(inv.total)
                     if inv.total is not None
@@ -85,19 +85,19 @@ def listar_facturas_principales(
         Document.doc_type == "FACTURA",
     )
 
-    if estado:
-        doc_q = doc_q.filter(Document.status == estado.upper())
-    if desde:
+    if status:
+        doc_q = doc_q.filter(Document.status == status.upper())
+    if date_from:
         try:
             doc_q = doc_q.filter(
-                Document.issued_at >= datetime.strptime(desde, "%Y-%m-%d").replace(tzinfo=UTC)
+                Document.issued_at >= datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=UTC)
             )
         except ValueError:
             pass
-    if hasta:
+    if date_to:
         try:
             doc_q = doc_q.filter(
-                Document.issued_at <= datetime.strptime(hasta, "%Y-%m-%d").replace(tzinfo=UTC)
+                Document.issued_at <= datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=UTC)
             )
         except ValueError:
             pass
@@ -124,14 +124,14 @@ def listar_facturas_principales(
         result.append(
             {
                 "id": str(doc.id),
-                "numero": numero,
-                "fecha_emision": _iso(doc.issued_at),
+                "number": numero,
+                "issue_date": _iso(doc.issued_at),
                 "date": _iso(doc.issued_at),
-                "estado": doc.status.lower(),
+                "status": doc.status.lower(),
                 "subtotal": (
                     float(totals["subtotal"]) if totals.get("subtotal") is not None else None
                 ),
-                "iva": float(totals["taxTotal"]) if totals.get("taxTotal") is not None else None,
+                "tax": float(totals["taxTotal"]) if totals.get("taxTotal") is not None else None,
                 "total": (
                     float(totals["grandTotal"]) if totals.get("grandTotal") is not None else None
                 ),
@@ -172,14 +172,14 @@ def listar_facturas_principales(
     return result
 
 
-@router.post("", response_model=schemas.InvoiceCreate)
-def crear_factura(
+@router.post("", response_model=schemas.InvoiceOut)
+def create_invoice(
     factura: schemas.InvoiceCreate,
     request: Request,
     db: Session = Depends(get_db),
 ):
     tenant_id = get_tenant_uuid(request)
-    created = factura_crud.create_with_lineas(db, tenant_id, factura)
+    created = factura_crud.create_with_line_items(db, tenant_id, factura)
     try:
         claims = getattr(request.state, "access_claims", None)
         user_id = claims.get("user_id") if isinstance(claims, dict) else None
@@ -201,13 +201,13 @@ def crear_factura(
 
 
 @router.put("/{factura_id}", response_model=schemas.InvoiceOut)
-def actualizar_factura(
+def update_invoice(
     factura_id: UUID,
     factura: schemas.InvoiceUpdate,
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """Actualizar factura en borrador"""
+    """Update a draft invoice."""
     from sqlalchemy.orm import joinedload
 
     tenant_id = get_tenant_uuid(request)
@@ -224,12 +224,12 @@ def actualizar_factura(
     )
 
     if not invoice:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        raise HTTPException(status_code=404, detail="Invoice not found")
 
-    if invoice.status not in ["draft", "borrador"]:
-        raise HTTPException(status_code=400, detail="Solo se pueden editar facturas en borrador")
+    if invoice.status != "draft":
+        raise HTTPException(status_code=400, detail="Only draft invoices can be edited")
 
-    # Actualizar campos permitidos
+    # Update allowed fields.
     update_data = factura.model_dump(exclude_unset=True, exclude_none=True)
     for field, value in update_data.items():
         if hasattr(invoice, field):
@@ -259,8 +259,8 @@ def actualizar_factura(
 
 
 @router.delete("/{factura_id}")
-def anular_factura(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
-    """Anular factura (soft delete)"""
+def void_invoice(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
+    """Void an invoice."""
     tenant_id = get_tenant_uuid(request)
 
     factura_uuid = factura_id
@@ -269,15 +269,12 @@ def anular_factura(factura_id: UUID, request: Request, db: Session = Depends(get
     )
 
     if not invoice:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        raise HTTPException(status_code=404, detail="Invoice not found")
 
     if invoice.status == "paid":
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede anular una factura pagada. Use abonos/créditos.",
-        )
+        raise HTTPException(status_code=400, detail="Paid invoices cannot be voided.")
 
-    invoice.status = "void"
+    invoice.status = "voided"
     db.commit()
     try:
         claims = getattr(request.state, "access_claims", None)
@@ -297,11 +294,12 @@ def anular_factura(factura_id: UUID, request: Request, db: Session = Depends(get
     except Exception:
         pass
 
-    return {"status": "ok", "message": f"Factura {invoice.number} anulada"}
+    return {"status": "ok", "message": f"Invoice {invoice.number} voided"}
 
 
+@router.post("/{factura_id}/issue", response_model=schemas.InvoiceOut)
 @router.post("/{factura_id}/emitir", response_model=schemas.InvoiceOut)
-def emitir_factura(
+def issue_invoice(
     factura_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
@@ -309,7 +307,7 @@ def emitir_factura(
     from sqlalchemy.orm import joinedload
 
     tenant_id = get_tenant_uuid(request)
-    issued = factura_crud.emitir_factura(db, tenant_id, factura_id)
+    issued = factura_crud.issue_invoice(db, tenant_id, factura_id)
     # Reload with relations
     issued = (
         db.query(Invoice)
@@ -341,7 +339,7 @@ def emitir_factura(
 
 
 @router.get("/{factura_id}")
-def obtener_factura_por_id(
+def get_invoice_by_id(
     factura_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
@@ -359,7 +357,7 @@ def obtener_factura_por_id(
         .first()
     )
 
-    # Si no está en Invoice, buscar en Document (POS)
+    # If the record does not exist in Invoice, look it up in Document (POS).
     if not factura:
         doc_row = (
             db.query(Document)
@@ -370,9 +368,9 @@ def obtener_factura_por_id(
             payload = doc_row.payload or {}
             doc_model_data = payload
         else:
-            raise HTTPException(status_code=404, detail="Factura no encontrada")
+            raise HTTPException(status_code=404, detail="Invoice not found")
 
-        # Serializar desde payload del documento POS
+        # Serialize the POS document payload.
         totals = doc_model_data.get("totals") or {}
         buyer = doc_model_data.get("buyer") or {}
         doc_info = doc_model_data.get("document") or {}
@@ -384,44 +382,44 @@ def obtener_factura_por_id(
             if series and sequential
             else (series or sequential or str(factura_id)[:8])
         )
-        lineas = [
+        lines = [
             {
+                "sector": "pos",
                 "description": ln.get("name", ""),
-                "cantidad": float(ln.get("qty", 0) or 0),
-                "precio_unitario": float(ln.get("unitPrice", 0) or 0),
-                "iva": sum(float(t.get("amount", 0) or 0) for t in (ln.get("taxLines") or [])),
+                "quantity": float(ln.get("qty", 0) or 0),
+                "unit_price": float(ln.get("unitPrice", 0) or 0),
+                "tax_rate": sum(float(t.get("amount", 0) or 0) for t in (ln.get("taxLines") or [])),
             }
             for ln in lines_raw
         ]
         return {
             "id": str(factura_id),
-            "numero": numero,
-            "fecha_emision": doc_info.get("issuedAt"),
-            "estado": (doc_info.get("status") or "").lower(),
+            "number": numero,
+            "issue_date": doc_info.get("issuedAt"),
+            "status": (doc_info.get("status") or "").lower(),
             "subtotal": float(totals.get("subtotal") or 0),
-            "iva": float(totals.get("taxTotal") or 0),
+            "tax": float(totals.get("taxTotal") or 0),
             "total": float(totals.get("grandTotal") or 0),
-            "cliente": {
+            "customer": {
                 "name": buyer.get("name") or buyer.get("businessName") or "",
-                "identificacion": buyer.get("idNumber") or "",
+                "tax_id": buyer.get("idNumber") or "",
                 "email": "",
             },
-            "lineas": lineas,
-            "lines": lineas,
+            "lines": lines,
             "source": "document",
         }
 
     if not factura:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # Asegurar serialización explícita de líneas (evita problemas de polimorfismo)
-    lineas = [
+    # Ensure explicit line serialization to avoid polymorphism issues.
+    line_items = [
         {
             "sector": getattr(line_item, "sector", None),
             "description": getattr(line_item, "description", ""),
-            "cantidad": float(getattr(line_item, "quantity", 0) or 0),
-            "precio_unitario": float(getattr(line_item, "unit_price", 0) or 0),
-            "iva": float(getattr(line_item, "vat", 0) or 0),
+            "quantity": float(getattr(line_item, "quantity", 0) or 0),
+            "unit_price": float(getattr(line_item, "unit_price", 0) or 0),
+            "tax_rate": float(getattr(line_item, "vat", 0) or 0),
             "pos_receipt_line_id": getattr(line_item, "pos_receipt_line_id", None),
         }
         for line_item in getattr(factura, "lines", []) or []
@@ -434,20 +432,20 @@ def obtener_factura_por_id(
             "id": getattr(cliente_obj, "id", None),
             "name": getattr(cliente_obj, "name", "") or "",
             "email": getattr(cliente_obj, "email", "") or "",
-            "identificacion": getattr(cliente_obj, "identificacion", "") or "",
+            "tax_id": getattr(cliente_obj, "tax_id", "")
+            or "",
         }
 
     return {
         "id": factura.id,
-        "numero": factura.number,
-        "fecha_emision": factura.issue_date,
-        "estado": factura.status,
+        "number": factura.number,
+        "issue_date": factura.issue_date,
+        "status": factura.status,
         "subtotal": getattr(factura, "subtotal", None),
-        "iva": getattr(factura, "vat", None),
+        "tax": getattr(factura, "vat", None),
         "total": getattr(factura, "total", getattr(factura, "amount", None)),
-        "cliente": cliente,
-        "lineas": lineas,
-        "lines": lineas,
+        "customer": cliente,
+        "lines": line_items,
     }
 
 
@@ -460,13 +458,13 @@ def descargar_pdf(
     tenant_id = get_tenant_uuid(request)
     factura = db.query(Invoice).filter_by(id=factura_id, tenant_id=tenant_id).first()
     if not factura:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
-    # Render con Jinja2 (template por vertical si existe)
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    # Render with Jinja2 (vertical-specific template if present).
     try:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
         from weasyprint import HTML
 
-        # Cargar templates PDF
+        # Load PDF templates.
         base_dir = Path(__file__).resolve().parents[5]  # apps/backend
         tmpl_dir = base_dir / "app" / "templates" / "pdf"
         env = Environment(
@@ -474,13 +472,13 @@ def descargar_pdf(
             autoescape=select_autoescape(["html"]),
         )
 
-        # Selección simple de template (futuro: según tenant/vertical)
+        # Simple template selection (future: tenant/vertical-aware).
         tmpl_name = os.getenv("INVOICE_PDF_TEMPLATE", "invoice_base.html")
         template = env.get_template(tmpl_name)
 
-        # Relación de líneas si está mapeada en ORM
-        lineas = getattr(factura, "lines", [])
-        html = template.render(factura=factura, lineas=lineas)
+        # Render lines if the ORM relation is loaded.
+        lines = getattr(factura, "lines", [])
+        html = template.render(factura=factura, lines=lines)
         pdf_bytes = HTML(string=html).write_pdf()
         return Response(
             content=pdf_bytes,
@@ -490,13 +488,14 @@ def descargar_pdf(
     except Exception:
         raise HTTPException(
             status_code=501,
-            detail="Renderizador PDF/plantilla no disponible (instala WeasyPrint/Jinja2)",
+            detail="PDF renderer/template not available (install WeasyPrint/Jinja2)",
         )
 
 
+@router.patch("/{factura_id}/mark-paid")
 @router.patch("/{factura_id}/marcar-cobrada")
 def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
-    """Marca una venta a crédito (PENDING_PAYMENT) como cobrada (ISSUED)."""
+    """Mark a credit sale (PENDING_PAYMENT) as paid (ISSUED)."""
     tenant_id = get_tenant_uuid(request)
     doc = (
         db.query(Document)
@@ -504,9 +503,9 @@ def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get
         .first()
     )
     if not doc:
-        raise HTTPException(status_code=404, detail="Documento no encontrado")
+        raise HTTPException(status_code=404, detail="Document not found")
     if doc.status != "PENDING_PAYMENT":
-        raise HTTPException(status_code=400, detail="El documento no está pendiente de cobro")
+        raise HTTPException(status_code=400, detail="The document is not pending payment")
     doc.status = "ISSUED"
     db.commit()
     return {"ok": True, "id": str(factura_id), "status": "ISSUED"}

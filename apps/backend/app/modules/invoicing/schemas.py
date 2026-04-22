@@ -1,160 +1,118 @@
-"""Module: schemas.py
+"""Invoice module Pydantic schemas."""
 
-Auto-generated module docstring."""
+from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-# Esquema para lineas
-# 🧱 Línea base
-class LineaBase(BaseModel):
-    """Class LineaBase - auto-generated docstring."""
-
-    description: str
-    cantidad: float
-    precio_unitario: float
-    iva: float | None = 0
+class InvoiceLineBase(BaseModel):
+    description: str = Field(max_length=500)
+    quantity: Decimal = Field(gt=0, decimal_places=3)
+    unit_price: Decimal = Field(ge=0, decimal_places=4)
+    tax_rate: Decimal = Field(default=Decimal("0"), ge=0, le=1, decimal_places=4)
+    amount: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=2)
 
 
-# 🥖 Línea panadería
-class BakeryLine(LineaBase):
-    """Class BakeryLine - auto-generated docstring."""
-
+class BakeryInvoiceLine(InvoiceLineBase):
     sector: Literal["bakery"]
     bread_type: str
-    grams: float
+    grams: Decimal
 
 
-class BakeryLineOut(BakeryLine):
-    """Class BakeryLineOut - auto-generated docstring."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 🔧 Línea taller
-class WorkshopLine(LineaBase):
-    """Class WorkshopLine - auto-generated docstring."""
-
+class WorkshopInvoiceLine(InvoiceLineBase):
     sector: Literal["workshop"]
     spare_part: str
-    labor_hours: float
-    rate: float
+    labor_hours: Decimal
+    rate: Decimal
 
 
-class WorkshopLineOut(WorkshopLine):
-    """Class WorkshopLineOut - auto-generated docstring."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 🎯 Línea POS (genérica)
-class POSLine(BaseModel):
-    """Class POSLine - auto-generated docstring."""
-
+class PosInvoiceLine(BaseModel):
     sector: Literal["pos"]
-    description: str
-    cantidad: float = 1
-    precio_unitario: float = 0
-    iva: float | None = 0
+    description: str = Field(max_length=500)
+    quantity: Decimal = Field(default=Decimal("1"), gt=0, decimal_places=3)
+    unit_price: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=4)
+    tax_rate: Decimal = Field(default=Decimal("0"), ge=0, le=1, decimal_places=4)
+    amount: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=2)
+    pos_receipt_line_id: UUID | None = None
 
 
-class POSLineOut(POSLine):
-    """Class POSLineOut - auto-generated docstring."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# 🎯 Unión de tipos posibles
-LineaFacturaIn = BakeryLine | WorkshopLine | POSLine
-LineaFacturaOut = Annotated[
-    BakeryLineOut | WorkshopLineOut | POSLineOut, Field(discriminator="sector")
+InvoiceLineInput = Annotated[
+    BakeryInvoiceLine | WorkshopInvoiceLine | PosInvoiceLine,
+    Field(discriminator="sector"),
 ]
 
-# Backward compatibility aliases
-LineaPanaderia = BakeryLine
-LineaPanaderiaOut = BakeryLineOut
-LineaTaller = WorkshopLine
-LineaTallerOut = WorkshopLineOut
 
-
-# facturas
-class ClienteSchema(BaseModel):
-    """Class ClienteSchema - auto-generated docstring."""
-
+class CustomerInfo(BaseModel):
     id: UUID
     name: str
-    email: str
-    identificacion: str
+    email: str | None = None
+    tax_id: str | None = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class InvoiceCreate(BaseModel):
-    """Class InvoiceCreate - auto-generated docstring."""
-
-    numero: str | None = None
+    number: str | None = None
     supplier: str | None = None
-    fecha_emision: str | None = None
-    estado: str = "emitida"
-    subtotal: float = 0
-    iva: float = 0
-    total: float = 0
-    cliente_id: str | None = None
-    lineas: list[LineaFacturaIn] = []
+    issue_date: str | None = None
+    status: str = "draft"
+    subtotal: Decimal = Decimal("0")
+    tax: Decimal = Decimal("0")
+    total: Decimal = Decimal("0")
+    customer_id: UUID | None = None
+    lines: list[InvoiceLineInput] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InvoiceUpdate(BaseModel):
+    number: str | None = None
+    supplier: str | None = None
+    issue_date: str | None = None
+    status: str | None = None
+    subtotal: Decimal | None = None
+    tax: Decimal | None = None
+    total: Decimal | None = None
+    customer_id: UUID | None = None
+    lines: list[InvoiceLineInput] | None = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class InvoiceOut(BaseModel):
-    """Class InvoiceOut - auto-generated docstring."""
-
     id: UUID
-    numero: str
-    fecha_emision: str
-    estado: str
-    subtotal: float
-    iva: float
-    total: float
-    cliente: ClienteSchema = None  # Hacer opcional para evitar errores de validación
-    lineas: list[LineaFacturaOut] = []  # polimórficas - default vacío
-    lines: list[LineaFacturaOut] = []  # Alias en inglés para compatibilidad con ORM
+    number: str
+    issue_date: str | None = None
+    status: str
+    subtotal: Decimal | None = None
+    tax: Decimal | None = None
+    total: Decimal | None = None
+    customer: CustomerInfo | None = None
+    lines: list[InvoiceLineInput] = Field(default_factory=list)
+    source: str | None = None
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-
-class InvoiceUpdate(BaseModel):
-    """Class InvoiceUpdate - auto-generated docstring."""
-
-    estado: str | None
-    supplier: str | None
-    fecha_emision: str | None
-    lineas: list[LineaFacturaIn] | None
+    model_config = ConfigDict(from_attributes=True)
 
 
-# fiiin
+class InvoiceImportCreate(BaseModel):
+    file_name: str
+    data: Any
+    user_id: int
+
+    model_config = ConfigDict(from_attributes=True)
 
 
-class FacturaTempCreate(BaseModel):
-    """Class FacturaTempCreate - auto-generated docstring."""
-
-    archivo_nombre: str
-    datos: Any
-    usuario_id: int
-
-
-class FacturaOut(BaseModel):
-    """Class FacturaOut - auto-generated docstring."""
-
+class InvoiceImportOut(BaseModel):
     id: UUID
-    numero: str
-    supplier: str
-    fecha_emision: str
-    monto: int
-    estado: str
+    number: str
+    supplier: str | None = None
+    issue_date: str | None = None
+    amount: Decimal | None = None
+    status: str
 
-
-class InvoiceTempOut(BaseModel):
-    """Class InvoiceTempOut - auto-generated docstring."""
-
-    pass
+    model_config = ConfigDict(from_attributes=True)

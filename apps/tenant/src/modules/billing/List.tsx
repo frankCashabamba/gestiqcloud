@@ -2,149 +2,139 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
-import { listFacturas, removeFactura, marcarCobrada, clearInvoicesCache, type Factura } from './services'
+import { listInvoices, deleteInvoice, markInvoiceAsPaid, clearInvoicesCache, type Invoice } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
-import FacturaStatusBadge from './components/FacturaStatusBadge'
-import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
+import InvoiceStatusBadge from './components/FacturaStatusBadge'
 import { useCurrency } from '../../hooks/useCurrency'
 import { usePermission } from '../../hooks/usePermission'
 import ProtectedButton from '../../components/ProtectedButton'
 
-function sortInvoices(arr: Factura[]): Factura[] {
-  // Extrae la última secuencia numérica de un string (ej: "A-2026-000037" -> 37)
+function sortInvoices(items: Invoice[]): Invoice[] {
   const parseNumber = (value?: string | number) => {
     if (value === undefined || value === null) return null
     if (typeof value === 'number') return Number.isFinite(value) ? value : null
-    const match = value.match(/(\d+)(?!.*\d)/) // última secuencia de dígitos
+    const match = value.match(/(\d+)(?!.*\d)/)
     if (!match) return null
     const n = Number(match[1])
     return Number.isFinite(n) ? n : null
   }
+
   const parseDate = (value?: string) => {
     const ts = value ? Date.parse(value) : NaN
     return Number.isNaN(ts) ? null : ts
   }
-  return [...arr].sort((a, b) => {
-    // 1) número de factura descendente si es numérico
-    const na = parseNumber(a.numero)
-    const nb = parseNumber(b.numero)
+
+  return [...items].sort((a, b) => {
+    const na = parseNumber(a.number)
+    const nb = parseNumber(b.number)
     if (nb !== null || na !== null) {
       if (nb === null) return 1
       if (na === null) return -1
       if (nb !== na) return nb - na
     }
-    // 2) fecha descendente
-    const da = parseDate(a.fecha)
-    const db = parseDate(b.fecha)
+
+    const da = parseDate(a.issue_date)
+    const db = parseDate(b.issue_date)
     if (da !== null && db !== null && db !== da) return db - da
-    // 3) último recurso: orden estable por id
+
     return String(b.id).localeCompare(String(a.id))
   })
 }
 
-export default function FacturasList() {
+export default function InvoicesList() {
   const { t } = useTranslation()
-  const { config } = useCompanyConfig()
   const { formatCurrency } = useCurrency()
   const can = usePermission()
-  const [items, setItems] = useState<Factura[]>([])
+  const [items, setItems] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  const [cobrarTarget, setCobrarTarget] = useState<Factura | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<Factura | null>(null)
-  const [estado, setEstado] = useState('')
-  const [desde, setDesde] = useState('')
-  const [hasta, setHasta] = useState('')
-  const [q, setQ] = useState('')
+  const [markTarget, setMarkTarget] = useState<Invoice | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
+  const [status, setStatus] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
-    const loadFacturas = async () => {
+    const loadInvoices = async () => {
       try {
         setLoading(true)
         setErrMsg(null)
-        const facturas = await listFacturas()
-        // Ordenar más recientes primero por fecha (fallback a created order)
-        const sorted = sortInvoices(facturas)
-        setItems(sorted)
+        const invoices = await listInvoices()
+        setItems(sortInvoices(invoices))
       } catch (e: any) {
-        const m = getErrorMessage(e)
-        setErrMsg(m)
-        toastError(m)
+        const message = getErrorMessage(e)
+        setErrMsg(message)
+        toastError(message)
       } finally {
         setLoading(false)
       }
     }
 
-    loadFacturas()
-  }, [])
+    loadInvoices()
+  }, [toastError])
 
   const filtered = useMemo(() => {
-    const res = items.filter(v => {
-      if (estado && (v.estado||'') !== estado) return false
-      if (desde && v.fecha < desde) return false
-      if (hasta && v.fecha > hasta) return false
-      if (q && !(`${v.id}`.includes(q) || (v.estado||'').toLowerCase().includes(q.toLowerCase()))) return false
+    const res = items.filter((invoice) => {
+      if (status && (invoice.status || '') !== status) return false
+      if (dateFrom && (invoice.issue_date || '') < dateFrom) return false
+      if (dateTo && (invoice.issue_date || '') > dateTo) return false
+      if (query && !(`${invoice.id}`.includes(query) || (invoice.status || '').toLowerCase().includes(query.toLowerCase()))) {
+        return false
+      }
       return true
     })
     return sortInvoices(res)
-  }, [items, estado, desde, hasta, q])
+  }, [items, status, dateFrom, dateTo, query])
 
   const pendingCount = useMemo(
-    () => items.filter(v => (v.estado || '').toLowerCase() === 'pending_payment').length,
+    () => items.filter((invoice) => (invoice.status || '').toLowerCase() === 'pending_payment').length,
     [items]
   )
 
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
-  const einvoiceCountry = useMemo(() => {
-    const candidates = [
-      config?.company?.country,
-      config?.settings?.locale,
-    ]
-    const normalized = candidates
-      .map((value) => String(value || '').trim().toUpperCase())
-      .find((value) => value.length >= 2)
-    if (!normalized) return 'ES' as const
-    if (normalized === 'EC' || normalized.endsWith('-EC') || normalized.endsWith('_EC')) return 'EC' as const
-    return 'ES' as const
-  }, [config])
 
-  const doCobrar = async () => {
-    if (!cobrarTarget) return
+  const markPaid = async () => {
+    if (!markTarget) return
     try {
-      await marcarCobrada(cobrarTarget.id)
+      await markInvoiceAsPaid(markTarget.id)
       clearInvoicesCache()
-      setItems(prev => prev.map(x => x.id === cobrarTarget.id ? { ...x, estado: 'issued' } : x))
+      setItems((prev) => prev.map((item) => (item.id === markTarget.id ? { ...item, status: 'issued' } : item)))
       success(t('billing.markedAsPaid'))
-    } catch (e: any) { toastError(getErrorMessage(e)) }
-    finally { setCobrarTarget(null) }
+    } catch (e: any) {
+      toastError(getErrorMessage(e))
+    } finally {
+      setMarkTarget(null)
+    }
   }
 
-  const doDelete = async () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return
     try {
-      await removeFactura(deleteTarget.id)
+      await deleteInvoice(deleteTarget.id)
       clearInvoicesCache()
-      setItems(p => p.filter(x => x.id !== deleteTarget.id))
+      setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id))
       success(t('billing.deleted'))
-    } catch (e: any) { toastError(getErrorMessage(e)) }
-    finally { setDeleteTarget(null) }
+    } catch (e: any) {
+      toastError(getErrorMessage(e))
+    } finally {
+      setDeleteTarget(null)
+    }
   }
 
   return (
     <div className="p-4">
-      <div style={{ marginBottom: '0.75rem' }}><BackButton onClick={() => nav(-1)} /></div>
+      <div style={{ marginBottom: '0.75rem' }}>
+        <BackButton onClick={() => nav(-1)} />
+      </div>
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">{t('nav.invoicing')}</h2>
         <div className="flex gap-2">
           {can('billing:create') && (
-            <ProtectedButton
-              permission="billing:create"
-              variant="primary"
-              onClick={()=> nav('nueva')}
-            >
+            <ProtectedButton permission="billing:create" variant="primary" onClick={() => nav('nueva')}>
               {t('common.new')}
             </ProtectedButton>
           )}
@@ -153,9 +143,9 @@ export default function FacturasList() {
 
       {pendingCount > 0 && (
         <button
-          onClick={() => setEstado(estado === 'pending_payment' ? '' : 'pending_payment')}
+          onClick={() => setStatus(status === 'pending_payment' ? '' : 'pending_payment')}
           className={`mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
-            ${estado === 'pending_payment'
+            ${status === 'pending_payment'
               ? 'bg-amber-100 border-amber-400 text-amber-800'
               : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50'}`}
         >
@@ -163,32 +153,37 @@ export default function FacturasList() {
             {pendingCount}
           </span>
           {t('billing.filterPending')}
-          {estado === 'pending_payment' && <span className="text-amber-500">✕</span>}
+          {status === 'pending_payment' && <span className="text-amber-500">✕</span>}
         </button>
       )}
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div>
           <label className="text-sm mr-2 block">{t('common.status')}</label>
-          <select value={estado} onChange={(e)=> setEstado(e.target.value)} className="border px-2 py-1 rounded text-sm">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="border px-2 py-1 rounded text-sm">
             <option value="">{t('common.all')}</option>
-            <option value="borrador">{t('billing.status.draft')}</option>
-            <option value="emitida">{t('billing.status.issued')}</option>
+            <option value="draft">{t('billing.status.draft')}</option>
+            <option value="issued">{t('billing.status.issued')}</option>
             <option value="pending_payment">{t('billing.status.pending_payment')}</option>
-            <option value="anulada">{t('billing.status.voided')}</option>
+            <option value="voided">{t('billing.status.voided')}</option>
           </select>
         </div>
         <div>
           <label className="text-sm mr-2 block">{t('common.from')}</label>
-          <input type="date" value={desde} onChange={(e)=> setDesde(e.target.value)} className="border px-2 py-1 rounded text-sm" />
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="border px-2 py-1 rounded text-sm" />
         </div>
         <div>
           <label className="text-sm mr-2 block">{t('common.to')}</label>
-          <input type="date" value={hasta} onChange={(e)=> setHasta(e.target.value)} className="border px-2 py-1 rounded text-sm" />
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="border px-2 py-1 rounded text-sm" />
         </div>
         <div>
           <label className="text-sm mr-2 block">{t('common.search')}</label>
-          <input placeholder={t('billing.searchPlaceholder')} value={q} onChange={(e)=> setQ(e.target.value)} className="border px-2 py-1 rounded text-sm" />
+          <input
+            placeholder={t('billing.searchPlaceholder')}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="border px-2 py-1 rounded text-sm"
+          />
         </div>
       </div>
 
@@ -196,91 +191,108 @@ export default function FacturasList() {
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
 
       <table className="min-w-full text-sm">
-      <thead><tr className="text-left border-b"><th>{t('common.date')}</th><th>{t('common.total')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead>
-      <tbody>
-      {view.map((v) => (
-      <tr key={v.id} className="border-b">
-      <td>{v.fecha ? new Date(v.fecha).toLocaleDateString() : '-'}</td>
-      <td>
-        {typeof v.total === 'number' && !Number.isNaN(v.total)
-          ? formatCurrency(v.total)
-          : '-'}
-      </td>
-      <td><FacturaStatusBadge status={v.estado} /></td>
-            <td className="flex gap-2 items-center">
-              {(v.estado||'').toLowerCase() === 'pending_payment' ? (
-                <>
-                  {can('billing:read') && (
-                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline">
-                      {t('common.view') || 'Ver'}
-                    </Link>
-                  )}
-                  {can('billing:update') && (
-                    <ProtectedButton
-                      permission="billing:update"
-                      variant="ghost"
-                      onClick={() => setCobrarTarget(v)}
-                    >
-                      {t('billing.markAsPaid')}
-                    </ProtectedButton>
-                  )}
-                </>
-              ) : ['emitida','issued','posted','confirmed'].includes((v.estado||'').toLowerCase()) ? (
-                <>
-                  {can('billing:read') && (
-                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline">
-                      {t('common.view') || 'View'}
-                    </Link>
-                  )}
-                  <span className="text-gray-500 text-sm">{t('common.readonly') || 'Read-only'}</span>
-                </>
-              ) : (
-                <>
-                  {can('billing:update') && (
-                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline">{t('common.edit')}</Link>
-                  )}
-                </>
-              )}
-              {can('billing:delete') && (
-                <ProtectedButton
-                  permission="billing:delete"
-                  variant="ghost"
-                  onClick={() => setDeleteTarget(v)}
-                >
-                  {t('common.delete')}
-                </ProtectedButton>
-              )}
-            </td>
+        <thead>
+          <tr className="text-left border-b">
+            <th>{t('common.date')}</th>
+            <th>{t('common.total')}</th>
+            <th>{t('common.status')}</th>
+            <th>{t('common.actions')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {view.map((invoice) => (
+            <tr key={invoice.id} className="border-b">
+              <td>{invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : '-'}</td>
+              <td>
+                {typeof invoice.total === 'number' && !Number.isNaN(invoice.total)
+                  ? formatCurrency(invoice.total)
+                  : '-'}
+              </td>
+              <td><InvoiceStatusBadge status={invoice.status} /></td>
+              <td className="flex gap-2 items-center">
+                {(invoice.status || '').toLowerCase() === 'pending_payment' ? (
+                  <>
+                    {can('billing:read') && (
+                      <Link to={`${invoice.id}/editar`} className="text-blue-600 hover:underline">
+                        {t('common.view') || 'View'}
+                      </Link>
+                    )}
+                    {can('billing:update') && (
+                      <ProtectedButton permission="billing:update" variant="ghost" onClick={() => setMarkTarget(invoice)}>
+                        {t('billing.markAsPaid')}
+                      </ProtectedButton>
+                    )}
+                  </>
+                ) : ['issued', 'posted', 'confirmed'].includes((invoice.status || '').toLowerCase()) ? (
+                  <>
+                    {can('billing:read') && (
+                      <Link to={`${invoice.id}/editar`} className="text-blue-600 hover:underline">
+                        {t('common.view') || 'View'}
+                      </Link>
+                    )}
+                    <span className="text-gray-500 text-sm">{t('common.readonly') || 'Read-only'}</span>
+                  </>
+                ) : (
+                  <>
+                    {can('billing:update') && (
+                      <Link to={`${invoice.id}/editar`} className="text-blue-600 hover:underline">
+                        {t('common.edit')}
+                      </Link>
+                    )}
+                  </>
+                )}
+                {can('billing:delete') && (
+                  <ProtectedButton permission="billing:delete" variant="ghost" onClick={() => setDeleteTarget(invoice)}>
+                    {t('common.delete')}
+                  </ProtectedButton>
+                )}
+              </td>
             </tr>
           ))}
-          {!loading && items.length===0 && <tr><td className="py-3 px-3" colSpan={5}>{t('common.noRecords')}</td></tr>}
+          {!loading && items.length === 0 && (
+            <tr>
+              <td className="py-3 px-3" colSpan={5}>
+                {t('common.noRecords')}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />
 
-      {/* Modal: marcar como cobrada */}
-      {cobrarTarget && (
+      {markTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
             <h3 className="font-semibold text-base mb-2">{t('billing.confirmMarkAsPaid')}</h3>
-            <p className="text-sm text-slate-600 mb-5">{t('billing.invoiceNumber')}: {cobrarTarget.numero || cobrarTarget.id}</p>
+            <p className="text-sm text-slate-600 mb-5">
+              {t('billing.invoiceNumber')}: {markTarget.number || markTarget.id}
+            </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setCobrarTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
-              <button onClick={doCobrar} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm">{t('billing.markAsPaid')}</button>
+              <button onClick={() => setMarkTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">
+                {t('common.cancel')}
+              </button>
+              <button onClick={markPaid} className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm">
+                {t('billing.markAsPaid')}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal: eliminar factura */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
             <h3 className="font-semibold text-base mb-2">{t('billing.deleteConfirm')}</h3>
-            <p className="text-sm text-slate-600 mb-5">{t('billing.invoiceNumber')}: {deleteTarget.numero || deleteTarget.id}</p>
+            <p className="text-sm text-slate-600 mb-5">
+              {t('billing.invoiceNumber')}: {deleteTarget.number || deleteTarget.id}
+            </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">{t('common.cancel')}</button>
-              <button onClick={doDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">{t('common.delete')}</button>
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 text-sm">
+                {t('common.cancel')}
+              </button>
+              <button onClick={handleDelete} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm">
+                {t('common.delete')}
+              </button>
             </div>
           </div>
         </div>

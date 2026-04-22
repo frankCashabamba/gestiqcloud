@@ -8,6 +8,5 @@
   "default_enabled": true,
   "dependencies": ["inventory", "invoicing"],
   "countries": ["ES", "EC"],
-  "aliases": ["ventas"],
   "implemented": true
 }

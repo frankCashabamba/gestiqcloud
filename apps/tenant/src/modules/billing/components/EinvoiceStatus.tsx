@@ -94,10 +94,10 @@ export default function EinvoiceStatus({ invoiceId, country, canSend = true, ena
         {status.status}
       </span>
 
-      {status.clave_acceso && (
+      {status.access_key && (
         <span className="text-gray-600">
           {country === 'EC' ? t('billing.einvoiceStatus.receipt') : t('billing.einvoiceStatus.ref')}: {' '}
-          <span className="font-medium text-gray-800">{status.clave_acceso}</span>
+          <span className="font-medium text-gray-800">{status.access_key}</span>
         </span>
       )}
 

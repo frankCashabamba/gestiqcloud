@@ -1,32 +1,31 @@
 """Expenses Pydantic schemas."""
 
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+ExpenseStatus = Literal["draft", "approved", "paid", "cancelled"]
+PaymentMethod = Literal["cash", "card", "transfer", "check"]
+
+
 class ExpenseBase(BaseModel):
     """Common expense fields."""
 
-    number: str = Field(..., alias="numero", max_length=50, description="Expense number")
+    number: str = Field(..., max_length=50, description="Expense number")
     supplier_id: UUID | None = Field(None, description="Supplier ID")
     expense_category_id: UUID | None = Field(None, description="Expense category ID")
-    date: date = Field(default_factory=lambda: date.today(), alias="fecha")
-    concept: str = Field(..., alias="concepto", max_length=255, description="Expense concept")
+    date: date = Field(default_factory=date.today)
+    concept: str = Field(..., max_length=255, description="Expense concept")
     subtotal: float = Field(default=0, ge=0)
-    taxes: float = Field(default=0, ge=0, alias="impuestos")
+    taxes: float = Field(default=0, ge=0)
     total: float = Field(default=0, ge=0)
-    status: str = Field(
-        default="draft", alias="estado", pattern="^(draft|approved|paid|cancelled)$"
-    )
-    payment_method: str | None = Field(
-        None, alias="metodo_pago", pattern="^(cash|card|transfer|check)$"
-    )
-    reference: str | None = Field(
-        None, alias="referencia", max_length=100, description="Bank/cheque reference"
-    )
-    notes: str | None = Field(None, alias="notas")
+    status: ExpenseStatus = Field(default="draft")
+    payment_method: PaymentMethod | None = Field(None)
+    reference: str | None = Field(None, max_length=100, description="Bank/cheque reference")
+    notes: str | None = None
 
     @field_validator("supplier_id", "expense_category_id", mode="before")
     @classmethod
@@ -34,8 +33,6 @@ class ExpenseBase(BaseModel):
         if v == "":
             return None
         return v
-
-    model_config = ConfigDict(populate_by_name=True)
 
 
 class ExpenseCreate(ExpenseBase):
@@ -45,9 +42,18 @@ class ExpenseCreate(ExpenseBase):
 class ExpenseUpdate(BaseModel):
     """Update expense (all fields optional)."""
 
-    number: str | None = Field(None, alias="numero", max_length=50)
+    number: str | None = Field(None, max_length=50)
     supplier_id: UUID | None = Field(None)
     expense_category_id: UUID | None = Field(None)
+    date: date | None = None
+    concept: str | None = Field(None, max_length=255)
+    subtotal: float | None = Field(None, ge=0)
+    taxes: float | None = Field(None, ge=0)
+    total: float | None = Field(None, ge=0)
+    status: ExpenseStatus | None = None
+    payment_method: PaymentMethod | None = None
+    reference: str | None = Field(None, max_length=100)
+    notes: str | None = None
 
     @field_validator("supplier_id", "expense_category_id", mode="before")
     @classmethod
@@ -56,19 +62,7 @@ class ExpenseUpdate(BaseModel):
             return None
         return v
 
-    date: date | None = Field(None, alias="fecha")
-    concept: str | None = Field(None, alias="concepto", max_length=255)
-    subtotal: float | None = Field(None, ge=0)
-    taxes: float | None = Field(None, alias="impuestos", ge=0)
-    total: float | None = Field(None, ge=0)
-    status: str | None = Field(None, alias="estado", pattern="^(draft|approved|paid|cancelled)$")
-    payment_method: str | None = Field(
-        None, alias="metodo_pago", pattern="^(cash|card|transfer|check)$"
-    )
-    reference: str | None = Field(None, alias="referencia", max_length=100)
-    notes: str | None = Field(None, alias="notas")
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
 
 class ExpenseResponse(ExpenseBase):
@@ -76,7 +70,7 @@ class ExpenseResponse(ExpenseBase):
 
     id: UUID
     tenant_id: UUID
-    user_id: UUID = Field(alias="usuario_id")
+    user_id: UUID
     created_at: datetime
     updated_at: datetime
 

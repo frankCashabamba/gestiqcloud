@@ -1,7 +1,7 @@
 import React from 'react'
 
-const FacturasList = React.lazy(() => import('./List'))
-const FacturasForm = React.lazy(() => import('./Form'))
+const InvoicesList = React.lazy(() => import('./List'))
+const InvoiceForm = React.lazy(() => import('./Form'))
 
 export const manifest = {
   id: 'billing',
@@ -9,9 +9,9 @@ export const manifest = {
   version: '1.0.0',
   permissions: ['billing.read', 'billing.write', 'billing.einvoice'],
   routes: [
-    { path: '/invoicing', element: FacturasList },
-    { path: '/invoicing/new', element: FacturasForm },
-    { path: '/invoicing/:id/edit', element: FacturasForm }
+    { path: '/invoicing', element: InvoicesList },
+    { path: '/invoicing/new', element: InvoiceForm },
+    { path: '/invoicing/:id/edit', element: InvoiceForm }
   ],
   menu: {
     title: 'Invoicing',

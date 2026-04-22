@@ -1,25 +1,25 @@
 """
-Módulo de Producción - Gestión de Órdenes de Producción y Recetas
+Production module - production order and recipe management.
 
-Sistema completo de planificación y ejecución de producción basado en recetas (BOM).
+Complete recipe-based production planning and execution system (BOM).
 
-Arquitectura DDD (Domain-Driven Design):
-- domain/: Entidades, Value Objects, Reglas de negocio
-- application/: Casos de uso, Servicios de aplicación
-- infrastructure/: Repositorios, Implementaciones técnicas
-- interface/: Controladores HTTP, Schemas Pydantic
+DDD (Domain-Driven Design) architecture:
+- domain/: entities, value objects, business rules
+- application/: use cases, application services
+- infrastructure/: repositories, technical implementations
+- interface/: HTTP controllers, Pydantic schemas
 
-Funcionalidades:
-- CRUD de órdenes de producción
-- Gestión de recetas (BOM - Bill of Materials)
-- Iniciar/Completar/Cancelar producción
-- Consumo automático de stock (ingredientes)
-- Generación automática de productos terminados
-- Registro de mermas y desperdicios
-- Calculadora de producción (planificación)
-- Estadísticas y reportes
+Features:
+- Production order CRUD
+- Recipe management (BOM - Bill of Materials)
+- Start/complete/cancel production
+- Automatic stock consumption (ingredients)
+- Automatic finished goods generation
+- Waste/scrap tracking
+- Production calculator (planning)
+- Statistics and reports
 
-Compatible con: Panadería, Restaurante, Manufactura y cualquier sector con recetas/BOM
+Compatible with: bakery, restaurant, manufacturing, and any sector using recipes/BOM
 """
 
 __version__ = "1.0.0"

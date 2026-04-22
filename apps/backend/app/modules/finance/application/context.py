@@ -1,5 +1,5 @@
 """
-Contexto del módulo Finanzas para el copilot.
+Finance module context for the copilot.
 """
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ from sqlalchemy.orm import Session
 
 
 def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
-    """Retorna resumen del estado actual de finanzas para el contexto del copilot."""
+    """Return the current finance summary for the copilot context."""
     bank_summary = db.execute(
         text(
-            "SELECT type::text AS tipo, count(*) AS n, coalesce(sum(amount), 0) AS total "
+            "SELECT type::text AS type, count(*) AS count, coalesce(sum(amount), 0) AS total "
             "FROM bank_transactions WHERE tenant_id = :tid "
             "GROUP BY type ORDER BY total DESC"
         ),
@@ -22,6 +22,6 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     ).fetchall()
 
     return {
-        "modulo": "Finanzas",
-        "resumen_bancario": [dict(r._mapping) for r in bank_summary],
+        "module": "Finance",
+        "bank_summary": [dict(r._mapping) for r in bank_summary],
     }

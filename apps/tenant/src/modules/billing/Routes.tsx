@@ -2,23 +2,23 @@ import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from '../../auth/ProtectedRoute'
 import PermissionDenied from '../../components/PermissionDenied'
-import FacturasList from './List'
-import FacturaForm from './Form'
-import FacturaePage from './InvoiceE'
+import InvoicesList from './List'
+import InvoiceForm from './Form'
+import InvoiceEPage from './InvoiceE'
 
-export default function FacturacionRoutes() {
+export default function InvoiceRoutes() {
   return (
     <ProtectedRoute
       permission="billing:read"
       fallback={<PermissionDenied permission="billing:read" />}
     >
       <Routes>
-        <Route index element={<FacturasList />} />
+        <Route index element={<InvoicesList />} />
         <Route
           path="nueva"
           element={
             <ProtectedRoute permission="billing:create">
-              <FacturaForm />
+              <InvoiceForm />
             </ProtectedRoute>
           }
         />
@@ -26,11 +26,11 @@ export default function FacturacionRoutes() {
           path=":id/editar"
           element={
             <ProtectedRoute permission="billing:update">
-              <FacturaForm />
+              <InvoiceForm />
             </ProtectedRoute>
           }
         />
-        <Route path=":id/facturae" element={<FacturaePage />} />
+        <Route path=":id/facturae" element={<InvoiceEPage />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </ProtectedRoute>

@@ -10,6 +10,5 @@
   "default_enabled": false,
   "dependencies": [],
   "countries": ["ES", "EC"],
-  "aliases": ["rrhh"],
   "implemented": true
 }

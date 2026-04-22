@@ -1,4 +1,4 @@
-"""Finance Service - Cash Position Management"""
+"""Finance service - cash position management."""
 
 from datetime import date
 from decimal import Decimal
@@ -12,7 +12,7 @@ from app.models.finance.payment import Payment
 
 
 class CashPositionService:
-    """Gestión de posiciones de caja diarias."""
+    """Daily cash position management."""
 
     @staticmethod
     def calculate_position(
@@ -22,12 +22,12 @@ class CashPositionService:
         position_date: date,
     ) -> CashPosition:
         """
-        Calcula la posición de caja para una fecha y cuenta.
+        Calculate the cash position for a given date and account.
 
-        Fórmula:
+        Formula:
             closing_balance = opening_balance + inflows - outflows
         """
-        # 1. Obtener saldo de apertura (saldo cierre del día anterior)
+        # 1. Get opening balance (previous day's closing balance).
         previous = db.execute(
             select(CashPosition)
             .where(
@@ -41,7 +41,7 @@ class CashPositionService:
 
         opening_balance = previous.closing_balance if previous else Decimal("0")
 
-        # 2. Calcula inflows y outflows del día desde Payment table
+        # 2. Calculate the day's inflows and outflows from the Payment table.
         stmt = select(
             func.coalesce(
                 func.sum(case((Payment.amount > 0, Payment.amount), else_=0)),
@@ -62,10 +62,10 @@ class CashPositionService:
         inflows = result.inflows or Decimal("0")
         outflows = result.outflows or Decimal("0")
 
-        # 3. Calcula saldo de cierre
+        # 3. Calculate closing balance.
         closing_balance = opening_balance + inflows - outflows
 
-        # 4. Busca o crea registro
+        # 4. Find or create the record.
         position = db.execute(
             select(CashPosition).where(
                 CashPosition.tenant_id == tenant_id,
@@ -98,9 +98,9 @@ class CashPositionService:
         projection_days: int = 30,
     ) -> CashProjection:
         """
-        Crea proyección de flujo de caja para los próximos N días.
+        Create a cash flow projection for the next N days.
 
-        Base: saldo actual + pagos confirmados próximos N días
+        Base: current balance + confirmed payments in the next N days.
         """
         today = date.today()
         projection_date = today
@@ -110,13 +110,13 @@ class CashPositionService:
             1,
         )
 
-        # Obtener saldo actual
+        # Get current balance.
         current_position = CashPositionService.calculate_position(
             db, tenant_id, bank_account_id, today
         )
         opening_balance = current_position.closing_balance
 
-        # Proyectar inflows y outflows
+        # Project inflows and outflows.
         stmt = select(
             func.coalesce(
                 func.sum(case((Payment.amount > 0, Payment.amount), else_=0)),
@@ -138,7 +138,7 @@ class CashPositionService:
         projected_outflows = result.proj_outflows or Decimal("0")
         projected_balance = opening_balance + projected_inflows - projected_outflows
 
-        # Crear proyección
+        # Create the projection record.
         projection = CashProjection(
             tenant_id=tenant_id,
             bank_account_id=bank_account_id,
@@ -164,7 +164,7 @@ class CashPositionService:
         start_date: date,
         end_date: date,
     ) -> list[CashPosition]:
-        """Obtiene posiciones de caja para un rango de fechas."""
+        """Get cash positions for a date range."""
         positions = (
             db.execute(
                 select(CashPosition)

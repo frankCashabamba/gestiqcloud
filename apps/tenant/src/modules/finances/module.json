@@ -10,6 +10,5 @@
   "default_enabled": true,
   "dependencies": [],
   "countries": ["ES", "EC"],
-  "aliases": ["finances", "finanzas"],
   "implemented": true
 }

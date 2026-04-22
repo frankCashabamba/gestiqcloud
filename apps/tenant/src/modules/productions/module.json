@@ -9,6 +9,5 @@
   "default_enabled": false,
   "dependencies": ["inventory"],
   "countries": ["ES", "EC"],
-  "aliases": ["productions", "production", "produccion", "producción"],
   "implemented": true
 }

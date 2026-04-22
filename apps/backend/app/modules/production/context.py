@@ -1,5 +1,5 @@
 """
-Contexto del módulo Producción para el copilot.
+Production module context for the copilot.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 
 def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
-    """Retorna resumen del estado actual de producción para el contexto del copilot."""
+    """Return the current production summary for the copilot context."""
     active = db.execute(
         text(
             "SELECT count(*) AS total FROM production_orders "
@@ -21,6 +21,6 @@ def get_context_summary(db: Session, tenant_id: str) -> dict[str, Any]:
     ).fetchone()
 
     return {
-        "modulo": "Producción",
-        "ordenes_activas": int(active[0]) if active else 0,
+        "module": "Production",
+        "active_orders": int(active[0]) if active else 0,
     }

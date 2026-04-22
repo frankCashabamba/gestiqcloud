@@ -6,7 +6,7 @@ Sistema completo de planificación y ejecución de producción basado en recetas
 - Iniciar/Completar/Cancelar producción
 - Consumo automático de stock (ingredientes)
 - Generación automática de productos terminados
-- Registro de mermas y desperdicios
+- Waste and scrap tracking
 - Calculadora de producción (planificación)
 - Estadísticas y reportes
 - Gestión de recetas y BOM
@@ -1124,9 +1124,9 @@ def list_order_costs(
         )
     ).scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     if not _order_costs_storage_available(db):
         return []
 
@@ -1154,18 +1154,18 @@ def replace_order_costs(
         )
     ).scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     if order.status == "COMPLETED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se pueden editar costos de una orden completada",
+            detail="Cannot edit costs for a completed order",
         )
     if order.status == "CANCELLED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se pueden editar costos de una orden cancelada",
+            detail="Cannot edit costs for a cancelled order",
         )
     if not _order_costs_storage_available(db):
         return []
@@ -1230,9 +1230,9 @@ async def get_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     return order
 
 
@@ -1251,13 +1251,13 @@ async def update_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     if order.status not in ["DRAFT", "SCHEDULED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede editar orden en estado {order.status}",
+            detail=f"Cannot edit order in state {order.status}",
         )
     update_data = order_in.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -1281,13 +1281,13 @@ async def delete_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     if order.status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se pueden eliminar órdenes en estado DRAFT",
+            detail="Only DRAFT orders can be deleted",
         )
     db.delete(order)
     db.commit()
@@ -1308,18 +1308,18 @@ async def start_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     if order.status not in ["DRAFT", "SCHEDULED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede iniciar orden en estado {order.status}",
+            detail=f"Cannot start order in state {order.status}",
         )
     order.status = "IN_PROGRESS"
     order.started_at = request.started_at or datetime.now(UTC)
     if request.notes:
-        order.notes = (order.notes or "") + f"\n[Inicio] {request.notes}"
+        order.notes = (order.notes or "") + f"\n[Started] {request.notes}"
     db.commit()
     db.refresh(order)
     return order
@@ -1345,16 +1345,16 @@ async def complete_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     if order.status in ["DRAFT", "SCHEDULED"]:
         order.started_at = order.started_at or request.completed_at or datetime.now(UTC)
         order.status = "IN_PROGRESS"
     elif order.status != "IN_PROGRESS":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Solo se pueden completar órdenes en estado IN_PROGRESS (actual: {order.status})",
+            detail=f"Only IN_PROGRESS orders can be completed (current: {order.status})",
         )
     order.qty_produced = request.qty_produced
     order.waste_qty = request.waste_qty
@@ -1366,7 +1366,7 @@ async def complete_production(
     warehouse_id = _resolve_warehouse_id(db, tenant_id, order.warehouse_id)
     order.warehouse_id = warehouse_id
     if request.notes:
-        order.notes = (order.notes or "") + f"\n[Completado] {request.notes}"
+        order.notes = (order.notes or "") + f"\n[Completed] {request.notes}"
     for line in order.lines:
         if not line.qty_consumed or line.qty_consumed == 0:
             line.qty_consumed = line.qty_required
@@ -1390,7 +1390,7 @@ async def complete_production(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al crear movimientos de stock: {str(e)}",
+            detail=f"Error creating stock movements: {str(e)}",
         )
 
 
@@ -1409,17 +1409,17 @@ async def cancel_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Production order not found"
+            )
     if order.status == "COMPLETED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se puede cancelar una orden completada",
+            detail="A completed order cannot be cancelled",
         )
     order.status = "CANCELLED"
     if reason:
-        order.notes = (order.notes or "") + f"\n[Cancelado] {reason}"
+        order.notes = (order.notes or "") + f"\n[Cancelled] {reason}"
     db.commit()
     db.refresh(order)
     return order
@@ -1545,7 +1545,7 @@ def list_recipes(
     limit: int = Query(default=100, ge=1, le=5000),
     include_ingredients: bool = Query(
         default=False,
-        description="Incluir ingredientes en la respuesta. El modelo ya usa selectin por lo que no genera queries adicionales.",
+        description="Include ingredients in the response. The model already uses selectin so it does not trigger extra queries.",
     ),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
@@ -2120,7 +2120,7 @@ def recipe_profitability(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="recipe_not_found")
 
-    # Uniformar campo de nombre con el esquema de respuesta
+    # Normalize the name field to match the response schema.
     name = data.pop("nombre", None)
     if name is not None:
         data["name"] = name

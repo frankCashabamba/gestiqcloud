@@ -115,9 +115,9 @@ def _resolve_inventory_costing_method(db: Session) -> str:
 
 class PurchaseReceiveLineIn(BaseModel):
     product_id: UUID
-    qty: float = Field(gt=0)
+    quantity: float = Field(gt=0)
     unit_cost: float = Field(ge=0)
-    lote: str | None = None
+    lot: str | None = None
     expires_at: date | None = None
 
 
@@ -141,9 +141,9 @@ def receive_purchase(
     costing = InventoryCostingService(db)
     costing_method = _resolve_inventory_costing_method(db)
     for line in payload.lines:
-        qty_dec = _dec(line.qty)
+        quantity_dec = _dec(line.quantity)
         unit_cost_dec = _dec(line.unit_cost)
-        line_lot = _normalize_lot(line.lote)
+        line_lot = _normalize_lot(line.lot)
 
         # Update stock item with lock
         row = (
@@ -179,7 +179,7 @@ def receive_purchase(
                 str(tenant_id),
                 str(payload.warehouse_id),
                 str(line.product_id),
-                qty=qty_dec,
+                qty=quantity_dec,
                 unit_cost=unit_cost_dec,
                 lot=line_lot,
                 expires_at=line.expires_at,
@@ -189,7 +189,7 @@ def receive_purchase(
                 str(tenant_id),
                 str(payload.warehouse_id),
                 str(line.product_id),
-                qty=qty_dec,
+                qty=quantity_dec,
                 unit_cost=unit_cost_dec,
                 lot=line_lot,
                 expires_at=line.expires_at,
@@ -199,13 +199,13 @@ def receive_purchase(
                 str(tenant_id),
                 str(payload.warehouse_id),
                 str(line.product_id),
-                qty=qty_dec,
+                qty=quantity_dec,
                 unit_cost=unit_cost_dec,
                 initial_qty=_dec(row.qty),
                 initial_avg_cost=unit_cost_dec,
             )
 
-        row.qty = (row.qty or 0) + float(qty_dec)
+        row.qty = (row.qty or 0) + float(quantity_dec)
         db.add(row)
 
         db.add(
@@ -213,7 +213,7 @@ def receive_purchase(
                 tenant_id=str(tenant_id),
                 product_id=str(line.product_id),
                 warehouse_id=str(payload.warehouse_id),
-                qty=float(qty_dec),
+                qty=float(quantity_dec),
                 kind="receipt",
                 tentative=False,
                 posted=True,
@@ -222,7 +222,7 @@ def receive_purchase(
                 lot=line_lot,
                 expires_at=line.expires_at,
                 unit_cost=float(unit_cost_dec),
-                total_cost=float(unit_cost_dec * qty_dec),
+                total_cost=float(unit_cost_dec * quantity_dec),
             )
         )
 
@@ -231,10 +231,10 @@ def receive_purchase(
                 purchase_id=purchase.id,
                 product_id=line.product_id,
                 description=None,
-                quantity=float(qty_dec),
+                quantity=float(quantity_dec),
                 unit_price=float(unit_cost_dec),
                 tax_rate=0,
-                total=float(unit_cost_dec * qty_dec),
+                total=float(unit_cost_dec * quantity_dec),
             )
         )
 

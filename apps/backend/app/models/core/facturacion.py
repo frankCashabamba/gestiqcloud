@@ -70,9 +70,7 @@ class Invoice(Base):
     customer: Mapped[Client] = relationship(Client, foreign_keys=[customer_id])
     lines: Mapped[list[LineaFactura]] = relationship(LineaFactura, cascade="all, delete-orphan")
 
-    # ---------------------------------------------------------------------
-    # Spanish compatibility aliases (used by tenant UI / older modules)
-    # ---------------------------------------------------------------------
+    # Compatibility aliases for the invoice migration.
 
     @property
     def numero(self) -> str:
@@ -120,6 +118,14 @@ class Invoice(Base):
 
     @iva.setter
     def iva(self, value: float) -> None:
+        self.vat = value
+
+    @property
+    def tax(self) -> float:
+        return float(self.vat or 0)
+
+    @tax.setter
+    def tax(self, value: float) -> None:
         self.vat = value
 
 

@@ -29,7 +29,7 @@ def _ensure_uuid(value: Any) -> UUID:
     try:
         return UUID(str(value))
     except Exception as exc:
-        raise HTTPException(status_code=400, detail="factura_id_invalido") from exc
+        raise HTTPException(status_code=400, detail="invoice_id_invalid") from exc
 
 
 def _tenant_uuid(value: Any) -> UUID:
@@ -44,115 +44,111 @@ def _get_sector_template(db: Session, tenant_id: UUID) -> str | None:
     return tenant.sector_template_name if tenant else None
 
 
-class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpdate]):
-    """Class FacturaCRUD - auto-generated docstring."""
+class InvoiceCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpdate]):
+    """Invoice CRUD service."""
 
-    def create_with_lineas(
-        self, db: Session, tenant_id: str, factura_in: schemas.InvoiceCreate
+    def create_with_line_items(
+        self, db: Session, tenant_id: str, invoice_in: schemas.InvoiceCreate
     ) -> Invoice:
-        """Function create_with_lineas - auto-generated docstring."""
+        """Create an invoice together with its line items."""
 
-        if not factura_in.lineas or len(factura_in.lineas) == 0:
-            raise HTTPException(status_code=400, detail="lineas_requeridas")
+        if not invoice_in.lines or len(invoice_in.lines) == 0:
+            raise HTTPException(status_code=400, detail="lines_required")
 
-        factura_data = factura_in.copy(exclude={"lineas"})
+        invoice_data = invoice_in.model_copy(exclude={"lines"})
 
-        if factura_data.supplier is None:
-            factura_data = factura_data.copy(update={"supplier": "N/A"})
+        if invoice_data.supplier is None:
+            invoice_data = invoice_data.model_copy(update={"supplier": "N/A"})
 
-        # Número automático si viene vacío/nulo
-        numero_raw = getattr(factura_data, "numero", None)
-        if not numero_raw or (isinstance(numero_raw, str) and not numero_raw.strip()):
-            auto_numero = generar_numero_documento(db, tenant_id, "invoice")
-            factura_data = factura_data.copy(update={"numero": auto_numero})
+        # Auto-generate a number when one is not provided.
+        number_raw = getattr(invoice_data, "number", None)
+        if not number_raw or (isinstance(number_raw, str) and not number_raw.strip()):
+            auto_number = generar_numero_documento(db, tenant_id, "invoice")
+            invoice_data = invoice_data.model_copy(update={"number": auto_number})
 
         try:
-            # Crear factura sin cometer hasta validar líneas
-            factura = Invoice(**factura_data.model_dump(exclude_none=True), tenant_id=tenant_id)
-            db.add(factura)
-            db.flush()  # asegura factura.id disponible
+            invoice = Invoice(**invoice_data.model_dump(exclude_none=True), tenant_id=tenant_id)
+            db.add(invoice)
+            db.flush()
 
-            for linea in factura_in.lineas:
-                if isinstance(linea, schemas.BakeryLine):
-                    nueva_linea = BakeryLine(
-                        invoice_id=factura.id,
-                        description=linea.description,
-                        quantity=linea.cantidad,
-                        unit_price=linea.precio_unitario,
-                        vat=linea.iva or 0,
-                        bread_type=linea.bread_type,
-                        grams=linea.grams,
+            for line in invoice_in.lines:
+                if isinstance(line, schemas.BakeryInvoiceLine):
+                    new_line = BakeryLine(
+                        invoice_id=invoice.id,
+                        description=line.description,
+                        quantity=line.quantity,
+                        unit_price=line.unit_price,
+                        vat=line.tax_rate or 0,
+                        bread_type=line.bread_type,
+                        grams=line.grams,
                     )
-                elif isinstance(linea, schemas.WorkshopLine):
-                    nueva_linea = WorkshopLine(
-                        invoice_id=factura.id,
-                        description=linea.description,
-                        quantity=linea.cantidad,
-                        unit_price=linea.precio_unitario,
-                        vat=linea.iva or 0,
-                        spare_part=linea.spare_part,
-                        labor_hours=linea.labor_hours,
-                        rate=linea.rate,
+                elif isinstance(line, schemas.WorkshopInvoiceLine):
+                    new_line = WorkshopLine(
+                        invoice_id=invoice.id,
+                        description=line.description,
+                        quantity=line.quantity,
+                        unit_price=line.unit_price,
+                        vat=line.tax_rate or 0,
+                        spare_part=line.spare_part,
+                        labor_hours=line.labor_hours,
+                        rate=line.rate,
                     )
-                elif isinstance(linea, schemas.POSLine):
-                    nueva_linea = POSLine(
-                        invoice_id=factura.id,
-                        description=linea.description,
-                        quantity=linea.cantidad,
-                        unit_price=linea.precio_unitario,
-                        vat=linea.iva or 0,
-                        pos_receipt_line_id=getattr(linea, "pos_receipt_line_id", None),
+                elif isinstance(line, schemas.PosInvoiceLine):
+                    new_line = POSLine(
+                        invoice_id=invoice.id,
+                        description=line.description,
+                        quantity=line.quantity,
+                        unit_price=line.unit_price,
+                        vat=line.tax_rate or 0,
+                        pos_receipt_line_id=getattr(line, "pos_receipt_line_id", None),
                     )
                 else:
-                    raise HTTPException(status_code=400, detail="tipo_linea_desconocido")
+                    raise HTTPException(status_code=400, detail="unsupported_line_type")
 
-                db.add(nueva_linea)
+                db.add(new_line)
 
             db.commit()
-            db.refresh(factura, ["lines", "customer"])
-            return factura
+            db.refresh(invoice, ["lines", "customer"])
+            return invoice
         except Exception:
             db.rollback()
             raise
 
-    def delete_factura(self, db: Session, tenant_id: str, factura_id) -> dict:
-        """Function delete_factura - auto-generated docstring."""
-        factura_uuid = _ensure_uuid(factura_id)
-        db_factura = db.query(self.model).filter_by(id=factura_uuid, tenant_id=tenant_id).first()
-        if not db_factura:
-            raise HTTPException(status_code=404, detail="Factura no encontrada")
-        db.delete(db_factura)
+    def delete_invoice(self, db: Session, tenant_id: str, invoice_id) -> dict:
+        """Delete an invoice."""
+        invoice_uuid = _ensure_uuid(invoice_id)
+        db_invoice = db.query(self.model).filter_by(id=invoice_uuid, tenant_id=tenant_id).first()
+        if not db_invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        db.delete(db_invoice)
         db.commit()
-        return {"ok": True, "mensaje": "Factura eliminada"}
+        return {"ok": True, "message": "Invoice deleted"}
 
-    def obtener_facturas_principales(
+    def list_primary_invoices(
         self,
         db: Session,
         tenant_id: Any,
-        estado: str | None = None,
-        q: str | None = None,
-        desde: str | None = None,
-        hasta: str | None = None,
+        status: str | None = None,
+        query: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
     ):
         tenant_uuid = _tenant_uuid(tenant_id)
-        # Carga relaciones necesarias
+        # Load required relationships.
         query = (
             db.query(self.model)
             .options(
                 joinedload(self.model.customer),
-                # Invoice no longer has empresa relationship (Tenant is primary now)
                 joinedload(self.model.lines),
             )
             .filter_by(tenant_id=tenant_uuid)
         )
 
-        # Filtro por estado
-        if estado:
-            query = query.filter(self.model.status == estado)
+        if status:
+            query = query.filter(self.model.status == status)
 
-        # Filtro de búsqueda por número, nombre o email
-        if q:
-            like_pattern = f"%{q.lower()}%"
+        if query:
+            like_pattern = f"%{query.lower()}%"
             query = query.join(self.model.customer).filter(
                 or_(
                     self.model.number.ilike(like_pattern),
@@ -161,54 +157,52 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
                 )
             )
 
-        # Filtro por fecha desde
-        if desde:
+        if date_from:
             try:
-                desde_date = datetime.strptime(desde, "%Y-%m-%d").date()
-                query = query.filter(self.model.issue_date >= desde_date)
+                start_date = datetime.strptime(date_from, "%Y-%m-%d").date()
+                query = query.filter(self.model.issue_date >= start_date)
             except ValueError:
                 pass
 
-        # Filtro por fecha hasta
-        if hasta:
+        if date_to:
             try:
-                hasta_date = datetime.strptime(hasta, "%Y-%m-%d").date()
-                query = query.filter(self.model.issue_date <= hasta_date)
+                end_date = datetime.strptime(date_to, "%Y-%m-%d").date()
+                query = query.filter(self.model.issue_date <= end_date)
             except ValueError:
                 pass
 
-        # Ordena por fecha más reciente primero
+        # Newest first.
         return query.order_by(self.model.issue_date.desc()).all()
 
-    def obtener_facturas_temporales(self, db: Session, tenant_id: Any):
-        """Function obtener_facturas_temporales - auto-generated docstring."""
+    def list_invoice_imports(self, db: Session, tenant_id: Any):
+        """List temporary invoice imports."""
         return db.query(InvoiceTemp).filter_by(tenant_id=_tenant_uuid(tenant_id)).all()
 
-    def guardar_temporal(
-        self, db: Session, facturas: list, archivo: str, usuario_id: int, tenant_id: Any
+    def save_imports(
+        self, db: Session, invoices: list, file_name: str, user_id: int, tenant_id: Any
     ):
-        """Function guardar_temporal - auto-generated docstring."""
-        for factura in facturas:
+        """Persist temporary invoice imports."""
+        for invoice in invoices:
             temp = InvoiceTemp(
-                archivo_nombre=archivo,
-                datos=factura,
-                usuario_id=usuario_id,
+                file_name=file_name,
+                data=invoice,
+                user_id=user_id,
                 tenant_id=_tenant_uuid(tenant_id),
-                estado="pendiente",
+                status="pending",
             )
             db.add(temp)
         db.commit()
 
-    def mover_facturas_a_principal(self, db: Session, tenant_id: Any):
-        """Function mover_facturas_a_principal - auto-generated docstring."""
-        temporales = (
+    def import_to_primary(self, db: Session, tenant_id: Any):
+        """Import temporary invoices into the primary table."""
+        temporary_rows = (
             db.query(InvoiceTemp)
             .filter_by(tenant_id=_tenant_uuid(tenant_id), status=PendingStatus.PENDING.value)
             .all()
         )
-        for temp in temporales:
+        for temp in temporary_rows:
             data = temp.data
-            nueva = Invoice(
+            new_invoice = Invoice(
                 number=data.get("number"),
                 supplier=data.get("supplier"),
                 issue_date=data.get("issue_date"),
@@ -216,39 +210,39 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
                 status=data.get("status", PendingStatus.PENDING.value),
                 tenant_id=_tenant_uuid(tenant_id),
             )
-            db.add(nueva)
+            db.add(new_invoice)
             temp.status = "imported"
         db.commit()
 
-    def emitir_factura(self, db: Session, tenant_id: Any, factura_id) -> Invoice:
-        """Function emitir_factura - auto-generated docstring."""
+    def issue_invoice(self, db: Session, tenant_id: Any, invoice_id) -> Invoice:
+        """Issue a draft invoice."""
         from app.modules.shared.services import generar_numero_documento
 
-        factura_uuid = _ensure_uuid(factura_id)
+        invoice_uuid = _ensure_uuid(invoice_id)
         tenant_uuid = _tenant_uuid(tenant_id)
-        factura = db.query(self.model).filter_by(id=factura_uuid, tenant_id=tenant_uuid).first()
+        invoice = db.query(self.model).filter_by(id=invoice_uuid, tenant_id=tenant_uuid).first()
 
-        if not factura:
+        if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
 
-        if factura.status != "draft":
+        if invoice.status != "draft":
             raise HTTPException(
                 status_code=400,
                 detail="Only invoices in 'draft' status can be issued",
             )
 
-        factura.number = generar_numero_documento(db, tenant_uuid, "invoice")
-        factura.status = "issued"
+        invoice.number = generar_numero_documento(db, tenant_uuid, "invoice")
+        invoice.status = "issued"
         db.commit()
-        db.refresh(factura)
+        db.refresh(invoice)
 
         # Enqueue webhook delivery invoice.posted (best-effort)
         try:
             payload = {
-                "id": factura.id,
-                "number": factura.number,
-                "total": getattr(factura, "total", getattr(factura, "amount", None)),
-                "customer_id": getattr(factura, "customer_id", None),
+                "id": invoice.id,
+                "number": invoice.number,
+                "total": getattr(invoice, "total", getattr(invoice, "amount", None)),
+                "customer_id": getattr(invoice, "customer_id", None),
             }
             # Insert delivery row (one per active subscription will be created via API normally; here push a generic)
             db.execute(
@@ -278,7 +272,8 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         except Exception:
             pass
 
-        return factura
+        return invoice
 
 
-factura_crud = FacturaCRUD(Invoice)
+invoice_crud = InvoiceCRUD(Invoice)
+factura_crud = invoice_crud

@@ -34,34 +34,34 @@ const toNumber = (value: unknown): number => {
 
 const normalizeGasto = (raw: any): Gasto => ({
   id: String(raw?.id ?? ''),
-  date: raw?.date ?? raw?.fecha ?? '',
-  amount: Number(raw?.amount ?? raw?.monto ?? 0),
-  category: raw?.category ?? raw?.categoria,
-  subcategory: raw?.subcategory ?? raw?.subcategoria,
-  concept: raw?.concept ?? raw?.concepto,
-  payment_method: raw?.payment_method ?? raw?.forma_pago,
-  supplier_id: raw?.supplier_id ?? raw?.proveedor_id,
-  supplier_name: raw?.supplier_name ?? raw?.proveedor_nombre,
-  status: raw?.status ?? raw?.estado,
-  invoice_number: raw?.invoice_number ?? raw?.factura_numero,
-  notes: raw?.notes ?? raw?.notas,
+  date: raw?.date ?? '',
+  amount: Number(raw?.amount ?? 0),
+  category: raw?.category ?? undefined,
+  subcategory: raw?.subcategory ?? undefined,
+  concept: raw?.concept ?? undefined,
+  payment_method: raw?.payment_method ?? undefined,
+  supplier_id: raw?.supplier_id ?? undefined,
+  supplier_name: raw?.supplier_name ?? undefined,
+  status: raw?.status ?? 'draft',
+  invoice_number: raw?.invoice_number ?? undefined,
+  notes: raw?.notes ?? undefined,
   created_at: raw?.created_at,
   updated_at: raw?.updated_at,
 })
 
 const toApiPayload = (payload: Partial<Gasto>) => ({
   ...payload,
-  fecha: payload.date,
-  monto: payload.amount,
-  categoria: payload.category,
-  subcategoria: payload.subcategory,
-  concepto: payload.concept,
-  forma_pago: payload.payment_method,
-  ...(payload.supplier_id?.trim() ? { proveedor_id: payload.supplier_id.trim() } : {}),
-  proveedor_nombre: payload.supplier_name,
-  estado: payload.status,
-  factura_numero: payload.invoice_number,
-  notas: payload.notes,
+  date: payload.date,
+  amount: payload.amount,
+  category: payload.category,
+  subcategory: payload.subcategory,
+  concept: payload.concept,
+  payment_method: payload.payment_method,
+  ...(payload.supplier_id?.trim() ? { supplier_id: payload.supplier_id.trim() } : {}),
+  supplier_name: payload.supplier_name,
+  status: payload.status,
+  invoice_number: payload.invoice_number,
+  notes: payload.notes,
 })
 
 export async function listGastos(): Promise<Gasto[]> {
@@ -87,7 +87,7 @@ export async function createGasto(payload: Omit<Gasto, 'id'>): Promise<Gasto> {
       return normalizeGasto({
         id: tempId,
         ...apiPayload,
-        estado: (apiPayload as any)?.estado || 'pending',
+        status: (apiPayload as any)?.status || 'draft',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -101,7 +101,7 @@ export async function createGasto(payload: Omit<Gasto, 'id'>): Promise<Gasto> {
       return normalizeGasto({
         id: tempId,
         ...apiPayload,
-        estado: (apiPayload as any)?.estado || 'pending',
+        status: (apiPayload as any)?.status || 'draft',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

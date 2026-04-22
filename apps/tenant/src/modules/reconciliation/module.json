@@ -12,6 +12,5 @@
   "default_enabled": false,
   "dependencies": ["finance"],
   "countries": ["ES", "EC"],
-  "aliases": ["conciliacion", "conciliación", "conciliacionbancaria"],
   "implemented": true
 }

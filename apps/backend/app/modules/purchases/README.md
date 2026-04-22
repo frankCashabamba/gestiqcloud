@@ -1,14 +1,14 @@
-# Módulo: purchases
+# Module: purchases
 
-Propósito: compras y líneas de compra.
+Purpose: purchase orders and purchase lines.
 
 ## Endpoints
 - Tenant: `interface/http/tenant.py` prefix `/purchases`.
 
-## Componentes clave
-- `application/use_cases.py`, `ports.py`, `dto.py`: lógica y contratos.
-- `infrastructure/repositories.py`: persistencia.
-- `interface/http/schemas.py`: schemas de request/response.
+## Key Components
+- `application/use_cases.py`, `ports.py`, `dto.py`: business logic and contracts.
+- `infrastructure/repositories.py`: persistence.
+- `interface/http/schemas.py`: request/response schemas.
 
-## Notas
-- Integra con inventario para recepciones/stock y contabilidad para asientos.
+## Notes
+- Integrates with inventory for receipts/stock and accounting for journal entries.

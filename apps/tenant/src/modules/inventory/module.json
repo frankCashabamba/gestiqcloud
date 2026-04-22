@@ -8,6 +8,5 @@
   "default_enabled": true,
   "dependencies": [],
   "countries": ["ES", "EC"],
-  "aliases": ["inventario"],
   "implemented": true
 }

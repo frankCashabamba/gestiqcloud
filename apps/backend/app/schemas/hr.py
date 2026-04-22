@@ -1,68 +1,59 @@
-"""Schemas Pydantic para Recursos Humanos (employees y Vacaciones)"""
+"""HR schemas."""
 
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-# ============================================================================
-# employees
-# ============================================================================
+
+EmployeeStatus = Literal["active", "inactive", "suspended"]
+VacationStatus = Literal["pending", "approved", "rejected", "cancelled"]
+VacationType = Literal["annual", "sick", "personal", "unpaid"]
+IdentificationType = Literal["dni", "ruc", "cedula", "passport"]
 
 
-# Base schema
-class EmpleadoBase(BaseModel):
-    """fields comunes de employee"""
-
-    name: str = Field(..., max_length=100, description="name completo")
-    email: EmailStr | None = Field(None, description="Email corporativo")
+class EmployeeBase(BaseModel):
+    name: str = Field(..., max_length=100)
+    email: EmailStr | None = None
     phone: str | None = Field(None, max_length=20, pattern=r"^\+?[\d\s\-()]+$")
-    identificacion: str | None = Field(None, max_length=20, description="DNI/RUC/Cédula")
-    tipo_identificacion: str | None = Field(None, pattern="^(dni|ruc|cedula|passport)$")
-    fecha_nacimiento: date | None = None
-    fecha_ingreso: date = Field(default_factory=date.today, description="Fecha de ingreso")
-    fecha_salida: date | None = Field(None, description="Fecha de salida (si aplica)")
-    cargo: str | None = Field(None, max_length=100, description="Cargo o puesto")
-    departamento: str | None = Field(None, max_length=100, description="Departamento")
-    salario: float | None = Field(None, ge=0, description="Salario base")
-    estado: str = Field(default="active", pattern="^(active|inactive|suspended)$")
+    identification: str | None = Field(None, max_length=20)
+    identification_type: IdentificationType | None = None
+    birth_date: date | None = None
+    hire_date: date = Field(default_factory=date.today)
+    termination_date: date | None = None
+    position: str | None = Field(None, max_length=100)
+    department: str | None = Field(None, max_length=100)
+    salary: float | None = Field(None, ge=0)
+    status: EmployeeStatus = Field(default="active")
     address: str | None = Field(None, max_length=255)
-    notas: str | None = None
+    notes: str | None = None
 
 
-# Create schema
-class EmpleadoCreate(EmpleadoBase):
-    """Schema para crear employee"""
-
+class EmployeeCreate(EmployeeBase):
     pass
 
 
-# Update schema
-class EmpleadoUpdate(BaseModel):
-    """Schema para actualizar employee (todos fields opcionales)"""
-
+class EmployeeUpdate(BaseModel):
     name: str | None = Field(None, max_length=100)
     email: EmailStr | None = None
     phone: str | None = Field(None, max_length=20, pattern=r"^\+?[\d\s\-()]+$")
-    identificacion: str | None = Field(None, max_length=20)
-    tipo_identificacion: str | None = Field(None, pattern="^(dni|ruc|cedula|passport)$")
-    fecha_nacimiento: date | None = None
-    fecha_ingreso: date | None = None
-    fecha_salida: date | None = None
-    cargo: str | None = Field(None, max_length=100)
-    departamento: str | None = Field(None, max_length=100)
-    salario: float | None = Field(None, ge=0)
-    estado: str | None = Field(None, pattern="^(active|inactive|suspended)$")
+    identification: str | None = Field(None, max_length=20)
+    identification_type: IdentificationType | None = None
+    birth_date: date | None = None
+    hire_date: date | None = None
+    termination_date: date | None = None
+    position: str | None = Field(None, max_length=100)
+    department: str | None = Field(None, max_length=100)
+    salary: float | None = Field(None, ge=0)
+    status: EmployeeStatus | None = None
     address: str | None = Field(None, max_length=255)
-    notas: str | None = None
+    notes: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 
 
-# Response schema
-class EmpleadoResponse(EmpleadoBase):
-    """Schema de respuesta de employee"""
-
+class EmployeeResponse(EmployeeBase):
     id: UUID
     tenant_id: UUID
     created_at: datetime
@@ -71,63 +62,43 @@ class EmpleadoResponse(EmpleadoBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# List schema
-class EmpleadoList(BaseModel):
-    """Schema para lista paginada de employees"""
-
-    items: list[EmpleadoResponse]
+class EmployeeList(BaseModel):
+    items: list[EmployeeResponse]
     total: int
     page: int = 1
     page_size: int = 100
 
 
-# ============================================================================
-# VACACIONES
-# ============================================================================
+class VacationBase(BaseModel):
+    employee_id: UUID = Field(..., description="Employee ID")
+    start_date: date = Field(...)
+    end_date: date = Field(...)
+    total_days: int = Field(..., ge=1)
+    type: VacationType = Field(default="annual")
+    status: VacationStatus = Field(default="pending")
+    reason: str | None = Field(None, max_length=500)
+    approved_by: UUID | None = None
+    approval_date: datetime | None = None
+    notes: str | None = None
 
 
-# Base schema
-class VacacionBase(BaseModel):
-    """fields comunes de Vacación"""
-
-    empleado_id: UUID = Field(..., description="ID del employee")
-    fecha_inicio: date = Field(..., description="Fecha de inicio")
-    fecha_fin: date = Field(..., description="Fecha de fin")
-    dias_totales: int = Field(..., ge=1, description="Días totales de vacación")
-    tipo: str = Field(default="annual", pattern="^(annual|sick|personal|unpaid)$")
-    estado: str = Field(default="pending", pattern="^(pending|approved|rejected|cancelled)$")
-    motivo: str | None = Field(None, max_length=500)
-    aprobado_por: UUID | None = Field(None, description="ID del user que aprobó")
-    fecha_aprobacion: datetime | None = None
-    notas: str | None = None
-
-
-# Create schema
-class VacacionCreate(VacacionBase):
-    """Schema para crear solicitud de vacación"""
-
+class VacationCreate(VacationBase):
     pass
 
 
-# Update schema
-class VacacionUpdate(BaseModel):
-    """Schema para actualizar vacación"""
-
-    fecha_inicio: date | None = None
-    fecha_fin: date | None = None
-    dias_totales: int | None = Field(None, ge=1)
-    tipo: str | None = Field(None, pattern="^(annual|sick|personal|unpaid)$")
-    estado: str | None = Field(None, pattern="^(pending|approved|rejected|cancelled)$")
-    motivo: str | None = Field(None, max_length=500)
-    notas: str | None = None
+class VacationUpdate(BaseModel):
+    start_date: date | None = None
+    end_date: date | None = None
+    total_days: int | None = Field(None, ge=1)
+    type: VacationType | None = None
+    status: VacationStatus | None = None
+    reason: str | None = Field(None, max_length=500)
+    notes: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 
 
-# Response schema
-class VacacionResponse(VacacionBase):
-    """Schema de respuesta de vacación"""
-
+class VacationResponse(VacationBase):
     id: UUID
     tenant_id: UUID
     created_at: datetime
@@ -136,11 +107,8 @@ class VacacionResponse(VacacionBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# List schema
-class VacacionList(BaseModel):
-    """Schema para lista paginada de vacaciones"""
-
-    items: list[VacacionResponse]
+class VacationList(BaseModel):
+    items: list[VacationResponse]
     total: int
     page: int = 1
     page_size: int = 100

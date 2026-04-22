@@ -3,10 +3,10 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict
 
 
-class MovimientoOut(BaseModel):
+class CashMovementOut(BaseModel):
     id: int
-    fecha: date
-    concepto: str
-    monto: float
+    date: date
+    description: str
+    amount: float
 
     model_config = ConfigDict(from_attributes=True)

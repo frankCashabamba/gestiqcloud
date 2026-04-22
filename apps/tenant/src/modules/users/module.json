@@ -13,6 +13,5 @@
   "default_enabled": false,
   "dependencies": [],
   "countries": ["ES", "EC"],
-  "aliases": ["usuarios"],
   "implemented": true
 }
