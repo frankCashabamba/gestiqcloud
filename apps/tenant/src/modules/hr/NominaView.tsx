@@ -108,7 +108,7 @@ export default function NominaView() {
             badge="Nomina"
             title={t('hr:payroll.title')}
             subtitle={t('hr:payroll.subtitle')}
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('..', { replace: true })}
             actions={
               <button type="button" onClick={reload} disabled={loading || submitting} className="gc-btn gc-btn--secondary">
                 <RefreshCcw size={16} />

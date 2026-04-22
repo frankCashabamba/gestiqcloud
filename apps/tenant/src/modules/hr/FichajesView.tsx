@@ -272,7 +272,7 @@ export default function FichajesView() {
             badge="Jornada"
             title={t('hr:timekeeping.title')}
             subtitle={t('hr:timekeeping.subtitle')}
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('..', { replace: true })}
           />
         </div>
 

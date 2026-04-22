@@ -151,7 +151,7 @@ export default function RecipeManager() {
 
       <div className="recipe-manager" style={{ padding: '1.5rem', display: 'grid', gap: '1rem' }}>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('../documents', { replace: true })}
           style={{
             width: 'fit-content',
             cursor: 'pointer',

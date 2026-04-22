@@ -119,7 +119,7 @@ export default function VacacionesList() {
             badge="Ausencias"
             title={t('hr:vacations.title')}
             subtitle="Solicitudes, permisos y aprobaciones con lectura inmediata para responsables de RRHH."
-            onBack={() => nav(-1)}
+            onBack={() => nav('..', { replace: true })}
             actions={
               <button className="gc-btn gc-btn--primary" onClick={() => nav('new')}>
                 <Plus size={16} />

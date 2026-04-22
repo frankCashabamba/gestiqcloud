@@ -359,7 +359,7 @@ export default function MiJornada() {
           badge="Mi espacio"
           title={`${me.name} ${me.apellidos}`}
           subtitle={[me.puesto, me.tipo_contrato].filter(Boolean).join(' · ')}
-          onBack={() => navigate(-1)}
+          onBack={() => navigate('..', { replace: true })}
         />
         <div className="hr-kpi-grid" style={{ marginTop: '1rem' }}>
           <div className="hr-kpi-card">
