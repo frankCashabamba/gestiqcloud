@@ -1,19 +1,18 @@
-"""
-Producción Module - HTTP API Tenant Interface
+"""Production module - tenant HTTP API.
 
-Sistema completo de planificación y ejecución de producción basado en recetas:
-- CRUD de órdenes de producción
-- Iniciar/Completar/Cancelar producción
-- Consumo automático de stock (ingredientes)
-- Generación automática de productos terminados
+Recipe-based production planning and execution:
+- Production order CRUD
+- Start, complete, and cancel workflows
+- Automatic ingredient stock consumption
+- Automatic finished-goods generation
 - Waste and scrap tracking
-- Calculadora de producción (planificación)
-- Estadísticas y reportes
-- Gestión de recetas y BOM
+- Production planning calculator
+- Statistics and reports
+- Recipe and BOM management
 
-Compatible con: Panadería, Restaurante, y cualquier sector con recetas/BOM
+Compatible with bakery, restaurant, and any sector that uses recipes or BOMs.
 
-MIGRADO DE:
+Migrated from:
 - app/routers/production.py
 - app/routers/recipes.py
 """
@@ -238,15 +237,15 @@ def _serialize_cost_driver_unit_option(unit_option: object) -> dict[str, object]
     }
 
 
-def _cost_driver_unit_option_aliases(unit_option: object) -> set[str]:
-    aliases = {
+def _cost_driver_unit_option_tokens(unit_option: object) -> set[str]:
+    tokens = {
         _normalize_cost_driver_unit_token(_cost_driver_unit_option_code(unit_option)),
         _normalize_cost_driver_unit_token(_cost_driver_unit_option_name_en(unit_option)),
         _normalize_cost_driver_unit_token(_cost_driver_unit_option_name_es(unit_option)),
         _normalize_cost_driver_unit_token(_cost_driver_unit_option_abbreviation(unit_option)),
     }
-    aliases.discard("")
-    return aliases
+    tokens.discard("")
+    return tokens
 
 
 def _resolve_cost_driver_unit_code(db: Session, tenant_id: UUID, raw_unit: str | None) -> str:
@@ -261,7 +260,7 @@ def _resolve_cost_driver_unit_code(db: Session, tenant_id: UUID, raw_unit: str |
     normalized_unit = _normalize_cost_driver_unit_token(unit)
 
     for unit_type in unit_types:
-        if normalized_unit in _cost_driver_unit_option_aliases(unit_type):
+        if normalized_unit in _cost_driver_unit_option_tokens(unit_type):
             return _cost_driver_unit_option_code(unit_type)
 
     raise HTTPException(status_code=400, detail=f"Unidad de costo no válida: {unit}")

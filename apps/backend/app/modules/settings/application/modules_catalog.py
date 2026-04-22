@@ -1,4 +1,4 @@
-"""Catalog of available system modules with canonical IDs and legacy aliases."""
+"""Catalog of available system modules with canonical IDs."""
 
 from __future__ import annotations
 
@@ -179,7 +179,6 @@ def _discover_modules_from_fs() -> list[dict[str, Any]]:
                 "dependencies": data.get("dependencies") or [],
                 "countries": data.get("countries") or ["ES", "EC"],
                 "sectors": data.get("sectors"),
-                "aliases": data.get("aliases") or [],
                 "implemented": bool(data.get("implemented", True)),
                 "surface": data.get("surface") or DEFAULT_MODULE_SURFACE,
                 "nav_group": data.get("nav_group") or DEFAULT_MODULE_NAV_GROUP,
@@ -208,7 +207,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["contabilidad"],
         "implemented": True,
     },
     {
@@ -221,7 +219,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["billing", "facturacion", "facturación"],
         "implemented": True,
     },
     {
@@ -234,7 +231,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["rimaypilot", "rimay", "rimay_pilot"],
         "implemented": False,
     },
     {
@@ -247,7 +243,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": [],
         "implemented": True,
     },
     {
@@ -260,7 +255,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["clientes", "clients"],
         "implemented": True,
     },
     {
@@ -273,7 +267,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": ["invoicing"],
         "countries": ["ES", "EC"],
-        "aliases": [],
         "implemented": True,
         "contractable": True,
         "parent_module": "settings",
@@ -288,7 +281,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["gastos"],
         "implemented": True,
     },
     {
@@ -301,7 +293,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["finances", "finanzas"],
         "implemented": True,
     },
     {
@@ -314,7 +305,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["rrhh"],
         "implemented": True,
     },
     {
@@ -327,7 +317,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["importador", "importer", "importaciones"],
         "implemented": True,
     },
     {
@@ -340,7 +329,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["inventario"],
         "implemented": True,
     },
     {
@@ -353,7 +341,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["notificaciones"],
         "implemented": True,
         "parent_module": "settings",
     },
@@ -367,7 +354,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": ["inventory", "invoicing"],
         "countries": ["ES", "EC"],
-        "aliases": ["tpv"],
         "implemented": True,
     },
     {
@@ -380,7 +366,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": ["inventory"],
         "countries": ["ES", "EC"],
-        "aliases": ["productions", "production", "produccion", "producción"],
         "implemented": True,
     },
     {
@@ -393,7 +378,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["productos"],
         "implemented": True,
     },
     {
@@ -406,7 +390,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": ["inventory"],
         "countries": ["ES", "EC"],
-        "aliases": ["compras"],
         "implemented": True,
     },
     {
@@ -419,7 +402,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": ["finance"],
         "countries": ["ES", "EC"],
-        "aliases": ["conciliacion", "conciliación", "conciliacionbancaria"],
         "implemented": True,
         "parent_module": "settings",
     },
@@ -433,7 +415,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["reportes"],
         "implemented": True,
     },
     {
@@ -446,7 +427,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": ["inventory", "invoicing"],
         "countries": ["ES", "EC"],
-        "aliases": ["ventas"],
         "implemented": True,
     },
     {
@@ -459,7 +439,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["configuracion", "configuración"],
         "implemented": True,
     },
     {
@@ -472,7 +451,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["proveedores"],
         "implemented": True,
     },
     {
@@ -485,7 +463,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["plantillas"],
         "implemented": True,
         "parent_module": "settings",
     },
@@ -499,7 +476,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["usuarios"],
         "implemented": True,
         "contractable": True,
         "parent_module": "settings",
@@ -514,7 +490,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": False,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": [],
         "implemented": True,
         "parent_module": "settings",
     },
@@ -528,7 +503,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
-        "aliases": ["historico", "historicos"],
         "implemented": True,
         "surface": "backoffice",
         "nav_group": "backoffice",
@@ -543,7 +517,6 @@ _BUILTIN_MODULES: list[dict[str, Any]] = [
 
 _modules_loaded = False
 _ALL_MODULES_BY_ID: dict[str, dict[str, Any]] = {}
-_ALIASES_TO_ID: dict[str, str] = {}
 AVAILABLE_MODULES: dict[str, dict[str, Any]] = {}
 
 
@@ -562,11 +535,7 @@ def _ensure_modules_loaded() -> None:
     for entry in registry:
         module = dict(entry)
         module_id = str(module["id"]).strip()
-        aliases = {module_id, *(str(alias).strip() for alias in module.get("aliases", []))}
-        module["aliases"] = sorted(alias for alias in aliases if alias)
         _ALL_MODULES_BY_ID[module_id] = module
-        for alias in module["aliases"]:
-            _ALIASES_TO_ID[_normalize_key(alias)] = module_id
     AVAILABLE_MODULES.update(
         {
             module_id: dict(module)
@@ -579,18 +548,11 @@ def _ensure_modules_loaded() -> None:
 def canonicalize_module_id(module_id: str | None) -> str | None:
     _ensure_modules_loaded()
     normalized = _normalize_key(module_id)
-    if not normalized:
+    if not normalized or normalized not in _ALL_MODULES_BY_ID:
         return None
-    return _ALIASES_TO_ID.get(normalized)
+    return normalized
 
 
-def get_module_aliases(module_id: str) -> list[str]:
-    _ensure_modules_loaded()
-    canonical = canonicalize_module_id(module_id) or str(module_id).strip().lower()
-    module = _ALL_MODULES_BY_ID.get(canonical)
-    if not module:
-        return [canonical]
-    return list(module.get("aliases", [canonical]))
 
 
 def _module_catalog_id(module_row: Module) -> str | None:
@@ -630,7 +592,6 @@ def _module_row_to_dict(row: Module) -> dict[str, Any]:
         "dependencies": getattr(row, "dependencies", None)
         or catalog_entry.get("dependencies")
         or [],
-        "aliases": getattr(row, "aliases", None) or catalog_entry.get("aliases") or [catalog_id],
         "countries": getattr(row, "countries", None)
         or catalog_entry.get("countries")
         or ["ES", "EC"],
@@ -652,7 +613,6 @@ def ensure_module_catalog_seeded(db: Session) -> None:
         ("required", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ("default_enabled", "BOOLEAN NOT NULL DEFAULT TRUE"),
         ("dependencies", "JSONB"),
-        ("aliases", "JSONB"),
         ("countries", "JSONB"),
         ("sectors", "JSONB"),
     ]
@@ -695,7 +655,6 @@ def ensure_module_catalog_seeded(db: Session) -> None:
             "required",
             "default_enabled",
             "dependencies",
-            "aliases",
             "countries",
             "sectors",
         ):

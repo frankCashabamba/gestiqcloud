@@ -61,22 +61,21 @@ export interface Invoice {
 function normalizeStatus(raw: any): InvoiceStatus | undefined {
   const value = String(raw || '').trim().toLowerCase()
   if (!value) return undefined
-  if (value === 'borrador') return 'draft'
-  if (value === 'emitida') return 'issued'
-  if (value === 'anulada' || value === 'cancelled') return 'voided'
+  if (value === 'draft') return 'draft'
+  if (value === 'issued') return 'issued'
+  if (value === 'voided') return 'voided'
   if (value === 'paid') return 'paid'
   if (value === 'pending_payment') return 'pending_payment'
-  if (value === 'posted' || value === 'confirmed') return 'issued'
   return value
 }
 
 function normalizeLine(raw: any): InvoiceLine {
   return {
     sector: raw?.sector,
-    description: String(raw?.description ?? raw?.descripcion ?? raw?.name ?? ''),
-    quantity: Number(raw?.quantity ?? raw?.cantidad ?? raw?.qty ?? 1),
-    unit_price: Number(raw?.unit_price ?? raw?.precio_unitario ?? raw?.price ?? 0),
-    tax_rate: Number(raw?.tax_rate ?? raw?.iva ?? raw?.vat ?? 0),
+    description: String(raw?.description ?? raw?.name ?? ''),
+    quantity: Number(raw?.quantity ?? raw?.qty ?? 1),
+    unit_price: Number(raw?.unit_price ?? raw?.price ?? 0),
+    tax_rate: Number(raw?.tax_rate ?? raw?.vat ?? 0),
     amount: Number(raw?.amount ?? raw?.total ?? 0),
     bread_type: raw?.bread_type,
     grams: raw?.grams !== undefined ? Number(raw.grams) : undefined,
@@ -89,15 +88,15 @@ function normalizeLine(raw: any): InvoiceLine {
 
 function normalizeInvoice(raw: any): Invoice {
   const id = raw?.id ?? raw?.invoice_id
-  const number = raw?.number ?? raw?.invoice_number ?? raw?.sequential ?? raw?.numero
-  const rawDate = raw?.issue_date ?? raw?.date ?? raw?.invoice_date ?? raw?.created_at ?? raw?.fecha_emision
+  const number = raw?.number ?? raw?.invoice_number ?? raw?.sequential
+  const rawDate = raw?.issue_date ?? raw?.date ?? raw?.invoice_date ?? raw?.created_at
   const issueDate = rawDate ? String(rawDate).slice(0, 10) : undefined
-  const status = normalizeStatus(raw?.status ?? raw?.state ?? raw?.estado)
+  const status = normalizeStatus(raw?.status ?? raw?.state)
   const total = raw?.total ?? raw?.grand_total ?? raw?.amount_total ?? raw?.amount ?? 0
   const subtotal = raw?.subtotal ?? raw?.sub_total ?? raw?.amount_subtotal
-  const tax = raw?.tax ?? raw?.vat ?? raw?.iva ?? raw?.tax_total
-  const lines = raw?.lines ?? raw?.lineas ?? raw?.invoice_lines ?? raw?.items ?? raw?.products ?? []
-  const customer = raw?.customer ?? raw?.cliente ?? {}
+  const tax = raw?.tax ?? raw?.vat ?? raw?.tax_total
+  const lines = raw?.lines ?? raw?.invoice_lines ?? raw?.items ?? raw?.products ?? []
+  const customer = raw?.customer ?? {}
 
   return {
     id,
@@ -107,9 +106,9 @@ function normalizeInvoice(raw: any): Invoice {
     tax: tax !== undefined ? Number(tax) : undefined,
     total: Number(total || 0),
     status,
-    customer_id: raw?.customer_id ?? raw?.cliente_id ?? raw?.customerId,
-    customer_name: raw?.customer_name ?? raw?.cliente_nombre ?? customer?.name ?? raw?.supplier,
-    description: raw?.description ?? raw?.descripcion,
+    customer_id: raw?.customer_id ?? raw?.customerId,
+    customer_name: raw?.customer_name ?? customer?.name ?? raw?.supplier,
+    description: raw?.description,
     lines: Array.isArray(lines) ? lines.map(normalizeLine) : [],
     tenant_id: raw?.tenant_id ?? raw?.tenantId,
     notes: raw?.notes ?? raw?.notas,
@@ -118,7 +117,7 @@ function normalizeInvoice(raw: any): Invoice {
           id: customer.id ? String(customer.id) : undefined,
           name: customer.name,
           email: customer.email,
-          tax_id: customer.tax_id ?? customer.identification ?? customer.identificacion,
+          tax_id: customer.tax_id ?? customer.identification,
         }
       : undefined,
   }
@@ -192,7 +191,7 @@ function serializeInvoiceLine(line: any): Record<string, any> {
     description: line.description,
     quantity: line.quantity ?? line.cantidad ?? 1,
     unit_price: line.unit_price ?? line.precio_unitario ?? 0,
-    tax_rate: line.tax_rate ?? line.iva ?? line.vat ?? 0,
+    tax_rate: line.tax_rate ?? line.vat ?? 0,
     ...(line.bread_type ? { bread_type: line.bread_type } : {}),
     ...(line.grams !== undefined ? { grams: line.grams } : {}),
     ...(line.spare_part ? { spare_part: line.spare_part } : {}),

@@ -298,7 +298,6 @@ def void_invoice(factura_id: UUID, request: Request, db: Session = Depends(get_d
 
 
 @router.post("/{factura_id}/issue", response_model=schemas.InvoiceOut)
-@router.post("/{factura_id}/emitir", response_model=schemas.InvoiceOut)
 def issue_invoice(
     factura_id: UUID,
     request: Request,
@@ -493,8 +492,7 @@ def descargar_pdf(
 
 
 @router.patch("/{factura_id}/mark-paid")
-@router.patch("/{factura_id}/marcar-cobrada")
-def marcar_cobrada(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
+def mark_invoice_as_paid(factura_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Mark a credit sale (PENDING_PAYMENT) as paid (ISSUED)."""
     tenant_id = get_tenant_uuid(request)
     doc = (

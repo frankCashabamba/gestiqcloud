@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -22,7 +22,6 @@ from app.modules.modules_catalog.interface.http.schemas import ModuloOutSchema
 from app.modules.settings.application.modules_catalog import (
     canonicalize_module_id,
     get_available_modules,
-    get_module_aliases,
     is_standalone_module,
     resolve_module_runtime_meta,
 )
@@ -230,7 +229,7 @@ def _build_module_payload(
             manifest, "context_filters", "filtros_contexto", default={}
         )
         or {},
-        "description": _manifest_value(manifest, "description", "descripcion"),
+        "description": _manifest_value(manifest, "description"),
         "target_model": _manifest_value(manifest, "target_model", "modelo_objetivo"),
         "category": _manifest_value(
             manifest,
@@ -242,7 +241,6 @@ def _build_module_payload(
         "required": bool(_manifest_value(manifest, "required", default=False)),
         "default_enabled": bool(_manifest_value(manifest, "default_enabled", default=True)),
         "dependencies": _manifest_value(manifest, "dependencies", default=[]) or [],
-        "aliases": _manifest_value(manifest, "aliases", default=[]) or [],
         "countries": _manifest_value(manifest, "countries", default=["ES", "EC"]) or ["ES", "EC"],
         "sectors": _manifest_value(manifest, "sectors", default=None),
         "surface": _manifest_value(manifest, "surface", default=None),
@@ -386,17 +384,17 @@ def _normalize_module_name(folder_name: str) -> str:
 
 
 def _find_existing_module(db: Session, canonical_name: str) -> Module | None:
-    aliases = [alias.lower() for alias in get_module_aliases(canonical_name)]
-    rows = db.query(Module).filter(func.lower(Module.name).in_(aliases)).all()
-    if not rows:
-        # Fallback: buscar por url para detectar módulos registrados con nombre distinto
-        rows = db.query(Module).filter(func.lower(Module.url).in_(aliases)).all()
-    if not rows:
-        return None
-    for row in rows:
-        if str(getattr(row, "name", "")).strip().lower() == canonical_name:
-            return row
-    return rows[0]
+    row = (
+        db.query(Module)
+        .filter(
+            or_(
+                func.lower(Module.name) == canonical_name,
+                func.lower(Module.url) == canonical_name,
+            )
+        )
+        .first()
+    )
+    return row
 
 
 def _module_payload_needs_sync(existing: Module, payload: dict, *, sync_active: bool) -> bool:
@@ -576,11 +574,7 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
     """
 
     override_dir = payload.get("dir") if isinstance(payload, dict) else None
-    reactivate_existing = False
-    if isinstance(payload, dict):
-        reactivate_existing = bool(
-            payload.get("reactivar_si_existe") or payload.get("upsert") or payload.get("reactivar")
-        )
+    reactivate_existing = bool(payload.get("reactivate_existing")) if isinstance(payload, dict) else False
 
     source = "filesystem"
     warnings: list[str] = []

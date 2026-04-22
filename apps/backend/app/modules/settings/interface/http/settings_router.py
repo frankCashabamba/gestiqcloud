@@ -17,7 +17,6 @@ from app.modules.settings.application.modules_catalog import (
     AVAILABLE_MODULES,
     canonicalize_module_id,
     get_available_modules,
-    get_module_aliases,
     validate_module_dependencies,
 )
 from app.schemas.settings import ModuleSettingsUpdate
@@ -69,22 +68,19 @@ def _module_catalog_id(module_row: Module) -> str | None:
 
 def _find_module_row(db: Session, module: str) -> Module | None:
     canonical = _canonical_module_or_404(module)
-    aliases = {alias.lower() for alias in get_module_aliases(canonical)}
-    aliases.add(canonical)
-    rows = (
+    row = (
         db.query(Module)
         .filter(
             or_(
-                func.lower(Module.name).in_(aliases),
-                func.lower(Module.url).in_(aliases),
+                func.lower(Module.name) == canonical,
+                func.lower(Module.url) == canonical,
             )
         )
-        .all()
+        .first()
     )
-    for row in rows:
-        if _module_catalog_id(row) == canonical:
-            return row
-    return rows[0] if rows else None
+    if row and _module_catalog_id(row) == canonical:
+        return row
+    return row
 
 
 def _load_company_module_state(
