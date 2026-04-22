@@ -57,7 +57,7 @@ const toApiPayload = (payload: Partial<Gasto>) => ({
   subcategoria: payload.subcategory,
   concepto: payload.concept,
   forma_pago: payload.payment_method,
-  proveedor_id: payload.supplier_id,
+  ...(payload.supplier_id?.trim() ? { proveedor_id: payload.supplier_id.trim() } : {}),
   proveedor_nombre: payload.supplier_name,
   estado: payload.status,
   factura_numero: payload.invoice_number,

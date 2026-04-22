@@ -63,7 +63,7 @@ export default function VentaDetail() {
                     <h2 className="text-2xl font-semibold">{t('sales.saleNumber')}{venta.numero || venta.id}</h2>
                     <p className="text-sm text-gray-600">ID: {venta.id}</p>
                 </div>
-                <StatusBadge estado={venta.estado} />
+                <StatusBadge status={venta.estado} />
             </div>
 
             <div className="bg-white border rounded-lg p-4 mb-4">

@@ -8,21 +8,23 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.base import BaseTransactionalModel
+from app.models.base import BaseCatalogModel
 
 
-class Supplier(BaseTransactionalModel):
+class Supplier(BaseCatalogModel):
     """Supplier"""
 
     __tablename__ = "suppliers"
     __table_args__ = {"extend_existing": True}
 
     # Additional fields specific to Supplier
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     trade_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tax_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys="[Supplier.tenant_id]")

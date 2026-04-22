@@ -1,80 +1,80 @@
-export interface Compra {
+export interface Purchase {
   id: string
   tenant_id: string
-  numero: string
-  proveedor_id: string
-  fecha: string
-  fecha_entrega?: string
+  number: string
+  supplier_id: string
+  date: string
+  delivery_date?: string
   subtotal: number
-  impuestos: number
+  taxes: number
   total: number
-  estado: 'draft' | 'confirmed' | 'received' | 'invoiced' | 'cancelled'
-  notas?: string
-  usuario_id: string
+  status: 'draft' | 'confirmed' | 'received' | 'invoiced' | 'cancelled'
+  notes?: string
+  user_id: string
   created_at: string
   updated_at: string
 }
 
-export interface CompraLinea {
+export interface PurchaseLine {
   id: string
-  compra_id: string
-  producto_id: string
-  descripcion?: string
-  cantidad: number
-  cantidad_recibida: number
-  precio_unitario: number
-  descuento: number
-  impuesto_tasa: number
+  purchase_id: string
+  product_id: string
+  description?: string
+  quantity: number
+  quantity_received: number
+  unit_price: number
+  discount: number
+  tax_rate: number
   subtotal: number
   total: number
   created_at: string
 }
 
-export interface CompraCreate {
-  numero: string
-  proveedor_id: string
-  fecha?: string
-  fecha_entrega?: string
+export interface PurchaseCreate {
+  number: string
+  supplier_id: string
+  date?: string
+  delivery_date?: string
   subtotal?: number
-  impuestos?: number
+  taxes?: number
   total?: number
-  estado?: 'draft' | 'confirmed' | 'received' | 'invoiced' | 'cancelled'
-  notas?: string
+  status?: 'draft' | 'confirmed' | 'received' | 'invoiced' | 'cancelled'
+  notes?: string
 }
 
-export interface CompraUpdate extends Partial<CompraCreate> {}
+export interface PurchaseUpdate extends Partial<PurchaseCreate> {}
 
-export interface CompraRecepcion {
-  compra_id: string
-  lineas: Array<{
-    linea_id: string
-    cantidad_recibida: number
-    lote?: string
-    fecha_caducidad?: string
+export interface PurchaseReception {
+  purchase_id: string
+  lines: Array<{
+    line_id: string
+    quantity_received: number
+    lot?: string
+    expiration_date?: string
   }>
-  notas?: string
+  notes?: string
 }
 
-export interface CompraStats {
-  total_compras: number
-  total_importe: number
-  por_estado: Record<string, number>
-  por_proveedor: Array<{
-    proveedor_id: string
-    proveedor_nombre: string
+export interface PurchaseStats {
+  total_purchases: number
+  total_amount: number
+  by_status: Record<string, number>
+  by_supplier: Array<{
+    supplier_id: string
+    supplier_name: string
     total: number
   }>
-  compras_por_mes: Array<{
-    mes: string
+  purchases_by_month: Array<{
+    month: string
     total: number
-    cantidad: number
+    quantity: number
   }>
 }
 
-export interface CompraFilters {
-  fecha_desde?: string
-  fecha_hasta?: string
-  proveedor_id?: string
-  estado?: string
+export interface PurchaseFilters {
+  date_from?: string
+  date_to?: string
+  supplier_id?: string
+  status?: string
   search?: string
 }

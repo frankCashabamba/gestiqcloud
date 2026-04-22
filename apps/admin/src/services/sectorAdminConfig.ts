@@ -12,12 +12,12 @@ export interface SectorConfig {
     branding: {
       icon: string
       displayName: string
-      color_primario: string
-      color_secundario?: string
+      primaryColor: string
+      secondaryColor?: string
       units?: Array<{ code: string; label: string }>
-      format_rules?: Record<string, any>
-      print_config?: Record<string, any>
-      required_fields?: Record<string, string[]>
+      formatRules?: Record<string, any>
+      printConfig?: Record<string, any>
+      requiredFields?: Record<string, string[]>
     }
     features?: Record<string, boolean>
     defaults?: {
@@ -35,9 +35,9 @@ export interface SectorConfig {
     inventory?: Record<string, any>
     endpoints?: Record<string, string>
   }
-  last_modified: string | null
-  modified_by: string | null
-  config_version: number
+  lastModified: string | null
+  modifiedBy: string | null
+  configVersion: number
 }
 
 export interface UpdateSectorConfigRequest {
@@ -50,7 +50,87 @@ export interface UpdateResponse {
   message: string
   timestamp: string
   version: number
-  sector_code: string
+  sectorCode: string
+}
+
+function normalizeBranding(input: any) {
+  return {
+    icon: String(input?.icon || ''),
+    displayName: String(input?.displayName ?? input?.display_name ?? ''),
+    primaryColor: String(input?.primaryColor ?? input?.color_primario ?? ''),
+    secondaryColor: input?.secondaryColor ?? input?.color_secundario ?? undefined,
+    units: Array.isArray(input?.units)
+      ? input.units.map((unit: any) => ({
+          code: String(unit?.code || ''),
+          label: String(unit?.label || ''),
+        }))
+      : undefined,
+    formatRules: input?.formatRules ?? input?.format_rules ?? undefined,
+    printConfig: input?.printConfig ?? input?.print_config ?? undefined,
+    requiredFields: input?.requiredFields ?? input?.required_fields ?? undefined,
+  }
+}
+
+function toApiBranding(input: SectorConfig["config"]["branding"]) {
+  return {
+    icon: input.icon,
+    display_name: input.displayName,
+    color_primario: input.primaryColor,
+    color_secundario: input.secondaryColor,
+    units: input.units,
+    format_rules: input.formatRules,
+    print_config: input.printConfig,
+    required_fields: input.requiredFields,
+  }
+}
+
+function normalizeConfig(input: any): SectorConfig["config"] {
+  return {
+    branding: normalizeBranding(input?.branding || {}),
+    features: input?.features ?? undefined,
+    defaults: input?.defaults ?? undefined,
+    fields: input?.fields ?? undefined,
+    placeholders: input?.placeholders ?? undefined,
+    modules: input?.modules ?? undefined,
+    pos: input?.pos ?? undefined,
+    inventory: input?.inventory ?? undefined,
+    endpoints: input?.endpoints ?? undefined,
+  }
+}
+
+function toApiConfig(config: SectorConfig["config"]) {
+  return {
+    branding: toApiBranding(config.branding),
+    features: config.features,
+    defaults: config.defaults,
+    fields: config.fields,
+    placeholders: config.placeholders,
+    modules: config.modules,
+    pos: config.pos,
+    inventory: config.inventory,
+    endpoints: config.endpoints,
+  }
+}
+
+function normalizeSectorConfigResponse(raw: any): SectorConfig {
+  return {
+    code: String(raw?.code || ''),
+    name: String(raw?.name || ''),
+    config: normalizeConfig(raw?.config || raw?.template_config || {}),
+    lastModified: raw?.lastModified ?? raw?.last_modified ?? null,
+    modifiedBy: raw?.modifiedBy ?? raw?.modified_by ?? null,
+    configVersion: Number(raw?.configVersion ?? raw?.config_version ?? 0),
+  }
+}
+
+function toApiUpdateResponse(raw: any): UpdateResponse {
+  return {
+    success: Boolean(raw?.success),
+    message: String(raw?.message || ''),
+    timestamp: String(raw?.timestamp || ''),
+    version: Number(raw?.version ?? 0),
+    sectorCode: String(raw?.sectorCode ?? raw?.sector_code ?? ''),
+  }
 }
 
 export const sectorAdminConfigService = {
@@ -59,7 +139,7 @@ export const sectorAdminConfigService = {
    */
   async getSectorConfig(sectorCode: string): Promise<SectorConfig> {
     const response = await apiClient.get(`/api/v1/admin/sectors/${sectorCode}/config`)
-    return response.data
+    return normalizeSectorConfigResponse(response.data)
   },
 
   /**
@@ -72,10 +152,10 @@ export const sectorAdminConfigService = {
     reason?: string
   ): Promise<UpdateResponse> {
     const response = await apiClient.put(`/api/v1/admin/sectors/${sectorCode}/config`, {
-      config,
+      config: toApiConfig(config),
       reason
     })
-    return response.data
+    return toApiUpdateResponse(response.data)
   },
 
   /**
@@ -102,15 +182,15 @@ export const sectorAdminConfigService = {
       if (!config.branding.displayName) {
         errors.push("Branding displayName is required")
       }
-      if (!config.branding.color_primario) {
-        errors.push("Branding color_primario is required")
-      } else if (!isValidHexColor(config.branding.color_primario)) {
-        errors.push(`Invalid hex color: ${config.branding.color_primario}`)
+      if (!config.branding.primaryColor) {
+        errors.push("Branding primaryColor is required")
+      } else if (!isValidHexColor(config.branding.primaryColor)) {
+        errors.push(`Invalid hex color: ${config.branding.primaryColor}`)
       }
-      if (!config.branding.color_secundario) {
-        errors.push("Branding color_secundario is required")
-      } else if (!isValidHexColor(config.branding.color_secundario)) {
-        errors.push(`Invalid hex color: ${config.branding.color_secundario}`)
+      if (!config.branding.secondaryColor) {
+        errors.push("Branding secondaryColor is required")
+      } else if (!isValidHexColor(config.branding.secondaryColor)) {
+        errors.push(`Invalid hex color: ${config.branding.secondaryColor}`)
       }
     }
 

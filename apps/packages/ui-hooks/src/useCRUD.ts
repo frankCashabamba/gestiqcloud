@@ -3,7 +3,7 @@
  * Elimina duplicación de lógica de estado y operaciones básicas
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
-import type { ZodSchema } from 'zod'
+import { z, type ZodTypeAny } from 'zod'
 
 export interface CRUDState<T> {
   items: T[]
@@ -37,7 +37,7 @@ export interface FetchParams {
 
 export interface UseCRUDConfig<T> {
   endpoint: string
-  schema: ZodSchema<T>
+  schema: ZodTypeAny
   defaultPerPage?: number
   onSuccess?: (action: string, data: any) => void
   onError?: (error: string) => void
@@ -119,7 +119,7 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
 
       // Validar respuesta con schema
       const validatedItems = Array.isArray(data.items)
-        ? data.items.map(item => schema.parse(item))
+        ? data.items.map((item: any) => schema.parse(item))
         : []
 
       updateState({
@@ -157,7 +157,8 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
       const createdItem = await response.json()
       const validatedItem = schema.parse(createdItem)
 
-      updateState(prev => ({
+      setState(prev => ({
+        ...prev,
         items: [...prev.items, validatedItem],
         loading: false
       }))
@@ -188,8 +189,9 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
       const updatedItem = await response.json()
       const validatedItem = schema.parse(updatedItem)
 
-      updateState(prev => ({
-        items: prev.items.map(i =>
+      setState(prev => ({
+        ...prev,
+        items: prev.items.map((i: any) =>
           (i as any).id === id ? validatedItem : i
         ),
         loading: false
@@ -216,8 +218,9 @@ export function useCRUD<T = any>(config: UseCRUDConfig<T>): CRUDState<T> & CRUDA
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      updateState(prev => ({
-        items: prev.items.filter(i => (i as any).id !== id),
+      setState(prev => ({
+        ...prev,
+        items: prev.items.filter((i: any) => (i as any).id !== id),
         loading: false
       }))
 

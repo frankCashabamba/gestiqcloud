@@ -2,28 +2,27 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BackButton } from '@ui'
 import { useTranslation } from 'react-i18next'
-import { listCompras, removeCompra, type Compra } from './services'
+import { listPurchases, removePurchase, type Purchase } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import StatusBadge from '../sales/components/StatusBadge'
 import { usePermission } from '../../hooks/usePermission'
 import ProtectedButton from '../../components/ProtectedButton'
-import PermissionDenied from '../../components/PermissionDenied'
 
-export default function ComprasList() {
+export default function PurchasesList() {
   const { t } = useTranslation(['purchases', 'common'])
   const can = usePermission()
-  const [items, setItems] = useState<Compra[]>([])
+  const [items, setItems] = useState<Purchase[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
 
-  const [estado, setEstado] = useState('')
-  const [desde, setDesde] = useState('')
-  const [hasta, setHasta] = useState('')
+  const [status, setStatus] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [q, setQ] = useState('')
-  const [sortKey, setSortKey] = useState<'fecha' | 'total' | 'estado' | 'proveedor_nombre'>('fecha')
+  const [sortKey, setSortKey] = useState<'date' | 'total' | 'status' | 'supplier_name'>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [per, setPer] = useState(10)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -32,7 +31,7 @@ export default function ComprasList() {
     (async () => {
       try {
         setLoading(true)
-        setItems(await listCompras())
+        setItems(await listPurchases())
       } catch (e: any) {
         const m = getErrorMessage(e)
         setErrMsg(m)
@@ -41,23 +40,23 @@ export default function ComprasList() {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [toastError])
 
   const filtered = useMemo(() => items.filter(v => {
-    if (estado && v.estado !== estado) return false
-    if (desde && v.fecha < desde) return false
-    if (hasta && v.fecha > hasta) return false
+    if (status && v.status !== status) return false
+    if (from && v.date < from) return false
+    if (to && v.date > to) return false
     if (q) {
       const search = q.toLowerCase()
       const matches =
         String(v.id).includes(search) ||
-        (v.numero || '').toLowerCase().includes(search) ||
-        (v.proveedor_nombre || '').toLowerCase().includes(search) ||
-        v.estado.toLowerCase().includes(search)
+        (v.number || '').toLowerCase().includes(search) ||
+        (v.supplier_name || '').toLowerCase().includes(search) ||
+        v.status.toLowerCase().includes(search)
       if (!matches) return false
     }
     return true
-  }), [items, estado, desde, hasta, q])
+  }), [items, status, from, to, q])
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -72,24 +71,24 @@ export default function ComprasList() {
   const { page, setPage, totalPages, view, setPerPage } = usePagination(sorted, per)
   useEffect(() => setPerPage(per), [per, setPerPage])
 
-  function exportCSV(rows: Compra[]) {
+  function exportCSV(rows: Purchase[]) {
     const esc = (v: string | number | undefined | null) => {
       const s = String(v ?? '')
       return s.includes(',') || s.includes('"') || s.includes('\n')
         ? `"${s.replace(/"/g, '""')}"`
         : s
     }
-    const header = ['id', 'numero', 'fecha', 'fecha_entrega', 'proveedor', 'subtotal', 'impuesto', 'total', 'estado', 'notas']
+    const header = ['id', 'number', 'date', 'delivery_date', 'supplier', 'subtotal', 'taxes', 'total', 'status', 'notes']
     const body = rows.map((r) => [
-      r.id, r.numero, r.fecha, r.fecha_entrega, r.proveedor_nombre,
-      r.subtotal, r.impuesto, r.total, r.estado, r.notas,
+      r.id, r.number, r.date, r.delivery_date, r.supplier_name,
+      r.subtotal, r.taxes, r.total, r.status, r.notes,
     ].map(esc))
     const csv = [header, ...body].map((line) => line.join(',')).join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `compras-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `purchases-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -132,8 +131,8 @@ export default function ComprasList() {
         <div>
           <label className="text-sm mr-2">{t('purchases:status')}</label>
           <select
-            value={estado}
-            onChange={(e) => setEstado(e.target.value)}
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
           >
             <option value="">{t('purchases:all')}</option>
@@ -147,8 +146,8 @@ export default function ComprasList() {
           <label className="text-sm mr-2">{t('purchases:from')}</label>
           <input
             type="date"
-            value={desde}
-            onChange={(e) => setDesde(e.target.value)}
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
           />
         </div>
@@ -156,8 +155,8 @@ export default function ComprasList() {
           <label className="text-sm mr-2">{t('purchases:to')}</label>
           <input
             type="date"
-            value={hasta}
-            onChange={(e) => setHasta(e.target.value)}
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
           />
         </div>
@@ -193,14 +192,14 @@ export default function ComprasList() {
           <thead>
             <tr className="text-left border-b">
               <th className="py-2 px-2">
-                <button className="underline" onClick={() => toggleSort('fecha')}>
-                  {t('purchases:date')} {sortKey === 'fecha' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                <button className="underline" onClick={() => toggleSort('date')}>
+                  {t('purchases:date')} {sortKey === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">{t('purchases:number')}</th>
               <th className="py-2 px-2">
-                <button className="underline" onClick={() => toggleSort('proveedor_nombre')}>
-                  {t('purchases:supplier')} {sortKey === 'proveedor_nombre' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                <button className="underline" onClick={() => toggleSort('supplier_name')}>
+                  {t('purchases:supplier')} {sortKey === 'supplier_name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">
@@ -209,8 +208,8 @@ export default function ComprasList() {
                 </button>
               </th>
               <th className="py-2 px-2">
-                <button className="underline" onClick={() => toggleSort('estado')}>
-                  {t('purchases:status')} {sortKey === 'estado' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                <button className="underline" onClick={() => toggleSort('status')}>
+                  {t('purchases:status')} {sortKey === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">{t('purchases:actions')}</th>
@@ -219,12 +218,12 @@ export default function ComprasList() {
           <tbody>
             {view.map((v) => (
               <tr key={v.id} className="border-b hover:bg-gray-50">
-                <td className="py-2 px-2">{v.fecha}</td>
-                <td className="py-2 px-2">{v.numero || '-'}</td>
-                <td className="py-2 px-2">{v.proveedor_nombre || '-'}</td>
+                <td className="py-2 px-2">{v.date}</td>
+                <td className="py-2 px-2">{v.number || '-'}</td>
+                <td className="py-2 px-2">{v.supplier_name || '-'}</td>
                 <td className="py-2 px-2">{v.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td className="py-2 px-2">
-                  <StatusBadge estado={v.estado} />
+                  <StatusBadge status={v.status} />
                 </td>
                 <td className="py-2 px-2">
                   {can('purchases:read') && (
@@ -232,7 +231,7 @@ export default function ComprasList() {
                       {t('purchases:view')}
                     </Link>
                   )}
-                  {v.estado === 'draft' && can('purchases:update') && (
+                  {v.status === 'draft' && can('purchases:update') && (
                     <Link to={`${v.id}/edit`} className="text-blue-600 hover:underline mr-3">
                       {t('purchases:edit')}
                     </Link>
@@ -265,7 +264,7 @@ export default function ComprasList() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
             <h3 className="font-semibold text-gray-900 mb-1">{t('purchases:deleteConfirm')}</h3>
-            <p className="text-sm text-gray-500 mb-5">{t('purchases:deleteConfirmBody', 'Esta acción no se puede deshacer.')}</p>
+            <p className="text-sm text-gray-500 mb-5">{t('purchases:deleteConfirmBody')}</p>
             <div className="flex gap-3 justify-end">
               <button
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
@@ -276,11 +275,11 @@ export default function ComprasList() {
               <button
                 className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
                 onClick={async () => {
-                  const id = deleteId
+                  const currentId = deleteId
                   setDeleteId(null)
                   try {
-                    await removeCompra(id)
-                    setItems((p) => p.filter((x) => String(x.id) !== id))
+                    await removePurchase(currentId)
+                    setItems((p) => p.filter((x) => String(x.id) !== currentId))
                     success(t('purchases:deleted'))
                   } catch (e: any) {
                     toastError(getErrorMessage(e))

@@ -21,7 +21,7 @@ class IdiomaUpdate(BaseModel):
 
 
 class IdiomaRead(BaseModel):
-    id: int
+    id: UUID
     code: str
     name: str
     active: bool
@@ -44,7 +44,7 @@ class MonedaUpdate(BaseModel):
 
 
 class MonedaRead(BaseModel):
-    id: int
+    id: UUID
     code: str
     name: str
     symbol: str
@@ -67,7 +67,7 @@ class PaisUpdate(BaseModel):
 
 
 class PaisRead(BaseModel):
-    id: int
+    id: UUID
     code: str
     name: str
     active: bool
@@ -88,8 +88,8 @@ class DiaSemanaUpdate(BaseModel):
 
 
 class DiaSemanaRead(BaseModel):
-    id: int
-    code: str
+    id: UUID
+    code: str | None = None
     name: str
     order: int
 
@@ -97,20 +97,20 @@ class DiaSemanaRead(BaseModel):
 
 
 class HorarioAtencionCreate(BaseModel):
-    weekday_id: int
+    weekday_id: UUID
     start_time: str
     end_time: str
 
 
 class HorarioAtencionUpdate(BaseModel):
-    weekday_id: int | None = None
+    weekday_id: UUID | None = None
     start_time: str | None = None
     end_time: str | None = None
 
 
 class HorarioAtencionRead(BaseModel):
-    id: int
-    weekday_id: int
+    id: UUID
+    weekday_id: UUID
     start_time: str
     end_time: str
 

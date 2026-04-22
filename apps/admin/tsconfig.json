@@ -45,6 +45,8 @@
       "@crud-components/*": ["../packages/crud-components/src/*"],
       "@validation": ["../packages/validation/src"],
       "@validation/*": ["../packages/validation/src/*"],
+      "@packages/api-types": ["../packages/api-types/src"],
+      "@packages/api-types/*": ["../packages/api-types/src/*"],
 
       "zod": ["../packages/zod/index.ts"],
 

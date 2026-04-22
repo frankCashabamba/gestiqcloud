@@ -206,7 +206,7 @@ export default function FacturasList() {
           ? formatCurrency(v.total)
           : '-'}
       </td>
-      <td><FacturaStatusBadge estado={v.estado} /></td>
+      <td><FacturaStatusBadge status={v.estado} /></td>
             <td className="flex gap-2 items-center">
               {(v.estado||'').toLowerCase() === 'pending_payment' ? (
                 <>

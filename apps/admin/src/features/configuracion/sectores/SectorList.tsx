@@ -77,17 +77,17 @@ export default function SectorList() {
         </thead>
         <tbody>
           {items.map((it) => {
-            const color = it.template_config?.branding?.color_primario
+            const color = it.templateConfig?.branding?.primaryColor
             return (
               <tr key={it.id} className="border-t">
                 <td className="py-2 px-3">{it.name}</td>
                 <td className="py-2 px-3">{it.code || '—'}</td>
                 <td className="py-2 px-3">{it.description || '—'}</td>
                 <td className="py-2 px-3">
-                  {getEmpresaNombre(it.template_config?.defaults?.business_type_id as string)}
+                  {getEmpresaNombre(it.templateConfig?.defaults?.business_type_id as string)}
                 </td>
                 <td className="py-2 px-3">
-                  {getNegocioNombre(it.template_config?.defaults?.business_category_id as string)}
+                  {getNegocioNombre(it.templateConfig?.defaults?.business_category_id as string)}
                 </td>
                 <td className="py-2 px-3">{it.active ? 'Sí' : 'No'}</td>
                 <td className="py-2 px-3">

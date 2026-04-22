@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { useCRUD, usePagination, useFilters } from '@gestiq/ui-hooks'
+import { useCRUD, usePagination, useFilters } from '@ui-hooks'
 
 export interface ColumnConfig<T> {
   key: keyof T
@@ -307,7 +307,7 @@ export function GenericList<T = any>({
 
           {filterable && filters.activeFilters.length > 0 && (
             <div className="active-filters">
-              {filters.activeFilters.map(key => (
+              {filters.activeFilters.map((key: string) => (
                 <span key={key} className="filter-tag">
                   {key}: {filters.filters[key]}
                   <button onClick={() => filters.removeFilter(key)}>×</button>
@@ -379,7 +379,7 @@ export function GenericList<T = any>({
           </thead>
 
           <tbody>
-            {crud.items.map((item, index) => {
+            {crud.items.map((item: T, index: number) => {
               const isSelected = selectedItems.includes(item)
               const rowClass = rowClassName?.(item, index) || ''
 

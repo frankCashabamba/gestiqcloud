@@ -54,7 +54,13 @@ def create_purchase(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = claims["tenant_id"]
-    return PurchaseRepo(db).create(tenant_id, **payload.model_dump())
+    return PurchaseRepo(db).create(
+        tenant_id,
+        date=payload.date,
+        supplier_id=payload.supplier_id,
+        total=payload.total,
+        status=payload.status,
+    )
 
 
 @router.put("/{cid}", response_model=PurchaseOut)
@@ -66,7 +72,14 @@ def update_purchase(
 ):
     tenant_id = claims["tenant_id"]
     try:
-        return PurchaseRepo(db).update(tenant_id, cid, **payload.model_dump())
+        return PurchaseRepo(db).update(
+            tenant_id,
+            cid,
+            date=payload.date,
+            supplier_id=payload.supplier_id,
+            total=payload.total,
+            status=payload.status,
+        )
     except ValueError:
         raise HTTPException(404, "Not found")
 

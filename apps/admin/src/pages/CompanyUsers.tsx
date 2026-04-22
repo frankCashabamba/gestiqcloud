@@ -51,14 +51,14 @@ export const CompanyUsuarios: React.FC = () => {
   const [formData, setFormData] = useState<CreateUserPayload>({
     email: '',
     name: '',
-    apellidos: '',
+    lastName: '',
     password: '',
     roles: [],
   })
 
   const [editFormData, setEditFormData] = useState<UpdateUserPayload>({
     name: '',
-    apellidos: '',
+    lastName: '',
     roles: [],
     active: true,
   })
@@ -72,7 +72,7 @@ export const CompanyUsuarios: React.FC = () => {
         listCompanyUsers(id),
       ])
       setEmpresa(empresaData)
-      setUsuarios(usersData.users || usersData || [])
+      setUsuarios(usersData || [])
     } catch (err: any) {
       showToast('Error loading data', 'error')
       console.error(err)
@@ -216,7 +216,7 @@ export const CompanyUsuarios: React.FC = () => {
     setSelectedUser(user)
     setEditFormData({
       name: user.name,
-      apellidos: user.apellidos || '',
+      lastName: user.lastName || '',
       roles: user.roles,
       active: user.active,
     })
@@ -228,7 +228,7 @@ export const CompanyUsuarios: React.FC = () => {
     setFormData({
       email: '',
       name: '',
-      apellidos: '',
+      lastName: '',
       password: '',
       roles: [],
     })
@@ -339,7 +339,7 @@ export const CompanyUsuarios: React.FC = () => {
                     {user.email}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.name} {user.apellidos}
+                    {user.name} {user.lastName}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     <div className="flex flex-wrap gap-1">
@@ -365,8 +365,8 @@ export const CompanyUsuarios: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {user.ultima_conexion
-                      ? new Date(user.ultima_conexion).toLocaleString()
+                    {user.lastLogin
+                      ? new Date(user.lastLogin).toLocaleString()
                       : 'Never'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -454,8 +454,8 @@ export const CompanyUsuarios: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.apellidos}
-                    onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -543,9 +543,9 @@ export const CompanyUsuarios: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={editFormData.apellidos || ''}
+                    value={editFormData.lastName || ''}
                     onChange={(e) =>
-                      setEditFormData({ ...editFormData, apellidos: e.target.value })
+                      setEditFormData({ ...editFormData, lastName: e.target.value })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
@@ -647,7 +647,7 @@ export const CompanyUsuarios: React.FC = () => {
                         <td className="px-4 py-2 text-sm text-gray-900">{activity.action}</td>
                         <td className="px-4 py-2 text-sm text-gray-600">{activity.module}</td>
                         <td className="px-4 py-2 text-sm text-gray-600">
-                          {activity.ip_address || '-'}
+                          {activity.ipAddress || '-'}
                         </td>
                       </tr>
                     ))}

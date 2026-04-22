@@ -11,6 +11,8 @@ type Issue = {
 class ZodString {
   private _checks: Array<(value: string) => string | null> = []
   private _defaultValue: string | undefined
+  private _nullable: boolean = false
+  private _optional: boolean = false
 
   url() {
     this._checks.push((value) => {
@@ -34,6 +36,16 @@ class ZodString {
     return this
   }
 
+  nullable() {
+    this._nullable = true
+    return this
+  }
+
+  optional() {
+    this._optional = true
+    return this
+  }
+
   default(value: string) {
     this._defaultValue = value
     return this
@@ -41,8 +53,14 @@ class ZodString {
 
   _parse(value: unknown, path: IssuePath) {
     const val = value ?? this._defaultValue
-    if (val === undefined) {
+    if (val === undefined && !this._optional) {
       return { success: false as const, issues: [{ path, message: 'Required' }] }
+    }
+    if (val === null && !this._nullable) {
+      return { success: false as const, issues: [{ path, message: 'Expected string, got null' }] }
+    }
+    if (val === undefined || val === null) {
+      return { success: true as const, data: val }
     }
     if (typeof val !== 'string') {
       return { success: false as const, issues: [{ path, message: 'Expected string' }] }
@@ -55,6 +73,82 @@ class ZodString {
     }
     if (errors.length > 0) {
       return { success: false as const, issues: errors }
+    }
+    return { success: true as const, data: val }
+  }
+}
+
+class ZodNumber {
+  private _defaultValue: number | undefined
+  private _nullable: boolean = false
+  private _optional: boolean = false
+
+  nullable() {
+    this._nullable = true
+    return this
+  }
+
+  optional() {
+    this._optional = true
+    return this
+  }
+
+  default(value: number) {
+    this._defaultValue = value
+    return this
+  }
+
+  _parse(value: unknown, path: IssuePath) {
+    const val = value ?? this._defaultValue
+    if (val === undefined && !this._optional) {
+      return { success: false as const, issues: [{ path, message: 'Required' }] }
+    }
+    if (val === null && !this._nullable) {
+      return { success: false as const, issues: [{ path, message: 'Expected number, got null' }] }
+    }
+    if (val === undefined || val === null) {
+      return { success: true as const, data: val }
+    }
+    if (typeof val !== 'number') {
+      return { success: false as const, issues: [{ path, message: 'Expected number' }] }
+    }
+    return { success: true as const, data: val }
+  }
+}
+
+class ZodBoolean {
+  private _defaultValue: boolean | undefined
+  private _nullable: boolean = false
+  private _optional: boolean = false
+
+  nullable() {
+    this._nullable = true
+    return this
+  }
+
+  optional() {
+    this._optional = true
+    return this
+  }
+
+  default(value: boolean) {
+    this._defaultValue = value
+    return this
+  }
+
+  _parse(value: unknown, path: IssuePath) {
+    const val = value ?? this._defaultValue
+    if (val === undefined && !this._optional) {
+      return { success: false as const, issues: [{ path, message: 'Required' }] }
+    }
+    if (val === null && !this._nullable) {
+      return { success: false as const, issues: [{ path, message: 'Expected boolean, got null' }] }
+    }
+    if (val === undefined || val === null) {
+      return { success: true as const, data: val }
+    }
+    if (typeof val !== 'boolean') {
+      return { success: false as const, issues: [{ path, message: 'Expected boolean' }] }
     }
     return { success: true as const, data: val }
   }
@@ -84,6 +178,14 @@ class ZodObject<TShape extends Record<string, any>> {
 
     return { success: true, data: result as any }
   }
+
+  parse(data: any): { [K in keyof TShape]: any } {
+    const result = this.safeParse(data)
+    if (result.success === false) {
+      throw result.error
+    }
+    return result.data
+  }
 }
 
 export class ZodError extends Error {
@@ -107,8 +209,13 @@ export class ZodError extends Error {
 
 export const z = {
   string: () => new ZodString(),
+  number: () => new ZodNumber(),
+  boolean: () => new ZodBoolean(),
   object: <TShape extends Record<string, any>>(shape: { [K in keyof TShape]: any }) =>
     new ZodObject<TShape>(shape),
 }
 
 export type infer<T> = T extends { _parse: (...args: any) => { data: infer U } } ? U : never
+
+// Add ZodTypeAny for useCRUD compatibility
+export type ZodTypeAny = any

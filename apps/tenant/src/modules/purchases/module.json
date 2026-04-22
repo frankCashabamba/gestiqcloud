@@ -8,6 +8,5 @@
   "default_enabled": true,
   "dependencies": ["inventory"],
   "countries": ["ES", "EC"],
-  "aliases": ["compras"],
   "implemented": true
 }

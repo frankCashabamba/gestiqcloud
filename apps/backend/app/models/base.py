@@ -5,10 +5,10 @@ Base models for common patterns in the application.
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, String, Text, func
+from sqlalchemy import Boolean, String, Text, func, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
@@ -41,7 +41,9 @@ class BaseCatalogModel(Base):
     __abstract__ = True
 
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, nullable=False)
+    tenant_id: Mapped[UUID] = mapped_column(
+        TENANT_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -53,6 +55,7 @@ class BaseCatalogModel(Base):
         default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
     )
 
+    
     # Backward compatibility alias for active -> is_active
     @hybrid_property
     def active(self) -> bool:
@@ -115,7 +118,9 @@ class BaseTransactionalModel(Base):
     __abstract__ = True
 
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, nullable=False)
+    tenant_id: Mapped[UUID] = mapped_column(
+        TENANT_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         default=_get_now, server_default=func.now(), nullable=False
     )

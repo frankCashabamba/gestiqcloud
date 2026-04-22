@@ -158,18 +158,15 @@ export default function CompanyConfiguration() {
             const data = await getCompanySettings(id);
             setSettings(data);
 
-            // âœ… CORRECCIÃ“N: Usar sector_template_name en lugar de sector_id
-            // El backend guarda el NOMBRE del sector en sector_template_name (STRING)
-            // Ejemplo: "panaderia", "taller", "retail"
-            // NO usa sector_id (INT/NULL)
+            // Use the sector template name stored by the backend to resolve the selected sector.
 
-            if (data.sector_template_name && sectores.length > 0) {
+            if (data.sectorTemplateName && sectores.length > 0) {
                 // Buscar el sector en la lista cargada usando el nombre/code
                 const matchingSector = sectores.find(
                     (s) =>
-                        s.code === data.sector_template_name ||
-                        s.name === data.sector_template_name ||
-                        s.id === data.sector_template_name
+                        s.code === data.sectorTemplateName ||
+                        s.name === data.sectorTemplateName ||
+                        s.id === data.sectorTemplateName
                 );
 
                 if (matchingSector) {
@@ -397,9 +394,8 @@ export default function CompanyConfiguration() {
 
             // Guardar configuraci?n avanzada + sector/plantilla en un solo call
             await updateCompanySettings(id, {
-                sector_id: selectedSector,
-                sector_template_name: selectedPlantillaCode || null,
-                sector_plantilla_nombre: selectedPlantilla || null,
+                sectorId: selectedSector,
+                sectorTemplateName: selectedPlantillaCode || null,
             });
             await updateCompanyLimits(id, {
                 user_limit: limits.user_limit,

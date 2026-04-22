@@ -11,9 +11,9 @@ import { getCompanySettings, formatCurrency, type CompanySettings } from '../../
 let _ventasCache: { data: Venta[], ts: number } | null = null
 const VENTAS_CACHE_TTL = 2 * 60 * 1000
 
-function ConfirmBadge({ estado }: { estado?: string }) {
+function ConfirmBadge({ status }: { status?: string }) {
   const { t } = useTranslation()
-  if (estado === 'confirmed' || estado === 'emitida') {
+  if (status === 'confirmed' || status === 'emitida') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
         ✓ {t('sales.statusConfirmed')}
@@ -168,7 +168,7 @@ export default function PedidosList() {
                   <DepositBadge amount={v.deposit_amount} paid={v.deposit_paid} />
                 </td>
                 <td className="py-2 px-2">
-                  <ConfirmBadge estado={v.estado} />
+                  <ConfirmBadge status={v.estado} />
                 </td>
                 <td className="py-2 px-2">
                   <div className="flex gap-2 flex-wrap">

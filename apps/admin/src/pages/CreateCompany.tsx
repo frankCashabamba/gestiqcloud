@@ -26,9 +26,9 @@ const INITIAL_STATE: FormularioEmpresa = {
   cp: '',
   sitio_web: '',
   logo: null,
-  color_primario: '',
-  color_secundario: '',
-  plantilla_inicio: '',
+  primaryColor: '',
+  secondaryColor: '',
+  startTemplate: '',
   config_json: '',
   default_language: '',
   timezone: '',
@@ -329,9 +329,9 @@ export const CrearEmpresa: React.FC = () => {
     if (!template) return
     setFormData((prev) => ({
       ...prev,
-      color_primario: template.branding.color_primario || prev.color_primario,
-      color_secundario: template.branding.color_secundario || prev.color_secundario,
-      plantilla_inicio: template.branding.plantilla_inicio || prev.plantilla_inicio,
+      primaryColor: template.branding.primaryColor || prev.primaryColor,
+      secondaryColor: template.branding.secondaryColor || prev.secondaryColor,
+      startTemplate: template.branding.startTemplate || prev.startTemplate,
     }))
   }
 
@@ -740,18 +740,18 @@ export const CrearEmpresa: React.FC = () => {
                     </div>
 
                     <div className="cc-field" style={{ gridColumn: 'span 4' }}>
-                      <label htmlFor="color_primario">Color primario</label>
-                      <input id="color_primario" name="color_primario" value={formData.color_primario} onChange={onChange} placeholder="#1d4ed8" disabled={loading} />
+                      <label htmlFor="primaryColor">Primary color</label>
+                      <input id="primaryColor" name="primaryColor" value={formData.primaryColor} onChange={onChange} placeholder="#1d4ed8" disabled={loading} />
                     </div>
 
                     <div className="cc-field" style={{ gridColumn: 'span 4' }}>
-                      <label htmlFor="color_secundario">Color secundario</label>
-                      <input id="color_secundario" name="color_secundario" value={formData.color_secundario} onChange={onChange} placeholder="#0f172a" disabled={loading} />
+                      <label htmlFor="secondaryColor">Secondary color</label>
+                      <input id="secondaryColor" name="secondaryColor" value={formData.secondaryColor} onChange={onChange} placeholder="#0f172a" disabled={loading} />
                     </div>
 
                     <div className="cc-field" style={{ gridColumn: 'span 4' }}>
-                      <label htmlFor="plantilla_inicio">Plantilla inicio</label>
-                      <input id="plantilla_inicio" name="plantilla_inicio" value={formData.plantilla_inicio} onChange={onChange} disabled={loading} />
+                      <label htmlFor="startTemplate">Start template</label>
+                      <input id="startTemplate" name="startTemplate" value={formData.startTemplate} onChange={onChange} disabled={loading} />
                     </div>
 
                     <div className="cc-field" style={{ gridColumn: 'span 6' }}>

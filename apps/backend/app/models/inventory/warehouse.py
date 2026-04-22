@@ -30,6 +30,8 @@ class Warehouse(Base):
 
     # Campos básicos para tenant isolation y timestamps
     tenant_id: Mapped[str] = mapped_column(SQLITE_UUID, nullable=False, index=True)
+    code: Mapped[str | None] = mapped_column(String, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Timestamps para consistencia con otros modelos
     created_at: Mapped[datetime] = mapped_column(

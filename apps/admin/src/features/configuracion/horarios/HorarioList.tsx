@@ -31,9 +31,9 @@ export default function HorarioList() {
         <tbody>
           {items.map((it) => (
             <tr key={it.id} className="border-t">
-              <td className="py-2 px-3">{it.dia_id}</td>
-              <td className="py-2 px-3">{it.inicio}</td>
-              <td className="py-2 px-3">{it.fin}</td>
+              <td className="py-2 px-3">{it.dayId}</td>
+              <td className="py-2 px-3">{it.startTime}</td>
+              <td className="py-2 px-3">{it.endTime}</td>
               <td className="py-2 px-3">
                 <Link to={`${it.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 <button className="text-red-700" onClick={async () => { if (!confirm('¿Eliminar?')) return; await removeHorario(it.id); setItems((p)=>p.filter(x=>x.id!==it.id)) }}>Eliminar</button>

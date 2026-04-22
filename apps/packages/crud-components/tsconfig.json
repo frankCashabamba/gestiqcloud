@@ -14,7 +14,14 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@ui-hooks": ["../ui-hooks/src"],
+      "@ui-hooks/*": ["../ui-hooks/src/*"],
+      "@validation": ["../validation/src"],
+      "@validation/*": ["../validation/src/*"]
+    }
   },
   "include": ["src"],
   "peerDependencies": {

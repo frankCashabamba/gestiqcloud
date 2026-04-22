@@ -20,9 +20,9 @@ export interface FormularioEmpresa {
   cp: string;
   sitio_web: string;
   logo: File | null;
-  color_primario: string;
-  color_secundario: string;
-  plantilla_inicio: string;
+  primaryColor: string;
+  secondaryColor: string;
+  startTemplate: string;
   /**
    * Raw textarea content. Must be parsed to an object before sending to the
    * backend. The wire payload uses {@link EmpresaPayload.config_json}, which

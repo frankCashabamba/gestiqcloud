@@ -30,8 +30,8 @@ class BusinessType(BaseCatalogModel):
     __table_args__ = {"extend_existing": True}
 
 
-class BusinessCategory(BaseCatalogModel):
-    """Business Category model - MODERN schema (English)"""
+class BusinessCategory(BaseCatalogModelWithoutTenant):
+    """Business Category model - global config, no tenant isolation"""
 
     __tablename__ = "business_categories"
     __table_args__ = {"extend_existing": True}
@@ -77,7 +77,7 @@ class UserProfile(Base):
     user_id: Mapped[UUID] = mapped_column(TENANT_UUID, ForeignKey("company_users.id"))
     language: Mapped[str] = mapped_column(String(10), default="es")
     timezone: Mapped[str] = mapped_column(String(50), default="UTC")
-    tenant_id = mapped_column(ForeignKey("tenants.id"))
+    tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, ForeignKey("tenants.id"))
 
     user: Mapped["CompanyUser"] = relationship("CompanyUser")
     tenant: Mapped["Tenant"] = relationship("Tenant")  # noqa: F821
@@ -88,7 +88,6 @@ class Language(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "languages"
 
-    # Estandarizado a UUID para consistencia across tenant models
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
 
@@ -98,7 +97,6 @@ class Currency(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "currencies"
 
-    # Estandarizado a UUID para consistencia across tenant models
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
     symbol: Mapped[str] = mapped_column(String(5), nullable=False)
@@ -109,7 +107,6 @@ class Country(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "countries"
 
-    # Estandarizado a UUID para consistencia across tenant models
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str] = mapped_column(String(2), unique=True, nullable=False)
 
@@ -134,7 +131,6 @@ class Weekday(BaseCatalogModelWithoutTenant):
 
     __tablename__ = "weekdays"
 
-    # Estandarizado a UUID para consistencia across tenant models
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     key: Mapped[str] = mapped_column(String(20), unique=True)
     order: Mapped[int] = mapped_column(Integer)
@@ -145,15 +141,15 @@ class BusinessHours(Base):
 
     __tablename__ = "business_hours"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    weekday_id: Mapped[int] = mapped_column(ForeignKey("weekdays.id"))
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
+    weekday_id: Mapped[UUID] = mapped_column(TENANT_UUID, ForeignKey("weekdays.id"))
     start_time: Mapped[str] = mapped_column(String(5), nullable=False)
     end_time: Mapped[str] = mapped_column(String(5), nullable=False)
     weekday: Mapped["Weekday"] = relationship("Weekday")
 
 
-class SectorTemplate(BaseCatalogModel):
-    """Sector Template model - MODERN schema (English)"""
+class SectorTemplate(BaseCatalogModelWithoutTenant):
+    """Sector Template model - global config, no tenant isolation"""
 
     __tablename__ = "sector_templates"
     __table_args__ = {"extend_existing": True}

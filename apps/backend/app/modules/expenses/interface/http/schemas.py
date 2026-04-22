@@ -1,7 +1,7 @@
 from datetime import date
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ExpenseBase(BaseModel):
@@ -15,6 +15,13 @@ class ExpenseBase(BaseModel):
     invoice_number: str | None = None
     status: str | None = None
     notes: str | None = None
+
+    @field_validator("supplier_id", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
 
 
 class ExpenseCreate(ExpenseBase):

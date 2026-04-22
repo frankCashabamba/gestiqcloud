@@ -1,46 +1,46 @@
-﻿/**
+/**
  * Purchases Offline Sync Adapter
  *
- * Synchronizes purchases (compras) with offline support.
+ * Synchronizes purchases with offline support.
  * - Create, update, soft-delete
  * - Conflict detection on total/status/line items
  */
 
 import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
 import { storeEntity, listEntities, queueDeletion } from '@/lib/offlineStore'
-import { listCompras, getCompra, createCompra, updateCompra, removeCompra } from './services'
-import type { Compra } from './services'
+import { listPurchases, getPurchase, createPurchase, updatePurchase, removePurchase } from './services'
+import type { Purchase } from './services'
 
 export const PurchasesAdapter: SyncAdapter = {
   entity: 'purchase',
   canSyncOffline: true,
 
-  async fetchAll(): Promise<Compra[]> {
+  async fetchAll(): Promise<Purchase[]> {
     try {
-      return await listCompras()
+      return await listPurchases()
     } catch (error) {
       console.error('Failed to fetch purchases:', error)
       return []
     }
   },
 
-  async create(data: any): Promise<Compra> {
-    const compra = await createCompra(data)
-    const remoteVersion = (compra as any)?.updated_at ? new Date((compra as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('purchase', String(compra.id), compra, 'synced', remoteVersion)
-    return compra
+  async create(data: any): Promise<Purchase> {
+    const purchase = await createPurchase(data)
+    const remoteVersion = (purchase as any)?.updated_at ? new Date((purchase as any).updated_at as string).getTime() : Date.now()
+    await storeEntity('purchase', String(purchase.id), purchase, 'synced', remoteVersion)
+    return purchase
   },
 
-  async update(id: string, data: any): Promise<Compra> {
-    const compra = await updateCompra(id, data)
-    const remoteVersion = (compra as any)?.updated_at ? new Date((compra as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('purchase', String(id), compra, 'synced', remoteVersion)
-    return compra
+  async update(id: string, data: any): Promise<Purchase> {
+    const purchase = await updatePurchase(id, data)
+    const remoteVersion = (purchase as any)?.updated_at ? new Date((purchase as any).updated_at as string).getTime() : Date.now()
+    await storeEntity('purchase', String(id), purchase, 'synced', remoteVersion)
+    return purchase
   },
 
   async delete(id: string): Promise<void> {
     try {
-      await removeCompra(id)
+      await removePurchase(id)
       await storeEntity('purchase', String(id), { _deleted: true, _op: 'delete' }, 'synced', Date.now())
     } catch (error) {
       await queueDeletion('purchase', id)
@@ -50,8 +50,8 @@ export const PurchasesAdapter: SyncAdapter = {
 
   async getRemoteVersion(id: string): Promise<number> {
     try {
-      const compra = await getCompra(id)
-      const timestamp = (compra as any)?.updated_at ?? (compra as any)?.created_at
+      const purchase = await getPurchase(id)
+      const timestamp = (purchase as any)?.updated_at ?? (purchase as any)?.created_at
       return timestamp ? new Date(timestamp as string).getTime() : 0
     } catch {
       return 0
@@ -60,10 +60,9 @@ export const PurchasesAdapter: SyncAdapter = {
 
   detectConflict(local: any, remote: any): boolean {
     if (!remote) return false
-    const itemsDiffer = JSON.stringify(local.items || local.lineas || []) !== JSON.stringify(remote.items || remote.lineas || [])
+    const itemsDiffer = JSON.stringify(local.items || local.lines || []) !== JSON.stringify(remote.items || remote.lines || [])
     return itemsDiffer ||
            local.total !== remote.total ||
-           local.estado !== remote.estado ||
            local.status !== remote.status
   }
 }

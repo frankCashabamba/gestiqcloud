@@ -24,7 +24,7 @@ export function buildEmpresaPayload(f: FormularioEmpresa): EmpresaPayload {
   const config_json: Record<string, unknown> = { ...(cfg || {}) }
   return {
     name: f.nombre_empresa?.trim(),
-    initial_template: f.plantilla_inicio || undefined,
+    initial_template: f.startTemplate || undefined,
     tax_id: f.ruc?.trim(),
     phone: f.telefono?.trim(),
     address: f.direccion?.trim(),

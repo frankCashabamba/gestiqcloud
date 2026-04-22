@@ -1,9 +1,9 @@
 import React from 'react'
 
-export type EstadoVenta = 'borrador' | 'emitida' | 'anulada' | 'facturada' | string | undefined
+export type SaleStatus = 'borrador' | 'emitida' | 'anulada' | 'facturada' | string | undefined
 
-export default function StatusBadge({ estado }: { estado: EstadoVenta }) {
-  const e = (estado || '').toLowerCase()
+export default function StatusBadge({ status }: { status: SaleStatus }) {
+  const e = (status || '').toLowerCase()
   const style =
     e === 'emitida'
       ? { background: '#dcfce7', color: '#166534', border: '1px solid #86efac' }

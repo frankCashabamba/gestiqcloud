@@ -11,20 +11,19 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from app.config.database import Base
-from app.models.tenant import Tenant
+from app.models.base import BaseCatalogModel
 
 
-class Product(Base):
+class Product(BaseCatalogModel):
     """Product model - MODERN schema (English names)"""
 
     __tablename__ = "products"
     __table_args__ = {"extend_existing": True}
 
+    # Override id to use different UUID type for Product model
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     sku: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
     name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -52,7 +51,6 @@ class Product(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    tenant: Mapped["Tenant"] = relationship()
     category_rel = relationship("ProductCategory", foreign_keys=[category_id], lazy="select")
     recipe: Mapped[Optional["Recipe"]] = relationship(  # noqa: F821
         back_populates="product", uselist=False

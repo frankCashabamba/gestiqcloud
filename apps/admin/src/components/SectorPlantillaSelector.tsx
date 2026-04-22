@@ -6,9 +6,9 @@ export interface SectorTemplate {
   id: number
   name: string
   branding: {
-    color_primario: string
-    color_secundario?: string
-    plantilla_inicio: string
+    primaryColor: string
+    secondaryColor?: string
+    startTemplate: string
     icon?: string
   }
   modules_count: number
@@ -99,8 +99,8 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
               className={`template-card ${isSelected ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
               onClick={() => handleSelect(template.id)}
               style={{
-                borderColor: isSelected ? template.branding.color_primario : '#e5e7eb',
-                backgroundColor: isSelected ? `${template.branding.color_primario}08` : '#fff',
+                borderColor: isSelected ? template.branding.primaryColor : '#e5e7eb',
+                backgroundColor: isSelected ? `${template.branding.primaryColor}08` : '#fff',
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 opacity: disabled ? 0.6 : 1,
               }}
@@ -108,7 +108,7 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
               <div
                 className="template-icon"
                 style={{
-                  background: `linear-gradient(135deg, ${template.branding.color_primario}, ${template.branding.color_primario}dd)`,
+                  background: `linear-gradient(135deg, ${template.branding.primaryColor}, ${template.branding.primaryColor}dd)`,
                   color: '#fff',
                 }}
               >
@@ -131,12 +131,12 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
                   {template.categories.length > 3 && <small className="more">+{template.categories.length - 3}</small>}
                 </div>
                 <div className="template-color-badges">
-                  <div className="template-color-badge" style={{ backgroundColor: template.branding.color_primario }}>
-                    {template.branding.color_primario}
+                  <div className="template-color-badge" style={{ backgroundColor: template.branding.primaryColor }}>
+                    {template.branding.primaryColor}
                   </div>
-                  {template.branding.color_secundario && (
-                    <div className="template-color-badge dark" style={{ backgroundColor: template.branding.color_secundario }}>
-                      {template.branding.color_secundario}
+                  {template.branding.secondaryColor && (
+                    <div className="template-color-badge dark" style={{ backgroundColor: template.branding.secondaryColor }}>
+                      {template.branding.secondaryColor}
                     </div>
                   )}
                 </div>

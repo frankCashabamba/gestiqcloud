@@ -65,7 +65,7 @@ export default function GastoDetail() {
     { label: t('expenses:table.date'), value: gasto.date },
     {
       label: t('expenses:form.status'),
-      value: <StatusBadge estado={gasto.status} />,
+      value: <StatusBadge status={gasto.status} />,
     },
     { label: t('expenses:form.category'), value: gasto.category },
     { label: t('expenses:form.subcategory'), value: gasto.subcategory, hidden: !gasto.subcategory },

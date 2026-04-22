@@ -31,9 +31,9 @@ class ProductCategory(BaseCatalogModel):
     category_metadata: Mapped[dict | None] = mapped_column(JSON_TYPE, nullable=True)
 
     # Relationships
-    tenant: Mapped["Tenant"] = relationship()
+    tenant: Mapped["Tenant"] = relationship("Tenant", backref="product_categories")
     parent: Mapped[Optional["ProductCategory"]] = relationship(
-        remote_side=[id], back_populates="children"
+        remote_side="ProductCategory.id", back_populates="children"
     )
     children: Mapped[list["ProductCategory"]] = relationship(back_populates="parent")
 

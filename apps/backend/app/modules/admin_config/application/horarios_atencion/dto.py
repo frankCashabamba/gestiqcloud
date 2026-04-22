@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 
 @dataclass
 class HorarioAtencionIn:
-    weekday_id: int
+    weekday_id: UUID
     start_time: str
     end_time: str
 
 
 @dataclass
 class HorarioAtencionOut:
-    id: int
-    weekday_id: int
+    id: UUID
+    weekday_id: UUID
     start_time: str
     end_time: str

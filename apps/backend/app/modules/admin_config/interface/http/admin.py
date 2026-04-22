@@ -332,9 +332,9 @@ def _attention_schedule_in_from_update(
 ) -> HorarioAtencionIn:
     data = payload.model_dump(exclude_unset=True)
     return HorarioAtencionIn(
-        dia_id=data.get("dia_id", current.dia_id),
-        inicio=data.get("inicio", current.inicio),
-        fin=data.get("fin", current.fin),
+        weekday_id=data.get("weekday_id", current.weekday_id),
+        start_time=data.get("start_time", current.start_time),
+        end_time=data.get("end_time", current.end_time),
     )
 
 

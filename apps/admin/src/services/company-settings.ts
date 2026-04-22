@@ -5,10 +5,9 @@ export interface CompanySettings {
   timezone?: string;
   currency?: string;
   country?: string;
-  sector_id?: number | string | null;
-  sector_plantilla_name?: string | null;
-  sector_template_name?: string | null;
-  sector_plantilla_nombre?: string | null; // alias para escribir/leer
+  sectorId?: number | string | null;
+  sectorTemplateName?: string | null;
+  sectorTemplateLabel?: string | null;
   pos?: {
     receipt_width_mm?: number;
     tax_price_includes?: boolean;
@@ -90,13 +89,42 @@ export type CompanyFeatureFlags = {
   tenant_overrides: Record<string, boolean>;
 };
 
+function normalizeCompanySettings(raw: any): CompanySettings {
+  return {
+    locale: raw?.locale ?? raw?.language ?? undefined,
+    timezone: raw?.timezone ?? undefined,
+    currency: raw?.currency ?? undefined,
+    country: raw?.country ?? undefined,
+    sectorId: raw?.sectorId ?? raw?.sector_id ?? null,
+    sectorTemplateName: raw?.sectorTemplateName ?? raw?.sector_template_name ?? null,
+    sectorTemplateLabel: raw?.sectorTemplateLabel ?? raw?.sector_plantilla_nombre ?? null,
+    pos: raw?.pos ?? undefined,
+    inventory: raw?.inventory ?? undefined,
+    invoicing: raw?.invoicing ?? undefined,
+    einvoicing: raw?.einvoicing ?? undefined,
+    purchases: raw?.purchases,
+    expenses: raw?.expenses,
+    finance: raw?.finance,
+    hr: raw?.hr,
+    sales: raw?.sales,
+  };
+}
+
+function toApiCompanySettings(settings: Partial<CompanySettings>) {
+  return {
+    ...settings,
+    sector_id: settings.sectorId,
+    sector_template_name: settings.sectorTemplateName,
+  };
+}
+
 export async function getCompanySettings(tenantId: string): Promise<CompanySettings> {
   const response = await api.get(`/v1/admin/companies/${tenantId}/company/settings`);
-  return response.data;
+  return normalizeCompanySettings(response.data);
 }
 
 export async function updateCompanySettings(tenantId: string, settings: Partial<CompanySettings>) {
-  const response = await api.put(`/v1/admin/companies/${tenantId}/company/settings`, settings);
+  const response = await api.put(`/v1/admin/companies/${tenantId}/company/settings`, toApiCompanySettings(settings));
   return response.data;
 }
 

@@ -65,7 +65,7 @@ export default function SectorForm() {
     name: '',
     code: '',
     description: '',
-    template_config: ensureTemplateConfig(),
+    templateConfig: ensureTemplateConfig(),
     active: true,
   })
   const [rawConfig, setRawConfig] = useState(() => JSON.stringify(ensureTemplateConfig(), null, 2))
@@ -91,7 +91,7 @@ export default function SectorForm() {
   useEffect(() => {
     // Pre-fill defaults with first option if none selected
     setForm((prev) => {
-      const defaults = prev.template_config.defaults || {}
+      const defaults = prev.templateConfig.defaults || {}
       const nextDefaults = { ...defaults }
       let changed = false
       if (!defaults.business_type_id && empresas[0]?.id) {
@@ -105,8 +105,8 @@ export default function SectorForm() {
       if (!changed) return prev
       return {
         ...prev,
-        template_config: ensureTemplateConfig({
-          ...prev.template_config,
+        templateConfig: ensureTemplateConfig({
+          ...prev.templateConfig,
           defaults: nextDefaults,
         }),
       }
@@ -119,28 +119,28 @@ export default function SectorForm() {
         name: '',
         code: '',
         description: '',
-        template_config: ensureTemplateConfig(),
+        templateConfig: ensureTemplateConfig(),
         active: true,
       })
       return
     }
     getSector(id)
       .then((m) => {
-        const cfg = ensureTemplateConfig(m.template_config)
+        const cfg = ensureTemplateConfig(m.templateConfig)
         const dashboardTemplate =
-          m.template_config?.branding?.dashboard_template ||
-          m.template_config?.branding?.plantilla_inicio ||
-          cfg.branding.dashboard_template
+          m.templateConfig?.branding?.dashboardTemplate ||
+          m.templateConfig?.branding?.startTemplate ||
+          cfg.branding.dashboardTemplate
 
         setForm({
           name: m.name || '',
           code: m.code || '',
           description: m.description || '',
-          template_config: {
+          templateConfig: {
             ...cfg,
             branding: {
               ...cfg.branding,
-              dashboard_template: dashboardTemplate,
+              dashboardTemplate,
             },
             defaults: {
               ...cfg.defaults,
@@ -155,15 +155,15 @@ export default function SectorForm() {
   }, [id])
 
   useEffect(() => {
-    setRawConfig(JSON.stringify(form.template_config, null, 2))
-  }, [form.template_config])
+    setRawConfig(JSON.stringify(form.templateConfig, null, 2))
+  }, [form.templateConfig])
 
   const updateBranding = (patch: Partial<BrandingConfig>) => {
     setForm((prev) => ({
       ...prev,
-      template_config: ensureTemplateConfig({
-        ...prev.template_config,
-        branding: { ...prev.template_config?.branding, ...patch },
+      templateConfig: ensureTemplateConfig({
+        ...prev.templateConfig,
+        branding: { ...prev.templateConfig?.branding, ...patch },
       }),
     }))
   }
@@ -171,10 +171,10 @@ export default function SectorForm() {
   const toggleFeature = (featureKey: string, enabled: boolean) => {
     setForm((prev) => ({
       ...prev,
-      template_config: ensureTemplateConfig({
-        ...prev.template_config,
+      templateConfig: ensureTemplateConfig({
+        ...prev.templateConfig,
         features: {
-          ...(prev.template_config.features || {}),
+          ...(prev.templateConfig.features || {}),
           [featureKey]: enabled,
         },
       }),
@@ -195,15 +195,15 @@ export default function SectorForm() {
       // Ensure defaults carry business type/category selections
       parsedConfig.defaults = {
         ...parsedConfig.defaults,
-        business_type_id: form.template_config.defaults?.business_type_id || '',
-        business_category_id: form.template_config.defaults?.business_category_id || '',
+        business_type_id: form.templateConfig.defaults?.business_type_id || '',
+        business_category_id: form.templateConfig.defaults?.business_category_id || '',
       }
 
       const payload: FormT = {
         name: form.name.trim(),
         code: form.code?.trim() || null,
         description: form.description?.trim() || null,
-        template_config: parsedConfig,
+        templateConfig: parsedConfig,
         active: form.active ?? true,
       }
       if (id) await updateSector(id, payload)
@@ -215,7 +215,7 @@ export default function SectorForm() {
     }
   }
 
-  const branding = form.template_config?.branding || DEFAULT_TEMPLATE_CONFIG.branding
+  const branding = form.templateConfig?.branding || DEFAULT_TEMPLATE_CONFIG.branding
 
   return (
     <div style={{ padding: 16 }}>
@@ -255,14 +255,14 @@ export default function SectorForm() {
           <div>
             <label className="block mb-1">Tipo de Empresa</label>
             <select
-              value={form.template_config.defaults?.business_type_id || ''}
+              value={form.templateConfig.defaults?.business_type_id || ''}
               onChange={(e) =>
                 setForm((prev) => ({
                   ...prev,
-                  template_config: ensureTemplateConfig({
-                    ...prev.template_config,
+                  templateConfig: ensureTemplateConfig({
+                    ...prev.templateConfig,
                     defaults: {
-                      ...prev.template_config.defaults,
+                      ...prev.templateConfig.defaults,
                       business_type_id: e.target.value,
                     },
                   }),
@@ -281,14 +281,14 @@ export default function SectorForm() {
           <div>
             <label className="block mb-1">Tipo de Negocio</label>
             <select
-              value={form.template_config.defaults?.business_category_id || ''}
+              value={form.templateConfig.defaults?.business_category_id || ''}
               onChange={(e) =>
                 setForm((prev) => ({
                   ...prev,
-                  template_config: ensureTemplateConfig({
-                    ...prev.template_config,
+                  templateConfig: ensureTemplateConfig({
+                    ...prev.templateConfig,
                     defaults: {
-                      ...prev.template_config.defaults,
+                      ...prev.templateConfig.defaults,
                       business_category_id: e.target.value,
                     },
                   }),
@@ -323,8 +323,8 @@ export default function SectorForm() {
               Color primario
               <input
                 type="color"
-                value={branding.color_primario}
-                onChange={(e) => updateBranding({ color_primario: e.target.value })}
+                value={branding.primaryColor}
+                onChange={(e) => updateBranding({ primaryColor: e.target.value })}
                 className="mt-2 h-10 w-20 border border-slate-300 rounded"
               />
             </label>
@@ -332,16 +332,16 @@ export default function SectorForm() {
               Color secundario
               <input
                 type="color"
-                value={branding.color_secundario || '#111827'}
-                onChange={(e) => updateBranding({ color_secundario: e.target.value })}
+                value={branding.secondaryColor || '#111827'}
+                onChange={(e) => updateBranding({ secondaryColor: e.target.value })}
                 className="mt-2 h-10 w-20 border border-slate-300 rounded"
               />
             </label>
             <label className="block text-sm">
               Dashboard template
               <select
-                value={branding.dashboard_template}
-                onChange={(e) => updateBranding({ dashboard_template: e.target.value })}
+                value={branding.dashboardTemplate}
+                onChange={(e) => updateBranding({ dashboardTemplate: e.target.value })}
                 className="mt-1 border px-2 py-1 w-full rounded"
               >
                 {TEMPLATE_OPTIONS.map((opt) => (
@@ -361,7 +361,7 @@ export default function SectorForm() {
               <label key={option.key} className="flex items-center gap-2 text-sm text-gray-900">
                 <input
                   type="checkbox"
-                  checked={Boolean(form.template_config.features?.[option.key])}
+                  checked={Boolean(form.templateConfig.features?.[option.key])}
                   onChange={(e) => toggleFeature(option.key, e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300"
                 />
@@ -383,7 +383,7 @@ export default function SectorForm() {
               setRawConfig(value)
               try {
                 const parsed = JSON.parse(value || '{}')
-                setForm((prev) => ({ ...prev, template_config: ensureTemplateConfig(parsed) }))
+                setForm((prev) => ({ ...prev, templateConfig: ensureTemplateConfig(parsed) }))
               } catch {
                 // ignorar hasta que sea válido
               }

@@ -2,32 +2,32 @@ import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from '../../auth/ProtectedRoute'
 import PermissionDenied from '../../components/PermissionDenied'
-import ComprasList from './List'
-import CompraForm from './Form'
-import CompraDetail from './Detail'
+import PurchasesList from './List'
+import PurchaseForm from './Form'
+import PurchaseDetail from './Detail'
 
-export default function ComprasRoutes() {
+export default function PurchasesRoutes() {
   return (
     <ProtectedRoute
       permission="purchases:read"
       fallback={<PermissionDenied permission="purchases:read" />}
     >
       <Routes>
-        <Route index element={<ComprasList />} />
+        <Route index element={<PurchasesList />} />
         <Route
           path="new"
           element={
             <ProtectedRoute permission="purchases:create">
-              <CompraForm />
+              <PurchaseForm />
             </ProtectedRoute>
           }
         />
-        <Route path=":id" element={<CompraDetail />} />
+        <Route path=":id" element={<PurchaseDetail />} />
         <Route
           path=":id/edit"
           element={
             <ProtectedRoute permission="purchases:update">
-              <CompraForm />
+              <PurchaseForm />
             </ProtectedRoute>
           }
         />

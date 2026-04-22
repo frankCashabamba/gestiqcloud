@@ -185,19 +185,19 @@ export function SectorConfigAdmin() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Version</p>
-                  <p className="font-bold text-gray-900">v{config.config_version}</p>
+                  <p className="font-bold text-gray-900">v{config.configVersion}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Last Updated</p>
                   <p className="font-bold text-gray-900">
-                    {config.last_modified
-                      ? new Date(config.last_modified).toLocaleString()
+                    {config.lastModified
+                      ? new Date(config.lastModified).toLocaleString()
                       : "Never"}
                   </p>
                 </div>
               </div>
-              {config.modified_by && (
-                <p className="text-xs text-gray-500 mt-2">Modified by: {config.modified_by}</p>
+              {config.modifiedBy && (
+                <p className="text-xs text-gray-500 mt-2">Modified by: {config.modifiedBy}</p>
               )}
             </div>
 

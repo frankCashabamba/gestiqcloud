@@ -13,11 +13,18 @@ const CategoriaGastoSchema = z.object({
   id: z.number(),
   code: z.string(),
   name: z.string(),
-  parent_code: z.string().nullable(),
+  parent_code: z.string().nullable().optional(),
   active: z.boolean()
 })
 
-export type CategoriaGasto = z.infer<typeof CategoriaGastoSchema>
+// Manual type definition since infer is causing parsing issues
+export interface CategoriaGasto {
+  id: number
+  code: string
+  name: string
+  parent_code?: string | null
+  active: boolean
+}
 
 export default function CategoriaGastoListRefactored() {
   const nav = useNavigate()
@@ -126,7 +133,7 @@ export default function CategoriaGastoListRefactored() {
         searchable={true}
         filterable={true}
         sortable={true}
-        pagination={true}
+        showPagination={true}
         defaultPerPage={20}
         perPageOptions={[10, 20, 50, 100]}
         onSuccess={handleSuccess}

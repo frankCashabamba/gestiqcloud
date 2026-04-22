@@ -1,11 +1,11 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-export type EstadoFactura = 'borrador' | 'emitida' | 'anulada' | string | undefined
+export type InvoiceStatus = 'borrador' | 'emitida' | 'anulada' | string | undefined
 
-export default function FacturaStatusBadge({ estado }: { estado: EstadoFactura }) {
+export default function FacturaStatusBadge({ status }: { status: InvoiceStatus }) {
   const { t } = useTranslation()
-  const e = (estado || '').toLowerCase()
+  const e = (status || '').toLowerCase()
 
   const className =
     e === 'emitida' || e === 'issued'
